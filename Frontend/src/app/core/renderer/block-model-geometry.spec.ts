@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../blocks/resolver';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
-import { VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, tintColorForFace } from './block-model-geometry';
+import { VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from './three-viewport-engine';
 import { viewportThemePalette } from './viewport-theme';
 
@@ -18,7 +18,15 @@ describe('block model geometry', () => {
     expect(tintColorForFace('minecraft:grass_block', undefined, grass)).toBeUndefined();
     expect(tintColorForFace('minecraft:stone', 0, grass)).toBeUndefined();
     expect(isGrassTintBlock('minecraft:tall_grass')).toBe(true);
-    expect(grassColormapSampleCoordinate(256, 256)).toEqual([127, 0]);
+    expect(grassColormapSampleCoordinate(256, 256)).toEqual([127, 127]);
+  });
+
+  it('samples the vanilla default grass pixel from the colormap image data', () => {
+    const data = new Uint8Array(256 * 256 * 4);
+    const offset = (127 * 256 + 127) * 4;
+    data.set([0x72, 0xb8, 0x55, 0xff], offset);
+    const texture = new THREE.Texture({ width: 256, height: 256, data });
+    expect(sampleGrassColormap(texture)).toBe(0x72b855);
   });
   it('preserves out-of-range element coordinates and reversed UV ordering', () => {
     const element: ResolvedElement = { from: [-2, 0, 0], to: [20, 8, 16], faces: { north: face } };

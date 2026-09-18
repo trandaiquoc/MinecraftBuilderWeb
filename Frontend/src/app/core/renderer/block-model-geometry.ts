@@ -185,11 +185,12 @@ export function tintColorForFace(blockId: string, tintIndex: number | undefined,
   return tintIndex === undefined || !isGrassTintBlock(blockId) ? undefined : grassColor;
 }
 
-export function grassColormapSampleCoordinate(width: number, height: number): readonly [number, number] {
-  return [Math.floor((1 - 0.5) * Math.max(width - 1, 0)), Math.floor((1 - 1) * Math.max(height - 1, 0))];
+export function grassColormapSampleCoordinate(width: number, height: number, temperature = 0.5, humidity = 1): readonly [number, number] {
+  const effectiveHumidity = humidity * temperature;
+  return [Math.floor((1 - temperature) * Math.max(width - 1, 0)), Math.floor((1 - effectiveHumidity) * Math.max(height - 1, 0))];
 }
 
-function sampleGrassColormap(texture: THREE.Texture): number | undefined {
+export function sampleGrassColormap(texture: THREE.Texture): number | undefined {
   const image = texture.image as { readonly width?: number; readonly height?: number; readonly data?: ArrayLike<number> } | undefined;
   const width = image?.width ?? 0; const height = image?.height ?? 0;
   if (!image || !width || !height) return undefined;
