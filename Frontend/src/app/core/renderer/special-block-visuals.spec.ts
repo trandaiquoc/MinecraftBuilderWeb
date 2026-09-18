@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { SpecialBlockVisualRegistry } from './special-block-visuals';
+import { SpecialBlockVisualRegistry, createSpecialModel } from './special-block-visuals';
 import { modelPartCuboidUv } from './special-model-descriptor';
 
 const registry = new SpecialBlockVisualRegistry();
@@ -62,8 +62,20 @@ describe('special block visuals', () => {
     expect(piglin.userData['specialModel']).toBe('minecraft-java-piglin-head-1.21.1');
     const meshCount = (root: THREE.Object3D): number => { let count = 0; root.traverse((object) => { if (object instanceof THREE.Mesh) count++; }); return count; };
     expect(meshCount(dragon)).toBeGreaterThan(1);
-    expect(meshCount(piglin)).toBeGreaterThan(1);
-    expect(dragon.children[0].children[0].children[0].children.some((child) => child.position.toArray().every((value, index) => Math.abs(value - [0, .25, -.5][index]) < 0.00001))).toBe(true);
+    expect(meshCount(piglin)).toBe(36);
+    let leftEarPivotFound = false;
+    let rightEarPivotFound = false;
+    piglin.traverse((child) => {
+      if (child.position.x === 4.5 / 16 && child.position.y === -6 / 16 && Math.abs(child.rotation.z + Math.PI / 6) < 0.00001) leftEarPivotFound = true;
+      if (child.position.x === -4.5 / 16 && child.position.y === -6 / 16 && Math.abs(child.rotation.z - Math.PI / 6) < 0.00001) rightEarPivotFound = true;
+    });
+    expect(leftEarPivotFound).toBe(true);
+    expect(rightEarPivotFound).toBe(true);
+    let jawPivotFound = false;
+    dragon.traverse((child) => { if (child.position.toArray().every((value, index) => Math.abs(value - [0, .25, -.5][index]) < 0.00001)) jawPivotFound = true; });
+    expect(jawPivotFound).toBe(true);
+    expect(dragon.children[0].children[0].children[0].position.toArray()).toEqual([0, -.374375, 0]);
+    expect(dragon.children[0].children[0].children[0].scale.toArray()).toEqual([.75, .75, .75]);
   });
   it('keeps every verified standing head in the shared upright transform hierarchy', () => {
     const standingIds = [
@@ -77,6 +89,10 @@ describe('special block visuals', () => {
       expect(visual.rotation.y, id).toBe(0);
       expect(visual.children[0].scale.toArray(), id).toEqual([-1, -1, 1]);
     }
+  });
+  it.each([0, 4, 8, 12])('preserves the standing skull rotation step %s', (rotation) => {
+    const visual = registry.resolve(block('minecraft:skeleton_skull'))!.create({ ...block('minecraft:skeleton_skull'), state: { rotation: String(rotation) } });
+    expect(visual.children[0].children[0].rotation.y).toBeCloseTo(rotation * Math.PI / 8);
   });
   it('keeps every verified wall head flush to its support-facing voxel face', () => {
     const wallIds = [
@@ -140,6 +156,15 @@ describe('special block visuals', () => {
     const base = modelPartCuboidUv({ id: 'head', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8] });
     const dilated = modelPartCuboidUv({ id: 'hat', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8], dilation: .25 });
     expect(dilated).toEqual(base);
+  });
+  it('uses Java ModelPart top-to-bottom UV orientation for entity faces', () => {
+    const visual = createSpecialModel({ id: 'uv-test', textureSize: [32, 32], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }] }] });
+    const mesh = visual.children[0].children[0].children[0] as THREE.Mesh;
+    const uv = Array.from(mesh.geometry.getAttribute('uv').array as ArrayLike<number>);
+    expect(uv[1]).toBeCloseTo(1 - 8 / 32);
+    expect(uv[3]).toBeCloseTo(1 - 8 / 32);
+    expect(uv[5]).toBeCloseTo(1 - 16 / 32);
+    expect(uv[7]).toBeCloseTo(1 - 16 / 32);
   });
   it('applies the Java wall-sign transform independently of wall-facing state', () => {
     const sign = registry.resolve(block('minecraft:oak_wall_sign'))!;

@@ -16,6 +16,11 @@ export interface ViewportDiagnostics { readonly initialized: boolean; readonly d
 
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 
+/** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
+export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
+  object.position.set(object.position.x + position.x, object.position.y + position.y, object.position.z + position.z);
+}
+
 export function viewportRenderSize(width: number, height: number): { readonly width: number; readonly height: number } {
   return { width: Math.max(Math.round(width), 1), height: Math.max(Math.round(height), 1) };
 }
@@ -162,7 +167,7 @@ export class ThreeViewportEngine {
           mesh.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; mesh.userData['resolvedSupport'] = visual.resolved.support;
           mesh.userData['renderMode'] = visual.mode; mesh.userData['renderTrace'] = visual.trace;
           if (!visual.object) return;
-          const object = visual.object; object.position.set(block.position.x, block.position.y, block.position.z);
+          const object = visual.object; translateVisualToVoxel(object, block.position);
           object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
           object.traverse((child) => {
             child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true;

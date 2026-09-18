@@ -131,7 +131,7 @@ function directionVector(facing: string | undefined): { x: number; z: number } {
 function wallSkullRotation(facing: string | undefined): number { return ({ north: 0, east: Math.PI / 2, south: Math.PI, west: -Math.PI / 2 } as Record<string, number>)[facing ?? 'north'] ?? 0; }
 function skullModelDescriptor(variant: SkullVariant): SpecialModelDescriptor { return { id: `minecraft-java-${variant}-skull-1.21.1`, textureSize: [64, 32], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }] }] }; }
 function humanSkullModel(variant: 'player' | 'zombie'): SpecialModelDescriptor { return { id: `minecraft-java-${variant}-skull-1.21.1`, textureSize: [64, 64], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }, { id: 'hat', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8], dilation: .25 }] }] }; }
-const dragonHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-dragon-head-1.21.1', textureSize: [256, 256], parts: [{ id: 'head', cuboids: [
+const dragonHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-dragon-head-1.21.1', textureSize: [256, 256], localTransform: { translation: [0, -.374375, 0], scale: [.75, .75, .75] }, parts: [{ id: 'head', cuboids: [
   { id: 'upper_lip', uv: [176, 44], from: [-6, -1, -24], size: [12, 5, 16] },
   { id: 'upper_head', uv: [112, 30], from: [-8, -8, -10], size: [16, 16, 16] },
   { id: 'left_scale', uv: [0, 0], from: [-5, -12, -4], size: [2, 4, 6], mirror: true },
@@ -139,7 +139,16 @@ const dragonHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-dragon-hea
   { id: 'right_scale', uv: [0, 0], from: [3, -12, -4], size: [2, 4, 6] },
   { id: 'right_nostril', uv: [112, 0], from: [3, -3, -22], size: [2, 2, 4] },
 ], children: [{ id: 'jaw', pivot: [0, 4, -8], applyPivot: true, rotation: [11.459156, 0, 0], cuboids: [{ id: 'jaw', uv: [176, 65], from: [-6, 0, -16], size: [12, 4, 16] }] }] }] };
-const piglinHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-piglin-head-1.21.1', textureSize: [64, 64], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-5, -8, -4], size: [10, 8, 8] }] }, { id: 'ears', cuboids: [{ id: 'left-ear', uv: [0, 16], from: [-8, -7, -2], size: [3, 4, 4] }, { id: 'right-ear', uv: [0, 24], from: [5, -7, -2], size: [3, 4, 4] }] }] };
+const piglinHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-piglin-head-1.21.1', textureSize: [64, 64], parts: [
+  { id: 'head', cuboids: [
+    { id: 'head', uv: [0, 0], from: [-5, -8, -4], size: [10, 8, 8] },
+    { id: 'snout', uv: [31, 1], from: [-2, -4, -5], size: [4, 4, 1] },
+    { id: 'right_nostril', uv: [2, 4], from: [2, -2, -5], size: [1, 2, 1] },
+    { id: 'left_nostril', uv: [2, 0], from: [-3, -2, -5], size: [1, 2, 1] },
+  ] },
+  { id: 'left_ear', pivot: [4.5, -6, 0], applyPivot: true, rotation: [0, 0, -30], cuboids: [{ id: 'left_ear', uv: [51, 6], from: [0, 0, -2], size: [1, 5, 4] }] },
+  { id: 'right_ear', pivot: [-4.5, -6, 0], applyPivot: true, rotation: [0, 0, 30], cuboids: [{ id: 'right_ear', uv: [39, 6], from: [-1, 0, -2], size: [1, 5, 4] }] },
+] };
 
 const vanillaBedHead: SpecialModelDescriptor = { id: 'minecraft-java-bed-head-1.21.1', textureSize: [64, 64], parts: [
   { id: 'main', cuboids: [{ id: 'main', uv: [0, 0], from: [0, 0, 0], size: [16, 16, 6] }] },
@@ -166,7 +175,16 @@ function directionRotation(facing: string | undefined): number { return ({ south
  */
 export function createSpecialModel(descriptor: SpecialModelDescriptor, texture?: THREE.Texture): THREE.Group {
   const root = new THREE.Group();
-  for (const part of descriptor.parts) root.add(createModelPart(part, descriptor.textureSize, texture));
+  const content = descriptor.localTransform ? new THREE.Group() : root;
+  for (const part of descriptor.parts) content.add(createModelPart(part, descriptor.textureSize, texture));
+  if (descriptor.localTransform) {
+    const transform = descriptor.localTransform;
+    // Renderer-level translations are already in world/block units; cuboid geometry is the part scaled from pixels.
+    if (transform.translation) content.position.set(...transform.translation);
+    if (transform.rotation) content.rotation.set(...transform.rotation.map((value) => THREE.MathUtils.degToRad(value)) as [number, number, number]);
+    if (transform.scale) content.scale.set(...transform.scale);
+    root.add(content);
+  }
   return root;
 }
 function createModelPart(part: SpecialModelPartDescriptor, textureSize: readonly [number, number], texture: THREE.Texture | undefined): THREE.Group {
@@ -193,7 +211,7 @@ function createModelPartCuboid(cuboid: SpecialCuboidDescriptor, textureSize: rea
 }
 function specialFaceGeometry(min: readonly [number, number, number], max: readonly [number, number, number], direction: 'north' | 'south' | 'east' | 'west' | 'up' | 'down', uv: readonly [number, number, number, number], textureSize: readonly [number, number]): THREE.BufferGeometry {
   const [x1, y1, z1] = min; const [x2, y2, z2] = max; const positions = specialFacePositions(direction, x1, y1, z1, x2, y2, z2).flat(); const [u1, v1, u2, v2] = uv; const [tw, th] = textureSize;
-  const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new THREE.Float32BufferAttribute([u1 / tw, 1 - v2 / th, u2 / tw, 1 - v2 / th, u2 / tw, 1 - v1 / th, u1 / tw, 1 - v1 / th], 2)); geometry.setIndex([0, 1, 2, 0, 2, 3]); geometry.computeVertexNormals(); return geometry;
+  const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new THREE.Float32BufferAttribute([u1 / tw, 1 - v1 / th, u2 / tw, 1 - v1 / th, u2 / tw, 1 - v2 / th, u1 / tw, 1 - v2 / th], 2)); geometry.setIndex([0, 1, 2, 0, 2, 3]); geometry.computeVertexNormals(); return geometry;
 }
 function specialFacePositions(direction: string, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): readonly (readonly [number, number, number])[] { switch (direction) { case 'north': return [[x2, y1, z1], [x1, y1, z1], [x1, y2, z1], [x2, y2, z1]]; case 'south': return [[x1, y1, z2], [x2, y1, z2], [x2, y2, z2], [x1, y2, z2]]; case 'west': return [[x1, y1, z1], [x1, y1, z2], [x1, y2, z2], [x1, y2, z1]]; case 'east': return [[x2, y1, z2], [x2, y1, z1], [x2, y2, z1], [x2, y2, z2]]; case 'down': return [[x1, y1, z1], [x2, y1, z1], [x2, y1, z2], [x1, y1, z2]]; default: return [[x1, y2, z2], [x2, y2, z2], [x2, y2, z1], [x1, y2, z1]]; } }
 type SignVariant = 'standing' | 'wall' | 'hanging' | 'wall-hanging';

@@ -25,7 +25,8 @@ export interface SpecialModelDescriptor {
   readonly id: string;
   readonly textureSize: readonly [number, number];
   readonly parts: readonly SpecialModelPartDescriptor[];
-  readonly localTransform?: { readonly translation?: readonly [number, number, number]; readonly rotation?: readonly [number, number, number]; };
+  /** Optional renderer-level transform in block/world units, applied around the model parts. */
+  readonly localTransform?: { readonly translation?: readonly [number, number, number]; readonly rotation?: readonly [number, number, number]; readonly scale?: readonly [number, number, number]; };
   readonly bounds?: { readonly min: readonly [number, number, number]; readonly max: readonly [number, number, number]; };
 }
 
