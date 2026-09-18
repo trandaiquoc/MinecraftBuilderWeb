@@ -117,5 +117,9 @@ describe('sign text normalization', () => {
     expect((workspace.project()!.blocks[0].blockEntityData as { front: { lines: readonly string[] } }).front.lines).toEqual(['Hello', 'Minecraft', 'Builder', '']);
     expect(history.undo()).toBe(true);
     expect(workspace.project()!.blocks[0].blockEntityData).toBeUndefined();
+    expect(history.redo()).toBe(true);
+    const restored = workspace.project()!.blocks[0].blockEntityData as { front: { lines: readonly string[] }; back: { lines: readonly string[] } };
+    expect(restored.front.lines).toEqual(['Hello', 'Minecraft', 'Builder', '']);
+    expect(restored.back.lines).toEqual(['', '', '', '']);
   });
 });

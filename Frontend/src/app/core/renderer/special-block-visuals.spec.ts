@@ -324,7 +324,17 @@ describe('special block visuals', () => {
     for (const facing of ['north', 'east', 'south', 'west']) {
       const visual = sign.create({ ...block('minecraft:oak_wall_sign'), state: { facing } });
       expect(visual.position.toArray()).toEqual([.5, .5, .5]);
-      expect(visual.children[0].position.toArray()).toEqual([0, -.3125, -.4375]);
+      expect(visual.children[0].position.toArray()).toEqual([0, -.3125, .6875]);
+    }
+  });
+  it('keeps the wall-sign back edge on the support plane for all facings', () => {
+    const sign = registry.resolve(block('minecraft:oak_wall_sign'))!;
+    for (const [facing, axis] of [['north', 'z'], ['south', 'z'], ['east', 'x'], ['west', 'x']] as const) {
+      const visual = sign.create({ ...block('minecraft:oak_wall_sign'), state: { facing } });
+      visual.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(visual);
+      const edge = axis === 'z' ? (facing === 'north' ? bounds.max.z : bounds.min.z) : (facing === 'west' ? bounds.max.x : bounds.min.x);
+      expect(edge, facing).toBeCloseTo(facing === 'north' || facing === 'west' ? 1 : 0, 5);
     }
   });
   it('uses a separate wall-hanging-sign hierarchy while retaining the shared facing transform for text', () => {
@@ -332,8 +342,19 @@ describe('special block visuals', () => {
     const visual = sign.create({ ...block('minecraft:oak_wall_hanging_sign'), state: { facing: 'east' } });
     expect(visual.children).toHaveLength(1);
     expect(visual.position.y).toBeCloseTo(.9375);
-    expect(visual.children[0].position.y).toBeCloseTo(-.3125);
+    expect(visual.children[0].position.y).toBeCloseTo(0);
     expect(visual.rotation.y).toBeCloseTo(-Math.PI * 1.5);
+  });
+  it('anchors wall banners to the support plane for every facing', () => {
+    const banner = registry.resolve(block('minecraft:red_wall_banner'))!;
+    expect(banner.family).toBe('banners');
+    for (const [facing, axis] of [['north', 'z'], ['south', 'z'], ['east', 'x'], ['west', 'x']] as const) {
+      const visual = banner.create({ ...block('minecraft:red_wall_banner'), state: { facing } });
+      visual.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(visual);
+      const edge = axis === 'z' ? (facing === 'north' ? bounds.max.z : bounds.min.z) : (facing === 'west' ? bounds.max.x : bounds.min.x);
+      expect(edge, facing).toBeCloseTo(facing === 'north' || facing === 'west' ? 1 : 0, 5);
+    }
   });
   it('uses the verified Java 1.21.1 normal Sign ModelPart dimensions and standing/wall visibility', () => {
     const sign = registry.resolve(block('minecraft:oak_sign'))!;

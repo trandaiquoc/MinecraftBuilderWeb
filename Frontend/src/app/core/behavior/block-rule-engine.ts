@@ -134,8 +134,10 @@ export class BlockRuleEngine {
       return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context?.yaw) } };
     }
     if (behavior?.kind === 'hanging-sign') {
-      if (!context?.faceNormal || context.faceNormal.y !== -1) return undefined;
-      return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context.yaw) } };
+      // A valid support/chain target may come from grid/attachment snapping;
+      // requiring a downward face would make that editor UX unnecessarily strict.
+      if (context?.faceNormal && context.faceNormal.y !== -1) return undefined;
+      return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context?.yaw) } };
     }
     if (behavior?.kind === 'wall-sign') {
       const facing = context?.faceNormal && directionFromNormal(context.faceNormal);
@@ -167,7 +169,7 @@ export class BlockRuleEngine {
     const behavior = definition?.behavior;
     if (!behavior) return { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position] };
     let supportPosition: VoxelCoordinate | undefined;
-    if (behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign') supportPosition = add(block.position, directionOffset(opposite(block.state[behavior.facingProperty] ?? 'north')));
+    if (behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign' || behavior.kind === 'wall-hanging-sign') supportPosition = add(block.position, directionOffset(opposite(block.state[behavior.facingProperty] ?? 'north')));
     if (behavior.kind === 'standing-sign') supportPosition = add(block.position, { x: 0, y: -1, z: 0 });
     if (behavior.kind === 'hanging-sign') supportPosition = add(block.position, { x: 0, y: 1, z: 0 });
     if (behavior.kind === 'wall-hanging-sign') {

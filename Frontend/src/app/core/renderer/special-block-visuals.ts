@@ -127,7 +127,35 @@ function createChestVisual(block: PlacedBlock, texture?: THREE.Texture): THREE.G
   root.userData['chestTexture'] = chestTextureResource(block);
   return root;
 }
-const bannerAdapter = named('banners', (id) => id.endsWith('_banner'), (block) => { const root = new THREE.Group(); box(root, [.62, .92, .05], [.5, .57, .5], colorFromId(block.id, 0xa23d3d)); box(root, [.07, .2, .07], [.5, .1, .5], 0x55514b); return root; });
+const bannerAdapter: SpecialBlockVisualAdapter = {
+  family: 'banners',
+  matches: (block) => block.namespace === 'minecraft' && (block.id.endsWith('_banner') || block.id.endsWith('_wall_banner')),
+  create: (block) => createBannerVisual(block),
+};
+
+function createBannerVisual(block: PlacedBlock): THREE.Group {
+  const root = new THREE.Group();
+  const color = colorFromId(block.id, 0xa23d3d);
+  const wall = block.id.endsWith('_wall_banner');
+  if (!wall) {
+    box(root, [.62, .92, .05], [.5, .57, .5], color);
+    box(root, [.07, .2, .07], [.5, .1, .5], 0x55514b);
+    return root;
+  }
+  // Wall banner geometry is authored along +Z, the support side for the
+  // north-facing state. Rotating this local group keeps all four facings on
+  // the same support plane instead of applying a screen-space offset.
+  const orientation = new THREE.Group();
+  orientation.position.set(.5, 0, .5);
+  orientation.rotation.y = wallFacingRotation(block.state['facing']);
+  box(orientation, [.62, .92, .05], [0, .57, .465], color);
+  box(orientation, [.07, .2, .07], [0, .1, .465], 0x55514b);
+  root.add(orientation);
+  root.userData['wallFacing'] = block.state['facing'] ?? 'north';
+  return root;
+}
+
+function wallFacingRotation(facing: string | undefined): number { return ({ north: 0, east: -Math.PI / 2, south: Math.PI, west: Math.PI / 2 } as Record<string, number>)[facing ?? 'north'] ?? 0; }
 const headIds = new Set([
   'minecraft:creeper_head', 'minecraft:creeper_wall_head', 'minecraft:dragon_head', 'minecraft:dragon_wall_head',
   'minecraft:piglin_head', 'minecraft:piglin_wall_head', 'minecraft:player_head', 'minecraft:player_wall_head',
@@ -365,13 +393,19 @@ function applyNormalSignTransform(root: THREE.Group, block: PlacedBlock, wall: b
   root.position.set(.5, .5, .5);
   root.rotation.y = -signRotationRadians(block);
   root.scale.set(2 / 3, -2 / 3, -2 / 3);
-  if (wall) applyLocalRendererTranslation(root, [0, -.3125, -.4375]);
+  // The 2px board depth is scaled to 1/12 block. Centering its support edge
+  // on the adjacent voxel face leaves the board in front of, not inside, the
+  // supporting block for every horizontal facing.
+  if (wall) applyLocalRendererTranslation(root, [0, -.3125, .6875]);
 }
 function applyHangingSignTransform(root: THREE.Group, block: PlacedBlock): void {
   root.position.set(.5, .9375, .5);
   root.rotation.y = -signRotationRadians(block);
   root.scale.set(1, -1, -1);
-  applyLocalRendererTranslation(root, [0, -.3125, 0]);
+  // Keep one shared content wrapper so board, chains and text receive the
+  // same transform. The source model is already authored around the block
+  // origin; no additional vertical offset is needed here.
+  applyLocalRendererTranslation(root, [0, 0, 0]);
 }
 /** Mirrors a MatrixStack translate performed after renderer-facing rotation. */
 function applyLocalRendererTranslation(root: THREE.Group, translation: readonly [number, number, number]): void {

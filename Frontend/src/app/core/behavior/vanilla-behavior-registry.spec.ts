@@ -46,6 +46,17 @@ describe('VanillaBehaviorRegistry', () => {
     expect(registry.enrich(baseRecord('minecraft:skeleton_wall_skull')).behavior).toMatchObject({ kind: 'head-placement', wall: true });
     expect(registry.enrich(baseRecord('minecraft:piston_head'))).toEqual(baseRecord('minecraft:piston_head'));
   });
+  it('keeps contextual wall torch and wall banner metadata exact to vanilla IDs', () => {
+    const registry = new VanillaBehaviorRegistry();
+    for (const id of ['minecraft:torch', 'minecraft:soul_torch', 'minecraft:redstone_torch']) {
+      expect(registry.enrich(baseRecord(id)).behavior).toMatchObject({ kind: 'torch-placement' });
+    }
+    for (const id of ['minecraft:wall_torch', 'minecraft:soul_wall_torch', 'minecraft:redstone_wall_torch']) {
+      expect(registry.enrich(baseRecord(id))).toMatchObject({ behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, defaultState: { facing: 'north' } });
+    }
+    expect(registry.enrich(baseRecord('minecraft:red_wall_banner'))).toMatchObject({ behavior: { kind: 'wall-mounted', facingProperty: 'facing' } });
+    expect(registry.enrich(baseRecord('example:red_wall_banner'))).toEqual(baseRecord('example:red_wall_banner'));
+  });
   it('adds six-face placement metadata only to the 17 vanilla Shulker Box IDs', () => {
     const registry = new VanillaBehaviorRegistry();
     const ids = ['shulker_box', 'white_shulker_box', 'orange_shulker_box', 'magenta_shulker_box', 'light_blue_shulker_box', 'yellow_shulker_box', 'lime_shulker_box', 'pink_shulker_box', 'gray_shulker_box', 'light_gray_shulker_box', 'cyan_shulker_box', 'purple_shulker_box', 'blue_shulker_box', 'brown_shulker_box', 'green_shulker_box', 'red_shulker_box', 'black_shulker_box'];

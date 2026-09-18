@@ -77,6 +77,10 @@ export class VanillaBehaviorRegistry {
 
   private metadata(id: string): BehaviorMetadata | undefined {
     if (isVanillaCandleId(id)) return candleMetadata;
+    const torch = vanillaTorchMetadata(id);
+    if (torch) return torch;
+    const banner = vanillaBannerMetadata(id);
+    if (banner) return banner;
     if (this.has('woodenFences', id)) return connectMetadata('fence', 'wood-fence', ['wood-fence'], horizontalBooleanState, horizontalFalse);
     if (this.has('fences', id)) return connectMetadata('fence', 'nether-fence', ['nether-fence'], horizontalBooleanState, horizontalFalse);
     if (this.has('walls', id)) return connectMetadata('wall', 'wall', ['wall'], wallStateDefinitions, wallDefaultState);
@@ -185,6 +189,7 @@ const vanillaShulkerBoxIds = [
 ] as const;
 const standingHeadIds = ['creeper_head', 'dragon_head', 'piglin_head', 'player_head', 'skeleton_skull', 'wither_skeleton_skull', 'zombie_head'] as const;
 const wallHeadIds = ['creeper_wall_head', 'dragon_wall_head', 'piglin_wall_head', 'player_wall_head', 'skeleton_wall_skull', 'wither_skeleton_wall_skull', 'zombie_wall_head'] as const;
+const vanillaBannerColors = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'] as const;
 function standingSignMetadata(wood: string): BehaviorMetadata {
   return { behavior: { kind: 'standing-sign', rotationProperty: 'rotation', wallBlockId: `minecraft:${wood}_wall_sign` }, support: 'full', defaultState: { rotation: '0', waterlogged: 'false' }, stateDefinitions: signRotationStates };
 }
@@ -199,6 +204,28 @@ const shulkerBoxMetadata: BehaviorMetadata = {
   behavior: { kind: 'six-face-placement', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'up' },
   stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }],
 };
+
+function vanillaTorchMetadata(id: string): BehaviorMetadata | undefined {
+  const standing: Readonly<Record<string, string>> = {
+    'minecraft:torch': 'minecraft:wall_torch',
+    'minecraft:soul_torch': 'minecraft:soul_wall_torch',
+    'minecraft:redstone_torch': 'minecraft:redstone_wall_torch',
+  };
+  const wallIds = new Set(['minecraft:wall_torch', 'minecraft:soul_wall_torch', 'minecraft:redstone_wall_torch']);
+  const wallId = standing[id];
+  if (wallId) return { behavior: { kind: 'torch-placement', wallBlockId: wallId }, support: 'full', defaultState: {}, stateDefinitions: [] };
+  if (wallIds.has(id)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+  return undefined;
+}
+
+function vanillaBannerMetadata(id: string): BehaviorMetadata | undefined {
+  const name = id.replace('minecraft:', '');
+  const color = vanillaBannerColors.find((value) => name === `${value}_banner` || name === `${value}_wall_banner`);
+  if (!color) return undefined;
+  return name === `${color}_wall_banner`
+    ? { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] }
+    : undefined;
+}
 
 function connectMetadata(family: 'fence' | 'pane' | 'wall', connectionGroup: string, compatibleGroups: readonly string[], stateDefinitions: readonly BlockStateDefinition[], defaultState: Readonly<Record<string, string>>): BehaviorMetadata {
   return { behavior: { kind: 'horizontal-connect', family, connectionGroup, compatibleGroups, connectsToSolid: true, derivedProperties: family === 'wall' ? ['north', 'east', 'south', 'west', 'up'] : ['north', 'east', 'south', 'west'] }, support: 'full', defaultState, stateDefinitions };

@@ -1276,3 +1276,15 @@ lock checks before mutation.
 [x] The shared placement-plan API now feeds validation, logical ghost previews,
 and placement. Composite previews preserve final state and coordinates for
 beds, doors, and tall plants without mutating project data.
+
+# 52. Sign, wall banner, and wall torch completion
+
+[x] Sign text continues to use the persisted blockEntityData front/back model
+and history-aware inspector path. Wall signs now place their board support edge
+on the adjacent support face for all four facings; hanging signs keep one
+shared board/chain/text transform without an extra vertical offset.
+
+[x] Full vanilla catalog metadata now covers soul and redstone torch standing
+items plus their wall variants, and all vanilla wall banners receive explicit
+facing/support behavior. Wall banner visuals use a facing-aware support-plane
+anchor instead of the standing-banner geometry anchor.
