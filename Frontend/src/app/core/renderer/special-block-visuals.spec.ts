@@ -48,7 +48,7 @@ describe('special block visuals', () => {
   it.each([
     ['minecraft:creeper_head', 'minecraft:entity/creeper/creeper'],
     ['minecraft:zombie_head', 'minecraft:entity/zombie/zombie'],
-    ['minecraft:player_head', 'minecraft:entity/player/wide/steve'],
+    ['minecraft:player_head', 'minecraft:entity/player/slim/steve'],
     ['minecraft:wither_skeleton_skull', 'minecraft:entity/skeleton/wither_skeleton'],
   ])('maps %s to its vanilla entity texture', (id, texture) => {
     const adapter = registry.resolve(block(id))!;
@@ -118,6 +118,17 @@ describe('special block visuals', () => {
       expect(bounds.max.y).toBeCloseTo(.515625, 5);
     }
   });
+  it('keeps the Player base and hat on their distinct vanilla 64x64 atlas regions', () => {
+    const visual = registry.resolve(block('minecraft:player_head'))!.create(block('minecraft:player_head'));
+    const cuboids = visual.children[0].children[0].children[0].children;
+    const baseMesh = cuboids[0].children[0] as THREE.Mesh;
+    const hatMesh = cuboids[1].children[0] as THREE.Mesh;
+    const baseUv = Array.from(baseMesh.geometry.getAttribute('uv').array as ArrayLike<number>);
+    const hatUv = Array.from(hatMesh.geometry.getAttribute('uv').array as ArrayLike<number>);
+    expect(baseUv[0]).toBeCloseTo(16 / 64);
+    expect(hatUv[0]).toBeCloseTo(48 / 64);
+    expect(registry.resolve(block('minecraft:player_head'))!.textureResource?.(block('minecraft:player_head'))).toBe('minecraft:entity/player/slim/steve');
+  });
   it('uses one data-driven vanilla descriptor for colors, parts, and facing', () => {
     const bed = registry.resolve(block('minecraft:red_bed'))!;
     expect(bed.textureResource?.(block('minecraft:red_bed'))).toBe('minecraft:entity/bed/red');
@@ -148,8 +159,12 @@ describe('special block visuals', () => {
   });
   it('derives all six ModelPart cuboid UV regions without a cropped texture clone', () => {
     const uv = modelPartCuboidUv({ id: 'head', uv: [0, 0], from: [0, 0, 0], size: [16, 16, 6] });
+    expect(uv.down).toEqual([6, 0, 22, 6]);
+    expect(uv.up).toEqual([22, 6, 38, 0]);
+    expect(uv.west).toEqual([0, 6, 6, 22]);
     expect(uv.north).toEqual([6, 6, 22, 22]);
-    expect(uv.up).toEqual([6, 0, 22, 6]);
+    expect(uv.east).toEqual([22, 6, 28, 22]);
+    expect(uv.south).toEqual([28, 6, 44, 22]);
     expect(uv.east).not.toEqual(uv.west);
   });
   it('keeps UV dimensions tied to the base cuboid when dilation expands geometry', () => {
@@ -161,10 +176,25 @@ describe('special block visuals', () => {
     const visual = createSpecialModel({ id: 'uv-test', textureSize: [32, 32], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }] }] });
     const mesh = visual.children[0].children[0].children[0] as THREE.Mesh;
     const uv = Array.from(mesh.geometry.getAttribute('uv').array as ArrayLike<number>);
+    expect(uv[0]).toBeCloseTo(16 / 32);
+    expect(uv[2]).toBeCloseTo(8 / 32);
     expect(uv[1]).toBeCloseTo(1 - 8 / 32);
     expect(uv[3]).toBeCloseTo(1 - 8 / 32);
     expect(uv[5]).toBeCloseTo(1 - 16 / 32);
     expect(uv[7]).toBeCloseTo(1 - 16 / 32);
+  });
+  it('keeps the ModelPart Quad vertex order for every cuboid face', () => {
+    const cuboid = { id: 'head', uv: [0, 0] as const, from: [0, 0, 0] as const, size: [16, 16, 6] as const };
+    const visual = createSpecialModel({ id: 'uv-faces', textureSize: [64, 64], parts: [{ id: 'head', cuboids: [cuboid] }] });
+    const faceNames = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
+    const uv = modelPartCuboidUv(cuboid);
+    const cuboidGroup = visual.children[0].children[0];
+    for (const [index, face] of faceNames.entries()) {
+      const attribute = (cuboidGroup.children[index] as THREE.Mesh).geometry.getAttribute('uv');
+      const values = Array.from(attribute.array as ArrayLike<number>);
+      const [u1, v1, u2, v2] = uv[face];
+      expect(values.slice(0, 8), face).toEqual([u2 / 64, 1 - v1 / 64, u1 / 64, 1 - v1 / 64, u1 / 64, 1 - v2 / 64, u2 / 64, 1 - v2 / 64]);
+    }
   });
   it('applies the Java wall-sign transform independently of wall-facing state', () => {
     const sign = registry.resolve(block('minecraft:oak_wall_sign'))!;

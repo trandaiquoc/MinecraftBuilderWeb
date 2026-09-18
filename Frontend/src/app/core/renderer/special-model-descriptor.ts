@@ -37,12 +37,12 @@ export type ModelPartUv = Readonly<Record<ModelPartFace, readonly [number, numbe
 export function modelPartCuboidUv(cuboid: SpecialCuboidDescriptor): ModelPartUv {
   const [u, v] = cuboid.uv; const [width, height, depth] = cuboid.size;
   const faces: ModelPartUv = {
-    north: [u + depth, v + depth, u + depth + width, v + depth + height],
-    south: [u + depth + width + depth, v + depth, u + depth + width + depth + width, v + depth + height],
+    down: [u + depth, v, u + depth + width, v + depth],
+    up: [u + depth + width, v + depth, u + depth + width + width, v],
     west: [u, v + depth, u + depth, v + depth + height],
+    north: [u + depth, v + depth, u + depth + width, v + depth + height],
     east: [u + depth + width, v + depth, u + depth + width + depth, v + depth + height],
-    up: [u + depth, v, u + depth + width, v + depth],
-    down: [u + depth + width, v, u + depth + width + width, v + depth],
+    south: [u + depth + width + depth, v + depth, u + depth + width + depth + width, v + depth + height],
   };
-  return cuboid.mirror ? { ...faces, north: faces.south, south: faces.north, east: faces.west, west: faces.east } : faces;
+  return faces;
 }

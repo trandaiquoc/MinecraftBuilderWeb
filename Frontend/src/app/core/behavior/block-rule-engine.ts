@@ -120,7 +120,7 @@ export class BlockRuleEngine {
         return facing ? { ...block, state: { ...block.state, [behavior.facingProperty]: facing } } : undefined;
       }
       if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
-      return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context?.yaw) } };
+      return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSkullRotation(context?.yaw) } };
     }
     if (behavior?.kind === 'standing-sign') {
       if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
@@ -260,6 +260,10 @@ function compatibleWallHanging(block: PlacedBlock | undefined, facing: string, d
 export function minecraftSignRotation(yaw: number | undefined): string {
   const degrees = ((yaw ?? 0) + 180) % 360;
   return String(Math.floor((degrees * 16 / 360) + .5) & 15);
+}
+/** Java SkullBlock uses the player's yaw directly; SignBlock has a separate +180° rule. */
+export function minecraftSkullRotation(yaw: number | undefined): string {
+  return String(Math.round((yaw ?? 0) * 16 / 360) & 15);
 }
 function requiresSupportBelow(behavior: NonNullable<BlockDefinition['behavior']>): boolean {
   return behavior.kind === 'floor-supported' || behavior.kind === 'torch-placement' || behavior.kind === 'standing-sign' || behavior.kind === 'double-height' && behavior.requiresFloor;

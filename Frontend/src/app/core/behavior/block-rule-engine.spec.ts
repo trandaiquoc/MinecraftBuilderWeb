@@ -8,7 +8,7 @@ import { HistoryService } from '../editor/history.service';
 import { SelectionService } from '../editor/selection.service';
 import { StructureEditorService } from '../editor/structure-editor.service';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
-import { BlockRuleEngine } from './block-rule-engine';
+import { BlockRuleEngine, minecraftSkullRotation } from './block-rule-engine';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
 
 const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
@@ -182,7 +182,11 @@ describe('BlockRuleEngine', () => {
     const existing = block('minecraft:skeleton_skull', { x: 2, y: 1, z: 2 }, { rotation: '0' });
     const result = engine.place({ ...base, blocks: [existing] }, block('minecraft:skeleton_skull', { x: 2, y: 2, z: 2 }), { faceNormal: { x: 0, y: 1, z: 0 }, yaw: 90 });
     expect(result.validation.status).toBe('valid');
-    expect(result.project?.blocks.at(-1)).toMatchObject({ id: 'minecraft:skeleton_skull', position: { x: 2, y: 2, z: 2 }, state: { rotation: '12' } });
+    expect(result.project?.blocks.at(-1)).toMatchObject({ id: 'minecraft:skeleton_skull', position: { x: 2, y: 2, z: 2 }, state: { rotation: '4' } });
+  });
+
+  it('uses the vanilla direct-yaw rotation mapping for standing skulls', () => {
+    expect([0, 90, 180, -90, 270].map(minecraftSkullRotation)).toEqual(['0', '4', '8', '12', '12']);
   });
 
   it('orients wall skull placement from the clicked wall face', () => {
