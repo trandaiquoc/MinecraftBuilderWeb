@@ -3,7 +3,7 @@ import { BlockCatalog } from '../blocks/block-catalog';
 import { representativeBlockFixture } from '../blocks/block-catalog.fixture';
 import { PlacedBlock, ProjectDocument } from '../domain/project.types';
 import { SelectionService } from '../editor/selection.service';
-import { normalizeLogicalObjectMemberships, resolveLogicalObjectParts } from './logical-object';
+import { normalizeLogicalObjectMemberships, resolveLogicalObjectParts, transformPairedHorizontal } from './logical-object';
 
 const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
 const lookup = (id: string) => catalog.get(id);
@@ -51,5 +51,19 @@ describe('logical multi-block objects', () => {
     expect(selection.logicalPositions()).toHaveLength(2);
     const repaired = normalizeLogicalObjectMemberships(document, lookup);
     expect(repaired.blocks.every((block) => block.groupIds?.includes('roof'))).toBe(true);
+  });
+
+  it('rotates a bed atomically around the foot anchor', () => {
+    const [foot, head] = bedPair(); const document = project([foot, head]);
+    const rotated = transformPairedHorizontal(document, head.position, 'north', lookup)!;
+    expect(rotated.blocks.find((block) => block.state['part'] === 'foot')).toMatchObject({ position: { x: 2, y: 1, z: 2 }, state: { facing: 'north' } });
+    expect(rotated.blocks.find((block) => block.state['part'] === 'head')).toMatchObject({ position: { x: 2, y: 1, z: 1 }, state: { facing: 'north' } });
+  });
+
+  it('rejects bed rotation atomically when the new head collides or leaves bounds', () => {
+    const [foot, head] = bedPair(); const collision = project([foot, head, { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 1 }, state: {} }]);
+    expect(transformPairedHorizontal(collision, foot.position, 'north', lookup)).toBeUndefined();
+    const edge = project([{ ...foot, position: { x: 0, y: 1, z: 0 } }, { ...head, position: { x: 1, y: 1, z: 0 } }]);
+    expect(transformPairedHorizontal(edge, { x: 0, y: 1, z: 0 }, 'west', lookup)).toBeUndefined();
   });
 });

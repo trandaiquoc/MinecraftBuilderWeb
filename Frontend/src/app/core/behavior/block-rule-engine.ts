@@ -126,6 +126,9 @@ export class BlockRuleEngine {
       if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
       return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSkullRotation(context?.yaw) } };
     }
+    if (behavior?.kind === 'paired-horizontal' && context?.yaw !== undefined) {
+      return { ...block, state: { ...block.state, [behavior.facingProperty]: minecraftPlayerFacing(context.yaw), occupied: 'false' } };
+    }
     if (behavior?.kind === 'standing-sign') {
       if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
       return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context?.yaw) } };
@@ -268,6 +271,11 @@ export function minecraftSignRotation(yaw: number | undefined): string {
 /** Java SkullBlock uses the player's yaw directly; SignBlock has a separate +180° rule. */
 export function minecraftSkullRotation(yaw: number | undefined): string {
   return String(Math.round((yaw ?? 0) * 16 / 360) & 15);
+}
+/** Minecraft Direction.fromRotation(yaw), used by BedBlock placement. */
+export function minecraftPlayerFacing(yaw = 0): 'south' | 'west' | 'north' | 'east' {
+  const index = Math.floor(yaw / 90 + 0.5) & 3;
+  return (['south', 'west', 'north', 'east'] as const)[index] ?? 'south';
 }
 function requiresSupportBelow(behavior: NonNullable<BlockDefinition['behavior']>): boolean {
   return behavior.kind === 'floor-supported' || behavior.kind === 'torch-placement' || behavior.kind === 'standing-sign' || behavior.kind === 'double-height' && behavior.requiresFloor;

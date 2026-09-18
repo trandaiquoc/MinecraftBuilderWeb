@@ -99,7 +99,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 
   perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<string | undefined> {
-    const key = `item-thumbnail-v1|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`).join(';')}`;
+    const key = `item-thumbnail-v2|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`).join(';')}`;
     const cached = this.thumbnailCache.get(key); if (cached) return cached;
     const task = this.renderThumbnailBlocks(item.previewBlocks).catch(() => this.thumbnailUrl(item.displayBlockId, item.defaultState));
     this.thumbnailCache.set(key, task); return task;

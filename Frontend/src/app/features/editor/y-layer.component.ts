@@ -46,7 +46,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
-  ngAfterViewInit(): void { const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
+  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
   ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.viewportStatus.clear(); this.sync.destroy(); this.themeSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }

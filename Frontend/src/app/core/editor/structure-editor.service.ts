@@ -9,10 +9,10 @@ import { BlockModelResolver } from '../blocks/resolver/block-model-resolver';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
 import { isBlockLocked as hasLockedMembership } from './group-membership';
 import { BlockRuleEngine, nextCandleState, RuleValidation } from '../behavior/block-rule-engine';
-import { expandLogicalObjectClosure, resolveLogicalObjectParts, synchronizeLogicalObjectState } from '../behavior/logical-object';
+import { expandLogicalObjectClosure, resolveLogicalObjectParts, synchronizeLogicalObjectState, transformPairedHorizontal } from '../behavior/logical-object';
 import { PlacementContext } from './placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from './sign-text-metrics';
-import { resolveItemBlock } from '../blocks/placeable-item';
+import { planPlacement, PlacementPlan } from '../behavior/placement-plan';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -23,10 +23,11 @@ export class StructureEditorService {
     return this.history.execute('Place', (project) => {
       const active = this.activeBlock.active();
       if (!active || !this.inBounds(position, project) || this.find(project, position) || isBlockLocked(project, position)) return undefined;
-      const item = this.library.getItem(active.itemId ?? active.id);
-      const block = item ? resolveItemBlock(item, active.state, position, context) : { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { ...position }, state: { ...active.state, ...context?.stateOverride } } as PlacedBlock;
-      const requested: PlacedBlock = { ...block, kind: active.support === 'unknown' ? 'missing' : 'resolved', blockEntityData: isSignId(block.id) ? defaultSignData() : undefined };
-      const result = this.rules().place(project, requested, context); this.lastValidation = result.validation; return result.project;
+      const plan = planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id));
+      this.lastValidation = plan.validation;
+      if (!plan.project) return undefined;
+      const placedKeys = new Set(plan.blocks.map((block) => coordinateKey(block.position)));
+      return { ...plan.project, blocks: plan.project.blocks.map((block) => placedKeys.has(coordinateKey(block.position)) && isSignId(block.id) ? { ...block, blockEntityData: defaultSignData() } : block) };
     });
   }
 
@@ -92,32 +93,56 @@ export class StructureEditorService {
   }
 
   updateBlockState(position: VoxelCoordinate, property: string, value: string): boolean {
-    return this.history.execute('BlockState edit', (project) => {
+    const before = this.workspace.project(); const selectedBefore = before && this.find(before, position); const selectedWasHead = selectedBefore?.state['part'] === 'head';
+    const changed = this.history.execute('BlockState edit', (project) => {
       const block = this.find(project, position); const definition = block && this.library.get(block.id); const options = definition?.stateDefinitions.find((entry) => entry.name === property)?.values;
       const rules = this.rules();
       const parts = block ? resolveLogicalObjectParts(project.blocks, position, (id) => this.library.get(id)) : [];
       if (!block || !options?.includes(value) || parts.some((part) => hasLockedMembership(part, project.groups)) || rules.isDerivedProperty(block.id, property)) return undefined;
+      if (definition?.behavior?.kind === 'paired-horizontal' && property === definition.behavior.facingProperty) {
+        const transformed = transformPairedHorizontal(project, position, value, (id) => this.library.get(id));
+        return transformed ? { ...transformed, metadata: { ...transformed.metadata, updatedAt: new Date().toISOString() } } : undefined;
+      }
       const changedState = { ...block.state, [property]: value };
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: changedState } : entry);
       const blocks = synchronizeLogicalObjectState(directlyChanged, position, changedState, (id) => this.library.get(id));
       const result = rules.refresh({ ...project, blocks }, [position]); this.lastValidation = result.validation; return result.project ? { ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } } : undefined;
     });
+    if (changed && selectedWasHead && this.selection.single()) {
+      const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head' && block.state['facing'] === (after.blocks.find((entry) => entry.state['part'] === 'foot' && entry.id === selectedBefore?.id)?.state['facing'] ?? ''));
+      if (nextHead) this.selection.selectLogical(nextHead.position, after!, (id) => this.library.get(id));
+    }
+    return changed;
   }
 
   rotateBlock(position: VoxelCoordinate, quarterTurns = 1): boolean {
-    return this.history.execute('Rotate block', (project) => {
+    const before = this.workspace.project(); const selectedBefore = before && this.find(before, position); const selectedWasHead = selectedBefore?.state['part'] === 'head';
+    const changed = this.history.execute('Rotate block', (project) => {
       const block = this.find(project, position); const definition = block && this.library.get(block.id);
       const parts = block ? resolveLogicalObjectParts(project.blocks, position, (id) => this.library.get(id)) : [];
       if (!block || !definition || parts.some((part) => hasLockedMembership(part, project.groups))) return undefined;
       const rotated = new BlockModelResolver({ readJson: () => undefined }).rotateState(block.state, definition.stateDefinitions, quarterTurns);
       if (!rotated.supported || !rotated.state) return undefined;
+      if (definition.behavior?.kind === 'paired-horizontal' && rotated.state[definition.behavior.facingProperty]) {
+        const transformed = transformPairedHorizontal(project, position, rotated.state[definition.behavior.facingProperty]!, (id) => this.library.get(id));
+        return transformed ? { ...transformed, metadata: { ...transformed.metadata, updatedAt: new Date().toISOString() } } : undefined;
+      }
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: rotated.state! } : entry);
       const updated = { ...project, blocks: synchronizeLogicalObjectState(directlyChanged, position, rotated.state, (id) => this.library.get(id)) };
       const result = this.rules().refresh(updated, [position]); this.lastValidation = result.validation; return result.project ? { ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } } : undefined;
     });
+    if (changed && selectedWasHead && this.selection.single()) {
+      const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head');
+      if (nextHead) this.selection.selectLogical(nextHead.position, after!, (id) => this.library.get(id));
+    }
+    return changed;
   }
 
   validation(): RuleValidation | undefined { return this.lastValidation; }
+  planPlacement(position: VoxelCoordinate, context?: PlacementContext): PlacementPlan | undefined {
+    const project = this.workspace.project(); const active = this.activeBlock.active();
+    return project && active ? planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id)) : undefined;
+  }
   updateSignText(position: VoxelCoordinate, side: 'front' | 'back', value: string): boolean {
     return this.history.execute('Sign text edit', (project) => {
       const block = this.find(project, position); if (!block || !isSignId(block.id)) return undefined;
@@ -129,9 +154,7 @@ export class StructureEditorService {
   validatePlacement(position: VoxelCoordinate, context?: PlacementContext): RuleValidation {
     const project = this.workspace.project(); const active = this.activeBlock.active();
     if (!project || !active) return { status: 'invalid', reason: 'out-of-bounds', affectedPositions: [position] };
-    const item = this.library.getItem(active.itemId ?? active.id);
-    const block = item ? resolveItemBlock(item, active.state, position, context) : { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { ...position }, state: { ...active.state, ...context?.stateOverride } } as PlacedBlock;
-    return this.rules().place(project, block, context).validation;
+    return planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id)).validation;
   }
   private rules(): BlockRuleEngine { return new BlockRuleEngine((id) => this.library.get(id)); }
 

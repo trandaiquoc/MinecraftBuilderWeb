@@ -1265,3 +1265,14 @@ object through the shared thumbnail renderer. Technical/runtime IDs are
 excluded from the normal building palette and a reusable export eligibility
 policy is provided. No NBT/structure exporter exists in this repository yet,
 so the policy is not wired to an exporter.
+
+# 51. Logical placement plans and Bed integrity
+
+[x] Bed placement derives its facing from the Minecraft player-yaw mapping and
+creates foot/head atomically. Bed facing edits and rotations move the head
+around the foot anchor as one history transaction, with bounds, collision, and
+lock checks before mutation.
+
+[x] The shared placement-plan API now feeds validation, logical ghost previews,
+and placement. Composite previews preserve final state and coordinates for
+beds, doors, and tall plants without mutating project data.

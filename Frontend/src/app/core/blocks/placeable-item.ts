@@ -116,10 +116,31 @@ function isWallVariant(value: string): boolean {
   const name = value.split(':').at(-1) ?? value;
   return name.startsWith('wall_') || name.includes('_wall_') || name.endsWith('_wall_sign') || name.endsWith('_wall_hanging_sign') || name.endsWith('_wall_banner') || name.endsWith('_wall_fan');
 }
+function isHorizontal(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
 
 export function resolveItemBlock(item: PlaceableItemDefinition, state: BlockState, position: VoxelCoordinate, context?: PlacementContext): PlacedBlock {
   const blockId = resolveConcreteBlockId(item, context);
   return { kind: 'resolved', id: blockId, namespace: item.namespace, position: { ...position }, state: { ...state, ...context?.stateOverride } };
+}
+
+/** Builds final, internally consistent preview blocks for a logical item state. */
+export function previewBlocksForItem(item: PlaceableItemDefinition, state: BlockState = item.defaultState): readonly PlacedBlock[] {
+  const source = item.previewBlocks;
+  if (item.previewRecipe === 'bed') {
+    const facing = isHorizontal(state['facing']) ? state['facing'] : 'south';
+    const foot = source.find((block) => block.state['part'] === 'foot') ?? source[0];
+    const head = source.find((block) => block.state['part'] === 'head') ?? source[1];
+    if (!foot || !head) return source;
+    const headPosition = add(foot.position, directionOffset(facing));
+    return [
+      { ...foot, position: { ...foot.position }, state: { ...foot.state, ...state, facing, part: 'foot' } },
+      { ...head, position: headPosition, state: { ...head.state, ...state, facing, part: 'head' } },
+    ];
+  }
+  if (item.previewRecipe === 'door' || item.previewRecipe === 'tall-plant') {
+    return source.map((block) => ({ ...block, state: { ...block.state, ...state, ...(block.state['half'] ? { half: block.state['half'] } : {}) } }));
+  }
+  return source.map((block) => ({ ...block, state: { ...block.state, ...state } }));
 }
 
 export function placementItemSearch(items: readonly PlaceableItemDefinition[], query: string): readonly PlaceableItemDefinition[] {
@@ -127,3 +148,6 @@ export function placementItemSearch(items: readonly PlaceableItemDefinition[], q
   if (!normalized) return items;
   return items.filter((item) => [item.displayName, item.itemId, item.namespace, item.modName ?? ''].map(normalizeSearchText).join('\u0000').includes(normalized));
 }
+
+function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
+function add(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }

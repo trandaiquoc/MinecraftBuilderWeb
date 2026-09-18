@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { BlockDefinition } from '../blocks/block-definition.types';
-import { PlaceableItemDefinition } from '../blocks/placeable-item';
+import { PlaceableItemDefinition, previewBlocksForItem } from '../blocks/placeable-item';
 import { BlockLibraryService } from '../blocks/block-library.service';
 import { VanillaBlockVisualProvider } from '../renderer/block-model-geometry';
 import { IndexedDbAssetCache } from './indexeddb-asset-cache';
@@ -48,18 +48,7 @@ export class VanillaAssetsService {
 
   prepareItemThumbnail(item: PlaceableItemDefinition): void {
     const visual = this.visualProvider(); if (!visual) return;
-    const previewItem = {
-      ...item,
-      previewBlocks: item.previewBlocks.map((block) => ({
-        ...block,
-        state: {
-          ...block.state,
-          ...item.defaultState,
-          ...(block.state['half'] ? { half: block.state['half'] } : {}),
-          ...(block.state['part'] ? { part: block.state['part'] } : {}),
-        },
-      })),
-    };
+    const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, item.defaultState) };
     const key = thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', item.itemId, item.defaultState, item.previewRecipe);
     if (this.thumbnailUrls().has(key)) return;
     const fallback = visual.thumbnailUrl(item.displayBlockId, item.defaultState);
@@ -135,5 +124,5 @@ export class VanillaAssetsService {
 
 export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single'): string {
   const serializedState = Object.entries(state).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join(',');
-  return `thumbnail-v4|${generation}|${gameVersion}|item-preview-v1|${recipe}|${blockId}|${serializedState}`;
+  return `thumbnail-v5|${generation}|${gameVersion}|item-preview-v2|${recipe}|${blockId}|${serializedState}`;
 }

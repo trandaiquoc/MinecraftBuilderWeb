@@ -9,8 +9,10 @@ import { isBlockVisible } from '../editor/group-membership';
 import { GroupMovePreview } from '../editor/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import { BlockVisualProvider } from './block-model-geometry';
+import { PlacementPlan } from '../behavior/placement-plan';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; }
+type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 
@@ -62,6 +64,7 @@ export class ThreeViewportEngine {
   private readonly onVisibilityChange = () => { if (document.hidden) this.clearInput(); };
   private palette: ViewportThemePalette = viewportThemePalette('dark');
   private visualProvider?: BlockVisualProvider;
+  private placementPlanProvider?: PlacementPlanProvider;
   private visualGeneration = 0;
   private ghostGeneration = 0;
   private disposed = false;
@@ -143,6 +146,8 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
+  setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
+
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}): void {
     const generation = ++this.visualGeneration;
     this.project = project;
@@ -185,7 +190,7 @@ export class ThreeViewportEngine {
     this.updateSelection(options.selected, options.selectedPositions, options.selectionBox);
     this.updateActiveGroup(project, options.activeGroupId, options.activeGroupPositions);
     this.updateMovePreview(project, options.groupMovePreview);
-    this.updateGhostModel(active);
+    this.updateGhostModel(active, undefined);
     this.updateGhost(undefined, project, active);
     if (project && this.controls && !this.hasCameraFrame) this.resetCamera();
     this.render();
@@ -220,12 +225,14 @@ export class ThreeViewportEngine {
       const hitVoxel = blockHit.object.userData['voxel'] as VoxelCoordinate;
       if (planeY === undefined || hitVoxel.y === planeY) block = hitVoxel;
     }
-    const status = placementStatus(target, project.size, active?.support ?? 'unknown');
-    this.updateGhost(showGhost ? target : undefined, project, active, status);
-    this.render();
     const facing = active?.state['facing'];
     const attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks) : undefined;
     const placementContext = faceNormal ? { faceNormal, hitPoint: hitPoint ? { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z } : undefined, facing: isHorizontalDirection(facing) ? facing : undefined, yaw: cameraYaw(this.camera), stateOverride: attachment?.stateOverride } : undefined;
+    const plan = target && active && this.placementPlanProvider ? this.placementPlanProvider(project, active, target, placementContext) : undefined;
+    const status = plan?.validation.status ?? placementStatus(target, project.size, active?.support ?? 'unknown');
+    this.updateGhostModel(active, plan);
+    this.updateGhost(showGhost ? target : undefined, project, active, status, plan);
+    this.render();
     return { target, block, status, faceNormal, placementContext };
   }
 
@@ -413,7 +420,7 @@ export class ThreeViewportEngine {
     }
   }
 
-  private updateGhost(target: VoxelCoordinate | undefined, project: ProjectDocument | undefined, active: ActiveBlock | undefined, status: PlacementStatus = 'invalid'): void {
+  private updateGhost(target: VoxelCoordinate | undefined, project: ProjectDocument | undefined, active: ActiveBlock | undefined, status: PlacementStatus = 'invalid', plan?: PlacementPlan): void {
     this.ghostTarget = target;
     if (!target || !project || !active) { this.ghost.visible = false; if (this.ghostModel) this.ghostModel.visible = false; return; }
     this.ghost.visible = true;
@@ -424,26 +431,33 @@ export class ThreeViewportEngine {
     material.depthWrite = false;
     material.wireframe = true;
     this.ghost.renderOrder = 1000;
-    this.ghost.userData['activeBlock'] = { id: active.id, state: { ...active.state }, status };
+    this.ghost.userData['activeBlock'] = { id: active.id, state: { ...active.state }, status, blocks: plan?.blocks.map((block) => ({ id: block.id, position: block.position, state: block.state })) };
     this.ghost.userData['status'] = status;
     if (this.ghostModel) { this.ghostModel.position.set(target.x, target.y, target.z); this.ghostModel.visible = true; }
   }
 
-  private updateGhostModel(active: ActiveBlock | undefined): void {
-    const key = active ? `${active.id}|${JSON.stringify(active.state)}` : '';
+  private updateGhostModel(active: ActiveBlock | undefined, plan?: PlacementPlan): void {
+    const key = active ? `${active.id}|${JSON.stringify(active.state)}|${plan?.blocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${JSON.stringify(block.state)}`).join(';') ?? ''}` : '';
     if (key === this.ghostModelKey) return;
     this.ghostModelKey = key; const generation = ++this.ghostGeneration;
     if (this.ghostModel) { this.scene.remove(this.ghostModel); disposeObject(this.ghostModel); this.ghostModel = undefined; }
     this.setGhostOutlineBounds();
     if (!active || !this.visualProvider) return;
-    const [namespace] = active.id.split(':');
-    void this.visualProvider.create({ kind: 'resolved', id: active.id, namespace, position: { x: 0, y: 0, z: 0 }, state: active.state }).then((visual) => {
-      if (generation !== this.ghostGeneration || !visual.object) return;
-      this.ghostModel = visual.object; this.ghostModel.visible = false; this.ghostModel.renderOrder = 999;
+    const blocks = plan?.blocks.length ? plan.blocks : active ? [{ kind: 'resolved' as const, id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: active.state }] : [];
+    void Promise.all(blocks.map(async (block) => ({ block, visual: await this.visualProvider!.create({ ...block, position: { x: 0, y: 0, z: 0 } }) }))).then((results) => {
+      if (generation !== this.ghostGeneration || !results.length) return;
+      const root = new THREE.Group();
+      for (const { block, visual } of results) {
+        if (!visual.object) continue;
+        visual.object.position.set(visual.object.position.x + block.position.x - (plan?.request.position.x ?? 0), visual.object.position.y + block.position.y - (plan?.request.position.y ?? 0), visual.object.position.z + block.position.z - (plan?.request.position.z ?? 0));
+        root.add(visual.object);
+      }
+      if (!root.children.length) return;
+      this.ghostModel = root; this.ghostModel.visible = false; this.ghostModel.renderOrder = 999;
       this.ghostModel.traverse((child) => { if (child instanceof THREE.Mesh) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { material.transparent = true; material.opacity = .52; material.depthWrite = false; } } });
       this.scene.add(this.ghostModel);
       const bounds = new THREE.Box3().setFromObject(this.ghostModel); this.setGhostOutlineBounds(bounds);
-      if (this.ghostTarget) this.positionGhostOutline(this.ghostTarget);
+      if (this.ghostTarget) { this.ghostModel.position.set(this.ghostTarget.x, this.ghostTarget.y, this.ghostTarget.z); this.ghostModel.visible = this.ghost.visible; this.positionGhostOutline(this.ghostTarget); }
       this.render();
     }).catch((error: unknown) => { this.ghost.userData['renderMode'] = 'fallback'; this.ghost.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown ghost visual provider error' }]; this.render(); });
   }

@@ -1,7 +1,7 @@
 import { BlockDefinition } from '../blocks/block-definition.types';
 import { coordinateKey } from '../domain/coordinates';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../domain/project.types';
-import { groupIdsOf } from '../editor/group-membership';
+import { groupIdsOf, isBlockLocked } from '../editor/group-membership';
 
 export type LogicalBlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 
@@ -50,8 +50,34 @@ export function synchronizeLogicalObjectState(blocks: readonly PlacedBlock[], po
   return blocks.map((block) => keys.has(coordinateKey(block.position)) ? { ...block, state: { ...sourceState, ...(identityProperty ? { [identityProperty]: block.state[identityProperty] ?? sourceState[identityProperty] } : {}) } } : block);
 }
 
+/** Atomically rotates a paired-horizontal object around its first/foot part. */
+export function transformPairedHorizontal(project: ProjectDocument, position: VoxelCoordinate, newFacing: string, definition: LogicalBlockDefinitionLookup): ProjectDocument | undefined {
+  const selected = find(project.blocks, position);
+  const behavior = selected && definition(selected.id)?.behavior;
+  if (!selected || behavior?.kind !== 'paired-horizontal') return undefined;
+  const parts = resolveLogicalObjectParts(project.blocks, position, definition);
+  if (parts.length !== 2 || parts.some((part) => isBlockLocked(part, project.groups))) return undefined;
+  const foot = parts.find((part) => part.state[behavior.partProperty] === behavior.firstPart);
+  const head = parts.find((part) => part.state[behavior.partProperty] === behavior.secondPart);
+  if (!foot || !head || !isHorizontal(newFacing)) return undefined;
+  const newHeadPosition = add(foot.position, directionOffset(newFacing), 1);
+  if (!inBounds(newHeadPosition, project.size)) return undefined;
+  const oldKeys = new Set(parts.map((part) => coordinateKey(part.position)));
+  const destination = find(project.blocks, newHeadPosition);
+  if (destination && !oldKeys.has(coordinateKey(destination.position))) return undefined;
+  const occupied = foot.state['occupied'] ?? head.state['occupied'];
+  const update = (block: PlacedBlock): PlacedBlock => {
+    if (coordinateKey(block.position) === coordinateKey(foot.position)) return { ...block, state: { ...block.state, [behavior.facingProperty]: newFacing, [behavior.partProperty]: behavior.firstPart, ...(occupied === undefined ? {} : { occupied }) } };
+    if (coordinateKey(block.position) === coordinateKey(head.position)) return { ...block, position: { ...newHeadPosition }, state: { ...block.state, [behavior.facingProperty]: newFacing, [behavior.partProperty]: behavior.secondPart, ...(occupied === undefined ? {} : { occupied }) } };
+    return block;
+  };
+  return { ...project, blocks: project.blocks.map(update) };
+}
+
 function find(blocks: readonly PlacedBlock[], position: VoxelCoordinate): PlacedBlock | undefined { const key = coordinateKey(position); return blocks.find((block) => coordinateKey(block.position) === key); }
 function sameValues(a: readonly string[], b: readonly string[]): boolean { return a.length === b.length && a.every((value) => b.includes(value)); }
 function groupOrder(project: ProjectDocument, id: string): number { const index = project.groups.findIndex((group) => group.id === id); return index < 0 ? Number.MAX_SAFE_INTEGER : index; }
 function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
 function add(position: VoxelCoordinate, offset: VoxelCoordinate, scale: 1 | -1): VoxelCoordinate { return { x: position.x + offset.x * scale, y: position.y + offset.y * scale, z: position.z + offset.z * scale }; }
+function inBounds(position: VoxelCoordinate, size: ProjectDocument['size']): boolean { return position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < size.x && position.y < size.y && position.z < size.z; }
+function isHorizontal(value: string): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }

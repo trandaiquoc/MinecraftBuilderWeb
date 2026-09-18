@@ -8,7 +8,7 @@ import { HistoryService } from '../editor/history.service';
 import { SelectionService } from '../editor/selection.service';
 import { StructureEditorService } from '../editor/structure-editor.service';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
-import { BlockRuleEngine, minecraftSkullRotation } from './block-rule-engine';
+import { BlockRuleEngine, minecraftPlayerFacing, minecraftSkullRotation } from './block-rule-engine';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
 import { VanillaBehaviorRegistry } from './vanilla-behavior-registry';
 
@@ -18,6 +18,9 @@ const base: ProjectDocument = { schemaVersion: 2, id: 'rules', metadata: { name:
 const block = (id: string, position: VoxelCoordinate, state?: Readonly<Record<string, string>>): PlacedBlock => ({ kind: 'resolved', id, namespace: 'minecraft', position, state: state ?? catalog.get(id)?.defaultState ?? {} });
 
 describe('BlockRuleEngine', () => {
+  it.each([[0, 'south'], [90, 'west'], [180, 'north'], [-90, 'east'], [270, 'east']] as const)('maps bed yaw %s to %s', (yaw, facing) => {
+    expect(minecraftPlayerFacing(yaw)).toBe(facing);
+  });
   it('adds and removes fence connections through a deduplicated refresh', () => {
     const first = engine.place(base, block('minecraft:oak_fence', { x: 2, y: 1, z: 2 })).project!;
     const second = engine.place(first, block('minecraft:oak_fence', { x: 3, y: 1, z: 2 })).project!;
@@ -153,6 +156,12 @@ describe('BlockRuleEngine', () => {
     expect(bed.find((entry) => entry.state['part'] === 'head')?.position).toEqual(headPosition);
     expect(bed.every((entry) => entry.state['occupied'] === 'false' && entry.state['facing'] === facing)).toBe(true);
     expect(engine.delete(result.project!, headPosition).project!.blocks).toHaveLength(0);
+  });
+
+  it.each([[0, 'south', { x: 3, y: 1, z: 4 }], [90, 'west', { x: 2, y: 1, z: 3 }], [180, 'north', { x: 3, y: 1, z: 2 }], [-90, 'east', { x: 4, y: 1, z: 3 }]] as const)('derives bed placement from player yaw %s', (yaw, facing, headPosition) => {
+    const result = engine.place(base, block('minecraft:red_bed', { x: 3, y: 1, z: 3 }, { facing: 'north', part: 'foot', occupied: 'true' }), { faceNormal: { x: 0, y: 1, z: 0 }, yaw });
+    expect(result.validation.status).toBe('valid');
+    expect(result.project?.blocks.find((entry) => entry.state['part'] === 'head')).toMatchObject({ position: headPosition, state: { facing, occupied: 'false' } });
   });
 
   it('rejects a bed when its head target is occupied or outside bounds', () => {

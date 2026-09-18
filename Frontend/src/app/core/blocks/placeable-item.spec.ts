@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BlockCatalog } from './block-catalog';
 import { representativeBlockFixture } from './block-catalog.fixture';
-import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, resolveConcreteBlockId } from './placeable-item';
+import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, previewBlocksForItem, resolveConcreteBlockId } from './placeable-item';
 
 function catalogWith(...ids: string[]): BlockCatalog {
   const source = [...representativeBlockFixture.blocks];
@@ -34,6 +34,11 @@ describe('vanilla placeable item layer', () => {
     expect(items.find((item) => item.itemId === 'minecraft:red_bed')?.previewBlocks).toHaveLength(2);
     expect(items.find((item) => item.itemId === 'minecraft:oak_door')?.previewBlocks.map((block) => block.position.y)).toEqual([0, 1]);
     expect(items.find((item) => item.itemId === 'minecraft:sunflower')?.previewBlocks).toHaveLength(2);
+    const bed = items.find((item) => item.itemId === 'minecraft:red_bed')!;
+    for (const [facing, head] of [['south', { x: 0, y: 0, z: 1 }], ['north', { x: 0, y: 0, z: -1 }], ['east', { x: 1, y: 0, z: 0 }], ['west', { x: -1, y: 0, z: 0 }]] as const) {
+      const preview = previewBlocksForItem(bed, { ...bed.defaultState, facing });
+      expect(preview[0]?.state['facing']).toBe(facing); expect(preview[1]?.state['facing']).toBe(facing); expect(preview[1]?.position).toEqual(head);
+    }
   });
 
   it('resolves contextual wall variants without suffix inference', () => {

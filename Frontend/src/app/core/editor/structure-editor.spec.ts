@@ -15,6 +15,33 @@ function makeEditor(project: ProjectDocument): { editor: StructureEditorService;
 const project: ProjectDocument = { schemaVersion: 1, id: 'editor', metadata: { name: 'Editor', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [{ kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' } }], groups: [], editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: .28 } };
 
 describe('StructureEditorService mutations', () => {
+  it('rotates a Bed pair atomically and moves its head from either selected part', () => {
+    const bed: ProjectDocument = { ...project, blocks: [
+      { kind: 'resolved', id: 'minecraft:red_bed', namespace: 'minecraft', position: { x: 3, y: 1, z: 3 }, state: { part: 'foot', facing: 'north', occupied: 'false' } },
+      { kind: 'resolved', id: 'minecraft:red_bed', namespace: 'minecraft', position: { x: 3, y: 1, z: 2 }, state: { part: 'head', facing: 'north', occupied: 'false' } },
+    ] };
+    const { editor, workspace, history, selection, library } = makeEditor(bed);
+    selection.selectLogical({ x: 3, y: 1, z: 3 }, bed, (id) => library.get(id));
+    expect(editor.updateBlockState({ x: 3, y: 1, z: 3 }, 'facing', 'east')).toBe(true);
+    expect(workspace.project()!.blocks.find((block) => block.state['part'] === 'head')?.position).toEqual({ x: 4, y: 1, z: 3 });
+    expect(workspace.project()!.blocks.every((block) => block.state['facing'] === 'east')).toBe(true);
+    selection.selectLogical({ x: 4, y: 1, z: 3 }, workspace.project()!, (id) => library.get(id));
+    expect(editor.rotateBlock({ x: 4, y: 1, z: 3 })).toBe(true);
+    expect(workspace.project()!.blocks.find((block) => block.state['part'] === 'head')?.position).toEqual({ x: 3, y: 1, z: 4 });
+    expect(history.undo()).toBe(true); expect(workspace.project()!.blocks.find((block) => block.state['part'] === 'head')?.position).toEqual({ x: 4, y: 1, z: 3 });
+    expect(history.redo()).toBe(true); expect(workspace.project()!.blocks.find((block) => block.state['part'] === 'head')?.position).toEqual({ x: 3, y: 1, z: 4 });
+  });
+
+  it('rejects Bed rotation without partial mutation when destination is occupied', () => {
+    const bed: ProjectDocument = { ...project, blocks: [
+      { kind: 'resolved', id: 'minecraft:red_bed', namespace: 'minecraft', position: { x: 3, y: 1, z: 3 }, state: { part: 'foot', facing: 'north', occupied: 'false' } },
+      { kind: 'resolved', id: 'minecraft:red_bed', namespace: 'minecraft', position: { x: 3, y: 1, z: 2 }, state: { part: 'head', facing: 'north', occupied: 'false' } },
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 4, y: 1, z: 3 }, state: {} },
+    ] };
+    const { editor, workspace } = makeEditor(bed); const before = structuredClone(bed);
+    expect(editor.updateBlockState({ x: 3, y: 1, z: 3 }, 'facing', 'east')).toBe(false); expect(workspace.project()).toEqual(before);
+  });
+
   it('stacks matching candles in place, preserves state and group membership, and undoes each increment', () => {
     const candle: ProjectDocument = { ...project, groups: [{ id: 'decor', name: 'Decor', visible: true, locked: false }], blocks: [{ kind: 'resolved', id: 'minecraft:white_candle', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: { candles: '1', lit: 'true', waterlogged: 'true' }, groupIds: ['decor'] }] };
     const { editor, workspace, history, library, active } = makeEditor(candle);

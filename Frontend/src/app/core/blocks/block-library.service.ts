@@ -16,6 +16,7 @@ export class BlockLibraryService {
 
   constructor(readonly activeBlock: ActiveBlockService) {
     this.catalog.load(representativeBlockFixture);
+    this.items = buildPlaceableItems(this.catalog.all());
   }
 
   setQuery(query: string): void { this.query.set(query); }
