@@ -106,6 +106,17 @@ describe('block model geometry', () => {
     expect(result.object?.userData['specialModel']).toBe('minecraft-java-chest-single-1.21.1');
     expect(result.resolved.state).toEqual({ facing: 'south', type: 'single', waterlogged: 'false' });
   });
+
+  it('renders a vanilla Shulker Box special visual as real when its texture is available', async () => {
+    const assets = new VanillaAssetProvider('1.21.1.jar', {}, new Map([
+      ['assets/minecraft/textures/entity/shulker/shulker_light_blue.png', new Uint8Array([1])],
+    ]));
+    const result = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create(block('minecraft:light_blue_shulker_box', { facing: 'north' }));
+    expect(result.mode).toBe('real');
+    expect(result.trace.texturePaths).toEqual(['assets/minecraft/textures/entity/shulker/shulker_light_blue.png']);
+    expect(result.object?.userData['specialVisualFamily']).toBe('shulker-boxes');
+    expect(result.object?.userData['specialModel']).toBe('minecraft-java-shulker-box-1.21.1');
+  });
 });
 
 function realLikeVisualProvider(): VanillaBlockVisualProvider {

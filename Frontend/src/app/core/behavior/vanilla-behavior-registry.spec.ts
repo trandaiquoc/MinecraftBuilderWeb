@@ -46,4 +46,12 @@ describe('VanillaBehaviorRegistry', () => {
     expect(registry.enrich(baseRecord('minecraft:skeleton_wall_skull')).behavior).toMatchObject({ kind: 'head-placement', wall: true });
     expect(registry.enrich(baseRecord('minecraft:piston_head'))).toEqual(baseRecord('minecraft:piston_head'));
   });
+  it('adds six-face placement metadata only to the 17 vanilla Shulker Box IDs', () => {
+    const registry = new VanillaBehaviorRegistry();
+    const ids = ['shulker_box', 'white_shulker_box', 'orange_shulker_box', 'magenta_shulker_box', 'light_blue_shulker_box', 'yellow_shulker_box', 'lime_shulker_box', 'pink_shulker_box', 'gray_shulker_box', 'light_gray_shulker_box', 'cyan_shulker_box', 'purple_shulker_box', 'blue_shulker_box', 'brown_shulker_box', 'green_shulker_box', 'red_shulker_box', 'black_shulker_box'];
+    for (const id of ids) {
+      expect(registry.enrich(baseRecord(`minecraft:${id}`))).toMatchObject({ behavior: { kind: 'six-face-placement', facingProperty: 'facing' }, defaultState: { facing: 'up' }, stateDefinitions: expect.arrayContaining([{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }]) });
+    }
+    expect(registry.enrich(baseRecord('mod:red_shulker_box'))).toEqual(baseRecord('mod:red_shulker_box'));
+  });
 });

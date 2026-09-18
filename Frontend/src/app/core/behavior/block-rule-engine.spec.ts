@@ -10,6 +10,7 @@ import { StructureEditorService } from '../editor/structure-editor.service';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
 import { BlockRuleEngine, minecraftSkullRotation } from './block-rule-engine';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
+import { VanillaBehaviorRegistry } from './vanilla-behavior-registry';
 
 const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
 const engine = new BlockRuleEngine((id) => catalog.get(id));
@@ -193,6 +194,22 @@ describe('BlockRuleEngine', () => {
     const result = engine.place(base, block('minecraft:skeleton_wall_skull', { x: 2, y: 1, z: 2 }), { faceNormal: { x: 1, y: 0, z: 0 } });
     expect(result.validation.status).toBe('valid');
     expect(result.project?.blocks[0].state['facing']).toBe('east');
+  });
+
+  it('derives Shulker Box facing directly from each clicked face without support rules', () => {
+    const behavior = new VanillaBehaviorRegistry().enrich({ id: 'minecraft:shulker_box', displayName: 'Shulker Box', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'fallback', visualSupport: 'fallback', behaviorSupport: 'unknown', defaultStateSource: 'unknown' });
+    const shulkerEngine = new BlockRuleEngine((id) => id === behavior.id ? {
+      ...behavior, namespace: 'minecraft', support: 'full', visualSupport: 'partial', visualClassification: 'special-renderer-required', behaviorSupport: 'full', defaultStateSource: 'verified-fixture',
+    } : catalog.get(id));
+    const cases = [
+      [{ x: 0, y: 1, z: 0 }, 'up'], [{ x: 0, y: -1, z: 0 }, 'down'], [{ x: 1, y: 0, z: 0 }, 'east'],
+      [{ x: -1, y: 0, z: 0 }, 'west'], [{ x: 0, y: 0, z: 1 }, 'south'], [{ x: 0, y: 0, z: -1 }, 'north'],
+    ] as const;
+    for (const [faceNormal, facing] of cases) {
+      const result = shulkerEngine.place(base, block('minecraft:shulker_box', { x: 2, y: 2, z: 2 }, { facing: 'up', waterlogged: 'true' }), { faceNormal });
+      expect(result.validation.status, facing).toBe('valid');
+      expect(result.project?.blocks[0].state, facing).toMatchObject({ facing, waterlogged: 'true' });
+    }
   });
 
   it('preserves unsupported standing torch and tall plant data while reporting invalid', () => {

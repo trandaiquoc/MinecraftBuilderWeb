@@ -32,6 +32,7 @@ export type BlockBehavior =
   | { readonly kind: 'double-height'; readonly halfProperty: 'half'; readonly requiresFloor: boolean }
   | { readonly kind: 'paired-horizontal'; readonly partProperty: 'part'; readonly facingProperty: 'facing'; readonly firstPart: 'foot'; readonly secondPart: 'head' }
   | { readonly kind: 'candle'; readonly candlesProperty: 'candles'; readonly maxCandles: 4 }
+  | { readonly kind: 'six-face-placement'; readonly facingProperty: 'facing' }
   | { readonly kind: 'head-placement'; readonly wall: boolean; readonly rotationProperty: 'rotation'; readonly facingProperty: 'facing' };
 
 export interface BlockDefinition {

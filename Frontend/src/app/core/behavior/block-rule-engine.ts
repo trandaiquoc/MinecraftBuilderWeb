@@ -114,6 +114,10 @@ export class BlockRuleEngine {
       const facing = directionFromNormal(context.faceNormal);
       if (facing) return { ...block, state: { ...block.state, [behavior.facingProperty]: facing } };
     }
+    if (behavior?.kind === 'six-face-placement') {
+      const facing = context?.faceNormal && directionFromSixFaceNormal(context.faceNormal);
+      return facing ? { ...block, state: { ...block.state, [behavior.facingProperty]: facing } } : undefined;
+    }
     if (behavior?.kind === 'head-placement') {
       if (behavior.wall) {
         const facing = context?.faceNormal && directionFromNormal(context.faceNormal);
@@ -272,6 +276,15 @@ function directionOffset(direction: string): VoxelCoordinate { return ({ north: 
 function directionFromNormal(normal: { readonly x: number; readonly z: number }): 'north' | 'east' | 'south' | 'west' | undefined {
   if (normal.x > 0) return 'east';
   if (normal.x < 0) return 'west';
+  if (normal.z > 0) return 'south';
+  if (normal.z < 0) return 'north';
+  return undefined;
+}
+function directionFromSixFaceNormal(normal: { readonly x: number; readonly y: number; readonly z: number }): 'north' | 'east' | 'south' | 'west' | 'up' | 'down' | undefined {
+  if (normal.x > 0) return 'east';
+  if (normal.x < 0) return 'west';
+  if (normal.y > 0) return 'up';
+  if (normal.y < 0) return 'down';
   if (normal.z > 0) return 'south';
   if (normal.z < 0) return 'north';
   return undefined;

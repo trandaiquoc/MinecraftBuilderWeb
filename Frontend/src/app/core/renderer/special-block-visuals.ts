@@ -147,7 +147,56 @@ const headAdapter: SpecialBlockVisualAdapter = {
     return root;
   },
 };
-const shulkerAdapter = named('shulker-boxes', (id) => id.endsWith('_shulker_box'), (block) => { const root = new THREE.Group(); const color = colorFromId(block.id, 0x8b5aa7); box(root, [.9, .45, .9], [.5, .225, .5], color); box(root, [.92, .26, .92], [.5, .58, .5], color); return root; });
+const vanillaShulkerBoxIds = new Set([
+  'minecraft:shulker_box', 'minecraft:white_shulker_box', 'minecraft:orange_shulker_box', 'minecraft:magenta_shulker_box',
+  'minecraft:light_blue_shulker_box', 'minecraft:yellow_shulker_box', 'minecraft:lime_shulker_box', 'minecraft:pink_shulker_box',
+  'minecraft:gray_shulker_box', 'minecraft:light_gray_shulker_box', 'minecraft:cyan_shulker_box', 'minecraft:purple_shulker_box',
+  'minecraft:blue_shulker_box', 'minecraft:brown_shulker_box', 'minecraft:green_shulker_box', 'minecraft:red_shulker_box',
+  'minecraft:black_shulker_box',
+]);
+const shulkerAdapter: SpecialBlockVisualAdapter = {
+  family: 'shulker-boxes',
+  matches: (block) => vanillaShulkerBoxIds.has(block.id),
+  textureResource: (block) => shulkerTextureResource(block),
+  create: (block, context) => createShulkerVisual(block, context?.texture),
+};
+const shulkerModel: SpecialModelDescriptor = {
+  id: 'minecraft-java-shulker-box-1.21.1',
+  textureSize: [64, 64],
+  parts: [
+    { id: 'base', pivot: [0, 24, 0], applyPivot: true, cuboids: [{ id: 'base', uv: [0, 28], from: [-8, -8, -8], size: [16, 8, 16] }] },
+    { id: 'lid', pivot: [0, 24, 0], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [-8, -16, -8], size: [16, 12, 16] }] },
+  ],
+};
+export function shulkerTextureResource(block: PlacedBlock): string {
+  const name = block.id.split(':').at(-1) ?? 'shulker_box';
+  if (name === 'shulker_box') return 'minecraft:entity/shulker/shulker';
+  const color = name.replace(/_shulker_box$/, '');
+  return `minecraft:entity/shulker/shulker_${color}`;
+}
+export function shulkerFacingQuaternion(facing: string | undefined): THREE.Quaternion {
+  const euler = new THREE.Euler();
+  if (facing === 'down') euler.set(Math.PI, 0, 0, 'XYZ');
+  else if (facing === 'north') euler.set(Math.PI / 2, 0, Math.PI, 'XYZ');
+  else if (facing === 'south') euler.set(Math.PI / 2, 0, 0, 'XYZ');
+  else if (facing === 'west') euler.set(Math.PI / 2, 0, Math.PI / 2, 'XYZ');
+  else if (facing === 'east') euler.set(Math.PI / 2, 0, -Math.PI / 2, 'XYZ');
+  return new THREE.Quaternion().setFromEuler(euler);
+}
+function createShulkerVisual(block: PlacedBlock, texture?: THREE.Texture): THREE.Group {
+  const root = createSpecialModel(shulkerModel, texture);
+  const translation = new THREE.Group(); translation.position.set(.5, .5, .5);
+  const inset = new THREE.Group(); inset.scale.setScalar(.9995);
+  const direction = new THREE.Group(); direction.quaternion.copy(shulkerFacingQuaternion(block.state['facing']));
+  const flip = new THREE.Group(); flip.scale.set(1, -1, -1);
+  const localTranslation = new THREE.Group(); localTranslation.position.set(0, -1, 0);
+  while (root.children.length) localTranslation.add(root.children[0]);
+  flip.add(localTranslation); direction.add(flip); inset.add(direction); translation.add(inset); root.add(translation);
+  root.userData['specialModel'] = shulkerModel.id;
+  root.userData['shulkerFacing'] = block.state['facing'] ?? 'up';
+  root.userData['shulkerTexture'] = shulkerTextureResource(block);
+  return root;
+}
 function bedColor(id: string): string { return (id.split(':').at(-1) ?? 'red_bed').replace(/_bed$/, '') || 'red'; }
 
 type SkullVariant = 'skeleton' | 'wither_skeleton' | 'zombie' | 'creeper' | 'dragon' | 'piglin' | 'player';

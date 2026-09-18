@@ -40,4 +40,15 @@ describe('camera movement input contract', () => {
     expect(bounds.min.y).toBeCloseTo(2);
     expect(bounds.max.y).toBeCloseTo(2.875);
   });
+
+  it('preserves the Shulker Box local facing transform when adding voxel translation', () => {
+    const block = { kind: 'resolved' as const, id: 'minecraft:shulker_box', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'up' } };
+    const visual = new SpecialBlockVisualRegistry().resolve(block)!.create(block);
+    translateVisualToVoxel(visual, { x: 4, y: 2, z: -3 });
+    expect(visual.position.toArray()).toEqual([4, 2, -3]);
+    visual.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(visual);
+    expect(bounds.min.x).toBeCloseTo(4.00025, 5); expect(bounds.min.y).toBeCloseTo(2.00025, 5); expect(bounds.min.z).toBeCloseTo(-2.99975, 5);
+    expect(bounds.max.x).toBeCloseTo(4.99975, 5); expect(bounds.max.y).toBeCloseTo(2.99975, 5); expect(bounds.max.z).toBeCloseTo(-2.00025, 5);
+  });
 });
