@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AssetBlockRecord } from '../blocks/block-definition.types';
-import { VanillaBehaviorRegistry } from './vanilla-behavior-registry';
+import { isVanillaCandleId, VanillaBehaviorRegistry } from './vanilla-behavior-registry';
 
 const baseRecord = (id: string): AssetBlockRecord => ({ id, displayName: id, defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'fallback', visualSupport: 'fallback', behaviorSupport: 'unknown', defaultStateSource: 'unknown' });
 
@@ -27,13 +27,16 @@ describe('VanillaBehaviorRegistry', () => {
 
   it('adds generic candle stacking metadata to every vanilla candle variant', () => {
     const registry = new VanillaBehaviorRegistry();
-    for (const id of ['minecraft:white_candle', 'minecraft:red_candle', 'minecraft:blue_candle']) {
+    for (const id of ['minecraft:candle', 'minecraft:white_candle', 'minecraft:red_candle', 'minecraft:orange_candle', 'minecraft:magenta_candle', 'minecraft:light_blue_candle', 'minecraft:yellow_candle', 'minecraft:lime_candle', 'minecraft:pink_candle', 'minecraft:gray_candle', 'minecraft:light_gray_candle', 'minecraft:cyan_candle', 'minecraft:purple_candle', 'minecraft:blue_candle', 'minecraft:brown_candle', 'minecraft:green_candle', 'minecraft:red_candle', 'minecraft:black_candle']) {
       expect(registry.enrich(baseRecord(id))).toMatchObject({
         behavior: { kind: 'candle', candlesProperty: 'candles', maxCandles: 4 },
         defaultState: { candles: '1', lit: 'false', waterlogged: 'false' },
         stateDefinitions: expect.arrayContaining([{ name: 'candles', values: ['1', '2', '3', '4'] }]),
       });
     }
+    expect(isVanillaCandleId('minecraft:candle')).toBe(true);
+    expect(isVanillaCandleId('minecraft:white_candle_cake')).toBe(false);
+    expect(registry.enrich(baseRecord('minecraft:white_candle_cake'))).toEqual(baseRecord('minecraft:white_candle_cake'));
     expect(registry.enrich(baseRecord('example:red_candle'))).toEqual(baseRecord('example:red_candle'));
   });
 });

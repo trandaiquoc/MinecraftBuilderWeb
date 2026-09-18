@@ -104,7 +104,9 @@ export class VanillaBehaviorRegistry {
 }
 
 export function isVanillaCandleId(id: string): boolean {
-  return id.startsWith('minecraft:') && id.endsWith('_candle');
+  if (!id.startsWith('minecraft:')) return false;
+  const path = id.slice('minecraft:'.length);
+  return path === 'candle' || path.endsWith('_candle');
 }
 
 const wallStateDefinitions: readonly BlockStateDefinition[] = [
