@@ -39,6 +39,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly specialVisuals: SpecialBlockVisualRegistry;
   private readonly thumbnailCache = new Map<string, Promise<string | undefined>>();
   private thumbnailRenderer?: THREE.WebGLRenderer;
+  private grassTintCache?: Promise<number | undefined>;
 
   constructor(private readonly assets: VanillaAssetProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets.gameVersion); }
 
@@ -71,7 +72,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     try {
       const root = new THREE.Group();
       root.userData['blockId'] = block.id; root.userData['state'] = { ...block.state }; root.userData['diagnostics'] = resolved.diagnostics;
-      for (const part of resolved.parts) root.add(await this.createPart(part));
+      for (const part of resolved.parts) root.add(await this.createPart(part, block.id));
       root.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(root);
       const mode: BlockRenderMode = diagnostics.length ? 'partial' : 'real';
@@ -116,10 +117,10 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const resolved = this.resolver.resolve(blockId, state, key); this.resolvedCache.set(key, resolved); return resolved;
   }
 
-  private async createPart(part: ResolvedModelPart): Promise<THREE.Group> {
+  private async createPart(part: ResolvedModelPart, blockId: string): Promise<THREE.Group> {
     const model = new THREE.Group();
     model.userData['model'] = part.model; model.userData['uvlock'] = part.transform.uvlock; model.userData['ambientOcclusion'] = part.ambientOcclusion;
-    for (const element of part.elements) model.add(await this.createElement(element, part));
+    for (const element of part.elements) model.add(await this.createElement(element, part, blockId));
     if (part.transform.x || part.transform.y) {
       const pivot = new THREE.Group(); pivot.position.set(.5, .5, .5); model.position.set(-.5, -.5, -.5); pivot.add(model);
       pivot.rotation.order = 'YXZ'; pivot.rotation.x = THREE.MathUtils.degToRad(part.transform.x); pivot.rotation.y = THREE.MathUtils.degToRad(-part.transform.y);
@@ -128,15 +129,16 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     return model;
   }
 
-  private async createElement(element: ResolvedElement, part: ResolvedModelPart): Promise<THREE.Group> {
+  private async createElement(element: ResolvedElement, part: ResolvedModelPart, blockId: string): Promise<THREE.Group> {
     const elementGroup = new THREE.Group();
     const origin = element.rotation ? vector(element.rotation.origin) : new THREE.Vector3();
     for (const [direction, face] of Object.entries(element.faces)) {
       const geometry = faceGeometry(element, direction, face, part.transform.uvlock ? -(part.transform.x + part.transform.y) / 90 : 0, origin);
       const texture = await this.texture(face.texture);
+      const tint = tintColorForFace(blockId, face.tintindex, await this.tintColor(blockId, face.tintindex));
       const material = element.shade === false
-        ? new THREE.MeshBasicMaterial({ map: texture, color: 0xffffff, transparent: true, alphaTest: .1, side: THREE.DoubleSide })
-        : new THREE.MeshLambertMaterial({ map: texture, color: 0xffffff, transparent: true, alphaTest: .1, side: THREE.DoubleSide });
+        ? new THREE.MeshBasicMaterial({ map: texture, color: tint ?? 0xffffff, transparent: true, alphaTest: .1, side: THREE.DoubleSide })
+        : new THREE.MeshLambertMaterial({ map: texture, color: tint ?? 0xffffff, transparent: true, alphaTest: .1, side: THREE.DoubleSide });
       if (!texture) material.color.setHex(0xd04cff);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData['face'] = direction; mesh.userData['cullface'] = face.cullface; mesh.userData['tintindex'] = face.tintindex; mesh.userData['texture'] = face.texture;
@@ -163,6 +165,46 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     }).catch(() => { this.textureCache.delete(resource); return undefined; }) : Promise.resolve(undefined);
     this.textureCache.set(resource, loading); return loading;
   }
+
+  private tintColor(blockId: string, _tintIndex: number | undefined): Promise<number | undefined> {
+    if (!isGrassTintBlock(blockId)) return Promise.resolve(undefined);
+    return this.grassTintCache ??= this.sampleGrassTint();
+  }
+
+  private async sampleGrassTint(): Promise<number | undefined> {
+    const texture = await this.texture('minecraft:colormap/grass');
+    return texture ? sampleGrassColormap(texture) : undefined;
+  }
+}
+
+export function isGrassTintBlock(blockId: string): boolean {
+  return blockId === 'minecraft:grass_block' || blockId === 'minecraft:short_grass' || blockId === 'minecraft:tall_grass';
+}
+
+export function tintColorForFace(blockId: string, tintIndex: number | undefined, grassColor: number | undefined): number | undefined {
+  return tintIndex === undefined || !isGrassTintBlock(blockId) ? undefined : grassColor;
+}
+
+export function grassColormapSampleCoordinate(width: number, height: number): readonly [number, number] {
+  return [Math.floor((1 - 0.5) * Math.max(width - 1, 0)), Math.floor((1 - 1) * Math.max(height - 1, 0))];
+}
+
+function sampleGrassColormap(texture: THREE.Texture): number | undefined {
+  const image = texture.image as { readonly width?: number; readonly height?: number; readonly data?: ArrayLike<number> } | undefined;
+  const width = image?.width ?? 0; const height = image?.height ?? 0;
+  if (!image || !width || !height) return undefined;
+  const source = image;
+  const [x, y] = grassColormapSampleCoordinate(width, height);
+  if (source.data && source.data.length >= width * height * 4) {
+    const offset = (y * width + x) * 4;
+    return ((source.data[offset] ?? 255) << 16) | ((source.data[offset + 1] ?? 255) << 8) | (source.data[offset + 2] ?? 255);
+  }
+  if (typeof document === 'undefined') return undefined;
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+  const context = canvas.getContext('2d'); if (!context) return undefined;
+  context.drawImage(source as CanvasImageSource, 0, 0);
+  const pixel = context.getImageData(x, y, 1, 1).data;
+  return (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
 }
 
 function validBounds(bounds: THREE.Box3): boolean { const size = bounds.getSize(new THREE.Vector3()); return bounds.min.toArray().every(Number.isFinite) && bounds.max.toArray().every(Number.isFinite) && size.lengthSq() > 0; }

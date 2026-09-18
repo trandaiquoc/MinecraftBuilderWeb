@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../blocks/resolver';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
-import { VanillaBlockVisualProvider, faceGeometry } from './block-model-geometry';
+import { VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from './three-viewport-engine';
 import { viewportThemePalette } from './viewport-theme';
 
@@ -10,6 +10,16 @@ const face: ResolvedFace = { texture: 'minecraft:block/stone', uv: [16, 13, 0, 1
 
 describe('block model geometry', () => {
   beforeEach(() => { Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:stone') }); });
+  it('applies grass tint only to tintindexed vanilla grass faces', () => {
+    const grass = 0x79c05a;
+    expect(tintColorForFace('minecraft:grass_block', 0, grass)).toBe(grass);
+    expect(tintColorForFace('minecraft:short_grass', 0, grass)).toBe(grass);
+    expect(tintColorForFace('minecraft:tall_grass', 0, grass)).toBe(grass);
+    expect(tintColorForFace('minecraft:grass_block', undefined, grass)).toBeUndefined();
+    expect(tintColorForFace('minecraft:stone', 0, grass)).toBeUndefined();
+    expect(isGrassTintBlock('minecraft:tall_grass')).toBe(true);
+    expect(grassColormapSampleCoordinate(256, 256)).toEqual([127, 0]);
+  });
   it('preserves out-of-range element coordinates and reversed UV ordering', () => {
     const element: ResolvedElement = { from: [-2, 0, 0], to: [20, 8, 16], faces: { north: face } };
     const geometry = faceGeometry(element, 'north', face);
