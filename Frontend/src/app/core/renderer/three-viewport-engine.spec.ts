@@ -27,4 +27,17 @@ describe('camera movement input contract', () => {
     expect(bounds.min.y).toBeCloseTo(3);
     expect(bounds.max.y).toBeCloseTo(3.5);
   });
+
+  it('preserves the chest local facing transform when adding voxel translation', () => {
+    const block = { kind: 'resolved' as const, id: 'minecraft:chest', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'east', type: 'single' } };
+    const visual = new SpecialBlockVisualRegistry().resolve(block)!.create(block);
+    translateVisualToVoxel(visual, { x: 4, y: 2, z: -3 });
+    expect(visual.position.toArray()).toEqual([4, 2, -3]);
+    expect(visual.children[0].position.toArray()).toEqual([.5, .5, .5]);
+    expect(visual.children[0].rotation.y).toBeCloseTo(-Math.PI * 1.5);
+    visual.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(visual);
+    expect(bounds.min.y).toBeCloseTo(2);
+    expect(bounds.max.y).toBeCloseTo(2.875);
+  });
 });

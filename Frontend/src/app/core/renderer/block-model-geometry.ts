@@ -48,14 +48,14 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const resources = resolved.trace.textureResources;
     const texturePaths = resources.map(texturePath);
     const special = this.specialVisuals.resolve(block);
-    if (special && !resolved.parts.some((part) => part.elements.length)) {
+    if (special && (special.family === 'chests' || !resolved.parts.some((part) => part.elements.length))) {
       const resource = special.textureResource?.(block);
       const texture = resource ? await this.texture(resource) : undefined;
       const object = special.create(block, { texture });
       object.userData['specialVisualFamily'] = special.family;
       object.updateMatrixWorld(true);
       const specialTexturePaths = resource ? [texturePath(resource)] : [];
-      return { object, resolved, mode: (special.family === 'beds' || special.family === 'signs') && !!texture ? 'real' : 'partial', diagnostics: resource && !texture ? [{ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${specialTexturePaths[0]}`, resource: specialTexturePaths[0] }] : [], trace: { texturePaths: specialTexturePaths, pngBytesFound: !resource || !!this.assets.readBinary(specialTexturePaths[0]), textureDecoded: !resource || !!texture, geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(object)) } };
+      return { object, resolved, mode: (special.family === 'beds' || special.family === 'signs' || special.family === 'chests') && !!texture ? 'real' : 'partial', diagnostics: resource && !texture ? [{ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${specialTexturePaths[0]}`, resource: specialTexturePaths[0] }] : [], trace: { texturePaths: specialTexturePaths, pngBytesFound: !resource || !!this.assets.readBinary(specialTexturePaths[0]), textureDecoded: !resource || !!texture, geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(object)) } };
     }
     if (!resolved.parts.some((part) => part.elements.length)) return {
       resolved, mode: 'fallback', diagnostics: [{ code: 'MODEL_NOT_FOUND', message: resolved.diagnostics.map((item) => item.message).join('; ') || `No renderable model elements for ${block.id}` }],

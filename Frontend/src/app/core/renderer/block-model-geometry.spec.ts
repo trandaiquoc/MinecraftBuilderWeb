@@ -94,6 +94,18 @@ describe('block model geometry', () => {
   it('uses an asset-backed Stone thumbnail after the provider becomes ready', () => {
     expect(realLikeVisualProvider().thumbnailUrl('minecraft:stone', {})).toBe('blob:stone');
   });
+
+  it('renders an exact vanilla chest special visual as real when its texture is available', async () => {
+    const assets = new VanillaAssetProvider('1.21.1.jar', {}, new Map([
+      ['assets/minecraft/textures/entity/chest/normal.png', new Uint8Array([1])],
+    ]));
+    const result = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create(block('minecraft:chest', { facing: 'south', type: 'single', waterlogged: 'false' }));
+    expect(result.mode).toBe('real');
+    expect(result.trace.texturePaths).toEqual(['assets/minecraft/textures/entity/chest/normal.png']);
+    expect(result.object?.userData['specialVisualFamily']).toBe('chests');
+    expect(result.object?.userData['specialModel']).toBe('minecraft-java-chest-single-1.21.1');
+    expect(result.resolved.state).toEqual({ facing: 'south', type: 'single', waterlogged: 'false' });
+  });
 });
 
 function realLikeVisualProvider(): VanillaBlockVisualProvider {

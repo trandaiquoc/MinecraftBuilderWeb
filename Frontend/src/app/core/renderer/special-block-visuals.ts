@@ -12,7 +12,7 @@ export class SpecialBlockVisualRegistry {
   private readonly beds: BedVisualProvider;
   private readonly signs: SignVisualProvider;
   private readonly adapters: readonly SpecialBlockVisualAdapter[];
-  constructor(gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, containerAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter]; }
+  constructor(gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter]; }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
   resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined { return this.adapters.find((adapter) => adapter.matches(block)); }
 }
@@ -67,7 +67,66 @@ const vanillaBedDescriptor: BedVisualDescriptor = {
   model: (block) => block.state['part'] === 'head' ? vanillaBedHead : vanillaBedFoot,
   transform: (block, root) => applyBedTransform(root, block.state['facing']),
 };
-const containerAdapter = named('containers', (id) => /(?:^|_)(?:chest|barrel)$/.test(id.split(':').at(-1) ?? id), (block) => { const root = new THREE.Group(); box(root, [.92, .58, .92], [.5, .29, .5], block.id.endsWith('barrel') ? 0x8c6035 : 0xa97439); box(root, [.94, .12, .94], [.5, .64, .5], 0xc28a47); return root; });
+const chestIds = new Set(['minecraft:chest', 'minecraft:trapped_chest', 'minecraft:ender_chest']);
+const chestAdapter: SpecialBlockVisualAdapter = {
+  family: 'chests',
+  matches: (block) => chestIds.has(block.id),
+  textureResource: (block) => chestTextureResource(block),
+  create: (block, context) => createChestVisual(block, context?.texture),
+};
+const barrelAdapter = named('containers', (id) => /(?:^|_)barrel$/.test(id.split(':').at(-1) ?? id), (block) => { const root = new THREE.Group(); box(root, [.92, .58, .92], [.5, .29, .5], 0x8c6035); box(root, [.94, .12, .94], [.5, .64, .5], 0xc28a47); return root; });
+
+const chestSingleModel: SpecialModelDescriptor = {
+  id: 'minecraft-java-chest-single-1.21.1', textureSize: [64, 64], parts: [
+    { id: 'bottom', cuboids: [{ id: 'bottom', uv: [0, 19], from: [1, 0, 1], size: [14, 10, 14] }] },
+    { id: 'lid', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [1, 0, 0], size: [14, 5, 14] }] },
+    { id: 'lock', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lock', uv: [0, 0], from: [7, -2, 14], size: [2, 4, 1] }] },
+  ],
+};
+const chestRightModel: SpecialModelDescriptor = {
+  id: 'minecraft-java-chest-right-1.21.1', textureSize: [64, 64], parts: [
+    { id: 'bottom', cuboids: [{ id: 'bottom', uv: [0, 19], from: [1, 0, 1], size: [15, 10, 14] }] },
+    { id: 'lid', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [1, 0, 0], size: [15, 5, 14] }] },
+    { id: 'lock', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lock', uv: [0, 0], from: [15, -2, 14], size: [1, 4, 1] }] },
+  ],
+};
+const chestLeftModel: SpecialModelDescriptor = {
+  id: 'minecraft-java-chest-left-1.21.1', textureSize: [64, 64], parts: [
+    { id: 'bottom', cuboids: [{ id: 'bottom', uv: [0, 19], from: [0, 0, 1], size: [15, 10, 14] }] },
+    { id: 'lid', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [0, 0, 0], size: [15, 5, 14] }] },
+    { id: 'lock', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lock', uv: [0, 0], from: [0, -2, 14], size: [1, 4, 1] }] },
+  ],
+};
+
+export function chestModelFor(block: PlacedBlock): SpecialModelDescriptor {
+  if (block.id === 'minecraft:ender_chest') return chestSingleModel;
+  return block.state['type'] === 'left' ? chestLeftModel : block.state['type'] === 'right' ? chestRightModel : chestSingleModel;
+}
+export function chestTextureResource(block: PlacedBlock): string {
+  if (block.id === 'minecraft:ender_chest') return 'minecraft:entity/chest/ender';
+  const base = block.id === 'minecraft:trapped_chest' ? 'trapped' : 'normal';
+  const suffix = block.state['type'] === 'left' ? '_left' : block.state['type'] === 'right' ? '_right' : '';
+  return `minecraft:entity/chest/${base}${suffix}`;
+}
+export function chestRotationRadians(facing: string | undefined): number {
+  return ({ south: 0, west: Math.PI / 2, north: Math.PI, east: Math.PI * 1.5 } as Record<string, number>)[facing ?? 'north'] ?? Math.PI;
+}
+function createChestVisual(block: PlacedBlock, texture?: THREE.Texture): THREE.Group {
+  const model = chestModelFor(block);
+  const root = createSpecialModel(model, texture);
+  const orientation = new THREE.Group();
+  orientation.position.set(.5, .5, .5);
+  orientation.rotation.y = -chestRotationRadians(block.state['facing']);
+  const content = new THREE.Group();
+  content.position.set(-.5, -.5, -.5);
+  while (root.children.length) content.add(root.children[0]);
+  orientation.add(content);
+  root.add(orientation);
+  root.userData['specialModel'] = model.id;
+  root.userData['chestType'] = block.id === 'minecraft:ender_chest' ? 'single' : block.state['type'] ?? 'single';
+  root.userData['chestTexture'] = chestTextureResource(block);
+  return root;
+}
 const bannerAdapter = named('banners', (id) => id.endsWith('_banner'), (block) => { const root = new THREE.Group(); box(root, [.62, .92, .05], [.5, .57, .5], colorFromId(block.id, 0xa23d3d)); box(root, [.07, .2, .07], [.5, .1, .5], 0x55514b); return root; });
 const headIds = new Set([
   'minecraft:creeper_head', 'minecraft:creeper_wall_head', 'minecraft:dragon_head', 'minecraft:dragon_wall_head',

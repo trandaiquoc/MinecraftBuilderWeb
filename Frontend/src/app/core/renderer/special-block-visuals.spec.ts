@@ -1,18 +1,100 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { SpecialBlockVisualRegistry, createSpecialModel } from './special-block-visuals';
+import { chestModelFor, chestRotationRadians, chestTextureResource, SpecialBlockVisualRegistry, createSpecialModel } from './special-block-visuals';
 import { modelPartCuboidUv } from './special-model-descriptor';
 
 const registry = new SpecialBlockVisualRegistry();
 const block = (id: string) => ({ kind: 'resolved' as const, id, namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north' } });
 
 describe('special block visuals', () => {
-  it.each([['minecraft:red_bed', 'beds'], ['minecraft:chest', 'containers'], ['minecraft:oak_sign', 'signs'], ['minecraft:red_banner', 'banners'], ['minecraft:skeleton_skull', 'heads-skulls'], ['minecraft:blue_shulker_box', 'shulker-boxes']])('creates a static visual for %s', (id, family) => {
+  it.each([['minecraft:red_bed', 'beds'], ['minecraft:chest', 'chests'], ['minecraft:barrel', 'containers'], ['minecraft:oak_sign', 'signs'], ['minecraft:red_banner', 'banners'], ['minecraft:skeleton_skull', 'heads-skulls'], ['minecraft:blue_shulker_box', 'shulker-boxes']])('creates a static visual for %s', (id, family) => {
     const adapter = registry.resolve(block(id));
     expect(adapter?.family).toBe(family);
     expect(adapter?.create(block(id)).children.length).toBeGreaterThan(0);
   });
   it('does not claim generic JSON blocks as special', () => expect(registry.resolve(block('minecraft:stone'))).toBeUndefined());
+  it('matches only the exact vanilla chest family', () => {
+    expect(registry.resolve(block('minecraft:chest'))?.family).toBe('chests');
+    expect(registry.resolve(block('minecraft:trapped_chest'))?.family).toBe('chests');
+    expect(registry.resolve(block('minecraft:ender_chest'))?.family).toBe('chests');
+    expect(registry.resolve(block('minecraft:barrel'))?.family).toBe('containers');
+    expect(registry.resolve(block('mod:steel_chest'))).toBeUndefined();
+  });
+  it('maps chest textures and models by vanilla state', () => {
+    expect(chestTextureResource({ ...block('minecraft:chest'), state: { type: 'single' } })).toBe('minecraft:entity/chest/normal');
+    expect(chestTextureResource({ ...block('minecraft:chest'), state: { type: 'left' } })).toBe('minecraft:entity/chest/normal_left');
+    expect(chestTextureResource({ ...block('minecraft:chest'), state: { type: 'right' } })).toBe('minecraft:entity/chest/normal_right');
+    expect(chestTextureResource({ ...block('minecraft:trapped_chest'), state: { type: 'left' } })).toBe('minecraft:entity/chest/trapped_left');
+    expect(chestTextureResource({ ...block('minecraft:trapped_chest'), state: { type: 'single' } })).toBe('minecraft:entity/chest/trapped');
+    expect(chestTextureResource({ ...block('minecraft:trapped_chest'), state: { type: 'right' } })).toBe('minecraft:entity/chest/trapped_right');
+    expect(chestTextureResource(block('minecraft:ender_chest'))).toBe('minecraft:entity/chest/ender');
+    expect(chestModelFor({ ...block('minecraft:chest'), state: { type: 'single' } }).id).toBe('minecraft-java-chest-single-1.21.1');
+    expect(chestModelFor({ ...block('minecraft:chest'), state: { type: 'left' } }).id).toBe('minecraft-java-chest-left-1.21.1');
+    expect(chestModelFor({ ...block('minecraft:chest'), state: { type: 'right' } }).id).toBe('minecraft-java-chest-right-1.21.1');
+    expect(chestModelFor({ ...block('minecraft:ender_chest'), state: { type: 'right' } }).id).toBe('minecraft-java-chest-single-1.21.1');
+  });
+  it('keeps the exact vanilla chest cuboid dimensions, UVs, and pivots', () => {
+    const model = chestModelFor({ ...block('minecraft:chest'), state: { type: 'single' } });
+    expect(model.textureSize).toEqual([64, 64]);
+    expect(model.parts.map((part) => part.id)).toEqual(['bottom', 'lid', 'lock']);
+    expect(model.parts[0].cuboids[0]).toMatchObject({ uv: [0, 19], from: [1, 0, 1], size: [14, 10, 14] });
+    expect(model.parts[1]).toMatchObject({ pivot: [0, 9, 1], applyPivot: true });
+    expect(model.parts[1].cuboids[0]).toMatchObject({ uv: [0, 0], from: [1, 0, 0], size: [14, 5, 14] });
+    expect(model.parts[2]).toMatchObject({ pivot: [0, 9, 1], applyPivot: true });
+    expect(model.parts[2].cuboids[0]).toMatchObject({ uv: [0, 0], from: [7, -2, 14], size: [2, 4, 1] });
+    expect(chestModelFor({ ...block('minecraft:chest'), state: { type: 'left' } }).parts[0].cuboids[0].size).toEqual([15, 10, 14]);
+    expect(chestModelFor({ ...block('minecraft:chest'), state: { type: 'right' } }).parts[2].cuboids[0].from).toEqual([15, -2, 14]);
+  });
+  it('uses the closed single chest geometry, pivots, bounds, and world-facing rotations', () => {
+    const adapter = registry.resolve(block('minecraft:chest'))!;
+    const visual = adapter.create({ ...block('minecraft:chest'), state: { facing: 'south', type: 'single', waterlogged: 'false' } });
+    visual.updateMatrixWorld(true);
+    expect(visual.userData['specialModel']).toBe('minecraft-java-chest-single-1.21.1');
+    expect(visual.position.toArray()).toEqual([0, 0, 0]);
+    expect(visual.children[0].position.toArray()).toEqual([.5, .5, .5]);
+    expect(visual.children[0].rotation.y).toBeCloseTo(0);
+    expect(visual.children[0].children[0].position.toArray()).toEqual([-.5, -.5, -.5]);
+    expect(visual.children[0].children[0].children[1].position.toArray()).toEqual([0, 9 / 16, 1 / 16]);
+    const bounds = new THREE.Box3().setFromObject(visual);
+    expect(bounds.min.toArray()).toEqual([1 / 16, 0, 1 / 16]);
+    expect(bounds.max.toArray()).toEqual([15 / 16, 14 / 16, 1]);
+    for (const [facing, radians] of Object.entries({ south: 0, west: Math.PI / 2, north: Math.PI, east: Math.PI * 1.5 })) {
+      expect(chestRotationRadians(facing)).toBeCloseTo(radians);
+      const oriented = adapter.create({ ...block('minecraft:chest'), state: { facing, type: 'single' } });
+      expect(oriented.children[0].rotation.y).toBeCloseTo(-radians);
+    }
+  });
+  it.each([
+    ['south', (center: THREE.Vector3) => center.z > .9],
+    ['north', (center: THREE.Vector3) => center.z < .1],
+    ['east', (center: THREE.Vector3) => center.x > .9],
+    ['west', (center: THREE.Vector3) => center.x < .1],
+  ] as const)('keeps the chest lock on the front face for %s', (facing, isFront) => {
+    const visual = registry.resolve(block('minecraft:chest'))!.create({ ...block('minecraft:chest'), state: { facing, type: 'single' } });
+    visual.updateMatrixWorld(true);
+    const lock = visual.children[0].children[0].children[2];
+    const center = new THREE.Box3().setFromObject(lock).getCenter(new THREE.Vector3());
+    expect(isFront(center)).toBe(true);
+  });
+  it('keeps double chest half geometry and state data independent', () => {
+    for (const type of ['left', 'right'] as const) {
+      const visual = registry.resolve(block('minecraft:chest'))!.create({ ...block('minecraft:chest'), state: { facing: 'south', type, waterlogged: 'true' } });
+      visual.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(visual);
+      expect(bounds.min.y).toBeCloseTo(0); expect(bounds.max.y).toBeCloseTo(14 / 16);
+      expect(visual.userData['chestType']).toBe(type);
+      expect(visual.userData['specialModel']).toBe(`minecraft-java-chest-${type}-1.21.1`);
+    }
+  });
+  it('does not let waterlogged alter the closed chest model', () => {
+    const adapter = registry.resolve(block('minecraft:chest'))!;
+    const dry = adapter.create({ ...block('minecraft:chest'), state: { facing: 'north', type: 'single', waterlogged: 'false' } });
+    const wet = adapter.create({ ...block('minecraft:chest'), state: { facing: 'north', type: 'single', waterlogged: 'true' } });
+    dry.updateMatrixWorld(true); wet.updateMatrixWorld(true);
+    expect(new THREE.Box3().setFromObject(wet).min.toArray()).toEqual(new THREE.Box3().setFromObject(dry).min.toArray());
+    expect(new THREE.Box3().setFromObject(wet).max.toArray()).toEqual(new THREE.Box3().setFromObject(dry).max.toArray());
+    expect(wet.userData['chestTexture']).toBe(dry.userData['chestTexture']);
+  });
   it('matches only the verified vanilla head/skull family and keeps piston_head generic', () => {
     expect(registry.resolve(block('minecraft:skeleton_skull'))?.family).toBe('heads-skulls');
     expect(registry.resolve(block('minecraft:dragon_head'))?.family).toBe('heads-skulls');
