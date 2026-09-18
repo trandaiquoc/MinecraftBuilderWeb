@@ -37,22 +37,22 @@
     [placeholder]="i18n.t('blockSearchPlaceholder')"
   />
   <div class="results" role="listbox" [attr.aria-label]="i18n.t('blocksPanel')">
-    @for (block of library.results(); track block.id) {
+    @for (block of library.results(); track block.itemId) {
       <button
         class="block-item"
         type="button"
         role="option"
         (click)="select(block)"
-        [class.active]="library.activeBlock.active()?.id === block.id"
-        [attr.aria-selected]="library.activeBlock.active()?.id === block.id"
+        [class.active]="library.activeBlock.active()?.itemId === block.itemId"
+        [attr.aria-selected]="library.activeBlock.active()?.itemId === block.itemId"
         [attr.aria-label]="block.displayName"
       >
         <span
           class="preview"
-          [class.has-thumbnail]="!!assets.thumbnailUrl(block.id, block.defaultState)"
+          [class.has-thumbnail]="!!assets.thumbnailUrl(block.itemId, block.defaultState)"
           [class.fallback]="block.visualSupport === 'fallback'"
         >
-          @if (assets.thumbnailUrl(block.id, block.defaultState); as thumbnail) {
+          @if (assets.thumbnailUrl(block.itemId, block.defaultState); as thumbnail) {
             <img [src]="thumbnail" alt="" />
           } @else {
             <span>{{ block.visualSupport === 'fallback' ? '?' : '◇' }}</span>
@@ -72,9 +72,9 @@
   @if (library.activeBlock.active(); as active) {
     <div class="active-block">
       <span>{{ i18n.t('activeBlock') }}</span>
-      @if (library.get(active.id); as definition) {
+      @if (library.getItem(active.itemId || active.id); as definition) {
         <strong [attr.title]="definition.displayName">{{ definition.displayName }}</strong
-        ><small [attr.title]="active.id">{{ active.id }}</small
+        ><small [attr.title]="active.itemId || active.id">{{ active.itemId || active.id }}</small
         ><button type="button" (click)="pinActive()">{{ i18n.t('pinActiveBlock') }}</button>
       } @else {
         <strong>{{ active.id }}</strong>

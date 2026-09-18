@@ -12,6 +12,7 @@ import { BlockRuleEngine, nextCandleState, RuleValidation } from '../behavior/bl
 import { expandLogicalObjectClosure, resolveLogicalObjectParts, synchronizeLogicalObjectState } from '../behavior/logical-object';
 import { PlacementContext } from './placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from './sign-text-metrics';
+import { resolveItemBlock } from '../blocks/placeable-item';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -22,9 +23,10 @@ export class StructureEditorService {
     return this.history.execute('Place', (project) => {
       const active = this.activeBlock.active();
       if (!active || !this.inBounds(position, project) || this.find(project, position) || isBlockLocked(project, position)) return undefined;
-      const [namespace] = active.id.split(':');
-      const block: PlacedBlock = { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace, position: { ...position }, state: { ...active.state, ...context?.stateOverride }, blockEntityData: isSignId(active.id) ? defaultSignData() : undefined };
-      const result = this.rules().place(project, block, context); this.lastValidation = result.validation; return result.project;
+      const item = this.library.getItem(active.itemId ?? active.id);
+      const block = item ? resolveItemBlock(item, active.state, position, context) : { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { ...position }, state: { ...active.state, ...context?.stateOverride } } as PlacedBlock;
+      const requested: PlacedBlock = { ...block, kind: active.support === 'unknown' ? 'missing' : 'resolved', blockEntityData: isSignId(block.id) ? defaultSignData() : undefined };
+      const result = this.rules().place(project, requested, context); this.lastValidation = result.validation; return result.project;
     });
   }
 
@@ -82,7 +84,11 @@ export class StructureEditorService {
   pick(position: VoxelCoordinate): void {
     const project = this.workspace.project();
     const block = project && this.find(project, position);
-    if (block) this.activeBlock.pick(block);
+    if (block) {
+      const item = this.library.itemForBlock(block.id);
+      if (item) this.activeBlock.pick(block, this.library.get(block.id), item);
+      else this.activeBlock.pick(block, this.library.get(block.id));
+    }
   }
 
   updateBlockState(position: VoxelCoordinate, property: string, value: string): boolean {
@@ -123,8 +129,8 @@ export class StructureEditorService {
   validatePlacement(position: VoxelCoordinate, context?: PlacementContext): RuleValidation {
     const project = this.workspace.project(); const active = this.activeBlock.active();
     if (!project || !active) return { status: 'invalid', reason: 'out-of-bounds', affectedPositions: [position] };
-    const [namespace] = active.id.split(':');
-    const block: PlacedBlock = { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace, position: { ...position }, state: { ...active.state, ...context?.stateOverride } };
+    const item = this.library.getItem(active.itemId ?? active.id);
+    const block = item ? resolveItemBlock(item, active.state, position, context) : { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { ...position }, state: { ...active.state, ...context?.stateOverride } } as PlacedBlock;
     return this.rules().place(project, block, context).validation;
   }
   private rules(): BlockRuleEngine { return new BlockRuleEngine((id) => this.library.get(id)); }

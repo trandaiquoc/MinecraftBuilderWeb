@@ -4,6 +4,7 @@ import { BlockModelResolver, ResolvedBlockModel, ResolvedElement, ResolvedFace, 
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
 import { texturePath } from '../assets/vanilla-asset-provider';
 import { SpecialBlockVisualRegistry } from './special-block-visuals';
+import { PlaceableItemDefinition } from '../blocks/placeable-item';
 
 export type BlockRenderMode = 'real' | 'partial' | 'fallback';
 export type BlockRenderDiagnosticCode = 'MODEL_NOT_FOUND' | 'TEXTURE_NOT_FOUND' | 'TEXTURE_DECODE_FAILED' | 'GEOMETRY_BUILD_FAILED' | 'UNKNOWN_ERROR';
@@ -30,6 +31,7 @@ export interface BlockVisualProvider {
   create(block: PlacedBlock): Promise<BlockVisualResult>;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
+  perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<string | undefined>;
 }
 
 export class VanillaBlockVisualProvider implements BlockVisualProvider {
@@ -96,18 +98,33 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     this.thumbnailCache.set(key, task); return task;
   }
 
+  perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<string | undefined> {
+    const key = `item-thumbnail-v1|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`).join(';')}`;
+    const cached = this.thumbnailCache.get(key); if (cached) return cached;
+    const task = this.renderThumbnailBlocks(item.previewBlocks).catch(() => this.thumbnailUrl(item.displayBlockId, item.defaultState));
+    this.thumbnailCache.set(key, task); return task;
+  }
+
   dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.resolvedCache.clear(); }
 
   private async renderThumbnail(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined> {
-    if (typeof document === 'undefined') return this.thumbnailUrl(blockId, state);
+    return this.renderThumbnailBlocks([{ kind: 'resolved', id: blockId, namespace: blockId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state }]);
+  }
+
+  private async renderThumbnailBlocks(blocks: readonly PlacedBlock[]): Promise<string | undefined> {
+    if (typeof document === 'undefined') return undefined;
     const renderer = this.thumbnailRenderer ??= new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(96, 96, false); renderer.setClearColor(0x000000, 0);
-    const visual = await this.create({ kind: 'resolved', id: blockId, namespace: blockId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state });
-    if (!visual.object) return this.thumbnailUrl(blockId, state);
-    const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3.1)); const keyLight = new THREE.DirectionalLight(0xffffff, 1.45); keyLight.position.set(4, 6, 5); scene.add(keyLight); scene.add(visual.object);
-    const bounds = new THREE.Box3().setFromObject(visual.object); if (!validBounds(bounds)) return this.thumbnailUrl(blockId, state); const center = bounds.getCenter(new THREE.Vector3()); const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), .5);
+    const visuals = (await Promise.all(blocks.map(async (block) => ({ block, visual: await this.create(block) })))).map(({ block, visual }) => {
+      if (!visual.object) return undefined;
+      visual.object.position.set(visual.object.position.x + block.position.x, visual.object.position.y + block.position.y, visual.object.position.z + block.position.z);
+      return visual.object;
+    }).filter((object): object is THREE.Group => !!object);
+    if (!visuals.length) return undefined;
+    const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3.1)); const keyLight = new THREE.DirectionalLight(0xffffff, 1.45); keyLight.position.set(4, 6, 5); scene.add(keyLight); for (const object of visuals) scene.add(object);
+    const bounds = new THREE.Box3(); for (const object of visuals) bounds.expandByObject(object); if (!validBounds(bounds)) return undefined; const center = bounds.getCenter(new THREE.Vector3()); const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), .5);
     const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7)); camera.lookAt(center);
-    renderer.render(scene, camera); scene.remove(visual.object);
+    renderer.render(scene, camera); for (const object of visuals) scene.remove(object);
     return renderer.domElement.toDataURL('image/png');
   }
 

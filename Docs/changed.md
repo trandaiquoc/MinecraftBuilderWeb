@@ -1252,3 +1252,16 @@ offset; the last panel position is stored as a lightweight editor preference.
 [x] The Groups tab now filters the local group list immediately by group name
 or locked/unlocked status. Clearing the query restores the full list without
 changing Active Group, selection, memberships, or project data.
+
+# 50. Item-centric vanilla palette
+
+[x] The normal Blocks browser is built from a checked-in Minecraft 1.21.1
+placeable-item manifest. Concrete standing/wall variants remain available in
+the raw registry and project data, while the browser and Quick Bar store the
+logical item identity and resolve the concrete block from placement context.
+
+[x] Bed, door, and two-block tall-plant previews render their complete logical
+object through the shared thumbnail renderer. Technical/runtime IDs are
+excluded from the normal building palette and a reusable export eligibility
+policy is provided. No NBT/structure exporter exists in this repository yet,
+so the policy is not wired to an exporter.
