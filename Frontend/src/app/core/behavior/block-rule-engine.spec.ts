@@ -178,6 +178,19 @@ describe('BlockRuleEngine', () => {
     expect(engine.place(base, block('minecraft:torch', { x: 4, y: 1, z: 2 }), { faceNormal: { x: 1, y: 0, z: 0 } }).validation.reason).toBe('missing-support');
   });
 
+  it('places a standing head above another head without requiring floor support', () => {
+    const existing = block('minecraft:skeleton_skull', { x: 2, y: 1, z: 2 }, { rotation: '0' });
+    const result = engine.place({ ...base, blocks: [existing] }, block('minecraft:skeleton_skull', { x: 2, y: 2, z: 2 }), { faceNormal: { x: 0, y: 1, z: 0 }, yaw: 90 });
+    expect(result.validation.status).toBe('valid');
+    expect(result.project?.blocks.at(-1)).toMatchObject({ id: 'minecraft:skeleton_skull', position: { x: 2, y: 2, z: 2 }, state: { rotation: '12' } });
+  });
+
+  it('orients wall skull placement from the clicked wall face', () => {
+    const result = engine.place(base, block('minecraft:skeleton_wall_skull', { x: 2, y: 1, z: 2 }), { faceNormal: { x: 1, y: 0, z: 0 } });
+    expect(result.validation.status).toBe('valid');
+    expect(result.project?.blocks[0].state['facing']).toBe('east');
+  });
+
   it('preserves unsupported standing torch and tall plant data while reporting invalid', () => {
     const support = block('minecraft:stone', { x: 2, y: 0, z: 2 });
     const torch = block('minecraft:torch', { x: 2, y: 1, z: 2 });

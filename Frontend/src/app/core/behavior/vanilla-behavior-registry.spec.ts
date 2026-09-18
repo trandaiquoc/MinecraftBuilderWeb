@@ -39,4 +39,11 @@ describe('VanillaBehaviorRegistry', () => {
     expect(registry.enrich(baseRecord('minecraft:white_candle_cake'))).toEqual(baseRecord('minecraft:white_candle_cake'));
     expect(registry.enrich(baseRecord('example:red_candle'))).toEqual(baseRecord('example:red_candle'));
   });
+
+  it('uses exact head/skull IDs and excludes piston_head', () => {
+    const registry = new VanillaBehaviorRegistry();
+    expect(registry.enrich(baseRecord('minecraft:skeleton_skull')).behavior).toMatchObject({ kind: 'head-placement', wall: false });
+    expect(registry.enrich(baseRecord('minecraft:skeleton_wall_skull')).behavior).toMatchObject({ kind: 'head-placement', wall: true });
+    expect(registry.enrich(baseRecord('minecraft:piston_head'))).toEqual(baseRecord('minecraft:piston_head'));
+  });
 });

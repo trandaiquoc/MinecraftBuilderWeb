@@ -13,6 +13,43 @@ describe('special block visuals', () => {
     expect(adapter?.create(block(id)).children.length).toBeGreaterThan(0);
   });
   it('does not claim generic JSON blocks as special', () => expect(registry.resolve(block('minecraft:stone'))).toBeUndefined());
+  it('matches only the verified vanilla head/skull family and keeps piston_head generic', () => {
+    expect(registry.resolve(block('minecraft:skeleton_skull'))?.family).toBe('heads-skulls');
+    expect(registry.resolve(block('minecraft:dragon_head'))?.family).toBe('heads-skulls');
+    expect(registry.resolve(block('minecraft:piglin_head'))?.family).toBe('heads-skulls');
+    expect(registry.resolve(block('minecraft:piston_head'))).toBeUndefined();
+  });
+  it('uses vanilla skull texture resources and standing/wall anchors', () => {
+    const standing = registry.resolve(block('minecraft:skeleton_skull'))!;
+    const wall = registry.resolve(block('minecraft:skeleton_wall_skull'))!;
+    expect(standing.textureResource?.(block('minecraft:skeleton_skull'))).toBe('minecraft:entity/skeleton/skeleton');
+    expect(wall.textureResource?.(block('minecraft:skeleton_wall_skull'))).toBe('minecraft:entity/skeleton/skeleton');
+    const standingVisual = standing.create({ ...block('minecraft:skeleton_skull'), state: { rotation: '4' } });
+    expect(standingVisual.position.toArray()).toEqual([.5, 0, .5]);
+    expect(standingVisual.rotation.y).toBeCloseTo(Math.PI / 2);
+    const wallVisual = wall.create({ ...block('minecraft:skeleton_wall_skull'), state: { facing: 'north' } });
+    expect(wallVisual.position.toArray()).toEqual([.5, .25, .75]);
+    expect(wallVisual.userData['specialModel']).toBe('minecraft-java-skeleton-skull-1.21.1');
+  });
+  it.each([
+    ['minecraft:creeper_head', 'minecraft:entity/creeper/creeper'],
+    ['minecraft:zombie_head', 'minecraft:entity/zombie/zombie'],
+    ['minecraft:player_head', 'minecraft:entity/player/wide/steve'],
+    ['minecraft:wither_skeleton_skull', 'minecraft:entity/skeleton/wither_skeleton'],
+  ])('maps %s to its vanilla entity texture', (id, texture) => {
+    const adapter = registry.resolve(block(id))!;
+    expect(adapter.family).toBe('heads-skulls');
+    expect(adapter.textureResource?.(block(id))).toBe(texture);
+  });
+  it('uses distinct dragon and piglin model descriptors', () => {
+    const dragon = registry.resolve(block('minecraft:dragon_head'))!.create(block('minecraft:dragon_head'));
+    const piglin = registry.resolve(block('minecraft:piglin_head'))!.create(block('minecraft:piglin_head'));
+    expect(dragon.userData['specialModel']).toBe('minecraft-java-dragon-head-1.21.1');
+    expect(piglin.userData['specialModel']).toBe('minecraft-java-piglin-head-1.21.1');
+    const meshCount = (root: THREE.Object3D): number => { let count = 0; root.traverse((object) => { if (object instanceof THREE.Mesh) count++; }); return count; };
+    expect(meshCount(dragon)).toBeGreaterThan(1);
+    expect(meshCount(piglin)).toBeGreaterThan(1);
+  });
   it('uses one data-driven vanilla descriptor for colors, parts, and facing', () => {
     const bed = registry.resolve(block('minecraft:red_bed'))!;
     expect(bed.textureResource?.(block('minecraft:red_bed'))).toBe('minecraft:entity/bed/red');

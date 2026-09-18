@@ -51,6 +51,8 @@ export class VanillaBehaviorRegistry {
     this.explicit.set('minecraft:dandelion', floorSupportedMetadata);
     this.explicit.set('minecraft:chain', chainMetadata);
     this.explicit.set('minecraft:lantern', lanternMetadata);
+    for (const id of standingHeadIds) this.explicit.set(`minecraft:${id}`, standingHeadMetadata);
+    for (const id of wallHeadIds) this.explicit.set(`minecraft:${id}`, wallHeadMetadata);
     for (const wood of vanillaSignWoods) {
       this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
       this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
@@ -158,6 +160,14 @@ const candleMetadata: BehaviorMetadata = {
     { name: 'waterlogged', values: ['true', 'false'] },
   ],
 };
+const standingHeadMetadata: BehaviorMetadata = {
+  behavior: { kind: 'head-placement', wall: false, rotationProperty: 'rotation', facingProperty: 'facing' }, support: 'full',
+  defaultState: { rotation: '0' }, stateDefinitions: [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }],
+};
+const wallHeadMetadata: BehaviorMetadata = {
+  behavior: { kind: 'head-placement', wall: true, rotationProperty: 'rotation', facingProperty: 'facing' }, support: 'full',
+  defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }],
+};
 const wallSignMetadata: BehaviorMetadata = {
   behavior: { kind: 'wall-sign', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north', waterlogged: 'false' },
   stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'waterlogged', values: ['true', 'false'] }],
@@ -165,6 +175,8 @@ const wallSignMetadata: BehaviorMetadata = {
 const signRotationStates: readonly BlockStateDefinition[] = [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }, { name: 'waterlogged', values: ['true', 'false'] }];
 const hangingSignStates: readonly BlockStateDefinition[] = [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }, { name: 'attached', values: ['true', 'false'], derived: true }, { name: 'waterlogged', values: ['true', 'false'] }];
 const vanillaSignWoods = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
+const standingHeadIds = ['creeper_head', 'dragon_head', 'piglin_head', 'player_head', 'skeleton_skull', 'wither_skeleton_skull', 'zombie_head'] as const;
+const wallHeadIds = ['creeper_wall_head', 'dragon_wall_head', 'piglin_wall_head', 'player_wall_head', 'skeleton_wall_skull', 'wither_skeleton_wall_skull', 'zombie_wall_head'] as const;
 function standingSignMetadata(wood: string): BehaviorMetadata {
   return { behavior: { kind: 'standing-sign', rotationProperty: 'rotation', wallBlockId: `minecraft:${wood}_wall_sign` }, support: 'full', defaultState: { rotation: '0', waterlogged: 'false' }, stateDefinitions: signRotationStates };
 }

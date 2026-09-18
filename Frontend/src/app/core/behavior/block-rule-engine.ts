@@ -114,6 +114,14 @@ export class BlockRuleEngine {
       const facing = directionFromNormal(context.faceNormal);
       if (facing) return { ...block, state: { ...block.state, [behavior.facingProperty]: facing } };
     }
+    if (behavior?.kind === 'head-placement') {
+      if (behavior.wall) {
+        const facing = context?.faceNormal && directionFromNormal(context.faceNormal);
+        return facing ? { ...block, state: { ...block.state, [behavior.facingProperty]: facing } } : undefined;
+      }
+      if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
+      return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context?.yaw) } };
+    }
     if (behavior?.kind === 'standing-sign') {
       if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
       return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context?.yaw) } };
