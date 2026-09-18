@@ -109,23 +109,28 @@ function skullModel(id: string): SpecialModelDescriptor {
   const variant = skullVariant(id);
   if (variant === 'dragon') return dragonHeadModel;
   if (variant === 'piglin') return piglinHeadModel;
-  return variant === 'player' ? playerSkullModel : skullModelDescriptor(variant);
+  if (variant === 'player' || variant === 'zombie') return humanSkullModel(variant);
+  return skullModelDescriptor(variant);
 }
 function applySkullTransform(root: THREE.Group, block: PlacedBlock, wall: boolean): void {
   const direction = directionVector(block.state['facing']);
+  const rotation = new THREE.Group();
+  rotation.rotation.y = wall ? wallSkullRotation(block.state['facing']) : Number.isInteger(Number(block.state['rotation'])) ? Number(block.state['rotation']) * Math.PI / 8 : 0;
+  while (root.children.length) rotation.add(root.children[0]);
+  const scale = new THREE.Group();
+  scale.scale.set(-1, -1, 1);
+  scale.add(rotation);
+  root.add(scale);
   if (wall) {
     root.position.set(.5 - direction.x * .25, .25, .5 - direction.z * .25);
-    root.rotation.y = wallSkullRotation(block.state['facing']);
   } else {
     root.position.set(.5, 0, .5);
-    root.rotation.y = Number.isInteger(Number(block.state['rotation'])) ? Number(block.state['rotation']) * Math.PI / 8 : 0;
   }
-  root.scale.set(-1, -1, 1);
 }
 function directionVector(facing: string | undefined): { x: number; z: number } { return ({ north: { x: 0, z: -1 }, east: { x: 1, z: 0 }, south: { x: 0, z: 1 }, west: { x: -1, z: 0 } } as Record<string, { x: number; z: number }>)[facing ?? 'north'] ?? { x: 0, z: -1 }; }
 function wallSkullRotation(facing: string | undefined): number { return ({ north: 0, east: Math.PI / 2, south: Math.PI, west: -Math.PI / 2 } as Record<string, number>)[facing ?? 'north'] ?? 0; }
 function skullModelDescriptor(variant: SkullVariant): SpecialModelDescriptor { return { id: `minecraft-java-${variant}-skull-1.21.1`, textureSize: [64, 32], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }] }] }; }
-const playerSkullModel: SpecialModelDescriptor = { id: 'minecraft-java-player-skull-1.21.1', textureSize: [64, 64], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }, { id: 'hat', uv: [32, 0], from: [-4.5, -8.5, -4.5], size: [9, 9, 9] }] }] };
+function humanSkullModel(variant: 'player' | 'zombie'): SpecialModelDescriptor { return { id: `minecraft-java-${variant}-skull-1.21.1`, textureSize: [64, 64], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }, { id: 'hat', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8], dilation: .25 }] }] }; }
 const dragonHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-dragon-head-1.21.1', textureSize: [256, 256], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-8, -8, -8], size: [16, 16, 16] }, { id: 'jaw', uv: [0, 64], from: [-8, 0, -8], size: [16, 4, 16] }, { id: 'snout', uv: [64, 0], from: [-4, -4, -12], size: [8, 8, 4] }] }] };
 const piglinHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-piglin-head-1.21.1', textureSize: [64, 64], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-5, -8, -4], size: [10, 8, 8] }] }, { id: 'ears', cuboids: [{ id: 'left-ear', uv: [0, 16], from: [-8, -7, -2], size: [3, 4, 4] }, { id: 'right-ear', uv: [0, 24], from: [5, -7, -2], size: [3, 4, 4] }] }] };
 
@@ -171,10 +176,9 @@ function createModelPart(part: SpecialModelPartDescriptor, textureSize: readonly
   return group;
 }
 function createModelPartCuboid(cuboid: SpecialCuboidDescriptor, textureSize: readonly [number, number], texture: THREE.Texture | undefined, _pivot: readonly [number, number, number]): THREE.Group {
-  const group = new THREE.Group(); const [x, y, z] = cuboid.from; const [width, height, depth] = cuboid.size; const uv = modelPartCuboidUv(cuboid);
-  // Vertices are model-space cuboid coordinates, converted to block-local
-  // units once. The enclosing ModelPart applies its pivot matrix.
-  const min: readonly [number, number, number] = [x / 16, y / 16, z / 16]; const max: readonly [number, number, number] = [(x + width) / 16, (y + height) / 16, (z + depth) / 16];
+  const group = new THREE.Group(); const [x, y, z] = cuboid.from; const [width, height, depth] = cuboid.size; const dilation = cuboid.dilation ?? 0; const uv = modelPartCuboidUv(cuboid);
+  // Dilation expands geometry only; UVs remain based on the source cuboid size.
+  const min: readonly [number, number, number] = [(x - dilation) / 16, (y - dilation) / 16, (z - dilation) / 16]; const max: readonly [number, number, number] = [(x + width + dilation) / 16, (y + height + dilation) / 16, (z + depth + dilation) / 16];
   for (const direction of ['north', 'south', 'east', 'west', 'up', 'down'] as const) {
     const geometry = specialFaceGeometry(min, max, direction, uv[direction], textureSize); const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ ...(texture ? { map: texture } : {}), color: texture ? 0xffffff : 0xaf3d35, transparent: true, alphaTest: .1, side: THREE.DoubleSide })); group.add(mesh);
   }

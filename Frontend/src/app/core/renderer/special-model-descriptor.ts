@@ -4,6 +4,8 @@ export interface SpecialCuboidDescriptor {
   readonly uv: readonly [number, number];
   readonly from: readonly [number, number, number];
   readonly size: readonly [number, number, number];
+  /** ModelPart cube dilation; UVs continue to use the undilated size. */
+  readonly dilation?: number;
   readonly mirror?: boolean;
 }
 

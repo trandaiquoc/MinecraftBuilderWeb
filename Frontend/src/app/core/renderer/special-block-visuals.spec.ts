@@ -26,10 +26,24 @@ describe('special block visuals', () => {
     expect(wall.textureResource?.(block('minecraft:skeleton_wall_skull'))).toBe('minecraft:entity/skeleton/skeleton');
     const standingVisual = standing.create({ ...block('minecraft:skeleton_skull'), state: { rotation: '4' } });
     expect(standingVisual.position.toArray()).toEqual([.5, 0, .5]);
-    expect(standingVisual.rotation.y).toBeCloseTo(Math.PI / 2);
+    expect(standingVisual.rotation.y).toBe(0);
+    expect(standingVisual.children[0].scale.toArray()).toEqual([-1, -1, 1]);
+    expect(standingVisual.children[0].children[0].rotation.y).toBeCloseTo(Math.PI / 2);
     const wallVisual = wall.create({ ...block('minecraft:skeleton_wall_skull'), state: { facing: 'north' } });
     expect(wallVisual.position.toArray()).toEqual([.5, .25, .75]);
     expect(wallVisual.userData['specialModel']).toBe('minecraft-java-skeleton-skull-1.21.1');
+  });
+  it.each([
+    ['north', { min: [.25, .25, .5], max: [.75, .75, 1] }],
+    ['south', { min: [.25, .25, 0], max: [.75, .75, .5] }],
+    ['east', { min: [0, .25, .25], max: [.5, .75, .75] }],
+    ['west', { min: [.5, .25, .25], max: [1, .75, .75] }],
+  ] as const)('keeps wall skull contact bounds for %s', (facing, expected) => {
+    const visual = registry.resolve(block('minecraft:skeleton_wall_skull'))!.create({ ...block('minecraft:skeleton_wall_skull'), state: { facing } });
+    visual.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(visual);
+    expect(bounds.min.x).toBeCloseTo(expected.min[0], 5); expect(bounds.min.y).toBeCloseTo(expected.min[1], 5); expect(bounds.min.z).toBeCloseTo(expected.min[2], 5);
+    expect(bounds.max.x).toBeCloseTo(expected.max[0], 5); expect(bounds.max.y).toBeCloseTo(expected.max[1], 5); expect(bounds.max.z).toBeCloseTo(expected.max[2], 5);
   });
   it.each([
     ['minecraft:creeper_head', 'minecraft:entity/creeper/creeper'],
@@ -49,6 +63,18 @@ describe('special block visuals', () => {
     const meshCount = (root: THREE.Object3D): number => { let count = 0; root.traverse((object) => { if (object instanceof THREE.Mesh) count++; }); return count; };
     expect(meshCount(dragon)).toBeGreaterThan(1);
     expect(meshCount(piglin)).toBeGreaterThan(1);
+  });
+  it('uses the exact 64x64 human head layers with undilated UV footprint', () => {
+    for (const id of ['minecraft:player_head', 'minecraft:zombie_head']) {
+      const visual = registry.resolve(block(id))!.create(block(id));
+      expect(visual.userData['specialModel']).toBe(`minecraft-java-${id.endsWith('player_head') ? 'player' : 'zombie'}-skull-1.21.1`);
+      const meshes: THREE.Mesh[] = [];
+      visual.traverse((object) => { if (object instanceof THREE.Mesh) meshes.push(object); });
+      expect(meshes).toHaveLength(12);
+      const bounds = new THREE.Box3().setFromObject(visual);
+      expect(bounds.min.y).toBeCloseTo(-.015625, 5);
+      expect(bounds.max.y).toBeCloseTo(.515625, 5);
+    }
   });
   it('uses one data-driven vanilla descriptor for colors, parts, and facing', () => {
     const bed = registry.resolve(block('minecraft:red_bed'))!;
@@ -83,6 +109,11 @@ describe('special block visuals', () => {
     expect(uv.north).toEqual([6, 6, 22, 22]);
     expect(uv.up).toEqual([6, 0, 22, 6]);
     expect(uv.east).not.toEqual(uv.west);
+  });
+  it('keeps UV dimensions tied to the base cuboid when dilation expands geometry', () => {
+    const base = modelPartCuboidUv({ id: 'head', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8] });
+    const dilated = modelPartCuboidUv({ id: 'hat', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8], dilation: .25 });
+    expect(dilated).toEqual(base);
   });
   it('applies the Java wall-sign transform independently of wall-facing state', () => {
     const sign = registry.resolve(block('minecraft:oak_wall_sign'))!;
