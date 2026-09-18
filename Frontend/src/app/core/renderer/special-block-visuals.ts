@@ -131,7 +131,14 @@ function directionVector(facing: string | undefined): { x: number; z: number } {
 function wallSkullRotation(facing: string | undefined): number { return ({ north: 0, east: Math.PI / 2, south: Math.PI, west: -Math.PI / 2 } as Record<string, number>)[facing ?? 'north'] ?? 0; }
 function skullModelDescriptor(variant: SkullVariant): SpecialModelDescriptor { return { id: `minecraft-java-${variant}-skull-1.21.1`, textureSize: [64, 32], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }] }] }; }
 function humanSkullModel(variant: 'player' | 'zombie'): SpecialModelDescriptor { return { id: `minecraft-java-${variant}-skull-1.21.1`, textureSize: [64, 64], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }, { id: 'hat', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8], dilation: .25 }] }] }; }
-const dragonHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-dragon-head-1.21.1', textureSize: [256, 256], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-8, -8, -8], size: [16, 16, 16] }, { id: 'jaw', uv: [0, 64], from: [-8, 0, -8], size: [16, 4, 16] }, { id: 'snout', uv: [64, 0], from: [-4, -4, -12], size: [8, 8, 4] }] }] };
+const dragonHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-dragon-head-1.21.1', textureSize: [256, 256], parts: [{ id: 'head', cuboids: [
+  { id: 'upper_lip', uv: [176, 44], from: [-6, -1, -24], size: [12, 5, 16] },
+  { id: 'upper_head', uv: [112, 30], from: [-8, -8, -10], size: [16, 16, 16] },
+  { id: 'left_scale', uv: [0, 0], from: [-5, -12, -4], size: [2, 4, 6], mirror: true },
+  { id: 'left_nostril', uv: [112, 0], from: [-5, -3, -22], size: [2, 2, 4] },
+  { id: 'right_scale', uv: [0, 0], from: [3, -12, -4], size: [2, 4, 6] },
+  { id: 'right_nostril', uv: [112, 0], from: [3, -3, -22], size: [2, 2, 4] },
+], children: [{ id: 'jaw', pivot: [0, 4, -8], applyPivot: true, rotation: [11.459156, 0, 0], cuboids: [{ id: 'jaw', uv: [176, 65], from: [-6, 0, -16], size: [12, 4, 16] }] }] }] };
 const piglinHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-piglin-head-1.21.1', textureSize: [64, 64], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-5, -8, -4], size: [10, 8, 8] }] }, { id: 'ears', cuboids: [{ id: 'left-ear', uv: [0, 16], from: [-8, -7, -2], size: [3, 4, 4] }, { id: 'right-ear', uv: [0, 24], from: [5, -7, -2], size: [3, 4, 4] }] }] };
 
 const vanillaBedHead: SpecialModelDescriptor = { id: 'minecraft-java-bed-head-1.21.1', textureSize: [64, 64], parts: [

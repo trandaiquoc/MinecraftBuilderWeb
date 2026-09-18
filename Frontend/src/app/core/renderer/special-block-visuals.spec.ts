@@ -63,6 +63,32 @@ describe('special block visuals', () => {
     const meshCount = (root: THREE.Object3D): number => { let count = 0; root.traverse((object) => { if (object instanceof THREE.Mesh) count++; }); return count; };
     expect(meshCount(dragon)).toBeGreaterThan(1);
     expect(meshCount(piglin)).toBeGreaterThan(1);
+    expect(dragon.children[0].children[0].children[0].children.some((child) => child.position.toArray().every((value, index) => Math.abs(value - [0, .25, -.5][index]) < 0.00001))).toBe(true);
+  });
+  it('keeps every verified standing head in the shared upright transform hierarchy', () => {
+    const standingIds = [
+      'minecraft:creeper_head', 'minecraft:dragon_head', 'minecraft:piglin_head',
+      'minecraft:player_head', 'minecraft:skeleton_skull', 'minecraft:wither_skeleton_skull', 'minecraft:zombie_head',
+    ];
+    for (const id of standingIds) {
+      const visual = registry.resolve(block(id))!.create({ ...block(id), state: { rotation: '0' } });
+      visual.updateMatrixWorld(true);
+      expect(visual.position.toArray(), id).toEqual([.5, 0, .5]);
+      expect(visual.rotation.y, id).toBe(0);
+      expect(visual.children[0].scale.toArray(), id).toEqual([-1, -1, 1]);
+    }
+  });
+  it('keeps every verified wall head flush to its support-facing voxel face', () => {
+    const wallIds = [
+      'minecraft:creeper_wall_head', 'minecraft:dragon_wall_head', 'minecraft:piglin_wall_head',
+      'minecraft:player_wall_head', 'minecraft:skeleton_wall_skull', 'minecraft:wither_skeleton_wall_skull', 'minecraft:zombie_wall_head',
+    ];
+    for (const id of wallIds) {
+      const visual = registry.resolve(block(id))!.create({ ...block(id), state: { facing: 'north' } });
+      visual.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(visual);
+      expect(bounds.max.z, id).toBeGreaterThanOrEqual(.9999);
+    }
   });
   it('uses the exact 64x64 human head layers with undilated UV footprint', () => {
     for (const id of ['minecraft:player_head', 'minecraft:zombie_head']) {
