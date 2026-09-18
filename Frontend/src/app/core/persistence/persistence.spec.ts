@@ -1,0 +1,111 @@
+import { describe, expect, it, vi } from 'vitest';
+import { ProjectDocument } from '../domain/project.types';
+import { migrateProject } from '../domain/migrations';
+import { DirtyState } from './dirty-state';
+import { AutosaveController } from './autosave';
+import { parseProjectPackage, serializeProjectPackage } from './project-package';
+import { ProjectPersistenceService } from './project-persistence.service';
+import { ProjectStore, ProjectSummary } from './project-store.port';
+
+const project: ProjectDocument = {
+  schemaVersion: 2,
+  id: 'p1',
+  metadata: { name: 'Demo', minecraftVersion: '1.21.1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+  size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [],
+  editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
+};
+
+describe('local persistence helpers', () => {
+  it('round-trips a versioned project package', () => {
+    expect(parseProjectPackage(serializeProjectPackage(project))).toEqual(migrateProject(project));
+  });
+
+  it('does not mark a newer dirty revision clean when an older save completes', () => {
+    const state = new DirtyState(); const first = state.markDirty(); const second = state.markDirty();
+    expect(state.markClean(first)).toBe(false); expect(state.isDirty).toBe(true);
+    expect(state.markClean(second)).toBe(true); expect(state.isDirty).toBe(false);
+  });
+
+  it('debounces and persists the canonical project plus recovery lifecycle', async () => {
+    vi.useFakeTimers();
+    const store = new MemoryProjectStore(); await store.create(project);
+    const autosave = new AutosaveController(store, { delayMs: 50 });
+    const changed = withBlocks(block('minecraft:stone', 1, 1, 1));
+    autosave.schedule(changed, 1);
+    await vi.advanceTimersByTimeAsync(49); expect((await store.open(project.id))?.blocks).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1); await autosave.flush();
+    expect((await store.open(project.id))?.blocks).toEqual(changed.blocks);
+    expect(await store.openRecoverySnapshot(project.id)).toBeUndefined();
+    autosave.dispose(); vi.useRealTimers();
+  });
+
+  it('persists derived states, multi-group memberships, and multi-block parts as one final document', async () => {
+    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
+    const changed: ProjectDocument = {
+      ...project,
+      groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }, { id: 'entry', name: 'Entrance', visible: true, locked: false }],
+      blocks: [
+        block('minecraft:oak_fence', 1, 0, 1, { east: 'true', north: 'false', south: 'false', west: 'false', waterlogged: 'false' }, ['roof', 'entry']),
+        block('minecraft:oak_fence', 2, 0, 1, { west: 'true', north: 'false', south: 'false', east: 'false', waterlogged: 'false' }),
+        block('minecraft:oak_door', 3, 0, 3, { half: 'lower', facing: 'north', hinge: 'left', open: 'false', powered: 'false' }),
+        block('minecraft:oak_door', 3, 1, 3, { half: 'upper', facing: 'north', hinge: 'left', open: 'false', powered: 'false' }),
+        block('minecraft:red_bed', 4, 0, 4, { part: 'foot', facing: 'east', occupied: 'false' }),
+        block('minecraft:red_bed', 5, 0, 4, { part: 'head', facing: 'east', occupied: 'false' }),
+      ],
+    };
+    persistence.markChanged(changed); await persistence.flushAutosave();
+    expect(await persistence.open(project.id)).toEqual(changed);
+    expect((await persistence.open(project.id))?.blocks[0].groupIds).toEqual(['roof', 'entry']);
+  });
+
+  it('persists the undone document while history itself remains session-only', async () => {
+    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1))); await persistence.flushAutosave();
+    persistence.markChanged(project); await persistence.flushAutosave();
+    expect((await persistence.open(project.id))?.blocks).toEqual([]);
+  });
+
+  it('serializes an edit created while an older async save is in flight', async () => {
+    const store = new ControlledProjectStore(); const statuses: string[] = [];
+    const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
+    const first = withBlocks(block('minecraft:stone', 1, 0, 1)); const latest = withBlocks(block('minecraft:stone', 2, 0, 1));
+    persistence.markChanged(first); const flushing = persistence.flushAutosave();
+    await store.waitForSave(1); persistence.markChanged(latest); store.completeNextSave();
+    await store.waitForSave(1); expect(persistence.dirtyState.isDirty).toBe(true); store.completeNextSave();
+    await flushing;
+    expect(store.persisted).toEqual(latest); expect(persistence.dirtyState.isDirty).toBe(false); expect(statuses.at(-1)).toBe('saved');
+  });
+
+  it('keeps the project dirty and reports an error when canonical save fails', async () => {
+    const store = new MemoryProjectStore(); await store.create(project); store.save = async () => { throw new Error('quota'); };
+    const statuses: string[] = []; const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await expect(persistence.flushAutosave()).rejects.toThrow('quota');
+    expect(persistence.dirtyState.isDirty).toBe(true); expect(statuses.at(-1)).toBe('error');
+    expect(await store.openRecoverySnapshot(project.id)).toBeDefined();
+  });
+});
+
+function block(id: string, x: number, y: number, z: number, state: Readonly<Record<string, string>> = {}, groupIds: readonly string[] = []) {
+  return { kind: 'resolved' as const, id, namespace: 'minecraft', position: { x, y, z }, state, groupIds };
+}
+function withBlocks(...blocks: ProjectDocument['blocks']): ProjectDocument { return { ...project, blocks: blocks.flat() }; }
+
+class MemoryProjectStore implements ProjectStore {
+  protected readonly projects = new Map<string, ProjectDocument>(); private readonly recovery = new Map<string, ProjectDocument>();
+  async create(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
+  async open(id: string): Promise<ProjectDocument | undefined> { const value = this.projects.get(id); return value && structuredClone(value); }
+  async save(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
+  async delete(id: string): Promise<void> { this.projects.delete(id); }
+  async list(): Promise<readonly ProjectSummary[]> { return [...this.projects.values()].map((value) => ({ id: value.id, name: value.metadata.name, updatedAt: value.metadata.updatedAt })); }
+  async saveRecoverySnapshot(value: ProjectDocument): Promise<void> { this.recovery.set(value.id, structuredClone(value)); }
+  async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { return this.recovery.get(id); }
+  async deleteRecoverySnapshot(id: string): Promise<void> { this.recovery.delete(id); }
+}
+
+class ControlledProjectStore extends MemoryProjectStore {
+  persisted?: ProjectDocument; private readonly saves: { readonly project: ProjectDocument; readonly complete: () => void }[] = [];
+  override save(value: ProjectDocument): Promise<void> { return new Promise((resolve) => this.saves.push({ project: structuredClone(value), complete: () => { this.persisted = structuredClone(value); resolve(); } })); }
+  async waitForSave(count: number): Promise<void> { while (this.saves.length < count) await Promise.resolve(); }
+  completeNextSave(): void { this.saves.shift()?.complete(); }
+}

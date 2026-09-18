@@ -1,0 +1,496 @@
+<div class="editor-shell">
+  <header class="shell-header">
+    <div class="app-menu-row">
+      <a class="brand" routerLink="/">{{ i18n.t('appName') }}</a>
+      <nav class="app-menus" aria-label="Application menu">
+        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('file', $event)">{{ i18n.t('fileMenu') }}</button>@if (activeMenu() === 'file') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('edit', $event)">{{ i18n.t('editMenu') }}</button>@if (activeMenu() === 'edit') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('view', $event)">
+          {{ i18n.t('viewMenu') }} ▾
+        </button>
+        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry settings-entry"><button type="button" (click)="toggleAppMenu('settings', $event)">
+          {{ i18n.t('settingsMenu') }} ▾
+        </button>
+        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('help', $event)">{{ i18n.t('helpMenu') }}</button>@if (activeMenu() === 'help') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        @if (activeMenu() === 'view') {
+          <div class="menu-popover" (click)="$event.stopPropagation()">
+            <button type="button" (click)="toggleLayout('editorToolbarVisible')">
+              {{ layout.preferences().editorToolbarVisible ? '✓' : '' }}
+              {{ i18n.t('editorToolbar') }}
+            </button>
+            <button type="button" (click)="toggleLayout('leftSidebarVisible')">
+              {{ layout.preferences().leftSidebarVisible ? '✓' : '' }} {{ i18n.t('leftSidebar') }}
+            </button>
+            <button type="button" (click)="toggleLayout('rightSidebarVisible')">
+              {{ layout.preferences().rightSidebarVisible ? '✓' : '' }} {{ i18n.t('rightSidebar') }}
+            </button>
+            <button type="button" (click)="toggleLayout('quickBarVisible')">
+              {{ layout.preferences().quickBarVisible ? '✓' : '' }} {{ i18n.t('quickBlockBar') }}
+            </button>
+            <button type="button" (click)="toggleLayout('statusBarVisible')">
+              {{ layout.preferences().statusBarVisible ? '✓' : '' }} {{ i18n.t('statusBar') }}
+            </button>
+            <button type="button" (click)="resetLayout(); closeMenus()">
+              {{ i18n.t('resetLayout') }}
+            </button>
+          </div>
+        }
+        </div>
+        @if (activeMenu() === 'settings') {
+          <div class="menu-popover settings-popover" (click)="$event.stopPropagation()">
+            <strong>{{ i18n.t('language') }}</strong
+            ><button type="button" (click)="chooseLanguage('en')">{{ i18n.t('english') }}</button
+            ><button type="button" (click)="chooseLanguage('vi')">
+              {{ i18n.t('vietnamese') }}
+            </button>
+            <strong>{{ i18n.t('theme') }}</strong
+            ><button type="button" (click)="chooseTheme('light')">{{ i18n.t('light') }}</button
+            ><button type="button" (click)="chooseTheme('dark')">{{ i18n.t('dark') }}</button>
+          </div>
+        }
+        </div>
+      </nav>
+    </div>
+    @if (layout.preferences().editorToolbarVisible) {
+      <div class="editor-toolbar-row">
+        <nav class="toolbar-group mode-switch" [attr.aria-label]="i18n.t('editorNavigation')">
+          <button type="button" [class.active]="mode.mode() === '3d'" (click)="mode.mode.set('3d')">
+            {{ i18n.t('mode3d') }}</button
+          ><button
+            type="button"
+            [class.active]="mode.mode() === 'y-layer'"
+            (click)="mode.mode.set('y-layer')"
+          >
+            {{ i18n.t('modeYLayer') }}
+          </button>
+        </nav>
+        <div class="tool-switch" role="group" [attr.aria-label]="i18n.t('editorTool')">
+          <button
+            type="button"
+            [class.active]="tool.active() === 'place'"
+            [attr.aria-pressed]="tool.active() === 'place'"
+            (click)="tool.active.set('place')"
+          >
+            {{ i18n.t('toolPlace') }}</button
+          ><button
+            type="button"
+            [class.active]="tool.active() === 'select'"
+            [attr.aria-pressed]="tool.active() === 'select'"
+            (click)="tool.active.set('select')"
+          >
+            {{ i18n.t('toolSelect') }}
+          </button>
+        </div>
+        <div class="toolbar-group history-actions">
+          <button
+            type="button"
+            title="Undo (Ctrl+Z)"
+            [disabled]="!history.canUndo()"
+            (click)="history.undo()"
+          >
+            ↶ {{ i18n.t('undo') }}</button
+          ><button
+            type="button"
+            title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
+            [disabled]="!history.canRedo()"
+            (click)="history.redo()"
+          >
+            ↷ {{ i18n.t('redo') }}
+          </button>
+        </div>
+        <div class="toolbar-group camera-actions">
+          <button type="button" (click)="fitStructure()">{{ i18n.t('fitStructure') }}</button
+          ><button type="button" [disabled]="!selectedBlock()" (click)="focusSelection()">
+            {{ i18n.t('focusSelection') }}</button
+          ><button type="button" (click)="toggleCameraMenu($event)">
+            {{ i18n.t('camera') }} ▾
+          </button>
+          @if (cameraMenuOpen()) {
+            <div class="menu-popover camera-popover" (click)="$event.stopPropagation()">
+              @for (preset of presets; track preset) {
+                <button type="button" (click)="setCameraPreset(preset); closeMenus()">
+                  {{ presetLabel(preset) }}
+                </button>
+              }
+              <hr />
+              <button type="button" (click)="resetCamera(); closeMenus()">
+                {{ i18n.t('resetCamera') }}
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </header>
+  <div
+    class="editor-body"
+    [class.left-sidebar-hidden]="!layout.preferences().leftSidebarVisible"
+    [class.right-sidebar-hidden]="!layout.preferences().rightSidebarVisible"
+  >
+    @if (layout.preferences().leftSidebarVisible) {
+      <aside class="panel left-panel">
+        <div class="sidebar-tabs" role="tablist">
+          <button type="button" role="tab" [class.active]="leftSidebarTab() === 'blocks'" (click)="leftSidebarTab.set('blocks')">{{ i18n.t('blocksPanel') }}</button>
+          <button type="button" role="tab" [class.active]="leftSidebarTab() === 'groups'" (click)="leftSidebarTab.set('groups')">{{ i18n.t('groupsPanel') }}</button>
+        </div>
+        @if (leftSidebarTab() === 'blocks') {
+          <section class="sidebar-tab-content blocks-tab-content">
+            <app-block-browser></app-block-browser>
+          </section>
+        }
+        @if (leftSidebarTab() === 'groups') {
+        <section class="sidebar-tab-content groups-tab-content">
+        <section class="groups-panel">
+          <div class="group-create">
+            <input
+              type="text"
+              [value]="newGroupName()"
+              (input)="newGroupName.set($any($event.target).value)"
+              [placeholder]="i18n.t('groupName')"
+            /><button type="button" (click)="createGroup()">{{ i18n.t('createGroup') }}</button>
+          </div>
+          <div class="group-search">
+            <div class="group-search-field">
+              <input
+                type="search"
+                [value]="groupSearch()"
+                (input)="updateGroupSearch($event)"
+                [placeholder]="i18n.t('searchGroups')"
+                [attr.aria-label]="i18n.t('searchGroups')"
+              />
+              @if (groupSearch()) {
+                <button type="button" class="group-search-clear" [attr.aria-label]="i18n.t('clearSearch')" (click)="clearGroupSearch()">×</button>
+              }
+            </div>
+          </div>
+          @for (group of filteredGroups(); track group.id) {
+            <button
+              type="button"
+              class="group-item"
+              [class.active]="groups.activeGroupId() === group.id"
+              [class.isolated]="groups.isolatedGroupId() === group.id"
+              (click)="groups.select(group.id)"
+            >
+              {{ group.name }}
+              <small>{{ group.locked ? i18n.t('locked') : i18n.t('unlocked') }}</small>
+            </button>
+          } @empty {
+            <p class="group-empty-state">
+              {{ groupSearch().trim() ? i18n.t('noGroupResults') : i18n.t('noGroups') }}
+            </p>
+          }
+          @if (groups.activeGroup(); as active) {
+            <section class="active-group-controls">
+              <h3>{{ active.name }}</h3>
+              <p>
+                {{ groups.activeGroupBlockCount() }} {{ i18n.t('blockCount') }} ·
+                {{ active.locked ? i18n.t('locked') : i18n.t('unlocked') }}
+              </p>
+              <input
+                type="text"
+                [value]="active.name"
+                (change)="renameGroup($event)"
+                [attr.aria-label]="i18n.t('renameGroup')"
+              />
+              <div class="group-actions">
+                <button type="button" (click)="groups.setActiveVisible(!active.visible)">
+                  {{ active.visible ? i18n.t('hideGroup') : i18n.t('showGroup') }}</button
+                ><button type="button" (click)="groups.setActiveLocked(!active.locked)">
+                  {{ active.locked ? i18n.t('unlockGroup') : i18n.t('lockGroup') }}</button
+                ><button
+                  type="button"
+                  (click)="groups.addSelectionToActive()"
+                  [disabled]="active.locked || (!selection.single() && !selection.box())"
+                >
+                  {{ i18n.t('addSelectionToGroup') }}</button
+                ><button
+                  type="button"
+                  (click)="groups.removeSelectionFromActive()"
+                  [disabled]="active.locked || (!selection.single() && !selection.box())"
+                >
+                  {{ i18n.t('removeSelectionFromGroup') }}</button
+                 ><button type="button" (click)="groups.isolateActive()">
+                   {{ i18n.t('isolateGroup') }}</button
+                 ><button type="button" (click)="movePanelVisible() ? hideMovePanel() : showMovePanel()">
+                   {{ movePanelVisible() ? i18n.t('hideMove') : i18n.t('showMove') }}</button>
+              </div>
+              <div class="destructive-actions">
+                <button type="button" (click)="groups.deleteActive()">
+                   {{ i18n.t('deleteGroup') }}
+                </button>
+                <button
+                  type="button"
+                  [disabled]="active.locked || !groups.activeGroupBlockCount()"
+                  (click)="deleteGroupBlocks()"
+                >
+                  {{ i18n.t('deleteGroupBlocks') }}
+                </button>
+              </div>
+            </section>
+          }
+        </section>
+        </section>
+        }
+      </aside>
+    }
+    <main #viewportHost class="viewport" [attr.aria-label]="i18n.t('viewport')" (window:resize)="clampMovePanel()">
+      @if (mode.mode() === '3d') {
+        <app-viewport></app-viewport>
+      } @else {
+        <app-y-layer></app-y-layer>
+      }
+      @if (groups.activeGroup(); as active) {
+        @if (movePanelVisible()) {
+        <section
+          #groupMovePanel
+          class="group-move-toolbar"
+          [class.invalid]="groups.movePreview()?.valid === false"
+          [style.left.px]="movePanelPosition().x"
+          [style.top.px]="movePanelPosition().y"
+          (wheel)="$event.stopPropagation()"
+        >
+          <header class="group-move-header" (pointerdown)="beginMovePanelDrag($event)">
+            <strong>{{ i18n.t('moveGroup') }}: {{ active.name }}</strong>
+            <button type="button" class="group-move-close" [attr.aria-label]="i18n.t('hideMove')" (pointerdown)="$event.stopPropagation()" (click)="hideMovePanel()">×</button>
+          </header>
+          <div class="move-offsets">
+            <label
+              >X
+              <input
+                type="number"
+                step="1"
+                [value]="groups.moveOffset().x"
+                (input)="setMoveOffset('x', $event)" /></label
+            ><label
+              >Y
+              <input
+                type="number"
+                step="1"
+                [value]="groups.moveOffset().y"
+                (input)="setMoveOffset('y', $event)" /></label
+            ><label
+              >Z
+              <input
+                type="number"
+                step="1"
+                [value]="groups.moveOffset().z"
+                (input)="setMoveOffset('z', $event)"
+            /></label>
+          </div>
+          <label
+            >Step
+            <input
+              type="number"
+              min="1"
+              step="1"
+              [value]="groups.moveStep()"
+              (input)="setMoveStep($event)"
+          /></label>
+          <div class="nudge-grid">
+            <button
+              type="button"
+              [attr.title]="i18n.t('axisZMinus')"
+              [attr.aria-label]="i18n.t('axisZMinus')"
+              (click)="nudgeMove('z', -1)"
+            >
+              {{ i18n.t('axisZMinus') }}</button
+            ><button
+              type="button"
+              [attr.title]="i18n.t('axisXMinus')"
+              [attr.aria-label]="i18n.t('axisXMinus')"
+              (click)="nudgeMove('x', -1)"
+            >
+              {{ i18n.t('axisXMinus') }}</button
+            ><button
+              type="button"
+              [attr.title]="i18n.t('resetOffsets')"
+              [attr.aria-label]="i18n.t('resetOffsets')"
+              (click)="groups.resetMove()"
+            >
+              •</button
+            ><button
+              type="button"
+              [attr.title]="i18n.t('axisXPlus')"
+              [attr.aria-label]="i18n.t('axisXPlus')"
+              (click)="nudgeMove('x', 1)"
+            >
+              {{ i18n.t('axisXPlus') }}</button
+            ><button
+              type="button"
+              [attr.title]="i18n.t('axisZPlus')"
+              [attr.aria-label]="i18n.t('axisZPlus')"
+              (click)="nudgeMove('z', 1)"
+            >
+              {{ i18n.t('axisZPlus') }}
+            </button>
+          </div>
+          <div class="height-buttons">
+            <button
+              type="button"
+              [attr.title]="i18n.t('axisYMinus')"
+              [attr.aria-label]="i18n.t('axisYMinus')"
+              (click)="nudgeMove('y', -1)"
+            >
+              {{ i18n.t('axisYMinus') }}</button
+            ><button
+              type="button"
+              [attr.title]="i18n.t('axisYPlus')"
+              [attr.aria-label]="i18n.t('axisYPlus')"
+              (click)="nudgeMove('y', 1)"
+            >
+              {{ i18n.t('axisYPlus') }}
+            </button>
+          </div>
+          @if (moveReason()) {
+            <small class="move-error">{{ moveReason() }}</small>
+          }
+          <div class="move-actions">
+            <button
+              type="button"
+              [disabled]="
+                !groups.movePreview()?.valid ||
+                (!groups.moveOffset().x && !groups.moveOffset().y && !groups.moveOffset().z)
+              "
+              (click)="groups.saveMove()"
+            >
+              {{ i18n.t('saveMove') }}</button
+            ><button type="button" (click)="groups.resetMove()">{{ i18n.t('cancelMove') }}</button>
+          </div>
+        </section>
+        }
+      }
+    </main>
+    @if (layout.preferences().rightSidebarVisible) {
+      <aside class="panel right-panel">
+        <h2>{{ i18n.t('selection') }}</h2>
+        @if (selectedBlock(); as selected) {
+          <dl class="selection-details">
+            <div>
+              <dt>{{ i18n.t('selectedBlock') }}</dt>
+              <dd>
+                <code>{{ selected.id }}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>{{ i18n.t('position') }}</dt>
+              <dd>
+                X {{ selected.position.x }}, Y {{ selected.position.y }}, Z
+                {{ selected.position.z }}
+              </dd>
+            </div>
+            <div>
+              <dt>{{ i18n.t('supportLevel') }}</dt>
+              <dd>{{ supportLabel(selectedSupport()) }}</dd>
+            </div>
+            <div>
+              <dt>{{ i18n.t('group') }}</dt>
+              <dd>{{ selectedGroupNames().join(', ') || i18n.t('none') }}</dd>
+            </div>
+            <div>
+              <dt>{{ i18n.t('blockState') }}</dt>
+              <dd>
+                @if (stateEntries().length) {
+                  <ul>
+                    @for (entry of stateEntries(); track entry[0]) {
+                      <li>
+                        <code>{{ entry[0] }}={{ entry[1] }}</code>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <span class="muted">{{ i18n.t('emptyState') }}</span>
+                }
+              </dd>
+            </div>
+          </dl>
+          @if (selectedDefinition(); as definition) {
+            <section class="state-editor">
+              <h3>{{ i18n.t('editBlockState') }}</h3>
+              @for (state of definition.stateDefinitions; track state.name) {
+                <label
+                  >{{ i18n.stateProperty(state.name) }}
+                  @if (state.derived) {
+                    <small>{{ i18n.t('autoDerived') }}</small>
+                  }
+                  <select
+                    [disabled]="state.derived"
+                    [value]="selected.state[state.name] ?? state.values[0]"
+                    (change)="updateSelectedState(state.name, $event)"
+                  >
+                    @for (value of state.values; track value) {
+                      <option [value]="value">{{ i18n.stateValue(value) }}</option>
+                    }
+                  </select></label
+                >
+              }
+              <button type="button" (click)="rotateSelected()">{{ i18n.t('rotateBlock') }}</button>
+              @if (stateFeedback()) {
+                <p class="validation-feedback">{{ feedbackLabel() }}</p>
+              }
+            </section>
+          }
+          <app-sign-inspector></app-sign-inspector>
+        } @else if (selection.box(); as box) {
+          <dl class="selection-details">
+            <div>
+              <dt>{{ i18n.t('minPosition') }}</dt>
+              <dd>X {{ box.min.x }}, Y {{ box.min.y }}, Z {{ box.min.z }}</dd>
+            </div>
+            <div>
+              <dt>{{ i18n.t('maxPosition') }}</dt>
+              <dd>X {{ box.max.x }}, Y {{ box.max.y }}, Z {{ box.max.z }}</dd>
+            </div>
+            <div>
+              <dt>{{ i18n.t('selectionSize') }}</dt>
+              <dd>
+                {{ box.max.x - box.min.x + 1 }} x {{ box.max.y - box.min.y + 1 }} x
+                {{ box.max.z - box.min.z + 1 }}
+              </dd>
+            </div>
+            <div>
+              <dt>{{ i18n.t('blockCount') }}</dt>
+              <dd>{{ selectedBlockCount() }}</dd>
+            </div>
+          </dl>
+        } @else {
+          <p class="muted">{{ i18n.t('noBlockSelected') }}</p>
+        }
+      </aside>
+    }
+    @if (layout.preferences().quickBarVisible) {
+      <app-quick-block-bar></app-quick-block-bar>
+    }
+  </div>
+  @if (layout.preferences().statusBarVisible) {
+    <footer class="status-bar">
+      <span>{{ mode.mode() === '3d' ? i18n.t('mode3d') : i18n.t('modeYLayer') }}</span
+      ><span>{{ tool.active() === 'place' ? i18n.t('toolPlace') : i18n.t('toolSelect') }}</span
+      ><span
+        [attr.data-status]="
+          autosave.status() === 'error'
+            ? 'invalid'
+            : autosave.status() === 'saved'
+              ? 'valid'
+              : 'warning'
+        "
+        [attr.title]="autosave.error()"
+        >{{ saveStatusLabel() }}</span
+      >
+      @if (mode.mode() === 'y-layer') {
+        <span
+          >{{ i18n.t('currentLayer') }}:
+          {{ workspace.project()?.editorSettings?.currentY ?? 0 }}</span
+        >
+      }
+      @if (logicalSelectionCount() > 1) {
+        <span
+          >{{ i18n.t('selection') }}: {{ logicalSelectionCount() }} voxels (logical object)</span
+        >
+      }
+      @if (viewportStatus.target(); as target) {
+        <span>{{ i18n.t('target') }}: {{ target.x }}, {{ target.y }}, {{ target.z }}</span>
+      }
+    </footer>
+  }
+</div>

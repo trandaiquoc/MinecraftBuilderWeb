@@ -1,0 +1,29 @@
+<main class="project-page">
+  <section class="project-intro">
+    <p class="eyebrow">{{ i18n.t('appName') }}</p>
+    <h1>{{ i18n.t('projectTitle') }}</h1>
+    <p>{{ i18n.t('projectSubtitle') }}</p>
+  </section>
+
+  <section class="project-grid" [attr.aria-label]="i18n.t('projectActions')">
+    <form class="project-form" (submit)="$event.preventDefault(); createProject()">
+      <h2>{{ i18n.t('newProject') }}</h2>
+      <label>{{ i18n.t('projectName') }}<input [value]="name()" (input)="updateName($any($event.target).value)" required /></label>
+      <div class="size-grid">
+        <label>{{ i18n.t('sizeX') }}<input type="number" min="1" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
+        <label>{{ i18n.t('sizeY') }}<input type="number" min="1" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
+        <label>{{ i18n.t('sizeZ') }}<input type="number" min="1" [value]="sizeZ()" (input)="updateSize('z', $any($event.target).value)" /></label>
+      </div>
+      <button type="submit">{{ i18n.t('create') }}</button>
+      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    </form>
+
+    <section class="recent-projects">
+      <h2>{{ i18n.t('recent') }}</h2>
+      @if (projects().length === 0) { <p class="muted">{{ i18n.t('noProjects') }}</p> }
+      @for (project of projects(); track project.id) {
+        <button class="project-row" type="button" (click)="openProject(project.id)"><span>{{ project.name }}</span><small>{{ project.updatedAt | date:'short' }}</small><strong>{{ i18n.t('open') }}</strong></button>
+      }
+    </section>
+  </section>
+</main>

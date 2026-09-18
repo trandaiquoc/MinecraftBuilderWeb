@@ -13,6 +13,8 @@
 **/coverage/
 **/.cache/
 **/.sass-cache/
+Frontend/.minecraft-assets/
+Frontend/public/local-assets/
 
 # -------------------------------------------------------------------
 # Local AI / editor tooling

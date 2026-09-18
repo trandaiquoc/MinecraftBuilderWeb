@@ -1,0 +1,84 @@
+<section class="block-browser" [class.expanded]="expanded()">
+  <div class="asset-source">
+    <div class="browser-heading">
+      <small>
+        @if (assets.status() === 'ready') {
+          {{ i18n.t('vanillaVersionStatus').replace('{status}', i18n.t('assetsReady')) }}
+        } @else {
+          {{ i18n.t('loadingCachedAssets') }}
+        }</small
+      ><button type="button" (click)="toggleExpanded()" [attr.aria-expanded]="expanded()">
+        {{ expanded() ? i18n.t('collapse') : i18n.t('expand') }}
+      </button>
+    </div>
+    @if (assets.status() !== 'ready') {
+      <label class="asset-import"
+        ><span>{{ i18n.t('loadVanillaAssets') }}</span
+        ><input
+          type="file"
+          accept=".jar,.zip,application/java-archive,application/zip"
+          (change)="importAssets($event)"
+      /></label>
+    }
+    @if (assets.status() === 'importing') {
+      <small>{{ i18n.t('loadingAssets') }}</small>
+    } @else if (assets.status() === 'no-assets') {
+      <small>{{ i18n.t('noAssets') }}</small>
+    } @else if (assets.status() === 'cache-error' || assets.status() === 'import-required') {
+      <small class="asset-error">{{ assets.message() || i18n.t('importRequired') }}</small>
+    }
+  </div>
+  <label class="search-label" for="block-search">{{ i18n.t('blockSearch') }}</label>
+  <input
+    id="block-search"
+    type="search"
+    [value]="library.query()"
+    (input)="search($event)"
+    [placeholder]="i18n.t('blockSearchPlaceholder')"
+  />
+  <div class="results" role="listbox" [attr.aria-label]="i18n.t('blocksPanel')">
+    @for (block of library.results(); track block.id) {
+      <button
+        class="block-item"
+        type="button"
+        role="option"
+        (click)="select(block)"
+        [class.active]="library.activeBlock.active()?.id === block.id"
+        [attr.aria-selected]="library.activeBlock.active()?.id === block.id"
+        [attr.aria-label]="block.displayName"
+      >
+        <span
+          class="preview"
+          [class.has-thumbnail]="!!assets.thumbnailUrl(block.id, block.defaultState)"
+          [class.fallback]="block.visualSupport === 'fallback'"
+        >
+          @if (assets.thumbnailUrl(block.id, block.defaultState); as thumbnail) {
+            <img [src]="thumbnail" alt="" />
+          } @else {
+            <span>{{ block.visualSupport === 'fallback' ? '?' : '◇' }}</span>
+          }
+        </span>
+        <span class="block-copy"
+          ><strong>{{ block.displayName }}</strong
+          ><small>{{
+            block.modName || (block.namespace === 'minecraft' ? 'Minecraft' : block.namespace)
+          }}</small></span
+        >
+      </button>
+    } @empty {
+      <p class="muted">{{ i18n.t('noBlockResults') }}</p>
+    }
+  </div>
+  @if (library.activeBlock.active(); as active) {
+    <div class="active-block">
+      <span>{{ i18n.t('activeBlock') }}</span>
+      @if (library.get(active.id); as definition) {
+        <strong [attr.title]="definition.displayName">{{ definition.displayName }}</strong
+        ><small [attr.title]="active.id">{{ active.id }}</small
+        ><button type="button" (click)="pinActive()">{{ i18n.t('pinActiveBlock') }}</button>
+      } @else {
+        <strong>{{ active.id }}</strong>
+      }
+    </div>
+  }
+</section>

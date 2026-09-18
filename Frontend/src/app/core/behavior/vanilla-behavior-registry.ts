@@ -1,0 +1,195 @@
+import { AssetBlockRecord, BehaviorSupportLevel, BlockBehavior, BlockStateDefinition } from '../blocks/block-definition.types';
+import { representativeBlockFixture } from '../blocks/block-catalog.fixture';
+
+export interface VanillaBehaviorResourceProvider {
+  readJson(path: string): unknown | undefined;
+}
+
+interface BehaviorMetadata {
+  readonly behavior: BlockBehavior;
+  readonly support: BehaviorSupportLevel;
+  readonly defaultState: Readonly<Record<string, string>>;
+  readonly stateDefinitions: readonly BlockStateDefinition[];
+}
+
+const tagPaths = {
+  beds: 'data/minecraft/tags/block/beds.json',
+  doors: 'data/minecraft/tags/block/doors.json',
+  fences: 'data/minecraft/tags/block/fences.json',
+  smallFlowers: 'data/minecraft/tags/block/small_flowers.json',
+  stairs: 'data/minecraft/tags/block/stairs.json',
+  tallFlowers: 'data/minecraft/tags/block/tall_flowers.json',
+  walls: 'data/minecraft/tags/block/walls.json',
+  woodenFences: 'data/minecraft/tags/block/wooden_fences.json',
+} as const;
+
+const horizontalBooleanState: readonly BlockStateDefinition[] = [
+  { name: 'north', values: ['true', 'false'], derived: true },
+  { name: 'east', values: ['true', 'false'], derived: true },
+  { name: 'south', values: ['true', 'false'], derived: true },
+  { name: 'west', values: ['true', 'false'], derived: true },
+  { name: 'waterlogged', values: ['true', 'false'] },
+];
+const horizontalFalse = { north: 'false', east: 'false', south: 'false', west: 'false', waterlogged: 'false' } as const;
+
+/** Maps verified vanilla 1.21.1 families to editor behavior without coupling them to visual assets. */
+export class VanillaBehaviorRegistry {
+  private readonly tags = new Map<string, ReadonlySet<string>>();
+  private readonly explicit = new Map<string, BehaviorMetadata>();
+
+  constructor(private readonly resources?: VanillaBehaviorResourceProvider) {
+    for (const [name, path] of Object.entries(tagPaths)) this.tags.set(name, this.resolveTag(path));
+    for (const record of representativeBlockFixture.blocks) {
+      if (!record.id.startsWith('minecraft:') || !record.behavior) continue;
+      this.explicit.set(record.id, {
+        behavior: record.behavior,
+        support: record.support === 'full' ? 'full' : 'partial',
+        defaultState: record.defaultState,
+        stateDefinitions: record.stateDefinitions,
+      });
+    }
+    this.explicit.set('minecraft:dandelion', floorSupportedMetadata);
+    this.explicit.set('minecraft:chain', chainMetadata);
+    this.explicit.set('minecraft:lantern', lanternMetadata);
+    for (const wood of vanillaSignWoods) {
+      this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
+      this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
+      this.explicit.set(`minecraft:${wood}_hanging_sign`, hangingSignMetadata(wood));
+      this.explicit.set(`minecraft:${wood}_wall_hanging_sign`, wallHangingSignMetadata);
+    }
+  }
+
+  enrich(record: AssetBlockRecord): AssetBlockRecord {
+    if (!record.id.startsWith('minecraft:')) return record;
+    const metadata = this.metadata(record.id);
+    if (!metadata) return record;
+    return {
+      ...record,
+      defaultState: { ...metadata.defaultState, ...record.defaultState },
+      stateDefinitions: mergeStateDefinitions(record.stateDefinitions, metadata.stateDefinitions),
+      behavior: metadata.behavior,
+      behaviorSupport: metadata.support,
+    };
+  }
+
+  private metadata(id: string): BehaviorMetadata | undefined {
+    if (isVanillaCandleId(id)) return candleMetadata;
+    if (this.has('woodenFences', id)) return connectMetadata('fence', 'wood-fence', ['wood-fence'], horizontalBooleanState, horizontalFalse);
+    if (this.has('fences', id)) return connectMetadata('fence', 'nether-fence', ['nether-fence'], horizontalBooleanState, horizontalFalse);
+    if (this.has('walls', id)) return connectMetadata('wall', 'wall', ['wall'], wallStateDefinitions, wallDefaultState);
+    if (this.has('stairs', id)) return stairsMetadata;
+    if (this.has('doors', id)) return doorMetadata;
+    if (this.has('tallFlowers', id)) return tallFlowerMetadata;
+    if (this.has('beds', id)) return bedMetadata;
+    if (this.has('smallFlowers', id)) return floorSupportedMetadata;
+    return this.explicit.get(id);
+  }
+
+  private has(tag: keyof typeof tagPaths, id: string): boolean { return this.tags.get(tag)?.has(id) ?? false; }
+
+  private resolveTag(path: string, visited = new Set<string>()): ReadonlySet<string> {
+    if (!this.resources || visited.has(path)) return new Set();
+    visited.add(path);
+    const values = tagValues(this.resources.readJson(path));
+    const ids = new Set<string>();
+    for (const value of values) {
+      if (value.startsWith('#')) {
+        const reference = value.slice(1);
+        const [namespace, name] = reference.includes(':') ? reference.split(':', 2) : ['minecraft', reference];
+        for (const id of this.resolveTag(`data/${namespace}/tags/block/${name}.json`, visited)) ids.add(id);
+      } else if (value.includes(':')) ids.add(value);
+    }
+    return ids;
+  }
+}
+
+export function isVanillaCandleId(id: string): boolean {
+  return id.startsWith('minecraft:') && id.endsWith('_candle');
+}
+
+const wallStateDefinitions: readonly BlockStateDefinition[] = [
+  { name: 'north', values: ['none', 'low', 'tall'], derived: true },
+  { name: 'east', values: ['none', 'low', 'tall'], derived: true },
+  { name: 'south', values: ['none', 'low', 'tall'], derived: true },
+  { name: 'west', values: ['none', 'low', 'tall'], derived: true },
+  { name: 'up', values: ['true', 'false'], derived: true },
+  { name: 'waterlogged', values: ['true', 'false'] },
+];
+const wallDefaultState = { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true', waterlogged: 'false' } as const;
+const stairsMetadata: BehaviorMetadata = {
+  behavior: { kind: 'stairs', derivedProperties: ['shape'] }, support: 'full',
+  defaultState: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' },
+  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'half', values: ['top', 'bottom'] }, { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'], derived: true }, { name: 'waterlogged', values: ['true', 'false'] }],
+};
+const doorMetadata: BehaviorMetadata = {
+  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, support: 'partial',
+  defaultState: { facing: 'north', half: 'lower', hinge: 'left', open: 'false', powered: 'false' },
+  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'half', values: ['lower', 'upper'], derived: true }, { name: 'hinge', values: ['left', 'right'] }, { name: 'open', values: ['true', 'false'] }, { name: 'powered', values: ['true', 'false'] }],
+};
+const tallFlowerMetadata: BehaviorMetadata = {
+  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, support: 'partial', defaultState: { half: 'lower' },
+  stateDefinitions: [{ name: 'half', values: ['lower', 'upper'], derived: true }],
+};
+const bedMetadata: BehaviorMetadata = {
+  behavior: { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, support: 'full',
+  defaultState: { facing: 'north', part: 'foot', occupied: 'false' },
+  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'part', values: ['foot', 'head'], derived: true }, { name: 'occupied', values: ['true', 'false'] }],
+};
+const floorSupportedMetadata: BehaviorMetadata = { behavior: { kind: 'floor-supported' }, support: 'partial', defaultState: {}, stateDefinitions: [] };
+const chainMetadata: BehaviorMetadata = {
+  behavior: { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' }, support: 'partial',
+  defaultState: { axis: 'y', waterlogged: 'false' },
+  stateDefinitions: [{ name: 'axis', values: ['x', 'y', 'z'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+};
+const lanternMetadata: BehaviorMetadata = {
+  behavior: { kind: 'lantern-placement', hangingProperty: 'hanging', chainId: 'minecraft:chain' }, support: 'full',
+  defaultState: { hanging: 'false', waterlogged: 'false' },
+  stateDefinitions: [{ name: 'hanging', values: ['true', 'false'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+};
+const candleMetadata: BehaviorMetadata = {
+  behavior: { kind: 'candle', candlesProperty: 'candles', maxCandles: 4 },
+  support: 'full',
+  defaultState: { candles: '1', lit: 'false', waterlogged: 'false' },
+  stateDefinitions: [
+    { name: 'candles', values: ['1', '2', '3', '4'] },
+    { name: 'lit', values: ['true', 'false'] },
+    { name: 'waterlogged', values: ['true', 'false'] },
+  ],
+};
+const wallSignMetadata: BehaviorMetadata = {
+  behavior: { kind: 'wall-sign', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north', waterlogged: 'false' },
+  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+};
+const signRotationStates: readonly BlockStateDefinition[] = [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }, { name: 'waterlogged', values: ['true', 'false'] }];
+const hangingSignStates: readonly BlockStateDefinition[] = [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }, { name: 'attached', values: ['true', 'false'], derived: true }, { name: 'waterlogged', values: ['true', 'false'] }];
+const vanillaSignWoods = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
+function standingSignMetadata(wood: string): BehaviorMetadata {
+  return { behavior: { kind: 'standing-sign', rotationProperty: 'rotation', wallBlockId: `minecraft:${wood}_wall_sign` }, support: 'full', defaultState: { rotation: '0', waterlogged: 'false' }, stateDefinitions: signRotationStates };
+}
+function hangingSignMetadata(wood: string): BehaviorMetadata {
+  return { behavior: { kind: 'hanging-sign', rotationProperty: 'rotation', attachedProperty: 'attached', wallBlockId: `minecraft:${wood}_wall_hanging_sign` }, support: 'full', defaultState: { rotation: '0', attached: 'false', waterlogged: 'false' }, stateDefinitions: hangingSignStates };
+}
+const wallHangingSignMetadata: BehaviorMetadata = {
+  behavior: { kind: 'wall-hanging-sign', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north', waterlogged: 'false' },
+  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+};
+
+function connectMetadata(family: 'fence' | 'pane' | 'wall', connectionGroup: string, compatibleGroups: readonly string[], stateDefinitions: readonly BlockStateDefinition[], defaultState: Readonly<Record<string, string>>): BehaviorMetadata {
+  return { behavior: { kind: 'horizontal-connect', family, connectionGroup, compatibleGroups, connectsToSolid: true, derivedProperties: family === 'wall' ? ['north', 'east', 'south', 'west', 'up'] : ['north', 'east', 'south', 'west'] }, support: 'full', defaultState, stateDefinitions };
+}
+
+function mergeStateDefinitions(base: readonly BlockStateDefinition[], metadata: readonly BlockStateDefinition[]): readonly BlockStateDefinition[] {
+  const merged = new Map(base.map((definition) => [definition.name, definition]));
+  for (const definition of metadata) {
+    const existing = merged.get(definition.name);
+    merged.set(definition.name, existing ? { ...existing, derived: definition.derived ?? existing.derived } : definition);
+  }
+  return [...merged.values()];
+}
+
+function tagValues(value: unknown): readonly string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
+  const values = (value as Record<string, unknown>)['values'];
+  if (!Array.isArray(values)) return [];
+  return values.flatMap((entry) => typeof entry === 'string' ? [entry] : typeof entry === 'object' && entry !== null && typeof (entry as Record<string, unknown>)['id'] === 'string' ? [(entry as Record<string, string>)['id']] : []);
+}
