@@ -3,7 +3,8 @@ import { DecorationFacing, DecorationKind, PaintingVariant, PlacedDecoration, pa
 import { ProjectDocument } from '../domain/project.types';
 
 export interface DecorationAabb { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number }; }
-export interface DecorationPlacementPlan { readonly status: 'valid' | 'invalid' | 'unknown'; readonly reason?: 'unsupported-face' | 'out-of-bounds' | 'missing-support' | 'collision'; readonly decoration?: PlacedDecoration; }
+export type DecorationPlacementReason = 'unsupported-face' | 'out-of-bounds' | 'missing-support' | 'blocked-by-block' | 'overlap-decoration';
+export interface DecorationPlacementPlan { readonly status: 'valid' | 'invalid' | 'unknown'; readonly reason?: DecorationPlacementReason; readonly decoration?: PlacedDecoration; }
 
 export function directionVector(facing: DecorationFacing): VoxelCoordinate {
   switch (facing) {
@@ -68,18 +69,18 @@ export function paintingSupportFootprint(anchor: VoxelCoordinate, facing: Decora
 
 export function planDecorationPlacement(project: ProjectDocument, active: { readonly kind: DecorationKind; readonly variantId?: string; readonly item?: import('./decoration.types').DecorationItemStack; readonly fixed?: boolean }, support: VoxelCoordinate, facing: DecorationFacing, random = Math.random): DecorationPlacementPlan {
   const anchor = decorationAnchorFromSupport(support, facing);
-  if (!decorationInBounds(anchor, project.size)) return { status: 'invalid', reason: 'out-of-bounds' };
   if (active.kind === 'painting' && !['north', 'south', 'east', 'west'].includes(facing)) return { status: 'invalid', reason: 'unsupported-face' };
-  const supportExists = project.blocks.some((block) => sameCoordinate(block.position, support));
-  if (!supportsDecoration(active.kind, facing, supportExists, active.fixed)) return { status: 'invalid', reason: 'missing-support' };
   const variant = active.kind === 'painting' ? paintingVariant(active.variantId) ?? chooseRandomPaintingVariant(facing === 'north' || facing === 'south' ? project.size.x : project.size.z, project.size.y, random) : undefined;
-  if (active.kind === 'painting' && !variant) return { status: 'invalid', reason: 'collision' };
+  if (active.kind === 'painting' && !variant) return { status: 'invalid', reason: 'out-of-bounds' };
   const entityTypeId = active.kind === 'painting' ? 'minecraft:painting' : active.kind === 'item-frame' ? 'minecraft:item_frame' : 'minecraft:glow_item_frame';
   const decoration: PlacedDecoration = { instanceId: 'preview', kind: active.kind, entityTypeId, anchor, facing, ...(variant ? { variantId: variant.id } : {}), ...(active.item ? { item: active.item } : {}), ...(active.kind !== 'painting' ? { rotation: 0, invisible: false, fixed: active.fixed ?? false, itemDropChance: 1 } : {}) };
-  if (variant && paintingSupportFootprint(anchor, facing, variant).some((position) => !project.blocks.some((block) => sameCoordinate(block.position, position)))) return { status: 'invalid', reason: 'missing-support' };
+  if (!decorationInBounds(anchor, project.size)) return { status: 'invalid', reason: 'out-of-bounds', decoration };
+  const supportExists = project.blocks.some((block) => sameCoordinate(block.position, support));
+  if (!supportsDecoration(active.kind, facing, supportExists, active.fixed)) return { status: 'invalid', reason: 'missing-support', decoration };
+  if (variant && paintingSupportFootprint(anchor, facing, variant).some((position) => !project.blocks.some((block) => sameCoordinate(block.position, position)))) return { status: 'invalid', reason: 'missing-support', decoration };
   const aabb = decorationAabb(decoration);
-  if (project.blocks.some((block) => aabb.min.x < block.position.x + 1 && aabb.max.x > block.position.x && aabb.min.y < block.position.y + 1 && aabb.max.y > block.position.y && aabb.min.z < block.position.z + 1 && aabb.max.z > block.position.z && !sameCoordinate(block.position, support))) return { status: 'invalid', reason: 'collision' };
-  if ((project.decorations ?? []).some((entry) => decorationOverlaps(aabb, decorationAabb(entry)))) return { status: 'invalid', reason: 'collision' };
+  if (project.blocks.some((block) => aabb.min.x < block.position.x + 1 && aabb.max.x > block.position.x && aabb.min.y < block.position.y + 1 && aabb.max.y > block.position.y && aabb.min.z < block.position.z + 1 && aabb.max.z > block.position.z && !sameCoordinate(block.position, support))) return { status: 'invalid', reason: 'blocked-by-block', decoration };
+  if ((project.decorations ?? []).some((entry) => decorationOverlaps(aabb, decorationAabb(entry)))) return { status: 'invalid', reason: 'overlap-decoration', decoration };
   return { status: 'valid', decoration };
 }
 
@@ -91,6 +92,24 @@ export function supportsDecoration(kind: DecorationKind, facing: DecorationFacin
 
 export function decorationOverlaps(a: DecorationAabb, b: DecorationAabb): boolean {
   return a.min.x < b.max.x && a.max.x > b.min.x && a.min.y < b.max.y && a.max.y > b.min.y && a.min.z < b.max.z && a.max.z > b.min.z;
+}
+
+export function pruneInvalidDecorations(project: ProjectDocument): ProjectDocument {
+  const decorations = project.decorations ?? [];
+  const kept = decorations.filter((decoration, index) => {
+    if (decoration.fixed && (decoration.kind === 'item-frame' || decoration.kind === 'glow-item-frame')) return true;
+    if (!decorationInBounds(decoration.anchor, project.size)) return false;
+    const direction = directionVector(decoration.facing);
+    const support = { x: decoration.anchor.x - direction.x, y: decoration.anchor.y - direction.y, z: decoration.anchor.z - direction.z };
+    const supportExists = project.blocks.some((block) => sameCoordinate(block.position, support));
+    if (!supportsDecoration(decoration.kind, decoration.facing, supportExists, decoration.fixed)) return false;
+    const variant = decoration.kind === 'painting' ? paintingVariant(decoration.variantId) : undefined;
+    if (variant && paintingSupportFootprint(decoration.anchor, decoration.facing, variant).some((position) => !project.blocks.some((block) => sameCoordinate(block.position, position)))) return false;
+    const aabb = decorationAabb(decoration);
+    if (project.blocks.some((block) => !sameCoordinate(block.position, support) && aabb.min.x < block.position.x + 1 && aabb.max.x > block.position.x && aabb.min.y < block.position.y + 1 && aabb.max.y > block.position.y && aabb.min.z < block.position.z + 1 && aabb.max.z > block.position.z)) return false;
+    return !decorations.some((other, otherIndex) => index !== otherIndex && decorationOverlaps(aabb, decorationAabb(other)));
+  });
+  return kept.length === decorations.length ? project : { ...project, decorations: kept };
 }
 
 function sameCoordinate(a: VoxelCoordinate, b: VoxelCoordinate): boolean { return a.x === b.x && a.y === b.y && a.z === b.z; }

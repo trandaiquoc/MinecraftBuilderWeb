@@ -7,14 +7,16 @@ export class ItemCatalog {
   private entries: readonly DecorationItemDefinition[] = [];
   load(provider: AssetResourceProvider & { paths?: () => readonly string[] }): void {
     const paths = provider.paths?.() ?? [];
-    const language = provider.readJson('assets/minecraft/lang/en_us.json');
-    const values = language && typeof language === 'object' ? language as Record<string, unknown> : {};
     this.entries = paths.filter((path) => /^assets\/[^/]+\/models\/item\/[^/]+\.json$/.test(path)).map((path) => {
       const match = /^assets\/([^/]+)\/models\/item\/(.+)\.json$/.exec(path)!;
       const id = `${match[1]}:${match[2]}`;
-      const key = `item.${match[2]}`;
-      return { id, displayName: typeof values[key] === 'string' ? values[key] as string : humanize(match[2]) };
-    }).filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index && entry.id !== 'minecraft:air').sort((a, b) => a.displayName.localeCompare(b.displayName));
+      const language = provider.readJson(`assets/${match[1]}/lang/en_us.json`);
+      const values = language && typeof language === 'object' ? language as Record<string, unknown> : {};
+      const itemKey = `item.${match[1]}.${match[2]}`;
+      const blockKey = `block.${match[1]}.${match[2]}`;
+      const translated = values[itemKey] ?? values[blockKey];
+      return typeof translated === 'string' ? { id, displayName: translated } : undefined;
+    }).filter((entry): entry is DecorationItemDefinition => !!entry).filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index && entry.id !== 'minecraft:air').sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
   search(query: string): readonly DecorationItemDefinition[] { const value = query.trim().toLowerCase(); return value ? this.entries.filter((entry) => `${entry.displayName} ${entry.id}`.toLowerCase().includes(value)).slice(0, 100) : this.entries.slice(0, 100); }
   all(): readonly DecorationItemDefinition[] { return this.entries; }

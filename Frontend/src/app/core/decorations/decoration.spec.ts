@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { decorationAabb, decorationAnchorFromSupport, decorationInBounds, supportsDecoration } from './decoration-placement';
+import { decorationAabb, decorationAnchorFromSupport, decorationInBounds, planDecorationPlacement, supportsDecoration } from './decoration-placement';
 import { decorationToNbt, toStructureDecorationEntityInfo } from './decoration-nbt';
 import { PAINTING_VARIANTS, chooseRandomPaintingVariant } from './decoration.types';
+import { ItemCatalog } from './item-catalog';
 
 describe('decorations domain', () => {
   it('keeps the verified painting catalog and chooses the largest fitting placeable variant', () => {
@@ -28,5 +29,25 @@ describe('decorations domain', () => {
     const painting = { instanceId: 'painting', kind: 'painting' as const, entityTypeId: 'minecraft:painting' as const, anchor: { x: 1, y: 2, z: 3 }, facing: 'south' as const, variantId: 'pool' };
     expect(decorationToNbt(painting)).toMatchObject({ variant: 'minecraft:pool', facing: 0 });
     expect(toStructureDecorationEntityInfo(painting).blockPos).toEqual([1, 2, 3]);
+  });
+
+  it('returns a full-size invalid candidate and stable collision reasons', () => {
+    const project = { schemaVersion: 3 as const, id: 'p', metadata: { name: 'p', minecraftVersion: '1.21.1' as const, createdAt: '', updatedAt: '' }, size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block' as const, blocks: [{ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 2, z: 2 }, state: {} }], groups: [], decorations: [], editorSettings: { currentY: 2, layerVisibility: 'current-only' as const, referenceLayerOpacity: .3 } };
+    const missing = planDecorationPlacement(project, { kind: 'painting', variantId: 'pool' }, { x: 2, y: 2, z: 2 }, 'south');
+    expect(missing.reason).toBe('missing-support');
+    expect(missing.decoration?.variantId).toBe('pool');
+    expect(decorationAabb(missing.decoration!).max.x - decorationAabb(missing.decoration!).min.x).toBeCloseTo(2);
+  });
+
+  it('indexes translated item models without resolving models or entity ids', () => {
+    const resources: Record<string, unknown> = {
+      'assets/minecraft/lang/en_us.json': { 'item.minecraft.diamond': 'Diamond', 'block.minecraft.oak_log': 'Oak Log' },
+      'assets/minecraft/models/item/diamond.json': {}, 'assets/minecraft/models/item/oak_log.json': {}, 'assets/minecraft/models/item/zombie.json': {}, 'assets/minecraft/models/item/air.json': {},
+    };
+    const catalog = new ItemCatalog(); catalog.load({ readJson: (path) => resources[path], paths: () => Object.keys(resources) });
+    expect(catalog.search('diamond').map((entry) => entry.id)).toContain('minecraft:diamond');
+    expect(catalog.search('oak log').map((entry) => entry.id)).toContain('minecraft:oak_log');
+    expect(catalog.all().map((entry) => entry.id)).not.toContain('minecraft:zombie');
+    expect(catalog.all().map((entry) => entry.id)).not.toContain('minecraft:air');
   });
 });

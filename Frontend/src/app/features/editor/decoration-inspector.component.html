@@ -1,0 +1,18 @@
+@if (decorations.selected(); as selected) {
+  <section class="decoration-inspector">
+    <h3>{{ selected.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : selected.kind === 'item-frame' ? i18n.t('itemFrame') : i18n.t('painting') }}</h3>
+    <dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ selected.facing }}</dd></div></dl>
+    @if (selected.kind === 'painting') {
+      <label>{{ i18n.t('variant') }}<input type="search" [value]="variantQuery()" (input)="searchVariants($event)" [placeholder]="i18n.t('searchPaintings')" /></label>
+      <div class="item-results">@for (variant of variants(); track variant.id) { <button type="button" [class.selected]="variant.id === selected.variantId" (click)="selectVariant(variant.id)"><strong>{{ variant.id }}</strong><small>{{ variant.width }} × {{ variant.height }}</small></button> }</div>
+    } @else {
+      <label>{{ i18n.t('frameItem') }}<input type="search" [value]="itemQuery()" (input)="searchItems($event)" [placeholder]="i18n.t('searchItems')" /></label>
+      <div class="item-results"><button type="button" (click)="selectItem('')">{{ i18n.t('emptyFrame') }}</button>@for (item of items(); track item.id) { <button type="button" (click)="selectItem(item.id)"><strong>{{ item.displayName }}</strong><small>{{ item.id }}</small></button> }</div>
+      <div class="frame-control"><span>{{ i18n.t('rotation') }}: {{ (selected.rotation ?? 0) * 45 }}°</span><span><button type="button" (click)="rotate(-1)">−</button><button type="button" (click)="rotate(1)">+</button></span></div>
+      <label class="check"><input type="checkbox" [checked]="selected.invisible" (change)="toggle('invisible', $event)" /> {{ i18n.t('invisible') }}</label>
+      <label class="check"><input type="checkbox" [checked]="selected.fixed" (change)="toggle('fixed', $event)" /> {{ i18n.t('fixed') }}</label>
+      <label>{{ i18n.t('itemDropChance') }}<input type="number" min="0" max="1" step="0.05" [value]="selected.itemDropChance ?? 1" (change)="setDropChance($event)" /></label>
+    }
+    <button type="button" class="danger" (click)="delete()">{{ i18n.t('deleteDecoration') }}</button>
+  </section>
+}

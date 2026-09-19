@@ -1,23 +1,19 @@
-<section class="decoration-browser">
+<section class="decoration-browser" [class.expanded]="expanded()">
+  <div class="browser-heading"><strong>{{ i18n.t('decorationsPanel') }}</strong><button type="button" (click)="toggleExpanded()" [attr.aria-expanded]="expanded()">{{ expanded() ? i18n.t('collapse') : i18n.t('expand') }}</button></div>
   <div class="decoration-choice-row">
-    <button type="button" (click)="decorations.selectRandomPainting()">{{ i18n.t('painting') }}</button>
-    <button type="button" (click)="decorations.selectFrame(false)">{{ i18n.t('itemFrame') }}</button>
-    <button type="button" (click)="decorations.selectFrame(true)">{{ i18n.t('glowItemFrame') }}</button>
+    <button type="button" [class.active]="decorations.active()?.kind === 'painting'" (click)="decorations.selectPainting()">{{ i18n.t('painting') }}</button>
+    <button type="button" [class.active]="decorations.active()?.kind === 'item-frame'" (click)="decorations.selectFrame(false)">{{ i18n.t('itemFrame') }}</button>
+    <button type="button" [class.active]="decorations.active()?.kind === 'glow-item-frame'" (click)="decorations.selectFrame(true)">{{ i18n.t('glowItemFrame') }}</button>
   </div>
-  @if (decorations.active()?.kind === 'item-frame' || decorations.active()?.kind === 'glow-item-frame') {
-    <label class="search-label">{{ i18n.t('frameItem') }}<input type="search" [value]="itemSearch()" (input)="searchItems($event)" [placeholder]="i18n.t('searchItems')" /></label>
-    <div class="decoration-list item-list" role="listbox">
-      <button type="button" class="decoration-item" (click)="decorations.selectItem({ id: '', count: 1 })"><strong>{{ i18n.t('emptyFrame') }}</strong></button>
-      @for (item of items(); track item.id) { <button type="button" class="decoration-item" (click)="selectItem(item.id)"><strong>{{ item.displayName }}</strong><small>{{ item.id }}</small></button> }
-    </div>
-  }
+  @if (decorations.active()?.kind === 'painting') {
   <label class="search-label">{{ i18n.t('paintingVariants') }}<input type="search" [value]="paintingSearch()" (input)="search($event)" [placeholder]="i18n.t('searchPaintings')" /></label>
   <div class="decoration-list" role="listbox">
     @for (variant of filteredVariants(); track variant.id) {
       <button type="button" class="decoration-item" [class.active]="decorations.active()?.variantId === variant.id" (click)="decorations.selectPainting(variant.id)">
-        <strong>{{ variant.id }}</strong><small>{{ variant.width }}x{{ variant.height }}</small>
+        <strong>{{ variant.id }}</strong><small>{{ variant.width }} × {{ variant.height }}</small>
       </button>
     }
   </div>
+  }
   @if (decorations.active(); as active) { <p class="active-decoration">{{ i18n.t('activeDecoration') }}: <strong>{{ active.variantId || (active.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : i18n.t('itemFrame')) }}</strong></p> }
 </section>

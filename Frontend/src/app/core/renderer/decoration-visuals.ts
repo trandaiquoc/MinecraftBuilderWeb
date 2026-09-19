@@ -20,10 +20,18 @@ export function createDecorationVisual(decoration: PlacedDecoration, textureUrl?
   mesh.position.set((aabb.min.x + aabb.max.x) / 2, (aabb.min.y + aabb.max.y) / 2, (aabb.min.z + aabb.max.z) / 2);
   mesh.userData['decorationInstanceId'] = decoration.instanceId;
   mesh.userData['decoration'] = decoration;
-  if (decoration.kind !== 'painting') {
-    const item = new THREE.Mesh(new THREE.BoxGeometry(.42, .42, .04), new THREE.MeshLambertMaterial({ color: decoration.item ? 0x6fb1ff : 0x8e8e8e }));
+  if (decoration.kind !== 'painting' && decoration.item) {
+    const itemUrl = decoration.item && textureUrl ? (textureUrl(`${decoration.item.id.split(':')[0]}:item/${decoration.item.id.split(':').slice(1).join(':')}`) ?? textureUrl(`${decoration.item.id.split(':')[0]}:block/${decoration.item.id.split(':').slice(1).join(':')}`)) : undefined;
+    let itemTexture = itemUrl ? textureCache.get(itemUrl) : undefined;
+    if (itemUrl && !itemTexture) { itemTexture = new THREE.TextureLoader().load(itemUrl); textureCache.set(itemUrl, itemTexture); }
+    if (itemTexture) itemTexture.magFilter = THREE.NearestFilter;
+    const item = new THREE.Mesh(new THREE.PlaneGeometry(.42, .42), new THREE.MeshLambertMaterial({ color: itemTexture ? 0xffffff : 0x8e8e8e, map: itemTexture, transparent: true, side: THREE.DoubleSide }));
     const d = directionVector(decoration.facing);
-    item.position.set(mesh.position.x - d.x * .04, mesh.position.y - d.y * .04, mesh.position.z - d.z * .04);
+    item.position.set(mesh.position.x - d.x * (decoration.invisible ? .5 : .4375), mesh.position.y - d.y * (decoration.invisible ? .5 : .4375), mesh.position.z - d.z * (decoration.invisible ? .5 : .4375));
+    if (decoration.facing === 'east' || decoration.facing === 'west') item.rotation.y = Math.PI / 2;
+    else if (decoration.facing === 'up') item.rotation.x = Math.PI / 2;
+    else if (decoration.facing === 'down') item.rotation.x = -Math.PI / 2;
+    item.rotation.z = (decoration.rotation ?? 0) * Math.PI / 4;
     item.userData['decorationInstanceId'] = decoration.instanceId;
     root.add(item);
   }

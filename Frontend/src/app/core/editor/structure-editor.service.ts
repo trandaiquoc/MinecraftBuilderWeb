@@ -15,6 +15,7 @@ import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from './sign-tex
 import { planPlacement, PlacementPlan } from '../behavior/placement-plan';
 import { isVanillaSignColor } from './sign-nbt';
 import { decoratedPotData, defaultDecoratedPotData, normalizeDecoratedPotSherd } from './decorated-pot';
+import { pruneInvalidDecorations } from '../decorations/decoration-placement';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -29,12 +30,12 @@ export class StructureEditorService {
       this.lastValidation = plan.validation;
       if (!plan.project) return undefined;
       const placedKeys = new Set(plan.blocks.map((block) => coordinateKey(block.position)));
-      return { ...plan.project, blocks: plan.project.blocks.map((block) => {
+      return pruneInvalidDecorations({ ...plan.project, blocks: plan.project.blocks.map((block) => {
         if (!placedKeys.has(coordinateKey(block.position))) return block;
         if (isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
         if (block.id === 'minecraft:decorated_pot') return { ...block, blockEntityData: defaultDecoratedPotData() };
         return block;
-      }) };
+      }) });
     });
   }
 
@@ -85,7 +86,7 @@ export class StructureEditorService {
       if (!expanded.length || expanded.some((block) => hasLockedMembership(block, project.groups))) return undefined;
       const result = this.rules().deleteMany(project, expanded.map((block) => block.position));
       this.lastValidation = result.validation;
-      return result.project;
+      return result.project ? pruneInvalidDecorations(result.project) : result.project;
     });
   }
 
@@ -113,7 +114,7 @@ export class StructureEditorService {
       const changedState = { ...block.state, [property]: value };
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: changedState } : entry);
       const blocks = synchronizeLogicalObjectState(directlyChanged, position, changedState, (id) => this.library.get(id));
-      const result = rules.refresh({ ...project, blocks }, [position]); this.lastValidation = result.validation; return result.project ? { ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } } : undefined;
+        const result = rules.refresh({ ...project, blocks }, [position]); this.lastValidation = result.validation; return result.project ? pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } }) : undefined;
     });
     if (changed && selectedWasHead && this.selection.single()) {
       const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head' && block.state['facing'] === (after.blocks.find((entry) => entry.state['part'] === 'foot' && entry.id === selectedBefore?.id)?.state['facing'] ?? ''));
@@ -136,7 +137,7 @@ export class StructureEditorService {
       }
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: rotated.state! } : entry);
       const updated = { ...project, blocks: synchronizeLogicalObjectState(directlyChanged, position, rotated.state, (id) => this.library.get(id)) };
-      const result = this.rules().refresh(updated, [position]); this.lastValidation = result.validation; return result.project ? { ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } } : undefined;
+      const result = this.rules().refresh(updated, [position]); this.lastValidation = result.validation; return result.project ? pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } }) : undefined;
     });
     if (changed && selectedWasHead && this.selection.single()) {
       const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head');

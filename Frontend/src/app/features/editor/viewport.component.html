@@ -1,3 +1,3 @@
 <div #host class="viewport-host" (pointermove)="pointerMove($event)" (pointerdown)="pointerDown($event)" (pointerup)="pointerUp($event)" (pointercancel)="cancelPointer()" (lostpointercapture)="cancelPointer()" (pointerleave)="pointerLeave()" (wheel)="preventViewportWheel($event)" (contextmenu)="$event.preventDefault()" (window:resize)="resize()">
-  <div class="viewport-status" [attr.data-status]="status()">{{ statusLabel() }} @if (target()) { <span>{{ target() }}</span> }</div>
+  <div class="viewport-status" [attr.data-status]="status()">{{ statusLabel() }} @if (reasonLabel()) { <span>· {{ reasonLabel() }}</span> } @if (target()) { <span>{{ target() }}</span> }</div>
 </div>

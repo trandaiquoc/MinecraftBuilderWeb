@@ -5,6 +5,7 @@ import { ThemeService } from '../../core/ui/theme.service';
 import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
 import { BlockBrowserComponent } from './block-browser.component';
 import { DecorationBrowserComponent } from './decoration-browser.component';
+import { DecorationInspectorComponent } from './decoration-inspector.component';
 import { QuickBlockBarComponent } from './quick-block-bar.component';
 import { SignInspectorComponent } from './sign-inspector.component';
 import { ViewportComponent } from './viewport.component';
@@ -29,7 +30,7 @@ import { clampGroupMovePanelPosition, PanelPosition } from '../../core/editor/gr
 import { filterGroups } from '../../core/editor/group-search';
 import { DecorationService } from '../../core/decorations/decoration.service';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event)', '(document:pointerup)': 'endMovePanelDrag($event)', '(document:pointercancel)': 'endMovePanelDrag($event)' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, DecorationInspectorComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event)', '(document:pointerup)': 'endMovePanelDrag($event)', '(document:pointercancel)': 'endMovePanelDrag($event)' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);

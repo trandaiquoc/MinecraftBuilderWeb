@@ -4,7 +4,7 @@ import { ProjectDocument, VoxelCoordinate } from '../domain/project.types';
 import { HistoryService } from '../editor/history.service';
 import { SelectionService } from '../editor/selection.service';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
-import { planDecorationPlacement } from './decoration-placement';
+import { planDecorationPlacement, DecorationPlacementPlan } from './decoration-placement';
 import { DecorationFacing, DecorationKind, DecorationItemStack, PlacedDecoration, paintingVariant } from './decoration.types';
 
 export interface ActiveDecoration {
@@ -26,17 +26,22 @@ export class DecorationService {
     const id = this.selectedId(); const project = this.workspace.project();
     return id && project ? project.decorations?.find((entry) => entry.instanceId === id) : undefined;
   });
+  private lastPaintingVariant = 'kebab';
 
-  selectPainting(variantId = 'kebab'): void { if (paintingVariant(variantId)) this.active.set({ kind: 'painting', variantId }); this.activeBlock.active.set(undefined); }
+  selectPainting(variantId = this.lastPaintingVariant): void { if (paintingVariant(variantId)) { this.lastPaintingVariant = variantId; this.active.set({ kind: 'painting', variantId }); } this.activeBlock.active.set(undefined); }
   selectRandomPainting(): void { this.active.set({ kind: 'painting' }); this.activeBlock.active.set(undefined); }
   selectFrame(glow = false, fixed = false): void { this.active.set({ kind: glow ? 'glow-item-frame' : 'item-frame', fixed }); this.activeBlock.active.set(undefined); }
   selectItem(item: DecorationItemStack): void { const current = this.active(); if (current?.kind !== 'item-frame' && current?.kind !== 'glow-item-frame') return; if (!item.id) { const { item: _item, ...withoutItem } = current; this.active.set(withoutItem); return; } this.active.set({ ...current, item: { ...item, count: 1 } }); }
   clearActive(): void { this.active.set(undefined); this.selectedId.set(undefined); }
+  planFromSupport(support: VoxelCoordinate, facing: DecorationFacing): DecorationPlacementPlan {
+    const project = this.workspace.project(); const active = this.active();
+    return project && active ? planDecorationPlacement(project, active, support, facing) : { status: 'invalid', reason: 'missing-support' };
+  }
 
   placeFromSupport(support: VoxelCoordinate, facing: DecorationFacing): boolean {
     const active = this.active(); const project = this.workspace.project();
     if (!active || !project) return false;
-    const plan = planDecorationPlacement(project, active, support, facing);
+    const plan = this.planFromSupport(support, facing);
     if (!plan.decoration || plan.status !== 'valid') return false;
     const decoration: PlacedDecoration = { ...plan.decoration, instanceId: newInstanceId() };
     return this.history.execute(active.kind === 'painting' ? 'Place painting' : 'Place item frame', (current) => {
@@ -64,5 +69,28 @@ export class DecorationService {
 
   select(id: string | undefined): void { this.selectedId.set(id); if (id) this.selection.clear(); }
   clearSelection(): void { this.selectedId.set(undefined); }
+
+  setFrameItem(id: string, item: DecorationItemStack | undefined): boolean { return this.updateSelectedFrame(id, (entry) => item ? { ...entry, item: { ...item, count: 1 } } : removeItem(entry)); }
+  setFrameRotation(id: string, rotation: number): boolean { const value = clampInteger(rotation, 0, 7); return this.updateSelectedFrame(id, (entry) => ({ ...entry, rotation: value as PlacedDecoration['rotation'] })); }
+  setFrameInvisible(id: string, invisible: boolean): boolean { return this.updateSelectedFrame(id, (entry) => ({ ...entry, invisible })); }
+  setFrameFixed(id: string, fixed: boolean): boolean { return this.updateSelectedFrame(id, (entry) => ({ ...entry, fixed })); }
+  setFrameItemDropChance(id: string, chance: number): boolean { if (!Number.isFinite(chance)) return false; return this.updateSelectedFrame(id, (entry) => ({ ...entry, itemDropChance: Math.max(0, Math.min(1, chance)) })); }
+  setPaintingVariant(id: string, variantId: string): boolean {
+    const project = this.workspace.project(); const current = project?.decorations?.find((entry) => entry.instanceId === id); const variant = paintingVariant(variantId);
+    if (!project || !current || current.kind !== 'painting' || !variant) return false;
+    const support = { x: current.anchor.x - (current.facing === 'east' ? 1 : current.facing === 'west' ? -1 : 0), y: current.anchor.y - (current.facing === 'up' ? 1 : current.facing === 'down' ? -1 : 0), z: current.anchor.z - (current.facing === 'south' ? 1 : current.facing === 'north' ? -1 : 0) };
+    const plan = planDecorationPlacement({ ...project, decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id) }, { kind: 'painting', variantId }, support, current.facing);
+    if (plan.status !== 'valid') return false;
+    return this.history.execute('Change painting variant', (before) => ({ ...before, decorations: (before.decorations ?? []).map((entry) => entry.instanceId === id ? { ...entry, variantId } : entry), metadata: { ...before.metadata, updatedAt: new Date().toISOString() } }));
+  }
+  private updateSelectedFrame(id: string, change: (entry: PlacedDecoration) => PlacedDecoration): boolean {
+    return this.history.execute('Edit decoration', (project) => {
+      const current = project.decorations?.find((entry) => entry.instanceId === id);
+      if (!current || (current.kind !== 'item-frame' && current.kind !== 'glow-item-frame')) return undefined;
+      return { ...project, decorations: project.decorations!.map((entry) => entry.instanceId === id ? change(entry) : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+    });
+  }
 }
+function removeItem(entry: PlacedDecoration): PlacedDecoration { const { item: _item, ...withoutItem } = entry; return withoutItem; }
+function clampInteger(value: number, min: number, max: number): number { return Math.max(min, Math.min(max, Math.round(value))); }
 function newInstanceId(): string { try { return crypto.randomUUID(); } catch { return `decoration-${Date.now()}-${Math.random().toString(36).slice(2)}`; } }

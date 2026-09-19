@@ -371,14 +371,7 @@
       <aside class="panel right-panel">
         <h2>{{ i18n.t('selection') }}</h2>
         @if (selectedDecoration(); as decoration) {
-          <dl class="selection-details">
-            <div><dt>{{ i18n.t('decoration') }}</dt><dd>{{ decoration.kind === 'painting' ? i18n.t('painting') : decoration.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : i18n.t('itemFrame') }}</dd></div>
-            <div><dt>{{ i18n.t('position') }}</dt><dd>X {{ decoration.anchor.x }}, Y {{ decoration.anchor.y }}, Z {{ decoration.anchor.z }}</dd></div>
-            <div><dt>{{ i18n.t('facing') }}</dt><dd>{{ decoration.facing }}</dd></div>
-            @if (decoration.variantId) { <div><dt>{{ i18n.t('variant') }}</dt><dd>{{ decoration.variantId }}</dd></div> }
-            @if (decoration.item) { <div><dt>{{ i18n.t('frameItem') }}</dt><dd><code>{{ decoration.item.id }}</code></dd></div> }
-          </dl>
-          <button type="button" (click)="deleteSelectedDecoration()">{{ i18n.t('deleteDecoration') }}</button>
+          <app-decoration-inspector></app-decoration-inspector>
         } @else if (selectedBlock(); as selected) {
           <dl class="selection-details">
             <div>
