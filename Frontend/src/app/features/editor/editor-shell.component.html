@@ -5,14 +5,8 @@
       <nav class="app-menus" aria-label="Application menu">
         <div class="menu-entry"><button type="button" (click)="toggleAppMenu('file', $event)">{{ i18n.t('fileMenu') }}</button>@if (activeMenu() === 'file') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
         <div class="menu-entry"><button type="button" (click)="toggleAppMenu('edit', $event)">{{ i18n.t('editMenu') }}</button>@if (activeMenu() === 'edit') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
-        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('view', $event)">
-          {{ i18n.t('viewMenu') }} ▾
-        </button>
-        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
-        <div class="menu-entry settings-entry"><button type="button" (click)="toggleAppMenu('settings', $event)">
-          {{ i18n.t('settingsMenu') }} ▾
-        </button>
-        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('help', $event)">{{ i18n.t('helpMenu') }}</button>@if (activeMenu() === 'help') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry">
+          <button type="button" (click)="toggleAppMenu('view', $event)">{{ i18n.t('viewMenu') }}</button>
         @if (activeMenu() === 'view') {
           <div class="menu-popover" (click)="$event.stopPropagation()">
             <button type="button" (click)="toggleLayout('editorToolbarVisible')">
@@ -37,6 +31,9 @@
           </div>
         }
         </div>
+        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry settings-entry">
+          <button type="button" (click)="toggleAppMenu('settings', $event)">{{ i18n.t('settingsMenu') }}</button>
         @if (activeMenu() === 'settings') {
           <div class="menu-popover settings-popover" (click)="$event.stopPropagation()">
             <strong>{{ i18n.t('language') }}</strong
@@ -54,6 +51,7 @@
           </div>
         }
         </div>
+        <div class="menu-entry"><button type="button" (click)="toggleAppMenu('help', $event)">{{ i18n.t('helpMenu') }}</button>@if (activeMenu() === 'help') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
       </nav>
     </div>
     @if (layout.preferences().editorToolbarVisible) {

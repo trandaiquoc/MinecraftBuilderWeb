@@ -39,7 +39,7 @@ export class ThemeService {
   private apply(preset: ThemePreset, base: 'dark' | 'light', font: UiFont): void {
     this.document.documentElement.dataset['theme'] = preset === 'custom' ? base : preset;
     this.document.documentElement.dataset['font'] = font;
-    this.document.documentElement.style.setProperty('--font-ui', font === 'minecraft-style' ? "'Pixelify Sans Variable'" : "'Geist Variable'");
+    this.document.documentElement.style.setProperty('--font-ui', font === 'minecraft-style' ? "'VT323', 'Geist Variable'" : "'Geist Variable'");
     this.document.documentElement.style.setProperty('--font-readable', "'Geist Variable'");
     this.document.documentElement.style.setProperty('--font-mono', 'ui-monospace, SFMono-Regular, Consolas, monospace');
   }
