@@ -7,7 +7,7 @@
     <div class="settings-dialog-body">
       <nav class="settings-nav" aria-label="Settings sections">
         @for (item of sections; track item) {
-          <button type="button" [class.active]="section() === item" [attr.aria-current]="section() === item ? 'page' : null" [attr.title]="item === 'shortcuts' || item === 'accessibility' ? i18n.t('unavailableSettings') : null" [disabled]="item === 'shortcuts' || item === 'accessibility'" (click)="setSection(item)">
+          <button type="button" [class.active]="section() === item" [attr.aria-current]="section() === item ? 'page' : null" [attr.title]="item === 'accessibility' ? i18n.t('unavailableSettings') : null" [disabled]="item === 'accessibility'" (click)="setSection(item)">
             {{ sectionLabel(item) }}
           </button>
         }
@@ -48,6 +48,22 @@
             }
             <button type="button" class="section-reset" (click)="restoreControlsDefaults()">{{ i18n.t('restoreDefaults') }}</button>
           </section>
+        } @else if (section() === 'shortcuts') {
+          <section class="shortcuts-settings" (keydown)="handleShortcutKeydown($event)">
+            <h3>{{ i18n.t('shortcutsSettings') }}</h3>
+            <input class="shortcut-search" [value]="shortcutSearch()" (input)="setShortcutSearch($any($event.target).value)" [placeholder]="i18n.t('searchShortcuts')" [attr.aria-label]="i18n.t('searchShortcuts')" />
+            @for (entry of shortcutActions(); track entry.action) {
+              <div class="shortcut-row">
+                <small>{{ shortcutGroupLabel(entry.group) }}</small>
+                <span>{{ shortcutLabel(entry.action) }}</span>
+                <button type="button" class="shortcut-binding" [class.capturing]="capturingAction() === entry.action" (click)="beginShortcutCapture(entry.action)">
+                  {{ capturingAction() === entry.action ? i18n.t('pressKeyCombination') : bindingLabel(entry.action) }}
+                </button>
+              </div>
+            }
+            @if (shortcutConflicts().length) { <p class="shortcut-conflict" role="alert">{{ i18n.t('shortcutConflict') }}</p> }
+            <button type="button" class="section-reset" (click)="restoreShortcutsDefaults()">{{ i18n.t('restoreDefaults') }}</button>
+          </section>
         } @else {
           <section class="settings-unavailable">
             <h3>{{ sectionLabel(section()) }}</h3>
@@ -59,8 +75,8 @@
     <footer class="settings-dialog-footer">
       <span class="settings-footer-spacer"></span>
       <button type="button" class="secondary" (click)="requestClose()">{{ i18n.t('cancel') }}</button>
-      <button type="button" class="secondary" (click)="apply()">{{ i18n.t('apply') }}</button>
-      <button type="button" class="primary" (click)="saveAndClose()">{{ i18n.t('saveAndClose') }}</button>
+      <button type="button" class="secondary" [disabled]="shortcutConflicts().length > 0" (click)="apply()">{{ i18n.t('apply') }}</button>
+      <button type="button" class="primary" [disabled]="shortcutConflicts().length > 0" (click)="saveAndClose()">{{ i18n.t('saveAndClose') }}</button>
     </footer>
   </section>
 </div>

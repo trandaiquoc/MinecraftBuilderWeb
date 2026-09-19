@@ -98,14 +98,14 @@
         <div class="toolbar-group history-actions">
           <button
             type="button"
-            title="Undo (Ctrl+Z)"
+            [attr.title]="shortcutTitle('undo')"
             [disabled]="!history.canUndo()"
             (click)="history.undo()"
           >
             <svg lucideUndo2 aria-hidden="true"></svg>{{ i18n.t('undo') }}</button
           ><button
             type="button"
-            title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
+            [attr.title]="shortcutTitle('redo')"
             [disabled]="!history.canRedo()"
             (click)="history.redo()"
           >

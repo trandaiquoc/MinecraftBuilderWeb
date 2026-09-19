@@ -5,16 +5,17 @@ import { UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, Bas
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
+import { KEYBOARD_ACTIONS, KeyboardAction, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding } from '../../core/editor/keyboard-bindings';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
-type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance']; readonly controls: UiPreferences['controls'] };
+type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance']; readonly controls: UiPreferences['controls']; readonly shortcuts: UiPreferences['shortcuts'] };
 
 @Component({
   selector: 'app-settings-dialog',
   imports: [LucideX, UiTooltipDirective, ThemedSelectComponent],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss',
-  host: { '(document:keydown.escape)': 'requestClose()' },
+  host: { '(document:keydown.escape)': 'requestClose()', '(document:keydown)': 'handleShortcutKeydown($event)' },
 })
 export class SettingsDialogComponent {
   protected readonly i18n = inject(I18nService);
@@ -22,6 +23,8 @@ export class SettingsDialogComponent {
   private readonly dialogs = inject(DialogService);
   readonly closed = output<void>();
   protected readonly section = signal<SettingsSection>('general');
+  protected readonly shortcutSearch = signal('');
+  protected readonly capturingAction = signal<KeyboardAction | undefined>(undefined);
   private readonly baseline = signal<SettingsDraft>(this.readDraft());
   protected readonly draft = signal<SettingsDraft>(this.readDraft());
   protected readonly dirty = computed(() => JSON.stringify(this.draft()) !== JSON.stringify(this.baseline()));
@@ -38,6 +41,8 @@ export class SettingsDialogComponent {
     { key: 'verticalMoveSpeed', min: 1, max: 30, step: 1, label: 'verticalMoveSpeed' },
     { key: 'clickDragThreshold', min: 1, max: 20, step: 1, label: 'clickDragThreshold' },
   ] as const;
+  protected readonly shortcutActions = computed(() => KEYBOARD_ACTIONS.filter(({ action }) => this.shortcutLabel(action).toLocaleLowerCase().includes(this.shortcutSearch().trim().toLocaleLowerCase())));
+  protected readonly shortcutConflicts = computed(() => findBindingConflicts(this.draft().shortcuts));
 
   protected setSection(section: SettingsSection): void { this.section.set(section); }
   protected setLocale(locale: UiLocale): void { this.updateDraft({ locale }); }
@@ -52,17 +57,41 @@ export class SettingsDialogComponent {
     if (!Number.isFinite(numeric)) return;
     this.updateDraft({ controls: { ...this.draft().controls, [key]: numeric } });
   }
+  protected setShortcutSearch(value: string): void { this.shortcutSearch.set(value); }
+  protected beginShortcutCapture(action: KeyboardAction): void { this.capturingAction.set(action); }
+  protected cancelShortcutCapture(): void { this.capturingAction.set(undefined); }
+  protected handleShortcutKeydown(event: KeyboardEvent): void {
+    const action = this.capturingAction();
+    if (!action) return;
+    event.preventDefault(); event.stopPropagation();
+    if (event.key === 'Escape') { this.cancelShortcutCapture(); return; }
+    if (event.key === 'Backspace' || event.key === 'Delete') { this.setShortcut(action, ''); this.cancelShortcutCapture(); return; }
+    const binding = bindingFromKeyboardEvent(event);
+    if (binding && !isModifierOnlyBinding(binding)) { this.setShortcut(action, binding); this.cancelShortcutCapture(); }
+  }
+  protected bindingLabel(action: KeyboardAction): string { const binding = this.draft().shortcuts[action]; return binding ? binding.replaceAll('|', ' / ') : this.i18n.t('unassigned'); }
+  protected shortcutLabel(action: KeyboardAction): string {
+    const key = ({
+      'move-forward': 'shortcutMoveForward', 'move-backward': 'shortcutMoveBackward', 'move-left': 'shortcutMoveLeft', 'move-right': 'shortcutMoveRight', 'move-up': 'shortcutMoveUp', 'move-down': 'shortcutMoveDown',
+      undo: 'undo', redo: 'redo', 'select-all': 'selectAll', 'delete-selection': 'deleteSelection',
+      'quick-slot-1': 'quickSlot1', 'quick-slot-2': 'quickSlot2', 'quick-slot-3': 'quickSlot3', 'quick-slot-4': 'quickSlot4', 'quick-slot-5': 'quickSlot5', 'quick-slot-6': 'quickSlot6', 'quick-slot-7': 'quickSlot7', 'quick-slot-8': 'quickSlot8', 'quick-slot-9': 'quickSlot9', 'quick-slot-10': 'quickSlot10',
+    } as const)[action];
+    return this.i18n.t(key);
+  }
+  protected shortcutGroupLabel(group: 'movement' | 'editing' | 'quickBar'): string { return ({ movement: this.i18n.t('movementSettingsGroup'), editing: this.i18n.t('editingSettingsGroup'), quickBar: this.i18n.t('quickBarSettingsGroup') } as const)[group]; }
   protected restoreGeneralDefaults(): void { this.updateDraft({ locale: this.preferences.defaultPreferences().locale }); }
   protected restoreAppearanceDefaults(): void { this.updateDraft({ appearance: { ...this.preferences.defaultPreferences().appearance } }); }
   protected restoreControlsDefaults(): void { this.updateDraft({ controls: { ...this.preferences.defaultPreferences().controls } }); }
+  protected restoreShortcutsDefaults(): void { this.updateDraft({ shortcuts: { ...this.preferences.defaultPreferences().shortcuts } }); this.cancelShortcutCapture(); }
   protected async apply(): Promise<void> {
     const draft = this.draft();
-    this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, controls: { ...draft.controls } });
+    this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, controls: { ...draft.controls }, shortcuts: { ...draft.shortcuts } });
     this.baseline.set(this.readDraft());
     this.draft.set(this.readDraft());
   }
   protected async saveAndClose(): Promise<void> { await this.apply(); this.closed.emit(); }
   protected async requestClose(): Promise<void> {
+    if (this.capturingAction()) { this.cancelShortcutCapture(); return; }
     if (!this.dirty()) { this.closed.emit(); return; }
     const confirmed = await this.dialogs.confirm({ title: this.i18n.t('discardChangesTitle'), text: this.i18n.t('discardChangesText'), confirmButtonText: this.i18n.t('discardChanges'), cancelButtonText: this.i18n.t('cancel') });
     if (confirmed) this.closed.emit();
@@ -71,6 +100,7 @@ export class SettingsDialogComponent {
   protected sectionLabel(section: SettingsSection): string {
     return ({ general: this.i18n.t('generalSettings'), appearance: this.i18n.t('appearanceSettings'), controls: this.i18n.t('controlsSettings'), shortcuts: this.i18n.t('shortcutsSettings'), accessibility: this.i18n.t('accessibilitySettings') } as const)[section];
   }
-  private updateDraft(patch: Partial<SettingsDraft>): void { this.draft.update((current) => ({ ...current, ...patch, appearance: { ...current.appearance, ...(patch.appearance ?? {}) } })); }
-  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance }, controls: { ...current.controls } }; }
+  private setShortcut(action: KeyboardAction, binding: string): void { this.updateDraft({ shortcuts: { ...this.draft().shortcuts, [action]: binding } }); }
+  private updateDraft(patch: Partial<SettingsDraft>): void { this.draft.update((current) => ({ ...current, ...patch, appearance: { ...current.appearance, ...(patch.appearance ?? {}) }, controls: { ...current.controls, ...(patch.controls ?? {}) }, shortcuts: { ...current.shortcuts, ...(patch.shortcuts ?? {}) } })); }
+  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance }, controls: { ...current.controls }, shortcuts: { ...current.shortcuts } }; }
 }

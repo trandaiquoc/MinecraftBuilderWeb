@@ -21,7 +21,9 @@ import { BlockLibraryService } from '../../core/blocks/block-library.service';
 import { coordinateKey } from '../../core/domain/coordinates';
 import { blockGroupNames } from '../../core/editor/group-membership';
 import { HistoryService } from '../../core/editor/history.service';
-import { editorShortcutAction } from '../../core/editor/history-shortcuts';
+import { KeyboardAction } from '../../core/editor/keyboard-bindings';
+import { KeyboardBindingService } from '../../core/editor/keyboard-binding.service';
+import { QuickBlockBarService } from '../../core/editor/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../core/persistence/indexeddb-project-store';
 import { ProjectPersistenceService } from '../../core/persistence/project-persistence.service';
 import { ProjectAutosaveService } from '../../core/persistence/project-autosave.service';
@@ -46,6 +48,8 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly groups = inject(GroupService);
   protected readonly decorations = inject(DecorationService);
   protected readonly history = inject(HistoryService);
+  private readonly keyboard = inject(KeyboardBindingService);
+  private readonly quickBar = inject(QuickBlockBarService);
   protected readonly autosave = inject(ProjectAutosaveService);
   protected readonly layout = inject(EditorLayoutPreferencesService);
   private readonly dialogs = inject(DialogService);
@@ -128,6 +132,7 @@ export class EditorShellComponent implements OnDestroy {
   ngOnDestroy(): void { void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
+  protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
 
   protected fitStructure(): void { this.currentViewport()?.fitStructure(); }
   protected focusSelection(): void { this.currentViewport()?.focusSelection(); }
@@ -309,11 +314,20 @@ export class EditorShellComponent implements OnDestroy {
     return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
+    if (this.settingsDialogOpen()) return;
     if (event.key === 'Escape') { this.closeMenus(); return; }
-    const action = editorShortcutAction(event); if (!action) return;
-    if (action === 'select-all') { const project = this.workspace.project(); if (project) this.selection.selectAll(project, (id) => this.library.get(id)); event.preventDefault(); return; }
-    if (action === 'delete-selection') { this.editor.deleteSelection(); event.preventDefault(); return; }
-    const handled = action === 'undo' ? this.history.undo() : this.history.redo(); if (handled) event.preventDefault();
+    const action = this.keyboard.actionForEvent(event); if (!action) return;
+    const handled = this.executeKeyboardAction(action);
+    if (handled) event.preventDefault();
+  }
+
+  private executeKeyboardAction(action: KeyboardAction): boolean {
+    if (action === 'undo') return this.history.undo();
+    if (action === 'redo') return this.history.redo();
+    if (action === 'select-all') { const project = this.workspace.project(); if (!project) return false; this.selection.selectAll(project, (id) => this.library.get(id)); return true; }
+    if (action === 'delete-selection') return this.editor.deleteSelection();
+    if (action.startsWith('quick-slot-')) { const index = Number(action.slice('quick-slot-'.length)) - 1; const entry = this.quickBar.entries()[index]; if (!entry) return false; this.quickBar.select(entry); return true; }
+    return false;
   }
 
   private currentViewport(): ViewportComponent | YLayerComponent | undefined {

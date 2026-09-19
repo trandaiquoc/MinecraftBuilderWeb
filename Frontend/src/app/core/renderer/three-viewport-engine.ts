@@ -15,6 +15,7 @@ import { PlacedDecoration } from '../decorations/decoration.types';
 import { DecorationPlacementPlan, facingFromNormal, planDecorationPlacement } from '../decorations/decoration-placement';
 import { createDecorationVisual } from './decoration-visuals';
 import type { ActiveDecoration } from '../decorations/decoration.service';
+import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../editor/keyboard-bindings';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
@@ -71,10 +72,11 @@ export class ThreeViewportEngine {
   private renderOptions: ViewportRenderOptions = {};
   private hasCameraFrame = false;
   private readonly renderOnControlChange = () => this.render();
-  private readonly pressedKeys = new Set<string>();
   private cameraMoveFrame?: number;
-  private readonly onCameraKeyDown = (event: KeyboardEvent) => { if (isTextInput(event.target)) { this.clearInput(); return; } if (!cameraMovementCodes.has(event.code)) return; event.preventDefault(); this.pressedKeys.add(event.code); this.startCameraMovement(); };
-  private readonly onCameraKeyUp = (event: KeyboardEvent) => { if (cameraMovementCodes.has(event.code)) this.pressedKeys.delete(event.code); };
+  private readonly pressedActions = new Set<KeyboardAction>();
+  private keyboardBindings: Readonly<Record<KeyboardAction, string>> = DEFAULT_KEYBINDINGS;
+  private readonly onCameraKeyDown = (event: KeyboardEvent) => { if (isTextInput(event.target)) { this.clearInput(); return; } const action = keyboardActionForEvent(event, this.keyboardBindings); if (!isMovementAction(action)) return; event.preventDefault(); this.pressedActions.add(action); this.startCameraMovement(); };
+  private readonly onCameraKeyUp = (event: KeyboardEvent) => { const action = keyboardActionForEvent(event, this.keyboardBindings); if (isMovementAction(action)) this.pressedActions.delete(action); };
   private readonly onWindowBlur = () => this.clearInput();
   private readonly onVisibilityChange = () => { if (document.hidden) this.clearInput(); };
   private palette: ViewportThemePalette = viewportThemePalette('dark');
@@ -151,6 +153,11 @@ export class ThreeViewportEngine {
   setControlConfiguration(configuration: ViewportControlConfiguration): void {
     this.controlConfiguration = { ...configuration };
     this.applyControlConfiguration();
+  }
+
+  setKeyboardBindings(bindings: Readonly<Record<KeyboardAction, string>>): void {
+    this.keyboardBindings = { ...bindings };
+    this.pressedActions.clear();
   }
 
   private applyControlConfiguration(): void {
@@ -364,7 +371,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();
   }
-  clearInput(): void { this.pressedKeys.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
+  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
   setGhostStatus(status: PlacementStatus): void {
     if (!this.ghost.visible) return;
     const material = this.ghost.material as THREE.MeshBasicMaterial;
@@ -556,10 +563,10 @@ export class ThreeViewportEngine {
 
   private render(): void { if (this.renderer) { this.renderer.render(this.scene, this.camera); this.renderCount++; } }
 
-  private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedKeys, delta); if (this.pressedKeys.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
-  private moveCamera(keys: ReadonlySet<string>, delta: number): void {
+  private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedActions, delta); if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
+  private moveCamera(keys: ReadonlySet<KeyboardAction>, delta: number): void {
     if (!this.controls || !keys.size) return;
-    const direction = cameraMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
+    const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
     if (!direction.lengthSq()) return;
     this.camera.position.add(direction); this.controls.target.add(direction); this.controls.update();
   }
@@ -600,11 +607,21 @@ function colorForStatus(palette: ViewportThemePalette, status: PlacementStatus):
   }
 }
 function isHorizontalDirection(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
-const cameraMovementCodes = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight']);
 export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE.Camera): THREE.Vector3 {
   const forward = camera.getWorldDirection(new THREE.Vector3()); forward.y = 0; if (forward.lengthSq() === 0) return new THREE.Vector3(); forward.normalize();
   const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize(); const direction = new THREE.Vector3();
   if (keys.has('KeyW')) direction.add(forward); if (keys.has('KeyS')) direction.sub(forward); if (keys.has('KeyD')) direction.add(right); if (keys.has('KeyA')) direction.sub(right); if (keys.has('Space')) direction.y += 1; if (keys.has('ShiftLeft') || keys.has('ShiftRight')) direction.y -= 1;
+  return direction;
+}
+function isMovementAction(action: KeyboardAction | undefined): action is Extract<KeyboardAction, `move-${string}`> { return !!action && action.startsWith('move-'); }
+function cameraActionMovementDelta(actions: ReadonlySet<KeyboardAction>, camera: THREE.Camera, horizontalSpeed: number, verticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
+  const direction = new THREE.Vector3();
+  const horizontal = new Set<string>();
+  if (actions.has('move-forward')) horizontal.add('KeyW'); if (actions.has('move-backward')) horizontal.add('KeyS'); if (actions.has('move-left')) horizontal.add('KeyA'); if (actions.has('move-right')) horizontal.add('KeyD');
+  const horizontalDirection = cameraMovementDirection(horizontal, camera);
+  if (horizontalDirection.lengthSq()) direction.add(horizontalDirection.normalize().multiplyScalar(deltaSeconds * horizontalSpeed));
+  if (actions.has('move-up')) direction.y += deltaSeconds * verticalSpeed;
+  if (actions.has('move-down')) direction.y -= deltaSeconds * verticalSpeed;
   return direction;
 }
 export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Camera, horizontalSpeed: number, verticalSpeed: number, deltaSeconds: number): THREE.Vector3 {

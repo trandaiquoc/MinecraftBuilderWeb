@@ -1359,3 +1359,14 @@ Decoration item selection now uses the authoritative Java 1.21.1 item registry
 report, while Painting variants and frame items use compact searchable dropdowns
 that load no thumbnails or models. Item model resources remain visual-only;
 registered items without a model are still selectable and preserved.
+
+# 57. Keyboard shortcut foundation
+
+Keyboard actions now use one normalized, version-tolerant binding map stored in
+UI preferences rather than ProjectDocument data. Defaults preserve continuous
+W/A/S/D/Space/Shift camera movement, Ctrl/Cmd history and selection shortcuts,
+Delete/Backspace deletion, and 1-9/0 Quick Bar selection. Settings > Shortcuts
+supports searchable capture, draft Apply/Save/Cancel semantics, restore
+defaults, and visible duplicate-binding conflicts. Form and contenteditable
+focus suppresses editor actions, while movement remains continuous and clears
+on blur/visibility loss/dispose.
