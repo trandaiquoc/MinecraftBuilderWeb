@@ -2,6 +2,7 @@ import { Injectable, effect, inject, signal } from '@angular/core';
 import { ActiveBlock, ActiveBlockService } from '../blocks/active-block.service';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
 import { canonicalPlaceableItemId } from '../blocks/placeable-item';
+import { DecorationService } from '../decorations/decoration.service';
 
 export interface QuickBlockEntry extends ActiveBlock { readonly itemId: string; readonly displayName: string; }
 const slots = 9;
@@ -10,6 +11,7 @@ const slots = 9;
 export class QuickBlockBarService {
   private readonly workspace = inject(WorkspaceStateService);
   private readonly activeBlock = inject(ActiveBlockService);
+  private readonly decorations = inject(DecorationService);
   readonly active = this.activeBlock.active;
   readonly entries = signal<readonly QuickBlockEntry[]>([]);
   readonly collapsed = signal(false);
@@ -17,7 +19,7 @@ export class QuickBlockBarService {
   constructor() { effect(() => { const id = this.workspace.project()?.id; if (id !== this.activeProjectId) { this.activeProjectId = id; this.entries.set(id ? load(id) : []); } }); }
   add(entry: QuickBlockEntry): void { const canonical = { ...entry, itemId: canonicalPlaceableItemId(entry.itemId || entry.id) }; const next = [...this.entries().filter((item) => item.itemId !== canonical.itemId || stateKey(item.state) !== stateKey(canonical.state)), canonical].slice(-slots); this.save(next); }
   remove(index: number): void { this.save(this.entries().filter((_, current) => current !== index)); }
-  select(entry: QuickBlockEntry): void { this.activeBlock.set(entry); }
+  select(entry: QuickBlockEntry): void { this.decorations.clearActive(); this.activeBlock.set(entry); }
   private save(entries: readonly QuickBlockEntry[]): void { this.entries.set(entries); const id = this.activeProjectId; if (!id) return; try { localStorage.setItem(key(id), JSON.stringify(entries)); } catch { /* The palette remains useful for this session. */ } }
 }
 

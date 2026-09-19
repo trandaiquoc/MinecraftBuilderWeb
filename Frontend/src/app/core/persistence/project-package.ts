@@ -36,7 +36,7 @@ function isProjectPackage(value: unknown): value is ProjectPackage {
   return candidate.format === PROJECT_PACKAGE_FORMAT &&
     candidate.formatVersion === CURRENT_PROJECT_PACKAGE_VERSION &&
     !!project &&
-    (project.schemaVersion === 1 || project.schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION) &&
+    (project.schemaVersion === 1 || project.schemaVersion === 2 || project.schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION) &&
     typeof project.id === 'string' &&
     !!project.metadata &&
     !!project.size &&

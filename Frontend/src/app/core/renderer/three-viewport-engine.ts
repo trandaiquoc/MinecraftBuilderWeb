@@ -11,10 +11,13 @@ import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import { BlockVisualProvider } from './block-model-geometry';
 import { PlacementPlan } from '../behavior/placement-plan';
 import { coordinateKey } from '../domain/coordinates';
+import { PlacedDecoration } from '../decorations/decoration.types';
+import { createDecorationVisual } from './decoration-visuals';
+import type { ActiveDecoration } from '../decorations/decoration.service';
 
-export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; }
+export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
-export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
+export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
@@ -34,10 +37,12 @@ export class ThreeViewportEngine {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly blocksGroup = new THREE.Group();
+  private readonly decorationsGroup = new THREE.Group();
   private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x4b9cff, transparent: true, opacity: 0.35 }));
   private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166 }));
   private readonly selectionBox = new THREE.Box3Helper(new THREE.Box3(), 0xffd166);
   private readonly movePreviewGroup = new THREE.Group();
+  private readonly decorationGhostGroup = new THREE.Group();
   private readonly logicalSelectionGroup = new THREE.Group();
   private ghostModel?: THREE.Group;
   private ghostModelKey = '';
@@ -65,6 +70,7 @@ export class ThreeViewportEngine {
   private readonly onVisibilityChange = () => { if (document.hidden) this.clearInput(); };
   private palette: ViewportThemePalette = viewportThemePalette('dark');
   private visualProvider?: BlockVisualProvider;
+  private decorationTextureUrl?: (resource: string) => string | undefined;
   private placementPlanProvider?: PlacementPlanProvider;
   private visualGeneration = 0;
   private ghostGeneration = 0;
@@ -84,6 +90,7 @@ export class ThreeViewportEngine {
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x394454, 2.65));
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.15); keyLight.position.set(6, 10, 7); this.scene.add(keyLight);
     this.scene.add(this.blocksGroup);
+    this.scene.add(this.decorationsGroup);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
     this.selectionOutline.visible = false;
@@ -94,6 +101,7 @@ export class ThreeViewportEngine {
     this.scene.add(this.selectionBox);
     this.scene.add(this.movePreviewGroup);
     this.scene.add(this.logicalSelectionGroup);
+    this.scene.add(this.decorationGhostGroup);
     this.camera.position.set(12, 10, 12);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
@@ -146,6 +154,7 @@ export class ThreeViewportEngine {
     this.ghostModelKey = '';
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
+  setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined): void { this.decorationTextureUrl = provider; this.update(this.project, this.activeBlock, this.renderOptions); }
 
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
 
@@ -155,6 +164,7 @@ export class ThreeViewportEngine {
     this.activeBlock = active;
     this.renderOptions = options;
     for (const child of [...this.blocksGroup.children]) { child.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.blocksGroup.remove(child); }
+    for (const child of [...this.decorationsGroup.children]) { disposeObject(child); this.decorationsGroup.remove(child); }
     if (project) {
       const worldBlocks = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
       const worldContext = { getBlock: (position: VoxelCoordinate) => worldBlocks.get(coordinateKey(position)) };
@@ -187,6 +197,20 @@ export class ThreeViewportEngine {
           this.blocksGroup.remove(mesh); mesh.geometry.dispose(); material.dispose(); this.blocksGroup.add(object); this.render();
         }).catch((error: unknown) => { mesh.userData['renderMode'] = 'fallback'; mesh.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.render(); });
       }
+      const layerDecorations = (project.decorations ?? []).filter((decoration) => options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y));
+      for (const decoration of layerDecorations) {
+        const visual = createDecorationVisual(decoration, this.decorationTextureUrl);
+        visual.userData['decorationInstanceId'] = decoration.instanceId;
+        visual.userData['decoration'] = decoration;
+        visual.traverse((child) => { child.userData['decorationInstanceId'] = decoration.instanceId; child.userData['decoration'] = decoration; });
+        if (options.selectedDecorationId === decoration.instanceId) {
+          const bounds = new THREE.Box3().setFromObject(visual);
+          const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(.04, bounds.max.x - bounds.min.x + .05), Math.max(.04, bounds.max.y - bounds.min.y + .05), Math.max(.04, bounds.max.z - bounds.min.z + .05))), new THREE.LineBasicMaterial({ color: this.palette.selection }));
+          outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.userData['decorationInstanceId'] = decoration.instanceId; visual.add(outline);
+        }
+        this.decorationsGroup.add(visual);
+        if (options.selected && false) visual.userData['selected'] = true;
+      }
     }
     this.setProjectBounds(project);
     this.setEditingPlane(options.layerY, project);
@@ -194,6 +218,7 @@ export class ThreeViewportEngine {
     this.updateActiveGroup(project, options.activeGroupId, options.activeGroupPositions);
     this.updateMovePreview(project, options.groupMovePreview);
     this.updateGhostModel(active, undefined);
+    this.clearDecorationGhost();
     this.updateGhost(undefined, project, active);
     if (project && this.controls && !this.hasCameraFrame) this.resetCamera();
     this.render();
@@ -204,7 +229,12 @@ export class ThreeViewportEngine {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
+    const decorationHit = this.raycaster.intersectObjects(this.decorationsGroup.children, true)[0];
     const blockHit = this.raycaster.intersectObjects(this.blocksGroup.children, true)[0];
+    if (decorationHit?.object.userData['decoration']) {
+      const decoration = decorationHit.object.userData['decoration'] as PlacedDecoration;
+      return { status: 'valid', decoration };
+    }
     let target: VoxelCoordinate | undefined;
     let block: VoxelCoordinate | undefined;
     let faceNormal: FaceNormal | undefined;
@@ -235,6 +265,7 @@ export class ThreeViewportEngine {
     const status = plan?.validation.status ?? placementStatus(target, project.size, active?.support ?? 'unknown');
     this.updateGhostModel(active, plan);
     this.updateGhost(showGhost ? target : undefined, project, active, status, plan);
+    if (showGhost && target && this.renderOptions.activeDecoration && faceNormal) this.updateDecorationGhost(target, faceNormal, this.renderOptions.activeDecoration);
     this.render();
     return { target, block, status, faceNormal, placementContext };
   }
@@ -250,7 +281,10 @@ export class ThreeViewportEngine {
     this.renderer?.domElement.remove();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
+    for (const child of this.decorationsGroup.children) disposeObject(child);
+    this.decorationsGroup.clear();
     for (const child of [...this.logicalSelectionGroup.children]) { child.traverse((object) => { if (object instanceof THREE.LineSegments) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.logicalSelectionGroup.remove(child); }
+    for (const child of [...this.decorationGhostGroup.children]) disposeObject(child); this.decorationGhostGroup.clear();
     this.ghost.geometry.dispose();
     (this.ghost.material as THREE.Material).dispose();
     this.ground?.geometry.dispose();
@@ -301,6 +335,13 @@ export class ThreeViewportEngine {
   }
 
   clearGhost(): void { this.ghost.visible = false; if (this.ghostModel) this.ghostModel.visible = false; this.render(); }
+  private clearDecorationGhost(): void { for (const child of [...this.decorationGhostGroup.children]) { disposeObject(child); this.decorationGhostGroup.remove(child); } }
+  private updateDecorationGhost(target: VoxelCoordinate, normal: FaceNormal, active: ActiveDecoration): void {
+    this.clearDecorationGhost(); const facing = normal.y > .5 ? 'up' : normal.y < -.5 ? 'down' : normal.z < -.5 ? 'north' : normal.z > .5 ? 'south' : normal.x < -.5 ? 'west' : 'east';
+    const entityTypeId = active.kind === 'painting' ? 'minecraft:painting' : active.kind === 'item-frame' ? 'minecraft:item_frame' : 'minecraft:glow_item_frame';
+    const visual = createDecorationVisual({ instanceId: 'ghost', kind: active.kind, entityTypeId, anchor: target, facing, ...(active.variantId ? { variantId: active.variantId } : {}), ...(active.item ? { item: active.item } : {}), ...(active.kind !== 'painting' ? { rotation: 0, invisible: false, fixed: active.fixed ?? false, itemDropChance: 1 } : {}) }, this.decorationTextureUrl);
+    visual.traverse((object) => { if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .45; material.depthWrite = false; } } }); this.decorationGhostGroup.add(visual); this.render();
+  }
   clearInput(): void { this.pressedKeys.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
   setGhostStatus(status: PlacementStatus): void {
     if (!this.ghost.visible) return;

@@ -517,3 +517,12 @@ available, the renderer creates a nearest-filtered static animation-frame view
 without mutating the shared texture cache. Water uses a neutral preview tint
 because biome color data is not part of the project model; water-overlay
 selection and biome sampling remain future work.
+## Decorations resources
+
+The local asset provider retains `data/<namespace>/painting_variant/*.json` and
+`data/<namespace>/tags/painting_variant/*.json` alongside block resources. The
+editor uses the verified Java 1.21.1 fallback painting table when data resources
+are unavailable. Painting textures resolve from `textures/painting/<id>.png`;
+frame visuals use the existing namespaced texture provider. Item-frame item
+search indexes item model paths and language data only; item model resolution is
+lazy when a frame is rendered.

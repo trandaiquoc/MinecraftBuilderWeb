@@ -40,8 +40,8 @@ export class ProjectScreenComponent {
   protected async createProject(): Promise<void> {
     const now = new Date().toISOString();
     const project: ProjectDocument = {
-      schemaVersion: 1, id: createId(), metadata: { name: this.name().trim() || 'Untitled structure', minecraftVersion: '1.21.1', createdAt: now, updatedAt: now },
-      size: { x: this.sizeX(), y: this.sizeY(), z: this.sizeZ() }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
+      schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || 'Untitled structure', minecraftVersion: '1.21.1', createdAt: now, updatedAt: now },
+      size: { x: this.sizeX(), y: this.sizeY(), z: this.sizeZ() }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
     };
     try {
       await this.getPersistence().create(project);

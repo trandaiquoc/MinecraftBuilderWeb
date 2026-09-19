@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { ProjectDocument } from '../domain/project.types';
+import { migrateProject } from '../domain/migrations';
 import { ProjectStore } from '../persistence/project-store.port';
 
 const ACTIVE_PROJECT_KEY = 'minecraft-builder.active-project';
@@ -14,7 +15,7 @@ export class WorkspaceStateService {
   private restorePromise?: Promise<ProjectDocument | undefined>;
 
   activate(project: ProjectDocument, storage: Pick<Storage, 'setItem'> | undefined = browserStorage()): void {
-    this.project.set(project);
+    this.project.set(migrateProject(project));
     this.restoreStatus.set('ready');
     this.restoreError.set(undefined);
     try { storage?.setItem(ACTIVE_PROJECT_KEY, project.id); } catch { /* The project remains usable when browser storage is unavailable. */ }
@@ -36,7 +37,7 @@ export class WorkspaceStateService {
         const newest = (await store.list())[0];
         restored = newest ? await store.open(newest.id) : undefined;
       }
-      if (restored) this.activate(restored, storage);
+      if (restored) this.activate(migrateProject(restored), storage);
       else this.restoreStatus.set('empty');
       return restored;
     } catch (error) {

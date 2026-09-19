@@ -132,11 +132,17 @@
       <aside class="panel left-panel">
         <div class="sidebar-tabs" role="tablist">
           <button type="button" role="tab" [class.active]="leftSidebarTab() === 'blocks'" (click)="leftSidebarTab.set('blocks')">{{ i18n.t('blocksPanel') }}</button>
+          <button type="button" role="tab" [class.active]="leftSidebarTab() === 'decorations'" (click)="leftSidebarTab.set('decorations')">{{ i18n.t('decorationsPanel') }}</button>
           <button type="button" role="tab" [class.active]="leftSidebarTab() === 'groups'" (click)="leftSidebarTab.set('groups')">{{ i18n.t('groupsPanel') }}</button>
         </div>
         @if (leftSidebarTab() === 'blocks') {
           <section class="sidebar-tab-content blocks-tab-content">
             <app-block-browser></app-block-browser>
+          </section>
+        }
+        @if (leftSidebarTab() === 'decorations') {
+          <section class="sidebar-tab-content decorations-tab-content">
+            <app-decoration-browser></app-decoration-browser>
           </section>
         }
         @if (leftSidebarTab() === 'groups') {
@@ -364,7 +370,16 @@
     @if (layout.preferences().rightSidebarVisible) {
       <aside class="panel right-panel">
         <h2>{{ i18n.t('selection') }}</h2>
-        @if (selectedBlock(); as selected) {
+        @if (selectedDecoration(); as decoration) {
+          <dl class="selection-details">
+            <div><dt>{{ i18n.t('decoration') }}</dt><dd>{{ decoration.kind === 'painting' ? i18n.t('painting') : decoration.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : i18n.t('itemFrame') }}</dd></div>
+            <div><dt>{{ i18n.t('position') }}</dt><dd>X {{ decoration.anchor.x }}, Y {{ decoration.anchor.y }}, Z {{ decoration.anchor.z }}</dd></div>
+            <div><dt>{{ i18n.t('facing') }}</dt><dd>{{ decoration.facing }}</dd></div>
+            @if (decoration.variantId) { <div><dt>{{ i18n.t('variant') }}</dt><dd>{{ decoration.variantId }}</dd></div> }
+            @if (decoration.item) { <div><dt>{{ i18n.t('frameItem') }}</dt><dd><code>{{ decoration.item.id }}</code></dd></div> }
+          </dl>
+          <button type="button" (click)="deleteSelectedDecoration()">{{ i18n.t('deleteDecoration') }}</button>
+        } @else if (selectedBlock(); as selected) {
           <dl class="selection-details">
             <div>
               <dt>{{ i18n.t('selectedBlock') }}</dt>

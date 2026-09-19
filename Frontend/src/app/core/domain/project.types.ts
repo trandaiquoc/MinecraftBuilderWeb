@@ -1,7 +1,7 @@
 /** Current persisted project format version. Increment when the JSON shape changes. */
-export const CURRENT_PROJECT_SCHEMA_VERSION = 2 as const;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 3 as const;
 
-export type ProjectSchemaVersion = 1 | typeof CURRENT_PROJECT_SCHEMA_VERSION;
+export type ProjectSchemaVersion = 1 | 2 | typeof CURRENT_PROJECT_SCHEMA_VERSION;
 
 export type StructureMode = 'vanilla-structure-block' | 'huge-structure-blocks';
 
@@ -95,4 +95,6 @@ export interface ProjectDocument {
   readonly blocks: readonly PlacedBlock[];
   readonly groups: readonly ProjectGroup[];
   readonly editorSettings: EditorSettings;
+  /** Entity-like decorations are kept separate from voxel blocks. Optional for v1/v2 compatibility. */
+  readonly decorations?: readonly import('../decorations/decoration.types').PlacedDecoration[];
 }

@@ -10,6 +10,7 @@ export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 2;
 const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/en_us\.json)$/;
 const BLOCK_TAG_PATH = /^data\/[^/]+\/tags\/block\/.*\.json$/;
+const DECORATION_DATA_PATH = /^data\/[^/]+\/(?:painting_variant\/.*\.json|tags\/painting_variant\/.*\.json)$/;
 const MAX_CACHE_BYTES = 256 * 1024 * 1024;
 
 export interface SerializedVanillaAssets {
@@ -41,7 +42,7 @@ export class VanillaAssetProvider implements AssetResourceProvider {
 
   static async fromJar(file: File): Promise<VanillaAssetProvider> {
     const archive = await ZipArchive.open(file);
-    const entries = archive.entries.filter((entry) => RESOURCE_PATH.test(entry.name) || BLOCK_TAG_PATH.test(entry.name));
+    const entries = archive.entries.filter((entry) => RESOURCE_PATH.test(entry.name) || BLOCK_TAG_PATH.test(entry.name) || DECORATION_DATA_PATH.test(entry.name));
     const totalSize = entries.reduce((sum, entry) => sum + entry.uncompressedSize, 0);
     if (!entries.length) throw new Error('The selected archive contains no Minecraft asset resources');
     if (totalSize > MAX_CACHE_BYTES) throw new Error('The selected Minecraft asset set is too large');

@@ -63,7 +63,9 @@ export class ProjectPersistenceService {
   markChanged(project: ProjectDocument): void {
     assertValid(project);
     const revision = this.dirtyState.markDirty();
-    this.autosave.schedule(migrateProject(project), revision);
+    // Keep the caller's version on autosave; opening/importing performs migration,
+    // while autosave must not unexpectedly rewrite an older in-memory snapshot.
+    this.autosave.schedule(project, revision);
   }
 
   flushAutosave(): Promise<void> { return this.autosave.flush(); }

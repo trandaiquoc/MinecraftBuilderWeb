@@ -4,6 +4,7 @@ import { I18nService } from '../../core/ui/i18n.service';
 import { ThemeService } from '../../core/ui/theme.service';
 import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
 import { BlockBrowserComponent } from './block-browser.component';
+import { DecorationBrowserComponent } from './decoration-browser.component';
 import { QuickBlockBarComponent } from './quick-block-bar.component';
 import { SignInspectorComponent } from './sign-inspector.component';
 import { ViewportComponent } from './viewport.component';
@@ -26,8 +27,9 @@ import { DialogService } from '../../core/ui/dialog.service';
 import { EditorLayoutPreferencesService } from '../../core/ui/editor-layout-preferences.service';
 import { clampGroupMovePanelPosition, PanelPosition } from '../../core/editor/group-move-panel';
 import { filterGroups } from '../../core/editor/group-search';
+import { DecorationService } from '../../core/decorations/decoration.service';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event)', '(document:pointerup)': 'endMovePanelDrag($event)', '(document:pointercancel)': 'endMovePanelDrag($event)' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event)', '(document:pointerup)': 'endMovePanelDrag($event)', '(document:pointercancel)': 'endMovePanelDrag($event)' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -36,6 +38,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly tool = inject(EditorToolService);
   protected readonly selection = inject(SelectionService);
   protected readonly groups = inject(GroupService);
+  protected readonly decorations = inject(DecorationService);
   protected readonly history = inject(HistoryService);
   protected readonly autosave = inject(ProjectAutosaveService);
   protected readonly layout = inject(EditorLayoutPreferencesService);
@@ -50,6 +53,7 @@ export class EditorShellComponent implements OnDestroy {
     const selected = this.selection.single();
     return project && selected ? project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(selected)) : undefined;
   });
+  protected readonly selectedDecoration = this.decorations.selected;
   protected readonly selectedSupport = computed(() => {
     const block = this.selectedBlock();
     return block ? this.library.get(block.id)?.support ?? (block.kind === 'missing' ? 'unknown' : 'fallback') : undefined;
@@ -64,7 +68,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
   protected readonly logicalSelectionCount = computed(() => this.selection.logicalPositions().length);
   protected readonly blockBrowserExpanded = signal(false);
-  protected readonly leftSidebarTab = signal<'blocks' | 'groups'>('blocks');
+  protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
   protected readonly filteredGroups = computed(() => {
     const project = this.workspace.project();
     return project ? filterGroups(project.groups, this.groupSearch(), { locked: this.i18n.t('locked'), unlocked: this.i18n.t('unlocked') }) : [];
@@ -111,6 +115,7 @@ export class EditorShellComponent implements OnDestroy {
   protected supportLabel(support: string | undefined): string { return support ? this.i18n.supportLevel(support as 'full' | 'partial' | 'fallback' | 'unknown') : ''; }
   protected updateSelectedState(property: string, event: Event): void { const selected = this.selection.single(); const value = (event.target as HTMLSelectElement).value; if (!selected || !this.editor.updateBlockState(selected, property, value)) this.stateFeedback.set('stateEditUnsupported'); else this.stateFeedback.set(''); }
   protected rotateSelected(): void { const selected = this.selection.single(); if (!selected || !this.editor.rotateBlock(selected)) this.stateFeedback.set('rotationUnsupported'); else this.stateFeedback.set(''); }
+  protected deleteSelectedDecoration(): void { const decoration = this.selectedDecoration(); if (decoration) this.decorations.delete(decoration.instanceId); }
   protected feedbackLabel(): string { const key = this.stateFeedback(); return key ? this.i18n.t(key as 'stateEditUnsupported' | 'rotationUnsupported') : ''; }
   protected createGroup(): void { if (this.groups.create(this.newGroupName().trim())) this.newGroupName.set(''); }
   protected updateGroupSearch(event: Event): void { this.groupSearch.set((event.target as HTMLInputElement).value); }

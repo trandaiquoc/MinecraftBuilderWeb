@@ -19,6 +19,8 @@ import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
 import { ThemeService } from '../../core/ui/theme.service';
 import { viewportThemePalette } from '../../core/renderer/viewport-theme';
 import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
+import { DecorationService } from '../../core/decorations/decoration.service';
+import { facingFromNormal } from '../../core/decorations/decoration-placement';
 
 @Component({ selector: 'app-y-layer', templateUrl: './y-layer.component.html', styleUrl: './y-layer.component.scss' })
 export class YLayerComponent implements AfterViewInit, OnDestroy {
@@ -35,15 +37,16 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly i18n = inject(I18nService);
   private readonly theme = inject(ThemeService);
   private readonly assets = inject(VanillaAssetsService);
+  private readonly decorations = inject(DecorationService);
   protected readonly visibility = signal<YLayerVisibility>('current-only');
   protected readonly status = signal<PlacementStatus>('invalid');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private pointerStart?: { x: number; y: number };
   private boxCornerStart?: VoxelCoordinate;
-  private readonly sync = effect(() => { const project = this.workspace.project(); this.tool.active(); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); });
+  private readonly sync = effect(() => { const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.theme())); });
-  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); });
+  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
@@ -82,6 +85,16 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     }
     if (!click) return;
     const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place');
+    if (hit.decoration) {
+      if (event.ctrlKey) this.decorations.delete(hit.decoration.instanceId);
+      else if (event.altKey) this.decorations.pick(hit.decoration.instanceId);
+      else if (this.tool.active() === 'select') this.decorations.select(hit.decoration.instanceId);
+      return;
+    }
+    const activeDecoration = this.decorations.active();
+    if (activeDecoration && hit.block && hit.faceNormal && this.tool.active() === 'place' && !event.ctrlKey && !event.altKey) {
+      const facing = facingFromNormal(hit.faceNormal); if (facing) this.decorations.placeFromSupport(hit.block, facing); return;
+    }
     const status = hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status;
     if (this.tool.active() === 'place' && !event.ctrlKey && !event.altKey && hit.block && this.editor.canStackCandle(hit.block)) {
       this.editor.stackCandle(hit.block);
@@ -90,7 +103,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const action = pointerAction(this.tool.active(), { ctrl: event.ctrlKey, alt: event.altKey }, !!hit.block, !!hit.target && status !== 'invalid');
     if (action === 'pick' && hit.block) this.editor.pick(hit.block);
     else if (action === 'delete' && hit.block) this.editor.delete(hit.block);
-    else if (action === 'select' && hit.block) { const project = this.workspace.project(); if (project) this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); }
+    else if (action === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); }
     else if (action === 'clear-selection') this.selection.clear();
     else if (action === 'place' && hit.target) this.editor.place(hit.target, hit.placementContext);
   }

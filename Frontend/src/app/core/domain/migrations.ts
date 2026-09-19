@@ -16,5 +16,8 @@ export function migrateProject(project: ProjectDocument, targetVersion: ProjectS
       }),
     };
   }
+  if (migrated.schemaVersion === 2 && targetVersion >= 3) {
+    migrated = { ...migrated, schemaVersion: 3, decorations: migrated.decorations ?? [] };
+  }
   return migrated;
 }

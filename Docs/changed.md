@@ -1346,3 +1346,11 @@ culling, static flow orientation, translucent water, and opaque lava. Fluid
 spreading, reactions, biome simulation, and waterlogging placement are outside
 the editor scope. Animated PNGs use a cached, nearest-filtered static frame
 view; no runtime fluid animation is run.
+## Decorations (schema v3)
+
+Projects now persist Painting, Item Frame, and Glow Item Frame entities in the
+separate `decorations` collection. They are not voxel blocks and carry a stable
+`instanceId`, attachment anchor/facing, painting variant or frame item data.
+Placement and deletion are history transactions; old v1/v2 projects migrate to
+an empty decorations collection. Structure-NBT-ready entity mapping preserves
+the distinct painting (`facing`, `variant`) and frame (`Facing`, `Item*`) keys.

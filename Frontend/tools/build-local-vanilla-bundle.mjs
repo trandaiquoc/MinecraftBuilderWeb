@@ -9,7 +9,7 @@ const temp = '.minecraft-assets/vanilla-bundle-tmp';
 rmSync(temp, { recursive: true, force: true }); mkdirSync(temp, { recursive: true });
 const extract = spawnSync('tar', ['-xf', jarPath, '-C', temp], { stdio: 'inherit' });
 if (extract.status !== 0) throw new Error('Unable to extract Minecraft resources with tar');
-const files = walk(temp).filter((path) => /^(assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.png|lang\/en_us\.json)|data\/[^/]+\/tags\/block\/.*\.json)$/.test(path));
+const files = walk(temp).filter((path) => /^(assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.png|lang\/en_us\.json)|data\/[^/]+\/(?:tags\/block\/.*\.json|painting_variant\/.*\.json|tags\/painting_variant\/.*\.json))$/.test(path));
 const json = {}; const binaryBase64 = [];
 for (const path of files) {
   const data = readFileSync(join(temp, path));

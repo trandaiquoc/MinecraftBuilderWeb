@@ -20,6 +20,8 @@ import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
 import { SignTextSideService } from '../../core/editor/sign-text-side.service';
 import { coordinateKey } from '../../core/domain/coordinates';
 import { isSignId } from '../../core/editor/structure-editor.service';
+import { DecorationService } from '../../core/decorations/decoration.service';
+import { facingFromNormal } from '../../core/decorations/decoration-placement';
 
 @Component({ selector: 'app-viewport', templateUrl: './viewport.component.html', styleUrl: './viewport.component.scss' })
 export class ViewportComponent implements AfterViewInit, OnDestroy {
@@ -37,14 +39,15 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly theme = inject(ThemeService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly signTextSide = inject(SignTextSideService);
+  private readonly decorations = inject(DecorationService);
   protected readonly status = signal<PlacementStatus>('invalid');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private pointerStart?: { x: number; y: number };
   private boxCornerStart?: import('../../core/domain/project.types').VoxelCoordinate;
-  private readonly sync = effect(() => { this.tool.active(); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); });
+  private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.theme())); });
-  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); });
+  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); this.engine.mount(this.host().nativeElement); this.engine.restoreCamera(this.cameraState.get('3d')); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics()); }
@@ -57,7 +60,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
 
   protected resize(): void { this.engine.resize(); }
   protected statusLabel(): string { return this.i18n.t(this.status()); }
-  protected pointerMove(event: PointerEvent): void { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place'); const status = hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status; this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); this.viewportStatus.set(hit.target, status); }
+  protected pointerMove(event: PointerEvent): void { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place'); const status = this.decorations.active() ? (hit.block ? 'valid' : hit.status) : hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status; this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); this.viewportStatus.set(hit.target, status); }
   protected pointerDown(event: PointerEvent): void {
     if (event.button !== 0) return;
     this.pointerStart = { x: event.clientX, y: event.clientY };
@@ -78,6 +81,19 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     }
     if (!click) return;
     const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place');
+    if (hit.decoration) {
+      if (event.ctrlKey) this.decorations.delete(hit.decoration.instanceId);
+      else if (event.altKey) this.decorations.pick(hit.decoration.instanceId);
+      else if (this.tool.active() === 'select') this.decorations.select(hit.decoration.instanceId);
+      return;
+    }
+    const activeDecoration = this.decorations.active();
+    if (activeDecoration && hit.block && hit.faceNormal && this.tool.active() === 'place' && !event.ctrlKey && !event.altKey) {
+      const facing = facingFromNormal(hit.faceNormal);
+      if (facing) this.decorations.placeFromSupport(hit.block, facing);
+      return;
+    }
+    if (activeDecoration && hit.block && this.tool.active() === 'select') { this.decorations.select(undefined); }
     const status = hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status;
     if (this.tool.active() === 'place' && !event.ctrlKey && !event.altKey && hit.block && this.editor.canStackCandle(hit.block)) {
       this.editor.stackCandle(hit.block);
@@ -86,7 +102,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const action = pointerAction(this.tool.active(), { ctrl: event.ctrlKey, alt: event.altKey }, !!hit.block, !!hit.target && status !== 'invalid');
     if (action === 'pick' && hit.block) this.editor.pick(hit.block);
     else if (action === 'delete' && hit.block) this.editor.delete(hit.block);
-    else if (action === 'select' && hit.block) { const project = this.workspace.project(); if (project) { this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(hit.block!)); if (selected && isSignId(selected.id)) this.signTextSide.setFromHit(selected, hit.faceNormal); } }
+    else if (action === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) { this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(hit.block!)); if (selected && isSignId(selected.id)) this.signTextSide.setFromHit(selected, hit.faceNormal); } }
     else if (action === 'clear-selection') this.selection.clear();
     else if (action === 'place' && hit.target) this.editor.place(hit.target, hit.placementContext);
   }

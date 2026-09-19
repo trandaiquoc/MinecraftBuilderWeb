@@ -1,0 +1,11 @@
+.decoration-browser { display: flex; flex-direction: column; gap: .6rem; min-height: 0; padding: .65rem; }
+.decoration-choice-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+.decoration-choice-row button, .decoration-item { border: 1px solid var(--border); background: var(--panel-muted); color: inherit; border-radius: 5px; padding: .45rem; cursor: pointer; }
+.decoration-choice-row button:hover, .decoration-item:hover, .decoration-item.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.search-label { display: grid; gap: .25rem; font-size: .78rem; }
+.search-label input { width: 100%; box-sizing: border-box; }
+.decoration-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; overflow: auto; min-height: 0; }
+.decoration-item { display: flex; justify-content: space-between; text-align: left; }
+.decoration-item small { opacity: .7; }
+.active-decoration { margin: 0; font-size: .8rem; }
+.item-list { max-height: 11rem; }
