@@ -1,12 +1,20 @@
-<section class="decoration-browser" [class.expanded]="expanded()">
-  <div class="browser-heading"><strong>{{ i18n.t('decorationsPanel') }}</strong><button type="button" (click)="toggleExpanded()" [attr.aria-expanded]="expanded()">{{ expanded() ? i18n.t('collapse') : i18n.t('expand') }}</button></div>
-  <div class="decoration-choice-row">
-    <button type="button" [class.active]="decorations.active()?.kind === 'painting'" (click)="decorations.selectPainting()">{{ i18n.t('painting') }}</button>
-    <button type="button" [class.active]="decorations.active()?.kind === 'item-frame'" (click)="decorations.selectFrame(false)">{{ i18n.t('itemFrame') }}</button>
-    <button type="button" [class.active]="decorations.active()?.kind === 'glow-item-frame'" (click)="decorations.selectFrame(true)">{{ i18n.t('glowItemFrame') }}</button>
+<section class="decoration-browser">
+  <h3>{{ i18n.t('decorationsPanel') }}</h3>
+  <div class="decoration-choice-list">
+    <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'painting'" [attr.aria-pressed]="decorations.active()?.kind === 'painting'" (click)="decorations.selectPainting()">
+      <span class="decoration-card-preview painting-preview"><img [src]="paintingTexture()" [alt]="i18n.t('painting')" /></span>
+      <span class="decoration-card-copy"><strong>{{ i18n.t('painting') }}</strong><small>{{ paintingCaption() }}</small></span>
+    </button>
+    <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'item-frame'" [attr.aria-pressed]="decorations.active()?.kind === 'item-frame'" (click)="decorations.selectFrame(false)">
+      <span class="decoration-card-preview"><img [src]="frameTexture(false)" [alt]="i18n.t('itemFrame')" /></span>
+      <span class="decoration-card-copy"><strong>{{ i18n.t('itemFrame') }}</strong><small>{{ i18n.t('normalFrame') }}</small></span>
+    </button>
+    <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'glow-item-frame'" [attr.aria-pressed]="decorations.active()?.kind === 'glow-item-frame'" (click)="decorations.selectFrame(true)">
+      <span class="decoration-card-preview glow-preview"><img [src]="frameTexture(true)" [alt]="i18n.t('glowItemFrame')" /></span>
+      <span class="decoration-card-copy"><strong>{{ i18n.t('glowItemFrame') }}</strong><small>{{ i18n.t('glowFrameShort') }}</small></span>
+    </button>
   </div>
   @if (decorations.active()?.kind === 'painting') {
-    <label class="search-label">{{ i18n.t('paintingVariants') }}<app-searchable-dropdown [options]="variantOptions" [selectedId]="decorations.active()?.variantId ?? ''" [placeholder]="i18n.t('searchPaintings')" [ariaLabel]="i18n.t('paintingVariants')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" (selectionChange)="decorations.selectPainting($event)" /></label>
+    <app-painting-picker [selectedId]="decorations.active()?.variantId ?? ''" (selectionChange)="decorations.selectPainting($event)" />
   }
-  @if (decorations.active(); as active) { <p class="active-decoration">{{ i18n.t('activeDecoration') }}: <strong>{{ active.variantId || (active.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : i18n.t('itemFrame')) }}</strong></p> }
 </section>

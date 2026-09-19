@@ -46,7 +46,7 @@ const translations = {
     light: 'Light',
     dark: 'Dark',
     blocksPanel: 'Blocks',
-    decorationsPanel: 'Decorations', painting: 'Painting', itemFrame: 'Item Frame', glowItemFrame: 'Glow Item Frame', paintingVariants: 'Painting variants', searchPaintings: 'Search paintings', activeDecoration: 'Active decoration', frameItem: 'Frame item', searchItems: 'Search items', emptyFrame: 'Empty frame', decoration: 'Decoration', facing: 'Facing', variant: 'Variant', deleteDecoration: 'Delete decoration', rotation: 'Rotation', invisible: 'Invisible', fixed: 'Fixed', itemDropChance: 'Item drop chance', decorationNeedsSupport: 'Invalid · Needs support', decorationOverlap: 'Invalid · Overlaps decoration', decorationBlocked: 'Invalid · Blocked', decorationWallFace: 'Invalid · Wall face required', decorationOutsideBounds: 'Invalid · Outside structure',
+    decorationsPanel: 'Decorations', painting: 'Painting', itemFrame: 'Item Frame', glowItemFrame: 'Glow Item Frame', paintingVariants: 'Painting variants', searchPaintings: 'Search paintings', activeDecoration: 'Active decoration', frameItem: 'Frame item', searchItems: 'Search items', emptyFrame: 'Empty frame', decoration: 'Decoration', facing: 'Facing', variant: 'Variant', deleteDecoration: 'Delete decoration', deleteFrame: 'Delete frame', normalFrame: 'Normal frame', choosePainting: 'Choose a painting', glowFrameShort: 'Bright frame & item', changePainting: 'Change painting', placementInfo: 'Placement info', advanced: 'Advanced', itemRotation: 'Item rotation', itemRotationHint: "Matches Minecraft's 8-step item-frame rotation: 45° per step.", itemRotationPrevious: 'Rotate item backward', itemRotationNext: 'Rotate item forward', invisible: 'Invisible', invisibleHint: 'Hides the frame itself; the displayed item remains visible.', fixed: 'Fixed', fixedHint: 'Locks the frame in place in Minecraft; editor changes are still allowed.', displayedItemDropChance: 'Displayed item drop chance', itemDropChanceHint: 'Chance that the item inside drops when the frame breaks.', glowFrameHint: 'Glow Item Frame renders the frame and displayed item brightly; it does not emit light to nearby blocks.', decorationNeedsSupport: 'Invalid · Needs support', decorationOverlap: 'Invalid · Overlaps decoration', decorationBlocked: 'Invalid · Blocked', decorationWallFace: 'Invalid · Wall face required', decorationOutsideBounds: 'Invalid · Outside structure',
     groupsPanel: 'Groups',
     groupName: 'Group name',
     searchGroups: 'Search groups',
@@ -165,8 +165,7 @@ const translations = {
     moveOutsideBounds: 'Outside project bounds',
     moveCollision: 'Collision with another block',
     moveLocked: 'Group contains locked blocks',
-    signText: 'Sign Text', editOtherSignSide: 'Edit other side', signTextInput: 'Sign line {line}', signLineTooWide: 'Line {line} may be too wide',
-    signAdvanced: 'Advanced', signFront: 'Front', signBack: 'Back', signColor: 'Text color', signGlowing: 'Glowing text', signWaxed: 'Waxed', signWaxedHint: 'Prevents editing in Minecraft',
+    signText: 'Sign', text: 'Text', appearance: 'Appearance', placement: 'Placement', rotateSign: 'Rotate sign', signTextHint: 'Edit the four lines on this side of the sign.', editOtherSignSide: 'Edit other side', signTextInput: 'Sign line {line}', signLineTooWide: 'Line {line} may be too wide', signGlowingHint: 'Makes sign text render brightly with glow-style emphasis. It does not emit light into the world.', signAdvanced: 'Advanced', signFront: 'Front', signBack: 'Back', signColor: 'Text color', signGlowing: 'Glowing text', signWaxed: 'Waxed', signWaxedHint: 'Waxed signs cannot normally have text, color, or glowing changed in Minecraft. MinecraftBuilder can still edit authored data.', waterloggedHint: 'Stores water in the same block space as the sign. Minecraft normally determines this during placement.', attachedHint: "Controls a ceiling hanging sign's attachment state. Minecraft normally derives it from support above.",
   },
   vi: {
     savingProject: 'Dang luu...',
@@ -208,6 +207,8 @@ const translations = {
     blocksPanel: 'Blocks',
     decorationsPanel: 'Trang trí', painting: 'Tranh', itemFrame: 'Khung vật phẩm', glowItemFrame: 'Khung phát sáng', paintingVariants: 'Biến thể tranh', searchPaintings: 'Tìm tranh', activeDecoration: 'Đối tượng đang chọn', frameItem: 'Vật phẩm trong khung', searchItems: 'Tìm vật phẩm', emptyFrame: 'Khung trống', decoration: 'Đối tượng', facing: 'Hướng', variant: 'Biến thể', deleteDecoration: 'Xóa đối tượng', rotation: 'Góc xoay', invisible: 'Tàng hình', fixed: 'Cố định', itemDropChance: 'Tỉ lệ rơi vật phẩm', decorationNeedsSupport: 'Không hợp lệ · Cần block đỡ', decorationOverlap: 'Không hợp lệ · Chồng decoration', decorationBlocked: 'Không hợp lệ · Bị block chặn', decorationWallFace: 'Không hợp lệ · Cần mặt tường', decorationOutsideBounds: 'Không hợp lệ · Ngoài structure',
     groupsPanel: 'Groups',
+    deleteFrame: 'Xóa khung', normalFrame: 'Khung thường', choosePainting: 'Chọn tranh', glowFrameShort: 'Khung và vật phẩm sáng hơn', changePainting: 'Đổi tranh', placementInfo: 'Thông tin vị trí', advanced: 'Nâng cao', itemRotation: 'Xoay vật phẩm', itemRotationHint: 'Giống cách xoay vật phẩm trong Item Frame của Minecraft: 8 nấc, mỗi nấc 45°.', itemRotationPrevious: 'Xoay vật phẩm ngược lại', itemRotationNext: 'Xoay vật phẩm tới', invisibleHint: 'Ẩn phần khung; vật phẩm bên trong vẫn hiển thị.', fixedHint: 'Khóa khung tại chỗ trong Minecraft; editor vẫn cho phép chỉnh sửa.', displayedItemDropChance: 'Xác suất vật phẩm bên trong rơi ra', itemDropChanceHint: 'Xác suất vật phẩm bên trong rơi ra khi khung bị phá.', glowFrameHint: 'Glow Item Frame hiển thị khung và vật phẩm sáng hơn, nhưng không phát ánh sáng ra các block xung quanh.',
+    text: 'Văn bản', appearance: 'Hiển thị', placement: 'Vị trí', rotateSign: 'Xoay biển', signTextHint: 'Chỉnh bốn dòng trên mặt biển này.', signGlowingHint: 'Làm chữ trên biển sáng và nổi bật hơn; không phát ánh sáng ra môi trường.', waterloggedHint: 'Cho phép nước tồn tại cùng ô với biển. Minecraft thường tự xác định khi đặt block.', attachedHint: 'Điều khiển trạng thái liên kết của Hanging Sign treo trần. Minecraft thường tự xác định từ support phía trên.',
     groupName: 'Tên group',
     searchGroups: 'Tìm nhóm',
     clearSearch: 'Xóa tìm kiếm',
@@ -326,7 +327,7 @@ const translations = {
     moveCollision: 'Va chạm với block khác',
     moveLocked: 'Nhóm chứa block đã khóa',
     signText: 'Văn bản biển', editOtherSignSide: 'Sửa mặt kia', signTextInput: 'Dòng {line} trên biển', signLineTooWide: 'Dòng {line} có thể quá rộng',
-    signAdvanced: 'Nâng cao', signFront: 'Mặt trước', signBack: 'Mặt sau', signColor: 'Màu văn bản', signGlowing: 'Văn bản phát sáng', signWaxed: 'Đã bôi sáp', signWaxedHint: 'Ngăn chỉnh sửa trong Minecraft',
+    signAdvanced: 'Nâng cao', signFront: 'Mặt trước', signBack: 'Mặt sau', signColor: 'Màu văn bản', signGlowing: 'Văn bản phát sáng', signWaxed: 'Đã bôi sáp', signWaxedHint: 'Biển đã wax thường không thể chỉnh chữ, màu hoặc trạng thái phát sáng trong Minecraft. MinecraftBuilder vẫn cho phép chỉnh dữ liệu thiết kế.',
   },
 } as const;
 
@@ -377,6 +378,11 @@ export class I18nService {
       right: ['Right', 'Phải'],
       true: ['True', 'Có'],
       false: ['False', 'Không'],
+    });
+  }
+  signColorLabel(value: string): string {
+    return this.stateToken(value, {
+      white: ['White', 'Trắng'], orange: ['Orange', 'Cam'], magenta: ['Magenta', 'Tím hồng'], light_blue: ['Light blue', 'Xanh nhạt'], yellow: ['Yellow', 'Vàng'], lime: ['Lime', 'Xanh lá sáng'], pink: ['Pink', 'Hồng'], gray: ['Gray', 'Xám'], light_gray: ['Light gray', 'Xám nhạt'], cyan: ['Cyan', 'Xanh lơ'], purple: ['Purple', 'Tím'], blue: ['Blue', 'Xanh dương'], brown: ['Brown', 'Nâu'], green: ['Green', 'Xanh lá'], red: ['Red', 'Đỏ'], black: ['Black', 'Đen'],
     });
   }
   supportLevel(value: BlockSupportLevel | 'unknown'): string {

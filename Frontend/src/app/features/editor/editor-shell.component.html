@@ -395,24 +395,23 @@
               <dt>{{ i18n.t('group') }}</dt>
               <dd>{{ selectedGroupNames().join(', ') || i18n.t('none') }}</dd>
             </div>
-            <div>
-              <dt>{{ i18n.t('blockState') }}</dt>
-              <dd>
-                @if (stateEntries().length) {
-                  <ul>
-                    @for (entry of stateEntries(); track entry[0]) {
-                      <li>
-                        <code>{{ entry[0] }}={{ entry[1] }}</code>
-                      </li>
-                    }
-                  </ul>
-                } @else {
-                  <span class="muted">{{ i18n.t('emptyState') }}</span>
-                }
-              </dd>
-            </div>
+            @if (!selectedBlockIsSign()) {
+              <div>
+                <dt>{{ i18n.t('blockState') }}</dt>
+                <dd>
+                  @if (stateEntries().length) {
+                    <ul>
+                      @for (entry of stateEntries(); track entry[0]) {
+                        <li><code>{{ entry[0] }}={{ entry[1] }}</code></li>
+                      }
+                    </ul>
+                  } @else { <span class="muted">{{ i18n.t('emptyState') }}</span> }
+                </dd>
+              </div>
+            }
           </dl>
           @if (selectedDefinition(); as definition) {
+            @if (!selectedBlockIsSign()) {
             <section class="state-editor">
               <h3>{{ i18n.t('editBlockState') }}</h3>
               @for (state of definition.stateDefinitions; track state.name) {
@@ -437,6 +436,7 @@
                 <p class="validation-feedback">{{ feedbackLabel() }}</p>
               }
             </section>
+            }
           }
           <app-sign-inspector></app-sign-inspector>
         } @else if (selection.box(); as box) {

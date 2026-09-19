@@ -1,7 +1,12 @@
-.decoration-browser { display: flex; flex-direction: column; gap: .6rem; min-height: 0; padding: .65rem; }
-.browser-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.decoration-choice-row { display: grid; grid-template-columns: 1fr; gap: .35rem; min-width: 0; }
-.decoration-choice-row button { border: 1px solid var(--border); background: var(--panel-muted); color: inherit; border-radius: 5px; padding: .45rem; cursor: pointer; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.decoration-choice-row button:hover, .decoration-choice-row button.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.search-label { display: grid; gap: .25rem; font-size: .78rem; }
-.active-decoration { margin: 0; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decoration-browser { display: grid; gap: .55rem; min-width: 0; min-height: 0; padding: .65rem; }
+.decoration-browser h3 { margin: 0; font-size: .78rem; }
+.decoration-choice-list { display: grid; gap: .35rem; min-width: 0; }
+.decoration-card { display: grid; grid-template-columns: 3.1rem minmax(0, 1fr); align-items: center; gap: .55rem; width: 100%; min-width: 0; min-height: 3.25rem; padding: .3rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-muted); color: inherit; text-align: left; cursor: pointer; }
+.decoration-card:hover, .decoration-card.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.decoration-card-preview { display: grid; place-items: center; width: 3rem; height: 3rem; overflow: hidden; border-radius: 4px; background: var(--surface); }
+.decoration-card-preview img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+.glow-preview { background: color-mix(in srgb, #c8f4ff 30%, var(--surface)); }
+.decoration-card-copy { display: grid; min-width: 0; gap: .15rem; }
+.decoration-card-copy strong, .decoration-card-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decoration-card-copy strong { font-size: .76rem; }
+.decoration-card-copy small { color: var(--text-muted); font-size: .66rem; }

@@ -15,7 +15,7 @@ import { EditorToolService } from '../../core/editor/tool.service';
 import { CameraPreset } from '../../core/editor/camera';
 import { SelectionService } from '../../core/editor/selection.service';
 import { GroupService } from '../../core/editor/group.service';
-import { StructureEditorService } from '../../core/editor/structure-editor.service';
+import { isSignId, StructureEditorService } from '../../core/editor/structure-editor.service';
 import { ViewportStatusService } from '../../core/editor/viewport-status.service';
 import { BlockLibraryService } from '../../core/blocks/block-library.service';
 import { coordinateKey } from '../../core/domain/coordinates';
@@ -66,6 +66,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly groupSearch = signal('');
   protected readonly stateFeedback = signal('');
   protected readonly selectedDefinition = computed(() => { const block = this.selectedBlock(); return block ? this.library.get(block.id) : undefined; });
+  protected readonly selectedBlockIsSign = computed(() => { const block = this.selectedBlock(); return !!block && isSignId(block.id); });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
   protected readonly logicalSelectionCount = computed(() => this.selection.logicalPositions().length);
   protected readonly blockBrowserExpanded = signal(false);

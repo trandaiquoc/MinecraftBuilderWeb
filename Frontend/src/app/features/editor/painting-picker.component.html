@@ -1,0 +1,26 @@
+@if (compact) {
+  <button type="button" class="change-painting" (click)="toggle()">{{ i18n.t('changePainting') }}</button>
+  @if (open()) {
+    <div class="picker-panel">
+      <div class="picker-search"><input type="search" [value]="query()" [placeholder]="i18n.t('searchPaintings')" (input)="updateQuery($event)" /></div>
+      <div class="painting-grid" role="listbox">
+        @for (variant of filteredVariants(); track variant.id) {
+          <button type="button" class="painting-card" [class.selected]="variant.id === selectedId" (click)="choose(variant.id)">
+            <span class="painting-image"><img [src]="imageUrl(variant)" [alt]="label(variant.id)" loading="lazy" /></span>
+            <span class="painting-card-meta"><strong>{{ label(variant.id) }}</strong><small>{{ variant.width }} × {{ variant.height }}</small></span>
+          </button>
+        }
+      </div>
+    </div>
+  }
+} @else {
+  <label class="picker-search"><span>{{ i18n.t('paintingVariants') }}</span><input type="search" [value]="query()" [placeholder]="i18n.t('searchPaintings')" (input)="updateQuery($event)" /></label>
+  <div class="painting-grid" role="listbox">
+    @for (variant of filteredVariants(); track variant.id) {
+      <button type="button" class="painting-card" [class.selected]="variant.id === selectedId" (click)="choose(variant.id)">
+        <span class="painting-image"><img [src]="imageUrl(variant)" [alt]="label(variant.id)" loading="lazy" /></span>
+        <span class="painting-card-meta"><strong>{{ label(variant.id) }}</strong><small>{{ variant.width }} × {{ variant.height }}</small></span>
+      </button>
+    }
+  </div>
+}

@@ -1,16 +1,21 @@
-.sign-inspector { display: grid; gap: .45rem; margin-top: .75rem; padding-top: .65rem; border-top: 1px solid var(--border); }
-.sign-inspector h3 { margin: 0; font-size: .85rem; }
+.sign-inspector { display: grid; gap: .55rem; min-width: 0; margin-top: .85rem; padding-top: .75rem; border-top: 1px solid var(--border); }
+.sign-inspector h3, .sign-section h4 { margin: 0; font-size: .86rem; }
+.sign-section { display: grid; gap: .4rem; min-width: 0; padding-top: .35rem; border-top: 1px solid var(--border); }
 .sign-tabs { display: flex; gap: .25rem; }
-.sign-tabs button, .sign-control select, .sign-lines input { border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); color: var(--text); }
+.sign-tabs button, .sign-control select, .sign-lines input, .state-fields button { border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); color: var(--text); }
 .sign-tabs button { padding: .25rem .5rem; cursor: pointer; }
 .sign-tabs button.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface-raised)); }
-.sign-lines { display: grid; gap: .35rem; }
-.sign-lines label, .sign-control { display: grid; gap: .2rem; }
-.sign-lines span, .sign-control span, .check-control, details small { font-size: .72rem; color: var(--text-muted); }
-.sign-lines input { box-sizing: border-box; width: 100%; padding: .35rem .4rem; }
-.sign-control { grid-template-columns: 1fr auto; align-items: center; }
-.sign-control select { padding: .25rem .35rem; }
-.check-control { display: flex; align-items: center; gap: .35rem; color: var(--text); }
-.sign-inspector small.warning { color: var(--warning); }
-.sign-inspector details { color: var(--text-muted); font-size: .72rem; }
-.sign-inspector summary { cursor: pointer; }
+.helper-text { margin: 0; color: var(--text-muted); font-size: .68rem; line-height: 1.35; }
+.sign-lines { display: grid; gap: .3rem; }
+.sign-lines label { display: grid; grid-template-columns: 1.2rem minmax(0, 1fr); align-items: center; gap: .35rem; }
+.sign-lines label > span { color: var(--text-muted); font-size: .72rem; text-align: center; }
+.sign-lines input { width: 100%; min-width: 0; box-sizing: border-box; padding: .35rem .4rem; }
+.warning { color: var(--warning); font-size: .7rem; }
+.sign-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .4rem; min-width: 0; }
+.sign-control span { min-width: 0; color: var(--text-muted); font-size: .72rem; }
+.sign-control select { max-width: 10rem; min-width: 0; padding: .28rem .35rem; }
+.check-control { display: flex; align-items: center; gap: .35rem; min-width: 0; color: var(--text); font-size: .74rem; }
+.disclosure { min-width: 0; padding-top: .4rem; border-top: 1px solid var(--border); }
+.disclosure summary { cursor: pointer; color: var(--text); font-size: .75rem; }
+.state-fields { display: grid; gap: .4rem; margin-top: .55rem; min-width: 0; }
+.state-fields button { justify-self: start; padding: .3rem .5rem; cursor: pointer; }

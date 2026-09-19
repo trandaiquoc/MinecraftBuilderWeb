@@ -1,16 +1,31 @@
 @if (decorations.selected(); as selected) {
   <section class="decoration-inspector">
     <h3>{{ selected.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : selected.kind === 'item-frame' ? i18n.t('itemFrame') : i18n.t('painting') }}</h3>
-    <dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ selected.facing }}</dd></div></dl>
+    @if (selected.kind === 'glow-item-frame') { <p class="helper-text">{{ i18n.t('glowFrameHint') }}</p> }
     @if (selected.kind === 'painting') {
-      <label>{{ i18n.t('variant') }}<app-searchable-dropdown [options]="variantOptions" [selectedId]="selected.variantId ?? ''" [placeholder]="i18n.t('searchPaintings')" [ariaLabel]="i18n.t('variant')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" (selectionChange)="selectVariant($event)" /></label>
+      <div class="painting-summary">
+        <span class="painting-summary-image"><img [src]="paintingTexture(selected.variantId)" [alt]="paintingLabel(selected.variantId)" /></span>
+        <span><strong>{{ paintingLabel(selected.variantId) }}</strong><small>{{ paintingSize(selected.variantId) }}</small></span>
+      </div>
+      <app-painting-picker [compact]="true" [selectedId]="selected.variantId ?? ''" (selectionChange)="selectVariant($event)" />
+      <details class="disclosure">
+        <summary>{{ i18n.t('placementInfo') }}</summary>
+        <dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ selected.facing }}</dd></div><div><dt>{{ i18n.t('variant') }}</dt><dd>{{ selected.variantId }}</dd></div></dl>
+      </details>
     } @else {
-      <label>{{ i18n.t('frameItem') }}<app-searchable-dropdown [options]="itemOptions()" [selectedId]="selected.item?.id ?? ''" [placeholder]="i18n.t('searchItems')" [emptyLabel]="i18n.t('emptyFrame')" [ariaLabel]="i18n.t('frameItem')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" (selectionChange)="selectItem($event)" /></label>
-      <div class="frame-control"><span>{{ i18n.t('rotation') }}: {{ (selected.rotation ?? 0) * 45 }}°</span><span><button type="button" (click)="rotate(-1)">−</button><button type="button" (click)="rotate(1)">+</button></span></div>
-      <label class="check"><input type="checkbox" [checked]="selected.invisible" (change)="toggle('invisible', $event)" /> {{ i18n.t('invisible') }}</label>
-      <label class="check"><input type="checkbox" [checked]="selected.fixed" (change)="toggle('fixed', $event)" /> {{ i18n.t('fixed') }}</label>
-      <label>{{ i18n.t('itemDropChance') }}<input type="number" min="0" max="1" step="0.05" [value]="selected.itemDropChance ?? 1" (change)="setDropChance($event)" /></label>
+      <label class="field-label">{{ i18n.t('frameItem') }}<app-searchable-dropdown [options]="itemOptions()" [selectedId]="selected.item?.id ?? ''" [placeholder]="i18n.t('searchItems')" [emptyLabel]="i18n.t('emptyFrame')" [ariaLabel]="i18n.t('frameItem')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" (selectionChange)="selectItem($event)" /></label>
+      @if (selected.item) {
+        <div class="frame-control"><span><strong>{{ i18n.t('itemRotation') }}</strong><small>{{ i18n.t('itemRotationHint') }}</small></span><span class="stepper"><button type="button" [attr.aria-label]="i18n.t('itemRotationPrevious')" (click)="rotate(-1)">−</button><output>{{ (selected.rotation ?? 0) * 45 }}°</output><button type="button" [attr.aria-label]="i18n.t('itemRotationNext')" (click)="rotate(1)">+</button></span></div>
+      }
+      <details class="disclosure"><summary>{{ i18n.t('placementInfo') }}</summary><dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ selected.facing }}</dd></div></dl></details>
+      <details class="disclosure"><summary>{{ i18n.t('advanced') }}</summary>
+        <div class="advanced-fields">
+          <label class="check"><input type="checkbox" [checked]="selected.invisible" (change)="toggle('invisible', $event)" /> {{ i18n.t('invisible') }}</label><small class="helper-text">{{ i18n.t('invisibleHint') }}</small>
+          <label class="check"><input type="checkbox" [checked]="selected.fixed" (change)="toggle('fixed', $event)" /> {{ i18n.t('fixed') }}</label><small class="helper-text">{{ i18n.t('fixedHint') }}</small>
+          @if (selected.item) { <label class="field-label">{{ i18n.t('displayedItemDropChance') }}<span class="percent-input"><input type="number" min="0" max="100" step="5" [value]="(selected.itemDropChance ?? 1) * 100" (change)="setDropChance($event)" /> %</span></label><small class="helper-text">{{ i18n.t('itemDropChanceHint') }}</small> }
+        </div>
+      </details>
     }
-    <button type="button" class="danger" (click)="delete()">{{ i18n.t('deleteDecoration') }}</button>
+    <button type="button" class="danger" (click)="delete()">{{ selected.kind === 'painting' ? i18n.t('deleteDecoration') : i18n.t('deleteFrame') }}</button>
   </section>
 }
