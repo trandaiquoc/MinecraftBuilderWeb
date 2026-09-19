@@ -5,7 +5,7 @@ import { normalizeSearchText } from './block-catalog';
 
 export type PlaceablePlacementKind =
   | 'direct' | 'sign' | 'hanging-sign' | 'torch' | 'head' | 'banner' | 'coral-fan'
-  | 'bed' | 'door' | 'tall-plant';
+  | 'bed' | 'door' | 'tall-plant' | 'fluid-bucket';
 
 export type PreviewRecipe = 'single' | 'bed' | 'door' | 'tall-plant';
 
@@ -24,7 +24,7 @@ export interface PlaceableItemDefinition {
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
-interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; }
+interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; }
 
 const WOODS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
 const COLORS = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'] as const;
@@ -47,6 +47,8 @@ const TECHNICAL_IDS = new Set([
 function id(name: string): string { return `minecraft:${name}`; }
 function manifest(): readonly ManifestEntry[] {
   const entries: ManifestEntry[] = [];
+  entries.push({ itemId: id('water_bucket'), concreteBlockIds: [id('water')], kind: 'fluid-bucket', recipe: 'single', displayName: 'Water Bucket', defaultState: { level: '0' } });
+  entries.push({ itemId: id('lava_bucket'), concreteBlockIds: [id('lava')], kind: 'fluid-bucket', recipe: 'single', displayName: 'Lava Bucket', defaultState: { level: '0' } });
   for (const wood of WOODS) {
     entries.push({ itemId: id(`${wood}_sign`), concreteBlockIds: [id(`${wood}_sign`), id(`${wood}_wall_sign`)], kind: 'sign', recipe: 'single' });
     entries.push({ itemId: id(`${wood}_hanging_sign`), concreteBlockIds: [id(`${wood}_hanging_sign`), id(`${wood}_wall_hanging_sign`)], kind: 'hanging-sign', recipe: 'single' });
@@ -89,12 +91,13 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[]): re
 }
 
 function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {
-  const previewBlocks = previewFor(entry, definition);
-  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: definition.displayName, modName: definition.modName, defaultState: { ...definition.defaultState }, concreteBlockIds, placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, previewBlocks };
+  const defaultState = { ...definition.defaultState, ...(entry.defaultState ?? {}) };
+  const previewBlocks = previewFor(entry, definition, defaultState);
+  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, defaultState, concreteBlockIds, placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, previewBlocks };
 }
 
-function previewFor(entry: ManifestEntry, definition: BlockDefinition): readonly PlacedBlock[] {
-  const state = { ...definition.defaultState };
+function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState): readonly PlacedBlock[] {
+  const state = { ...itemState };
   const make = (position: VoxelCoordinate, overrides: BlockState = {}, concreteId = definition.id): PlacedBlock => ({ kind: 'resolved', id: concreteId, namespace: concreteId.split(':')[0] ?? 'minecraft', position, state: { ...state, ...overrides } });
   if (entry.recipe === 'bed') return [make({ x: 0, y: 0, z: 0 }, { part: 'foot', facing: 'south', occupied: 'false' }), make({ x: 0, y: 0, z: 1 }, { part: 'head', facing: 'south', occupied: 'false' })];
   if (entry.recipe === 'door') return [make({ x: 0, y: 0, z: 0 }, { half: 'lower' }), make({ x: 0, y: 1, z: 0 }, { half: 'upper' })];
@@ -131,7 +134,7 @@ export function resolveItemBlock(item: PlaceableItemDefinition, state: BlockStat
   } else {
     Object.assign(finalState, source);
   }
-  return { kind: 'resolved', id: blockId, namespace: item.namespace, position: { ...position }, state: finalState };
+  return { kind: 'resolved', id: blockId, namespace: item.namespace, position: { ...position }, state: finalState, blockEntityData: undefined };
 }
 
 /** Builds final, internally consistent preview blocks for a logical item state. */

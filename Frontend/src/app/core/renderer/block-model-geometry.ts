@@ -5,6 +5,8 @@ import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
 import { texturePath } from '../assets/vanilla-asset-provider';
 import { SpecialBlockVisualRegistry } from './special-block-visuals';
 import { PlaceableItemDefinition } from '../blocks/placeable-item';
+import { createFluidGeometry } from './fluid-geometry';
+import { fluidKindForBlockId, FluidWorldLookup } from './fluid-state';
 
 export type BlockRenderMode = 'real' | 'partial' | 'fallback';
 export type BlockRenderDiagnosticCode = 'MODEL_NOT_FOUND' | 'TEXTURE_NOT_FOUND' | 'TEXTURE_DECODE_FAILED' | 'GEOMETRY_BUILD_FAILED' | 'UNKNOWN_ERROR';
@@ -26,9 +28,10 @@ export interface BlockVisualResult {
   readonly diagnostics: readonly BlockRenderDiagnostic[];
   readonly trace: BlockVisualTrace;
 }
+export interface BlockVisualWorldContext extends FluidWorldLookup {}
 
 export interface BlockVisualProvider {
-  create(block: PlacedBlock): Promise<BlockVisualResult>;
+  create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult>;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<string | undefined>;
@@ -38,6 +41,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly resolver: BlockModelResolver;
   private readonly resolvedCache = new Map<string, ResolvedBlockModel>();
   private readonly textureCache = new Map<string, Promise<THREE.Texture | undefined>>();
+  private readonly fluidTextureCache = new Map<string, THREE.Texture>();
   private readonly specialVisuals: SpecialBlockVisualRegistry;
   private readonly thumbnailCache = new Map<string, Promise<string | undefined>>();
   private thumbnailRenderer?: THREE.WebGLRenderer;
@@ -45,8 +49,9 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
 
   constructor(private readonly assets: VanillaAssetProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets.gameVersion); }
 
-  async create(block: PlacedBlock): Promise<BlockVisualResult> {
+  async create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
     const resolved = this.resolve(block.id, block.state);
+    if (fluidKindForBlockId(block.id)) return this.createFluid(block, resolved, context);
     const resources = resolved.trace.textureResources;
     const texturePaths = resources.map(texturePath);
     const special = this.specialVisuals.resolve(block);
@@ -98,6 +103,26 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     }
   }
 
+  private async createFluid(block: PlacedBlock, resolved: ResolvedBlockModel, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
+    const kind = fluidKindForBlockId(block.id)!; const resources = kind === 'water' ? ['minecraft:block/water_still', 'minecraft:block/water_flow'] : ['minecraft:block/lava_still', 'minecraft:block/lava_flow'];
+    const diagnostics: BlockRenderDiagnostic[] = []; const textures = await Promise.all(resources.map(async (resource) => {
+      const path = texturePath(resource); if (!this.assets.readBinary(path)) { diagnostics.push({ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${path}`, resource: path }); return undefined; }
+      const texture = await this.texture(resource); if (!texture) diagnostics.push({ code: 'TEXTURE_DECODE_FAILED', message: `Texture could not be decoded: ${path}`, resource: path }); return texture;
+    }));
+    const geometry = createFluidGeometry(block, context); if (!geometry) return { resolved, mode: 'fallback', diagnostics: [{ code: 'GEOMETRY_BUILD_FAILED', message: `Could not build fluid geometry for ${block.id}` }], trace: { texturePaths: resources.map(texturePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(texturePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: false, meshBuilt: false } };
+    const state = block.state['level'] ?? '0'; const flowing = geometry.flowAngle !== 0; const texture = this.staticFluidTexture(resources[flowing ? 1 : 0], textures[flowing ? 1 : 0]);
+    const material = kind === 'water' ? new THREE.MeshLambertMaterial({ map: texture, color: 0x3f76e4, transparent: true, depthWrite: false, side: THREE.DoubleSide }) : new THREE.MeshLambertMaterial({ map: texture, color: 0xffffff, transparent: false, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry.geometry, material); const root = new THREE.Group(); root.add(mesh); root.userData['fluidKind'] = kind; root.userData['fluidLevel'] = state; root.userData['fluidFlowAngle'] = geometry.flowAngle; root.userData['fluidRenderLayer'] = kind === 'water' ? 'translucent' : 'solid';
+    return { object: root, resolved, mode: diagnostics.length ? 'partial' : 'real', diagnostics, trace: { texturePaths: resources.map(texturePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(texturePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(root)) } };
+  }
+
+  private staticFluidTexture(resource: string, texture: THREE.Texture | undefined): THREE.Texture | undefined {
+    if (!texture) return undefined;
+    const cached = this.fluidTextureCache.get(resource); if (cached) return cached;
+    const metadata = this.assets.readJson(`${texturePath(resource)}.mcmeta`);
+    const view = staticFluidTextureView(texture, metadata); this.fluidTextureCache.set(resource, view); return view;
+  }
+
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined {
     const resolved = this.resolve(blockId, state);
     const texture = resolved.parts.flatMap((part) => part.elements).flatMap((element) => Object.values(element.faces)).find((face) => !face.texture.startsWith('#'))?.texture;
@@ -118,7 +143,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     this.thumbnailCache.set(key, task); return task;
   }
 
-  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.resolvedCache.clear(); }
+  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
 
   private async renderThumbnail(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined> {
     return this.renderThumbnailBlocks([{ kind: 'resolved', id: blockId, namespace: blockId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state }]);
@@ -237,6 +262,27 @@ export function sampleGrassColormap(texture: THREE.Texture): number | undefined 
   const pixel = context.getImageData(x, y, 1, 1).data;
   return (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
 }
+
+/** Returns a nearest-filtered view of animation frame zero without changing the shared cache texture. */
+export function staticFluidTextureView(texture: THREE.Texture, metadata?: unknown): THREE.Texture {
+  const view = texture.clone();
+  const image = view.image as { readonly width?: number; readonly height?: number } | undefined;
+  const width = image?.width ?? 0; const height = image?.height ?? 0;
+  const animation = recordValue(recordValue(metadata)['animation']);
+  const explicitHeight = typeof animation['height'] === 'number' && animation['height'] > 0 ? animation['height'] : undefined;
+  const frameHeight = explicitHeight ?? (width > 0 && height > width ? width : height);
+  const frameIndex = Array.isArray(animation['frames']) && animation['frames'].length > 0 ? frameIndexValue(animation['frames'][0]) : 0;
+  if (height > frameHeight && frameHeight > 0) {
+    const frameCount = Math.max(1, Math.floor(height / frameHeight));
+    const index = Math.min(Math.max(frameIndex, 0), frameCount - 1);
+    view.repeat.set(1, frameHeight / height); view.offset.set(0, 1 - ((index + 1) * frameHeight) / height); view.wrapS = THREE.ClampToEdgeWrapping; view.wrapT = THREE.ClampToEdgeWrapping;
+  }
+  view.magFilter = THREE.NearestFilter; view.minFilter = THREE.NearestFilter; view.generateMipmaps = false; view.needsUpdate = true;
+  return view;
+}
+
+function recordValue(value: unknown): Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function frameIndexValue(value: unknown): number { if (typeof value === 'number') return value; const frame = recordValue(value); return typeof frame['index'] === 'number' ? frame['index'] : 0; }
 
 function validBounds(bounds: THREE.Box3): boolean { const size = bounds.getSize(new THREE.Vector3()); return bounds.min.toArray().every(Number.isFinite) && bounds.max.toArray().every(Number.isFinite) && size.lengthSq() > 0; }
 

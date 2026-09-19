@@ -1332,3 +1332,17 @@ authored or previewed.
 
 [x] Static Conduit NBT is represented by `{ id: "minecraft:conduit" }`; runtime
 fields and `waterlogged` are not block-entity data.
+
+# 56. Water and Lava foundation
+
+[x] Water and lava remain canonical structure blocks with `level` values
+`0..15`; the normal palette exposes them through Water Bucket and Lava Bucket
+logical items. Bucket placement creates level `0` without block-entity data,
+while raw imported levels are preserved.
+
+[x] The renderer uses a dedicated static fluid surface path with level-derived
+height, weighted corner slopes, world-context neighbor lookup, same-fluid face
+culling, static flow orientation, translucent water, and opaque lava. Fluid
+spreading, reactions, biome simulation, and waterlogging placement are outside
+the editor scope. Animated PNGs use a cached, nearest-filtered static frame
+view; no runtime fluid animation is run.

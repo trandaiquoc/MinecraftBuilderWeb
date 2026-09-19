@@ -8,7 +8,7 @@ import { ZipArchive } from './zip-archive';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 2;
-const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.png|lang\/en_us\.json)$/;
+const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/en_us\.json)$/;
 const BLOCK_TAG_PATH = /^data\/[^/]+\/tags\/block\/.*\.json$/;
 const MAX_CACHE_BYTES = 256 * 1024 * 1024;
 
@@ -51,7 +51,7 @@ export class VanillaAssetProvider implements AssetResourceProvider {
       const batch = entries.slice(offset, offset + 32);
       const decoded = await Promise.all(batch.map(async (entry) => ({ entry, bytes: await entry.read() })));
       for (const { entry, bytes } of decoded) {
-        if (entry.name.endsWith('.json')) {
+        if (entry.name.endsWith('.json') || entry.name.endsWith('.png.mcmeta')) {
           try { json[entry.name] = JSON.parse(new TextDecoder().decode(bytes)); }
           catch { throw new Error(`Invalid JSON resource: ${entry.name}`); }
         } else binary.set(entry.name, bytes);
@@ -131,9 +131,10 @@ export class VanillaAssetProvider implements AssetResourceProvider {
       const enriched = behaviorRegistry.enrich(generated);
       const resolved = resolver.resolve(id, enriched.defaultState, 'catalog');
       const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(texturePath(resource)));
-      const visualSupport = id === 'minecraft:water' ? 'fallback' : resolved.parts.length ? resolved.support === 'full' && texturesAvailable ? 'real' : 'partial' : known ? 'fallback' : 'partial';
+      const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
+      const visualSupport = fluid ? 'partial' : resolved.parts.length ? resolved.support === 'full' && texturesAvailable ? 'real' : 'partial' : known ? 'fallback' : 'partial';
       const intentionallyInvisible = intentionallyInvisibleBlocks.has(id);
-      const specialRenderer = !intentionallyInvisible && resolved.parts.length > 0 && resolved.trace.elementCount === 0;
+      const specialRenderer = fluid || !intentionallyInvisible && resolved.parts.length > 0 && resolved.trace.elementCount === 0;
       const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
       return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification };
     });

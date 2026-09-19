@@ -10,6 +10,7 @@ import { GroupMovePreview } from '../editor/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import { BlockVisualProvider } from './block-model-geometry';
 import { PlacementPlan } from '../behavior/placement-plan';
+import { coordinateKey } from '../domain/coordinates';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
@@ -155,6 +156,8 @@ export class ThreeViewportEngine {
     this.renderOptions = options;
     for (const child of [...this.blocksGroup.children]) { child.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.blocksGroup.remove(child); }
     if (project) {
+      const worldBlocks = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
+      const worldContext = { getBlock: (position: VoxelCoordinate) => worldBlocks.get(coordinateKey(position)) };
       const layeredBlocks = options.layerY === undefined || !options.visibility ? project.blocks : blocksForLayers(project.blocks, options.layerY, options.visibility);
       const isolatedKeys = new Set(options.isolatedGroupPositions?.map((position) => `${position.x},${position.y},${position.z}`));
       const visibleBlocks = layeredBlocks.filter((block) => isBlockVisible(block, project.groups) && (!options.isolatedGroupId || isolatedKeys.has(`${block.position.x},${block.position.y},${block.position.z}`)));
@@ -167,7 +170,7 @@ export class ThreeViewportEngine {
         mesh.userData['voxel'] = block.position;
         mesh.userData['renderRole'] = role;
         this.blocksGroup.add(mesh);
-        if (this.visualProvider && block.kind !== 'missing') void this.visualProvider.create(block).then((visual) => {
+        if (this.visualProvider && block.kind !== 'missing') void this.visualProvider.create(block, worldContext).then((visual) => {
           if (generation !== this.visualGeneration || mesh.parent !== this.blocksGroup) return;
           mesh.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; mesh.userData['resolvedSupport'] = visual.resolved.support;
           mesh.userData['renderMode'] = visual.mode; mesh.userData['renderTrace'] = visual.trace;
@@ -444,7 +447,9 @@ export class ThreeViewportEngine {
     this.setGhostOutlineBounds();
     if (!active || !this.visualProvider) return;
     const blocks = plan?.blocks.length ? plan.blocks : active ? [{ kind: 'resolved' as const, id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: active.state }] : [];
-    void Promise.all(blocks.map(async (block) => ({ block, visual: await this.visualProvider!.create({ ...block, position: { x: 0, y: 0, z: 0 } }) }))).then((results) => {
+    const worldBlocks = this.project ? new Map(this.project.blocks.map((entry) => [coordinateKey(entry.position), entry] as const)) : undefined;
+    const worldContext = worldBlocks ? { getBlock: (position: VoxelCoordinate) => worldBlocks.get(coordinateKey(position)) } : undefined;
+    void Promise.all(blocks.map(async (block) => ({ block, visual: await this.visualProvider!.create({ ...block, position: { x: 0, y: 0, z: 0 } }, worldContext) }))).then((results) => {
       if (generation !== this.ghostGeneration || !results.length) return;
       const root = new THREE.Group();
       for (const { block, visual } of results) {

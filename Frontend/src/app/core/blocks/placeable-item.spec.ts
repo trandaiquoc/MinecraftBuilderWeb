@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BlockCatalog } from './block-catalog';
 import { representativeBlockFixture } from './block-catalog.fixture';
-import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, previewBlocksForItem, resolveConcreteBlockId, resolveItemBlock } from './placeable-item';
+import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, placementItemSearch, previewBlocksForItem, resolveConcreteBlockId, resolveItemBlock } from './placeable-item';
 import type { AssetBlockRecord } from './block-definition.types';
 
 function catalogWith(...ids: string[]): BlockCatalog {
   const source = [...representativeBlockFixture.blocks];
-  for (const id of ids) if (!source.some((entry) => entry.id === id)) source.push({ id, displayName: id.split(':')[1] ?? id, defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' });
+  for (const id of ids) if (!source.some((entry) => entry.id === id)) source.push({ id, displayName: id.split(':')[1] ?? id, defaultState: id === 'minecraft:water' || id === 'minecraft:lava' ? { level: '0' } : {}, stateDefinitions: id === 'minecraft:water' || id === 'minecraft:lava' ? [{ name: 'level', values: Array.from({ length: 16 }, (_, value) => String(value)) }] : [], resources: { textures: [] }, support: 'full' });
   const catalog = new BlockCatalog(); catalog.load({ minecraftVersion: '1.21.1', blocks: source }); return catalog;
 }
 
@@ -27,6 +27,21 @@ describe('vanilla placeable item layer', () => {
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:light')!)).toBe(false);
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:bedrock')!)).toBe(true);
     expect(isNormalBuildingExportEligible('minecraft:structure_void')).toBe(false);
+  });
+  it('represents fluids as Water/Lava Bucket logical items', () => {
+    const catalog = catalogWith('minecraft:water', 'minecraft:lava');
+    const items = buildPlaceableItems(catalog.all());
+    expect(items.filter((item) => item.placementKind === 'fluid-bucket').map((item) => item.itemId)).toEqual(['minecraft:lava_bucket', 'minecraft:water_bucket']);
+    expect(items.some((item) => item.itemId === 'minecraft:water')).toBe(false);
+    expect(items.some((item) => item.itemId === 'minecraft:lava')).toBe(false);
+    expect(items.find((item) => item.itemId === 'minecraft:water_bucket')).toMatchObject({ displayName: 'Water Bucket', displayBlockId: 'minecraft:water', defaultState: { level: '0' }, concreteBlockIds: ['minecraft:water'] });
+    expect(canonicalPlaceableItemId('minecraft:water')).toBe('minecraft:water_bucket');
+    expect(canonicalPlaceableItemId('minecraft:lava')).toBe('minecraft:lava_bucket');
+    expect(placementItemSearch(items, 'water bucket').map((item) => item.itemId)).toContain('minecraft:water_bucket');
+    expect(placementItemSearch(items, 'lava bucket').map((item) => item.itemId)).toContain('minecraft:lava_bucket');
+    expect(items.find((item) => item.itemId === 'minecraft:water_bucket')?.previewBlocks[0]).toMatchObject({ id: 'minecraft:water', state: { level: '0' } });
+    const water = items.find((item) => item.itemId === 'minecraft:water_bucket')!;
+    expect(resolveItemBlock(water, water.defaultState, { x: 1, y: 2, z: 3 }, undefined, (id) => catalog.get(id))).toMatchObject({ id: 'minecraft:water', state: { level: '0' }, blockEntityData: undefined });
   });
 
   it('builds complete logical previews for multi-block families', () => {

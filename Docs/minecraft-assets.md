@@ -497,3 +497,23 @@ editor adapter loads only `minecraft:entity/conduit/base` and renders the
 vanilla inactive shell at its source 6/16 voxel size. Activation frame checks,
 eye state, wind layers, ticks, particles, and target entities remain runtime
 Minecraft behavior and are not simulated by the editor.
+
+# Java 1.21.1 Water and Lava
+
+`minecraft:water` and `minecraft:lava` use a dedicated neighbor-aware fluid
+surface path rather than generic block-model geometry. The viewport passes an
+O(1) project coordinate map so level-derived heights, weighted corner slopes,
+static flow UV orientation, and same-fluid face culling remain local and
+deterministic.
+
+The normal palette identity is `minecraft:water_bucket` or
+`minecraft:lava_bucket`; the stored structure block remains water/lava with a
+canonical `level` property. No fluid ticks, spreading, source regeneration,
+water/lava reactions, or bucket inventory behavior are implemented.
+
+Water and lava use the local `water_still`/`water_flow` and
+`lava_still`/`lava_flow` resources. When a `.png.mcmeta` descriptor is
+available, the renderer creates a nearest-filtered static animation-frame view
+without mutating the shared texture cache. Water uses a neutral preview tint
+because biome color data is not part of the project model; water-overlay
+selection and biome sampling remain future work.

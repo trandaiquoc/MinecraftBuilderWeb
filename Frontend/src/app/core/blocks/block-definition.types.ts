@@ -35,6 +35,7 @@ export type BlockBehavior =
   | { readonly kind: 'six-face-placement'; readonly facingProperty: 'facing' }
   | { readonly kind: 'decorated-pot-placement'; readonly facingProperty: 'facing' }
   | { readonly kind: 'conduit-placement'; readonly waterloggedProperty: 'waterlogged' }
+  | { readonly kind: 'fluid'; readonly fluid: 'water' | 'lava' }
   | { readonly kind: 'head-placement'; readonly wall: boolean; readonly rotationProperty: 'rotation'; readonly facingProperty: 'facing' };
 
 export interface BlockDefinition {

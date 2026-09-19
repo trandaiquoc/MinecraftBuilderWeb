@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../blocks/resolver';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
-import { VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, tintColorForFace } from './block-model-geometry';
+import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from './three-viewport-engine';
 import { viewportThemePalette } from './viewport-theme';
 
@@ -158,6 +158,24 @@ describe('block model geometry', () => {
     expect(result.mode).toBe('real'); expect(result.object?.userData['specialVisualFamily']).toBe('conduits');
     expect(result.trace.texturePaths).toEqual(['assets/minecraft/textures/entity/conduit/base.png']);
     expect(result.object?.userData['specialModel']).toBe('minecraft-java-conduit-inactive-1.21.1');
+  });
+  it('renders water and lava through the fluid path with distinct material intent', async () => {
+    const json = { 'assets/minecraft/blockstates/water.json': { variants: {} }, 'assets/minecraft/blockstates/lava.json': { variants: {} } };
+    const files = new Map<string, Uint8Array>([
+      ['assets/minecraft/textures/block/water_still.png', new Uint8Array([1])], ['assets/minecraft/textures/block/water_flow.png', new Uint8Array([1])],
+      ['assets/minecraft/textures/block/lava_still.png', new Uint8Array([1])], ['assets/minecraft/textures/block/lava_flow.png', new Uint8Array([1])],
+    ]);
+    const visual = new VanillaBlockVisualProvider(new VanillaAssetProvider('1.21.1.jar', json, files), async () => new THREE.Texture());
+    const water = await visual.create(block('minecraft:water', { level: '0' })); const lava = await visual.create(block('minecraft:lava', { level: '0' }));
+    expect(water.mode).toBe('real'); expect(lava.mode).toBe('real');
+    const waterMaterial = (water.object?.children[0] as THREE.Mesh).material as THREE.MeshLambertMaterial; const lavaMaterial = (lava.object?.children[0] as THREE.Mesh).material as THREE.MeshLambertMaterial;
+    expect(waterMaterial.transparent).toBe(true); expect(lavaMaterial.transparent).toBe(false); expect(water.object?.userData['fluidKind']).toBe('water'); expect(lava.object?.userData['fluidKind']).toBe('lava');
+  });
+  it('uses one nearest-filtered frame from an animated fluid strip without mutating the cache texture', () => {
+    const source = new THREE.Texture(); source.image = { width: 16, height: 64 } as never;
+    const view = staticFluidTextureView(source, { animation: { frames: [{ index: 1 }], height: 16 } });
+    expect(view).not.toBe(source); expect(view.repeat.y).toBeCloseTo(.25); expect(view.offset.y).toBeCloseTo(.5);
+    expect(view.magFilter).toBe(THREE.NearestFilter); expect(view.minFilter).toBe(THREE.NearestFilter); expect(source.repeat.y).toBe(1);
   });
 });
 

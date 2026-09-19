@@ -73,4 +73,10 @@ describe('VanillaBehaviorRegistry', () => {
     const result = new VanillaBehaviorRegistry().enrich(baseRecord('minecraft:conduit'));
     expect(result).toMatchObject({ behavior: { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, defaultState: { waterlogged: 'true' }, stateDefinitions: [{ name: 'waterlogged', values: ['true', 'false'] }] });
   });
+  it('keeps raw water and lava as level-only fluid blocks', () => {
+    const registry = new VanillaBehaviorRegistry();
+    for (const [id, fluid] of [['minecraft:water', 'water'], ['minecraft:lava', 'lava']] as const) {
+      expect(registry.enrich(baseRecord(id))).toMatchObject({ behavior: { kind: 'fluid', fluid }, defaultState: { level: '0' }, stateDefinitions: [{ name: 'level', values: Array.from({ length: 16 }, (_, value) => String(value)) }] });
+    }
+  });
 });

@@ -56,6 +56,8 @@ export class VanillaBehaviorRegistry {
     for (const id of vanillaShulkerBoxIds) this.explicit.set(id, shulkerBoxMetadata);
     this.explicit.set('minecraft:decorated_pot', decoratedPotMetadata);
     this.explicit.set('minecraft:conduit', conduitMetadata);
+    this.explicit.set('minecraft:water', waterMetadata);
+    this.explicit.set('minecraft:lava', lavaMetadata);
     for (const wood of vanillaSignWoods) {
       this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
       this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
@@ -80,6 +82,8 @@ export class VanillaBehaviorRegistry {
   private metadata(id: string): BehaviorMetadata | undefined {
     if (id === 'minecraft:decorated_pot') return decoratedPotMetadata;
     if (id === 'minecraft:conduit') return conduitMetadata;
+    if (id === 'minecraft:water') return waterMetadata;
+    if (id === 'minecraft:lava') return lavaMetadata;
     if (isVanillaCandleId(id)) return candleMetadata;
     const torch = vanillaTorchMetadata(id);
     if (torch) return torch;
@@ -185,6 +189,9 @@ const conduitMetadata: BehaviorMetadata = {
   defaultState: { waterlogged: 'true' },
   stateDefinitions: [{ name: 'waterlogged', values: ['true', 'false'] }],
 };
+const fluidStateDefinitions: readonly BlockStateDefinition[] = [{ name: 'level', values: Array.from({ length: 16 }, (_, value) => String(value)) }];
+const waterMetadata: BehaviorMetadata = { behavior: { kind: 'fluid', fluid: 'water' }, support: 'full', defaultState: { level: '0' }, stateDefinitions: fluidStateDefinitions };
+const lavaMetadata: BehaviorMetadata = { behavior: { kind: 'fluid', fluid: 'lava' }, support: 'full', defaultState: { level: '0' }, stateDefinitions: fluidStateDefinitions };
 const standingHeadMetadata: BehaviorMetadata = {
   behavior: { kind: 'head-placement', wall: false, rotationProperty: 'rotation', facingProperty: 'facing' }, support: 'full',
   defaultState: { rotation: '0' }, stateDefinitions: [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }],
