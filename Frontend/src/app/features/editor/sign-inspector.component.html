@@ -14,14 +14,14 @@
     @if (warning(); as warning) { <small class="warning">{{ warning }}</small> }
     <section class="sign-section">
       <h4>{{ i18n.t('appearance') }}</h4>
-      <label class="sign-control"><span>{{ i18n.t('signColor') }}</span><select [value]="color()" (change)="updateColor($event)">@for (color of colors; track color) { <option [value]="color">{{ colorLabel(color) }}</option> }</select></label>
+      <label class="sign-control"><span>{{ i18n.t('signColor') }}</span><app-themed-select [options]="colorOptions()" [selectedId]="color()" [ariaLabel]="i18n.t('signColor')" (selectionChange)="updateColorValue($any($event))" /></label>
       <label class="check-control"><input type="checkbox" [checked]="glowing()" (change)="updateGlowing($event)" /><span>{{ i18n.t('signGlowing') }}</span></label>
       <small class="helper-text">{{ i18n.t('signGlowingHint') }}</small>
     </section>
     <details class="disclosure"><summary>{{ i18n.t('placement') }}</summary>
       <div class="state-fields">
         @for (state of placementStates(); track state.name) {
-          <label class="sign-control"><span>{{ i18n.stateProperty(state.name) }}</span><select [value]="selected()?.state?.[state.name] ?? state.values[0]" (change)="updateState(state.name, $event)">@for (value of state.values; track value) { <option [value]="value">{{ stateValue(value, state.name) }}</option> }</select></label>
+          <label class="sign-control"><span>{{ i18n.stateProperty(state.name) }}</span><app-themed-select [options]="stateOptions(state)" [selectedId]="selected()?.state?.[state.name] ?? state.values[0]" [ariaLabel]="i18n.stateProperty(state.name)" (selectionChange)="updateStateValue(state.name, $any($event))" /></label>
         }
         <button type="button" (click)="rotateSign()">{{ i18n.t('rotateSign') }}</button>
       </div>
@@ -31,7 +31,7 @@
         <label class="check-control"><input type="checkbox" [checked]="waxed()" (change)="updateWaxed($event)" /><span>{{ i18n.t('signWaxed') }}</span></label>
         <small class="helper-text">{{ i18n.t('signWaxedHint') }}</small>
         @for (state of advancedStates(); track state.name) {
-          <label class="sign-control"><span>{{ i18n.stateProperty(state.name) }}</span><select [value]="selected()?.state?.[state.name] ?? state.values[0]" (change)="updateState(state.name, $event)">@for (value of state.values; track value) { <option [value]="value">{{ i18n.stateValue(value) }}</option> }</select></label>
+          <label class="sign-control"><span>{{ i18n.stateProperty(state.name) }}</span><app-themed-select [options]="stateOptions(state)" [selectedId]="selected()?.state?.[state.name] ?? state.values[0]" [ariaLabel]="i18n.stateProperty(state.name)" (selectionChange)="updateStateValue(state.name, $any($event))" /></label>
           <small class="helper-text">{{ state.name === 'waterlogged' ? i18n.t('waterloggedHint') : i18n.t('attachedHint') }}</small>
         }
       </div>

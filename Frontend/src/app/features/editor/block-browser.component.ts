@@ -29,7 +29,13 @@ export class BlockBrowserComponent {
   protected select(block: PlaceableItemDefinition): void { this.decorations.clearActive(); this.library.select(block); }
   protected addToQuickBar(event: Event, block: PlaceableItemDefinition): void {
     event.stopPropagation();
+    if (!this.canAddToQuickBar(block)) return;
     this.quick.add({ id: block.displayBlockId, itemId: block.itemId, placementKind: block.placementKind, state: { ...block.defaultState }, support: block.support, displayName: block.displayName });
+  }
+  protected canAddToQuickBar(block: PlaceableItemDefinition): boolean { const entry = { id: block.displayBlockId, itemId: block.itemId, state: block.defaultState }; return !this.quick.has(entry) && this.quick.canAdd(entry); }
+  protected quickAddLabel(block: PlaceableItemDefinition): string {
+    const entry = { id: block.displayBlockId, itemId: block.itemId, state: block.defaultState };
+    return this.quick.has(entry) ? this.i18n.t('alreadyInQuickBar') : this.quick.isFull() ? this.i18n.t('quickBarFull') : this.i18n.t('addToQuickBar');
   }
   protected behaviorLabel(support: BehaviorSupportLevel): string { return this.i18n.behaviorSupport(support); }
   protected visualLabel(support: VisualSupportLevel): string { return this.i18n.visualSupport(support); }

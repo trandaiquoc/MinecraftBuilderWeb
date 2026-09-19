@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, effect, inject, isDevMode, signal, viewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, computed, effect, inject, isDevMode, signal, viewChild } from '@angular/core';
 import { ActiveBlockService } from '../../core/blocks/active-block.service';
 import { BlockLibraryService } from '../../core/blocks/block-library.service';
 import { StructureEditorService } from '../../core/editor/structure-editor.service';
@@ -21,8 +21,9 @@ import { viewportThemePalette } from '../../core/renderer/viewport-theme';
 import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
 import { DecorationService } from '../../core/decorations/decoration.service';
 import { facingFromNormal } from '../../core/decorations/decoration-placement';
+import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
 
-@Component({ selector: 'app-y-layer', templateUrl: './y-layer.component.html', styleUrl: './y-layer.component.scss' })
+@Component({ selector: 'app-y-layer', imports: [ThemedSelectComponent], templateUrl: './y-layer.component.html', styleUrl: './y-layer.component.scss' })
 export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly host = viewChild<ElementRef<HTMLElement>>('host');
   protected readonly workspace = inject(WorkspaceStateService);
@@ -39,6 +40,9 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly assets = inject(VanillaAssetsService);
   private readonly decorations = inject(DecorationService);
   protected readonly visibility = signal<YLayerVisibility>('current-only');
+  protected readonly visibilityOptions = computed<readonly ThemedSelectOption[]>(() => [
+    { id: 'current-only', label: this.i18n.t('visibilityCurrent') }, { id: 'current-previous', label: this.i18n.t('visibilityPrevious') }, { id: 'current-next', label: this.i18n.t('visibilityNext') }, { id: 'previous-current-next', label: this.i18n.t('visibilityThree') }, { id: 'all-below', label: this.i18n.t('visibilityBelow') }, { id: 'whole-structure', label: this.i18n.t('visibilityWhole') },
+  ]);
   protected readonly status = signal<PlacementStatus>('invalid');
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');

@@ -435,15 +435,8 @@
                   @if (state.derived) {
                     <small>{{ i18n.t('autoDerived') }}</small>
                   }
-                  <select
-                    [disabled]="state.derived"
-                    [value]="selected.state[state.name] ?? state.values[0]"
-                    (change)="updateSelectedState(state.name, $event)"
-                  >
-                    @for (value of state.values; track value) {
-                      <option [value]="value">{{ i18n.stateValue(value) }}</option>
-                    }
-                  </select></label
+                  <app-themed-select [options]="stateOptions(state.values)" [selectedId]="selected.state[state.name] ?? state.values[0]" [ariaLabel]="i18n.stateProperty(state.name)" (selectionChange)="updateSelectedStateValue(state.name, $any($event))" />
+                </label
                 >
               }
               <button type="button" (click)="rotateSelected()">{{ i18n.t('rotateBlock') }}</button>

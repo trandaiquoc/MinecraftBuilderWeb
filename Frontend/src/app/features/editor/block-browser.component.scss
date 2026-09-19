@@ -40,3 +40,4 @@
 :host-context([data-font='minecraft-style']) .block-copy small,
 :host-context([data-font='minecraft-style']) .active-block small { font-size: .72rem; line-height: 1.1; }
 .quick-add-action svg { width: .85rem; height: .85rem; }
+.quick-add-wrapper { position: absolute; top: .3rem; left: .3rem; z-index: 1; opacity: 0; }.block-item:hover .quick-add-wrapper, .block-item:focus-within .quick-add-wrapper, .quick-add-wrapper:focus-visible { opacity: 1; }.quick-add-wrapper .quick-add-action { position: static; }.quick-add-action:disabled { cursor: not-allowed; opacity: .5; }

@@ -1,0 +1,11 @@
+:host { display: block; min-width: 0; }
+.themed-select { position: relative; min-width: 0; }
+.themed-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: 2.15rem; padding: .45rem .6rem; border: 0; border-radius: var(--radius-sm); background: var(--control-normal); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); text-align: left; cursor: pointer; }
+.themed-select-trigger:hover, .themed-select.open .themed-select-trigger { background: var(--control-hover); }
+.themed-select-trigger svg { width: .9rem; height: .9rem; flex: 0 0 auto; }
+.themed-select-popup { position: absolute; z-index: 40; top: calc(100% + .25rem); left: 0; width: 100%; min-width: 100%; max-height: 15rem; overflow: auto; padding: .25rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-raised); box-shadow: var(--shadow-popover); }
+.themed-select-option { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; padding: .45rem .5rem; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.themed-select-option:hover, .themed-select-option:focus-visible { background: var(--control-hover); }
+.themed-select-option.active-option:not(.selected) { background: var(--control-hover); }
+.themed-select-option.selected { background: var(--control-selected); color: var(--control-selected-text); }
+.themed-select-option svg { width: .9rem; height: .9rem; flex: 0 0 auto; }

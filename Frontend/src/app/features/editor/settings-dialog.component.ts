@@ -4,13 +4,14 @@ import { I18nService } from '../../core/ui/i18n.service';
 import { UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, BaseTheme } from '../../core/ui/ui-preferences.service';
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
+import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
 type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance'] };
 
 @Component({
   selector: 'app-settings-dialog',
-  imports: [LucideX, UiTooltipDirective],
+  imports: [LucideX, UiTooltipDirective, ThemedSelectComponent],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss',
   host: { '(document:keydown.escape)': 'requestClose()' },
@@ -25,6 +26,10 @@ export class SettingsDialogComponent {
   protected readonly draft = signal<SettingsDraft>(this.readDraft());
   protected readonly dirty = computed(() => JSON.stringify(this.draft()) !== JSON.stringify(this.baseline()));
   protected readonly sections: readonly SettingsSection[] = ['general', 'appearance', 'controls', 'shortcuts', 'accessibility'];
+  protected readonly languageOptions = computed<readonly ThemedSelectOption[]>(() => [{ id: 'en', label: this.i18n.t('english') }, { id: 'vi', label: this.i18n.t('vietnamese') }]);
+  protected readonly themeOptions = computed<readonly ThemedSelectOption[]>(() => [{ id: 'dark', label: this.i18n.t('dark') }, { id: 'light', label: this.i18n.t('light') }, { id: 'craft', label: this.i18n.t('craft') }]);
+  protected readonly fontOptions = computed<readonly ThemedSelectOption[]>(() => [{ id: 'geist', label: this.i18n.t('geist') }, { id: 'minecraft-style', label: this.i18n.t('minecraftStyle') }]);
+  protected readonly editorBackgroundOptions = computed<readonly ThemedSelectOption[]>(() => [{ id: 'dark', label: this.i18n.t('editorBackgroundDark') }, { id: 'light', label: this.i18n.t('editorBackgroundLight') }]);
 
   protected setSection(section: SettingsSection): void { this.section.set(section); }
   protected setLocale(locale: UiLocale): void { this.updateDraft({ locale }); }
@@ -34,10 +39,8 @@ export class SettingsDialogComponent {
   }
   protected setFont(font: UiFont): void { this.updateDraft({ appearance: { ...this.draft().appearance, font } }); }
   protected setEditorBackground(editorBackground: BaseTheme): void { this.updateDraft({ appearance: { ...this.draft().appearance, editorBackground } }); }
-  protected restoreDefaults(): void {
-    const defaults = this.preferences.defaultPreferences();
-    this.draft.set({ locale: defaults.locale, appearance: { ...defaults.appearance } });
-  }
+  protected restoreGeneralDefaults(): void { this.updateDraft({ locale: this.preferences.defaultPreferences().locale }); }
+  protected restoreAppearanceDefaults(): void { this.updateDraft({ appearance: { ...this.preferences.defaultPreferences().appearance } }); }
   protected async apply(): Promise<void> {
     const draft = this.draft();
     this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance } });

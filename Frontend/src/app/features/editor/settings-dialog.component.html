@@ -18,34 +18,23 @@
           <section>
             <h3>{{ i18n.t('generalSettings') }}</h3>
             <label>{{ i18n.t('language') }}
-              <select [value]="draft().locale" (change)="setLocale($any($event.target).value)">
-                <option value="en">{{ i18n.t('english') }}</option>
-                <option value="vi">{{ i18n.t('vietnamese') }}</option>
-              </select>
+              <app-themed-select [options]="languageOptions()" [selectedId]="draft().locale" [ariaLabel]="i18n.t('language')" (selectionChange)="setLocale($any($event))" />
             </label>
+            <button type="button" class="section-reset" (click)="restoreGeneralDefaults()">{{ i18n.t('restoreDefaults') }}</button>
           </section>
         } @else if (section() === 'appearance') {
           <section>
             <h3>{{ i18n.t('appearanceSettings') }}</h3>
             <label>{{ i18n.t('theme') }}
-              <select [value]="draft().appearance.preset" (change)="setPreset($any($event.target).value)">
-                <option value="dark">{{ i18n.t('dark') }}</option>
-                <option value="light">{{ i18n.t('light') }}</option>
-                <option value="craft">{{ i18n.t('craft') }}</option>
-              </select>
+              <app-themed-select [options]="themeOptions()" [selectedId]="draft().appearance.preset" [ariaLabel]="i18n.t('theme')" (selectionChange)="setPreset($any($event))" />
             </label>
             <label>{{ i18n.t('font') }}
-              <select [value]="draft().appearance.font" (change)="setFont($any($event.target).value)">
-                <option value="geist">{{ i18n.t('geist') }}</option>
-                <option value="minecraft-style">{{ i18n.t('minecraftStyle') }}</option>
-              </select>
+              <app-themed-select [options]="fontOptions()" [selectedId]="draft().appearance.font" [ariaLabel]="i18n.t('font')" (selectionChange)="setFont($any($event))" />
             </label>
             <label>{{ i18n.t('editorBackground') }}
-              <select [value]="draft().appearance.editorBackground" (change)="setEditorBackground($any($event.target).value)">
-                <option value="dark">{{ i18n.t('editorBackgroundDark') }}</option>
-                <option value="light">{{ i18n.t('editorBackgroundLight') }}</option>
-              </select>
+              <app-themed-select [options]="editorBackgroundOptions()" [selectedId]="draft().appearance.editorBackground" [ariaLabel]="i18n.t('editorBackground')" (selectionChange)="setEditorBackground($any($event))" />
             </label>
+            <button type="button" class="section-reset" (click)="restoreAppearanceDefaults()">{{ i18n.t('restoreDefaults') }}</button>
           </section>
         } @else {
           <section class="settings-unavailable">
@@ -56,7 +45,6 @@
       </div>
     </div>
     <footer class="settings-dialog-footer">
-      <button type="button" class="secondary" (click)="restoreDefaults()">{{ i18n.t('restoreDefaults') }}</button>
       <span class="settings-footer-spacer"></span>
       <button type="button" class="secondary" (click)="requestClose()">{{ i18n.t('cancel') }}</button>
       <button type="button" class="secondary" (click)="apply()">{{ i18n.t('apply') }}</button>

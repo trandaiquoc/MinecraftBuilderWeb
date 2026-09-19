@@ -1,0 +1,12 @@
+<div class="themed-select" [class.open]="open()">
+  <button type="button" class="themed-select-trigger" role="combobox" [attr.aria-label]="ariaLabel" [attr.aria-expanded]="open()" aria-haspopup="listbox" (click)="toggle()" (keydown)="onTriggerKeydown($event)">
+    <span>{{ selectedLabel }}</span><svg lucideChevronDown aria-hidden="true"></svg>
+  </button>
+  @if (open()) {
+    <div class="themed-select-popup" role="listbox">
+      @for (option of options; track option.id) {
+        <button type="button" class="themed-select-option" role="option" [class.selected]="option.id === selectedId" [class.active-option]="$index === activeIndex()" [attr.aria-selected]="option.id === selectedId" (click)="choose(option.id)"><span>{{ option.label }}</span>@if (option.id === selectedId) { <svg lucideCheck aria-hidden="true"></svg> }</button>
+      }
+    </div>
+  }
+</div>

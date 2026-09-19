@@ -8,7 +8,7 @@
     @for (block of library.results(); track block.itemId) {
       <div class="block-item" role="option" [class.active]="library.activeBlock.active()?.itemId === block.itemId" [attr.aria-selected]="library.activeBlock.active()?.itemId === block.itemId" [attr.aria-label]="block.displayName">
         <button type="button" class="block-select-action" (click)="select(block)" [attr.aria-label]="block.displayName"><span class="preview" [class.has-thumbnail]="!!assets.thumbnailUrl(block.itemId, block.defaultState)" [class.fallback]="block.visualSupport === 'fallback'">@if (assets.thumbnailUrl(block.itemId, block.defaultState); as thumbnail) { <img [src]="thumbnail" alt="" /> } @else { <span>{{ block.visualSupport === 'fallback' ? '?' : '◇' }}</span> }</span><span class="block-copy"><strong>{{ block.displayName }}</strong><small>{{ block.modName || (block.namespace === 'minecraft' ? 'Minecraft' : block.namespace) }}</small></span></button>
-        <button type="button" class="quick-add-action" uiTooltip="{{ i18n.t('addToQuickBar') }}" (click)="addToQuickBar($event, block)" [attr.aria-label]="i18n.t('addToQuickBar')"><svg lucidePlus aria-hidden="true"></svg></button>
+        <span class="quick-add-wrapper" tabindex="0" uiTooltip="{{ quickAddLabel(block) }}"><button type="button" class="quick-add-action" (click)="addToQuickBar($event, block)" [disabled]="!canAddToQuickBar(block)" [attr.aria-label]="quickAddLabel(block)"><svg lucidePlus aria-hidden="true"></svg></button></span>
       </div>
     } @empty { <p class="muted">{{ i18n.t('noBlockResults') }}</p> }
   </div>

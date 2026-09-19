@@ -25,4 +25,5 @@
 .settings-dialog-footer button:hover { background: var(--control-hover); }
 .settings-dialog-footer button.primary { background: var(--control-selected); color: var(--control-selected-text); }
 .settings-dialog-footer button:active { transform: translateY(1px); box-shadow: none; }
+.section-reset { justify-self: start; border: 0; border-radius: var(--radius-sm); padding: .4rem .6rem; background: var(--control-normal); color: var(--text); cursor: pointer; box-shadow: 0 2px 0 rgb(0 0 0 / .14); }.section-reset:hover { background: var(--control-hover); }
 @media (max-width: 560px) { .settings-dialog-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }.settings-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }.settings-nav button { white-space: nowrap; }.settings-dialog-footer { flex-wrap: wrap; }.settings-footer-spacer { display: none; } }

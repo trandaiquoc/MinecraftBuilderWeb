@@ -32,8 +32,9 @@ import { DecorationService } from '../../core/decorations/decoration.service';
 import { SettingsDialogComponent } from './settings-dialog.component';
 import { LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
+import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, DecorationInspectorComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, DecorationInspectorComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ThemedSelectComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -132,9 +133,11 @@ export class EditorShellComponent implements OnDestroy {
   protected presetLabel(preset: CameraPreset): string { return this.i18n.t(({ perspective: 'cameraPerspective', top: 'cameraTop', front: 'cameraFront', back: 'cameraBack', left: 'cameraLeft', right: 'cameraRight' } as const)[preset]); }
   protected supportLabel(support: string | undefined): string { return support ? this.i18n.supportLevel(support as 'full' | 'partial' | 'fallback' | 'unknown') : ''; }
   protected updateSelectedState(property: string, event: Event): void { const selected = this.selection.single(); const value = (event.target as HTMLSelectElement).value; if (!selected || !this.editor.updateBlockState(selected, property, value)) this.stateFeedback.set('stateEditUnsupported'); else this.stateFeedback.set(''); }
+  protected updateSelectedStateValue(property: string, value: string): void { const selected = this.selection.single(); if (!selected || !this.editor.updateBlockState(selected, property, value)) this.stateFeedback.set('stateEditUnsupported'); else this.stateFeedback.set(''); }
   protected rotateSelected(): void { const selected = this.selection.single(); if (!selected || !this.editor.rotateBlock(selected)) this.stateFeedback.set('rotationUnsupported'); else this.stateFeedback.set(''); }
   protected deleteSelectedDecoration(): void { const decoration = this.selectedDecoration(); if (decoration) this.decorations.delete(decoration.instanceId); }
   protected feedbackLabel(): string { const key = this.stateFeedback(); return key ? this.i18n.t(key as 'stateEditUnsupported' | 'rotationUnsupported') : ''; }
+  protected stateOptions(values: readonly string[]): readonly ThemedSelectOption[] { return values.map((value) => ({ id: value, label: this.i18n.stateValue(value) })); }
   protected createGroup(): void { if (this.groups.create(this.newGroupName().trim())) this.newGroupName.set(''); }
   protected updateGroupSearch(event: Event): void { this.groupSearch.set((event.target as HTMLInputElement).value); }
   protected clearGroupSearch(): void { this.groupSearch.set(''); }

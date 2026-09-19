@@ -9,8 +9,9 @@ import { SignTextSideService } from '../../core/editor/sign-text-side.service';
 import { vanillaSignColors } from '../../core/editor/sign-nbt';
 import { BlockLibraryService } from '../../core/blocks/block-library.service';
 import type { SignSide } from '../../core/domain/project.types';
+import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
 
-@Component({ selector: 'app-sign-inspector', templateUrl: './sign-inspector.component.html', styleUrl: './sign-inspector.component.scss' })
+@Component({ selector: 'app-sign-inspector', imports: [ThemedSelectComponent], templateUrl: './sign-inspector.component.html', styleUrl: './sign-inspector.component.scss' })
 export class SignInspectorComponent {
   private readonly workspace = inject(WorkspaceStateService); private readonly selection = inject(SelectionService); private readonly editor = inject(StructureEditorService); private readonly library = inject(BlockLibraryService);
   protected readonly i18n = inject(I18nService);
@@ -23,6 +24,7 @@ export class SignInspectorComponent {
   protected readonly definition = computed(() => { const block = this.selected(); return block ? this.library.get(block.id) : undefined; });
   protected readonly placementStates = computed(() => (this.definition()?.stateDefinitions ?? []).filter((state) => state.name === 'rotation' || state.name === 'facing'));
   protected readonly advancedStates = computed(() => (this.definition()?.stateDefinitions ?? []).filter((state) => state.name === 'waterlogged' || state.name === 'attached'));
+  protected readonly colorOptions = computed<readonly ThemedSelectOption[]>(() => this.colors.map((value) => ({ id: value, label: this.colorLabel(value) })));
   protected line(index: number): string { return (this.draft() ?? this.data()[this.side()].lines)[index] ?? ''; }
   protected lineLabel(index: number): string { return this.i18n.t('signTextInput').replace('{line}', String(index + 1)); }
   protected warning(): string | undefined { const line = this.data()[this.side()].lines.findIndex((value) => signLineWidth(value) > this.maxTextWidth()); return line >= 0 ? this.i18n.t('signLineTooWide').replace('{line}', String(line + 1)) : undefined; }
@@ -35,9 +37,12 @@ export class SignInspectorComponent {
   protected glowing(): boolean { return this.data()[this.side()].glowing; }
   protected waxed(): boolean { return this.data().waxed; }
   protected updateColor(event: Event): void { const position = this.selected()?.position; if (position) this.editor.updateSignAppearance(position, this.side(), { color: (event.target as HTMLSelectElement).value }); }
+  protected updateColorValue(value: string): void { const position = this.selected()?.position; if (position) this.editor.updateSignAppearance(position, this.side(), { color: value }); }
   protected updateGlowing(event: Event): void { const position = this.selected()?.position; if (position) this.editor.updateSignAppearance(position, this.side(), { glowing: (event.target as HTMLInputElement).checked }); }
   protected updateWaxed(event: Event): void { const position = this.selected()?.position; if (position) this.editor.updateSignWaxed(position, (event.target as HTMLInputElement).checked); }
   protected updateState(property: string, event: Event): void { const position = this.selected()?.position; if (position) this.editor.updateBlockState(position, property, (event.target as HTMLSelectElement).value); }
+  protected updateStateValue(property: string, value: string): void { const position = this.selected()?.position; if (position) this.editor.updateBlockState(position, property, value); }
+  protected stateOptions(state: { readonly values: readonly string[]; readonly name: string }): readonly ThemedSelectOption[] { return state.values.map((value) => ({ id: value, label: this.stateValue(value, state.name) })); }
   protected stateValue(value: string, property: string): string { if (property === 'rotation') return `${value} · ${Number(value) * 22.5}°`; return this.i18n.stateValue(value); }
   protected rotateSign(): void { const position = this.selected()?.position; if (position) this.editor.rotateBlock(position); }
   private maxTextWidth(): number { return signTextMetrics(this.selected()?.id ?? '').maxWidth; }
