@@ -7,7 +7,7 @@
         @for (variant of filteredVariants(); track variant.id) {
           <button type="button" class="painting-card" [class.selected]="variant.id === selectedId" (click)="choose(variant.id)">
             <span class="painting-image"><img [src]="imageUrl(variant)" [alt]="label(variant.id)" loading="lazy" /></span>
-            <span class="painting-card-meta"><strong>{{ label(variant.id) }}</strong><small>{{ variant.width }} × {{ variant.height }}</small></span>
+            <span class="painting-card-meta"><strong [attr.title]="label(variant.id)">{{ label(variant.id) }}</strong><small>{{ variant.width }} × {{ variant.height }}</small></span>
           </button>
         }
       </div>
@@ -19,7 +19,7 @@
     @for (variant of filteredVariants(); track variant.id) {
       <button type="button" class="painting-card" [class.selected]="variant.id === selectedId" (click)="choose(variant.id)">
         <span class="painting-image"><img [src]="imageUrl(variant)" [alt]="label(variant.id)" loading="lazy" /></span>
-        <span class="painting-card-meta"><strong>{{ label(variant.id) }}</strong><small>{{ variant.width }} × {{ variant.height }}</small></span>
+        <span class="painting-card-meta"><strong [attr.title]="label(variant.id)">{{ label(variant.id) }}</strong><small>{{ variant.width }} × {{ variant.height }}</small></span>
       </button>
     }
   </div>
