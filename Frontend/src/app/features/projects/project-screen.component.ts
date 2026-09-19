@@ -18,7 +18,7 @@ export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly workspace = inject(WorkspaceStateService);
-  protected readonly name = signal('Untitled structure');
+  protected readonly name = signal(this.i18n.t('untitledStructure'));
   protected readonly sizeX = signal(16);
   protected readonly sizeY = signal(16);
   protected readonly sizeZ = signal(16);
@@ -40,7 +40,7 @@ export class ProjectScreenComponent {
   protected async createProject(): Promise<void> {
     const now = new Date().toISOString();
     const project: ProjectDocument = {
-      schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || 'Untitled structure', minecraftVersion: '1.21.1', createdAt: now, updatedAt: now },
+      schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || this.i18n.t('untitledStructure'), minecraftVersion: '1.21.1', createdAt: now, updatedAt: now },
       size: { x: this.sizeX(), y: this.sizeY(), z: this.sizeZ() }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
     };
     try {

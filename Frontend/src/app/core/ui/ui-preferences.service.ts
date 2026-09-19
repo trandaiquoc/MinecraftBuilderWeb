@@ -87,17 +87,50 @@ export class UiPreferencesService {
 function normalize(value: unknown): UiPreferences {
   if (!value || typeof value !== 'object') return defaults;
   const candidate = value as Partial<UiPreferences>;
+  const appearance = candidate.appearance && typeof candidate.appearance === 'object' ? candidate.appearance : {};
+  const controls = candidate.controls && typeof candidate.controls === 'object' ? candidate.controls : {};
+  const layout = candidate.layout && typeof candidate.layout === 'object' ? candidate.layout : {};
   return {
     ...defaults,
     ...candidate,
-    appearance: { ...defaults.appearance, ...(candidate.appearance ?? {}) },
-    controls: { ...defaults.controls, ...(candidate.controls ?? {}) },
-    layout: { ...defaults.layout, ...(candidate.layout ?? {}) },
+    locale: isLocale(candidate.locale) ? candidate.locale : defaults.locale,
+    appearance: {
+      preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset) ? (appearance as Partial<UiPreferences['appearance']>).preset! : defaults.appearance.preset,
+      base: isBase((appearance as Partial<UiPreferences['appearance']>).base) ? (appearance as Partial<UiPreferences['appearance']>).base! : defaults.appearance.base,
+      font: isFont((appearance as Partial<UiPreferences['appearance']>).font) ? (appearance as Partial<UiPreferences['appearance']>).font! : defaults.appearance.font,
+    },
+    controls: {
+      orbitSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).orbitSensitivity, .1, 3, defaults.controls.orbitSensitivity),
+      panSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).panSensitivity, .1, 3, defaults.controls.panSensitivity),
+      zoomSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).zoomSensitivity, .1, 3, defaults.controls.zoomSensitivity),
+      cameraMoveSpeed: numberInRange((controls as Partial<UiPreferences['controls']>).cameraMoveSpeed, 1, 30, defaults.controls.cameraMoveSpeed),
+      verticalMoveSpeed: numberInRange((controls as Partial<UiPreferences['controls']>).verticalMoveSpeed, 1, 30, defaults.controls.verticalMoveSpeed),
+      clickDragThreshold: numberInRange((controls as Partial<UiPreferences['controls']>).clickDragThreshold, 1, 20, defaults.controls.clickDragThreshold),
+    },
+    layout: { ...defaults.layout, ...layout },
     version: 1,
   };
 }
 
+function numberInRange(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+function isLocale(value: unknown): value is UiLocale { return value === 'en' || value === 'vi'; }
+function isPreset(value: unknown): value is ThemePreset { return value === 'dark' || value === 'light' || value === 'craft' || value === 'custom'; }
+function isBase(value: unknown): value is BaseTheme { return value === 'dark' || value === 'light'; }
+function isFont(value: unknown): value is UiFont { return value === 'geist' || value === 'minecraft-style'; }
+
 function normalizeLayout(value: unknown): UiPreferences['layout'] {
   if (!value || typeof value !== 'object') return defaults.layout;
-  return { ...defaults.layout, ...(value as Partial<UiPreferences['layout']>) };
+  const candidate = value as Partial<UiPreferences['layout']>;
+  return {
+    editorToolbarVisible: typeof candidate.editorToolbarVisible === 'boolean' ? candidate.editorToolbarVisible : defaults.layout.editorToolbarVisible,
+    leftSidebarVisible: typeof candidate.leftSidebarVisible === 'boolean' ? candidate.leftSidebarVisible : defaults.layout.leftSidebarVisible,
+    rightSidebarVisible: typeof candidate.rightSidebarVisible === 'boolean' ? candidate.rightSidebarVisible : defaults.layout.rightSidebarVisible,
+    quickBarVisible: typeof candidate.quickBarVisible === 'boolean' ? candidate.quickBarVisible : defaults.layout.quickBarVisible,
+    statusBarVisible: typeof candidate.statusBarVisible === 'boolean' ? candidate.statusBarVisible : defaults.layout.statusBarVisible,
+    ...(typeof candidate.groupMovePanelX === 'number' && Number.isFinite(candidate.groupMovePanelX) ? { groupMovePanelX: candidate.groupMovePanelX } : {}),
+    ...(typeof candidate.groupMovePanelY === 'number' && Number.isFinite(candidate.groupMovePanelY) ? { groupMovePanelY: candidate.groupMovePanelY } : {}),
+  };
 }

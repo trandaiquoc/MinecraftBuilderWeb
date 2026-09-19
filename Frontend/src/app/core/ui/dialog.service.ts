@@ -28,12 +28,12 @@ export class DialogService {
       confirmButtonText: options.confirmButtonText ?? 'Confirm',
       cancelButtonText: options.cancelButtonText ?? 'Cancel',
       reverseButtons: true,
-      theme: this.theme.theme() === 'dark' ? 'dark' : 'light',
+      theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light',
     });
     return result.isConfirmed;
   }
 
-  success(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'success', theme: this.theme.theme() === 'dark' ? 'dark' : 'light' }); }
-  warning(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'warning', theme: this.theme.theme() === 'dark' ? 'dark' : 'light' }); }
-  error(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'error', theme: this.theme.theme() === 'dark' ? 'dark' : 'light' }); }
+  success(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'success', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
+  warning(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'warning', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
+  error(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'error', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
 }

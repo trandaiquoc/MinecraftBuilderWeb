@@ -40,13 +40,17 @@
         @if (activeMenu() === 'settings') {
           <div class="menu-popover settings-popover" (click)="$event.stopPropagation()">
             <strong>{{ i18n.t('language') }}</strong
-            ><button type="button" (click)="chooseLanguage('en')">{{ i18n.t('english') }}</button
-            ><button type="button" (click)="chooseLanguage('vi')">
-              {{ i18n.t('vietnamese') }}
+            ><button type="button" [class.active]="i18n.locale() === 'en'" (click)="chooseLanguage('en')">{{ i18n.locale() === 'en' ? '✓ ' : '' }}{{ i18n.t('english') }}</button
+            ><button type="button" [class.active]="i18n.locale() === 'vi'" (click)="chooseLanguage('vi')">
+              {{ i18n.locale() === 'vi' ? '✓ ' : '' }}{{ i18n.t('vietnamese') }}
             </button>
             <strong>{{ i18n.t('theme') }}</strong
-            ><button type="button" (click)="chooseTheme('light')">{{ i18n.t('light') }}</button
-            ><button type="button" (click)="chooseTheme('dark')">{{ i18n.t('dark') }}</button>
+            ><button type="button" [class.active]="theme.preset() === 'light'" (click)="chooseTheme('light')">{{ theme.preset() === 'light' ? '✓ ' : '' }}{{ i18n.t('light') }}</button
+            ><button type="button" [class.active]="theme.preset() === 'dark'" (click)="chooseTheme('dark')">{{ theme.preset() === 'dark' ? '✓ ' : '' }}{{ i18n.t('dark') }}</button
+            ><button type="button" [class.active]="theme.preset() === 'craft'" (click)="chooseTheme('craft')">{{ theme.preset() === 'craft' ? '✓ ' : '' }}{{ i18n.t('craft') }}</button>
+            <strong>{{ i18n.t('font') }}</strong
+            ><button type="button" [class.active]="theme.font() === 'geist'" (click)="chooseFont('geist')">{{ theme.font() === 'geist' ? '✓ ' : '' }}{{ i18n.t('geist') }}</button
+            ><button type="button" [class.active]="theme.font() === 'minecraft-style'" (click)="chooseFont('minecraft-style')">{{ theme.font() === 'minecraft-style' ? '✓ ' : '' }}{{ i18n.t('minecraftStyle') }}</button>
           </div>
         }
         </div>

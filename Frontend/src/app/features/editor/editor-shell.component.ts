@@ -139,8 +139,9 @@ export class EditorShellComponent implements OnDestroy {
   protected closeMenus(): void { this.activeMenu.set(undefined); this.cameraMenuOpen.set(false); }
   protected toggleLayout(key: 'editorToolbarVisible' | 'leftSidebarVisible' | 'rightSidebarVisible' | 'quickBarVisible' | 'statusBarVisible'): void { this.layout.set(key, !this.layout.preferences()[key]); this.scheduleMovePanelClamp(); }
   protected resetLayout(): void { this.layout.reset(); }
-  protected chooseLanguage(locale: 'en' | 'vi'): void { this.i18n.locale.set(locale); this.closeMenus(); }
-  protected chooseTheme(theme: 'light' | 'dark'): void { if (this.theme.theme() !== theme) this.theme.toggle(); this.closeMenus(); }
+  protected chooseLanguage(locale: 'en' | 'vi'): void { this.i18n.setLocale(locale); this.closeMenus(); }
+  protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void { this.theme.setPreset(theme); this.closeMenus(); }
+  protected chooseFont(font: 'geist' | 'minecraft-style'): void { this.theme.setFont(font); this.closeMenus(); }
   protected setBlockBrowserExpanded(expanded: boolean): void { this.blockBrowserExpanded.set(expanded); }
   protected showMovePanel(): void { if (this.groups.activeGroup()) { this.movePanelVisible.set(true); this.scheduleMovePanelClamp(); } }
   protected hideMovePanel(): void { this.groups.resetMove(); this.movePanelVisible.set(false); this.moveDrag = undefined; }
