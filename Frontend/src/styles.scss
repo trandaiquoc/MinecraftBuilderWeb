@@ -42,13 +42,6 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .project-page textarea:hover { background: var(--surface-hover); box-shadow: 0 3px 8px rgb(0 0 0 / .28); }
 :root[data-theme='craft'] .editor-shell button:not(.dropdown-backdrop):not(.app-menu-trigger):not(.group-search-clear):not([type='checkbox']):not([type='range']):active:not(:disabled),
 :root[data-theme='craft'] .project-page button:active:not(:disabled) { box-shadow: 0 1px 2px rgb(0 0 0 / .3); }
-:root[data-theme='craft'] .app-menus button,
-:root[data-theme='craft'] .sidebar-tabs button { background: transparent; box-shadow: none; }
-:root[data-theme='craft'] .app-menus button:hover,
-:root[data-theme='craft'] .app-menus button.active,
-:root[data-theme='craft'] .sidebar-tabs button.active,
-:root[data-theme='craft'] .toolbar-group button.active,
-:root[data-theme='craft'] .tool-switch button.active { background: var(--accent); color: #f4f8ef; border-color: transparent; box-shadow: 0 3px 8px rgb(0 0 0 / .35); }
 :root[data-theme='craft'] .sidebar-tabs { border-color: transparent; }
 :root[data-theme='craft'] .menu-popover,
 :root[data-theme='craft'] .camera-popover,
@@ -57,11 +50,6 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .menu-popover button:hover,
 :root[data-theme='craft'] .dropdown-option.selected,
 :root[data-theme='craft'] .dropdown-option.active-option { background: var(--accent); color: #f4f8ef; }
-:root[data-theme='craft'] .block-card.active,
-:root[data-theme='craft'] .decoration-card.active,
-:root[data-theme='craft'] .painting-card.selected,
-:root[data-theme='craft'] .group-row.active,
-:root[data-theme='craft'] .slot.active { border-color: transparent; background: var(--accent); color: #f4f8ef; box-shadow: 0 4px 10px rgb(0 0 0 / .35); }
 :root[data-theme='craft'] .active-block,
 :root[data-theme='craft'] .group-move-toolbar,
 :root[data-theme='craft'] .quick-block-bar { background: var(--surface-raised); border-color: transparent; box-shadow: 0 4px 14px rgb(0 0 0 / .3); }

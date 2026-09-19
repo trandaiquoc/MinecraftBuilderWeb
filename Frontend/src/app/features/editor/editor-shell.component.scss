@@ -5,9 +5,7 @@
 .toolbar-group, .tool-switch { display: flex; flex: 0 0 auto; gap: .25rem; padding-right: .7rem; border-right: 1px solid var(--border); }
 .toolbar-actions { display: flex; gap: .5rem; margin-left: auto; }
 .app-menu-row .brand { margin-right: .35rem; }.app-menu-row .app-menus button { border: 0; background: transparent; padding: .3rem .45rem; }.app-menu-row .app-menus button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.tool-switch { display: flex; gap: .25rem; }.tool-switch button.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface-raised)); color: var(--text); }
-.mode-switch button.active, .tool-switch button.active { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 3px 8px rgb(0 0 0 / .22); }
-.sidebar-tabs button.active { border-bottom: 0; border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-contrast); box-shadow: 0 3px 8px rgb(0 0 0 / .2); }
+.tool-switch { display: flex; gap: .25rem; }
 .editor-body { position: relative; min-height: 0; overflow: hidden; display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; transition: grid-template-columns .15s ease; }.editor-body.left-sidebar-hidden { grid-template-columns: minmax(0, 1fr) 260px; }.editor-body.right-sidebar-hidden { grid-template-columns: 220px minmax(0, 1fr); }.editor-body.left-sidebar-hidden.right-sidebar-hidden { grid-template-columns: minmax(0, 1fr); }.editor-body.browser-expanded, .editor-body:has(app-block-browser .expanded), .editor-body:has(app-decoration-browser .expanded) { grid-template-columns: 360px minmax(0, 1fr) 260px; }
 .panel { min-height: 0; overflow: auto; padding: 1rem; border-right: 1px solid var(--border); background: var(--surface); }.left-panel { display: flex; flex-direction: column; overflow: hidden; }.right-panel { border-right: 0; border-left: 1px solid var(--border); }.panel h2 { margin: 0 0 1rem; font-size: .9rem; }.panel h2 + h2 { margin-top: 2rem; }.sidebar-tabs { display: flex; flex: 0 0 auto; gap: .25rem; margin: 0 -.25rem .65rem; border-bottom: 1px solid var(--border); }.sidebar-tabs button { border: 0; border-bottom: 2px solid transparent; padding: .45rem .65rem; background: transparent; color: var(--text-muted); cursor: pointer; font-size: .78rem; }.sidebar-tabs button.active { border-bottom-color: var(--accent); color: var(--text); }.sidebar-tab-content { min-height: 0; overflow: auto; }.blocks-tab-content, .decorations-tab-content, .groups-tab-content { flex: 1 1 auto; }
 .selection-details { display: grid; gap: .85rem; margin: 0; }.selection-details div { display: grid; gap: .25rem; }.selection-details dt { color: var(--text-muted); font-size: .7rem; text-transform: uppercase; }.selection-details dd { min-width: 0; margin: 0; color: var(--text); font-size: .8rem; overflow-wrap: anywhere; }.selection-details ul { display: grid; gap: .25rem; margin: 0; padding-left: 1rem; }
@@ -38,8 +36,7 @@
 .group-move-toolbar { border-color: var(--accent); }
 .app-menu-trigger { border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--text) !important; }
 .app-menu-trigger:hover, .app-menu-trigger.active { background: color-mix(in srgb, var(--accent) 28%, transparent) !important; color: var(--text) !important; box-shadow: none !important; }
-.mode-switch, .tool-switch, .toolbar-group { border-right: 0; }
-.mode-switch, .tool-switch { gap: .2rem; padding: .15rem; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surface) 48%, transparent); }
+.mode-switch, .tool-switch { gap: .2rem; padding: .15rem .7rem .15rem .15rem; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surface) 48%, transparent); }
 .mode-switch button, .tool-switch button { border: 0; background: var(--surface-raised); color: var(--text-muted); box-shadow: none; }
 .mode-switch button:hover:not(:disabled), .tool-switch button:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
 .mode-switch button.active, .tool-switch button.active { background: var(--accent); color: var(--accent-contrast); border: 0; box-shadow: 0 3px 8px rgb(0 0 0 / .25); }
@@ -48,4 +45,6 @@
 :host-context([data-font='minecraft-style']) .brand { font-size: 1.28rem; line-height: .9; letter-spacing: .02em; }
 :host-context([data-font='minecraft-style']) .app-menu-trigger { padding: .32rem .48rem; font-size: 1.08rem; line-height: .95; }
 :host-context([data-font='minecraft-style']) .editor-toolbar-row button { font-size: .98rem; line-height: .95; padding-top: .36rem; padding-bottom: .36rem; }
+:host-context([data-theme='craft']) .editor-toolbar-row { border-top: 0; }
+:host-context([data-theme='craft']) .toolbar-group, :host-context([data-theme='craft']) .tool-switch { border-right-color: color-mix(in srgb, var(--accent-contrast) 32%, transparent); }
 @media (max-width: 1100px) { .camera-presets { display: none; } } @media (max-width: 850px) { .editor-body { grid-template-columns: 180px minmax(0, 1fr); } .right-panel { display: none; } } @media (max-width: 560px) { .editor-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(300px, 1fr); } .left-panel { display: none; } }
