@@ -19,3 +19,4 @@
 .layer-controls button, .layer-controls select, .layer-controls input[type='number'] { border: 0; background: var(--surface-raised); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
 .layer-controls button:hover, .layer-controls select:hover, .layer-controls input[type='number']:hover { background: var(--surface-hover); }
 .layer-controls input[type='range'] { accent-color: var(--accent); }
+:host-context([data-theme='craft']) .layer-control-group { border-right-color: var(--control-separator); }

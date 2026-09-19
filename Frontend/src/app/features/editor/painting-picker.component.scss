@@ -17,5 +17,5 @@
 :host-context(.decoration-browser.expanded) .painting-card { grid-template-rows: 5.25rem auto; }
 .painting-card { border: 0; background: var(--surface-muted); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
 .painting-card:hover { border: 0; background: var(--surface-hover); }
-.painting-card.selected { border: 0; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
-.painting-card.selected small { color: color-mix(in srgb, var(--accent-contrast) 78%, transparent); }
+.painting-card.selected { border: 0; background: var(--control-selected); color: var(--control-selected-text); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
+.painting-card.selected small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }

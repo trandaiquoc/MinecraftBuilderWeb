@@ -17,5 +17,5 @@
 .decoration-browser.expanded .decoration-card-preview { width: 3.85rem; height: 3.85rem; }
 .decoration-card { border: 0; background: var(--surface-muted); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
 .decoration-card:hover { border: 0; background: var(--surface-hover); }
-.decoration-card.active { border: 0; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
-.decoration-card.active small { color: color-mix(in srgb, var(--accent-contrast) 78%, transparent); }
+.decoration-card.active { border: 0; background: var(--control-selected); color: var(--control-selected-text); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
+.decoration-card.active small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
