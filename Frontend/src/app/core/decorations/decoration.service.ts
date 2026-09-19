@@ -70,7 +70,14 @@ export class DecorationService {
   select(id: string | undefined): void { this.selectedId.set(id); if (id) this.selection.clear(); }
   clearSelection(): void { this.selectedId.set(undefined); }
 
-  setFrameItem(id: string, item: DecorationItemStack | undefined): boolean { return this.updateSelectedFrame(id, (entry) => item ? { ...entry, item: { ...item, count: 1 } } : removeItem(entry)); }
+  setFrameItem(id: string, item: DecorationItemStack | undefined): boolean {
+    return this.updateSelectedFrame(id, (entry) => {
+      if (!item) return removeItem(entry);
+      // Re-selecting the same imported item must not discard its custom components.
+      if (entry.item?.id === item.id) return { ...entry, item: { ...entry.item, count: 1 } };
+      return { ...entry, item: { id: item.id, count: 1 } };
+    });
+  }
   setFrameRotation(id: string, rotation: number): boolean { const value = clampInteger(rotation, 0, 7); return this.updateSelectedFrame(id, (entry) => ({ ...entry, rotation: value as PlacedDecoration['rotation'] })); }
   setFrameInvisible(id: string, invisible: boolean): boolean { return this.updateSelectedFrame(id, (entry) => ({ ...entry, invisible })); }
   setFrameFixed(id: string, fixed: boolean): boolean { return this.updateSelectedFrame(id, (entry) => ({ ...entry, fixed })); }

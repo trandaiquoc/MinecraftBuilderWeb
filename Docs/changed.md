@@ -1354,3 +1354,8 @@ separate `decorations` collection. They are not voxel blocks and carry a stable
 Placement and deletion are history transactions; old v1/v2 projects migrate to
 an empty decorations collection. Structure-NBT-ready entity mapping preserves
 the distinct painting (`facing`, `variant`) and frame (`Facing`, `Item*`) keys.
+
+Decoration item selection now uses the authoritative Java 1.21.1 item registry
+report, while Painting variants and frame items use compact searchable dropdowns
+that load no thumbnails or models. Item model resources remain visual-only;
+registered items without a model are still selectable and preserved.

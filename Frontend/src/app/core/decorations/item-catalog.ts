@@ -1,25 +1,26 @@
 import { AssetResourceProvider } from '../blocks/resolver/resolver.types';
+import { VanillaItemRegistry } from '../items/vanilla-item-registry';
 
 export interface DecorationItemDefinition { readonly id: string; readonly displayName: string; }
 
-/** Indexes item model paths only; model resolution remains lazy until a frame is rendered. */
+/** Indexes registered item IDs; model resources are visual-only and never determine eligibility. */
 export class ItemCatalog {
   private entries: readonly DecorationItemDefinition[] = [];
-  load(provider: AssetResourceProvider & { paths?: () => readonly string[] }): void {
-    const paths = provider.paths?.() ?? [];
-    this.entries = paths.filter((path) => /^assets\/[^/]+\/models\/item\/[^/]+\.json$/.test(path)).map((path) => {
-      const match = /^assets\/([^/]+)\/models\/item\/(.+)\.json$/.exec(path)!;
-      const id = `${match[1]}:${match[2]}`;
-      const language = provider.readJson(`assets/${match[1]}/lang/en_us.json`);
+  load(provider: AssetResourceProvider, registry: VanillaItemRegistry): void {
+    this.entries = registry.all().filter((entry) => entry.id !== 'minecraft:air').map(({ id }) => {
+      const [namespace, path] = id.split(':', 2);
+      const language = provider.readJson(`assets/${namespace}/lang/en_us.json`);
       const values = language && typeof language === 'object' ? language as Record<string, unknown> : {};
-      const itemKey = `item.${match[1]}.${match[2]}`;
-      const blockKey = `block.${match[1]}.${match[2]}`;
-      const translated = values[itemKey] ?? values[blockKey];
-      return typeof translated === 'string' ? { id, displayName: translated } : undefined;
-    }).filter((entry): entry is DecorationItemDefinition => !!entry).filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index && entry.id !== 'minecraft:air').sort((a, b) => a.displayName.localeCompare(b.displayName));
+      const translated = values[`item.${namespace}.${path.replaceAll('/', '.')}`] ?? values[`block.${namespace}.${path.replaceAll('/', '.')}`];
+      return { id, displayName: typeof translated === 'string' ? translated : humanize(path) };
+    }).sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id));
   }
-  search(query: string): readonly DecorationItemDefinition[] { const value = query.trim().toLowerCase(); return value ? this.entries.filter((entry) => `${entry.displayName} ${entry.id}`.toLowerCase().includes(value)).slice(0, 100) : this.entries.slice(0, 100); }
+  search(query: string): readonly DecorationItemDefinition[] {
+    const value = normalize(query);
+    return (value ? this.entries.filter((entry) => normalize(`${entry.displayName} ${entry.id}`).includes(value)) : this.entries).slice(0, 100);
+  }
   all(): readonly DecorationItemDefinition[] { return this.entries; }
 }
 
-function humanize(value: string): string { return value.split('_').map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(' '); }
+function normalize(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, ' '); }
+function humanize(value: string): string { return value.split('/').at(-1)!.split('_').map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(' '); }

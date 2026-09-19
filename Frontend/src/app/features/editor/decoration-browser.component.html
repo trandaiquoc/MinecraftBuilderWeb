@@ -6,14 +6,7 @@
     <button type="button" [class.active]="decorations.active()?.kind === 'glow-item-frame'" (click)="decorations.selectFrame(true)">{{ i18n.t('glowItemFrame') }}</button>
   </div>
   @if (decorations.active()?.kind === 'painting') {
-  <label class="search-label">{{ i18n.t('paintingVariants') }}<input type="search" [value]="paintingSearch()" (input)="search($event)" [placeholder]="i18n.t('searchPaintings')" /></label>
-  <div class="decoration-list" role="listbox">
-    @for (variant of filteredVariants(); track variant.id) {
-      <button type="button" class="decoration-item" [class.active]="decorations.active()?.variantId === variant.id" (click)="decorations.selectPainting(variant.id)">
-        <strong>{{ variant.id }}</strong><small>{{ variant.width }} × {{ variant.height }}</small>
-      </button>
-    }
-  </div>
+    <label class="search-label">{{ i18n.t('paintingVariants') }}<app-searchable-dropdown [options]="variantOptions" [selectedId]="decorations.active()?.variantId ?? ''" [placeholder]="i18n.t('searchPaintings')" [ariaLabel]="i18n.t('paintingVariants')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" (selectionChange)="decorations.selectPainting($event)" /></label>
   }
   @if (decorations.active(); as active) { <p class="active-decoration">{{ i18n.t('activeDecoration') }}: <strong>{{ active.variantId || (active.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : i18n.t('itemFrame')) }}</strong></p> }
 </section>

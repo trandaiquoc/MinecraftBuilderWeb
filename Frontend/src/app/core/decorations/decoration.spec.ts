@@ -3,6 +3,7 @@ import { decorationAabb, decorationAnchorFromSupport, decorationInBounds, planDe
 import { decorationToNbt, toStructureDecorationEntityInfo } from './decoration-nbt';
 import { PAINTING_VARIANTS, chooseRandomPaintingVariant } from './decoration.types';
 import { ItemCatalog } from './item-catalog';
+import { parseVanillaItemRegistry } from '../items/vanilla-item-registry';
 
 describe('decorations domain', () => {
   it('keeps the verified painting catalog and chooses the largest fitting placeable variant', () => {
@@ -39,14 +40,17 @@ describe('decorations domain', () => {
     expect(decorationAabb(missing.decoration!).max.x - decorationAabb(missing.decoration!).min.x).toBeCloseTo(2);
   });
 
-  it('indexes translated item models without resolving models or entity ids', () => {
+  it('indexes authoritative registered items without resolving models or entity ids', () => {
     const resources: Record<string, unknown> = {
       'assets/minecraft/lang/en_us.json': { 'item.minecraft.diamond': 'Diamond', 'block.minecraft.oak_log': 'Oak Log' },
-      'assets/minecraft/models/item/diamond.json': {}, 'assets/minecraft/models/item/oak_log.json': {}, 'assets/minecraft/models/item/zombie.json': {}, 'assets/minecraft/models/item/air.json': {},
     };
-    const catalog = new ItemCatalog(); catalog.load({ readJson: (path) => resources[path], paths: () => Object.keys(resources) });
+    const registry = parseVanillaItemRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test', items: [
+      { id: 'minecraft:diamond' }, { id: 'minecraft:oak_log' }, { id: 'minecraft:water_bucket' }, { id: 'minecraft:zombie_spawn_egg' }, { id: 'minecraft:air' },
+    ] });
+    const catalog = new ItemCatalog(); catalog.load({ readJson: (path) => resources[path] }, registry);
     expect(catalog.search('diamond').map((entry) => entry.id)).toContain('minecraft:diamond');
     expect(catalog.search('oak log').map((entry) => entry.id)).toContain('minecraft:oak_log');
+    expect(catalog.search('spawn egg').map((entry) => entry.id)).toContain('minecraft:zombie_spawn_egg');
     expect(catalog.all().map((entry) => entry.id)).not.toContain('minecraft:zombie');
     expect(catalog.all().map((entry) => entry.id)).not.toContain('minecraft:air');
   });

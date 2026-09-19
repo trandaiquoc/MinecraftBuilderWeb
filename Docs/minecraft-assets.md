@@ -114,6 +114,14 @@ Do not commit:
 
 MinecraftBuilder should be able to regenerate its local development cache from a locally available Minecraft Java 1.21.1 JAR.
 
+## 5a. Authoritative item registry
+
+Item Frame item eligibility is sourced from the normalized
+`Frontend/public/assets/vanilla-item-registry-1.21.1.json`. This file is generated
+from the Java 1.21.1 data-generator `reports/items.json` by
+`Frontend/tools/generate-vanilla-item-registry.mjs`. Item model JSON files are
+visual-only and are not used to decide whether an ItemStack can be selected.
+
 ## 5. Local extraction/cache strategy
 
 The intended pipeline is:

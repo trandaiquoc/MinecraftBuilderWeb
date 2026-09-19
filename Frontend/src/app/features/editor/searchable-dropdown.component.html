@@ -1,0 +1,27 @@
+<div class="searchable-dropdown" [class.open]="open()">
+  <button type="button" class="dropdown-trigger" role="combobox" [attr.aria-label]="ariaLabel || placeholder" [attr.aria-expanded]="open()" [attr.aria-controls]="listId" (click)="toggle()">
+    <span class="selected-value">
+      @if (selected; as current) {
+        <strong>{{ current.label }}</strong>
+        @if (current.secondary) { <small>{{ current.secondary }}</small> }
+      } @else { <span class="placeholder">{{ emptyLabel || placeholder }}</span> }
+    </span>
+    <span class="caret" aria-hidden="true">▾</span>
+  </button>
+  @if (open()) {
+    <button type="button" class="dropdown-backdrop" [attr.aria-label]="closeLabel || null" (pointerdown)="$event.preventDefault(); $event.stopPropagation(); close()"></button>
+    <div class="dropdown-popover" [id]="listId" role="listbox" (click)="$event.stopPropagation()">
+      <input #searchInput type="search" class="dropdown-search" [value]="query()" [placeholder]="placeholder" [attr.aria-label]="placeholder" (input)="setQuery($event)" (keydown)="onKeydown($event)" />
+      <div class="dropdown-options">
+        @if (emptyLabel) { <button type="button" role="option" class="dropdown-option" [class.selected]="!selectedId" [attr.aria-selected]="!selectedId" (click)="select('')">{{ emptyLabel }}</button> }
+        @for (option of filteredOptions(); track option.id) {
+          <button type="button" role="option" class="dropdown-option" [class.selected]="option.id === selectedId" [class.active-option]="$index === activeIndex()" [attr.aria-selected]="option.id === selectedId" (click)="select(option.id)">
+            <strong>{{ option.label }}</strong>
+            @if (option.secondary) { <small>{{ option.secondary }}</small> }
+          </button>
+        }
+        @if (!filteredOptions().length) { <p class="no-results">{{ noResults }}</p> }
+      </div>
+    </div>
+  }
+</div>
