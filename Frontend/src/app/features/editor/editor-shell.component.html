@@ -36,6 +36,8 @@
           <button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'settings'" (click)="toggleAppMenu('settings', $event)">{{ i18n.t('settingsMenu') }}</button>
         @if (activeMenu() === 'settings') {
           <div class="menu-popover settings-popover" (click)="$event.stopPropagation()">
+            <button type="button" class="open-settings-action" (click)="openSettingsDialog()">{{ i18n.t('openSettings') }}</button>
+            <hr />
             <strong>{{ i18n.t('language') }}</strong
             ><button type="button" [class.active]="i18n.locale() === 'en'" (click)="chooseLanguage('en')">{{ i18n.locale() === 'en' ? '✓ ' : '' }}{{ i18n.t('english') }}</button
             ><button type="button" [class.active]="i18n.locale() === 'vi'" (click)="chooseLanguage('vi')">
@@ -129,10 +131,18 @@
     }
   </header>
   <div
+    #editorBody
     class="editor-body"
+    [style.grid-template-columns]="editorGridTemplate()"
     [class.left-sidebar-hidden]="!layout.preferences().leftSidebarVisible"
     [class.right-sidebar-hidden]="!layout.preferences().rightSidebarVisible"
   >
+    @if (layout.preferences().leftSidebarVisible) {
+      <div class="sidebar-resize-handle left-resize-handle" role="separator" tabindex="0" aria-orientation="vertical" [style.left.px]="effectiveSidebarWidth('left')" (pointerdown)="beginSidebarResize('left', $event)" (lostpointercapture)="endSidebarResize()" (keydown)="adjustSidebarWithKeyboard('left', $event)"></div>
+    }
+    @if (layout.preferences().rightSidebarVisible) {
+      <div class="sidebar-resize-handle right-resize-handle" role="separator" tabindex="0" aria-orientation="vertical" [style.right.px]="effectiveSidebarWidth('right')" (pointerdown)="beginSidebarResize('right', $event)" (lostpointercapture)="endSidebarResize()" (keydown)="adjustSidebarWithKeyboard('right', $event)"></div>
+    }
     @if (layout.preferences().leftSidebarVisible) {
       <aside class="panel left-panel">
         <div class="sidebar-tabs" role="tablist">
@@ -505,5 +515,8 @@
         <span>{{ i18n.t('target') }}: {{ target.x }}, {{ target.y }}, {{ target.z }}</span>
       }
     </footer>
+  }
+  @if (settingsDialogOpen()) {
+    <app-settings-dialog (closed)="closeSettingsDialog()"></app-settings-dialog>
   }
 </div>

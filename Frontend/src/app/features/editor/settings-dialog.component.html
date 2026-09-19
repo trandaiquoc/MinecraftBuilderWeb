@@ -1,0 +1,66 @@
+<div class="settings-backdrop" role="presentation" (click)="onBackdropClick($event)">
+  <section class="settings-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('settingsDialogTitle')" tabindex="-1">
+    <header class="settings-dialog-header">
+      <h2>{{ i18n.t('settingsDialogTitle') }}</h2>
+      <button type="button" class="settings-close" [attr.aria-label]="i18n.t('cancel')" (click)="requestClose()">×</button>
+    </header>
+    <div class="settings-dialog-body">
+      <nav class="settings-nav" aria-label="Settings sections">
+        @for (item of sections; track item) {
+          <button type="button" [class.active]="section() === item" [attr.aria-current]="section() === item ? 'page' : null" [attr.title]="item !== 'general' && item !== 'appearance' ? i18n.t('unavailableSettings') : null" [disabled]="item !== 'general' && item !== 'appearance'" (click)="setSection(item)">
+            {{ sectionLabel(item) }}
+          </button>
+        }
+        <small class="settings-nav-note">{{ i18n.t('unavailableSettings') }}</small>
+      </nav>
+      <div class="settings-content">
+        @if (section() === 'general') {
+          <section>
+            <h3>{{ i18n.t('generalSettings') }}</h3>
+            <label>{{ i18n.t('language') }}
+              <select [value]="draft().locale" (change)="setLocale($any($event.target).value)">
+                <option value="en">{{ i18n.t('english') }}</option>
+                <option value="vi">{{ i18n.t('vietnamese') }}</option>
+              </select>
+            </label>
+          </section>
+        } @else if (section() === 'appearance') {
+          <section>
+            <h3>{{ i18n.t('appearanceSettings') }}</h3>
+            <label>{{ i18n.t('theme') }}
+              <select [value]="draft().appearance.preset" (change)="setPreset($any($event.target).value)">
+                <option value="dark">{{ i18n.t('dark') }}</option>
+                <option value="light">{{ i18n.t('light') }}</option>
+                <option value="craft">{{ i18n.t('craft') }}</option>
+              </select>
+            </label>
+            <label>{{ i18n.t('font') }}
+              <select [value]="draft().appearance.font" (change)="setFont($any($event.target).value)">
+                <option value="geist">{{ i18n.t('geist') }}</option>
+                <option value="minecraft-style">{{ i18n.t('minecraftStyle') }}</option>
+              </select>
+            </label>
+            <label>{{ i18n.t('editorBackground') }}
+              <select [value]="draft().appearance.editorBackground" (change)="setEditorBackground($any($event.target).value)">
+                <option value="dark">{{ i18n.t('editorBackgroundDark') }}</option>
+                <option value="light">{{ i18n.t('editorBackgroundLight') }}</option>
+              </select>
+            </label>
+          </section>
+        } @else {
+          <section class="settings-unavailable">
+            <h3>{{ sectionLabel(section()) }}</h3>
+            <p>{{ i18n.t('unavailableSettings') }}</p>
+          </section>
+        }
+      </div>
+    </div>
+    <footer class="settings-dialog-footer">
+      <button type="button" class="secondary" (click)="restoreDefaults()">{{ i18n.t('restoreDefaults') }}</button>
+      <span class="settings-footer-spacer"></span>
+      <button type="button" class="secondary" (click)="requestClose()">{{ i18n.t('cancel') }}</button>
+      <button type="button" class="secondary" (click)="apply()">{{ i18n.t('apply') }}</button>
+      <button type="button" class="primary" (click)="saveAndClose()">{{ i18n.t('saveAndClose') }}</button>
+    </footer>
+  </section>
+</div>

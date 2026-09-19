@@ -28,6 +28,8 @@ export interface UiPreferences {
     readonly rightSidebarVisible: boolean;
     readonly quickBarVisible: boolean;
     readonly statusBarVisible: boolean;
+    readonly leftSidebarWidth: number;
+    readonly rightSidebarWidth: number;
     readonly groupMovePanelX?: number;
     readonly groupMovePanelY?: number;
   };
@@ -40,7 +42,7 @@ const defaults: UiPreferences = {
   locale: 'en',
   appearance: { preset: 'dark', base: 'dark', font: 'geist', editorBackground: 'dark' },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
-  layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true },
+  layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 220, rightSidebarWidth: 260 },
 };
 
 @Injectable({ providedIn: 'root' })
@@ -66,6 +68,8 @@ export class UiPreferencesService {
   }
 
   reset(): void { this.commit(defaults); }
+
+  defaultPreferences(): UiPreferences { return clonePreferences(defaults); }
 
   private commit(value: UiPreferences): void {
     this.preferences.set(value);
@@ -109,7 +113,12 @@ function normalize(value: unknown): UiPreferences {
       verticalMoveSpeed: numberInRange((controls as Partial<UiPreferences['controls']>).verticalMoveSpeed, 1, 30, defaults.controls.verticalMoveSpeed),
       clickDragThreshold: numberInRange((controls as Partial<UiPreferences['controls']>).clickDragThreshold, 1, 20, defaults.controls.clickDragThreshold),
     },
-    layout: { ...defaults.layout, ...layout },
+    layout: {
+      ...defaults.layout,
+      ...layout,
+      leftSidebarWidth: numberInRange((layout as Partial<UiPreferences['layout']>).leftSidebarWidth, 180, 520, defaults.layout.leftSidebarWidth),
+      rightSidebarWidth: numberInRange((layout as Partial<UiPreferences['layout']>).rightSidebarWidth, 200, 520, defaults.layout.rightSidebarWidth),
+    },
     version: 1,
   };
 }
@@ -132,7 +141,13 @@ function normalizeLayout(value: unknown): UiPreferences['layout'] {
     rightSidebarVisible: typeof candidate.rightSidebarVisible === 'boolean' ? candidate.rightSidebarVisible : defaults.layout.rightSidebarVisible,
     quickBarVisible: typeof candidate.quickBarVisible === 'boolean' ? candidate.quickBarVisible : defaults.layout.quickBarVisible,
     statusBarVisible: typeof candidate.statusBarVisible === 'boolean' ? candidate.statusBarVisible : defaults.layout.statusBarVisible,
+    leftSidebarWidth: numberInRange(candidate.leftSidebarWidth, 180, 520, defaults.layout.leftSidebarWidth),
+    rightSidebarWidth: numberInRange(candidate.rightSidebarWidth, 200, 520, defaults.layout.rightSidebarWidth),
     ...(typeof candidate.groupMovePanelX === 'number' && Number.isFinite(candidate.groupMovePanelX) ? { groupMovePanelX: candidate.groupMovePanelX } : {}),
     ...(typeof candidate.groupMovePanelY === 'number' && Number.isFinite(candidate.groupMovePanelY) ? { groupMovePanelY: candidate.groupMovePanelY } : {}),
   };
+}
+
+function clonePreferences(value: UiPreferences): UiPreferences {
+  return { ...value, appearance: { ...value.appearance }, controls: { ...value.controls }, layout: { ...value.layout } };
 }

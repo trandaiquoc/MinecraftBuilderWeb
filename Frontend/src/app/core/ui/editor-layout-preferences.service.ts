@@ -1,8 +1,8 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { UiPreferencesService } from './ui-preferences.service';
 
-export interface EditorLayoutPreferences { editorToolbarVisible: boolean; leftSidebarVisible: boolean; rightSidebarVisible: boolean; quickBarVisible: boolean; statusBarVisible: boolean; groupMovePanelX?: number; groupMovePanelY?: number; }
-const defaults: EditorLayoutPreferences = { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true };
+export interface EditorLayoutPreferences { editorToolbarVisible: boolean; leftSidebarVisible: boolean; rightSidebarVisible: boolean; quickBarVisible: boolean; statusBarVisible: boolean; leftSidebarWidth: number; rightSidebarWidth: number; groupMovePanelX?: number; groupMovePanelY?: number; }
+const defaults: EditorLayoutPreferences = { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 220, rightSidebarWidth: 260 };
 
 @Injectable({ providedIn: 'root' })
 export class EditorLayoutPreferencesService {
@@ -13,6 +13,9 @@ export class EditorLayoutPreferencesService {
   }
   setGroupMovePanelPosition(x: number, y: number): void {
     this.uiPreferences.setLayout({ groupMovePanelX: x, groupMovePanelY: y });
+  }
+  setSidebarWidth(side: 'left' | 'right', width: number): void {
+    this.uiPreferences.setLayout(side === 'left' ? { leftSidebarWidth: width } : { rightSidebarWidth: width });
   }
   reset(): void { this.uiPreferences.setLayout(defaults); }
 }

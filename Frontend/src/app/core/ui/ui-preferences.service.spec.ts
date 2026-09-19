@@ -20,6 +20,14 @@ describe('UiPreferencesService', () => {
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')).toMatchObject({ locale: 'vi', appearance: { preset: 'craft', editorBackground: 'light' } });
   });
 
+  it('persists resizable sidebar widths and clamps invalid stored values', () => {
+    const preferences = new UiPreferencesService();
+    preferences.setLayout({ leftSidebarWidth: 340, rightSidebarWidth: 300 });
+    expect(preferences.preferences().layout).toMatchObject({ leftSidebarWidth: 340, rightSidebarWidth: 300 });
+    localStorage.setItem(key, JSON.stringify({ layout: { leftSidebarWidth: 20, rightSidebarWidth: 900 } }));
+    expect(new UiPreferencesService().preferences().layout).toMatchObject({ leftSidebarWidth: 180, rightSidebarWidth: 520 });
+  });
+
   it('migrates the legacy layout key', () => {
     localStorage.setItem(legacyKey, JSON.stringify({ leftSidebarVisible: false }));
     const preferences = new UiPreferencesService();
