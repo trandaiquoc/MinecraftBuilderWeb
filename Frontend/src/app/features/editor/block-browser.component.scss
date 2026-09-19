@@ -25,3 +25,13 @@
 .active-support { display: flex; gap: .35rem; }
 .active-support span { font-size: .63rem; text-transform: uppercase; }
 .block-item.active .block-copy small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
+.block-copy small, .active-block small { font-family: var(--font-mono); }
+
+:host-context([data-font='minecraft-style']) .browser-heading button,
+:host-context([data-font='minecraft-style']) .asset-import,
+:host-context([data-font='minecraft-style']) .search-label,
+:host-context([data-font='minecraft-style']) .block-copy strong,
+:host-context([data-font='minecraft-style']) .active-block > span,
+:host-context([data-font='minecraft-style']) .active-block button { font-size: .84rem; line-height: 1.05; font-weight: 400; }
+:host-context([data-font='minecraft-style']) .block-copy small,
+:host-context([data-font='minecraft-style']) .active-block small { font-size: .72rem; line-height: 1.1; }

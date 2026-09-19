@@ -13,6 +13,11 @@
 .viewport-status { position: absolute; top: .75rem; left: .75rem; z-index: 1; padding: .35rem .55rem; border: 1px solid var(--border); border-radius: 4px; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text-muted); font-size: .72rem; pointer-events: none; }
 .viewport-status span { margin-left: .5rem; color: var(--text); }
 .viewport-status[data-status='valid'] { color: var(--status-valid); }
+
+:host-context([data-font='minecraft-style']) .layer-controls button,
+:host-context([data-font='minecraft-style']) .layer-controls select,
+:host-context([data-font='minecraft-style']) .layer-controls label { font-size: .84rem; line-height: 1.05; }
+:host-context([data-font='minecraft-style']) .viewport-status { font-size: .8rem; line-height: 1.1; }
 .viewport-status[data-status='warning'] { color: var(--status-warning); }
 .viewport-status[data-status='unknown'] { color: var(--status-unknown); }
 .viewport-status[data-status='invalid'] { color: var(--status-invalid); }

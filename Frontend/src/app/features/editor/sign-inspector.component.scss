@@ -19,4 +19,13 @@
 .disclosure summary { cursor: pointer; color: var(--text); font-size: .75rem; }
 .state-fields { display: grid; gap: .4rem; margin-top: .55rem; min-width: 0; }
 .state-fields button { justify-self: start; padding: .3rem .5rem; cursor: pointer; }
+
+:host-context([data-font='minecraft-style']) .sign-inspector h3,
+:host-context([data-font='minecraft-style']) .sign-section h4,
+:host-context([data-font='minecraft-style']) .sign-tabs button,
+:host-context([data-font='minecraft-style']) .sign-control select,
+:host-context([data-font='minecraft-style']) .state-fields button { font-size: .84rem; line-height: 1.05; font-weight: 400; }
+:host-context([data-font='minecraft-style']) .helper-text,
+:host-context([data-font='minecraft-style']) .sign-control span,
+:host-context([data-font='minecraft-style']) .check-control { font-size: .74rem; line-height: 1.15; }
 .check-control input, .check input { accent-color: var(--accent); }
