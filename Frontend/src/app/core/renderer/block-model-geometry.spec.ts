@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../blocks/resolver';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';
-import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, tintColorForFace } from './block-model-geometry';
+import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from './three-viewport-engine';
 import { viewportThemePalette } from './viewport-theme';
 
@@ -10,6 +10,11 @@ const face: ResolvedFace = { texture: 'minecraft:block/stone', uv: [16, 13, 0, 1
 
 describe('block model geometry', () => {
   beforeEach(() => { Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:stone') }); });
+  it('corrects only entity-head preview orientation while leaving generic previews unchanged', () => {
+    const head = new THREE.Group(); head.userData['specialVisualFamily'] = 'heads-skulls';
+    expect(thumbnailPreviewRotationY(head)).toBe(Math.PI);
+    expect(thumbnailPreviewRotationY(new THREE.Group())).toBe(0);
+  });
   it('applies grass tint only to tintindexed vanilla grass faces', () => {
     const grass = 0x79c05a;
     expect(tintColorForFace('minecraft:grass_block', 0, grass)).toBe(grass);

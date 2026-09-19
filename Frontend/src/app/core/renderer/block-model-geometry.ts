@@ -30,6 +30,15 @@ export interface BlockVisualResult {
 }
 export interface BlockVisualWorldContext extends FluidWorldLookup {}
 
+/**
+ * Offscreen palette previews use a fixed camera. Entity-style skull models
+ * expose their vanilla front on the opposite Z-facing side from that camera;
+ * this correction is preview-only and never enters world placement.
+ */
+export function thumbnailPreviewRotationY(object: THREE.Object3D): number {
+  return object.userData['specialVisualFamily'] === 'heads-skulls' ? Math.PI : 0;
+}
+
 export interface BlockVisualProvider {
   create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult>;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
@@ -156,6 +165,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const visuals = (await Promise.all(blocks.map(async (block) => ({ block, visual: await this.create(block) })))).map(({ block, visual }) => {
       if (!visual.object) return undefined;
       visual.object.position.set(visual.object.position.x + block.position.x, visual.object.position.y + block.position.y, visual.object.position.z + block.position.z);
+      visual.object.rotation.y += thumbnailPreviewRotationY(visual.object);
       return visual.object;
     }).filter((object): object is THREE.Group => !!object);
     if (!visuals.length) return undefined;
