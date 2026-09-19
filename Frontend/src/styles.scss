@@ -24,7 +24,7 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .right-panel,
 :root[data-theme='craft'] .status-bar { background: var(--surface); border-color: transparent; box-shadow: 0 2px 0 rgb(0 0 0 / .18); }
 :root[data-theme='craft'] .editor-toolbar-row { background: var(--surface); border-color: transparent; box-shadow: 0 3px 10px rgb(0 0 0 / .18); }
-:root[data-theme='craft'] .editor-shell button:not(.dropdown-backdrop):not(.group-search-clear):not([type='checkbox']):not([type='range']),
+:root[data-theme='craft'] .editor-shell button:not(.dropdown-backdrop):not(.app-menu-trigger):not(.group-search-clear):not([type='checkbox']):not([type='range']),
 :root[data-theme='craft'] .project-page button:not([type='checkbox']):not([type='range']),
 :root[data-theme='craft'] .editor-shell input:not([type='checkbox']):not([type='range']):not([type='file']),
 :root[data-theme='craft'] .editor-shell select,
@@ -32,7 +32,7 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .project-page input:not([type='checkbox']):not([type='range']),
 :root[data-theme='craft'] .project-page select,
 :root[data-theme='craft'] .project-page textarea { border-color: transparent; border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text); box-shadow: 0 2px 0 rgb(0 0 0 / .25); }
-:root[data-theme='craft'] .editor-shell button:not(.dropdown-backdrop):not(.group-search-clear):not([type='checkbox']):not([type='range']):hover:not(:disabled),
+:root[data-theme='craft'] .editor-shell button:not(.dropdown-backdrop):not(.app-menu-trigger):not(.group-search-clear):not([type='checkbox']):not([type='range']):hover:not(:disabled),
 :root[data-theme='craft'] .project-page button:hover:not(:disabled),
 :root[data-theme='craft'] .editor-shell input:not([type='checkbox']):not([type='range']):not([type='file']):hover,
 :root[data-theme='craft'] .editor-shell select:hover,
@@ -40,7 +40,7 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .project-page input:hover,
 :root[data-theme='craft'] .project-page select:hover,
 :root[data-theme='craft'] .project-page textarea:hover { background: var(--surface-hover); box-shadow: 0 3px 8px rgb(0 0 0 / .28); }
-:root[data-theme='craft'] .editor-shell button:not(.dropdown-backdrop):not(.group-search-clear):not([type='checkbox']):not([type='range']):active:not(:disabled),
+:root[data-theme='craft'] .editor-shell button:not(.dropdown-backdrop):not(.app-menu-trigger):not(.group-search-clear):not([type='checkbox']):not([type='range']):active:not(:disabled),
 :root[data-theme='craft'] .project-page button:active:not(:disabled) { box-shadow: 0 1px 2px rgb(0 0 0 / .3); }
 :root[data-theme='craft'] .app-menus button,
 :root[data-theme='craft'] .sidebar-tabs button { background: transparent; box-shadow: none; }
@@ -77,7 +77,3 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .editor-toolbar-row { background: var(--accent); color: #f4f8ef; box-shadow: 0 4px 12px rgb(0 0 0 / .35); }
 :root[data-theme='craft'] .shell-header .brand,
 :root[data-theme='craft'] .app-menus button { color: #f4f8ef; }
-:root[data-theme='craft'] .editor-toolbar-row > button,
-:root[data-theme='craft'] .editor-toolbar-row button { background: rgb(19 31 18 / .86); color: #f4f8ef; border-color: transparent; box-shadow: 0 3px 0 rgb(0 0 0 / .25); }
-:root[data-theme='craft'] .editor-toolbar-row button:hover:not(:disabled) { background: #263b24; }
-:root[data-theme='craft'] .editor-toolbar-row button.active { background: #f0f5e9; color: #183013; }
