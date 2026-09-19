@@ -9,3 +9,58 @@ html, body { min-height: 100%; margin: 0; background: var(--app-bg); }
 body { color: var(--text); font-family: var(--font-readable); }
 button, input, select, textarea { font-family: var(--font-ui); }
 h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
+
+/* Craft is a charcoal editor with grass-green interaction accents. */
+:root[data-theme='craft'] body {
+  background-color: var(--app-bg);
+  background-image: linear-gradient(rgb(255 255 255 / .018) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .018) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+:root[data-theme='craft'] .editor-shell,
+:root[data-theme='craft'] .project-screen { background: var(--app-bg); }
+:root[data-theme='craft'] .shell-header,
+:root[data-theme='craft'] .panel,
+:root[data-theme='craft'] .left-panel,
+:root[data-theme='craft'] .right-panel,
+:root[data-theme='craft'] .status-bar { background: var(--surface); border-color: transparent; box-shadow: 0 2px 0 rgb(0 0 0 / .18); }
+:root[data-theme='craft'] .editor-toolbar-row { background: var(--surface); border-color: transparent; box-shadow: 0 3px 10px rgb(0 0 0 / .18); }
+:root[data-theme='craft'] button,
+:root[data-theme='craft'] input,
+:root[data-theme='craft'] select,
+:root[data-theme='craft'] textarea { border-color: transparent; border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--text); box-shadow: 0 2px 0 rgb(0 0 0 / .25); }
+:root[data-theme='craft'] button:hover:not(:disabled),
+:root[data-theme='craft'] input:hover,
+:root[data-theme='craft'] select:hover,
+:root[data-theme='craft'] textarea:hover { background: var(--surface-hover); box-shadow: 0 3px 8px rgb(0 0 0 / .28); }
+:root[data-theme='craft'] button:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 2px rgb(0 0 0 / .3); }
+:root[data-theme='craft'] .app-menus button,
+:root[data-theme='craft'] .sidebar-tabs button { background: transparent; box-shadow: none; }
+:root[data-theme='craft'] .app-menus button:hover,
+:root[data-theme='craft'] .app-menus button.active,
+:root[data-theme='craft'] .sidebar-tabs button.active,
+:root[data-theme='craft'] .toolbar-group button.active,
+:root[data-theme='craft'] .tool-switch button.active { background: var(--accent); color: #f4f8ef; border-color: transparent; box-shadow: 0 3px 8px rgb(0 0 0 / .35); }
+:root[data-theme='craft'] .sidebar-tabs { border-color: transparent; }
+:root[data-theme='craft'] .menu-popover,
+:root[data-theme='craft'] .camera-popover,
+:root[data-theme='craft'] .dropdown-popover { border-color: transparent; background: var(--surface-raised); box-shadow: 0 12px 28px rgb(0 0 0 / .45); }
+:root[data-theme='craft'] .menu-popover button.active,
+:root[data-theme='craft'] .menu-popover button:hover,
+:root[data-theme='craft'] .dropdown-option.selected,
+:root[data-theme='craft'] .dropdown-option.active-option { background: var(--accent); color: #f4f8ef; }
+:root[data-theme='craft'] .block-card.active,
+:root[data-theme='craft'] .decoration-card.active,
+:root[data-theme='craft'] .painting-card.selected,
+:root[data-theme='craft'] .group-row.active,
+:root[data-theme='craft'] .slot.active { border-color: transparent; background: var(--accent); color: #f4f8ef; box-shadow: 0 4px 10px rgb(0 0 0 / .35); }
+:root[data-theme='craft'] .active-block,
+:root[data-theme='craft'] .group-move-toolbar,
+:root[data-theme='craft'] .quick-block-bar { background: var(--surface-raised); border-color: transparent; box-shadow: 0 4px 14px rgb(0 0 0 / .3); }
+:root[data-theme='craft'] button.danger { background: #7e2929; color: #fff5f2; }
+:root[data-theme='craft'] button.danger:hover:not(:disabled) { background: #a33636; }
+:root[data-theme='craft'] .status-valid { color: var(--status-valid); }
+:root[data-theme='craft'] .status-warning { color: var(--status-warning); }
+:root[data-theme='craft'] .status-invalid { color: var(--status-invalid); }
+:root[data-theme='craft'] .status-unknown { color: var(--status-unknown); }
+:root[data-theme='craft'] .helper-text,
+:root[data-theme='craft'] .validation-feedback { font-family: var(--font-readable); }
