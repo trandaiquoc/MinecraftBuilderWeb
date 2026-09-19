@@ -15,3 +15,7 @@
 .decoration-card-copy small { color: var(--text-muted); font-size: .66rem; }
 .decoration-browser.expanded .decoration-card { grid-template-columns: 4rem minmax(0, 1fr); min-height: 4.15rem; }
 .decoration-browser.expanded .decoration-card-preview { width: 3.85rem; height: 3.85rem; }
+.decoration-card { border: 0; background: var(--surface-muted); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.decoration-card:hover { border: 0; background: var(--surface-hover); }
+.decoration-card.active { border: 0; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
+.decoration-card.active small { color: color-mix(in srgb, var(--accent-contrast) 78%, transparent); }

@@ -18,7 +18,7 @@ export class ThemeService {
   readonly font = computed<UiFont>(() => this.preferences.preferences().appearance.font);
 
   constructor() {
-    effect(() => this.apply(this.preset(), this.effectiveBase(), this.font()));
+    effect(() => this.apply(this.preset(), this.effectiveBase(), this.font(), this.editorBackground()));
   }
 
   toggle(): void {
@@ -39,11 +39,12 @@ export class ThemeService {
 
   setEditorBackground(background: 'dark' | 'light'): void { this.preferences.setAppearance({ editorBackground: background }); }
 
-  private apply(preset: ThemePreset, base: 'dark' | 'light', font: UiFont): void {
+  private apply(preset: ThemePreset, base: 'dark' | 'light', font: UiFont, editorBackground: 'dark' | 'light'): void {
     this.document.documentElement.dataset['theme'] = preset === 'custom' ? base : preset;
     this.document.documentElement.dataset['font'] = font;
     this.document.documentElement.style.setProperty('--font-ui', font === 'minecraft-style' ? "'VT323', 'Geist Variable'" : "'Geist Variable'");
     this.document.documentElement.style.setProperty('--font-readable', "'Geist Variable'");
     this.document.documentElement.style.setProperty('--font-mono', 'ui-monospace, SFMono-Regular, Consolas, monospace');
+    this.document.documentElement.style.setProperty('--editor-viewport-bg', editorBackground === 'light' ? '#e3e8ee' : '#0c1015');
   }
 }

@@ -12,4 +12,10 @@
 .painting-card-meta small { flex: 0 0 auto; color: var(--text-muted); font-size: .62rem; }
 .change-painting { width: 100%; min-height: 1.9rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); color: inherit; cursor: pointer; }
 .picker-panel { display: grid; gap: .4rem; padding-top: .35rem; }
+.change-painting { border: 0; background: var(--surface-raised); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.change-painting:hover { background: var(--surface-hover); }
 :host-context(.decoration-browser.expanded) .painting-card { grid-template-rows: 5.25rem auto; }
+.painting-card { border: 0; background: var(--surface-muted); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.painting-card:hover { border: 0; background: var(--surface-hover); }
+.painting-card.selected { border: 0; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
+.painting-card.selected small { color: color-mix(in srgb, var(--accent-contrast) 78%, transparent); }

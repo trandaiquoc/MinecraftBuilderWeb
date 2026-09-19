@@ -4,13 +4,14 @@
 h1 { margin: .5rem 0 1rem; font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.05; }
 .project-intro p:last-child { color: var(--text-muted); font-size: 1.05rem; }
 .project-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; }
-.project-form, .recent-projects { border: 1px solid var(--border); background: var(--surface); padding: 1.25rem; border-radius: 8px; }
+.project-form, .recent-projects { border: 0; background: var(--surface); padding: 1.25rem; border-radius: var(--radius-lg); box-shadow: 0 8px 24px rgb(0 0 0 / .14); }
 h2 { margin: 0 0 1.25rem; font-size: 1.1rem; }
 label { display: grid; gap: .4rem; color: var(--text-muted); font-size: .85rem; }
 input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 5px; padding: .7rem; background: var(--surface-raised); color: var(--text); font: inherit; }
 .size-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin: 1rem 0 1.25rem; }
 button { border: 0; border-radius: 5px; padding: .7rem 1rem; background: var(--accent); color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
-.project-row { width: 100%; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .75rem; margin-bottom: .5rem; text-align: left; background: var(--surface-raised); color: var(--text); }
+.project-row { width: 100%; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .75rem; margin-bottom: .5rem; text-align: left; background: var(--surface-raised); color: var(--text); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.project-row:hover { background: var(--surface-hover); }
 .project-row strong { color: var(--accent); font-size: .8rem; }
 .project-row small, .muted { color: var(--text-muted); }
 .error { color: var(--danger); font-size: .85rem; }

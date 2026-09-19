@@ -24,3 +24,7 @@
 .active-block small { overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
 .active-support { display: flex; gap: .35rem; }
 .active-support span { font-size: .63rem; text-transform: uppercase; }
+.block-item { border: 0; background: var(--surface-muted); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.block-item:hover, .block-item:focus-visible { background: var(--surface-hover); border-color: transparent; }
+.block-item.active { border: 0; background: var(--accent); color: var(--accent-contrast); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
+.block-item.active .block-copy small { color: color-mix(in srgb, var(--accent-contrast) 78%, transparent); }

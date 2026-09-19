@@ -28,3 +28,8 @@
 .percent-input input { width: 4.2rem; box-sizing: border-box; }
 .danger { justify-self: start; border: 1px solid color-mix(in srgb, var(--danger) 65%, var(--border)); color: var(--danger); background: transparent; }
 .danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.decoration-inspector .stepper button,
+.decoration-inspector .change-painting { border: 0; background: var(--surface-raised); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.decoration-inspector .stepper button:hover,
+.decoration-inspector .change-painting:hover { background: var(--surface-hover); }
+.decoration-inspector .danger { border: 0; background: color-mix(in srgb, var(--danger) 14%, var(--surface-raised)); color: var(--danger); }
