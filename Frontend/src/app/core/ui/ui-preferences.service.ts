@@ -40,7 +40,7 @@ const LEGACY_LAYOUT_KEY = 'minecraft-builder.editor-layout';
 const defaults: UiPreferences = {
   version: 1,
   locale: 'en',
-  appearance: { preset: 'dark', base: 'dark', font: 'geist', editorBackground: 'dark' },
+  appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', editorBackground: 'dark' },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 220, rightSidebarWidth: 260 },
 };

@@ -36,8 +36,9 @@
 .check { display: flex !important; align-items: center; gap: .35rem; color: var(--text); }
 .percent-input { display: flex; align-items: center; gap: .25rem; color: var(--text); }
 .percent-input input { width: 4.2rem; box-sizing: border-box; }
-.danger { justify-self: start; border: 1px solid color-mix(in srgb, var(--danger) 65%, var(--border)); color: var(--danger); background: transparent; }
-.danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.danger { justify-self: start; border: 0; border-radius: 4px; padding: .45rem .7rem; color: #fff; background: var(--danger); box-shadow: 0 2px 0 rgb(0 0 0 / .2); cursor: pointer; }
+.danger:hover { background: color-mix(in srgb, var(--danger) 82%, #000); }
+.danger:active { transform: translateY(1px); box-shadow: 0 1px 0 rgb(0 0 0 / .2); }
 .decoration-inspector .stepper button,
 .decoration-inspector .change-painting { border: 0; background: var(--surface-raised); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
 .decoration-inspector .stepper button:hover,

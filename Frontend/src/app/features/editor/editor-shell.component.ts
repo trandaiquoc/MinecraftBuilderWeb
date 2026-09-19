@@ -70,7 +70,6 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly selectedBlockIsSign = computed(() => { const block = this.selectedBlock(); return !!block && isSignId(block.id); });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
   protected readonly logicalSelectionCount = computed(() => this.selection.logicalPositions().length);
-  protected readonly blockBrowserExpanded = signal(false);
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
   protected readonly filteredGroups = computed(() => {
     const project = this.workspace.project();
@@ -160,7 +159,6 @@ export class EditorShellComponent implements OnDestroy {
   protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void { this.theme.setPreset(theme); this.closeMenus(); }
   protected chooseFont(font: 'geist' | 'minecraft-style'): void { this.theme.setFont(font); this.closeMenus(); }
   protected chooseEditorBackground(background: 'dark' | 'light'): void { this.theme.setEditorBackground(background); this.closeMenus(); }
-  protected setBlockBrowserExpanded(expanded: boolean): void { this.blockBrowserExpanded.set(expanded); }
   protected effectiveSidebarWidth(side: 'left' | 'right'): number { return side === 'left' ? this.leftDragWidth() ?? this.layout.preferences().leftSidebarWidth : this.rightDragWidth() ?? this.layout.preferences().rightSidebarWidth; }
   protected beginSidebarResize(side: 'left' | 'right', event: PointerEvent): void {
     if (event.button !== 0) return;

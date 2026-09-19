@@ -39,8 +39,8 @@ describe('UiPreferencesService', () => {
     localStorage.setItem(key, JSON.stringify({ locale: 'fr', appearance: { preset: 'neon', font: 'comic' }, controls: { orbitSensitivity: 99, clickDragThreshold: -2 } }));
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');
-    expect(preferences.preferences().appearance.preset).toBe('dark');
-    expect(preferences.preferences().appearance.font).toBe('geist');
+    expect(preferences.preferences().appearance.preset).toBe('craft');
+    expect(preferences.preferences().appearance.font).toBe('minecraft-style');
     expect(preferences.preferences().controls.orbitSensitivity).toBe(3);
     expect(preferences.preferences().controls.clickDragThreshold).toBe(1);
   });

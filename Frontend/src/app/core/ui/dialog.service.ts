@@ -16,7 +16,18 @@ export class DialogService {
 
   private async fire(options: SweetAlertOptions): Promise<Awaited<ReturnType<(typeof import('sweetalert2'))['default']['fire']>>> {
     const module = await import('sweetalert2');
-    return module.default.fire(options);
+    const craft = this.theme.preset() === 'craft';
+    return module.default.fire({
+      ...options,
+      buttonsStyling: false,
+      customClass: {
+        popup: `minecraft-dialog-popup${craft ? ' minecraft-dialog-craft' : ''}${this.theme.font() === 'minecraft-style' ? ' minecraft-dialog-pixel' : ''}`,
+        title: 'minecraft-dialog-title',
+        htmlContainer: 'minecraft-dialog-body',
+        confirmButton: `minecraft-dialog-confirm${options.icon === 'error' ? ' minecraft-dialog-danger' : ''}`,
+        cancelButton: 'minecraft-dialog-cancel',
+      },
+    });
   }
 
   async confirm(options: DialogConfirmOptions): Promise<boolean> {

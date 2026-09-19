@@ -10,6 +10,17 @@ body { color: var(--text); font-family: var(--font-readable); }
 button, input, select, textarea { font-family: var(--font-ui); }
 h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 
+.minecraft-dialog-popup { border: 0 !important; border-radius: var(--radius-md) !important; background: var(--surface-raised) !important; color: var(--text) !important; box-shadow: var(--shadow-dialog) !important; font-family: var(--font-readable) !important; }
+.minecraft-dialog-title { color: var(--text) !important; font-family: var(--font-ui) !important; }
+.minecraft-dialog-body { color: var(--text-muted) !important; }
+.minecraft-dialog-confirm, .minecraft-dialog-cancel { border: 0 !important; border-radius: var(--radius-sm) !important; padding: .55rem .85rem !important; font: inherit !important; cursor: pointer !important; }
+.minecraft-dialog-confirm { background: var(--accent) !important; color: var(--accent-contrast) !important; }
+.minecraft-dialog-cancel { background: var(--control-normal) !important; color: var(--text) !important; }
+.minecraft-dialog-danger { background: var(--danger) !important; color: #fff !important; }
+.minecraft-dialog-craft { background: var(--surface-raised) !important; }
+.minecraft-dialog-craft .minecraft-dialog-confirm { background: var(--accent) !important; color: #f4f8ef !important; }
+.minecraft-dialog-pixel .minecraft-dialog-title, .minecraft-dialog-pixel .minecraft-dialog-confirm, .minecraft-dialog-pixel .minecraft-dialog-cancel { font-family: var(--font-ui) !important; }
+
 /* Craft is a charcoal editor with grass-green interaction accents. */
 :root[data-theme='craft'] body {
   background-color: var(--app-bg);

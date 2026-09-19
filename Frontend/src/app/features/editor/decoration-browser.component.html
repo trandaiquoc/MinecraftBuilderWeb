@@ -1,7 +1,6 @@
-<section class="decoration-browser" [class.expanded]="expanded()">
+<section class="decoration-browser">
   <header class="decoration-browser-header">
     <h3>{{ i18n.t('decorationsPanel') }}</h3>
-    <button type="button" class="expand-control" [attr.aria-label]="i18n.t(expanded() ? 'collapseDecorations' : 'expandDecorations')" [attr.title]="i18n.t(expanded() ? 'collapseDecorations' : 'expandDecorations')" (click)="toggleExpanded()">{{ expanded() ? '−' : '+' }}</button>
   </header>
   <div class="decoration-choice-list">
     <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'painting'" [attr.aria-pressed]="decorations.active()?.kind === 'painting'" (click)="decorations.selectPainting()">

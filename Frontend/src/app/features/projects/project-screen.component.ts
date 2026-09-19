@@ -7,6 +7,7 @@ import { ProjectSummary } from '../../core/persistence/project-store.port';
 import { ProjectDocument } from '../../core/domain/project.types';
 import { I18nService } from '../../core/ui/i18n.service';
 import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
+import { DialogService } from '../../core/ui/dialog.service';
 
 @Component({
   selector: 'app-project-screen',
@@ -18,6 +19,7 @@ export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly workspace = inject(WorkspaceStateService);
+  private readonly dialogs = inject(DialogService);
   protected readonly name = signal(this.i18n.t('untitledStructure'));
   protected readonly sizeX = signal(16);
   protected readonly sizeY = signal(16);
@@ -47,7 +49,7 @@ export class ProjectScreenComponent {
       await this.getPersistence().create(project);
       this.workspace.activate(project);
       await this.router.navigateByUrl('/editor');
-    } catch { this.error.set(this.i18n.t('createError')); }
+    } catch { this.error.set(this.i18n.t('createError')); await this.dialogs.error(this.i18n.t('createErrorTitle'), this.i18n.t('createError')); }
   }
 
   protected async openProject(id: string): Promise<void> {
@@ -56,7 +58,7 @@ export class ProjectScreenComponent {
       if (!project) throw new Error('Project not found');
       this.workspace.activate(project);
       await this.router.navigateByUrl('/editor');
-    } catch { this.error.set(this.i18n.t('openError')); }
+    } catch { this.error.set(this.i18n.t('openError')); await this.dialogs.error(this.i18n.t('openErrorTitle'), this.i18n.t('openError')); }
   }
 
   private async loadProjects(): Promise<void> {
