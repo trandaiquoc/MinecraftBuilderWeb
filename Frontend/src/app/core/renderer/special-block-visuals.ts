@@ -51,8 +51,8 @@ export class SignVisualProvider implements SpecialBlockVisualAdapter {
     const placement = new THREE.Group();
     placement.add(modelBranch, textBranch);
     root.add(placement);
-    if (variant === 'standing' || variant === 'wall') applyNormalSignTransform(root, placement, modelBranch, textBranch, block, variant === 'wall');
-    else applyHangingSignTransform(root, modelBranch, textBranch, block);
+    if (variant === 'standing' || variant === 'wall') applyNormalSignTransform(root, placement, modelBranch, block, variant === 'wall');
+    else applyHangingSignTransform(root, modelBranch, block);
     root.userData['specialModel'] = model.id;
     root.userData['providerId'] = 'minecraft-java-sign-1.21.1-modelpart';
     root.userData['signVariant'] = variant;
@@ -401,27 +401,22 @@ function hangingSignModel(variant: 'hanging' | 'wall-hanging', attached: boolean
     { id: 'v-chains', visible: !wall && attached, cuboids: [{ id: 'v-chains', uv: [14, 6], from: [-6, -6, 0], size: [12, 6, 0] }] },
   ] };
 }
-function applyNormalSignTransform(root: THREE.Group, placement: THREE.Group, modelBranch: THREE.Group, textBranch: THREE.Group, block: PlacedBlock, wall: boolean): void {
+function applyNormalSignTransform(root: THREE.Group, placement: THREE.Group, modelBranch: THREE.Group, block: PlacedBlock, wall: boolean): void {
   root.position.set(.5, .5, .5);
   root.rotation.y = -signRotationRadians(block);
   modelBranch.scale.set(2 / 3, -2 / 3, -2 / 3);
-  textBranch.scale.set(1, -1, 1);
   // The 2px board depth is scaled to 1/12 block. Centering its support edge
   // on the adjacent voxel face leaves the board in front of, not inside, the
   // supporting block for every horizontal facing.
   if (wall) {
-    // The former shared sign scale transformed this local placement by -2/3.
-    // Keep the resulting vanilla support-plane translation while allowing the
-    // text branch to remain independent from the model scale.
-    const wallTranslation = [0, .20833334, -.45833334] as const;
-    placement.position.set(...wallTranslation);
+    placement.position.set(0, -.3125, -.4375);
   }
 }
-function applyHangingSignTransform(root: THREE.Group, modelBranch: THREE.Group, textBranch: THREE.Group, block: PlacedBlock): void {
+function applyHangingSignTransform(root: THREE.Group, modelBranch: THREE.Group, block: PlacedBlock): void {
   root.position.set(.5, .9375, .5);
   root.rotation.y = -signRotationRadians(block);
   modelBranch.scale.set(1, -1, -1);
-  textBranch.scale.set(1, -1, 1);
+  root.children[0]?.position.set(0, -.3125, 0);
 }
 function signRotationRadians(block: PlacedBlock): number {
   const rotation = Number(block.state['rotation']);
@@ -434,18 +429,22 @@ function signFacingRotation(facing: string | undefined): number {
 function addSignText(block: PlacedBlock, variant: SignVariant): THREE.Group {
   const root = new THREE.Group();
   const data = block.blockEntityData as { front?: { lines?: readonly string[]; color?: string }; back?: { lines?: readonly string[]; color?: string } } | undefined;
-  if (typeof document === 'undefined' || !data) return root;
   const offset = signTextLayout(variant);
-  addSignTextSide(root, data.front, offset, false);
-  addSignTextSide(root, data.back, offset, true);
+  addSignTextSide(root, data?.front, offset, false, 'front');
+  addSignTextSide(root, data?.back, offset, true, 'back');
   root.userData['signTextScale'] = .015625 * offset.scale;
   root.userData['signTextOffset'] = [0, offset.y, offset.z];
   root.userData['signTextLineHeight'] = offset.lineHeight;
   root.userData['signTextMaxWidth'] = offset.maxWidth;
   return root;
 }
-function addSignTextSide(root: THREE.Group, side: { lines?: readonly string[]; color?: string; glowing?: boolean } | undefined, offset: { readonly y: number; readonly z: number; readonly scale: number; readonly lineHeight: number; readonly maxWidth: number }, back: boolean): void {
-  if (!side) return;
+function addSignTextSide(root: THREE.Group, side: { lines?: readonly string[]; color?: string; glowing?: boolean } | undefined, offset: { readonly y: number; readonly z: number; readonly scale: number; readonly lineHeight: number; readonly maxWidth: number }, back: boolean, sideName: 'front' | 'back'): void {
+  const sideBranch = new THREE.Group(); sideBranch.name = `${sideName}TextSide`; sideBranch.userData['signTextSide'] = sideName;
+  if (back) sideBranch.rotation.y = Math.PI;
+  const textOffset = new THREE.Group(); textOffset.name = `${sideName}TextOffset`; textOffset.position.set(0, offset.y, offset.z); textOffset.userData['signTextOffset'] = [0, offset.y, offset.z];
+  const textScale = new THREE.Group(); textScale.name = `${sideName}TextScale`; const worldScale = .015625 * offset.scale; textScale.scale.set(worldScale, -worldScale, worldScale); textScale.userData['signTextScale'] = worldScale;
+  sideBranch.add(textOffset); textOffset.add(textScale); root.add(sideBranch);
+  if (typeof document === 'undefined' || !side) return;
   const pixelsPerUnit = 8;
   const canvas = document.createElement('canvas'); canvas.width = offset.maxWidth * pixelsPerUnit; canvas.height = offset.lineHeight * 4 * pixelsPerUnit;
   const context = canvas.getContext('2d'); if (!context) return;
@@ -453,9 +452,8 @@ function addSignTextSide(root: THREE.Group, side: { lines?: readonly string[]; c
   for (let index = 0; index < 4; index++) context.fillText(side.lines?.[index] ?? '', canvas.width / 2, (index + .5) * offset.lineHeight * pixelsPerUnit);
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.userData['ownedSignTexture'] = true;
   texture.magFilter = THREE.LinearFilter; texture.minFilter = THREE.LinearFilter;
-  const worldScale = .015625 * offset.scale;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(offset.maxWidth * worldScale, offset.lineHeight * 4 * worldScale), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-  mesh.position.set(0, offset.y, back ? -offset.z : offset.z); if (back) mesh.rotation.y = Math.PI; root.add(mesh);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(offset.maxWidth, offset.lineHeight * 4), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  mesh.name = `${sideName}SignText`; mesh.userData['signTextSide'] = sideName; textScale.add(mesh);
 }
 function signTextColor(color: string | undefined, glowing: boolean): string {
   const palette: Readonly<Record<string, string>> = { white: '#f9fffe', orange: '#f9801d', magenta: '#c74ebd', light_blue: '#3ab3da', yellow: '#fed83d', lime: '#80c71f', pink: '#f38baa', gray: '#474f52', light_gray: '#9d9d97', cyan: '#169c9c', purple: '#8932b8', blue: '#3c44aa', brown: '#835432', green: '#5e7c16', red: '#b02e26', black: '#181818' };
