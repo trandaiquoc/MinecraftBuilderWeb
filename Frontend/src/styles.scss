@@ -29,9 +29,7 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .camera-popover,
 :root[data-theme='craft'] .dropdown-popover { border-color: transparent; background: var(--surface-raised); box-shadow: 0 12px 28px rgb(0 0 0 / .45); }
 :root[data-theme='craft'] .menu-popover button.active,
-:root[data-theme='craft'] .menu-popover button:hover,
-:root[data-theme='craft'] .dropdown-option.selected,
-:root[data-theme='craft'] .dropdown-option.active-option { background: var(--accent); color: #f4f8ef; }
+:root[data-theme='craft'] .menu-popover button:hover { background: var(--accent); color: #f4f8ef; }
 :root[data-theme='craft'] .active-block,
 :root[data-theme='craft'] .group-move-toolbar,
 :root[data-theme='craft'] .quick-block-bar { background: var(--surface-raised); border-color: transparent; box-shadow: 0 4px 14px rgb(0 0 0 / .3); }

@@ -8,9 +8,9 @@
 .search-label { color: var(--text-muted); font-size: .78rem; }
 .block-browser > input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 5px; padding: .55rem .65rem; background: var(--surface-raised); color: var(--text); }
 .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: .45rem; max-height: 52vh; overflow: auto; }
-.block-item { display: grid; grid-template-rows: 58px auto auto; align-content: start; justify-items: stretch; gap: .4rem; min-width: 0; min-height: 112px; padding: .45rem; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-.block-item:hover, .block-item:focus-visible { background: var(--surface-raised); border-color: var(--border); }
-.block-item.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); box-shadow: inset 3px 0 0 var(--accent); }
+.block-item { display: grid; grid-template-rows: 58px auto auto; align-content: start; justify-items: stretch; gap: .4rem; min-width: 0; min-height: 112px; padding: .45rem; border: 0; border-radius: 5px; background: var(--surface-muted); color: var(--text); text-align: left; cursor: pointer; box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.block-item:hover, .block-item:focus-visible { background: var(--surface-hover); }
+.block-item.active { background: var(--control-selected); color: var(--control-selected-text); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
 .preview { display: grid; place-items: center; width: 58px; height: 58px; justify-self: center; overflow: hidden; color: var(--text-muted); font-weight: 700; image-rendering: pixelated; }.preview.has-thumbnail { background: transparent; }
 .preview img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
 .preview.fallback { background: var(--border-strong); }
@@ -24,7 +24,4 @@
 .active-block small { overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
 .active-support { display: flex; gap: .35rem; }
 .active-support span { font-size: .63rem; text-transform: uppercase; }
-.block-item { border: 0; background: var(--surface-muted); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
-.block-item:hover, .block-item:focus-visible { background: var(--surface-hover); border-color: transparent; }
-.block-item.active { border: 0; background: var(--control-selected); color: var(--control-selected-text); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
 .block-item.active .block-copy small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }

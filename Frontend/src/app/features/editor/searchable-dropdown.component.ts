@@ -24,7 +24,7 @@ export class SearchableDropdownComponent {
   @Output() readonly selectionChange = new EventEmitter<string>();
   protected readonly open = signal(false);
   protected readonly query = signal('');
-  protected readonly activeIndex = signal(0);
+  protected readonly activeIndex = signal<number | null>(null);
   protected readonly listId = `searchable-dropdown-${nextDropdownId++}`;
   protected readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -38,11 +38,11 @@ export class SearchableDropdownComponent {
     if (this.open()) this.close();
     else {
       this.open.set(true);
-      this.activeIndex.set(0);
+      this.activeIndex.set(null);
       queueMicrotask(() => this.searchInput()?.nativeElement.focus());
     }
   }
-  protected setQuery(event: Event): void { this.query.set((event.target as HTMLInputElement).value); this.activeIndex.set(0); }
+  protected setQuery(event: Event): void { this.query.set((event.target as HTMLInputElement).value); this.activeIndex.set(null); }
   protected select(id: string): void { this.selectionChange.emit(id); this.close(); }
   protected onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); this.close(); return; }
@@ -51,15 +51,19 @@ export class SearchableDropdownComponent {
       if (!options.length) return;
       event.preventDefault();
       const delta = event.key === 'ArrowDown' ? 1 : -1;
-      this.activeIndex.update((index) => (index + delta + options.length) % options.length);
+      this.activeIndex.update((index) => {
+        if (index === null) return delta > 0 ? 0 : options.length - 1;
+        return (index + delta + options.length) % options.length;
+      });
       return;
     }
     if (event.key === 'Enter') {
-      const option = this.filteredOptions()[this.activeIndex()];
+      const index = this.activeIndex();
+      const option = index === null ? undefined : this.filteredOptions()[index];
       if (option) { event.preventDefault(); this.select(option.id); }
     }
   }
-  protected close(): void { this.open.set(false); this.query.set(''); this.activeIndex.set(0); }
+  protected close(): void { this.open.set(false); this.query.set(''); this.activeIndex.set(null); }
 
   @HostListener('document:pointerdown', ['$event'])
   protected outsidePointer(event: PointerEvent): void {

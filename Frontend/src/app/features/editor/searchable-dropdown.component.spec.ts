@@ -28,4 +28,32 @@ describe('SearchableDropdownComponent', () => {
     host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
     expect(host.querySelector('.dropdown-popover')).toBeNull();
   });
+
+  it('keeps the selected row separate from keyboard focus on open', async () => {
+    await TestBed.configureTestingModule({ imports: [SearchableDropdownComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(SearchableDropdownComponent);
+    fixture.componentRef.setInput('options', [
+      { id: 'minecraft:diamond', label: 'Diamond' },
+      { id: 'minecraft:oak_log', label: 'Oak Log' },
+    ]);
+    fixture.componentRef.setInput('selectedId', 'minecraft:oak_log');
+    let selected = '';
+    fixture.componentInstance.selectionChange.subscribe((id) => selected = id);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    (host.querySelector('.dropdown-trigger') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(host.querySelector('.dropdown-option.selected')?.textContent).toContain('Oak Log');
+    expect(host.querySelector('.dropdown-option.active-option')).toBeNull();
+
+    const input = host.querySelector('.dropdown-search') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    fixture.detectChanges();
+    expect(selected).toBe('');
+    expect(host.querySelector('.dropdown-popover')).toBeTruthy();
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    fixture.detectChanges();
+    expect(host.querySelector('.dropdown-option.active-option')).toBeTruthy();
+  });
 });

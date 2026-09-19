@@ -5,7 +5,7 @@
 .selected-value { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .selected-value strong, .selected-value small, .dropdown-option strong, .dropdown-option small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .selected-value strong { font-size: .78rem; font-weight: 600; }
-.selected-value small, .dropdown-option small { color: var(--text-muted); font-size: .68rem; }
+.selected-value small, .dropdown-option small { color: var(--text-muted); font-family: var(--font-mono); font-size: .68rem; }
 .placeholder { color: var(--text-muted); font-size: .78rem; }
 .caret { flex: 0 0 auto; color: var(--text-muted); }
 .dropdown-backdrop { position: fixed; inset: 0; z-index: 20; border: 0 !important; padding: 0; background: transparent !important; box-shadow: none !important; color: transparent; cursor: default; }
@@ -13,6 +13,14 @@
 .dropdown-search { width: 100%; box-sizing: border-box; min-height: 1.9rem; padding: .3rem .45rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: inherit; }
 .dropdown-options { display: grid; gap: .15rem; max-height: 13rem; margin-top: .3rem; overflow-y: auto; overflow-x: hidden; }
 .dropdown-option { display: flex; flex-direction: column; min-width: 0; padding: .35rem .4rem; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
-.dropdown-option:hover, .dropdown-option.selected, .dropdown-option.active-option { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.dropdown-option { transition: background-color .12s ease, color .12s ease; }
+.dropdown-option:hover { background: var(--control-hover); }
+.dropdown-option.selected { background: var(--control-selected); color: var(--control-selected-text); }
+.dropdown-option.selected small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
+.dropdown-option.active-option:not(.selected) { background: var(--control-hover); box-shadow: inset 0 0 0 1px var(--accent); }
 .dropdown-option strong { font-size: .75rem; font-weight: 600; }
 .no-results { margin: .4rem; color: var(--text-muted); font-size: .72rem; }
+:host-context([data-font='minecraft-style']) .selected-value strong,
+:host-context([data-font='minecraft-style']) .dropdown-option strong { font-size: .94rem; line-height: 1.05; font-weight: 400; }
+:host-context([data-font='minecraft-style']) .selected-value small,
+:host-context([data-font='minecraft-style']) .dropdown-option small { font-size: .7rem; line-height: 1.1; }
