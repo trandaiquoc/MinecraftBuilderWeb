@@ -47,4 +47,5 @@ export class DialogService {
   success(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'success', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
   warning(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'warning', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
   error(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'error', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
+  info(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'info', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
 }

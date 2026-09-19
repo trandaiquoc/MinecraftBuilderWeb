@@ -1,14 +1,18 @@
 <div class="editor-shell">
+  <input #projectImportInput type="file" accept="application/json,.json,.minecraftbuilder" hidden (change)="importProjectPackage($event)" />
   <header class="shell-header">
     <div class="app-menu-row">
       <a class="brand" routerLink="/">{{ i18n.t('appName') }}</a>
       <nav class="app-menus" aria-label="Application menu">
-        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'file'" (click)="toggleAppMenu('file', $event)">{{ i18n.t('fileMenu') }}</button>@if (activeMenu() === 'file') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
-        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'edit'" (click)="toggleAppMenu('edit', $event)">{{ i18n.t('editMenu') }}</button>@if (activeMenu() === 'edit') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'file'" (click)="toggleAppMenu('file', $event)">{{ i18n.t('fileMenu') }}</button>@if (activeMenu() === 'file') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" (click)="navigateToProjects()">{{ i18n.t('newProjectMenu') }}</button><button type="button" (click)="navigateToProjects()">{{ i18n.t('openProjectMenu') }}</button><button type="button" (click)="saveProject()">{{ i18n.t('saveProjectMenu') }}</button><hr /><button type="button" (click)="triggerProjectImport(projectImportInput)">{{ i18n.t('importProjectPackage') }}</button><button type="button" (click)="exportProjectPackage()">{{ i18n.t('exportProjectPackage') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('structureNbtUnavailable')" (click)="showStructureExportUnavailable()">{{ i18n.t('exportStructureNbt') }}</button></div>}</div>
+        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'edit'" (click)="toggleAppMenu('edit', $event)">{{ i18n.t('editMenu') }}</button>@if (activeMenu() === 'edit') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" [disabled]="!history.canUndo()" (click)="undoEdit()">{{ i18n.t('undo') }}</button><button type="button" [disabled]="!history.canRedo()" (click)="redoEdit()">{{ i18n.t('redo') }}</button><hr /><button type="button" (click)="selectAll()">{{ i18n.t('selectAll') }}</button><button type="button" [disabled]="!logicalSelectionCount() && !selection.box()" (click)="clearSelection()">{{ i18n.t('clearSelection') }}</button><button type="button" [disabled]="!logicalSelectionCount() && !selection.box()" (click)="deleteSelection()">{{ i18n.t('deleteSelection') }}</button></div>}</div>
         <div class="menu-entry">
           <button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'view'" (click)="toggleAppMenu('view', $event)">{{ i18n.t('viewMenu') }}</button>
         @if (activeMenu() === 'view') {
           <div class="menu-popover" (click)="$event.stopPropagation()">
+            <button type="button" [class.active]="mode.mode() === '3d'" (click)="setEditorMode('3d')">{{ i18n.t('mode3d') }}</button>
+            <button type="button" [class.active]="mode.mode() === 'y-layer'" (click)="setEditorMode('y-layer')">{{ i18n.t('modeYLayer') }}</button>
+            <hr />
             <button type="button" (click)="toggleLayout('editorToolbarVisible')">
               {{ layout.preferences().editorToolbarVisible ? '✓' : '' }}
               {{ i18n.t('editorToolbar') }}
@@ -28,10 +32,12 @@
             <button type="button" (click)="resetLayout(); closeMenus()">
               {{ i18n.t('resetLayout') }}
             </button>
+            <button type="button" (click)="fitStructure(); closeMenus()">{{ i18n.t('fitStructure') }}</button>
+            <button type="button" [disabled]="!selectedBlock()" (click)="focusSelection(); closeMenus()">{{ i18n.t('focusSelection') }}</button>
           </div>
         }
         </div>
-        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'tools'" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'tools'" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('assetManager') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('projectDiagnostics') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('modJarImport') }}</button></div>}</div>
         <div class="menu-entry settings-entry">
           <button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'settings'" (click)="toggleAppMenu('settings', $event)">{{ i18n.t('settingsMenu') }}</button>
         @if (activeMenu() === 'settings') {
@@ -56,7 +62,7 @@
           </div>
         }
         </div>
-        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'help'" (click)="toggleAppMenu('help', $event)">{{ i18n.t('helpMenu') }}</button>@if (activeMenu() === 'help') {<div class="menu-popover" (click)="$event.stopPropagation()"></div>}</div>
+        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'help'" (click)="toggleAppMenu('help', $event)">{{ i18n.t('helpMenu') }}</button>@if (activeMenu() === 'help') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" (click)="showControlsHelp()">{{ i18n.t('controlsShortcuts') }}</button><button type="button" (click)="showAbout()">{{ i18n.t('about') }}</button></div>}</div>
       </nav>
     </div>
     @if (layout.preferences().editorToolbarVisible) {

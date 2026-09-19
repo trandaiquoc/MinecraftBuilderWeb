@@ -1,5 +1,5 @@
 import { Component, ElementRef, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/ui/i18n.service';
 import { ThemeService } from '../../core/ui/theme.service';
 import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
@@ -23,6 +23,7 @@ import { blockGroupNames } from '../../core/editor/group-membership';
 import { HistoryService } from '../../core/editor/history.service';
 import { editorShortcutAction } from '../../core/editor/history-shortcuts';
 import { IndexedDbProjectStore } from '../../core/persistence/indexeddb-project-store';
+import { ProjectPersistenceService } from '../../core/persistence/project-persistence.service';
 import { ProjectAutosaveService } from '../../core/persistence/project-autosave.service';
 import { DialogService } from '../../core/ui/dialog.service';
 import { EditorLayoutPreferencesService } from '../../core/ui/editor-layout-preferences.service';
@@ -49,6 +50,8 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly layout = inject(EditorLayoutPreferencesService);
   private readonly dialogs = inject(DialogService);
   private readonly editor = inject(StructureEditorService);
+  private readonly router = inject(Router);
+  private readonly persistence = new ProjectPersistenceService(new IndexedDbProjectStore());
   protected readonly viewportStatus = inject(ViewportStatusService);
   private readonly library = inject(BlockLibraryService);
   private readonly threeDViewport = viewChild(ViewportComponent);
@@ -158,12 +161,62 @@ export class EditorShellComponent implements OnDestroy {
   protected closeMenus(): void { this.activeMenu.set(undefined); this.cameraMenuOpen.set(false); }
   protected openSettingsDialog(): void { this.closeMenus(); this.settingsDialogOpen.set(true); }
   protected closeSettingsDialog(): void { this.settingsDialogOpen.set(false); }
-  protected toggleLayout(key: 'editorToolbarVisible' | 'leftSidebarVisible' | 'rightSidebarVisible' | 'quickBarVisible' | 'statusBarVisible'): void { this.layout.set(key, !this.layout.preferences()[key]); this.scheduleMovePanelClamp(); }
+  protected toggleLayout(key: 'editorToolbarVisible' | 'leftSidebarVisible' | 'rightSidebarVisible' | 'quickBarVisible' | 'statusBarVisible'): void { this.layout.set(key, !this.layout.preferences()[key]); this.scheduleMovePanelClamp(); this.closeMenus(); }
   protected resetLayout(): void { this.sidebarDrag = undefined; this.leftDragWidth.set(undefined); this.rightDragWidth.set(undefined); this.layout.reset(); }
   protected chooseLanguage(locale: 'en' | 'vi'): void { this.i18n.setLocale(locale); this.closeMenus(); }
   protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void { this.theme.setPreset(theme); this.closeMenus(); }
   protected chooseFont(font: 'geist' | 'minecraft-style'): void { this.theme.setFont(font); this.closeMenus(); }
   protected chooseEditorBackground(background: 'dark' | 'light'): void { this.theme.setEditorBackground(background); this.closeMenus(); }
+  protected setEditorMode(mode: '3d' | 'y-layer'): void { this.mode.mode.set(mode); this.closeMenus(); }
+  protected async navigateToProjects(): Promise<void> { this.closeMenus(); await this.autosave.flush().catch(() => undefined); await this.router.navigateByUrl('/'); }
+  protected async saveProject(): Promise<void> {
+    this.closeMenus();
+    try { await this.autosave.flush(); await this.dialogs.success(this.i18n.t('saveProjectSuccess')); }
+    catch { await this.dialogs.error(this.i18n.t('saveProjectError'), this.i18n.t('saveProjectError')); }
+  }
+  protected triggerProjectImport(input: HTMLInputElement): void { this.closeMenus(); input.value = ''; input.click(); }
+  protected async importProjectPackage(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      await this.autosave.flush();
+      const imported = this.persistence.importPackage(await file.text());
+      const summaries = await this.persistence.list();
+      const collision = summaries.some((summary) => summary.id === imported.id);
+      const id = collision ? createProjectId() : imported.id;
+      const project = collision ? { ...imported, id, metadata: { ...imported.metadata, name: `${imported.metadata.name} (imported)`, updatedAt: new Date().toISOString() } } : imported;
+      await this.persistence.create(project);
+      this.workspace.activate(project);
+      this.history.clear();
+      this.selection.clear();
+    } catch {
+      await this.dialogs.error(this.i18n.t('importProjectTitle'), this.i18n.t('importProjectError'));
+    } finally { input.value = ''; }
+  }
+  protected exportProjectPackage(): void {
+    this.closeMenus();
+    const project = this.workspace.project();
+    if (!project) return;
+    try {
+      const blob = new Blob([this.persistence.exportPackage(project)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${sanitizeFilename(project.metadata.name)}.minecraftbuilder.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch { void this.dialogs.error(this.i18n.t('exportProjectError'), this.i18n.t('exportProjectError')); }
+  }
+  protected showUnavailableFeature(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('featureUnavailable'), this.i18n.t('featureUnavailable')); }
+  protected showStructureExportUnavailable(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('exportStructureNbt'), this.i18n.t('structureNbtUnavailable')); }
+  protected showControlsHelp(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('controlsShortcuts'), this.i18n.t('controlsShortcutsText')); }
+  protected showAbout(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('about'), this.i18n.t('aboutText')); }
+  protected clearSelection(): void { this.selection.clear(); this.closeMenus(); }
+  protected selectAll(): void { const project = this.workspace.project(); if (project) this.selection.selectAll(project, (id) => this.library.get(id)); this.closeMenus(); }
+  protected undoEdit(): void { this.history.undo(); this.closeMenus(); }
+  protected redoEdit(): void { this.history.redo(); this.closeMenus(); }
+  protected deleteSelection(): void { this.editor.deleteSelection(); this.closeMenus(); }
   protected effectiveSidebarWidth(side: 'left' | 'right'): number { return side === 'left' ? this.leftDragWidth() ?? this.layout.preferences().leftSidebarWidth : this.rightDragWidth() ?? this.layout.preferences().rightSidebarWidth; }
   protected beginSidebarResize(side: 'left' | 'right', event: PointerEvent): void {
     if (event.button !== 0) return;
@@ -275,3 +328,6 @@ export class EditorShellComponent implements OnDestroy {
     return Math.round(Math.min(maximum, Math.max(minimum, width)));
   }
 }
+
+function createProjectId(): string { return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `project-${Date.now()}`; }
+function sanitizeFilename(value: string): string { return value.trim().replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'minecraft-project'; }
