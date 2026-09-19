@@ -3,8 +3,10 @@ import { QuickBlockBarService } from '../../core/editor/quick-block-bar.service'
 import { I18nService } from '../../core/ui/i18n.service';
 import { BlockLibraryService } from '../../core/blocks/block-library.service';
 import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
+import { LucideChevronDown, LucideChevronUp, LucideX } from '@lucide/angular';
+import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 
-@Component({ selector: 'app-quick-block-bar', templateUrl: './quick-block-bar.component.html', styleUrl: './quick-block-bar.component.scss' })
+@Component({ selector: 'app-quick-block-bar', imports: [LucideChevronDown, LucideChevronUp, LucideX, UiTooltipDirective], templateUrl: './quick-block-bar.component.html', styleUrl: './quick-block-bar.component.scss' })
 export class QuickBlockBarComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly quick = inject(QuickBlockBarService);

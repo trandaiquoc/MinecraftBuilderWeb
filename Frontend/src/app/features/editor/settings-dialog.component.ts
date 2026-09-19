@@ -2,12 +2,15 @@ import { Component, computed, inject, output, signal } from '@angular/core';
 import { DialogService } from '../../core/ui/dialog.service';
 import { I18nService } from '../../core/ui/i18n.service';
 import { UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, BaseTheme } from '../../core/ui/ui-preferences.service';
+import { LucideX } from '@lucide/angular';
+import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
 type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance'] };
 
 @Component({
   selector: 'app-settings-dialog',
+  imports: [LucideX, UiTooltipDirective],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss',
   host: { '(document:keydown.escape)': 'requestClose()' },

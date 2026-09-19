@@ -96,14 +96,14 @@
             [disabled]="!history.canUndo()"
             (click)="history.undo()"
           >
-            ↶ {{ i18n.t('undo') }}</button
+            <svg lucideUndo2 aria-hidden="true"></svg>{{ i18n.t('undo') }}</button
           ><button
             type="button"
             title="Redo (Ctrl+Y / Ctrl+Shift+Z)"
             [disabled]="!history.canRedo()"
             (click)="history.redo()"
           >
-            ↷ {{ i18n.t('redo') }}
+            <svg lucideRedo2 aria-hidden="true"></svg>{{ i18n.t('redo') }}
           </button>
         </div>
         <div class="toolbar-group camera-actions">
@@ -111,7 +111,7 @@
           ><button type="button" [disabled]="!selectedBlock()" (click)="focusSelection()">
             {{ i18n.t('focusSelection') }}</button
           ><button type="button" (click)="toggleCameraMenu($event)">
-            {{ i18n.t('camera') }} ▾
+            {{ i18n.t('camera') }} <svg lucideChevronDown aria-hidden="true"></svg>
           </button>
           @if (cameraMenuOpen()) {
             <div class="menu-popover camera-popover" (click)="$event.stopPropagation()">
@@ -181,7 +181,7 @@
                 [attr.aria-label]="i18n.t('searchGroups')"
               />
               @if (groupSearch()) {
-                <button type="button" class="group-search-clear" [attr.aria-label]="i18n.t('clearSearch')" (click)="clearGroupSearch()">×</button>
+                <button type="button" class="group-search-clear" uiTooltip="{{ i18n.t('clearSearch') }}" [attr.aria-label]="i18n.t('clearSearch')" (click)="clearGroupSearch()"><svg lucideX aria-hidden="true"></svg></button>
               }
             </div>
           </div>
@@ -273,7 +273,7 @@
         >
           <header class="group-move-header" (pointerdown)="beginMovePanelDrag($event)">
             <strong>{{ i18n.t('moveGroup') }}: {{ active.name }}</strong>
-            <button type="button" class="group-move-close" [attr.aria-label]="i18n.t('hideMove')" (pointerdown)="$event.stopPropagation()" (click)="hideMovePanel()">×</button>
+            <button type="button" class="group-move-close" uiTooltip="{{ i18n.t('hideMove') }}" [attr.aria-label]="i18n.t('hideMove')" (pointerdown)="$event.stopPropagation()" (click)="hideMovePanel()"><svg lucideX aria-hidden="true"></svg></button>
           </header>
           <div class="move-offsets">
             <label
@@ -325,11 +325,11 @@
               {{ i18n.t('axisXMinus') }}</button
             ><button
               type="button"
-              [attr.title]="i18n.t('resetOffsets')"
+              uiTooltip="{{ i18n.t('resetOffsets') }}"
               [attr.aria-label]="i18n.t('resetOffsets')"
               (click)="groups.resetMove()"
             >
-              •</button
+              <svg lucideRotateCcw aria-hidden="true"></svg></button
             ><button
               type="button"
               [attr.title]="i18n.t('axisXPlus')"

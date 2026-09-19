@@ -2,7 +2,7 @@
   <section class="settings-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('settingsDialogTitle')" tabindex="-1">
     <header class="settings-dialog-header">
       <h2>{{ i18n.t('settingsDialogTitle') }}</h2>
-      <button type="button" class="settings-close" [attr.aria-label]="i18n.t('cancel')" (click)="requestClose()">×</button>
+      <button type="button" class="settings-close" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="requestClose()"><svg lucideX aria-hidden="true"></svg></button>
     </header>
     <div class="settings-dialog-body">
       <nav class="settings-nav" aria-label="Settings sections">

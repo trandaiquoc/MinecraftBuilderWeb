@@ -6,7 +6,7 @@
         @if (current.secondary) { <small>{{ current.secondary }}</small> }
       } @else { <span class="placeholder">{{ emptyLabel || placeholder }}</span> }
     </span>
-    <span class="caret" aria-hidden="true">▾</span>
+    <span class="caret" aria-hidden="true"><svg lucideChevronDown></svg></span>
   </button>
   @if (open()) {
     <button type="button" class="dropdown-backdrop" [attr.aria-label]="closeLabel || null" (pointerdown)="$event.preventDefault(); $event.stopPropagation(); close()"></button>

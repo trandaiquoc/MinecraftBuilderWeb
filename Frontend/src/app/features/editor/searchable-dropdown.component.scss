@@ -24,3 +24,4 @@
 :host-context([data-font='minecraft-style']) .dropdown-option strong { font-size: .94rem; line-height: 1.05; font-weight: 400; }
 :host-context([data-font='minecraft-style']) .selected-value small,
 :host-context([data-font='minecraft-style']) .dropdown-option small { font-size: .7rem; line-height: 1.1; }
+.caret { display: inline-flex; align-items: center; }.caret svg { width: .9rem; height: .9rem; }

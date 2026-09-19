@@ -7,8 +7,10 @@ import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
 import { QuickBlockBarService } from '../../core/editor/quick-block-bar.service';
 import { DecorationService } from '../../core/decorations/decoration.service';
 import { DialogService } from '../../core/ui/dialog.service';
+import { LucidePlus } from '@lucide/angular';
+import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 
-@Component({ selector: 'app-block-browser', templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
+@Component({ selector: 'app-block-browser', imports: [LucidePlus, UiTooltipDirective], templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
 export class BlockBrowserComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly library = inject(BlockLibraryService);

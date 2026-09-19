@@ -9,6 +9,10 @@ html, body { min-height: 100%; margin: 0; background: var(--app-bg); }
 body { color: var(--text); font-family: var(--font-readable); }
 button, input, select, textarea { font-family: var(--font-ui); }
 h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
+.ui-tooltip-target { position: relative; }
+.ui-tooltip-target::after { position: absolute; z-index: 100; top: calc(100% + .35rem); left: 50%; max-width: 18rem; padding: .3rem .45rem; border-radius: 4px; background: var(--surface-raised); color: var(--text); box-shadow: var(--shadow-popover); content: attr(data-tooltip); font: .7rem/1.2 var(--font-readable); opacity: 0; pointer-events: none; transform: translate(-50%, -.15rem); transition: opacity .12s ease, transform .12s ease; white-space: nowrap; }
+.ui-tooltip-target:hover::after, .ui-tooltip-target:focus-visible::after, .ui-tooltip-target:focus-within::after { opacity: 1; transform: translate(-50%, 0); }
+svg[class*='lucide'] { width: 1rem; height: 1rem; stroke-width: 2; vertical-align: middle; }
 
 .minecraft-dialog-popup { border: 0 !important; border-radius: var(--radius-md) !important; background: var(--surface-raised) !important; color: var(--text) !important; box-shadow: var(--shadow-dialog) !important; font-family: var(--font-readable) !important; }
 .minecraft-dialog-title { color: var(--text) !important; font-family: var(--font-ui) !important; }

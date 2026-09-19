@@ -1,4 +1,5 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output, inject, signal, viewChild } from '@angular/core';
+import { LucideChevronDown } from '@lucide/angular';
 
 export interface SearchableDropdownOption {
   readonly id: string;
@@ -10,6 +11,7 @@ let nextDropdownId = 0;
 
 @Component({
   selector: 'app-searchable-dropdown',
+  imports: [LucideChevronDown],
   templateUrl: './searchable-dropdown.component.html',
   styleUrl: './searchable-dropdown.component.scss',
 })
