@@ -16,6 +16,7 @@ import { ThreeViewportEngine } from '../../core/renderer/three-viewport-engine';
 import { VoxelCoordinate } from '../../core/domain/project.types';
 import { I18nService } from '../../core/ui/i18n.service';
 import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
+import { UiPreferencesService } from '../../core/ui/ui-preferences.service';
 import { ThemeService } from '../../core/ui/theme.service';
 import { viewportThemePalette } from '../../core/renderer/viewport-theme';
 import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
@@ -37,6 +38,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly groups = inject(GroupService);
   protected readonly i18n = inject(I18nService);
   private readonly theme = inject(ThemeService);
+  private readonly preferences = inject(UiPreferencesService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly decorations = inject(DecorationService);
   protected readonly visibility = signal<YLayerVisibility>('current-only');
@@ -51,11 +53,12 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private boxCornerStart?: VoxelCoordinate;
   private readonly sync = effect(() => { const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
+  private readonly controlSync = effect(() => { const controls = this.preferences.preferences().controls; this.engine.setControlConfiguration(controls); });
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.viewportStatus.clear(); this.sync.destroy(); this.themeSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.viewportStatus.clear(); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   focusSelection(): void { this.engine.focusSelection(this.selection.single()); }
@@ -81,7 +84,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     this.pointerStart = undefined;
     const cornerStart = this.boxCornerStart;
     this.boxCornerStart = undefined;
-    const click = isPointerClick(start, { x: event.clientX, y: event.clientY });
+    const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
     if (event.button !== 0) return;
     if (!click && this.tool.active() === 'select' && cornerStart) {
       const project = this.workspace.project(); const hit = this.engine.hit(event, project, this.active.active(), this.currentY(), false);

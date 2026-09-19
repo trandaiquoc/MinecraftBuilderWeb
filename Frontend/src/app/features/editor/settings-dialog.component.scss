@@ -26,4 +26,8 @@
 .settings-dialog-footer button.primary { background: var(--control-selected); color: var(--control-selected-text); }
 .settings-dialog-footer button:active { transform: translateY(1px); box-shadow: none; }
 .section-reset { justify-self: start; border: 0; border-radius: var(--radius-sm); padding: .4rem .6rem; background: var(--control-normal); color: var(--text); cursor: pointer; box-shadow: 0 2px 0 rgb(0 0 0 / .14); }.section-reset:hover { background: var(--control-hover); }
+.range-setting > span { display: flex; justify-content: space-between; gap: .75rem; color: var(--text-muted); }
+.range-setting output { color: var(--text); font-variant-numeric: tabular-nums; }
+.range-setting input[type='range'] { width: 100%; accent-color: var(--accent); }
+.range-setting small { color: var(--text-muted); font-size: .7rem; line-height: 1.35; }
 @media (max-width: 560px) { .settings-dialog-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }.settings-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }.settings-nav button { white-space: nowrap; }.settings-dialog-footer { flex-wrap: wrap; }.settings-footer-spacer { display: none; } }

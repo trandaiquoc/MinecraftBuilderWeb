@@ -21,6 +21,14 @@ type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, tar
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 
+export interface ViewportControlConfiguration {
+  readonly orbitSensitivity: number;
+  readonly panSensitivity: number;
+  readonly zoomSensitivity: number;
+  readonly cameraMoveSpeed: number;
+  readonly verticalMoveSpeed: number;
+}
+
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
@@ -79,6 +87,7 @@ export class ThreeViewportEngine {
   private renderCount = 0;
   private canvasSize = { width: 0, height: 0 };
   private themeApplied = false;
+  private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9 };
 
   mount(container: HTMLElement): void {
     if (this.disposed) return;
@@ -110,6 +119,7 @@ export class ThreeViewportEngine {
     delete this.controls.mouseButtons.LEFT;
     this.controls.enableZoom = true;
     this.controls.enablePan = true;
+    this.applyControlConfiguration();
     this.controls.addEventListener('change', this.renderOnControlChange);
     document.addEventListener('keydown', this.onCameraKeyDown); document.addEventListener('keyup', this.onCameraKeyUp); document.addEventListener('focusin', this.onWindowBlur); window.addEventListener('blur', this.onWindowBlur); document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -136,6 +146,18 @@ export class ThreeViewportEngine {
     const ghostStatus = this.ghost.userData['status'] as PlacementStatus | undefined;
     if (ghostStatus) (this.ghost.material as THREE.MeshBasicMaterial).color.setHex(colorForStatus(this.palette, ghostStatus));
     this.render();
+  }
+
+  setControlConfiguration(configuration: ViewportControlConfiguration): void {
+    this.controlConfiguration = { ...configuration };
+    this.applyControlConfiguration();
+  }
+
+  private applyControlConfiguration(): void {
+    if (!this.controls) return;
+    this.controls.rotateSpeed = this.controlConfiguration.orbitSensitivity;
+    this.controls.panSpeed = this.controlConfiguration.panSensitivity;
+    this.controls.zoomSpeed = this.controlConfiguration.zoomSensitivity;
   }
 
   resize(): void {
@@ -536,7 +558,10 @@ export class ThreeViewportEngine {
 
   private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedKeys, delta); if (this.pressedKeys.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
   private moveCamera(keys: ReadonlySet<string>, delta: number): void {
-    if (!this.controls || !keys.size) return; const direction = cameraMovementDirection(keys, this.camera); if (!direction.lengthSq()) return; direction.normalize().multiplyScalar(delta * 9); this.camera.position.add(direction); this.controls.target.add(direction); this.controls.update();
+    if (!this.controls || !keys.size) return;
+    const direction = cameraMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
+    if (!direction.lengthSq()) return;
+    this.camera.position.add(direction); this.controls.target.add(direction); this.controls.update();
   }
 }
 
@@ -580,6 +605,14 @@ export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE
   const forward = camera.getWorldDirection(new THREE.Vector3()); forward.y = 0; if (forward.lengthSq() === 0) return new THREE.Vector3(); forward.normalize();
   const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize(); const direction = new THREE.Vector3();
   if (keys.has('KeyW')) direction.add(forward); if (keys.has('KeyS')) direction.sub(forward); if (keys.has('KeyD')) direction.add(right); if (keys.has('KeyA')) direction.sub(right); if (keys.has('Space')) direction.y += 1; if (keys.has('ShiftLeft') || keys.has('ShiftRight')) direction.y -= 1;
+  return direction;
+}
+export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Camera, horizontalSpeed: number, verticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
+  const horizontalKeys = new Set([...keys].filter((key) => key === 'KeyW' || key === 'KeyA' || key === 'KeyS' || key === 'KeyD'));
+  const direction = cameraMovementDirection(horizontalKeys, camera);
+  if (direction.lengthSq()) direction.normalize().multiplyScalar(deltaSeconds * horizontalSpeed);
+  const verticalDirection = (keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0);
+  direction.y += verticalDirection * deltaSeconds * verticalSpeed;
   return direction;
 }
 function isTextInput(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT' || element.isContentEditable); }

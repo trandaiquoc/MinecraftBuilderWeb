@@ -7,7 +7,7 @@ import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
-type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance'] };
+type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance']; readonly controls: UiPreferences['controls'] };
 
 @Component({
   selector: 'app-settings-dialog',
@@ -30,6 +30,14 @@ export class SettingsDialogComponent {
   protected readonly themeOptions = computed<readonly ThemedSelectOption[]>(() => [{ id: 'dark', label: this.i18n.t('dark') }, { id: 'light', label: this.i18n.t('light') }, { id: 'craft', label: this.i18n.t('craft') }]);
   protected readonly fontOptions = computed<readonly ThemedSelectOption[]>(() => [{ id: 'geist', label: this.i18n.t('geist') }, { id: 'minecraft-style', label: this.i18n.t('minecraftStyle') }]);
   protected readonly editorBackgroundOptions = computed<readonly ThemedSelectOption[]>(() => [{ id: 'dark', label: this.i18n.t('editorBackgroundDark') }, { id: 'light', label: this.i18n.t('editorBackgroundLight') }]);
+  protected readonly controlFields = [
+    { key: 'orbitSensitivity', min: 0.1, max: 3, step: 0.1, label: 'orbitSensitivity' },
+    { key: 'panSensitivity', min: 0.1, max: 3, step: 0.1, label: 'panSensitivity' },
+    { key: 'zoomSensitivity', min: 0.1, max: 3, step: 0.1, label: 'zoomSensitivity' },
+    { key: 'cameraMoveSpeed', min: 1, max: 30, step: 1, label: 'cameraMoveSpeed' },
+    { key: 'verticalMoveSpeed', min: 1, max: 30, step: 1, label: 'verticalMoveSpeed' },
+    { key: 'clickDragThreshold', min: 1, max: 20, step: 1, label: 'clickDragThreshold' },
+  ] as const;
 
   protected setSection(section: SettingsSection): void { this.section.set(section); }
   protected setLocale(locale: UiLocale): void { this.updateDraft({ locale }); }
@@ -39,11 +47,17 @@ export class SettingsDialogComponent {
   }
   protected setFont(font: UiFont): void { this.updateDraft({ appearance: { ...this.draft().appearance, font } }); }
   protected setEditorBackground(editorBackground: BaseTheme): void { this.updateDraft({ appearance: { ...this.draft().appearance, editorBackground } }); }
+  protected setControl(key: keyof UiPreferences['controls'], value: string): void {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return;
+    this.updateDraft({ controls: { ...this.draft().controls, [key]: numeric } });
+  }
   protected restoreGeneralDefaults(): void { this.updateDraft({ locale: this.preferences.defaultPreferences().locale }); }
   protected restoreAppearanceDefaults(): void { this.updateDraft({ appearance: { ...this.preferences.defaultPreferences().appearance } }); }
+  protected restoreControlsDefaults(): void { this.updateDraft({ controls: { ...this.preferences.defaultPreferences().controls } }); }
   protected async apply(): Promise<void> {
     const draft = this.draft();
-    this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance } });
+    this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, controls: { ...draft.controls } });
     this.baseline.set(this.readDraft());
     this.draft.set(this.readDraft());
   }
@@ -58,5 +72,5 @@ export class SettingsDialogComponent {
     return ({ general: this.i18n.t('generalSettings'), appearance: this.i18n.t('appearanceSettings'), controls: this.i18n.t('controlsSettings'), shortcuts: this.i18n.t('shortcutsSettings'), accessibility: this.i18n.t('accessibilitySettings') } as const)[section];
   }
   private updateDraft(patch: Partial<SettingsDraft>): void { this.draft.update((current) => ({ ...current, ...patch, appearance: { ...current.appearance, ...(patch.appearance ?? {}) } })); }
-  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance } }; }
+  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance }, controls: { ...current.controls } }; }
 }

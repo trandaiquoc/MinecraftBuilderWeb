@@ -7,11 +7,11 @@
     <div class="settings-dialog-body">
       <nav class="settings-nav" aria-label="Settings sections">
         @for (item of sections; track item) {
-          <button type="button" [class.active]="section() === item" [attr.aria-current]="section() === item ? 'page' : null" [attr.title]="item !== 'general' && item !== 'appearance' ? i18n.t('unavailableSettings') : null" [disabled]="item !== 'general' && item !== 'appearance'" (click)="setSection(item)">
+          <button type="button" [class.active]="section() === item" [attr.aria-current]="section() === item ? 'page' : null" [attr.title]="item === 'shortcuts' || item === 'accessibility' ? i18n.t('unavailableSettings') : null" [disabled]="item === 'shortcuts' || item === 'accessibility'" (click)="setSection(item)">
             {{ sectionLabel(item) }}
           </button>
         }
-        <small class="settings-nav-note">{{ i18n.t('unavailableSettings') }}</small>
+        <small class="settings-nav-note">{{ i18n.t('unavailableAdvancedSettings') }}</small>
       </nav>
       <div class="settings-content">
         @if (section() === 'general') {
@@ -35,6 +35,18 @@
               <app-themed-select [options]="editorBackgroundOptions()" [selectedId]="draft().appearance.editorBackground" [ariaLabel]="i18n.t('editorBackground')" (selectionChange)="setEditorBackground($any($event))" />
             </label>
             <button type="button" class="section-reset" (click)="restoreAppearanceDefaults()">{{ i18n.t('restoreDefaults') }}</button>
+          </section>
+        } @else if (section() === 'controls') {
+          <section>
+            <h3>{{ i18n.t('controlsSettings') }}</h3>
+            @for (field of controlFields; track field.key) {
+              <label class="range-setting">
+                <span>{{ i18n.t(field.label) }} <output>{{ draft().controls[field.key] }}{{ field.key === 'clickDragThreshold' ? ' px' : '' }}</output></span>
+                <input type="range" [min]="field.min" [max]="field.max" [step]="field.step" [value]="draft().controls[field.key]" (input)="setControl(field.key, $any($event.target).value)" />
+                @if (field.key === 'clickDragThreshold') { <small>{{ i18n.t('clickDragThresholdHint') }}</small> }
+              </label>
+            }
+            <button type="button" class="section-reset" (click)="restoreControlsDefaults()">{{ i18n.t('restoreDefaults') }}</button>
           </section>
         } @else {
           <section class="settings-unavailable">

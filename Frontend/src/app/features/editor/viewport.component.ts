@@ -15,6 +15,7 @@ import { ThreeViewportEngine } from '../../core/renderer/three-viewport-engine';
 import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
 import { I18nService } from '../../core/ui/i18n.service';
 import { ThemeService } from '../../core/ui/theme.service';
+import { UiPreferencesService } from '../../core/ui/ui-preferences.service';
 import { viewportThemePalette } from '../../core/renderer/viewport-theme';
 import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
 import { SignTextSideService } from '../../core/editor/sign-text-side.service';
@@ -37,6 +38,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly groups = inject(GroupService);
   protected readonly i18n = inject(I18nService);
   private readonly theme = inject(ThemeService);
+  private readonly preferences = inject(UiPreferencesService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly signTextSide = inject(SignTextSideService);
   private readonly decorations = inject(DecorationService);
@@ -48,11 +50,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private boxCornerStart?: import('../../core/domain/project.types').VoxelCoordinate;
   private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
+  private readonly controlSync = effect(() => { const controls = this.preferences.preferences().controls; this.engine.setControlConfiguration(controls); });
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); this.engine.mount(this.host().nativeElement); this.engine.restoreCamera(this.cameraState.get('3d')); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state); this.viewportStatus.clear(); this.sync.destroy(); this.themeSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state); this.viewportStatus.clear(); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   focusSelection(): void { this.engine.focusSelection(this.selection.single()); }
@@ -73,7 +76,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.pointerStart = undefined;
     const cornerStart = this.boxCornerStart;
     this.boxCornerStart = undefined;
-    const click = isPointerClick(start, { x: event.clientX, y: event.clientY });
+    const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
     if (event.button !== 0) return;
     if (!click && this.tool.active() === 'select' && cornerStart) {
       const project = this.workspace.project(); const hit = this.engine.hit(event, project, this.active.active(), undefined, false); const cornerEnd = hit.block ?? hit.target;

@@ -7,6 +7,11 @@ describe('editor interaction', () => {
     expect(isPointerClick({ x: 10, y: 10 }, { x: 20, y: 10 })).toBe(false);
   });
 
+  it('accepts a configured click threshold', () => {
+    expect(isPointerClick({ x: 10, y: 10 }, { x: 16, y: 10 }, 6)).toBe(true);
+    expect(isPointerClick({ x: 10, y: 10 }, { x: 17, y: 10 }, 6)).toBe(false);
+  });
+
   it('separates Place and Select tools with modifier precedence', () => {
     expect(pointerAction('place', { ctrl: false, alt: false }, true, true)).toBe('place');
     expect(pointerAction('select', { ctrl: false, alt: false }, true, true)).toBe('select');
