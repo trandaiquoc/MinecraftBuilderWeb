@@ -12,6 +12,7 @@ export interface UiPreferences {
     readonly preset: ThemePreset;
     readonly base: BaseTheme;
     readonly font: UiFont;
+    readonly editorBackground: BaseTheme;
   };
   readonly controls: {
     readonly orbitSensitivity: number;
@@ -37,7 +38,7 @@ const LEGACY_LAYOUT_KEY = 'minecraft-builder.editor-layout';
 const defaults: UiPreferences = {
   version: 1,
   locale: 'en',
-  appearance: { preset: 'dark', base: 'dark', font: 'geist' },
+  appearance: { preset: 'dark', base: 'dark', font: 'geist', editorBackground: 'dark' },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true },
 };
@@ -98,6 +99,7 @@ function normalize(value: unknown): UiPreferences {
       preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset) ? (appearance as Partial<UiPreferences['appearance']>).preset! : defaults.appearance.preset,
       base: isBase((appearance as Partial<UiPreferences['appearance']>).base) ? (appearance as Partial<UiPreferences['appearance']>).base! : defaults.appearance.base,
       font: isFont((appearance as Partial<UiPreferences['appearance']>).font) ? (appearance as Partial<UiPreferences['appearance']>).font! : defaults.appearance.font,
+      editorBackground: isBase((appearance as Partial<UiPreferences['appearance']>).editorBackground) ? (appearance as Partial<UiPreferences['appearance']>).editorBackground! : defaults.appearance.editorBackground,
     },
     controls: {
       orbitSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).orbitSensitivity, .1, 3, defaults.controls.orbitSensitivity),

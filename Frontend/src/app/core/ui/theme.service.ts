@@ -14,6 +14,7 @@ export class ThemeService {
     return appearance.preset === 'craft' ? 'craft' : appearance.base;
   });
   readonly effectiveBase = computed(() => this.preferences.preferences().appearance.base);
+  readonly editorBackground = computed(() => this.preferences.preferences().appearance.editorBackground);
   readonly font = computed<UiFont>(() => this.preferences.preferences().appearance.font);
 
   constructor() {
@@ -35,6 +36,8 @@ export class ThemeService {
   setFont(font: UiFont): void {
     this.preferences.setAppearance({ font });
   }
+
+  setEditorBackground(background: 'dark' | 'light'): void { this.preferences.setAppearance({ editorBackground: background }); }
 
   private apply(preset: ThemePreset, base: 'dark' | 'light', font: UiFont): void {
     this.document.documentElement.dataset['theme'] = preset === 'custom' ? base : preset;

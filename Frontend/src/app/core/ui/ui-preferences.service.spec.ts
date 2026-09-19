@@ -14,8 +14,10 @@ describe('UiPreferencesService', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');
     preferences.setAppearance({ preset: 'craft', base: 'dark' });
+    preferences.setAppearance({ editorBackground: 'light' });
     preferences.setLocale('vi');
-    expect(JSON.parse(localStorage.getItem(key) ?? '{}')).toMatchObject({ locale: 'vi', appearance: { preset: 'craft' } });
+    expect(preferences.preferences().appearance.editorBackground).toBe('light');
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')).toMatchObject({ locale: 'vi', appearance: { preset: 'craft', editorBackground: 'light' } });
   });
 
   it('migrates the legacy layout key', () => {

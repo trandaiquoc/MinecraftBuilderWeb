@@ -48,6 +48,9 @@
             <strong>{{ i18n.t('font') }}</strong
             ><button type="button" [class.active]="theme.font() === 'geist'" (click)="chooseFont('geist')">{{ theme.font() === 'geist' ? '✓ ' : '' }}{{ i18n.t('geist') }}</button
             ><button type="button" [class.active]="theme.font() === 'minecraft-style'" (click)="chooseFont('minecraft-style')">{{ theme.font() === 'minecraft-style' ? '✓ ' : '' }}{{ i18n.t('minecraftStyle') }}</button>
+            <strong>{{ i18n.t('editorBackground') }}</strong
+            ><button type="button" [class.active]="theme.editorBackground() === 'dark'" (click)="chooseEditorBackground('dark')">{{ theme.editorBackground() === 'dark' ? '✓ ' : '' }}{{ i18n.t('editorBackgroundDark') }}</button
+            ><button type="button" [class.active]="theme.editorBackground() === 'light'" (click)="chooseEditorBackground('light')">{{ theme.editorBackground() === 'light' ? '✓ ' : '' }}{{ i18n.t('editorBackgroundLight') }}</button>
           </div>
         }
         </div>

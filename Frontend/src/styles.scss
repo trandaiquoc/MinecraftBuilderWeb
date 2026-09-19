@@ -64,3 +64,11 @@ h1, h2, h3, h4, nav, button { font-family: var(--font-ui); }
 :root[data-theme='craft'] .status-unknown { color: var(--status-unknown); }
 :root[data-theme='craft'] .helper-text,
 :root[data-theme='craft'] .validation-feedback { font-family: var(--font-readable); }
+:root[data-theme='craft'] .shell-header,
+:root[data-theme='craft'] .editor-toolbar-row { background: var(--accent); color: #f4f8ef; box-shadow: 0 4px 12px rgb(0 0 0 / .35); }
+:root[data-theme='craft'] .shell-header .brand,
+:root[data-theme='craft'] .app-menus button { color: #f4f8ef; }
+:root[data-theme='craft'] .editor-toolbar-row > button,
+:root[data-theme='craft'] .editor-toolbar-row button { background: rgb(19 31 18 / .86); color: #f4f8ef; border-color: transparent; box-shadow: 0 3px 0 rgb(0 0 0 / .25); }
+:root[data-theme='craft'] .editor-toolbar-row button:hover:not(:disabled) { background: #263b24; }
+:root[data-theme='craft'] .editor-toolbar-row button.active { background: #f0f5e9; color: #183013; }
