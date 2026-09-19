@@ -30,7 +30,7 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": ["node_modules/@fontsource-variable/geist/index.css", "node_modules/@fontsource-variable/pixelify-sans/index.css", "src/styles.scss"]
           },
           "configurations": {
             "production": {

@@ -1,4 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { Injectable, inject, signal } from '@angular/core';
+import { UiPreferencesService, UiLocale } from './ui-preferences.service';
 import {
   BehaviorSupportLevel,
   BlockSupportLevel,
@@ -337,14 +339,28 @@ const translations = {
 
 @Injectable({ providedIn: 'root' })
 export class I18nService {
-  readonly locale = signal<Locale>('en');
+  private readonly document = inject(DOCUMENT);
+  private readonly preferences = inject(UiPreferencesService);
+  readonly locale = signal<Locale>(this.preferences.preferences().locale);
+
+  constructor() { this.applyLocale(this.locale()); }
 
   t(key: TranslationKey): string {
     return translations[this.locale()][key];
   }
 
   toggleLocale(): void {
-    this.locale.update((locale) => (locale === 'en' ? 'vi' : 'en'));
+    this.setLocale(this.locale() === 'en' ? 'vi' : 'en');
+  }
+
+  setLocale(locale: UiLocale): void {
+    this.locale.set(locale);
+    this.preferences.setLocale(locale);
+    this.applyLocale(locale);
+  }
+
+  private applyLocale(locale: Locale): void {
+    this.document.documentElement.lang = locale;
   }
 
   stateProperty(value: string): string {
