@@ -489,3 +489,11 @@ sherds. The NBT mapper emits those values in Minecraft's codec order and omits
 fall back to the blank side texture and are never used to construct arbitrary
 resource paths. The current local asset cache remains the only source for
 textures; no vanilla JAR or extracted asset tree is committed.
+
+# Java 1.21.1 Conduit
+
+Conduit is an entity-rendered block in the local visual pipeline. The static
+editor adapter loads only `minecraft:entity/conduit/base` and renders the
+vanilla inactive shell at its source 6/16 voxel size. Activation frame checks,
+eye state, wind layers, ticks, particles, and target entities remain runtime
+Minecraft behavior and are not simulated by the editor.

@@ -1318,3 +1318,17 @@ base/back/left/right/front textures. Sherd data is named in project storage and
 serializes to Minecraft's canonical NBT order `back,left,right,front`; default
 brick sides omit the `sherds` key. Wobble and contained-item editing remain out
 of scope.
+
+# 55. Conduit foundation
+
+[x] `minecraft:conduit` remains a normal placeable palette item. Its
+authoritative catalog state contains only `waterlogged` with default `true`,
+while editor placement without verified fluid context writes `false`.
+
+[x] Conduit uses a dedicated inactive 1.21.1 special visual: the centered
+6x6x6-pixel shell and `entity/conduit/base` texture. Runtime activation, eye,
+wind, targeting, animation, and water-frame simulation are intentionally not
+authored or previewed.
+
+[x] Static Conduit NBT is represented by `{ id: "minecraft:conduit" }`; runtime
+fields and `waterlogged` are not block-entity data.

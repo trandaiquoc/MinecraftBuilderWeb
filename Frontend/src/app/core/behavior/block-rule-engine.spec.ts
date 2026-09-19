@@ -27,6 +27,12 @@ describe('BlockRuleEngine', () => {
     const placed = potEngine.place(base, block('minecraft:decorated_pot', { x: 2, y: 1, z: 2 }, potDefinition.defaultState), { yaw }).project;
     expect(placed?.blocks[0].state).toMatchObject({ facing, cracked: 'false', waterlogged: 'false' });
   });
+  it('places a Conduit in air with waterlogged=false without requiring support', () => {
+    const conduitDefinition = { id: 'minecraft:conduit', namespace: 'minecraft', displayName: 'Conduit', defaultState: { waterlogged: 'true' }, stateDefinitions: [{ name: 'waterlogged', values: ['true', 'false'] }], resources: { textures: [] }, behaviorSupport: 'full' as const, visualSupport: 'real' as const, visualClassification: 'special-renderer-required' as const, defaultStateSource: 'authoritative-report' as const, support: 'full' as const, behavior: { kind: 'conduit-placement' as const, waterloggedProperty: 'waterlogged' as const } };
+    const conduitEngine = new BlockRuleEngine((id) => id === conduitDefinition.id ? conduitDefinition : catalog.get(id));
+    const placed = conduitEngine.place(base, block('minecraft:conduit', { x: 2, y: 6, z: 2 }, conduitDefinition.defaultState), { faceNormal: { x: 0, y: 1, z: 0 }, yaw: 0 }).project;
+    expect(placed?.blocks[0].state).toEqual({ waterlogged: 'false' });
+  });
   it('adds and removes fence connections through a deduplicated refresh', () => {
     const first = engine.place(base, block('minecraft:oak_fence', { x: 2, y: 1, z: 2 })).project!;
     const second = engine.place(first, block('minecraft:oak_fence', { x: 3, y: 1, z: 2 })).project!;

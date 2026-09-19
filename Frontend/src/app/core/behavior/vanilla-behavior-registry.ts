@@ -55,6 +55,7 @@ export class VanillaBehaviorRegistry {
     for (const id of wallHeadIds) this.explicit.set(`minecraft:${id}`, wallHeadMetadata);
     for (const id of vanillaShulkerBoxIds) this.explicit.set(id, shulkerBoxMetadata);
     this.explicit.set('minecraft:decorated_pot', decoratedPotMetadata);
+    this.explicit.set('minecraft:conduit', conduitMetadata);
     for (const wood of vanillaSignWoods) {
       this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
       this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
@@ -78,6 +79,7 @@ export class VanillaBehaviorRegistry {
 
   private metadata(id: string): BehaviorMetadata | undefined {
     if (id === 'minecraft:decorated_pot') return decoratedPotMetadata;
+    if (id === 'minecraft:conduit') return conduitMetadata;
     if (isVanillaCandleId(id)) return candleMetadata;
     const torch = vanillaTorchMetadata(id);
     if (torch) return torch;
@@ -176,6 +178,12 @@ const decoratedPotMetadata: BehaviorMetadata = {
     { name: 'waterlogged', values: ['true', 'false'] },
     { name: 'cracked', values: ['true', 'false'] },
   ],
+};
+const conduitMetadata: BehaviorMetadata = {
+  behavior: { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' },
+  support: 'full',
+  defaultState: { waterlogged: 'true' },
+  stateDefinitions: [{ name: 'waterlogged', values: ['true', 'false'] }],
 };
 const standingHeadMetadata: BehaviorMetadata = {
   behavior: { kind: 'head-placement', wall: false, rotationProperty: 'rotation', facingProperty: 'facing' }, support: 'full',

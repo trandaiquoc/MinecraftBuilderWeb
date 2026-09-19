@@ -69,7 +69,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       object.updateMatrixWorld(true);
       const specialTexturePaths = entries.map(([, value]) => texturePath(value));
       const requiredTexturesReady = entries.every(([role]) => !!textures[role]);
-      const knownTexturedFamily = special.family === 'beds' || special.family === 'signs' || special.family === 'chests' || special.family === 'shulker-boxes' || special.family === 'decorated-pots';
+      const knownTexturedFamily = special.family === 'beds' || special.family === 'signs' || special.family === 'chests' || special.family === 'shulker-boxes' || special.family === 'decorated-pots' || special.family === 'conduits';
       return { object, resolved, mode: knownTexturedFamily && requiredTexturesReady ? 'real' : 'partial', diagnostics, trace: { texturePaths: specialTexturePaths, pngBytesFound: entries.every(([, value]) => !!this.assets.readBinary(texturePath(value))), textureDecoded: requiredTexturesReady, geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(object)) } };
     }
     if (!resolved.parts.some((part) => part.elements.length)) return {

@@ -12,7 +12,7 @@ export class SpecialBlockVisualRegistry {
   private readonly beds: BedVisualProvider;
   private readonly signs: SignVisualProvider;
   private readonly adapters: readonly SpecialBlockVisualAdapter[];
-  constructor(gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter]; }
+  constructor(gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter]; }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
   resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined { return this.adapters.find((adapter) => adapter.matches(block)); }
 }
@@ -259,6 +259,22 @@ function createDecoratedPotVisual(block: PlacedBlock, context?: SpecialVisualCon
   root.userData['specialModel'] = 'minecraft-java-decorated-pot-1.21.1'; root.userData['decoratedPotFacing'] = block.state['facing'] ?? 'north';
   return root;
 }
+export const conduitInactiveModel: SpecialModelDescriptor = {
+  id: 'minecraft-java-conduit-inactive-1.21.1', textureSize: [32, 16],
+  parts: [{ id: 'shell', cuboids: [{ id: 'shell', uv: [0, 0], from: [-3, -3, -3], size: [6, 6, 6] }] }],
+};
+const conduitAdapter: SpecialBlockVisualAdapter = {
+  family: 'conduits',
+  overrideGeneric: true,
+  matches: (block) => block.namespace === 'minecraft' && block.id === 'minecraft:conduit',
+  textureResource: () => 'minecraft:entity/conduit/base',
+  create: (_block, context) => {
+    const root = new THREE.Group(); root.position.set(.5, .5, .5);
+    root.add(createSpecialModel(conduitInactiveModel, context?.texture));
+    root.userData['specialModel'] = conduitInactiveModel.id; root.userData['conduitState'] = 'inactive';
+    return root;
+  },
+};
 const vanillaShulkerBoxIds = new Set([
   'minecraft:shulker_box', 'minecraft:white_shulker_box', 'minecraft:orange_shulker_box', 'minecraft:magenta_shulker_box',
   'minecraft:light_blue_shulker_box', 'minecraft:yellow_shulker_box', 'minecraft:lime_shulker_box', 'minecraft:pink_shulker_box',

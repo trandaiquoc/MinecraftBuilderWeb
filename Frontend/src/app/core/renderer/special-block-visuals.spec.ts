@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { chestModelFor, chestRotationRadians, chestTextureResource, decoratedPotBaseModel, decoratedPotRootRotationRadians, decoratedPotSideModels, decoratedPotSherdTextureResource, shulkerFacingQuaternion, shulkerTextureResource, SpecialBlockVisualRegistry, createSpecialModel, signTextLayout } from './special-block-visuals';
+import { chestModelFor, chestRotationRadians, chestTextureResource, conduitInactiveModel, decoratedPotBaseModel, decoratedPotRootRotationRadians, decoratedPotSideModels, decoratedPotSherdTextureResource, shulkerFacingQuaternion, shulkerTextureResource, SpecialBlockVisualRegistry, createSpecialModel, signTextLayout } from './special-block-visuals';
 import { modelPartCuboidUv } from './special-model-descriptor';
 
 const registry = new SpecialBlockVisualRegistry();
@@ -32,6 +32,18 @@ describe('special block visuals', () => {
     expect(meshes).toBe(1);
   });
   it.each([['north', 0], ['south', Math.PI], ['west', Math.PI / 2], ['east', -Math.PI / 2]])('uses vanilla Decorated Pot root rotation for %s', (facing, radians) => expect(decoratedPotRootRotationRadians(facing)).toBeCloseTo(radians));
+  it('uses the exact inactive Conduit adapter and centered six-pixel shell', () => {
+    const adapter = registry.resolve(block('minecraft:conduit'));
+    expect(adapter?.family).toBe('conduits'); expect(adapter?.overrideGeneric).toBe(true);
+    expect(adapter?.matches({ ...block('mod:conduit') })).toBe(false);
+    expect(adapter?.textureResource?.(block('minecraft:conduit'))).toBe('minecraft:entity/conduit/base');
+    expect(conduitInactiveModel.textureSize).toEqual([32, 16]);
+    expect(conduitInactiveModel.parts[0].cuboids[0]).toMatchObject({ uv: [0, 0], from: [-3, -3, -3], size: [6, 6, 6] });
+    const visual = adapter!.create(block('minecraft:conduit')); visual.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(visual);
+    expect(bounds.min.toArray()).toEqual([.3125, .3125, .3125]); expect(bounds.max.toArray()).toEqual([.6875, .6875, .6875]);
+    expect(visual.userData['conduitState']).toBe('inactive');
+  });
   it('matches only the exact vanilla chest family', () => {
     expect(registry.resolve(block('minecraft:chest'))?.family).toBe('chests');
     expect(registry.resolve(block('minecraft:trapped_chest'))?.family).toBe('chests');

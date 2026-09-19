@@ -149,6 +149,16 @@ describe('block model geometry', () => {
     const result = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create({ ...block('minecraft:decorated_pot', { facing: 'north', waterlogged: 'false', cracked: 'false' }), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:angler_pottery_sherd', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' } } });
     expect(result.mode).toBe('partial'); expect(result.diagnostics.some((diagnostic) => diagnostic.code === 'TEXTURE_NOT_FOUND')).toBe(true);
   });
+  it('prioritizes the Conduit special renderer and only requires its inactive base texture', async () => {
+    const assets = new VanillaAssetProvider('1.21.1.jar', {
+      'assets/minecraft/blockstates/conduit.json': { variants: { 'waterlogged=true': { model: 'minecraft:block/conduit' } } },
+      'assets/minecraft/models/block/conduit.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: cubeFaces() }] },
+    }, new Map([['assets/minecraft/textures/entity/conduit/base.png', new Uint8Array([1])]]));
+    const result = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create(block('minecraft:conduit', { waterlogged: 'false' }));
+    expect(result.mode).toBe('real'); expect(result.object?.userData['specialVisualFamily']).toBe('conduits');
+    expect(result.trace.texturePaths).toEqual(['assets/minecraft/textures/entity/conduit/base.png']);
+    expect(result.object?.userData['specialModel']).toBe('minecraft-java-conduit-inactive-1.21.1');
+  });
 });
 
 function realLikeVisualProvider(): VanillaBlockVisualProvider {

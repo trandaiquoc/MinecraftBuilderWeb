@@ -69,4 +69,8 @@ describe('VanillaBehaviorRegistry', () => {
     const result = new VanillaBehaviorRegistry().enrich(baseRecord('minecraft:decorated_pot'));
     expect(result).toMatchObject({ behavior: { kind: 'decorated-pot-placement', facingProperty: 'facing' }, defaultState: { facing: 'north', waterlogged: 'false', cracked: 'false' }, stateDefinitions: expect.arrayContaining([{ name: 'cracked', values: ['true', 'false'] }]) });
   });
+  it('keeps Conduit catalog default true while exposing only waterlogged state', () => {
+    const result = new VanillaBehaviorRegistry().enrich(baseRecord('minecraft:conduit'));
+    expect(result).toMatchObject({ behavior: { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, defaultState: { waterlogged: 'true' }, stateDefinitions: [{ name: 'waterlogged', values: ['true', 'false'] }] });
+  });
 });
