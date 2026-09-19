@@ -14,6 +14,7 @@ import { PlacementContext } from './placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from './sign-text-metrics';
 import { planPlacement, PlacementPlan } from '../behavior/placement-plan';
 import { isVanillaSignColor } from './sign-nbt';
+import { decoratedPotData, defaultDecoratedPotData, normalizeDecoratedPotSherd } from './decorated-pot';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -28,7 +29,12 @@ export class StructureEditorService {
       this.lastValidation = plan.validation;
       if (!plan.project) return undefined;
       const placedKeys = new Set(plan.blocks.map((block) => coordinateKey(block.position)));
-      return { ...plan.project, blocks: plan.project.blocks.map((block) => placedKeys.has(coordinateKey(block.position)) && isSignId(block.id) ? { ...block, blockEntityData: defaultSignData() } : block) };
+      return { ...plan.project, blocks: plan.project.blocks.map((block) => {
+        if (!placedKeys.has(coordinateKey(block.position))) return block;
+        if (isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
+        if (block.id === 'minecraft:decorated_pot') return { ...block, blockEntityData: defaultDecoratedPotData() };
+        return block;
+      }) };
     });
   }
 
@@ -166,6 +172,14 @@ export class StructureEditorService {
     return this.history.execute('Sign wax edit', (project) => {
       const block = this.find(project, position); if (!block || !isSignId(block.id) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const data: SignBlockEntityData = { ...current, waxed };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+    });
+  }
+  updateDecoratedPotDecoration(position: VoxelCoordinate, side: 'back' | 'left' | 'right' | 'front', sherd: string): boolean {
+    return this.history.execute('Decorated Pot pattern edit', (project) => {
+      const block = this.find(project, position);
+      if (!block || block.id !== 'minecraft:decorated_pot' || hasLockedMembership(block, project.groups)) return undefined;
+      const current = decoratedPotData(block.blockEntityData); const data = { ...current, decorations: { ...current.decorations, [side]: normalizeDecoratedPotSherd(sherd) } };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }

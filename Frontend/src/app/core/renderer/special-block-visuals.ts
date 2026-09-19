@@ -1,18 +1,18 @@
 import * as THREE from 'three';
 import { PlacedBlock } from '../domain/project.types';
-import { modelPartCuboidUv, SpecialCuboidDescriptor, SpecialModelDescriptor, SpecialModelPartDescriptor } from './special-model-descriptor';
+import { modelPartCuboidUv, ModelPartFace, SpecialCuboidDescriptor, SpecialModelDescriptor, SpecialModelPartDescriptor } from './special-model-descriptor';
 
-export interface SpecialVisualContext { readonly texture?: THREE.Texture; }
+export interface SpecialVisualContext { readonly texture?: THREE.Texture; readonly textures?: Readonly<Record<string, THREE.Texture | undefined>>; }
 export interface SpecialVisualProviderMetadata { readonly providerId: string; readonly gameEdition: 'java'; readonly gameVersion: string; readonly namespace: string; readonly family: string; readonly priority: number; }
 export interface BedVisualDescriptor { readonly metadata: SpecialVisualProviderMetadata; matches(block: PlacedBlock): boolean; textureResource(block: PlacedBlock): string | undefined; model(block: PlacedBlock): SpecialModelDescriptor | undefined; transform(block: PlacedBlock, root: THREE.Group): void; }
-export interface SpecialBlockVisualAdapter { readonly family: string; matches(block: PlacedBlock): boolean; textureResource?(block: PlacedBlock): string | undefined; create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group; }
+export interface SpecialBlockVisualAdapter { readonly family: string; readonly overrideGeneric?: boolean; matches(block: PlacedBlock): boolean; textureResource?(block: PlacedBlock): string | undefined; textureResources?(block: PlacedBlock): Readonly<Record<string, string>>; create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group; }
 
 /** Static editor visuals for vanilla blocks which have no generic JSON elements. */
 export class SpecialBlockVisualRegistry {
   private readonly beds: BedVisualProvider;
   private readonly signs: SignVisualProvider;
   private readonly adapters: readonly SpecialBlockVisualAdapter[];
-  constructor(gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter]; }
+  constructor(gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter]; }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
   resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined { return this.adapters.find((adapter) => adapter.matches(block)); }
 }
@@ -181,6 +181,84 @@ const headAdapter: SpecialBlockVisualAdapter = {
     return root;
   },
 };
+
+const decoratedPotSherdAssets: Readonly<Record<string, string>> = {
+  'minecraft:brick': 'decorated_pot_side',
+  'minecraft:angler_pottery_sherd': 'angler_pottery_pattern',
+  'minecraft:archer_pottery_sherd': 'archer_pottery_pattern',
+  'minecraft:arms_up_pottery_sherd': 'arms_up_pottery_pattern',
+  'minecraft:blade_pottery_sherd': 'blade_pottery_pattern',
+  'minecraft:brewer_pottery_sherd': 'brewer_pottery_pattern',
+  'minecraft:burn_pottery_sherd': 'burn_pottery_pattern',
+  'minecraft:danger_pottery_sherd': 'danger_pottery_pattern',
+  'minecraft:explorer_pottery_sherd': 'explorer_pottery_pattern',
+  'minecraft:flow_pottery_sherd': 'flow_pottery_pattern',
+  'minecraft:friend_pottery_sherd': 'friend_pottery_pattern',
+  'minecraft:guster_pottery_sherd': 'guster_pottery_pattern',
+  'minecraft:heart_pottery_sherd': 'heart_pottery_pattern',
+  'minecraft:heartbreak_pottery_sherd': 'heartbreak_pottery_pattern',
+  'minecraft:howl_pottery_sherd': 'howl_pottery_pattern',
+  'minecraft:miner_pottery_sherd': 'miner_pottery_pattern',
+  'minecraft:mourner_pottery_sherd': 'mourner_pottery_pattern',
+  'minecraft:plenty_pottery_sherd': 'plenty_pottery_pattern',
+  'minecraft:prize_pottery_sherd': 'prize_pottery_pattern',
+  'minecraft:scrape_pottery_sherd': 'scrape_pottery_pattern',
+  'minecraft:sheaf_pottery_sherd': 'sheaf_pottery_pattern',
+  'minecraft:shelter_pottery_sherd': 'shelter_pottery_pattern',
+  'minecraft:skull_pottery_sherd': 'skull_pottery_pattern',
+  'minecraft:snort_pottery_sherd': 'snort_pottery_pattern',
+};
+const decoratedPotSides = ['back', 'left', 'right', 'front'] as const;
+type DecoratedPotSide = typeof decoratedPotSides[number];
+const decoratedPotAdapter: SpecialBlockVisualAdapter = {
+  family: 'decorated-pots',
+  overrideGeneric: true,
+  matches: (block) => block.namespace === 'minecraft' && block.id === 'minecraft:decorated_pot',
+  textureResource: () => 'minecraft:entity/decorated_pot/decorated_pot_base',
+  textureResources: (block) => {
+    const data = block.blockEntityData && typeof block.blockEntityData === 'object' ? block.blockEntityData as { decorations?: Partial<Record<DecoratedPotSide, string>> } : undefined;
+    const decorations = data?.decorations;
+    return {
+      base: 'minecraft:entity/decorated_pot/decorated_pot_base',
+      back: decoratedPotSideTexture(decorations?.back),
+      left: decoratedPotSideTexture(decorations?.left),
+      right: decoratedPotSideTexture(decorations?.right),
+      front: decoratedPotSideTexture(decorations?.front),
+    };
+  },
+  create: (block, context) => createDecoratedPotVisual(block, context),
+};
+function decoratedPotSideTexture(sherd: string | undefined): string { return `minecraft:entity/decorated_pot/${decoratedPotSherdAssets[sherd ?? 'minecraft:brick'] ?? 'decorated_pot_side'}`; }
+export function decoratedPotSherdTextureResource(sherd: string | undefined): string { return decoratedPotSideTexture(sherd); }
+export function decoratedPotRootRotationRadians(facing: string | undefined): number { return ({ north: 0, south: Math.PI, west: Math.PI / 2, east: -Math.PI / 2 } as Record<string, number>)[facing ?? 'north'] ?? 0; }
+export const decoratedPotBaseModel: SpecialModelDescriptor = {
+  id: 'minecraft-java-decorated-pot-base-1.21.1', textureSize: [32, 32], parts: [
+    { id: 'neck', pivot: [0, 37, 16], applyPivot: true, rotation: [180, 0, 0], cuboids: [
+      { id: 'neck', uv: [0, 0], from: [4, 17, 4], size: [8, 3, 8], dilation: -.1 },
+      { id: 'neck-lip', uv: [0, 5], from: [5, 20, 5], size: [6, 1, 6], dilation: .2 },
+    ] },
+    { id: 'top', pivot: [1, 16, 1], applyPivot: true, cuboids: [{ id: 'top', uv: [-14, 13], from: [0, 0, 0], size: [14, 0, 14] }] },
+    { id: 'bottom', pivot: [1, 0, 1], applyPivot: true, cuboids: [{ id: 'bottom', uv: [-14, 13], from: [0, 0, 0], size: [14, 0, 14] }] },
+  ],
+};
+export const decoratedPotSideModels: Readonly<Record<DecoratedPotSide, SpecialModelDescriptor>> = {
+  back: decoratedPotSideModel('back', [15, 16, 1], [0, 0, 180]),
+  left: decoratedPotSideModel('left', [1, 16, 1], [0, -90, 180]),
+  right: decoratedPotSideModel('right', [15, 16, 15], [0, 90, 180]),
+  front: decoratedPotSideModel('front', [1, 16, 15], [180, 0, 0]),
+};
+function decoratedPotSideModel(side: DecoratedPotSide, pivot: readonly [number, number, number], rotation: readonly [number, number, number]): SpecialModelDescriptor {
+  return { id: `minecraft-java-decorated-pot-${side}-1.21.1`, textureSize: [16, 16], parts: [{ id: side, pivot, applyPivot: true, rotation, cuboids: [{ id: `${side}-plane`, uv: [1, 0], from: [0, 0, 0], size: [14, 16, 0], faces: ['north'] }] }] };
+}
+function createDecoratedPotVisual(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group {
+  const root = new THREE.Group(); root.position.set(.5, 0, .5); root.rotation.y = decoratedPotRootRotationRadians(block.state['facing']);
+  const content = new THREE.Group(); content.position.set(-.5, 0, -.5);
+  content.add(...[createSpecialModel(decoratedPotBaseModel, context?.textures?.['base'] ?? context?.texture)]);
+  for (const side of decoratedPotSides) content.add(createSpecialModel(decoratedPotSideModels[side], context?.textures?.[side]));
+  root.add(content);
+  root.userData['specialModel'] = 'minecraft-java-decorated-pot-1.21.1'; root.userData['decoratedPotFacing'] = block.state['facing'] ?? 'north';
+  return root;
+}
 const vanillaShulkerBoxIds = new Set([
   'minecraft:shulker_box', 'minecraft:white_shulker_box', 'minecraft:orange_shulker_box', 'minecraft:magenta_shulker_box',
   'minecraft:light_blue_shulker_box', 'minecraft:yellow_shulker_box', 'minecraft:lime_shulker_box', 'minecraft:pink_shulker_box',
@@ -347,7 +425,8 @@ function createModelPartCuboid(cuboid: SpecialCuboidDescriptor, textureSize: rea
   // Dilation expands geometry only; UVs remain based on the source cuboid size.
   const minX = (x - dilation) / 16; const maxX = (x + width + dilation) / 16;
   const min: readonly [number, number, number] = [cuboid.mirror ? maxX : minX, (y - dilation) / 16, (z - dilation) / 16]; const max: readonly [number, number, number] = [cuboid.mirror ? minX : maxX, (y + height + dilation) / 16, (z + depth + dilation) / 16];
-  for (const direction of ['north', 'south', 'east', 'west', 'up', 'down'] as const) {
+  const directions: readonly ModelPartFace[] = cuboid.faces ?? ['north', 'south', 'east', 'west', 'up', 'down'];
+  for (const direction of directions) {
     const geometry = specialFaceGeometry(min, max, direction, uv[direction], textureSize, cuboid.mirror === true); const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ ...(texture ? { map: texture } : {}), color: texture ? 0xffffff : 0xaf3d35, transparent: true, alphaTest: .1, side: THREE.DoubleSide })); group.add(mesh);
   }
   return group;

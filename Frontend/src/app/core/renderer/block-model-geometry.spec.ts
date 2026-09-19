@@ -117,6 +117,38 @@ describe('block model geometry', () => {
     expect(result.object?.userData['specialVisualFamily']).toBe('shulker-boxes');
     expect(result.object?.userData['specialModel']).toBe('minecraft-java-shulker-box-1.21.1');
   });
+  it('prioritizes Decorated Pot special rendering and loads all five textures', async () => {
+    const json = {
+      'assets/minecraft/blockstates/decorated_pot.json': { variants: { 'facing=north,waterlogged=false,cracked=false': { model: 'minecraft:block/decorated_pot' } } },
+      'assets/minecraft/models/block/decorated_pot.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: cubeFaces() }] },
+    };
+    const files = new Map<string, Uint8Array>([
+      ['assets/minecraft/textures/entity/decorated_pot/decorated_pot_base.png', new Uint8Array([1])],
+      ['assets/minecraft/textures/entity/decorated_pot/decorated_pot_side.png', new Uint8Array([1])],
+      ['assets/minecraft/textures/entity/decorated_pot/angler_pottery_pattern.png', new Uint8Array([1])],
+      ['assets/minecraft/textures/entity/decorated_pot/skull_pottery_pattern.png', new Uint8Array([1])],
+      ['assets/minecraft/textures/entity/decorated_pot/heart_pottery_pattern.png', new Uint8Array([1])],
+    ]);
+    const assets = new VanillaAssetProvider('1.21.1.jar', json, files);
+    const result = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create({ ...block('minecraft:decorated_pot', { facing: 'north', waterlogged: 'false', cracked: 'false' }), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:angler_pottery_sherd', left: 'minecraft:brick', right: 'minecraft:skull_pottery_sherd', front: 'minecraft:heart_pottery_sherd' } } });
+    expect(result.mode).toBe('real'); expect(result.object?.userData['specialVisualFamily']).toBe('decorated-pots');
+    expect(result.trace.texturePaths).toEqual([
+      'assets/minecraft/textures/entity/decorated_pot/decorated_pot_base.png',
+      'assets/minecraft/textures/entity/decorated_pot/angler_pottery_pattern.png',
+      'assets/minecraft/textures/entity/decorated_pot/decorated_pot_side.png',
+      'assets/minecraft/textures/entity/decorated_pot/skull_pottery_pattern.png',
+      'assets/minecraft/textures/entity/decorated_pot/heart_pottery_pattern.png',
+    ]);
+    expect(result.object?.userData['specialModel']).toBe('minecraft-java-decorated-pot-1.21.1');
+  });
+  it('reports partial Decorated Pot rendering when a required side texture is missing', async () => {
+    const assets = new VanillaAssetProvider('1.21.1.jar', {}, new Map([
+      ['assets/minecraft/textures/entity/decorated_pot/decorated_pot_base.png', new Uint8Array([1])],
+      ['assets/minecraft/textures/entity/decorated_pot/decorated_pot_side.png', new Uint8Array([1])],
+    ]));
+    const result = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create({ ...block('minecraft:decorated_pot', { facing: 'north', waterlogged: 'false', cracked: 'false' }), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:angler_pottery_sherd', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' } } });
+    expect(result.mode).toBe('partial'); expect(result.diagnostics.some((diagnostic) => diagnostic.code === 'TEXTURE_NOT_FOUND')).toBe(true);
+  });
 });
 
 function realLikeVisualProvider(): VanillaBlockVisualProvider {

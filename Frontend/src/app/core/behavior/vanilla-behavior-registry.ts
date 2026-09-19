@@ -54,6 +54,7 @@ export class VanillaBehaviorRegistry {
     for (const id of standingHeadIds) this.explicit.set(`minecraft:${id}`, standingHeadMetadata);
     for (const id of wallHeadIds) this.explicit.set(`minecraft:${id}`, wallHeadMetadata);
     for (const id of vanillaShulkerBoxIds) this.explicit.set(id, shulkerBoxMetadata);
+    this.explicit.set('minecraft:decorated_pot', decoratedPotMetadata);
     for (const wood of vanillaSignWoods) {
       this.explicit.set(`minecraft:${wood}_sign`, standingSignMetadata(wood));
       this.explicit.set(`minecraft:${wood}_wall_sign`, wallSignMetadata);
@@ -76,6 +77,7 @@ export class VanillaBehaviorRegistry {
   }
 
   private metadata(id: string): BehaviorMetadata | undefined {
+    if (id === 'minecraft:decorated_pot') return decoratedPotMetadata;
     if (isVanillaCandleId(id)) return candleMetadata;
     const torch = vanillaTorchMetadata(id);
     if (torch) return torch;
@@ -163,6 +165,16 @@ const candleMetadata: BehaviorMetadata = {
     { name: 'candles', values: ['1', '2', '3', '4'] },
     { name: 'lit', values: ['true', 'false'] },
     { name: 'waterlogged', values: ['true', 'false'] },
+  ],
+};
+const decoratedPotMetadata: BehaviorMetadata = {
+  behavior: { kind: 'decorated-pot-placement', facingProperty: 'facing' },
+  support: 'full',
+  defaultState: { facing: 'north', waterlogged: 'false', cracked: 'false' },
+  stateDefinitions: [
+    { name: 'facing', values: ['north', 'south', 'west', 'east'] },
+    { name: 'waterlogged', values: ['true', 'false'] },
+    { name: 'cracked', values: ['true', 'false'] },
   ],
 };
 const standingHeadMetadata: BehaviorMetadata = {

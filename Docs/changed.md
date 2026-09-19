@@ -1306,3 +1306,15 @@ Contextual item placement now starts from the concrete BlockDefinition default
 state and copies only properties supported by that concrete variant. This
 prevents standing `rotation` leaking into wall sign states (and applies the
 same rule to other contextual item variants).
+
+# 54. Decorated Pot foundation
+
+[x] `minecraft:decorated_pot` now has explicit 1.21.1 placement metadata
+(`facing`, `waterlogged`, and `cracked`) and derives horizontal facing from the
+player yaw. New pots start uncracked and do not require floor support.
+
+[x] Decorated Pot rendering uses a dedicated ModelPart descriptor with separate
+base/back/left/right/front textures. Sherd data is named in project storage and
+serializes to Minecraft's canonical NBT order `back,left,right,front`; default
+brick sides omit the `sherds` key. Wobble and contained-item editing remain out
+of scope.

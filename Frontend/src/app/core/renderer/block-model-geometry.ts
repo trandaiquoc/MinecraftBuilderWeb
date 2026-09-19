@@ -50,14 +50,27 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const resources = resolved.trace.textureResources;
     const texturePaths = resources.map(texturePath);
     const special = this.specialVisuals.resolve(block);
-    if (special && (special.family === 'chests' || special.family === 'shulker-boxes' || !resolved.parts.some((part) => part.elements.length))) {
+    if (special && (special.overrideGeneric === true || special.family === 'chests' || special.family === 'shulker-boxes' || !resolved.parts.some((part) => part.elements.length))) {
       const resource = special.textureResource?.(block);
-      const texture = resource ? await this.texture(resource) : undefined;
-      const object = special.create(block, { texture });
+      const resourceMap = special.textureResources?.(block) ?? (resource ? { default: resource } : {});
+      const entries = Object.entries(resourceMap);
+      const diagnostics: BlockRenderDiagnostic[] = [];
+      const textures: Record<string, THREE.Texture | undefined> = {};
+      for (const [role, pathResource] of entries) {
+        const path = texturePath(pathResource);
+        if (!this.assets.readBinary(path)) { diagnostics.push({ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${path}`, resource: path }); continue; }
+        const loaded = await this.texture(pathResource);
+        textures[role] = loaded;
+        if (!loaded) diagnostics.push({ code: 'TEXTURE_DECODE_FAILED', message: `Texture could not be decoded: ${path}`, resource: path });
+      }
+      const texture = textures['default'] ?? textures['base'] ?? (resource ? await this.texture(resource) : undefined);
+      const object = special.create(block, { texture, textures });
       object.userData['specialVisualFamily'] = special.family;
       object.updateMatrixWorld(true);
-      const specialTexturePaths = resource ? [texturePath(resource)] : [];
-      return { object, resolved, mode: (special.family === 'beds' || special.family === 'signs' || special.family === 'chests' || special.family === 'shulker-boxes') && !!texture ? 'real' : 'partial', diagnostics: resource && !texture ? [{ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${specialTexturePaths[0]}`, resource: specialTexturePaths[0] }] : [], trace: { texturePaths: specialTexturePaths, pngBytesFound: !resource || !!this.assets.readBinary(specialTexturePaths[0]), textureDecoded: !resource || !!texture, geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(object)) } };
+      const specialTexturePaths = entries.map(([, value]) => texturePath(value));
+      const requiredTexturesReady = entries.every(([role]) => !!textures[role]);
+      const knownTexturedFamily = special.family === 'beds' || special.family === 'signs' || special.family === 'chests' || special.family === 'shulker-boxes' || special.family === 'decorated-pots';
+      return { object, resolved, mode: knownTexturedFamily && requiredTexturesReady ? 'real' : 'partial', diagnostics, trace: { texturePaths: specialTexturePaths, pngBytesFound: entries.every(([, value]) => !!this.assets.readBinary(texturePath(value))), textureDecoded: requiredTexturesReady, geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(object)) } };
     }
     if (!resolved.parts.some((part) => part.elements.length)) return {
       resolved, mode: 'fallback', diagnostics: [{ code: 'MODEL_NOT_FOUND', message: resolved.diagnostics.map((item) => item.message).join('; ') || `No renderable model elements for ${block.id}` }],

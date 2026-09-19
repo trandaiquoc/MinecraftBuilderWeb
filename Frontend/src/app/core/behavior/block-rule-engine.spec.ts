@@ -21,6 +21,12 @@ describe('BlockRuleEngine', () => {
   it.each([[0, 'south'], [90, 'west'], [180, 'north'], [-90, 'east'], [270, 'east']] as const)('maps bed yaw %s to %s', (yaw, facing) => {
     expect(minecraftPlayerFacing(yaw)).toBe(facing);
   });
+  it.each([[0, 'south'], [90, 'west'], [180, 'north'], [-90, 'east']] as const)('places Decorated Pot with player-facing yaw %s', (yaw, facing) => {
+    const potDefinition = { id: 'minecraft:decorated_pot', namespace: 'minecraft', displayName: 'Decorated Pot', defaultState: { facing: 'north', waterlogged: 'false', cracked: 'false' }, stateDefinitions: [{ name: 'facing', values: ['north', 'south', 'west', 'east'] }, { name: 'waterlogged', values: ['true', 'false'] }, { name: 'cracked', values: ['true', 'false'] }], resources: { textures: [] }, behaviorSupport: 'full' as const, visualSupport: 'real' as const, visualClassification: 'special-renderer-required' as const, defaultStateSource: 'verified-fixture' as const, support: 'full' as const, behavior: { kind: 'decorated-pot-placement' as const, facingProperty: 'facing' as const } };
+    const potEngine = new BlockRuleEngine((id) => id === potDefinition.id ? potDefinition : catalog.get(id));
+    const placed = potEngine.place(base, block('minecraft:decorated_pot', { x: 2, y: 1, z: 2 }, potDefinition.defaultState), { yaw }).project;
+    expect(placed?.blocks[0].state).toMatchObject({ facing, cracked: 'false', waterlogged: 'false' });
+  });
   it('adds and removes fence connections through a deduplicated refresh', () => {
     const first = engine.place(base, block('minecraft:oak_fence', { x: 2, y: 1, z: 2 })).project!;
     const second = engine.place(first, block('minecraft:oak_fence', { x: 3, y: 1, z: 2 })).project!;

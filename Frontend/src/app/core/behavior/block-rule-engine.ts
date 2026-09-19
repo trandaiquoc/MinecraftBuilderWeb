@@ -129,6 +129,9 @@ export class BlockRuleEngine {
     if (behavior?.kind === 'paired-horizontal' && context?.yaw !== undefined) {
       return { ...block, state: { ...block.state, [behavior.facingProperty]: minecraftPlayerFacing(context.yaw), occupied: 'false' } };
     }
+    if (behavior?.kind === 'decorated-pot-placement') {
+      return { ...block, state: { ...block.state, [behavior.facingProperty]: minecraftPlayerFacing(context?.yaw ?? 0), cracked: 'false' } };
+    }
     if (behavior?.kind === 'standing-sign') {
       if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
       return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSignRotation(context?.yaw) } };

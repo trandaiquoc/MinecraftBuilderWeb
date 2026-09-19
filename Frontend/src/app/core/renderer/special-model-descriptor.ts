@@ -7,6 +7,8 @@ export interface SpecialCuboidDescriptor {
   /** ModelPart cube dilation; UVs continue to use the undilated size. */
   readonly dilation?: number;
   readonly mirror?: boolean;
+  /** Optional ModelPart face mask; omitted means all six cuboid faces. */
+  readonly faces?: readonly ModelPartFace[];
 }
 
 export interface SpecialModelPartDescriptor {

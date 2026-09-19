@@ -28,6 +28,8 @@ export interface SignSide {
   readonly glowing: boolean;
 }
 export interface SignBlockEntityData { readonly kind: 'sign'; readonly front: SignSide; readonly back: SignSide; readonly waxed: boolean; readonly raw?: Readonly<Record<string, unknown>>; }
+export interface DecoratedPotDecorations { readonly back: string; readonly left: string; readonly right: string; readonly front: string; }
+export interface DecoratedPotBlockEntityData { readonly kind: 'decorated-pot'; readonly decorations: DecoratedPotDecorations; readonly raw?: Readonly<Record<string, unknown>>; }
 
 export interface BlockId {
   readonly id: string;
@@ -38,7 +40,7 @@ export interface ResolvedPlacedBlock extends BlockId {
   readonly kind: 'resolved';
   readonly position: VoxelCoordinate;
   readonly state: BlockState;
-  readonly blockEntityData?: Readonly<Record<string, unknown>> | SignBlockEntityData;
+  readonly blockEntityData?: Readonly<Record<string, unknown>> | SignBlockEntityData | DecoratedPotBlockEntityData;
   /** Legacy schema v1 membership. Migrated to groupIds when a project is opened. */
   readonly groupId?: string;
   readonly groupIds?: readonly string[];
@@ -48,7 +50,7 @@ export interface MissingPlacedBlock extends BlockId {
   readonly kind: 'missing';
   readonly position: VoxelCoordinate;
   readonly state: BlockState;
-  readonly blockEntityData?: Readonly<Record<string, unknown>> | SignBlockEntityData;
+  readonly blockEntityData?: Readonly<Record<string, unknown>> | SignBlockEntityData | DecoratedPotBlockEntityData;
   /** Legacy schema v1 membership. Migrated to groupIds when a project is opened. */
   readonly groupId?: string;
   readonly groupIds?: readonly string[];

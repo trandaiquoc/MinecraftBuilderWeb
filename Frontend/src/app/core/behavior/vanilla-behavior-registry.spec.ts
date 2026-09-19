@@ -65,4 +65,8 @@ describe('VanillaBehaviorRegistry', () => {
     }
     expect(registry.enrich(baseRecord('mod:red_shulker_box'))).toEqual(baseRecord('mod:red_shulker_box'));
   });
+  it('adds exact Decorated Pot placement metadata and defaults', () => {
+    const result = new VanillaBehaviorRegistry().enrich(baseRecord('minecraft:decorated_pot'));
+    expect(result).toMatchObject({ behavior: { kind: 'decorated-pot-placement', facingProperty: 'facing' }, defaultState: { facing: 'north', waterlogged: 'false', cracked: 'false' }, stateDefinitions: expect.arrayContaining([{ name: 'cracked', values: ['true', 'false'] }]) });
+  });
 });

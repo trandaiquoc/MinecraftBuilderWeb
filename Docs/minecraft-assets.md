@@ -474,3 +474,18 @@ Text width currently uses an isolated conservative fallback metric service:
 normal signs are 90 pixels / 10 line-height and hanging signs are 60 pixels / 9
 line-height. A future Java font-atlas metric provider can replace it without
 changing project data or the inspector.
+
+# Java 1.21.1 Decorated Pot
+
+Decorated Pots use the dedicated special visual provider rather than the
+generic block-model path. The provider requests the verified entity resources
+`decorated_pot_base` plus one independent side resource for each physical side;
+missing resources produce Partial diagnostics while preserving the pot and its
+canonical state.
+
+Project block-entity data stores named `back`, `left`, `right`, and `front`
+sherds. The NBT mapper emits those values in Minecraft's codec order and omits
+`sherds` when all sides are the default `minecraft:brick`. Unknown sherd IDs
+fall back to the blank side texture and are never used to construct arbitrary
+resource paths. The current local asset cache remains the only source for
+textures; no vanilla JAR or extracted asset tree is committed.
