@@ -118,9 +118,20 @@ function isWallVariant(value: string): boolean {
 }
 function isHorizontal(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
 
-export function resolveItemBlock(item: PlaceableItemDefinition, state: BlockState, position: VoxelCoordinate, context?: PlacementContext): PlacedBlock {
+export function resolveItemBlock(item: PlaceableItemDefinition, state: BlockState, position: VoxelCoordinate, context?: PlacementContext, definition?: (id: string) => BlockDefinition | undefined): PlacedBlock {
   const blockId = resolveConcreteBlockId(item, context);
-  return { kind: 'resolved', id: blockId, namespace: item.namespace, position: { ...position }, state: { ...state, ...context?.stateOverride } };
+  const target = definition?.(blockId);
+  const source = { ...state, ...context?.stateOverride };
+  const finalState: Record<string, string> = {};
+  if (target) {
+    for (const entry of target.stateDefinitions) {
+      const value = source[entry.name] ?? target.defaultState[entry.name];
+      if (typeof value === 'string') finalState[entry.name] = value;
+    }
+  } else {
+    Object.assign(finalState, source);
+  }
+  return { kind: 'resolved', id: blockId, namespace: item.namespace, position: { ...position }, state: finalState };
 }
 
 /** Builds final, internally consistent preview blocks for a logical item state. */

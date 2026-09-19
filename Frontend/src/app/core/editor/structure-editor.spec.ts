@@ -122,4 +122,14 @@ describe('sign text normalization', () => {
     expect(restored.front.lines).toEqual(['Hello', 'Minecraft', 'Builder', '']);
     expect(restored.back.lines).toEqual(['', '', '', '']);
   });
+  it('edits sign color, glow, and wax metadata as canonical block-entity data', () => {
+    const signProject: ProjectDocument = { ...project, blocks: [{ kind: 'resolved', id: 'minecraft:oak_sign', namespace: 'minecraft', position: { x: 2, y: 2, z: 2 }, state: { rotation: '0' } }] };
+    const { editor, workspace } = makeEditor(signProject);
+    expect(editor.updateSignAppearance({ x: 2, y: 2, z: 2 }, 'front', { color: 'red', glowing: true })).toBe(true);
+    expect(editor.updateSignWaxed({ x: 2, y: 2, z: 2 }, true)).toBe(true);
+    const data = workspace.project()!.blocks[0].blockEntityData as { front: { color: string; glowing: boolean }; waxed: boolean };
+    expect(data.front).toMatchObject({ color: 'red', glowing: true });
+    expect(data.waxed).toBe(true);
+    expect(editor.updateSignAppearance({ x: 2, y: 2, z: 2 }, 'front', { color: '#fff' })).toBe(false);
+  });
 });

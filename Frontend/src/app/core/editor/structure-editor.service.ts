@@ -13,6 +13,7 @@ import { expandLogicalObjectClosure, resolveLogicalObjectParts, synchronizeLogic
 import { PlacementContext } from './placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from './sign-text-metrics';
 import { planPlacement, PlacementPlan } from '../behavior/placement-plan';
+import { isVanillaSignColor } from './sign-nbt';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -145,9 +146,26 @@ export class StructureEditorService {
   }
   updateSignText(position: VoxelCoordinate, side: 'front' | 'back', value: string): boolean {
     return this.history.execute('Sign text edit', (project) => {
-      const block = this.find(project, position); if (!block || !isSignId(block.id)) return undefined;
+      const block = this.find(project, position); if (!block || !isSignId(block.id) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const target = current[side]; const lines = signLines(value);
       const data: SignBlockEntityData = { ...current, [side]: { ...target, lines } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+    });
+  }
+  updateSignAppearance(position: VoxelCoordinate, side: 'front' | 'back', patch: { readonly color?: string; readonly glowing?: boolean }): boolean {
+    return this.history.execute('Sign appearance edit', (project) => {
+      const block = this.find(project, position); if (!block || !isSignId(block.id) || hasLockedMembership(block, project.groups)) return undefined;
+      const current = signData(block.blockEntityData); const target = current[side];
+      const color = patch.color === undefined ? target.color : patch.color;
+      if (!isVanillaSignColor(color)) return undefined;
+      const data: SignBlockEntityData = { ...current, [side]: { ...target, color, glowing: patch.glowing ?? target.glowing } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+    });
+  }
+  updateSignWaxed(position: VoxelCoordinate, waxed: boolean): boolean {
+    return this.history.execute('Sign wax edit', (project) => {
+      const block = this.find(project, position); if (!block || !isSignId(block.id) || hasLockedMembership(block, project.groups)) return undefined;
+      const current = signData(block.blockEntityData); const data: SignBlockEntityData = { ...current, waxed };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
@@ -182,11 +200,14 @@ function normalizeSignSide(value: unknown, fallback: SignSide): SignSide {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
   const source = value as Readonly<Record<string, unknown>>;
   const lines = Array.isArray(source['lines']) ? signLines(source['lines'].filter((line): line is string => typeof line === 'string').join('\n')) : fallback.lines;
+  const filteredMessages = Array.isArray(source['filteredMessages']) && source['filteredMessages'].length === 4 && source['filteredMessages'].every((line): line is string => typeof line === 'string')
+    ? [source['filteredMessages'][0], source['filteredMessages'][1], source['filteredMessages'][2], source['filteredMessages'][3]] as SignSide['filteredMessages'] : fallback.filteredMessages;
   return {
     ...fallback,
     ...source,
     lines,
-    color: typeof source['color'] === 'string' ? source['color'] : fallback.color,
+    filteredMessages,
+    color: typeof source['color'] === 'string' && isVanillaSignColor(source['color']) ? source['color'] : fallback.color,
     glowing: typeof source['glowing'] === 'boolean' ? source['glowing'] : fallback.glowing,
   };
 }

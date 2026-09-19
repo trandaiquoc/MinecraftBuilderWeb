@@ -13,15 +13,15 @@ export interface PlacementPlan {
   readonly project?: ProjectDocument;
 }
 
-export function placementRequestForActive(active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, item?: PlaceableItemDefinition): PlacedBlock {
+export function placementRequestForActive(active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, item?: PlaceableItemDefinition, definition?: (id: string) => BlockDefinition | undefined): PlacedBlock {
   const block = item
-    ? resolveItemBlock(item, active.state, position, context)
+    ? resolveItemBlock(item, active.state, position, context, definition)
     : { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { ...position }, state: { ...active.state, ...context?.stateOverride } } as PlacedBlock;
   return { ...block, kind: active.support === 'unknown' ? 'missing' : 'resolved' };
 }
 
 export function planPlacement(project: ProjectDocument, active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined, item?: PlaceableItemDefinition): PlacementPlan {
-  const request = placementRequestForActive(active, position, context, item);
+  const request = placementRequestForActive(active, position, context, item, definition);
   const result = new BlockRuleEngine(definition).place(project, request, context);
   const original = new Set(project.blocks.map((block) => key(block.position)));
   const blocks = result.project

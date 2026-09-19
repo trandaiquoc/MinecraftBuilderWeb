@@ -164,8 +164,8 @@ const translations = {
     moveOutsideBounds: 'Outside project bounds',
     moveCollision: 'Collision with another block',
     moveLocked: 'Group contains locked blocks',
-    signText: 'Sign Text', editOtherSignSide: 'Edit other side', signTextInput: 'Sign text, up to four lines', signLineTooWide: 'Line {line} may be too wide',
-    signAdvanced: 'Advanced', signFront: 'Front', signBack: 'Back', signGlowing: 'Glowing', signNormal: 'Normal', signWaxed: 'Waxed', signEditable: 'Editable',
+    signText: 'Sign Text', editOtherSignSide: 'Edit other side', signTextInput: 'Sign line {line}', signLineTooWide: 'Line {line} may be too wide',
+    signAdvanced: 'Advanced', signFront: 'Front', signBack: 'Back', signColor: 'Text color', signGlowing: 'Glowing text', signWaxed: 'Waxed', signWaxedHint: 'Prevents editing in Minecraft',
   },
   vi: {
     savingProject: 'Dang luu...',
@@ -323,8 +323,8 @@ const translations = {
     moveOutsideBounds: 'Ngoài phạm vi project',
     moveCollision: 'Va chạm với block khác',
     moveLocked: 'Nhóm chứa block đã khóa',
-    signText: 'Văn bản biển', editOtherSignSide: 'Sửa mặt kia', signTextInput: 'Văn bản biển, tối đa bốn dòng', signLineTooWide: 'Dòng {line} có thể quá rộng',
-    signAdvanced: 'Nâng cao', signFront: 'Mặt trước', signBack: 'Mặt sau', signGlowing: 'Phát sáng', signNormal: 'Bình thường', signWaxed: 'Đã bôi sáp', signEditable: 'Có thể sửa',
+    signText: 'Văn bản biển', editOtherSignSide: 'Sửa mặt kia', signTextInput: 'Dòng {line} trên biển', signLineTooWide: 'Dòng {line} có thể quá rộng',
+    signAdvanced: 'Nâng cao', signFront: 'Mặt trước', signBack: 'Mặt sau', signColor: 'Màu văn bản', signGlowing: 'Văn bản phát sáng', signWaxed: 'Đã bôi sáp', signWaxedHint: 'Ngăn chỉnh sửa trong Minecraft',
   },
 } as const;
 

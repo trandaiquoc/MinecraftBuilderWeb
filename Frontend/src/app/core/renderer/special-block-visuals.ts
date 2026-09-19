@@ -43,10 +43,16 @@ export class SignVisualProvider implements SpecialBlockVisualAdapter {
     const model = variant === 'standing' || variant === 'wall'
       ? normalSignModel(variant === 'standing')
       : hangingSignModel(variant, block.state['attached'] === 'true');
-    const root = createSpecialModel(model, context?.texture);
-    addSignText(root, block, variant);
-    if (variant === 'standing' || variant === 'wall') applyNormalSignTransform(root, block, variant === 'wall');
-    else applyHangingSignTransform(root, block);
+    const root = new THREE.Group();
+    const modelRoot = createSpecialModel(model, context?.texture);
+    const modelBranch = new THREE.Group();
+    while (modelRoot.children.length) modelBranch.add(modelRoot.children[0]);
+    const textBranch = addSignText(block, variant);
+    const placement = new THREE.Group();
+    placement.add(modelBranch, textBranch);
+    root.add(placement);
+    if (variant === 'standing' || variant === 'wall') applyNormalSignTransform(root, placement, modelBranch, textBranch, block, variant === 'wall');
+    else applyHangingSignTransform(root, modelBranch, textBranch, block);
     root.userData['specialModel'] = model.id;
     root.userData['providerId'] = 'minecraft-java-sign-1.21.1-modelpart';
     root.userData['signVariant'] = variant;
@@ -355,7 +361,13 @@ function specialFaceGeometry(min: readonly [number, number, number], max: readon
   const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvCoordinates, 2)); geometry.setIndex([0, 1, 2, 0, 2, 3]); geometry.computeVertexNormals(); return geometry;
 }
 function specialFacePositions(direction: string, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): readonly (readonly [number, number, number])[] { switch (direction) { case 'north': return [[x2, y1, z1], [x1, y1, z1], [x1, y2, z1], [x2, y2, z1]]; case 'south': return [[x1, y1, z2], [x2, y1, z2], [x2, y2, z2], [x1, y2, z2]]; case 'west': return [[x1, y1, z1], [x1, y1, z2], [x1, y2, z2], [x1, y2, z1]]; case 'east': return [[x2, y1, z2], [x2, y1, z1], [x2, y2, z1], [x2, y2, z2]]; case 'down': return [[x1, y1, z1], [x2, y1, z1], [x2, y1, z2], [x1, y1, z2]]; default: return [[x1, y2, z2], [x2, y2, z2], [x2, y2, z1], [x1, y2, z1]]; } }
-type SignVariant = 'standing' | 'wall' | 'hanging' | 'wall-hanging';
+export type SignVariant = 'standing' | 'wall' | 'hanging' | 'wall-hanging';
+export interface SignTextLayout { readonly y: number; readonly z: number; readonly scale: number; readonly lineHeight: number; readonly maxWidth: number; }
+export function signTextLayout(variant: SignVariant): SignTextLayout {
+  return variant === 'hanging' || variant === 'wall-hanging'
+    ? { y: -.32, z: .073, scale: .9, lineHeight: 9, maxWidth: 60 }
+    : { y: .33333334, z: .046666667, scale: 2 / 3, lineHeight: 10, maxWidth: 90 };
+}
 const signWoods = new Set(['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped']);
 function signVariant(id: string): SignVariant | undefined {
   if (id.endsWith('_wall_hanging_sign')) return 'wall-hanging';
@@ -389,30 +401,27 @@ function hangingSignModel(variant: 'hanging' | 'wall-hanging', attached: boolean
     { id: 'v-chains', visible: !wall && attached, cuboids: [{ id: 'v-chains', uv: [14, 6], from: [-6, -6, 0], size: [12, 6, 0] }] },
   ] };
 }
-function applyNormalSignTransform(root: THREE.Group, block: PlacedBlock, wall: boolean): void {
+function applyNormalSignTransform(root: THREE.Group, placement: THREE.Group, modelBranch: THREE.Group, textBranch: THREE.Group, block: PlacedBlock, wall: boolean): void {
   root.position.set(.5, .5, .5);
   root.rotation.y = -signRotationRadians(block);
-  root.scale.set(2 / 3, -2 / 3, -2 / 3);
+  modelBranch.scale.set(2 / 3, -2 / 3, -2 / 3);
+  textBranch.scale.set(1, -1, 1);
   // The 2px board depth is scaled to 1/12 block. Centering its support edge
   // on the adjacent voxel face leaves the board in front of, not inside, the
   // supporting block for every horizontal facing.
-  if (wall) applyLocalRendererTranslation(root, [0, -.3125, .6875]);
+  if (wall) {
+    // The former shared sign scale transformed this local placement by -2/3.
+    // Keep the resulting vanilla support-plane translation while allowing the
+    // text branch to remain independent from the model scale.
+    const wallTranslation = [0, .20833334, -.45833334] as const;
+    placement.position.set(...wallTranslation);
+  }
 }
-function applyHangingSignTransform(root: THREE.Group, block: PlacedBlock): void {
+function applyHangingSignTransform(root: THREE.Group, modelBranch: THREE.Group, textBranch: THREE.Group, block: PlacedBlock): void {
   root.position.set(.5, .9375, .5);
   root.rotation.y = -signRotationRadians(block);
-  root.scale.set(1, -1, -1);
-  // Keep one shared content wrapper so board, chains and text receive the
-  // same transform. The source model is already authored around the block
-  // origin; no additional vertical offset is needed here.
-  applyLocalRendererTranslation(root, [0, 0, 0]);
-}
-/** Mirrors a MatrixStack translate performed after renderer-facing rotation. */
-function applyLocalRendererTranslation(root: THREE.Group, translation: readonly [number, number, number]): void {
-  const content = new THREE.Group();
-  content.position.set(...translation);
-  while (root.children.length) content.add(root.children[0]);
-  root.add(content);
+  modelBranch.scale.set(1, -1, -1);
+  textBranch.scale.set(1, -1, 1);
 }
 function signRotationRadians(block: PlacedBlock): number {
   const rotation = Number(block.state['rotation']);
@@ -422,21 +431,36 @@ function signRotationRadians(block: PlacedBlock): number {
 function signFacingRotation(facing: string | undefined): number {
   return ({ south: 0, west: Math.PI / 2, north: Math.PI, east: Math.PI * 1.5 } as Record<string, number>)[facing ?? 'north'] ?? Math.PI;
 }
-function addSignText(root: THREE.Group, block: PlacedBlock, variant: SignVariant): void {
+function addSignText(block: PlacedBlock, variant: SignVariant): THREE.Group {
+  const root = new THREE.Group();
   const data = block.blockEntityData as { front?: { lines?: readonly string[]; color?: string }; back?: { lines?: readonly string[]; color?: string } } | undefined;
-  if (typeof document === 'undefined' || !data) return;
-  const hanging = variant === 'hanging' || variant === 'wall-hanging';
-  const offset = hanging ? { y: -.32, z: .073, scale: .9 } : { y: .33333334, z: .046666667, scale: 2 / 3 };
+  if (typeof document === 'undefined' || !data) return root;
+  const offset = signTextLayout(variant);
   addSignTextSide(root, data.front, offset, false);
   addSignTextSide(root, data.back, offset, true);
+  root.userData['signTextScale'] = .015625 * offset.scale;
+  root.userData['signTextOffset'] = [0, offset.y, offset.z];
+  root.userData['signTextLineHeight'] = offset.lineHeight;
+  root.userData['signTextMaxWidth'] = offset.maxWidth;
+  return root;
 }
-function addSignTextSide(root: THREE.Group, side: { lines?: readonly string[]; color?: string } | undefined, offset: { readonly y: number; readonly z: number; readonly scale: number }, back: boolean): void {
+function addSignTextSide(root: THREE.Group, side: { lines?: readonly string[]; color?: string; glowing?: boolean } | undefined, offset: { readonly y: number; readonly z: number; readonly scale: number; readonly lineHeight: number; readonly maxWidth: number }, back: boolean): void {
   if (!side) return;
-  const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 128;
+  const pixelsPerUnit = 8;
+  const canvas = document.createElement('canvas'); canvas.width = offset.maxWidth * pixelsPerUnit; canvas.height = offset.lineHeight * 4 * pixelsPerUnit;
   const context = canvas.getContext('2d'); if (!context) return;
-  context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = side.color === 'black' ? '#181818' : side.color ?? '#181818'; context.font = '20px sans-serif'; context.textAlign = 'center';
-  for (let index = 0; index < 4; index++) context.fillText(side.lines?.[index] ?? '', 128, 27 + index * 25);
+  context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = signTextColor(side.color, side.glowing === true); context.font = `${Math.max(12, offset.lineHeight * pixelsPerUnit * .75)}px sans-serif`; context.textAlign = 'center'; context.textBaseline = 'middle';
+  for (let index = 0; index < 4; index++) context.fillText(side.lines?.[index] ?? '', canvas.width / 2, (index + .5) * offset.lineHeight * pixelsPerUnit);
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.userData['ownedSignTexture'] = true;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(.68 * offset.scale, .34 * offset.scale), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  texture.magFilter = THREE.LinearFilter; texture.minFilter = THREE.LinearFilter;
+  const worldScale = .015625 * offset.scale;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(offset.maxWidth * worldScale, offset.lineHeight * 4 * worldScale), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
   mesh.position.set(0, offset.y, back ? -offset.z : offset.z); if (back) mesh.rotation.y = Math.PI; root.add(mesh);
+}
+function signTextColor(color: string | undefined, glowing: boolean): string {
+  const palette: Readonly<Record<string, string>> = { white: '#f9fffe', orange: '#f9801d', magenta: '#c74ebd', light_blue: '#3ab3da', yellow: '#fed83d', lime: '#80c71f', pink: '#f38baa', gray: '#474f52', light_gray: '#9d9d97', cyan: '#169c9c', purple: '#8932b8', blue: '#3c44aa', brown: '#835432', green: '#5e7c16', red: '#b02e26', black: '#181818' };
+  const value = palette[color ?? 'black'] ?? palette['black'];
+  if (!glowing) return value;
+  const glowPalette: Readonly<Record<string, string>> = { white: '#ffffff', orange: '#ffb25c', magenta: '#f09be8', light_blue: '#8fe5ff', yellow: '#fff4a3', lime: '#c8ff62', pink: '#ffc2d8', gray: '#aab3b6', light_gray: '#e6e6de', cyan: '#69eeee', purple: '#d78aff', blue: '#8d96ff', brown: '#d6a36e', green: '#a8d65e', red: '#ff7770', black: '#777777' };
+  return glowPalette[color ?? 'black'] ?? value;
 }

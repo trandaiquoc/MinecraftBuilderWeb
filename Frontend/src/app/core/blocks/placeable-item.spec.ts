@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BlockCatalog } from './block-catalog';
 import { representativeBlockFixture } from './block-catalog.fixture';
-import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, previewBlocksForItem, resolveConcreteBlockId } from './placeable-item';
+import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, previewBlocksForItem, resolveConcreteBlockId, resolveItemBlock } from './placeable-item';
+import type { AssetBlockRecord } from './block-definition.types';
 
 function catalogWith(...ids: string[]): BlockCatalog {
   const source = [...representativeBlockFixture.blocks];
@@ -54,5 +55,17 @@ describe('vanilla placeable item layer', () => {
       const item = items.find((entry) => entry.itemId === itemId)!;
       expect(resolveConcreteBlockId(item, { faceNormal: { x: 0, y: 0, z: 1 } })).not.toBe(itemId);
     }
+  });
+
+  it('rebuilds contextual state from the concrete variant definition', () => {
+    const source: AssetBlockRecord[] = [
+      { id: 'minecraft:oak_sign', displayName: 'Oak Sign', defaultState: { rotation: '0', waterlogged: 'false' }, stateDefinitions: [{ name: 'rotation', values: ['0'] }, { name: 'waterlogged', values: ['false', 'true'] }], resources: { textures: [] }, support: 'full' as const },
+      { id: 'minecraft:oak_wall_sign', displayName: 'Oak Wall Sign', defaultState: { facing: 'north', waterlogged: 'false' }, stateDefinitions: [{ name: 'facing', values: ['north', 'south', 'east', 'west'] }, { name: 'waterlogged', values: ['false', 'true'] }], resources: { textures: [] }, support: 'full' as const },
+    ];
+    const catalog = new BlockCatalog(); catalog.load({ minecraftVersion: '1.21.1', blocks: source });
+    const item = buildPlaceableItems(catalog.all()).find((entry) => entry.itemId === 'minecraft:oak_sign')!;
+    const wall = resolveItemBlock(item, { rotation: '0', waterlogged: 'false' }, { x: 0, y: 0, z: 0 }, { faceNormal: { x: 1, y: 0, z: 0 }, stateOverride: { rotation: '0', facing: 'east' } }, (id) => catalog.get(id));
+    expect(wall.id).toBe('minecraft:oak_wall_sign');
+    expect(wall.state).toEqual({ facing: 'east', waterlogged: 'false' });
   });
 });

@@ -1288,3 +1288,21 @@ shared board/chain/text transform without an extra vertical offset.
 items plus their wall variants, and all vanilla wall banners receive explicit
 facing/support behavior. Wall banner visuals use a facing-aware support-plane
 anchor instead of the standing-banner geometry anchor.
+# 53. Sign text/data completion
+
+Sign text is stored as block-entity data with independent four-line front and
+back sides. The editor exposes canonical dye colors, glowing text, and waxed
+metadata without translating or inventing Minecraft state properties. Sign
+rendering keeps the model and text branches independent: normal text uses the
+1.21.1 logical scale `0.015625 * 0.6666667` and hanging text uses
+`0.015625 * 0.9`, with logical widths 90 and 60 pixels respectively.
+
+`toMinecraftSignBlockEntityNbt()` maps project data to `front_text`,
+`back_text`, `is_waxed`, and the correct `minecraft:sign` or
+`minecraft:hanging_sign` block-entity id. Literal lines are JSON-stringified
+text components; absent filtered messages are omitted.
+
+Contextual item placement now starts from the concrete BlockDefinition default
+state and copies only properties supported by that concrete variant. This
+prevents standing `rotation` leaking into wall sign states (and applies the
+same rule to other contextual item variants).

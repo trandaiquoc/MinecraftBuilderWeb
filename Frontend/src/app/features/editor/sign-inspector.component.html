@@ -1,15 +1,30 @@
 @if (selected()) {
   <section class="sign-inspector">
     <h3>{{ i18n.t('signText') }}</h3>
-    <div class="sign-side">
-      <span>{{ sideLabel() }}</span>
-      <button type="button" (click)="toggleSide()">{{ i18n.t('editOtherSignSide') }}</button>
+    <div class="sign-tabs" role="tablist">
+      <button type="button" role="tab" [class.active]="side() === 'front'" [attr.aria-selected]="side() === 'front'" (click)="selectSide('front')">{{ i18n.t('signFront') }}</button>
+      <button type="button" role="tab" [class.active]="side() === 'back'" [attr.aria-selected]="side() === 'back'" (click)="selectSide('back')">{{ i18n.t('signBack') }}</button>
     </div>
-    <textarea rows="4" [value]="text()" (focus)="beginEdit()" (input)="updateDraft($event)" (blur)="commit()" [attr.aria-label]="i18n.t('signTextInput')"></textarea>
+    <div class="sign-lines">
+      @for (index of [0, 1, 2, 3]; track index) {
+        <label>
+          <span>{{ lineLabel(index) }}</span>
+          <input type="text" [value]="line(index)" (focus)="beginEdit()" (input)="updateLine(index, $event)" (blur)="commit()" [attr.aria-label]="lineLabel(index)" />
+        </label>
+      }
+    </div>
     @if (warning(); as warning) { <small class="warning">{{ warning }}</small> }
+    <label class="sign-control">
+      <span>{{ i18n.t('signColor') }}</span>
+      <select [value]="color()" (change)="updateColor($event)">
+        @for (color of colors; track color) { <option [value]="color">{{ color }}</option> }
+      </select>
+    </label>
+    <label class="check-control"><input type="checkbox" [checked]="glowing()" (change)="updateGlowing($event)" /> <span>{{ i18n.t('signGlowing') }}</span></label>
     <details [open]="advanced()" (toggle)="advanced.set($any($event.target).open)">
       <summary>{{ i18n.t('signAdvanced') }}</summary>
-      <p>Color: {{ data()[side()].color }} · {{ data()[side()].glowing ? 'Glowing' : 'Normal' }} · {{ data().waxed ? 'Waxed' : 'Editable' }}</p>
+      <label class="check-control"><input type="checkbox" [checked]="waxed()" (change)="updateWaxed($event)" /> <span>{{ i18n.t('signWaxed') }}</span></label>
+      <small>{{ i18n.t('signWaxedHint') }}</small>
     </details>
   </section>
 }

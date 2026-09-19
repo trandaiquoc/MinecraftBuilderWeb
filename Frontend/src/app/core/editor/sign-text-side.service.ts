@@ -9,6 +9,8 @@ export type SignTextSide = 'front' | 'back';
 export class SignTextSideService {
   readonly side = signal<SignTextSide>('front');
 
+  set(side: SignTextSide): void { this.side.set(side); }
+
   setFromHit(block: PlacedBlock, normal: FaceNormal | undefined): void {
     if (!normal || normal.y !== 0) { this.side.set('front'); return; }
     const front = signOutwardNormal(block);
