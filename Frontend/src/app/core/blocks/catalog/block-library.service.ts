@@ -5,6 +5,7 @@ import type { BlockDefinition, NormalizedBlockDefinition } from './block-definit
 import { representativeBlockFixture } from './block-catalog.fixture';
 import { buildPlaceableItems, canonicalPlaceableItemId, PlaceableItemDefinition, placementItemSearch } from '../placement-palette/placeable-item';
 import { DecorationService } from '../../decorations/decoration.service';
+import type { BlockCatalogSource } from './block-catalog';
 
 @Injectable({ providedIn: 'root' })
 export class BlockLibraryService {
@@ -22,7 +23,11 @@ export class BlockLibraryService {
   }
 
   setQuery(query: string): void { this.query.set(query); }
-  load(source: import('./block-catalog').BlockCatalogSource): void { const catalog = new BlockCatalog(); catalog.load(source); this.catalog = catalog; this.items = buildPlaceableItems(catalog.all()); this.revision.update((value) => value + 1); }
+  load(source: BlockCatalogSource): void { this.replaceSource(source); }
+  replaceSource(source: BlockCatalogSource): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.replaceSource(source); this.items = buildPlaceableItems(this.catalog.all()); if (activeId && activeSource === (source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla') && !this.catalog.get(activeId)) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
+  removeSource(sourceId: string): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.removeSource(sourceId); this.items = buildPlaceableItems(this.catalog.all()); if (activeSource === sourceId) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
+  sourceIds(): readonly string[] { return this.catalog.sources(); }
+  catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog.conflicts(); }
   select(item: PlaceableItemDefinition): void { this.decorations?.clearActive(); this.activeBlock.select(item); }
   get(id: string): NormalizedBlockDefinition | undefined { return this.catalog.get(id); }
   getItem(itemId: string): PlaceableItemDefinition | undefined { return this.items.find((item) => item.itemId === itemId); }

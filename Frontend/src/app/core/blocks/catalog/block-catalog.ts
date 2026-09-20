@@ -5,19 +5,47 @@ import type { BlockCapability } from '../capabilities/block-capability.types';
 export interface BlockCatalogSource {
   readonly minecraftVersion: '1.21.1';
   readonly blocks: readonly AssetBlockRecord[];
+  readonly sourceId?: string;
+  readonly sourceName?: string;
 }
 
 export class BlockCatalog {
+  private readonly contributions = new Map<string, readonly NormalizedBlockDefinition[]>();
   private readonly entries = new Map<string, NormalizedBlockDefinition>();
   private readonly searchIndex = new Map<string, string>();
 
   load(source: BlockCatalogSource): void {
+    this.contributions.clear();
+    this.replaceSource(source);
+    if (this.conflicts().length) {
+      const conflict = this.conflicts()[0];
+      this.contributions.clear(); this.rebuild();
+      throw new Error(`Duplicate block ID: ${conflict.id}`);
+    }
+  }
+
+  replaceSource(source: BlockCatalogSource): void {
     if (source.minecraftVersion !== '1.21.1') throw new Error(`Unsupported Minecraft version: ${source.minecraftVersion}`);
-    for (const record of source.blocks) {
-      const definition = toDefinition(record);
-      if (this.entries.has(definition.id)) throw new Error(`Duplicate block ID: ${definition.id}`);
+    const sourceId = source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla';
+    const sourceName = source.sourceName ?? source.blocks[0]?.sourceName ?? sourceId;
+    this.contributions.set(sourceId, source.blocks.map((record) => toDefinition(record, sourceId, sourceName)));
+    this.rebuild();
+  }
+
+  removeSource(sourceId: string): void { this.contributions.delete(sourceId); this.rebuild(); }
+  sources(): readonly string[] { return [...this.contributions.keys()]; }
+  conflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] {
+    const owners = new Map<string, string[]>();
+    for (const [sourceId, definitions] of this.contributions) for (const definition of definitions) owners.set(definition.id, [...(owners.get(definition.id) ?? []), sourceId]);
+    return [...owners].filter(([, sourceIds]) => sourceIds.length > 1).map(([id, sourceIds]) => ({ id, sourceIds }));
+  }
+
+  private rebuild(): void {
+    this.entries.clear(); this.searchIndex.clear();
+    for (const definitions of this.contributions.values()) for (const definition of definitions) {
+      if (this.entries.has(definition.id)) continue;
       this.entries.set(definition.id, definition);
-      this.searchIndex.set(definition.id, [definition.displayName, definition.id, definition.namespace, definition.modName ?? ''].map(normalizeSearchText).join('\u0000'));
+      this.searchIndex.set(definition.id, [definition.displayName, definition.id, definition.namespace, definition.modName ?? '', definition.sourceName].map(normalizeSearchText).join('\u0000'));
     }
   }
 
@@ -31,7 +59,7 @@ export class BlockCatalog {
   }
 }
 
-function toDefinition(record: AssetBlockRecord): NormalizedBlockDefinition {
+function toDefinition(record: AssetBlockRecord, sourceId = record.sourceId ?? 'vanilla', sourceName = record.sourceName ?? sourceId): NormalizedBlockDefinition {
   const separator = record.id.indexOf(':');
   if (separator <= 0 || separator === record.id.length - 1) throw new Error(`Invalid block registry ID: ${record.id}`);
   const namespace = record.id.slice(0, separator);
@@ -41,6 +69,8 @@ function toDefinition(record: AssetBlockRecord): NormalizedBlockDefinition {
   const hasVisualEvidence = !!record.visualClassification || !!explicitRender || !!record.resources.blockstate || !!record.resources.model;
   return {
     ...record,
+    sourceId,
+    sourceName,
     namespace,
     support,
     behaviorSupport: record.behaviorSupport ?? (record.behavior ? support === 'full' ? 'full' : 'partial' : 'unknown'),

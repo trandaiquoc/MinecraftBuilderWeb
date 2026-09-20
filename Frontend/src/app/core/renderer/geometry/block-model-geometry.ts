@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { BlockModelResolver, ResolvedBlockModel, ResolvedElement, ResolvedFace, ResolvedModelPart } from '../../blocks/resolver';
-import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
+import { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
 import { createFluidGeometry } from '../fluids/fluid-geometry';
@@ -63,7 +63,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private thumbnailRenderer?: THREE.WebGLRenderer;
   private grassTintCache?: Promise<number | undefined>;
 
-  constructor(private readonly assets: VanillaAssetProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets.gameVersion); }
+  constructor(private readonly assets: RenderableAssetResourceProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets.gameVersion ?? '1.21.1'); }
 
   async create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
     const resolved = this.resolve(block.id, block.state);

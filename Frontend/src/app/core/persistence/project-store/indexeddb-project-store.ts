@@ -27,9 +27,10 @@ export class IndexedDbProjectStore implements ProjectStore {
   async save(project: ProjectDocument): Promise<void> { await this.writeProject(project, false); }
   async delete(id: string): Promise<void> {
     const database = await this.database;
-    await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE], 'readwrite', (transaction) => {
+    await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, RECOVERY_STORE], 'readwrite', (transaction) => {
       transaction.objectStore(PROJECTS_STORE).delete(id);
       transaction.objectStore(PROJECT_SUMMARIES_STORE).delete(id);
+      transaction.objectStore(RECOVERY_STORE).delete(id);
     });
   }
   async list(): Promise<readonly ProjectSummary[]> {

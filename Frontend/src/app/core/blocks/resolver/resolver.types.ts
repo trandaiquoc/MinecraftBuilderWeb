@@ -3,6 +3,10 @@ import { BlockState } from '../../domain/project.types';
 
 export interface AssetResourceProvider {
   readJson(path: string): unknown | undefined;
+  readBinary?(path: string): Uint8Array | undefined;
+  textureUrl?(resource: string): string | undefined;
+  paths?(): readonly string[];
+  dispose?(): void;
 }
 
 export class MemoryAssetResourceProvider implements AssetResourceProvider {

@@ -18,18 +18,18 @@ export class BlockBrowserComponent {
   protected readonly assets = inject(VanillaAssetsService);
   private readonly quick = inject(QuickBlockBarService);
   private readonly decorations = inject(DecorationService);
-  protected readonly selectedSource = signal('minecraft');
+  protected readonly selectedSource = signal('vanilla');
   protected readonly sources = computed<readonly ContentSourceOption[]>(() => {
     const grouped = new Map<string, { readonly label: string; count: number }>();
     for (const item of this.library.allPlaceableItems()) {
-      const id = item.namespace;
+      const id = item.sourceId ?? item.namespace;
       const current = grouped.get(id);
-      grouped.set(id, { label: id === 'minecraft' ? this.i18n.t('vanillaSource') : item.modName || id, count: (current?.count ?? 0) + 1 });
+      grouped.set(id, { label: id === 'vanilla' ? this.i18n.t('vanillaSource') : item.sourceName || item.modName || id, count: (current?.count ?? 0) + 1 });
     }
-    return [...grouped.entries()].sort(([left], [right]) => left === 'minecraft' ? -1 : right === 'minecraft' ? 1 : left.localeCompare(right)).map(([id, value]) => ({ id, label: value.label, count: value.count, tooltip: `${value.label} (${value.count})` }));
+    return [...grouped.entries()].sort(([left], [right]) => left === 'vanilla' ? -1 : right === 'vanilla' ? 1 : left.localeCompare(right)).map(([id, value]) => ({ id, label: value.label, count: value.count, tooltip: `${value.label} (${value.count})` }));
   });
   protected readonly activeSource = computed(() => this.sources().some((source) => source.id === this.selectedSource()) ? this.selectedSource() : this.sources()[0]?.id);
-  protected readonly results = computed(() => placementItemSearch(this.library.allPlaceableItems().filter((item) => item.namespace === this.activeSource()), this.library.query()));
+  protected readonly results = computed(() => placementItemSearch(this.library.allPlaceableItems().filter((item) => (item.sourceId ?? item.namespace) === this.activeSource()), this.library.query()));
   private readonly thumbnailSync = effect(() => { this.assets.visualProvider(); this.assets.prepareItemThumbnails(this.library.results()); });
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }

@@ -6,7 +6,8 @@ import { VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-
 import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
 import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION } from './vanilla-asset-provider';
 import { loadVanillaBlockRegistry, VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
-import { AssetBundle, IndexedDbAssetBundleSource, JarImportSource, LocalDefaultBundleSource, providerFromBundle } from '../bundle/asset-bundle';
+import { VanillaAssetBundle, IndexedDbAssetBundleSource, JarImportSource, LocalDefaultBundleSource, providerFromBundle } from '../bundle/asset-bundle';
+import { ContentSourceRegistry } from '../content-source/content-source-registry';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'importing' | 'ready' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -24,6 +25,7 @@ export class VanillaAssetsService {
   readonly generation = signal(0);
   readonly diagnostics = signal<VanillaAssetDiagnostics>({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: false, generation: 0, providerReady: false, resourceCount: 0, stoneBlockstate: false, stoneModel: false, stoneTexture: false, language: false });
   private readonly registry = loadVanillaBlockRegistry();
+  readonly sources = new ContentSourceRegistry();
 
   constructor() { void this.restore(); }
 
@@ -94,7 +96,7 @@ export class VanillaAssetsService {
   }
 
   /** Local development bundle wins, then the durable browser cache, then the explicit JAR import fallback. */
-  private async loadFirstBundle(): Promise<AssetBundle | undefined> {
+  private async loadFirstBundle(): Promise<VanillaAssetBundle | undefined> {
     const sources = [new LocalDefaultBundleSource(), new IndexedDbAssetBundleSource(() => this.cache.load())];
     for (const source of sources) {
       try {
@@ -112,9 +114,11 @@ export class VanillaAssetsService {
 
   private activate(provider: VanillaAssetProvider, registry: VanillaBlockRegistry): void {
     provider.assertUsable();
-    this.visualProvider()?.dispose(); this.provider()?.dispose();
-    this.provider.set(provider); this.visualProvider.set(new VanillaBlockVisualProvider(provider));
-    this.library.load(provider.catalog(registry)); this.thumbnailUrls.set(new Map());
+    this.visualProvider()?.dispose();
+    this.provider.set(provider);
+    if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
+    this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
+    this.library.replaceSource(provider.catalog(registry)); this.thumbnailUrls.set(new Map());
     const generation = this.generation() + 1;
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });

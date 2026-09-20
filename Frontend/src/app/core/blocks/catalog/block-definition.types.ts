@@ -45,6 +45,8 @@ export interface BlockDefinition {
   readonly namespace: string;
   readonly displayName: string;
   readonly modName?: string;
+  readonly sourceId?: string;
+  readonly sourceName?: string;
   readonly defaultState: Readonly<Record<string, string>>;
   readonly stateDefinitions: readonly BlockStateDefinition[];
   readonly resources: BlockResourceReference;
@@ -62,6 +64,8 @@ export interface BlockDefinition {
 /** Catalog output always has a normalized profile; legacy hand-authored callers may use BlockDefinition. */
 export interface NormalizedBlockDefinition extends BlockDefinition {
   readonly capabilities: BlockCapabilityProfile;
+  readonly sourceId: string;
+  readonly sourceName: string;
 }
 
 /** Input produced by an approved asset extractor; it is kept separate from trusted registry entries. */
@@ -78,6 +82,8 @@ export interface AssetBlockRecord {
   readonly visualClassificationEvidence?: BlockCapabilityEvidence;
   readonly defaultStateSource?: DefaultStateSource;
   readonly modName?: string;
+  readonly sourceId?: string;
+  readonly sourceName?: string;
   readonly behavior?: BlockBehavior;
   /** Optional trusted hints; final profiles are derived centrally during catalog normalization. */
   readonly capabilities?: readonly BlockCapability[];

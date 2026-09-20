@@ -64,8 +64,10 @@ export class ProjectPersistenceService {
     return this.store.list();
   }
 
-  delete(id: string): Promise<void> {
-    return this.store.delete(id);
+  async delete(id: string): Promise<void> {
+    await this.flushAutosave();
+    this.autosave.discard();
+    await this.store.delete(id);
   }
 
   markChanged(project: ProjectDocument): void {

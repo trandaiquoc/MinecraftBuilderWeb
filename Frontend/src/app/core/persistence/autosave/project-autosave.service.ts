@@ -26,6 +26,7 @@ export class ProjectAutosaveService {
   });
 
   flush(): Promise<void> { return this.persistence.flushAutosave(); }
+  deleteProject(id: string): Promise<void> { return this.persistence.delete(id); }
 
   private receiveStatus(status: ProjectSaveStatus, error?: unknown): void {
     this.status.set(status);

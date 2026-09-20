@@ -21,4 +21,11 @@ export class EditorSessionService {
     this.groups.resetForProjectChange();
     this.decorations.resetSelectionForProjectChange();
   }
+
+  clearActiveProject(): void {
+    this.history.clear();
+    this.selection.clear();
+    this.groups.resetForProjectChange();
+    this.decorations.resetSelectionForProjectChange();
+  }
 }

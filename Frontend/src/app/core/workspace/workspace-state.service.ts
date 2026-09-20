@@ -3,7 +3,7 @@ import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
 import { ProjectStore } from '../persistence/project-store/project-store.port';
 
-const ACTIVE_PROJECT_KEY = 'minecraft-builder.active-project';
+export const ACTIVE_PROJECT_KEY = 'minecraft-builder.active-project';
 
 export type WorkspaceRestoreStatus = 'idle' | 'restoring' | 'ready' | 'empty' | 'error';
 
@@ -19,6 +19,13 @@ export class WorkspaceStateService {
     this.restoreStatus.set('ready');
     this.restoreError.set(undefined);
     try { storage?.setItem(ACTIVE_PROJECT_KEY, project.id); } catch { /* The project remains usable when browser storage is unavailable. */ }
+  }
+
+  deactivate(storage: Pick<Storage, 'removeItem'> | undefined = browserStorage()): void {
+    this.project.set(undefined);
+    this.restoreStatus.set('empty');
+    this.restoreError.set(undefined);
+    try { storage?.removeItem(ACTIVE_PROJECT_KEY); } catch { /* In-memory workspace is still cleared. */ }
   }
 
   restore(store: ProjectStore, storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = browserStorage()): Promise<ProjectDocument | undefined> {

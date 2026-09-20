@@ -1420,3 +1420,21 @@ so the catalog does not depend on the item manifest. Capability profiles reject
 contradictory explicit metadata and are exposed in vanilla audit diagnostics.
 Decorations remain separate domain entities, and no provider composition or
 mod-JAR support is introduced by this phase.
+# 61. Composable content sources
+
+The asset foundation now gives each runtime content source a stable `sourceId`
+independent from its namespaces. A source may own multiple namespaces, while
+`CompositeAssetResourceProvider` routes namespaced JSON, binary, and texture
+resources directly to the registered owner. Namespace collisions are rejected;
+resource-pack override/load-order semantics remain out of scope.
+
+`BlockCatalog` and placeable items retain source ownership and can compose
+multiple contributions without rewriting project data when a source is removed.
+The current Vanilla bundle is explicitly typed as a vanilla bundle; real mod
+JAR parsing and imported-mod management remain deferred to Prompt 13. The
+Decoration browser only advertises sources that declare decoration support.
+
+Project deletion is centralized in File > Delete Project. The operation drains
+autosave, atomically removes the project, summary, and recovery snapshot, clears
+the active session, and returns to the project screen. A failed delete leaves
+the current project active.

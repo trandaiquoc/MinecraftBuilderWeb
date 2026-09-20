@@ -33,6 +33,9 @@ export class AutosaveController {
     this.cancel();
   }
 
+  /** Stops pending work without allowing a stale snapshot to be written later. */
+  discard(): void { this.cancel(); this.latest = undefined; this.drainPromise = undefined; }
+
   flush(): Promise<void> {
     this.cancel();
     return this.drain();

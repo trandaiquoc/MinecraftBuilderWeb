@@ -196,6 +196,23 @@ export class EditorShellComponent implements OnDestroy {
     try { await this.autosave.flush(); await this.dialogs.success(this.i18n.t('saveProjectSuccess')); }
     catch { await this.dialogs.error(this.i18n.t('saveProjectError'), this.i18n.t('saveProjectError')); }
   }
+  protected async deleteProject(): Promise<void> {
+    const project = this.workspace.project();
+    if (!project) return;
+    this.closeMenus();
+    const name = project.metadata.name;
+    const confirmed = await this.dialogs.confirm({ title: this.i18n.t('deleteProjectTitle'), text: this.i18n.t('deleteProjectText').replace('{name}', name), confirmButtonText: this.i18n.t('deleteProjectConfirm'), cancelButtonText: this.i18n.t('cancel'), icon: 'warning' });
+    if (!confirmed) return;
+    try {
+      await this.autosave.deleteProject(project.id);
+      this.session.clearActiveProject();
+      this.workspace.deactivate();
+      await this.dialogs.success(this.i18n.t('deleteProjectSuccess'));
+      await this.router.navigateByUrl('/');
+    } catch {
+      await this.dialogs.error(this.i18n.t('deleteProjectError'), this.i18n.t('deleteProjectError'));
+    }
+  }
   protected triggerProjectImport(input: HTMLInputElement): void { if (this.importState().stage !== 'idle' && this.importState().stage !== 'success' && this.importState().stage !== 'error') return; this.closeMenus(); input.value = ''; input.click(); }
   protected async importProjectPackage(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;

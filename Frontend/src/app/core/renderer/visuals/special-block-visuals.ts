@@ -80,7 +80,7 @@ const chestAdapter: SpecialBlockVisualAdapter = {
   textureResource: (block) => chestTextureResource(block),
   create: (block, context) => createChestVisual(block, context?.texture),
 };
-const barrelAdapter = named('containers', (id) => /(?:^|_)barrel$/.test(id.split(':').at(-1) ?? id), (block) => { const root = new THREE.Group(); box(root, [.92, .58, .92], [.5, .29, .5], 0x8c6035); box(root, [.94, .12, .94], [.5, .64, .5], 0xc28a47); return root; });
+const barrelAdapter: SpecialBlockVisualAdapter = { family: 'containers', matches: (block) => block.namespace === 'minecraft' && /(?:^|_)barrel$/.test(block.id.split(':').at(-1) ?? block.id), create: (block) => { const root = new THREE.Group(); box(root, [.92, .58, .92], [.5, .29, .5], 0x8c6035); box(root, [.94, .12, .94], [.5, .64, .5], 0xc28a47); return root; } };
 
 const chestSingleModel: SpecialModelDescriptor = {
   id: 'minecraft-java-chest-single-1.21.1', textureSize: [64, 64], parts: [

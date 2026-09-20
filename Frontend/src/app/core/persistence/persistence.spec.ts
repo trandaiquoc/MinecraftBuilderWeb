@@ -103,6 +103,15 @@ describe('local persistence helpers', () => {
     expect(persistence.dirtyState.isDirty).toBe(true); expect(statuses.at(-1)).toBe('error');
     expect(await store.openRecoverySnapshot(project.id)).toBeDefined();
   });
+
+  it('deletes the project and recovery snapshot after draining pending autosave', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    const persistence = new ProjectPersistenceService(store, 0);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await persistence.delete(project.id);
+    expect(await store.open(project.id)).toBeUndefined();
+    expect(await store.openRecoverySnapshot(project.id)).toBeUndefined();
+  });
 });
 
 function block(id: string, x: number, y: number, z: number, state: Readonly<Record<string, string>> = {}, groupIds: readonly string[] = []) {
@@ -116,7 +125,7 @@ class MemoryProjectStore implements ProjectStore {
   async exists(id: string): Promise<boolean> { return this.projects.has(id); }
   async open(id: string): Promise<ProjectDocument | undefined> { const value = this.projects.get(id); return value && structuredClone(value); }
   async save(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
-  async delete(id: string): Promise<void> { this.projects.delete(id); }
+  async delete(id: string): Promise<void> { this.projects.delete(id); this.recovery.delete(id); }
   async list(): Promise<readonly ProjectSummary[]> { return [...this.projects.values()].map((value) => ({ id: value.id, name: value.metadata.name, updatedAt: value.metadata.updatedAt })); }
   async saveRecoverySnapshot(value: ProjectDocument): Promise<void> { this.recovery.set(value.id, structuredClone(value)); }
   async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { return this.recovery.get(id); }

@@ -13,7 +13,11 @@ export class DecorationBrowserComponent {
   protected readonly decorations = inject(DecorationService);
   private readonly assets = inject(VanillaAssetsService);
   protected readonly selectedSource = signal('minecraft');
-  protected readonly sources = computed<readonly ContentSourceOption[]>(() => DECORATION_BROWSER_SOURCES.map((source) => ({ id: source.id, label: source.id === 'minecraft' ? this.i18n.t('vanillaSource') : source.id })));
+  protected readonly sources = computed<readonly ContentSourceOption[]>(() => {
+    const active = this.assets.sources.decorationSources();
+    const sourceIds = active.length ? active.map((source) => ({ id: source.id, label: source.id === 'vanilla' || source.id === 'minecraft' ? this.i18n.t('vanillaSource') : source.displayName })) : DECORATION_BROWSER_SOURCES.map((source) => ({ id: source.id === 'minecraft' ? 'vanilla' : source.id, label: source.id === 'minecraft' ? this.i18n.t('vanillaSource') : source.id }));
+    return sourceIds;
+  });
   protected paintingTexture(): string | undefined { this.assets.generation(); const active = this.decorations.active(); const variant = active?.kind === 'painting' ? active.variantId : 'kebab'; return variant ? this.assets.provider()?.textureUrl(`minecraft:painting/${variant}`) : undefined; }
   protected paintingCaption(): string { const active = this.decorations.active(); const id = active?.kind === 'painting' ? active.variantId : 'kebab'; const variant = PAINTING_VARIANTS.find((entry) => entry.id === id); return variant ? `${humanize(id ?? '')} · ${variant.width} × ${variant.height}` : ''; }
   protected frameTexture(glow: boolean): string | undefined { this.assets.generation(); return this.assets.provider()?.textureUrl(glow ? 'minecraft:block/glow_item_frame' : 'minecraft:block/item_frame'); }

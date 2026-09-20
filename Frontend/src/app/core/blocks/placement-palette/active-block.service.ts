@@ -9,6 +9,7 @@ export interface ActiveBlock {
   readonly placementKind?: PlaceableItemDefinition['placementKind'];
   readonly state: Readonly<Record<string, string>>;
   readonly support: BlockSupportLevel | 'unknown';
+  readonly sourceId?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -25,5 +26,6 @@ export class ActiveBlockService {
     const id = item?.displayBlockId ?? block.id;
     this.active.set({ id, ...(item && item.itemId !== id ? { itemId: item.itemId } : {}), ...(item && item.placementKind !== 'direct' ? { placementKind: item.placementKind } : {}), state: { ...block.state }, support: definition?.support ?? item?.support ?? (block.kind === 'missing' ? 'unknown' : 'fallback') });
   }
-  set(active: ActiveBlock): void { this.active.set({ id: active.id, ...(active.itemId && active.itemId !== active.id ? { itemId: active.itemId } : {}), ...(active.placementKind ? { placementKind: active.placementKind } : {}), state: { ...active.state }, support: active.support }); }
+  set(active: ActiveBlock): void { this.active.set({ id: active.id, ...(active.itemId && active.itemId !== active.id ? { itemId: active.itemId } : {}), ...(active.placementKind ? { placementKind: active.placementKind } : {}), ...(active.sourceId ? { sourceId: active.sourceId } : {}), state: { ...active.state }, support: active.support }); }
+  clear(): void { this.active.set(undefined); }
 }

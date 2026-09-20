@@ -148,6 +148,18 @@ The extractor should read only the resources required by MinecraftBuilder.
 
 A full copy of the vanilla asset tree is not required in the repository.
 
+## 5b. Composable content sources
+
+Runtime resources are addressed through a generic `AssetResourceProvider` and
+the explicit `CompositeAssetResourceProvider`. Each active content source has a
+stable source identity and declares its owned namespaces; resources are routed
+directly to that owner. The Vanilla source owns `minecraft`, and external
+sources may reference Vanilla parents or textures without replacing it.
+
+The current bundle/cache contract is explicitly Vanilla-only. Mod JAR parsing,
+metadata extraction, and imported-mod persistence remain deferred until Prompt
+13. Local asset caches remain disposable and are never part of a project file.
+
 Any local generated cache directory must be excluded by `.gitignore`.
 
 Recommended local-only cache name:

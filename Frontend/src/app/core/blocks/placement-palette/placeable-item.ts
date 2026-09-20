@@ -17,6 +17,8 @@ export interface PlaceableItemDefinition {
   readonly namespace: string;
   readonly displayName: string;
   readonly modName?: string;
+  readonly sourceId?: string;
+  readonly sourceName?: string;
   readonly defaultState: BlockState;
   readonly concreteBlockIds: readonly string[];
   readonly placementKind: PlaceablePlacementKind;
@@ -97,7 +99,7 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[]): re
 function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {
   const defaultState = { ...definition.defaultState, ...(entry.defaultState ?? {}) };
   const previewBlocks = previewFor(entry, definition, defaultState);
-  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, defaultState, concreteBlockIds, placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: 'verified' }), previewBlocks };
+  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, defaultState, concreteBlockIds, placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: 'verified' }), previewBlocks };
 }
 
 function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState): readonly PlacedBlock[] {

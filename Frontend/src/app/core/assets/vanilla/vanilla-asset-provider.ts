@@ -5,6 +5,7 @@ import { AssetResourceProvider, BlockModelResolver } from '../../blocks/resolver
 import { AUTHORITATIVE_DEFAULT_STATE_SOURCE, VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import { VanillaBehaviorRegistry } from '../../block-behavior/vanilla/vanilla-behavior-registry';
 import { ZipArchive } from '../archive/zip-archive';
+import { ContentSourceProvider } from '../content-source/content-source.types';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 2;
@@ -29,10 +30,11 @@ export interface VanillaAssetProviderDiagnostics {
   readonly language: boolean;
 }
 
-export class VanillaAssetProvider implements AssetResourceProvider {
+export class VanillaAssetProvider implements ContentSourceProvider {
   private readonly objectUrls = new Map<string, string>();
   readonly gameEdition = 'java' as const;
   readonly gameVersion = VANILLA_ASSET_VERSION;
+  readonly source = { id: 'vanilla', kind: 'vanilla' as const, displayName: 'Vanilla', minecraftVersion: VANILLA_ASSET_VERSION, sourceVersion: VANILLA_ASSET_VERSION, namespaces: ['minecraft'] as const, decorationSupport: true };
 
   constructor(
     readonly sourceName: string,
@@ -140,7 +142,7 @@ export class VanillaAssetProvider implements AssetResourceProvider {
       const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
       return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
     });
-    return { minecraftVersion: VANILLA_ASSET_VERSION, blocks };
+    return { minecraftVersion: VANILLA_ASSET_VERSION, sourceId: this.source.id, sourceName: this.source.displayName, blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })) };
   }
 }
 
