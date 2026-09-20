@@ -36,8 +36,9 @@ import { SettingsDialogComponent } from './settings-dialog.component';
 import { LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
+import { ShortcutsHelpDialogComponent } from './shortcuts-help-dialog.component';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, DecorationInspectorComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ThemedSelectComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, DecorationInspectorComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, ThemedSelectComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -88,6 +89,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly activeMenu = signal<'file' | 'edit' | 'view' | 'tools' | 'settings' | 'help' | undefined>(undefined);
   protected readonly cameraMenuOpen = signal(false);
   protected readonly settingsDialogOpen = signal(false);
+  protected readonly controlsHelpOpen = signal(false);
   private readonly editorBody = viewChild<ElementRef<HTMLElement>>('editorBody');
   private readonly leftDragWidth = signal<number | undefined>(undefined);
   private readonly rightDragWidth = signal<number | undefined>(undefined);
@@ -215,7 +217,7 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected showUnavailableFeature(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('featureUnavailable'), this.i18n.t('featureUnavailable')); }
   protected showStructureExportUnavailable(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('exportStructureNbt'), this.i18n.t('structureNbtUnavailable')); }
-  protected showControlsHelp(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('controlsShortcuts'), this.i18n.t('controlsShortcutsText')); }
+  protected showControlsHelp(): void { this.closeMenus(); this.controlsHelpOpen.set(true); }
   protected showAbout(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('about'), this.i18n.t('aboutText')); }
   protected clearSelection(): void { this.selection.clear(); this.closeMenus(); }
   protected selectAll(): void { const project = this.workspace.project(); if (project) this.selection.selectAll(project, (id) => this.library.get(id)); this.closeMenus(); }
@@ -314,7 +316,7 @@ export class EditorShellComponent implements OnDestroy {
     return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
-    if (this.settingsDialogOpen()) return;
+    if (this.settingsDialogOpen() || this.controlsHelpOpen()) return;
     if (event.key === 'Escape') { this.closeMenus(); return; }
     const action = this.keyboard.actionForEvent(event); if (!action) return;
     const handled = this.executeKeyboardAction(action);
@@ -325,7 +327,15 @@ export class EditorShellComponent implements OnDestroy {
     if (action === 'undo') return this.history.undo();
     if (action === 'redo') return this.history.redo();
     if (action === 'select-all') { const project = this.workspace.project(); if (!project) return false; this.selection.selectAll(project, (id) => this.library.get(id)); return true; }
+    if (action === 'clear-selection') { this.selection.clear(); return true; }
     if (action === 'delete-selection') return this.editor.deleteSelection();
+    if (action === 'tool-place') { this.tool.active.set('place'); return true; }
+    if (action === 'tool-select') { this.tool.active.set('select'); return true; }
+    if (action === 'mode-3d') { this.mode.mode.set('3d'); return true; }
+    if (action === 'mode-y-layer') { this.mode.mode.set('y-layer'); return true; }
+    if (action === 'fit-structure') { this.fitStructure(); return true; }
+    if (action === 'focus-selection') { if (!this.selection.single()) return false; this.focusSelection(); return true; }
+    if (action === 'save-project') { void this.saveProject(); return true; }
     if (action.startsWith('quick-slot-')) { const index = Number(action.slice('quick-slot-'.length)) - 1; const entry = this.quickBar.entries()[index]; if (!entry) return false; this.quickBar.select(entry); return true; }
     return false;
   }

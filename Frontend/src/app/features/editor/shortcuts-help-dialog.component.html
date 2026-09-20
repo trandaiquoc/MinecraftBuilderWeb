@@ -1,0 +1,26 @@
+<div class="shortcuts-help-backdrop" role="presentation" (click)="onBackdropClick($event)">
+  <section class="shortcuts-help-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('controlsShortcuts')" tabindex="-1">
+    <header>
+      <h2>{{ i18n.t('controlsShortcuts') }}</h2>
+      <button type="button" class="help-close" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button>
+    </header>
+    <div class="shortcuts-help-body">
+      <section class="help-section">
+        <h3>{{ i18n.t('mouse') }}</h3>
+        @for (entry of mouseEntries(); track entry.action) {
+          <div class="help-row"><span>{{ mouseLabel(entry.action) }}</span><span class="help-binding">@for (token of displayTokens(bindings.mouseBindings()[entry.action]); track token) { <kbd>{{ token }}</kbd> }</span></div>
+        }
+        <div class="help-row"><span>{{ i18n.t('mouseBoxSelection') }}</span><span class="help-binding"><kbd>{{ i18n.t('mouseLeftClick') }}</kbd><small>{{ i18n.t('drag') }}</small></span></div>
+      </section>
+      <section class="help-section">
+        <h3>{{ i18n.t('keyboard') }}</h3>
+        @for (group of keyboardGroups(); track group.group) {
+          <h4>{{ keyboardGroupLabel(group.group) }}</h4>
+          @for (entry of group.entries; track entry.action) {
+            <div class="help-row"><span>{{ keyboardLabel(entry.action) }}</span><span class="help-binding">@for (token of displayTokens(bindings.bindings()[entry.action]); track token) { <kbd>{{ token }}</kbd> }</span></div>
+          }
+        }
+      </section>
+    </div>
+  </section>
+</div>

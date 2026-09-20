@@ -5,7 +5,7 @@ import { StructureEditorService } from '../../core/editor/structure-editor.servi
 import { SelectionService } from '../../core/editor/selection.service';
 import { adjacentOccupiedLayer, blocksForLayers, clampLayer, jumpOccupiedLayer, layerCoordinate, YLayerVisibility } from '../../core/editor/y-layer';
 import { PlacementStatus } from '../../core/editor/placement';
-import { isPointerClick, pointerAction } from '../../core/editor/interaction';
+import { isPointerClick } from '../../core/editor/interaction';
 import { EditorToolService } from '../../core/editor/tool.service';
 import { CameraStateService } from '../../core/editor/camera-state.service';
 import { CameraPreset } from '../../core/editor/camera';
@@ -23,6 +23,8 @@ import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
 import { DecorationService } from '../../core/decorations/decoration.service';
 import { facingFromNormal } from '../../core/decorations/decoration-placement';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
+import { KeyboardBindingService } from '../../core/editor/keyboard-binding.service';
+import { MouseAction } from '../../core/editor/mouse-bindings';
 
 @Component({ selector: 'app-y-layer', imports: [ThemedSelectComponent], templateUrl: './y-layer.component.html', styleUrl: './y-layer.component.scss' })
 export class YLayerComponent implements AfterViewInit, OnDestroy {
@@ -41,6 +43,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly preferences = inject(UiPreferencesService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly decorations = inject(DecorationService);
+  private readonly input = inject(KeyboardBindingService);
   protected readonly visibility = signal<YLayerVisibility>('current-only');
   protected readonly visibilityOptions = computed<readonly ThemedSelectOption[]>(() => [
     { id: 'current-only', label: this.i18n.t('visibilityCurrent') }, { id: 'current-previous', label: this.i18n.t('visibilityPrevious') }, { id: 'current-next', label: this.i18n.t('visibilityNext') }, { id: 'previous-current-next', label: this.i18n.t('visibilityThree') }, { id: 'all-below', label: this.i18n.t('visibilityBelow') }, { id: 'whole-structure', label: this.i18n.t('visibilityWhole') },
@@ -50,10 +53,11 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private pointerStart?: { x: number; y: number };
+  private gestureAction?: MouseAction;
   private boxCornerStart?: VoxelCoordinate;
   private readonly sync = effect(() => { const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
-  private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setKeyboardBindings(preferences.shortcuts); });
+  private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setKeyboardBindings(preferences.shortcuts); this.engine.setMouseBindings(preferences.mouseBindings); });
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
@@ -74,19 +78,23 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected resize(): void { this.engine.resize(); }
   protected pointerMove(event: PointerEvent): void { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place'); const activeDecoration = this.decorations.active(); const status = activeDecoration ? (hit.decorationPlan?.status === 'valid' ? 'valid' : 'invalid') : hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); this.viewportStatus.set(hit.target, status); }
   protected pointerDown(event: PointerEvent): void {
-    if (event.button !== 0) return;
+    const action = this.input.mouseActionForEvent(event);
+    if (!isEditorMouseAction(action)) return;
     this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.gestureAction = action;
     this.boxCornerStart = undefined;
-    if (this.tool.active() === 'select') { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), false); this.boxCornerStart = hit.target; }
+    if (action === 'primary-action' && this.tool.active() === 'select') { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), false); this.boxCornerStart = hit.target; }
   }
   protected pointerUp(event: PointerEvent): void {
     const start = this.pointerStart;
     this.pointerStart = undefined;
+    const gestureAction = this.gestureAction;
+    this.gestureAction = undefined;
     const cornerStart = this.boxCornerStart;
     this.boxCornerStart = undefined;
     const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
-    if (event.button !== 0) return;
-    if (!click && this.tool.active() === 'select' && cornerStart) {
+    if (!gestureAction) return;
+    if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart) {
       const project = this.workspace.project(); const hit = this.engine.hit(event, project, this.active.active(), this.currentY(), false);
       if (project && hit.target) { const box = clampVoxelBox(normalizeVoxelBox(cornerStart, hit.target), project.size); if (box) this.selection.selectBoxLogical(box, project, (id) => this.library.get(id)); }
       return;
@@ -95,34 +103,37 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place');
     const activeDecoration = this.decorations.active();
     const decorationWins = !!hit.decoration && (hit.blockDistance === undefined || hit.decorationDistance === undefined || hit.decorationDistance <= hit.blockDistance);
-    if (hit.decoration && decorationWins && (this.tool.active() !== 'place' || event.ctrlKey || event.altKey) && !(activeDecoration && this.tool.active() === 'place' && !event.ctrlKey && !event.altKey)) {
-      if (event.ctrlKey) this.decorations.delete(hit.decoration.instanceId);
-      else if (event.altKey) this.decorations.pick(hit.decoration.instanceId);
+    if (hit.decoration && decorationWins && (gestureAction !== 'primary-action' || this.tool.active() === 'select')) {
+      if (gestureAction === 'delete-target') this.decorations.delete(hit.decoration.instanceId);
+      else if (gestureAction === 'pick-block') this.decorations.pick(hit.decoration.instanceId);
       else if (this.tool.active() === 'select') this.decorations.select(hit.decoration.instanceId);
       return;
     }
-    if (activeDecoration && hit.block && hit.faceNormal && this.tool.active() === 'place' && !event.ctrlKey && !event.altKey) {
+    if (activeDecoration && hit.block && hit.faceNormal && this.tool.active() === 'place' && gestureAction === 'primary-action') {
       const facing = facingFromNormal(hit.faceNormal); if (facing && hit.decorationPlan?.status === 'valid') this.decorations.placeFromSupport(hit.block, facing); return;
     }
     const status = hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status;
-    if (this.tool.active() === 'place' && !event.ctrlKey && !event.altKey && hit.block && this.editor.canStackCandle(hit.block)) {
+    if (this.tool.active() === 'place' && gestureAction === 'primary-action' && hit.block && this.editor.canStackCandle(hit.block)) {
       this.editor.stackCandle(hit.block);
       return;
     }
-    const action = pointerAction(this.tool.active(), { ctrl: event.ctrlKey, alt: event.altKey }, !!hit.block, !!hit.target && status !== 'invalid');
-    if (action === 'pick' && hit.block) this.editor.pick(hit.block);
-    else if (action === 'delete' && hit.block) this.editor.delete(hit.block);
-    else if (action === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); }
-    else if (action === 'clear-selection') this.selection.clear();
-    else if (action === 'place' && hit.target) this.editor.place(hit.target, hit.placementContext);
+    if (gestureAction === 'pick-block' && hit.block) this.editor.pick(hit.block);
+    else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); }
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
   }
   protected statusLabel(): string { return this.i18n.t(this.status()); }
   protected setOpacity(value: string): void { const project = this.workspace.project(); if (!project) return; const opacity = Math.min(1, Math.max(0, Number(value))); this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, referenceLayerOpacity: opacity } }); }
   protected referenceOpacityPercent(): number { return Math.round((this.workspace.project()?.editorSettings.referenceLayerOpacity ?? .28) * 100); }
   protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }
-  protected pointerLeave(): void { this.pointerStart = undefined; this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set(''); this.viewportStatus.clear(); }
-  protected cancelPointer(): void { this.pointerStart = undefined; this.boxCornerStart = undefined; this.engine.clearInput(); }
+  protected pointerLeave(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set(''); this.viewportStatus.clear(); }
+  protected cancelPointer(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.engine.clearInput(); }
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
 
   private refresh(): void { const project = this.workspace.project(); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); }
+}
+
+function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {
+  return action === 'primary-action' || action === 'delete-target' || action === 'pick-block';
 }

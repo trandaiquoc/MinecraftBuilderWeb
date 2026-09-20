@@ -1370,3 +1370,13 @@ supports searchable capture, draft Apply/Save/Cancel semantics, restore
 defaults, and visible duplicate-binding conflicts. Form and contenteditable
 focus suppresses editor actions, while movement remains continuous and clears
 on blur/visibility loss/dispose.
+
+# 58. Keyboard and mouse input settings
+
+Settings > Shortcuts now has Keyboard and Mouse tabs backed by the same
+preferences model. Mouse gestures support Left/Right/Middle Click and Wheel
+Up/Down with Ctrl/Alt/Shift/Meta modifiers, exact-gesture conflict detection,
+live Apply/Cancel behavior, and default restoration. Place, select, delete,
+pick, orbit, pan, and wheel zoom use the configured bindings in both 3D and
+Y-Layer modes. Help > Controls & Shortcuts is a themed visual reference driven
+from the applied bindings instead of a hard-coded paragraph.

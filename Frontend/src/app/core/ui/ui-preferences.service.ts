@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, normalizeBindings } from '../editor/keyboard-bindings';
+import { DEFAULT_MOUSE_BINDINGS, MouseAction, normalizeMouseBindings } from '../editor/mouse-bindings';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
@@ -24,6 +25,7 @@ export interface UiPreferences {
     readonly clickDragThreshold: number;
   };
   readonly shortcuts: Readonly<Record<KeyboardAction, string>>;
+  readonly mouseBindings: Readonly<Record<MouseAction, string>>;
   readonly layout: {
     readonly editorToolbarVisible: boolean;
     readonly leftSidebarVisible: boolean;
@@ -45,6 +47,7 @@ const defaults: UiPreferences = {
   appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', editorBackground: 'dark' },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,
+  mouseBindings: DEFAULT_MOUSE_BINDINGS,
   layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 220, rightSidebarWidth: 260 },
 };
 
@@ -98,6 +101,7 @@ function normalize(value: unknown): UiPreferences {
   const appearance = candidate.appearance && typeof candidate.appearance === 'object' ? candidate.appearance : {};
   const controls = candidate.controls && typeof candidate.controls === 'object' ? candidate.controls : {};
   const shortcuts = normalizeBindings(candidate.shortcuts);
+  const mouseBindings = normalizeMouseBindings(candidate.mouseBindings);
   const layout = candidate.layout && typeof candidate.layout === 'object' ? candidate.layout : {};
   return {
     ...defaults,
@@ -118,6 +122,7 @@ function normalize(value: unknown): UiPreferences {
       clickDragThreshold: numberInRange((controls as Partial<UiPreferences['controls']>).clickDragThreshold, 1, 20, defaults.controls.clickDragThreshold),
     },
     shortcuts,
+    mouseBindings,
     layout: {
       ...defaults.layout,
       ...layout,
@@ -154,5 +159,5 @@ function normalizeLayout(value: unknown): UiPreferences['layout'] {
 }
 
 function clonePreferences(value: UiPreferences): UiPreferences {
-  return { ...value, appearance: { ...value.appearance }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, layout: { ...value.layout } };
+  return { ...value, appearance: { ...value.appearance }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, layout: { ...value.layout } };
 }

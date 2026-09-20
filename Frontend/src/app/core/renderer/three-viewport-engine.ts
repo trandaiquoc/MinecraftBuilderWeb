@@ -16,6 +16,7 @@ import { DecorationPlacementPlan, facingFromNormal, planDecorationPlacement } fr
 import { createDecorationVisual } from './decoration-visuals';
 import type { ActiveDecoration } from '../decorations/decoration.service';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../editor/keyboard-bindings';
+import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../editor/mouse-bindings';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
@@ -75,10 +76,30 @@ export class ThreeViewportEngine {
   private cameraMoveFrame?: number;
   private readonly pressedActions = new Set<KeyboardAction>();
   private keyboardBindings: Readonly<Record<KeyboardAction, string>> = DEFAULT_KEYBINDINGS;
-  private readonly onCameraKeyDown = (event: KeyboardEvent) => { if (isTextInput(event.target)) { this.clearInput(); return; } const action = keyboardActionForEvent(event, this.keyboardBindings); if (!isMovementAction(action)) return; event.preventDefault(); this.pressedActions.add(action); this.startCameraMovement(); };
+  private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
+  private readonly onCameraKeyDown = (event: KeyboardEvent) => { if (isTextInput(event.target) || isDialogTarget(event.target)) { this.clearInput(); return; } const action = keyboardActionForEvent(event, this.keyboardBindings); if (!isMovementAction(action)) return; event.preventDefault(); this.pressedActions.add(action); this.startCameraMovement(); };
   private readonly onCameraKeyUp = (event: KeyboardEvent) => { const action = keyboardActionForEvent(event, this.keyboardBindings); if (isMovementAction(action)) this.pressedActions.delete(action); };
   private readonly onWindowBlur = () => this.clearInput();
   private readonly onVisibilityChange = () => { if (document.hidden) this.clearInput(); };
+  private readonly onCanvasPointerDownCapture = (event: PointerEvent) => {
+    const action = mouseActionForEvent(event, this.mouseBindings);
+    if (!action || !this.controls) return;
+    const key = event.button === 0 ? 'LEFT' : event.button === 1 ? 'MIDDLE' : event.button === 2 ? 'RIGHT' : undefined;
+    if (!key) return;
+    const mapped = this.controls.mouseButtons[key];
+    if (action === 'orbit-camera' || action === 'pan-camera') {
+      if (mapped === undefined) { this.temporaryMouseButton = { key, previous: mapped }; this.controls.mouseButtons[key] = action === 'orbit-camera' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN; }
+      return;
+    }
+    if (mapped !== undefined) { event.preventDefault(); this.temporaryMouseButton = { key, previous: mapped }; delete this.controls.mouseButtons[key]; }
+  };
+  private readonly onCanvasPointerUpCapture = () => { this.restoreTemporaryMouseButton(); };
+  private readonly onCanvasWheelCapture = (event: WheelEvent) => {
+    const action = mouseActionForEvent(event, this.mouseBindings);
+    if (action !== 'zoom-in' && action !== 'zoom-out') { event.preventDefault(); event.stopImmediatePropagation(); return; }
+    event.preventDefault(); event.stopImmediatePropagation(); this.applyWheelZoom(action);
+  };
+  private temporaryMouseButton?: { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined };
   private palette: ViewportThemePalette = viewportThemePalette('dark');
   private visualProvider?: BlockVisualProvider;
   private decorationTextureUrl?: (resource: string) => string | undefined;
@@ -119,10 +140,15 @@ export class ThreeViewportEngine {
     this.controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
     this.controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
     delete this.controls.mouseButtons.LEFT;
-    this.controls.enableZoom = true;
+    this.controls.enableZoom = false;
     this.controls.enablePan = true;
     this.applyControlConfiguration();
+    this.applyMouseBindings();
     this.controls.addEventListener('change', this.renderOnControlChange);
+    this.renderer.domElement.addEventListener('pointerdown', this.onCanvasPointerDownCapture, true);
+    this.renderer.domElement.addEventListener('pointerup', this.onCanvasPointerUpCapture, true);
+    this.renderer.domElement.addEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
+    this.renderer.domElement.addEventListener('wheel', this.onCanvasWheelCapture, { capture: true, passive: false });
     document.addEventListener('keydown', this.onCameraKeyDown); document.addEventListener('keyup', this.onCameraKeyUp); document.addEventListener('focusin', this.onWindowBlur); window.addEventListener('blur', this.onWindowBlur); document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -160,11 +186,55 @@ export class ThreeViewportEngine {
     this.pressedActions.clear();
   }
 
+  setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
+    this.mouseBindings = { ...bindings };
+    this.applyMouseBindings();
+  }
+
   private applyControlConfiguration(): void {
     if (!this.controls) return;
     this.controls.rotateSpeed = this.controlConfiguration.orbitSensitivity;
     this.controls.panSpeed = this.controlConfiguration.panSensitivity;
     this.controls.zoomSpeed = this.controlConfiguration.zoomSensitivity;
+  }
+
+  private applyMouseBindings(): void {
+    if (!this.controls) return;
+    delete this.controls.mouseButtons.LEFT;
+    delete this.controls.mouseButtons.MIDDLE;
+    delete this.controls.mouseButtons.RIGHT;
+    const orbit = this.unmodifiedMouseButton('orbit-camera');
+    const pan = this.unmodifiedMouseButton('pan-camera');
+    if (orbit === 'LeftClick') this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    if (orbit === 'MiddleClick') this.controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+    if (orbit === 'RightClick') this.controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+    if (pan === 'LeftClick') this.controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+    if (pan === 'MiddleClick') this.controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
+    if (pan === 'RightClick') this.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+  }
+
+  private restoreTemporaryMouseButton(): void {
+    if (!this.controls || !this.temporaryMouseButton) return;
+    const { key, previous } = this.temporaryMouseButton;
+    if (previous === undefined) delete this.controls.mouseButtons[key];
+    else this.controls.mouseButtons[key] = previous;
+    this.temporaryMouseButton = undefined;
+  }
+
+  private unmodifiedMouseButton(action: MouseAction): string | undefined {
+    const binding = this.mouseBindings[action].split('|').find((value) => !value.includes('+'));
+    return binding;
+  }
+
+  private applyWheelZoom(action: 'zoom-in' | 'zoom-out'): void {
+    if (!this.controls) return;
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const distance = offset.length();
+    const zoomScale = Math.pow(.95, this.controlConfiguration.zoomSensitivity);
+    const factor = action === 'zoom-in' ? zoomScale : 1 / zoomScale;
+    const nextDistance = Math.min(this.controls.maxDistance, Math.max(this.controls.minDistance, distance * factor));
+    if (distance > 0) this.camera.position.copy(this.controls.target).add(offset.normalize().multiplyScalar(nextDistance));
+    this.controls.update();
   }
 
   resize(): void {
@@ -304,6 +374,10 @@ export class ThreeViewportEngine {
     this.resizeObserver?.disconnect();
     this.controls?.removeEventListener('change', this.renderOnControlChange);
     this.controls?.dispose();
+    this.renderer?.domElement.removeEventListener('pointerdown', this.onCanvasPointerDownCapture, true);
+    this.renderer?.domElement.removeEventListener('pointerup', this.onCanvasPointerUpCapture, true);
+    this.renderer?.domElement.removeEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
+    this.renderer?.domElement.removeEventListener('wheel', this.onCanvasWheelCapture, true);
     document.removeEventListener('keydown', this.onCameraKeyDown); document.removeEventListener('keyup', this.onCameraKeyUp); document.removeEventListener('focusin', this.onWindowBlur); window.removeEventListener('blur', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); this.clearInput();
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
@@ -633,6 +707,7 @@ export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Cam
   return direction;
 }
 function isTextInput(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT' || element.isContentEditable); }
+function isDialogTarget(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.matches('[role="dialog"]') || element.closest('[role="dialog"]') !== null); }
 function disposeObject(object: THREE.Object3D): void { object.traverse((child) => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
 
 export function applyBlockTheme(root: THREE.Object3D, palette: ViewportThemePalette): void {

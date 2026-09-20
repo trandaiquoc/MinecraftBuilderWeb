@@ -518,4 +518,7 @@
   @if (settingsDialogOpen()) {
     <app-settings-dialog (closed)="closeSettingsDialog()"></app-settings-dialog>
   }
+  @if (controlsHelpOpen()) {
+    <app-shortcuts-help-dialog (closed)="controlsHelpOpen.set(false)"></app-shortcuts-help-dialog>
+  }
 </div>

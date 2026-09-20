@@ -1,18 +1,21 @@
 export type KeyboardAction =
   | 'move-forward' | 'move-backward' | 'move-left' | 'move-right' | 'move-up' | 'move-down'
-  | 'undo' | 'redo' | 'select-all' | 'delete-selection'
+  | 'undo' | 'redo' | 'select-all' | 'clear-selection' | 'delete-selection'
+  | 'tool-place' | 'tool-select' | 'mode-3d' | 'mode-y-layer' | 'fit-structure' | 'focus-selection' | 'save-project'
   | `quick-slot-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}`;
 
 export const DEFAULT_KEYBINDINGS: Readonly<Record<KeyboardAction, string>> = {
   'move-forward': 'W', 'move-backward': 'S', 'move-left': 'A', 'move-right': 'D', 'move-up': 'Space', 'move-down': 'Shift',
-  undo: 'Ctrl+Z', redo: 'Ctrl+Y|Ctrl+Shift+Z', 'select-all': 'Ctrl+A', 'delete-selection': 'Delete|Backspace',
+  undo: 'Ctrl+Z', redo: 'Ctrl+Y|Ctrl+Shift+Z', 'select-all': 'Ctrl+A', 'clear-selection': '', 'delete-selection': 'Delete|Backspace',
+  'tool-place': '', 'tool-select': '', 'mode-3d': '', 'mode-y-layer': '', 'fit-structure': '', 'focus-selection': '', 'save-project': '',
   'quick-slot-1': '1', 'quick-slot-2': '2', 'quick-slot-3': '3', 'quick-slot-4': '4', 'quick-slot-5': '5',
   'quick-slot-6': '6', 'quick-slot-7': '7', 'quick-slot-8': '8', 'quick-slot-9': '9', 'quick-slot-10': '0',
 };
 
-export const KEYBOARD_ACTIONS: readonly { readonly action: KeyboardAction; readonly group: 'movement' | 'editing' | 'quickBar'; }[] = [
+export const KEYBOARD_ACTIONS: readonly { readonly action: KeyboardAction; readonly group: 'movement' | 'tools-view' | 'editing' | 'quickBar'; }[] = [
   { action: 'move-forward', group: 'movement' }, { action: 'move-backward', group: 'movement' }, { action: 'move-left', group: 'movement' }, { action: 'move-right', group: 'movement' }, { action: 'move-up', group: 'movement' }, { action: 'move-down', group: 'movement' },
-  { action: 'undo', group: 'editing' }, { action: 'redo', group: 'editing' }, { action: 'select-all', group: 'editing' }, { action: 'delete-selection', group: 'editing' },
+  { action: 'tool-place', group: 'tools-view' }, { action: 'tool-select', group: 'tools-view' }, { action: 'mode-3d', group: 'tools-view' }, { action: 'mode-y-layer', group: 'tools-view' }, { action: 'fit-structure', group: 'tools-view' }, { action: 'focus-selection', group: 'tools-view' }, { action: 'save-project', group: 'tools-view' },
+  { action: 'undo', group: 'editing' }, { action: 'redo', group: 'editing' }, { action: 'select-all', group: 'editing' }, { action: 'clear-selection', group: 'editing' }, { action: 'delete-selection', group: 'editing' },
   ...Array.from({ length: 10 }, (_, index) => ({ action: `quick-slot-${index + 1}` as KeyboardAction, group: 'quickBar' as const })),
 ];
 

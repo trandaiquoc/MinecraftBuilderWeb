@@ -51,18 +51,39 @@
         } @else if (section() === 'shortcuts') {
           <section class="shortcuts-settings" (keydown)="handleShortcutKeydown($event)">
             <h3>{{ i18n.t('shortcutsSettings') }}</h3>
-            <input class="shortcut-search" [value]="shortcutSearch()" (input)="setShortcutSearch($any($event.target).value)" [placeholder]="i18n.t('searchShortcuts')" [attr.aria-label]="i18n.t('searchShortcuts')" />
-            @for (entry of shortcutActions(); track entry.action) {
-              <div class="shortcut-row">
-                <small>{{ shortcutGroupLabel(entry.group) }}</small>
-                <span>{{ shortcutLabel(entry.action) }}</span>
-                <button type="button" class="shortcut-binding" [class.capturing]="capturingAction() === entry.action" (click)="beginShortcutCapture(entry.action)">
-                  {{ capturingAction() === entry.action ? i18n.t('pressKeyCombination') : bindingLabel(entry.action) }}
-                </button>
-              </div>
+            <div class="shortcut-tabs" role="tablist">
+              <button type="button" role="tab" [class.active]="shortcutTab() === 'keyboard'" [attr.aria-selected]="shortcutTab() === 'keyboard'" (click)="shortcutTab.set('keyboard')">{{ i18n.t('keyboard') }}</button>
+              <button type="button" role="tab" [class.active]="shortcutTab() === 'mouse'" [attr.aria-selected]="shortcutTab() === 'mouse'" (click)="shortcutTab.set('mouse')">{{ i18n.t('mouse') }}</button>
+            </div>
+            @if (shortcutTab() === 'keyboard') {
+              <input class="shortcut-search" [value]="shortcutSearch()" (input)="setShortcutSearch($any($event.target).value)" [placeholder]="i18n.t('searchShortcuts')" [attr.aria-label]="i18n.t('searchShortcuts')" />
+              @for (group of shortcutGroups(); track group.group) {
+                <h4 class="shortcut-group-title">{{ shortcutGroupLabel(group.group) }}</h4>
+                @for (entry of group.entries; track entry.action) {
+                  <div class="shortcut-row">
+                    <span>{{ shortcutLabel(entry.action) }}</span>
+                    <button type="button" class="shortcut-binding" [class.capturing]="capturingAction() === entry.action" (click)="beginShortcutCapture(entry.action)">
+                      {{ capturingAction() === entry.action ? i18n.t('pressKeyCombination') : bindingLabel(entry.action) }}
+                    </button>
+                  </div>
+                }
+              }
+              @if (shortcutConflicts().length) { <p class="shortcut-conflict" role="alert">{{ i18n.t('shortcutConflict') }}</p> }
+              <button type="button" class="section-reset" (click)="restoreShortcutsDefaults()">{{ i18n.t('restoreDefaults') }}</button>
+            } @else {
+              <input class="shortcut-search" [value]="mouseSearch()" (input)="setMouseSearch($any($event.target).value)" [placeholder]="i18n.t('searchShortcuts')" [attr.aria-label]="i18n.t('searchShortcuts')" />
+              <h4 class="shortcut-group-title">{{ i18n.t('mouseSettingsGroup') }}</h4>
+              @for (entry of mouseActions(); track entry.action) {
+                <div class="shortcut-row">
+                  <span>{{ mouseActionLabel(entry.action) }}</span>
+                  <button type="button" class="shortcut-binding" [class.capturing]="capturingMouseAction() === entry.action" (click)="beginMouseCapture(entry.action)">
+                    {{ capturingMouseAction() === entry.action ? i18n.t('pressMouseBinding') : mouseBindingLabel(entry.action) }}
+                  </button>
+                </div>
+              }
+              @if (mouseBindingConflicts().length) { <p class="shortcut-conflict" role="alert">{{ i18n.t('mouseShortcutConflict') }}</p> }
+              <button type="button" class="section-reset" (click)="restoreMouseDefaults()">{{ i18n.t('restoreDefaults') }}</button>
             }
-            @if (shortcutConflicts().length) { <p class="shortcut-conflict" role="alert">{{ i18n.t('shortcutConflict') }}</p> }
-            <button type="button" class="section-reset" (click)="restoreShortcutsDefaults()">{{ i18n.t('restoreDefaults') }}</button>
           </section>
         } @else {
           <section class="settings-unavailable">
@@ -75,8 +96,8 @@
     <footer class="settings-dialog-footer">
       <span class="settings-footer-spacer"></span>
       <button type="button" class="secondary" (click)="requestClose()">{{ i18n.t('cancel') }}</button>
-      <button type="button" class="secondary" [disabled]="shortcutConflicts().length > 0" (click)="apply()">{{ i18n.t('apply') }}</button>
-      <button type="button" class="primary" [disabled]="shortcutConflicts().length > 0" (click)="saveAndClose()">{{ i18n.t('saveAndClose') }}</button>
+      <button type="button" class="secondary" [disabled]="shortcutConflicts().length > 0 || mouseBindingConflicts().length > 0" (click)="apply()">{{ i18n.t('apply') }}</button>
+      <button type="button" class="primary" [disabled]="shortcutConflicts().length > 0 || mouseBindingConflicts().length > 0" (click)="saveAndClose()">{{ i18n.t('saveAndClose') }}</button>
     </footer>
   </section>
 </div>

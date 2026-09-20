@@ -44,4 +44,11 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().controls.orbitSensitivity).toBe(3);
     expect(preferences.preferences().controls.clickDragThreshold).toBe(1);
   });
+
+  it('migrates mouse defaults without losing saved keyboard overrides', () => {
+    localStorage.setItem(key, JSON.stringify({ shortcuts: { 'move-forward': 'E' } }));
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().shortcuts['move-forward']).toBe('E');
+    expect(preferences.preferences().mouseBindings['primary-action']).toBe('LeftClick');
+  });
 });

@@ -31,7 +31,11 @@
 .range-setting input[type='range'] { width: 100%; accent-color: var(--accent); }
 .range-setting small { color: var(--text-muted); font-size: .7rem; line-height: 1.35; }
 .shortcut-search { width: 100%; box-sizing: border-box; padding: .5rem .6rem; border: 0; border-radius: var(--radius-sm); background: var(--control-normal); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
-.shortcut-row { display: grid; grid-template-columns: minmax(5rem, .7fr) minmax(0, 1.4fr) auto; align-items: center; gap: .5rem; }
+.shortcut-tabs { display: flex; gap: .25rem; padding: .15rem; border-radius: var(--radius-sm); background: var(--surface-muted); }
+.shortcut-tabs button { flex: 1; border: 0; border-radius: var(--radius-sm); padding: .4rem .55rem; background: transparent; color: var(--text-muted); cursor: pointer; }
+.shortcut-tabs button.active { background: var(--control-selected); color: var(--control-selected-text); box-shadow: 0 2px 6px rgb(0 0 0 / .18); }
+.shortcut-group-title { margin: .35rem 0 -.2rem; color: var(--text-muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.shortcut-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem; }
 .shortcut-row small { color: var(--text-muted); font-size: .65rem; }
 .shortcut-row > span { min-width: 0; color: var(--text); }
 .shortcut-binding { min-width: 7.5rem; border: 0; border-radius: var(--radius-sm); padding: .4rem .55rem; background: var(--control-normal); color: var(--text); cursor: pointer; box-shadow: 0 2px 0 rgb(0 0 0 / .14); font-family: var(--font-mono); text-align: center; }
