@@ -1,0 +1,10 @@
+<div class="content-source-selector" role="group" [attr.aria-label]="label()">
+  <div class="source-options" role="listbox" [attr.aria-label]="label()">
+    @for (source of sources(); track source.id) {
+      <button type="button" class="source-option" [class.selected]="selectedId() === source.id" [attr.aria-selected]="selectedId() === source.id" [attr.title]="source.tooltip || source.label" (click)="selectionChange.emit(source.id)">
+        <span>{{ source.label }}</span>@if (source.count !== undefined) { <small>{{ source.count }}</small> }
+      </button>
+    }
+  </div>
+  <button type="button" class="source-manage" uiTooltip="{{ manageLabel() }}" [attr.aria-label]="manageLabel()" (click)="manageRequested.emit()"><svg lucidePlus aria-hidden="true"></svg></button>
+</div>

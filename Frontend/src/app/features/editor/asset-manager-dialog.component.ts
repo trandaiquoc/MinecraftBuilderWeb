@@ -11,6 +11,16 @@ export class AssetManagerDialogComponent {
   readonly closed = output<void>();
   protected readonly importing = signal(false);
 
+  protected openJarPicker(input: HTMLInputElement): void {
+    if (this.importing() || this.assets.status() === 'importing') return;
+    input.value = '';
+    const picker = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof picker.showPicker === 'function') {
+      try { picker.showPicker(); return; } catch { /* Fall back to the native click API. */ }
+    }
+    input.click();
+  }
+
   protected async importJar(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];

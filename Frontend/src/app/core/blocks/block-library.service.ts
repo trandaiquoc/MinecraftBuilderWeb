@@ -13,6 +13,7 @@ export class BlockLibraryService {
   private readonly revision = signal(0);
   readonly query = signal('');
   readonly results = computed<readonly PlaceableItemDefinition[]>(() => { this.revision(); return placementItemSearch(this.items, this.query()); });
+  readonly allPlaceableItems = computed<readonly PlaceableItemDefinition[]>(() => { this.revision(); return this.items; });
   readonly rawResults = computed<readonly BlockDefinition[]>(() => { this.revision(); return this.catalog.search(this.query()); });
 
   constructor(readonly activeBlock: ActiveBlockService, private readonly decorations?: DecorationService) {

@@ -3,6 +3,10 @@ import { VoxelCoordinate } from '../domain/project.types';
 export type DecorationKind = 'painting' | 'item-frame' | 'glow-item-frame';
 export type DecorationFacing = 'down' | 'up' | 'north' | 'south' | 'west' | 'east';
 
+/** Browser/catalog source metadata; this does not become placed-decoration data. */
+export interface DecorationBrowserSource { readonly id: string; }
+export const DECORATION_BROWSER_SOURCES: readonly DecorationBrowserSource[] = [{ id: 'minecraft' }];
+
 export interface DecorationItemStack {
   readonly id: string;
   readonly count: number;

@@ -163,7 +163,7 @@
         }
         @if (leftSidebarTab() === 'decorations') {
           <section class="sidebar-tab-content decorations-tab-content">
-            <app-decoration-browser></app-decoration-browser>
+            <app-decoration-browser (assetManagerRequested)="openAssetManager()"></app-decoration-browser>
           </section>
         }
         @if (leftSidebarTab() === 'groups') {

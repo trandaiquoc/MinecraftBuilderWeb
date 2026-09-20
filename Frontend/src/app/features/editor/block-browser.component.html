@@ -1,11 +1,9 @@
 <section class="block-browser">
-  <div class="asset-source"><div class="browser-heading"><small>@if (assets.status() === 'ready') { {{ i18n.t('vanillaVersionStatus').replace('{status}', i18n.t('assetsReady')) }} } @else { {{ i18n.t('loadingCachedAssets') }} }</small></div>
-    @if (assets.status() !== 'ready') { <button type="button" class="asset-manager-link" (click)="openAssetManager()">{{ i18n.t('openAssetManager') }}</button> }
-    @if (assets.status() === 'importing') { <small>{{ i18n.t('loadingAssets') }}</small> } @else if (assets.status() === 'no-assets') { <small>{{ i18n.t('noAssets') }}</small> } @else if (assets.status() === 'cache-error' || assets.status() === 'import-required') { <small class="asset-error">{{ assets.message() || i18n.t('importRequired') }}</small> }
-  </div>
+  <app-content-source-selector [sources]="sources()" [selectedId]="activeSource()" [label]="i18n.t('contentSource')" [manageLabel]="i18n.t('manageSources')" (selectionChange)="selectSource($event)" (manageRequested)="openAssetManager()" />
   <label class="search-label" for="block-search">{{ i18n.t('blockSearch') }}</label><input id="block-search" type="search" [value]="library.query()" (input)="search($event)" [placeholder]="i18n.t('blockSearchPlaceholder')" />
   <div class="results" role="listbox" [attr.aria-label]="i18n.t('blocksPanel')">
-    @for (block of library.results(); track block.itemId) {
+    @if (assets.status() !== 'ready') { <div class="asset-empty-state"><p>{{ assets.message() || i18n.t('assetsUnavailableForBrowser') }}</p><button type="button" (click)="openAssetManager()">{{ i18n.t('openAssetManager') }}</button></div> }
+    @for (block of results(); track block.itemId) {
       <div class="block-item" role="option" [class.active]="library.activeBlock.active()?.itemId === block.itemId" [attr.aria-selected]="library.activeBlock.active()?.itemId === block.itemId" [attr.aria-label]="block.displayName">
         <button type="button" class="block-select-action" (click)="select(block)" [attr.aria-label]="block.displayName"><span class="preview" [class.has-thumbnail]="!!assets.thumbnailUrl(block.itemId, block.defaultState)" [class.fallback]="block.visualSupport === 'fallback'">@if (assets.thumbnailUrl(block.itemId, block.defaultState); as thumbnail) { <img [src]="thumbnail" alt="" /> } @else { <span>{{ block.visualSupport === 'fallback' ? '?' : '◇' }}</span> }</span><span class="block-copy"><strong>{{ block.displayName }}</strong><small>{{ block.modName || (block.namespace === 'minecraft' ? 'Minecraft' : block.namespace) }}</small></span></button>
         <span class="quick-add-wrapper" tabindex="0" uiTooltip="{{ quickAddLabel(block) }}"><button type="button" class="quick-add-action" (click)="addToQuickBar($event, block)" [disabled]="!canAddToQuickBar(block)" [attr.aria-label]="quickAddLabel(block)"><svg lucidePlus aria-hidden="true"></svg></button></span>

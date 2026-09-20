@@ -7,8 +7,8 @@
         <p class="manager-status">{{ i18n.t('vanillaVersionStatus').replace('{status}', statusLabel()) }}</p>
         <dl><div><dt>{{ i18n.t('assetManagerStatus') }}</dt><dd>{{ statusLabel() }}</dd></div><div><dt>{{ i18n.t('assetManagerSource') }}</dt><dd>{{ assets.sourceName() || i18n.t('noAssets') }}</dd></div><div><dt>{{ i18n.t('assetManagerResources') }}</dt><dd>{{ assets.diagnostics().resourceCount }}</dd></div><div><dt>{{ i18n.t('assetManagerCacheReady') }}</dt><dd>{{ assets.diagnostics().providerReady ? i18n.t('yes') : i18n.t('no') }}</dd></div></dl>
         @if (assets.message()) { <p class="manager-error">{{ assets.message() }}</p> }
-        <input #jarInput type="file" hidden accept=".jar,.zip,application/java-archive,application/zip" (change)="importJar($event)" />
-        <button type="button" class="primary" [disabled]="importing() || assets.status() === 'importing'" (click)="jarInput.click()">{{ assets.status() === 'ready' ? i18n.t('assetManagerReplace') : i18n.t('assetManagerImport') }}</button>
+        <input #jarInput class="file-input" type="file" [attr.aria-label]="assets.status() === 'ready' ? i18n.t('assetManagerReplace') : i18n.t('assetManagerImport')" accept=".jar,.zip,application/java-archive,application/zip" (change)="importJar($event)" />
+        <button type="button" class="primary" [disabled]="importing() || assets.status() === 'importing'" (click)="openJarPicker(jarInput)">{{ assets.status() === 'ready' ? i18n.t('assetManagerReplace') : i18n.t('assetManagerImport') }}</button>
       </section>
       <section class="manager-section">
         <h3>{{ i18n.t('assetManagerMods') }}</h3>
