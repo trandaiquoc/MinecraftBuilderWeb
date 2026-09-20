@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { BlockDefinition } from '../blocks/block-definition.types';
 import { PlaceableItemDefinition, previewBlocksForItem } from '../blocks/placeable-item';
 import { BlockLibraryService } from '../blocks/block-library.service';
-import { VanillaBlockVisualProvider } from '../renderer/block-model-geometry';
+import { VanillaBlockVisualProvider } from '../renderer/geometry/block-model-geometry';
 import { IndexedDbAssetCache } from './indexeddb-asset-cache';
 import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION } from './vanilla-asset-provider';
 import { loadVanillaBlockRegistry, VanillaBlockRegistry } from '../blocks/vanilla-block-registry';

@@ -1,4 +1,4 @@
-import { EditorTool } from '../tool.service';
+import { EditorTool } from '../state/tool.service';
 
 export type EditorPointerAction = 'place' | 'delete' | 'pick' | 'select' | 'clear-selection' | 'none';
 export interface PointerModifiers { readonly ctrl: boolean; readonly alt: boolean; }

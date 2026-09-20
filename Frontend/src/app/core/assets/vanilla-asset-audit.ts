@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BehaviorSupportLevel, BlockDefinition, VisualSupportLevel } from '../blocks/block-definition.types';
 import { BlockCatalog } from '../blocks/block-catalog';
 import { BlockModelResolver, ResolverDiagnosticCode } from '../blocks/resolver';
-import { VanillaBlockVisualProvider } from '../renderer/block-model-geometry';
+import { VanillaBlockVisualProvider } from '../renderer/geometry/block-model-geometry';
 import { texturePath, VanillaAssetProvider, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
 import { VanillaBlockRegistry } from '../blocks/vanilla-block-registry';
 

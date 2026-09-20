@@ -69,6 +69,7 @@ export class DecorationService {
 
   select(id: string | undefined): void { this.selectedId.set(id); if (id) this.selection.clear(); }
   clearSelection(): void { this.selectedId.set(undefined); }
+  resetSelectionForProjectChange(): void { this.selectedId.set(undefined); }
 
   setFrameItem(id: string, item: DecorationItemStack | undefined): boolean {
     return this.updateSelectedFrame(id, (entry) => {

@@ -3,7 +3,7 @@ import { resolveItemBlock } from '../blocks/placeable-item';
 import type { PlaceableItemDefinition } from '../blocks/placeable-item';
 import type { BlockDefinition } from '../blocks/block-definition.types';
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../domain/project.types';
-import type { PlacementContext } from '../editor/placement';
+import type { PlacementContext } from '../editor/placement/placement';
 import { BlockRuleEngine, minecraftPlayerFacing, RuleValidation } from './block-rule-engine';
 
 export interface PlacementPlan {

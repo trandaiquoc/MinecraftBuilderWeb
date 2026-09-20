@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "benchmark:renderer": "vitest run src/app/core/renderer/renderer-benchmark.spec.ts --reporter=verbose"
+    "benchmark:renderer": "node src/app/core/renderer/benchmark/renderer-benchmark-runner.cjs"
   },
   "private": true,
   "packageManager": "npm@11.13.0",

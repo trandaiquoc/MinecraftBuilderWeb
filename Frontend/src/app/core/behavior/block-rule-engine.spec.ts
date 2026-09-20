@@ -6,7 +6,7 @@ import { BlockLibraryService } from '../blocks/block-library.service';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../domain/project.types';
 import { HistoryService } from '../editor/history/history.service';
 import { SelectionService } from '../editor/selection/selection.service';
-import { StructureEditorService } from '../editor/structure-editor.service';
+import { StructureEditorService } from '../editor/structure/structure-editor.service';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
 import { BlockRuleEngine, minecraftPlayerFacing, minecraftSkullRotation } from './block-rule-engine';
 import { VanillaAssetProvider } from '../assets/vanilla-asset-provider';

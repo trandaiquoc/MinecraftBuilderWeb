@@ -1,6 +1,6 @@
 import { BlockDefinition, BlockSupportLevel, VisualSupportLevel } from './block-definition.types';
 import { BlockState, PlacedBlock, VoxelCoordinate } from '../domain/project.types';
-import { PlacementContext } from '../editor/placement';
+import { PlacementContext } from '../editor/placement/placement';
 import { normalizeSearchText } from './block-catalog';
 
 export type PlaceablePlacementKind =

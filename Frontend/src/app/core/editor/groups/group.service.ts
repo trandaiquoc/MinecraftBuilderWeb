@@ -91,6 +91,7 @@ export class GroupService {
   setMoveStep(raw: number): void { if (Number.isInteger(raw) && raw > 0) this.moveStep.set(raw); }
   nudgeMove(axis: keyof VoxelCoordinate, direction: 1 | -1): void { this.moveOffset.update((offset) => ({ ...offset, [axis]: offset[axis] + direction * this.moveStep() })); }
   resetMove(): void { this.moveOffset.set({ x: 0, y: 0, z: 0 }); }
+  resetForProjectChange(): void { this.activeGroupId.set(undefined); this.isolatedGroupId.set(undefined); this.resetMove(); }
   saveMove(): boolean {
     const id = this.activeGroupId(); const preview = this.movePreview();
     if (!id || !preview?.valid) return false;

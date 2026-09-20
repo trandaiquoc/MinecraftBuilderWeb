@@ -3,22 +3,22 @@ import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/i18n.service';
 import { ThemeService } from '../../../core/ui/theme.service';
 import { WorkspaceStateService } from '../../../core/ui/workspace-state.service';
-import { BlockBrowserComponent } from '../blocks/block-browser.component';
-import { DecorationBrowserComponent } from '../decorations/decoration-browser.component';
-import { QuickBlockBarComponent } from '../viewport/quick-block-bar.component';
-import { ViewportComponent } from '../viewport/viewport.component';
-import { YLayerComponent } from '../viewport/y-layer.component';
-import { EditorModeService } from '../../../core/editor/editor-mode.service';
-import { EditorToolService } from '../../../core/editor/tool.service';
+import { BlockBrowserComponent } from '../blocks/browser/block-browser.component';
+import { DecorationBrowserComponent } from '../decorations/browser/decoration-browser.component';
+import { QuickBlockBarComponent } from '../quick-bar/quick-block-bar.component';
+import { ViewportComponent } from '../viewport/three-d/viewport.component';
+import { YLayerComponent } from '../viewport/y-layer/y-layer.component';
+import { EditorModeService } from '../../../core/editor/state/editor-mode.service';
+import { EditorToolService } from '../../../core/editor/state/tool.service';
 import { CameraPreset } from '../../../core/editor/camera/camera';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
 import { GroupService } from '../../../core/editor/groups/group.service';
-import { StructureEditorService } from '../../../core/editor/structure-editor.service';
+import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../core/blocks/block-library.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { KeyboardAction } from '../../../core/editor/input/keyboard-bindings';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
-import { QuickBlockBarService } from '../../../core/editor/quick-block-bar.service';
+import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/indexeddb-project-store';
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
 import { ProjectAutosaveService } from '../../../core/persistence/project-autosave.service';
@@ -26,15 +26,16 @@ import { DialogService } from '../../../core/ui/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/editor-layout-preferences.service';
 import { clampGroupMovePanelPosition, PanelPosition } from '../../../core/editor/groups/group-move-panel';
 import { DecorationService } from '../../../core/decorations/decoration.service';
-import { SettingsDialogComponent } from '../settings/settings-dialog.component';
+import { SettingsDialogComponent } from '../settings/dialog/settings-dialog.component';
 import { LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
-import { GroupsPanelComponent } from '../groups/groups-panel.component';
-import { SelectionInspectorComponent } from '../inspector/selection-inspector.component';
-import { EditorStatusBarComponent } from './editor-status-bar.component';
-import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help-dialog.component';
+import { GroupsPanelComponent } from '../groups/panel/groups-panel.component';
+import { SelectionInspectorComponent } from '../inspector/selection/selection-inspector.component';
+import { EditorStatusBarComponent } from './status-bar/editor-status-bar.component';
+import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help/shortcuts-help-dialog.component';
 import { AssetManagerDialogComponent } from '../tools/asset-manager/asset-manager-dialog.component';
 import { ProjectDiagnosticsDialogComponent } from '../tools/diagnostics/project-diagnostics-dialog.component';
+import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 
 @Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
@@ -56,6 +57,7 @@ export class EditorShellComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly persistence = new ProjectPersistenceService(new IndexedDbProjectStore());
   private readonly library = inject(BlockLibraryService);
+  private readonly session = inject(EditorSessionService);
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
   protected readonly selectedDecoration = this.decorations.selected;
@@ -203,9 +205,8 @@ export class EditorShellComponent implements OnDestroy {
       const id = collision ? createProjectId() : imported.id;
       const project = collision ? { ...imported, id, metadata: { ...imported.metadata, name: `${imported.metadata.name} (imported)`, updatedAt: new Date().toISOString() } } : imported;
       await this.persistence.create(project);
+      this.session.resetForProjectChange(project.id, true);
       this.workspace.activate(project);
-      this.history.clear();
-      this.selection.clear();
     } catch {
       await this.dialogs.error(this.i18n.t('importProjectTitle'), this.i18n.t('importProjectError'));
     } finally { input.value = ''; }
