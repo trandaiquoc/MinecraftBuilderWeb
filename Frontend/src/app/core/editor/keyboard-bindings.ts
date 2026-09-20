@@ -7,7 +7,7 @@ export type KeyboardAction =
 export const DEFAULT_KEYBINDINGS: Readonly<Record<KeyboardAction, string>> = {
   'move-forward': 'W', 'move-backward': 'S', 'move-left': 'A', 'move-right': 'D', 'move-up': 'Space', 'move-down': 'Shift',
   undo: 'Ctrl+Z', redo: 'Ctrl+Y|Ctrl+Shift+Z', 'select-all': 'Ctrl+A', 'clear-selection': '', 'delete-selection': 'Delete|Backspace',
-  'tool-place': '', 'tool-select': '', 'mode-3d': '', 'mode-y-layer': '', 'fit-structure': '', 'focus-selection': '', 'save-project': '',
+  'tool-place': '', 'tool-select': '', 'mode-3d': '', 'mode-y-layer': '', 'fit-structure': '', 'focus-selection': '', 'save-project': 'Ctrl+S',
   'quick-slot-1': '1', 'quick-slot-2': '2', 'quick-slot-3': '3', 'quick-slot-4': '4', 'quick-slot-5': '5',
   'quick-slot-6': '6', 'quick-slot-7': '7', 'quick-slot-8': '8', 'quick-slot-9': '9', 'quick-slot-10': '0',
 };

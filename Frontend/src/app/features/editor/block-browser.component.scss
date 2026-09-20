@@ -30,7 +30,7 @@
 .active-support { display: flex; gap: .35rem; }
 .active-support span { font-size: .63rem; text-transform: uppercase; }
 .block-item.active .block-copy small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
-.block-copy small, .active-block small { font-family: var(--font-mono); }
+.block-copy small { font-family: var(--font-ui); }.active-block small { font-family: var(--font-mono); }
 
 :host-context([data-font='minecraft-style']) .asset-import,
 :host-context([data-font='minecraft-style']) .search-label,

@@ -13,5 +13,5 @@
 .help-row > span:first-child { min-width: 0; color: var(--text); font: .78rem/1.25 var(--font-ui); }
 .help-binding { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .2rem; color: var(--text-muted); font-size: .68rem; text-align: right; }
 .help-binding small { align-self: center; font-size: .62rem; }
-kbd { min-width: 1.4rem; padding: .16rem .3rem; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--control-normal); color: var(--text); box-shadow: 0 1px 0 rgb(0 0 0 / .18); font-family: var(--font-mono); font-size: .64rem; text-align: center; }
+kbd { min-width: 1.4rem; padding: .16rem .3rem; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--control-normal); color: var(--text); box-shadow: 0 1px 0 rgb(0 0 0 / .18); font-family: var(--font-ui); font-size: .72rem; line-height: 1; text-align: center; }
 @media (max-width: 620px) { .shortcuts-help-body { grid-template-columns: 1fr; } }

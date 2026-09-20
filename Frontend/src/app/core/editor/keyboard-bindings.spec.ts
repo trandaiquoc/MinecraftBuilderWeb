@@ -15,6 +15,8 @@ describe('keyboard binding model', () => {
     expect(keyboardActionForEvent({ key: 'z', ctrlKey: false, altKey: false, shiftKey: false, metaKey: true, target: null }, DEFAULT_KEYBINDINGS)).toBe('undo');
     expect(keyboardActionForEvent({ key: 'z', ctrlKey: true, altKey: false, shiftKey: true, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('redo');
     expect(keyboardActionForEvent({ key: 'Backspace', target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
+    expect(DEFAULT_KEYBINDINGS['save-project']).toBe('Ctrl+S');
+    expect(keyboardActionForEvent({ key: 's', ctrlKey: false, altKey: false, shiftKey: false, metaKey: true, target: null }, DEFAULT_KEYBINDINGS)).toBe('save-project');
   });
 
   it('normalizes missing bindings to defaults and detects conflicts', () => {
@@ -22,6 +24,8 @@ describe('keyboard binding model', () => {
     expect(bindings['move-forward']).toBe('W');
     expect(bindings['delete-selection']).toBe('Delete|Backspace');
     expect(findBindingConflicts(bindings)).toEqual([['quick-slot-1', 'quick-slot-2']]);
+    expect(normalizeBindings({ 'save-project': 'Alt+S' })['save-project']).toBe('Alt+S');
+    expect(normalizeBindings({ 'save-project': '' })['save-project']).toBe('');
   });
 
   it('does not treat cleared bindings as conflicts', () => {

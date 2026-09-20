@@ -1,11 +1,11 @@
-.sign-inspector { display: grid; gap: .55rem; min-width: 0; margin-top: .85rem; padding-top: .75rem; border-top: 1px solid var(--border); }
+.sign-inspector { display: grid; gap: .55rem; min-width: 0; margin-top: .85rem; padding-top: .75rem; border-top: 1px solid var(--border); font-family: var(--font-ui); }
 .sign-inspector h3, .sign-section h4 { margin: 0; font-size: .86rem; }
 .sign-section { display: grid; gap: .4rem; min-width: 0; padding-top: .35rem; border-top: 1px solid var(--border); }
 .sign-tabs { display: flex; gap: .25rem; }
 .sign-tabs button, .sign-control select, .sign-lines input, .state-fields button { border: 0; border-radius: 4px; background: var(--surface-raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
 .sign-tabs button { padding: .25rem .5rem; cursor: pointer; }
 .sign-tabs button.active { background: var(--control-selected); color: var(--control-selected-text); box-shadow: 0 3px 8px rgb(0 0 0 / .2); }
-.helper-text { margin: 0; color: var(--text-muted); font-size: .68rem; line-height: 1.35; }
+.helper-text { margin: 0; color: var(--text-muted); font: .68rem/1.35 var(--font-ui); }
 .sign-lines { display: grid; gap: .3rem; }
 .sign-lines label { display: grid; grid-template-columns: 1.2rem minmax(0, 1fr); align-items: center; gap: .35rem; }
 .sign-lines label > span { color: var(--text-muted); font-size: .72rem; text-align: center; }
