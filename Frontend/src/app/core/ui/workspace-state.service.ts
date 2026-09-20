@@ -23,7 +23,12 @@ export class WorkspaceStateService {
 
   restore(store: ProjectStore, storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = browserStorage()): Promise<ProjectDocument | undefined> {
     if (this.project()) return Promise.resolve(this.project());
-    return this.restorePromise ??= this.restoreFromStore(store, storage);
+    if (this.restorePromise) return this.restorePromise;
+    const attempt = this.restoreFromStore(store, storage);
+    let wrapped!: Promise<ProjectDocument | undefined>;
+    wrapped = attempt.finally(() => { if (this.restorePromise === wrapped) this.restorePromise = undefined; });
+    this.restorePromise = wrapped;
+    return wrapped;
   }
 
   private async restoreFromStore(store: ProjectStore, storage: Pick<Storage, 'getItem' | 'setItem'> | undefined): Promise<ProjectDocument | undefined> {

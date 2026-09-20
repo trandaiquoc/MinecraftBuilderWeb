@@ -2,7 +2,7 @@ import { Injectable, computed, inject } from '@angular/core';
 import { UiPreferencesService } from './ui-preferences.service';
 
 export interface EditorLayoutPreferences { editorToolbarVisible: boolean; leftSidebarVisible: boolean; rightSidebarVisible: boolean; quickBarVisible: boolean; statusBarVisible: boolean; leftSidebarWidth: number; rightSidebarWidth: number; groupMovePanelX?: number; groupMovePanelY?: number; }
-const defaults: EditorLayoutPreferences = { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 220, rightSidebarWidth: 260 };
+const defaults: EditorLayoutPreferences = { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 260, rightSidebarWidth: 230 };
 
 @Injectable({ providedIn: 'root' })
 export class EditorLayoutPreferencesService {

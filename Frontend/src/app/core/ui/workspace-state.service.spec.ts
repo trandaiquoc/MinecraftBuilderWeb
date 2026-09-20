@@ -39,6 +39,19 @@ describe('WorkspaceStateService', () => {
     await Promise.all([workspace.restore(store, storage), workspace.restore(store, storage)]);
     expect(opens).toBe(1);
   });
+
+  it('clears a settled restore attempt so retry reads storage again', async () => {
+    let attempts = 0;
+    const stored = project('retry', '2026-03-01');
+    const store: ProjectStore = { ...memoryStore([stored]), list: async () => { attempts++; if (attempts === 1) throw new Error('temporary'); return [{ id: stored.id, name: stored.metadata.name, updatedAt: stored.metadata.updatedAt }]; } };
+    const workspace = new WorkspaceStateService();
+    const storage = { getItem: () => null, setItem: () => undefined };
+    await workspace.restore(store, storage);
+    expect(workspace.restoreStatus()).toBe('error');
+    await workspace.restore(store, storage);
+    expect(workspace.project()?.id).toBe('retry');
+    expect(attempts).toBe(2);
+  });
 });
 
 function memoryStore(projects: readonly ProjectDocument[], onOpen?: () => void): ProjectStore {

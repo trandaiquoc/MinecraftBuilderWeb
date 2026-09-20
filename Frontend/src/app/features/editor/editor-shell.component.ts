@@ -204,6 +204,8 @@ export class EditorShellComponent implements OnDestroy {
   protected chooseFont(font: 'geist' | 'minecraft-style'): void { this.theme.setFont(font); this.closeMenus(); }
   protected chooseEditorBackground(background: 'dark' | 'light'): void { this.theme.setEditorBackground(background); this.closeMenus(); }
   protected setEditorMode(mode: '3d' | 'y-layer'): void { this.mode.setMode(mode); this.closeMenus(); }
+  protected retryRestore(): void { void this.workspace.restore(new IndexedDbProjectStore()); }
+  protected async backToProjects(): Promise<void> { await this.router.navigateByUrl('/'); }
   protected openDrawer(side: 'left' | 'right', event: Event): void {
     this.drawerOpener = event.currentTarget as HTMLElement;
     if (side === 'left') { this.leftDrawerOpen.set(true); this.rightDrawerOpen.set(false); }

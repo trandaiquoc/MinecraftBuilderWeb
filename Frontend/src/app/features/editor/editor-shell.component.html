@@ -1,5 +1,12 @@
 <div class="editor-shell">
   <input #projectImportInput type="file" accept="application/json,.json,.minecraftbuilder" hidden (change)="importProjectPackage($event)" />
+  @if (workspace.restoreStatus() === 'restoring' || workspace.restoreStatus() === 'idle') {
+    <main class="editor-startup-state" aria-live="polite"><p class="eyebrow">{{ i18n.t('appName') }}</p><h1>{{ i18n.t('restoringProject') }}</h1><p>{{ i18n.t('restoringProjectHint') }}</p></main>
+  } @else if (workspace.restoreStatus() === 'empty') {
+    <main class="editor-startup-state"><p class="eyebrow">{{ i18n.t('appName') }}</p><h1>{{ i18n.t('noProjectToRestore') }}</h1><p>{{ i18n.t('noProjectToRestoreHint') }}</p><button type="button" (click)="backToProjects()">{{ i18n.t('back') }}</button></main>
+  } @else if (workspace.restoreStatus() === 'error') {
+    <main class="editor-startup-state"><p class="eyebrow">{{ i18n.t('appName') }}</p><h1>{{ i18n.t('projectRestoreError') }}</h1><p role="alert">{{ i18n.t('projectRestoreErrorHint') }}</p><div><button type="button" (click)="retryRestore()">{{ i18n.t('retry') }}</button><button type="button" class="secondary" (click)="backToProjects()">{{ i18n.t('back') }}</button></div></main>
+  } @else {
   <header class="shell-header">
     <div class="app-menu-row">
       <a class="brand" routerLink="/">{{ i18n.t('appName') }}</a>
@@ -526,5 +533,6 @@
   }
   @if (diagnosticsOpen()) {
     <app-project-diagnostics-dialog (closed)="diagnosticsOpen.set(false)"></app-project-diagnostics-dialog>
+  }
   }
 </div>
