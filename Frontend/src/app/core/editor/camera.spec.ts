@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cameraBoundsCenter, cameraDistanceForBounds, projectCameraBounds, selectedVoxelCenter, structureCameraBounds } from './camera';
+import { cameraBoundsCenter, cameraDistanceForBounds, projectCameraBounds, selectedVoxelCenter, structureCameraBounds, voxelCameraBounds } from './camera';
 
 describe('camera framing', () => {
   it('uses project bounds when there are no placed blocks', () => {
@@ -15,5 +15,9 @@ describe('camera framing', () => {
     ]);
     expect(bounds).toEqual({ min: { x: 2, y: 1, z: 4 }, max: { x: 7, y: 4, z: 9 } });
     expect(selectedVoxelCenter({ x: 6, y: 1, z: 8 })).toEqual({ x: 6.5, y: 1.5, z: 8.5 });
+  });
+
+  it('frames logical voxel positions with inclusive voxel bounds', () => {
+    expect(voxelCameraBounds([{ x: 2, y: 4, z: 1 }, { x: 5, y: 2, z: 3 }])).toEqual({ min: { x: 2, y: 2, z: 1 }, max: { x: 6, y: 5, z: 4 } });
   });
 });

@@ -26,6 +26,14 @@ export function selectedVoxelCenter(position: VoxelCoordinate): CameraVector {
   return { x: position.x + .5, y: position.y + .5, z: position.z + .5 };
 }
 
+export function voxelCameraBounds(positions: readonly VoxelCoordinate[]): CameraBounds | undefined {
+  if (!positions.length) return undefined;
+  return positions.reduce<CameraBounds>((bounds, position) => ({
+    min: { x: Math.min(bounds.min.x, position.x), y: Math.min(bounds.min.y, position.y), z: Math.min(bounds.min.z, position.z) },
+    max: { x: Math.max(bounds.max.x, position.x + 1), y: Math.max(bounds.max.y, position.y + 1), z: Math.max(bounds.max.z, position.z + 1) },
+  }), { min: { ...positions[0] }, max: { x: positions[0].x + 1, y: positions[0].y + 1, z: positions[0].z + 1 } });
+}
+
 export function cameraDistanceForBounds(bounds: CameraBounds, verticalFovDegrees: number, aspect: number): number {
   const width = bounds.max.x - bounds.min.x;
   const height = bounds.max.y - bounds.min.y;

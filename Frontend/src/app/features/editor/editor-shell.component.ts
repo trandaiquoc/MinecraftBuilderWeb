@@ -16,7 +16,6 @@ import { CameraPreset } from '../../core/editor/camera';
 import { SelectionService } from '../../core/editor/selection.service';
 import { GroupService } from '../../core/editor/group.service';
 import { isSignId, StructureEditorService } from '../../core/editor/structure-editor.service';
-import { ViewportStatusService } from '../../core/editor/viewport-status.service';
 import { BlockLibraryService } from '../../core/blocks/block-library.service';
 import { coordinateKey } from '../../core/domain/coordinates';
 import { blockGroupNames } from '../../core/editor/group-membership';
@@ -59,7 +58,6 @@ export class EditorShellComponent implements OnDestroy {
   private readonly editor = inject(StructureEditorService);
   private readonly router = inject(Router);
   private readonly persistence = new ProjectPersistenceService(new IndexedDbProjectStore());
-  protected readonly viewportStatus = inject(ViewportStatusService);
   private readonly library = inject(BlockLibraryService);
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
@@ -79,6 +77,8 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly selectedBlockIsSign = computed(() => { const block = this.selectedBlock(); return !!block && isSignId(block.id); });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
   protected readonly logicalSelectionCount = computed(() => this.selection.logicalPositions().length);
+  protected readonly focusSelectionAvailable = computed(() => !!this.selectedDecoration() || !!this.selection.single() || !!this.selection.box() || this.logicalSelectionCount() > 0);
+  protected readonly selectionSummaryCount = computed(() => { const box = this.selection.box(); return box ? (box.max.x - box.min.x + 1) * (box.max.y - box.min.y + 1) * (box.max.z - box.min.z + 1) : this.logicalSelectionCount(); });
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
   protected readonly filteredGroups = computed(() => {
     const project = this.workspace.project();
@@ -134,6 +134,7 @@ export class EditorShellComponent implements OnDestroy {
   ngOnDestroy(): void { void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
+  protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionSummaryCount())); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
 
   protected fitStructure(): void { this.currentViewport()?.fitStructure(); }
@@ -335,7 +336,7 @@ export class EditorShellComponent implements OnDestroy {
     if (action === 'mode-3d') { this.mode.mode.set('3d'); return true; }
     if (action === 'mode-y-layer') { this.mode.mode.set('y-layer'); return true; }
     if (action === 'fit-structure') { this.fitStructure(); return true; }
-    if (action === 'focus-selection') { if (!this.selection.single()) return false; this.focusSelection(); return true; }
+    if (action === 'focus-selection') { if (!this.focusSelectionAvailable()) return false; this.focusSelection(); return true; }
     if (action === 'save-project') { void this.saveProject(); return true; }
     if (action.startsWith('quick-slot-')) { const index = Number(action.slice('quick-slot-'.length)) - 1; const entry = this.quickBar.entries()[index]; if (!entry) return false; this.quickBar.select(entry); return true; }
     return false;

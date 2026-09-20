@@ -4,7 +4,7 @@ import { ActiveBlock } from '../blocks/active-block.service';
 import { ProjectDocument, ProjectSize, VoxelCoordinate } from '../domain/project.types';
 import { FaceNormal, resolveAttachmentPlacement, placementStatus, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../editor/placement';
 import { blocksForLayers, YLayerVisibility } from '../editor/y-layer';
-import { cameraBoundsCenter, cameraDistanceForBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, selectedVoxelCenter, structureCameraBounds } from '../editor/camera';
+import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../editor/camera';
 import { isBlockVisible } from '../editor/group-membership';
 import { GroupMovePreview } from '../editor/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
@@ -478,11 +478,17 @@ export class ThreeViewportEngine {
   }
 
   focusSelection(position: VoxelCoordinate | undefined): void {
-    if (!position || !this.controls) return;
-    const target = selectedVoxelCenter(position);
+    if (!position) return;
+    this.focusBounds({ min: { x: position.x, y: position.y, z: position.z }, max: { x: position.x + 1, y: position.y + 1, z: position.z + 1 } });
+  }
+
+  focusBounds(bounds: CameraBounds | undefined): void {
+    if (!bounds || !this.controls) return;
+    const target = cameraBoundsCenter(bounds);
     const direction = this.camera.position.clone().sub(this.controls.target);
-    const distance = Math.max(4, direction.length());
-    this.setCamera(target, direction.lengthSq() ? direction.normalize() : perspectiveDirection(), distance);
+    const viewDirection = direction.lengthSq() ? direction.normalize() : perspectiveDirection();
+    const distance = cameraDistanceForBounds(bounds, this.camera.fov, this.camera.aspect);
+    this.setCamera(target, viewDirection, distance);
   }
 
   resetCamera(): void {

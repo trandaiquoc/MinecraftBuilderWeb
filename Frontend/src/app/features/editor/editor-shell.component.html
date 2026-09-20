@@ -33,7 +33,7 @@
               {{ i18n.t('resetLayout') }}
             </button>
             <button type="button" (click)="fitStructure(); closeMenus()">{{ i18n.t('fitStructure') }}</button>
-            <button type="button" [disabled]="!selectedBlock()" (click)="focusSelection(); closeMenus()">{{ i18n.t('focusSelection') }}</button>
+            <button type="button" [disabled]="!focusSelectionAvailable()" (click)="focusSelection(); closeMenus()">{{ i18n.t('focusSelection') }}</button>
           </div>
         }
         </div>
@@ -114,7 +114,7 @@
         </div>
         <div class="toolbar-group camera-actions">
           <button type="button" (click)="fitStructure()">{{ i18n.t('fitStructure') }}</button
-          ><button type="button" [disabled]="!selectedBlock()" (click)="focusSelection()">
+          ><button type="button" [disabled]="!focusSelectionAvailable()" (click)="focusSelection()">
             {{ i18n.t('focusSelection') }}</button
           ><button type="button" (click)="toggleCameraMenu($event)">
             {{ i18n.t('camera') }} <svg lucideChevronDown aria-hidden="true"></svg>
@@ -501,13 +501,10 @@
           {{ workspace.project()?.editorSettings?.currentY ?? 0 }}</span
         >
       }
-      @if (logicalSelectionCount() > 1) {
+      @if (selectionSummaryCount() > 1) {
         <span
-          >{{ i18n.t('selection') }}: {{ logicalSelectionCount() }} voxels (logical object)</span
+          >{{ selectionSummaryLabel() }}</span
         >
-      }
-      @if (viewportStatus.target(); as target) {
-        <span>{{ i18n.t('target') }}: {{ target.x }}, {{ target.y }}, {{ target.z }}</span>
       }
     </footer>
   }
