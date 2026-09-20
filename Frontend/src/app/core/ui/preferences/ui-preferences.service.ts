@@ -20,6 +20,9 @@ export interface UiPreferences {
     readonly fontSize: UiFontSize;
     readonly editorBackground: BaseTheme;
   };
+  readonly accessibility: {
+    readonly blockBrightness: number;
+  };
   readonly controls: {
     readonly orbitSensitivity: number;
     readonly panSensitivity: number;
@@ -50,6 +53,7 @@ const defaults: UiPreferences = {
   locale: 'en',
   editorMode: '3d',
   appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', fontSize: 'normal', editorBackground: 'dark' },
+  accessibility: { blockBrightness: 3 },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,
   mouseBindings: DEFAULT_MOUSE_BINDINGS,
@@ -61,7 +65,9 @@ export class UiPreferencesService {
   readonly preferences = signal<UiPreferences>(this.read());
 
   update(patch: Partial<UiPreferences>): void {
-    this.commit({ ...this.preferences(), ...patch, version: 1 });
+    const current = this.preferences();
+    const accessibility = patch.accessibility ? { ...current.accessibility, ...patch.accessibility, blockBrightness: normalizeBlockBrightness(patch.accessibility.blockBrightness ?? current.accessibility.blockBrightness) } : current.accessibility;
+    this.commit({ ...current, ...patch, accessibility, version: 1 });
   }
 
   setLocale(locale: UiLocale): void { this.commit({ ...this.preferences(), locale }); }
@@ -72,6 +78,11 @@ export class UiPreferencesService {
 
   setControls(patch: Partial<UiPreferences['controls']>): void {
     this.commit({ ...this.preferences(), controls: { ...this.preferences().controls, ...patch } });
+  }
+
+  setAccessibility(patch: Partial<UiPreferences['accessibility']>): void {
+    const current = this.preferences();
+    this.commit({ ...current, accessibility: { ...current.accessibility, ...patch, blockBrightness: normalizeBlockBrightness(patch.blockBrightness ?? current.accessibility.blockBrightness) } });
   }
 
   setLayout(patch: Partial<UiPreferences['layout']>): void {
@@ -120,6 +131,9 @@ function normalize(value: unknown): UiPreferences {
       fontSize: isFontSize((appearance as Partial<UiPreferences['appearance']>).fontSize) ? (appearance as Partial<UiPreferences['appearance']>).fontSize! : defaults.appearance.fontSize,
       editorBackground: isBase((appearance as Partial<UiPreferences['appearance']>).editorBackground) ? (appearance as Partial<UiPreferences['appearance']>).editorBackground! : defaults.appearance.editorBackground,
     },
+    accessibility: {
+      blockBrightness: normalizeBlockBrightness((candidate.accessibility as Partial<UiPreferences['accessibility']> | undefined)?.blockBrightness),
+    },
     controls: {
       orbitSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).orbitSensitivity, .1, 3, defaults.controls.orbitSensitivity),
       panSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).panSensitivity, .1, 3, defaults.controls.panSensitivity),
@@ -142,6 +156,11 @@ function normalize(value: unknown): UiPreferences {
 
 function numberInRange(value: unknown, min: number, max: number, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+export function normalizeBlockBrightness(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return defaults.accessibility.blockBrightness;
+  return Math.min(10, Math.max(0, Math.round(value)));
 }
 
 function isLocale(value: unknown): value is UiLocale { return value === 'en' || value === 'vi'; }
@@ -168,5 +187,5 @@ function normalizeLayout(value: unknown): UiPreferences['layout'] {
 }
 
 function clonePreferences(value: UiPreferences): UiPreferences {
-  return { ...value, appearance: { ...value.appearance }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, layout: { ...value.layout } };
+  return { ...value, appearance: { ...value.appearance }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, layout: { ...value.layout } };
 }

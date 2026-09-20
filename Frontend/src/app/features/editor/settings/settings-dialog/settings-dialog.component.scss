@@ -30,6 +30,15 @@
 .range-setting output { color: var(--text); font-variant-numeric: tabular-nums; }
 .range-setting input[type='range'] { width: 100%; accent-color: var(--accent); }
 .range-setting small { color: var(--text-muted); font-size: .7rem; line-height: 1.35; }
+.brightness-setting > span:first-child { align-items: baseline; color: var(--text); font-size: .82rem; font-weight: 600; }
+.brightness-setting output { color: var(--control-selected-text); background: var(--control-selected); border-radius: var(--radius-sm); padding: .12rem .4rem; font-variant-numeric: tabular-nums; }
+.brightness-setting input[type='range'] { width: 100%; accent-color: var(--accent); }
+.brightness-stops { display: flex; justify-content: space-between; gap: .5rem; color: var(--text-muted); font-size: .68rem; }
+.brightness-stops span { display: grid; gap: .1rem; min-width: 0; }
+.brightness-stops span:nth-child(2) { text-align: center; }
+.brightness-stops span:last-child { text-align: right; }
+.brightness-stops strong { color: var(--text); font-size: .76rem; }
+.brightness-stops small { color: var(--text-muted); font-size: inherit; line-height: 1.25; }
 .font-size-setting > span:first-child { display: flex; justify-content: space-between; gap: .75rem; }
 .font-size-setting input[type='range'] { width: 100%; accent-color: var(--accent); }
 .font-size-stops { display: flex; justify-content: space-between; gap: .4rem; color: var(--text-muted); font-size: .72rem; }

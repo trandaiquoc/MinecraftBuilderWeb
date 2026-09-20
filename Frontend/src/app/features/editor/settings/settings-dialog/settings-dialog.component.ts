@@ -10,7 +10,7 @@ import { MOUSE_ACTIONS, MouseAction, findMouseBindingConflicts, mouseBindingFrom
 import { trapDialogFocus } from '../../../../shared/ui/dialog/dialog-focus';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
-type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance']; readonly controls: UiPreferences['controls']; readonly shortcuts: UiPreferences['shortcuts']; readonly mouseBindings: UiPreferences['mouseBindings'] };
+type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance']; readonly accessibility: UiPreferences['accessibility']; readonly controls: UiPreferences['controls']; readonly shortcuts: UiPreferences['shortcuts']; readonly mouseBindings: UiPreferences['mouseBindings'] };
 
 @Component({
   selector: 'app-settings-dialog',
@@ -67,6 +67,10 @@ export class SettingsDialogComponent {
   protected fontSizeIndex(): number { return ({ small: 0, normal: 1, large: 2 } as const)[this.draft().appearance.fontSize]; }
   protected setFontSizeIndex(event: Event): void { this.setFontSize((['small', 'normal', 'large'] as const)[Math.min(2, Math.max(0, Math.round(Number((event.target as HTMLInputElement).value))))]); }
   protected setEditorBackground(editorBackground: BaseTheme): void { this.updateDraft({ appearance: { ...this.draft().appearance, editorBackground } }); }
+  protected setBlockBrightness(value: string): void {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) this.updateDraft({ accessibility: { blockBrightness: Math.min(10, Math.max(0, Math.round(numeric))) } });
+  }
   protected setControl(key: keyof UiPreferences['controls'], value: string): void {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return;
@@ -120,6 +124,7 @@ export class SettingsDialogComponent {
   protected restoreControlsDefaults(): void { this.updateDraft({ controls: { ...this.preferences.defaultPreferences().controls } }); }
   protected restoreShortcutsDefaults(): void { this.updateDraft({ shortcuts: { ...this.preferences.defaultPreferences().shortcuts } }); this.cancelShortcutCapture(); }
   protected restoreMouseDefaults(): void { this.updateDraft({ mouseBindings: { ...this.preferences.defaultPreferences().mouseBindings } }); this.cancelShortcutCapture(); }
+  protected restoreAccessibilityDefaults(): void { this.updateDraft({ accessibility: { ...this.preferences.defaultPreferences().accessibility } }); }
   protected clearShortcut(action: KeyboardAction): void { this.setShortcut(action, ''); this.cancelShortcutCapture(); }
   protected clearMouseBinding(action: MouseAction): void { this.setMouseShortcut(action, ''); this.cancelShortcutCapture(); }
   protected clearAllShortcuts(): void { this.updateDraft({ shortcuts: Object.fromEntries(KEYBOARD_ACTIONS.map(({ action }) => [action, ''])) as UiPreferences['shortcuts'] }); this.cancelShortcutCapture(); }
@@ -127,7 +132,7 @@ export class SettingsDialogComponent {
   protected async apply(): Promise<void> {
     if (this.shortcutConflicts().length || this.mouseBindingConflicts().length) return;
     const draft = this.draft();
-    this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, controls: { ...draft.controls }, shortcuts: { ...draft.shortcuts }, mouseBindings: { ...draft.mouseBindings } });
+    this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, accessibility: { ...draft.accessibility }, controls: { ...draft.controls }, shortcuts: { ...draft.shortcuts }, mouseBindings: { ...draft.mouseBindings } });
     this.baseline.set(this.readDraft());
     this.draft.set(this.readDraft());
   }
@@ -146,6 +151,6 @@ export class SettingsDialogComponent {
   private setMouseShortcut(action: MouseAction, binding: string): void { this.updateDraft({ mouseBindings: { ...this.draft().mouseBindings, [action]: binding } }); }
   private displayBinding(binding: string): string { return binding ? binding.split('|').map((alternative) => alternative.split('+').map((token) => this.displayBindingToken(token)).join(' + ')).join(' / ') : this.i18n.t('unassigned'); }
   private displayBindingToken(token: string): string { return ({ Ctrl: this.i18n.t('keyCtrl'), Shift: this.i18n.t('keyShift'), Alt: this.i18n.t('keyAlt'), Meta: this.i18n.t('keyMeta'), LeftClick: this.i18n.t('mouseLeftClick'), RightClick: this.i18n.t('mouseRightClick'), MiddleClick: this.i18n.t('mouseMiddleClick'), WheelUp: this.i18n.t('mouseWheelUp'), WheelDown: this.i18n.t('mouseWheelDown') } as Record<string, string>)[token] ?? token; }
-  private updateDraft(patch: Partial<SettingsDraft>): void { this.draft.update((current) => ({ ...current, ...patch, appearance: { ...current.appearance, ...(patch.appearance ?? {}) }, controls: { ...current.controls, ...(patch.controls ?? {}) }, shortcuts: { ...current.shortcuts, ...(patch.shortcuts ?? {}) }, mouseBindings: { ...current.mouseBindings, ...(patch.mouseBindings ?? {}) } })); }
-  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance }, controls: { ...current.controls }, shortcuts: { ...current.shortcuts }, mouseBindings: { ...current.mouseBindings } }; }
+  private updateDraft(patch: Partial<SettingsDraft>): void { this.draft.update((current) => ({ ...current, ...patch, appearance: { ...current.appearance, ...(patch.appearance ?? {}) }, accessibility: { ...current.accessibility, ...(patch.accessibility ?? {}) }, controls: { ...current.controls, ...(patch.controls ?? {}) }, shortcuts: { ...current.shortcuts, ...(patch.shortcuts ?? {}) }, mouseBindings: { ...current.mouseBindings, ...(patch.mouseBindings ?? {}) } })); }
+  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance }, accessibility: { ...current.accessibility }, controls: { ...current.controls }, shortcuts: { ...current.shortcuts }, mouseBindings: { ...current.mouseBindings } }; }
 }

@@ -9,6 +9,15 @@ describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
   camera.position.set(0, 2, 4); camera.lookAt(0, 2, 0);
 
+  it('remembers brightness before initialization and updates the mapping without rebuilding visuals', () => {
+    const engine = new ThreeViewportEngine();
+    engine.setBlockBrightness(0);
+    expect(engine.lighting().hemisphereIntensity).toBeLessThan(2.65);
+    engine.setBlockBrightness(10);
+    expect(engine.lighting()).toEqual({ hemisphereIntensity: 4.2, directionalIntensity: 2.1 });
+    engine.dispose();
+  });
+
   it('uses WASD on the camera plane and Space/Shift for world vertical movement', () => {
     expect(cameraMovementDirection(new Set(['KeyW']), camera).z).toBeLessThan(0);
     expect(cameraMovementDirection(new Set(['Space']), camera)).toMatchObject({ x: 0, y: 1, z: 0 });

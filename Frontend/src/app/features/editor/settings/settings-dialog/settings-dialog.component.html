@@ -7,11 +7,10 @@
     <div class="settings-dialog-body">
       <nav class="settings-nav" [attr.aria-label]="i18n.t('settingsSections')">
         @for (item of sections; track item) {
-          <button type="button" [class.active]="section() === item" [attr.aria-current]="section() === item ? 'page' : null" [attr.title]="item === 'accessibility' ? i18n.t('unavailableSettings') : null" [disabled]="item === 'accessibility'" (click)="setSection(item)">
+          <button type="button" [class.active]="section() === item" [attr.aria-current]="section() === item ? 'page' : null" (click)="setSection(item)">
             {{ sectionLabel(item) }}
           </button>
         }
-        <small class="settings-nav-note">{{ i18n.t('unavailableAdvancedSettings') }}</small>
       </nav>
       <div class="settings-content">
         @if (section() === 'general') {
@@ -92,10 +91,16 @@
               <div class="shortcut-actions"><button type="button" class="section-reset shortcut-clear-all" (click)="clearAllMouseBindings()">{{ i18n.t('clearAllBindings') }}</button><button type="button" class="section-reset" (click)="restoreMouseDefaults()">{{ i18n.t('restoreDefaults') }}</button></div>
             }
           </section>
-        } @else {
-          <section class="settings-unavailable">
+        } @else if (section() === 'accessibility') {
+          <section class="accessibility-settings">
             <h3>{{ sectionLabel(section()) }}</h3>
-            <p>{{ i18n.t('unavailableSettings') }}</p>
+            <label class="range-setting brightness-setting">
+              <span><span>{{ i18n.t('blockBrightness') }}</span><output>{{ draft().accessibility.blockBrightness }}</output></span>
+              <input type="range" min="0" max="10" step="1" [value]="draft().accessibility.blockBrightness" (input)="setBlockBrightness($any($event.target).value)" [attr.aria-label]="i18n.t('blockBrightness')" />
+              <span class="brightness-stops" aria-hidden="true"><span><strong>0</strong><small>{{ i18n.t('brightnessVanilla') }}</small></span><span><strong>3</strong><small>{{ i18n.t('brightnessDefault') }}</small></span><span><strong>10</strong><small>{{ i18n.t('brightnessMaximum') }}</small></span></span>
+              <small>{{ i18n.t('blockBrightnessHint') }}</small>
+            </label>
+            <button type="button" class="section-reset" (click)="restoreAccessibilityDefaults()">{{ i18n.t('restoreDefaults') }}</button>
           </section>
         }
       </div>

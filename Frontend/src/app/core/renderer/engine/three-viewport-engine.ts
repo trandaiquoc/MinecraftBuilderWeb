@@ -18,6 +18,7 @@ import type { ActiveDecoration } from '../../decorations/decoration.service';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
+import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
@@ -132,6 +133,9 @@ export class ThreeViewportEngine {
   private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9 };
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
+  private hemisphereLight?: THREE.HemisphereLight;
+  private keyLight?: THREE.DirectionalLight;
+  private blockBrightness = 3;
   private structureSyncKey = '';
   private syncedProject?: ProjectDocument;
   private providerGeneration = 0;
@@ -147,8 +151,10 @@ export class ThreeViewportEngine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
     this.applyTheme(this.palette);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x394454, 2.65));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.15); keyLight.position.set(6, 10, 7); this.scene.add(keyLight);
+    this.hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x394454, 1);
+    this.keyLight = new THREE.DirectionalLight(0xffffff, 1); this.keyLight.position.set(6, 10, 7);
+    this.scene.add(this.hemisphereLight, this.keyLight);
+    this.applyBlockBrightness();
     this.scene.add(this.blocksGroup);
     this.scene.add(this.decorationsGroup);
     this.ghost.visible = false;
@@ -202,6 +208,20 @@ export class ThreeViewportEngine {
     const ghostStatus = this.ghost.userData['status'] as PlacementStatus | undefined;
     if (ghostStatus) (this.ghost.material as THREE.MeshBasicMaterial).color.setHex(colorForStatus(this.palette, ghostStatus));
     this.render();
+  }
+
+  setBlockBrightness(value: number): void {
+    this.blockBrightness = normalizeBlockBrightness(value);
+    this.applyBlockBrightness();
+    if (this.renderer) this.render();
+  }
+
+  lighting(): ViewportLighting { return viewportLightingForBrightness(this.blockBrightness); }
+
+  private applyBlockBrightness(): void {
+    const lighting = viewportLightingForBrightness(this.blockBrightness);
+    if (this.hemisphereLight) this.hemisphereLight.intensity = lighting.hemisphereIntensity;
+    if (this.keyLight) this.keyLight.intensity = lighting.directionalIntensity;
   }
 
   setControlConfiguration(configuration: ViewportControlConfiguration): void {

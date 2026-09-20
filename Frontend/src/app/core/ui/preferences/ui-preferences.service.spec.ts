@@ -13,11 +13,39 @@ describe('UiPreferencesService', () => {
   it('uses safe defaults and persists updates', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');
+    expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
     preferences.setAppearance({ preset: 'craft', base: 'dark' });
     preferences.setAppearance({ editorBackground: 'light' });
     preferences.setLocale('vi');
     expect(preferences.preferences().appearance.editorBackground).toBe('light');
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')).toMatchObject({ locale: 'vi', appearance: { preset: 'craft', editorBackground: 'light' } });
+  });
+
+  it('migrates and normalizes block brightness without changing other preferences', () => {
+    localStorage.setItem(key, JSON.stringify({ locale: 'vi', appearance: { preset: 'light' } }));
+    expect(new UiPreferencesService().preferences().accessibility.blockBrightness).toBe(3);
+    localStorage.setItem(key, JSON.stringify({ locale: 'vi', appearance: { preset: 'light' }, accessibility: { blockBrightness: 7.6 } }));
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().locale).toBe('vi');
+    expect(preferences.preferences().appearance.preset).toBe('light');
+    expect(preferences.preferences().accessibility.blockBrightness).toBe(8);
+    localStorage.setItem(key, JSON.stringify({ accessibility: { blockBrightness: -1 } }));
+    expect(new UiPreferencesService().preferences().accessibility.blockBrightness).toBe(0);
+    localStorage.setItem(key, JSON.stringify({ accessibility: { blockBrightness: 11 } }));
+    expect(new UiPreferencesService().preferences().accessibility.blockBrightness).toBe(10);
+    localStorage.setItem(key, JSON.stringify({ accessibility: { blockBrightness: 'bright' } }));
+    expect(new UiPreferencesService().preferences().accessibility.blockBrightness).toBe(3);
+  });
+
+  it('persists accessibility updates and restores its defaults independently', () => {
+    const preferences = new UiPreferencesService();
+    preferences.setAppearance({ preset: 'light' });
+    preferences.setAccessibility({ blockBrightness: 6.4 });
+    expect(preferences.preferences().accessibility.blockBrightness).toBe(6);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}').accessibility.blockBrightness).toBe(6);
+    preferences.reset();
+    expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
+    expect(preferences.preferences().appearance.preset).toBe('craft');
   });
 
   it('persists resizable sidebar widths and clamps invalid stored values', () => {
