@@ -22,6 +22,13 @@ export class PaintingPickerComponent {
     return query ? this.variants.filter((entry) => normalize(`${humanize(entry.id)} ${entry.id} ${entry.width}x${entry.height} ${entry.width} × ${entry.height}`).includes(query)) : this.variants;
   });
   protected selectedVariant(): PaintingVariant | undefined { return this.variants.find((entry) => entry.id === this.selectedId); }
+  protected imageSize(variant: PaintingVariant, stage: 'card' | 'selected'): { readonly width: number; readonly height: number } {
+    const sourceWidth = variant.width * 16;
+    const sourceHeight = variant.height * 16;
+    const [stageWidth, stageHeight, maxScale] = stage === 'selected' ? [160, 160, 8] : [112, 72, 4];
+    const scale = Math.max(1, Math.min(maxScale, Math.floor(Math.min(stageWidth / sourceWidth, stageHeight / sourceHeight))));
+    return { width: sourceWidth * scale, height: sourceHeight * scale };
+  }
   protected label(id: string): string { return humanize(id); }
   protected imageUrl(variant: PaintingVariant): string | undefined { this.assets.generation(); return this.assets.provider()?.textureUrl(variant.assetPath); }
   protected choose(id: string): void { this.selectionChange.emit(id); if (this.compact) this.open.set(false); }
