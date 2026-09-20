@@ -71,6 +71,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
   protected readonly activeMenu = signal<'file' | 'edit' | 'view' | 'tools' | 'settings' | 'help' | undefined>(undefined);
   protected readonly cameraMenuOpen = signal(false);
+  protected readonly deletingProject = signal(false);
   protected readonly settingsDialogOpen = signal(false);
   protected readonly controlsHelpOpen = signal(false);
   protected readonly assetManagerOpen = signal(false);
@@ -198,12 +199,13 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected async deleteProject(): Promise<void> {
     const project = this.workspace.project();
-    if (!project) return;
+    if (!project || this.deletingProject()) return;
     this.closeMenus();
     const name = project.metadata.name;
-    const confirmed = await this.dialogs.confirm({ title: this.i18n.t('deleteProjectTitle'), text: this.i18n.t('deleteProjectText').replace('{name}', name), confirmButtonText: this.i18n.t('deleteProjectConfirm'), cancelButtonText: this.i18n.t('cancel'), icon: 'warning' });
-    if (!confirmed) return;
+    this.deletingProject.set(true);
     try {
+      const confirmed = await this.dialogs.confirm({ title: this.i18n.t('deleteProjectTitle'), text: this.i18n.t('deleteProjectText').replace('{name}', name), confirmButtonText: this.i18n.t('deleteProjectConfirm'), cancelButtonText: this.i18n.t('cancel'), icon: 'warning', destructive: true });
+      if (!confirmed) return;
       await this.autosave.deleteProject(project.id);
       this.session.clearActiveProject();
       this.workspace.deactivate();
@@ -211,6 +213,8 @@ export class EditorShellComponent implements OnDestroy {
       await this.router.navigateByUrl('/');
     } catch {
       await this.dialogs.error(this.i18n.t('deleteProjectError'), this.i18n.t('deleteProjectError'));
+    } finally {
+      this.deletingProject.set(false);
     }
   }
   protected triggerProjectImport(input: HTMLInputElement): void { if (this.importState().stage !== 'idle' && this.importState().stage !== 'success' && this.importState().stage !== 'error') return; this.closeMenus(); input.value = ''; input.click(); }

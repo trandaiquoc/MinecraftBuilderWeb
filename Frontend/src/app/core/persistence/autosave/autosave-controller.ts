@@ -14,13 +14,14 @@ export class AutosaveController {
   private savedRevision = 0;
   private attemptedRevision = 0;
   private drainPromise?: Promise<void>;
+  private suspended = false;
 
   constructor(private readonly store: ProjectStore, private readonly options: AutosaveOptions = {}) {}
 
   schedule(project: ProjectDocument, revision: number): void {
     this.latest = { project, revision };
     this.cancel();
-    if (this.drainPromise) return;
+    if (this.suspended || this.drainPromise) return;
     this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
   }
 
@@ -31,6 +32,17 @@ export class AutosaveController {
 
   dispose(): void {
     this.cancel();
+  }
+
+  /** Prevents new timers while a destructive persistence operation drains and deletes. */
+  suspend(): void { this.suspended = true; this.cancel(); }
+
+  /** Resumes autosave after a failed destructive operation without dropping the latest edit. */
+  resume(): void {
+    this.suspended = false;
+    if (this.latest && !this.drainPromise && this.timer === undefined) {
+      this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
+    }
   }
 
   /** Stops pending work without allowing a stale snapshot to be written later. */
@@ -45,7 +57,7 @@ export class AutosaveController {
     if (this.drainPromise) return this.drainPromise;
     this.drainPromise = this.persistLatest().finally(() => {
       this.drainPromise = undefined;
-      if (this.latest && this.latest.revision > this.attemptedRevision && this.timer === undefined) this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
+      if (!this.suspended && this.latest && this.latest.revision > this.attemptedRevision && this.timer === undefined) this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
     });
     return this.drainPromise;
   }

@@ -8,13 +8,14 @@ export interface DialogConfirmOptions {
   readonly confirmButtonText?: string;
   readonly cancelButtonText?: string;
   readonly icon?: SweetAlertIcon;
+  readonly destructive?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
 export class DialogService {
   private readonly theme = inject(ThemeService);
 
-  private async fire(options: SweetAlertOptions): Promise<Awaited<ReturnType<(typeof import('sweetalert2'))['default']['fire']>>> {
+  private async fire(options: SweetAlertOptions, destructive = false): Promise<Awaited<ReturnType<(typeof import('sweetalert2'))['default']['fire']>>> {
     const module = await import('sweetalert2');
     const craft = this.theme.preset() === 'craft';
     return module.default.fire({
@@ -24,7 +25,7 @@ export class DialogService {
         popup: `minecraft-dialog-popup${craft ? ' minecraft-dialog-craft' : ''}${this.theme.font() === 'minecraft-style' ? ' minecraft-dialog-pixel' : ''}`,
         title: 'minecraft-dialog-title',
         htmlContainer: 'minecraft-dialog-body',
-        confirmButton: `minecraft-dialog-confirm${options.icon === 'error' ? ' minecraft-dialog-danger' : ''}`,
+        confirmButton: `minecraft-dialog-confirm${options.icon === 'error' || destructive ? ' minecraft-dialog-danger' : ''}`,
         cancelButton: 'minecraft-dialog-cancel',
       },
     });
@@ -40,7 +41,7 @@ export class DialogService {
       cancelButtonText: options.cancelButtonText ?? 'Cancel',
       reverseButtons: true,
       theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light',
-    });
+    }, options.destructive === true);
     return result.isConfirmed;
   }
 

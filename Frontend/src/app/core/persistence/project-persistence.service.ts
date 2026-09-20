@@ -65,9 +65,16 @@ export class ProjectPersistenceService {
   }
 
   async delete(id: string): Promise<void> {
-    await this.flushAutosave();
-    this.autosave.discard();
-    await this.store.delete(id);
+    this.autosave.suspend();
+    try {
+      await this.flushAutosave();
+      await this.store.delete(id);
+      this.autosave.discard();
+      this.autosave.resume();
+    } catch (error) {
+      this.autosave.resume();
+      throw error;
+    }
   }
 
   markChanged(project: ProjectDocument): void {

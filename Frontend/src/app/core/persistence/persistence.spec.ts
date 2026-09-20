@@ -112,6 +112,68 @@ describe('local persistence helpers', () => {
     expect(await store.open(project.id)).toBeUndefined();
     expect(await store.openRecoverySnapshot(project.id)).toBeUndefined();
   });
+
+  it('waits for an in-flight canonical save before deleting', async () => {
+    const store = new ControlledProjectStore(); await store.create(project);
+    const persistence = new ProjectPersistenceService(store, 0);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    const flushing = persistence.flushAutosave();
+    await store.waitForSave(1);
+
+    let deleted = false;
+    const deleting = persistence.delete(project.id).then(() => { deleted = true; });
+    await Promise.resolve();
+    expect(deleted).toBe(false);
+    store.completeNextSave();
+    await deleting;
+    await flushing;
+    expect(await store.open(project.id)).toBeUndefined();
+  });
+
+  it('keeps the project when the final autosave flush fails', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    store.save = async () => { throw new Error('quota'); };
+    const persistence = new ProjectPersistenceService(store, 0);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+
+    await expect(persistence.delete(project.id)).rejects.toThrow('quota');
+    expect(await store.open(project.id)).toBeDefined();
+  });
+
+  it('cannot resurrect a deleted project when a later destroy flush runs', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    const persistence = new ProjectPersistenceService(store, 25);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await persistence.delete(project.id);
+
+    await persistence.flushAutosave();
+    expect(await store.open(project.id)).toBeUndefined();
+    expect(await store.openRecoverySnapshot(project.id)).toBeUndefined();
+
+    await persistence.create(project);
+    persistence.markChanged(withBlocks(block('minecraft:dirt', 2, 0, 1)));
+    await persistence.flushAutosave();
+    expect((await store.open(project.id))?.blocks[0].id).toBe('minecraft:dirt');
+  });
+
+  it('quiesces edits that arrive while the delete transaction is in flight', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    let releaseDelete!: () => void;
+    let deleteStarted = false;
+    const deleteGate = new Promise<void>((resolve) => { releaseDelete = resolve; });
+    const deleteStoredProject = store.delete.bind(store);
+    store.delete = async (id: string) => { deleteStarted = true; await deleteGate; await deleteStoredProject(id); };
+    const persistence = new ProjectPersistenceService(store, 0);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    const deleting = persistence.delete(project.id);
+    while (!deleteStarted) await Promise.resolve();
+    persistence.markChanged(withBlocks(block('minecraft:dirt', 2, 0, 1)));
+    releaseDelete();
+
+    await deleting;
+    await persistence.flushAutosave();
+    expect(await store.open(project.id)).toBeUndefined();
+  });
 });
 
 function block(id: string, x: number, y: number, z: number, state: Readonly<Record<string, string>> = {}, groupIds: readonly string[] = []) {
