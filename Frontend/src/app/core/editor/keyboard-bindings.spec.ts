@@ -23,4 +23,8 @@ describe('keyboard binding model', () => {
     expect(bindings['delete-selection']).toBe('Delete|Backspace');
     expect(findBindingConflicts(bindings)).toEqual([['quick-slot-1', 'quick-slot-2']]);
   });
+
+  it('does not treat cleared bindings as conflicts', () => {
+    expect(findBindingConflicts({ ...DEFAULT_KEYBINDINGS, undo: '', redo: '' })).toEqual([]);
+  });
 });

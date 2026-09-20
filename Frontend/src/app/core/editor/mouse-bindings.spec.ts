@@ -20,4 +20,8 @@ describe('mouse binding model', () => {
     expect(findMouseBindingConflicts(bindings)).toEqual([['primary-action', 'delete-target']]);
     expect(bindings['orbit-camera']).toBe('');
   });
+
+  it('does not treat cleared mouse bindings as conflicts', () => {
+    expect(findMouseBindingConflicts({ ...DEFAULT_MOUSE_BINDINGS, 'orbit-camera': '', 'pan-camera': '' })).toEqual([]);
+  });
 });

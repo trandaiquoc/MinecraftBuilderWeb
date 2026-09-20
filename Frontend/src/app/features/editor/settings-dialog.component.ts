@@ -115,6 +115,10 @@ export class SettingsDialogComponent {
   protected restoreControlsDefaults(): void { this.updateDraft({ controls: { ...this.preferences.defaultPreferences().controls } }); }
   protected restoreShortcutsDefaults(): void { this.updateDraft({ shortcuts: { ...this.preferences.defaultPreferences().shortcuts } }); this.cancelShortcutCapture(); }
   protected restoreMouseDefaults(): void { this.updateDraft({ mouseBindings: { ...this.preferences.defaultPreferences().mouseBindings } }); this.cancelShortcutCapture(); }
+  protected clearShortcut(action: KeyboardAction): void { this.setShortcut(action, ''); this.cancelShortcutCapture(); }
+  protected clearMouseBinding(action: MouseAction): void { this.setMouseShortcut(action, ''); this.cancelShortcutCapture(); }
+  protected clearAllShortcuts(): void { this.updateDraft({ shortcuts: Object.fromEntries(KEYBOARD_ACTIONS.map(({ action }) => [action, ''])) as UiPreferences['shortcuts'] }); this.cancelShortcutCapture(); }
+  protected clearAllMouseBindings(): void { this.updateDraft({ mouseBindings: Object.fromEntries(MOUSE_ACTIONS.map(({ action }) => [action, ''])) as UiPreferences['mouseBindings'] }); this.cancelShortcutCapture(); }
   protected async apply(): Promise<void> {
     if (this.shortcutConflicts().length || this.mouseBindingConflicts().length) return;
     const draft = this.draft();
@@ -135,7 +139,8 @@ export class SettingsDialogComponent {
   }
   private setShortcut(action: KeyboardAction, binding: string): void { this.updateDraft({ shortcuts: { ...this.draft().shortcuts, [action]: binding } }); }
   private setMouseShortcut(action: MouseAction, binding: string): void { this.updateDraft({ mouseBindings: { ...this.draft().mouseBindings, [action]: binding } }); }
-  private displayBinding(binding: string): string { return binding ? binding.replaceAll('|', ' / ').replaceAll('LeftClick', this.i18n.t('mouseLeftClick')).replaceAll('RightClick', this.i18n.t('mouseRightClick')).replaceAll('MiddleClick', this.i18n.t('mouseMiddleClick')).replaceAll('WheelUp', this.i18n.t('mouseWheelUp')).replaceAll('WheelDown', this.i18n.t('mouseWheelDown')).replaceAll('+', ' + ') : this.i18n.t('unassigned'); }
+  private displayBinding(binding: string): string { return binding ? binding.split('|').map((alternative) => alternative.split('+').map((token) => this.displayBindingToken(token)).join(' + ')).join(' / ') : this.i18n.t('unassigned'); }
+  private displayBindingToken(token: string): string { return ({ Ctrl: this.i18n.t('keyCtrl'), Shift: this.i18n.t('keyShift'), Alt: this.i18n.t('keyAlt'), Meta: this.i18n.t('keyMeta'), LeftClick: this.i18n.t('mouseLeftClick'), RightClick: this.i18n.t('mouseRightClick'), MiddleClick: this.i18n.t('mouseMiddleClick'), WheelUp: this.i18n.t('mouseWheelUp'), WheelDown: this.i18n.t('mouseWheelDown') } as Record<string, string>)[token] ?? token; }
   private updateDraft(patch: Partial<SettingsDraft>): void { this.draft.update((current) => ({ ...current, ...patch, appearance: { ...current.appearance, ...(patch.appearance ?? {}) }, controls: { ...current.controls, ...(patch.controls ?? {}) }, shortcuts: { ...current.shortcuts, ...(patch.shortcuts ?? {}) }, mouseBindings: { ...current.mouseBindings, ...(patch.mouseBindings ?? {}) } })); }
   private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance }, controls: { ...current.controls }, shortcuts: { ...current.shortcuts }, mouseBindings: { ...current.mouseBindings } }; }
 }

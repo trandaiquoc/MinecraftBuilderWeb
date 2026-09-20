@@ -403,7 +403,7 @@
             </div>
             <div>
               <dt>{{ i18n.t('position') }}</dt>
-              <dd>
+              <dd class="technical-value">
                 X {{ selected.position.x }}, Y {{ selected.position.y }}, Z
                 {{ selected.position.z }}
               </dd>
@@ -476,7 +476,7 @@
             </div>
           </dl>
         } @else {
-          <p class="muted">{{ i18n.t('noBlockSelected') }}</p>
+          <p class="muted empty-inspector">{{ i18n.t('noBlockSelected') }}</p>
         }
       </aside>
     }

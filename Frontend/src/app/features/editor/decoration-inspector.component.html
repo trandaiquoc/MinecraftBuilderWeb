@@ -10,14 +10,14 @@
       <app-painting-picker [compact]="true" [selectedId]="selected.variantId ?? ''" (selectionChange)="selectVariant($event)" />
       <details class="disclosure">
         <summary>{{ i18n.t('placementInfo') }}</summary>
-        <dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ selected.facing }}</dd></div><div><dt>{{ i18n.t('variant') }}</dt><dd>{{ selected.variantId }}</dd></div></dl>
+        <dl><div><dt>{{ i18n.t('position') }}</dt><dd class="technical-value">{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ facingLabel(selected.facing) }}</dd></div><div><dt>{{ i18n.t('variant') }}</dt><dd>{{ paintingLabel(selected.variantId) }} <small class="technical-value">({{ selected.variantId }})</small></dd></div></dl>
       </details>
     } @else {
       <label class="field-label">{{ i18n.t('frameItem') }}<app-searchable-dropdown [options]="itemOptions()" [selectedId]="selected.item?.id ?? ''" [placeholder]="i18n.t('searchItems')" [emptyLabel]="i18n.t('emptyFrame')" [ariaLabel]="i18n.t('frameItem')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" (selectionChange)="selectItem($event)" /></label>
       @if (selected.item) {
         <div class="frame-control"><span><strong>{{ i18n.t('itemRotation') }}</strong><small>{{ i18n.t('itemRotationHint') }}</small></span><span class="stepper"><button type="button" [attr.aria-label]="i18n.t('itemRotationPrevious')" (click)="rotate(-1)">−</button><output>{{ (selected.rotation ?? 0) * 45 }}°</output><button type="button" [attr.aria-label]="i18n.t('itemRotationNext')" (click)="rotate(1)">+</button></span></div>
       }
-      <details class="disclosure"><summary>{{ i18n.t('placementInfo') }}</summary><dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ selected.facing }}</dd></div></dl></details>
+      <details class="disclosure"><summary>{{ i18n.t('placementInfo') }}</summary><dl><div><dt>{{ i18n.t('position') }}</dt><dd class="technical-value">{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ facingLabel(selected.facing) }}</dd></div></dl></details>
       <details class="disclosure"><summary>{{ i18n.t('advanced') }}</summary>
         <div class="advanced-fields">
           <label class="check"><input type="checkbox" [checked]="selected.invisible" (change)="toggle('invisible', $event)" /> {{ i18n.t('invisible') }}</label><small class="helper-text">{{ i18n.t('invisibleHint') }}</small>

@@ -21,6 +21,7 @@ export class DecorationInspectorComponent {
   });
   protected paintingTexture(id: string | undefined): string | undefined { this.assets.generation(); return id ? this.assets.provider()?.textureUrl(`minecraft:painting/${id}`) : undefined; }
   protected paintingLabel(id: string | undefined): string { return id ? humanize(id) : ''; }
+  protected facingLabel(value: string): string { return this.i18n.stateValue(value); }
   protected paintingSize(id: string | undefined): string { const variant = PAINTING_VARIANTS.find((entry) => entry.id === id); return variant ? `${variant.width} × ${variant.height}` : ''; }
   protected selectItem(id: string): void { const selected = this.decorations.selected(); if (selected) this.decorations.setFrameItem(selected.instanceId, id ? { id, count: 1 } : undefined); }
   protected selectVariant(id: string): void { const selected = this.decorations.selected(); if (selected) this.decorations.setPaintingVariant(selected.instanceId, id); }
