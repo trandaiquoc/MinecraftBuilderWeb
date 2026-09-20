@@ -45,6 +45,15 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().controls.clickDragThreshold).toBe(1);
   });
 
+  it('migrates a missing font size to normal without resetting appearance', () => {
+    localStorage.setItem(key, JSON.stringify({ appearance: { preset: 'light', font: 'geist' } }));
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().appearance.fontSize).toBe('normal');
+    expect(preferences.preferences().appearance.preset).toBe('light');
+    preferences.setAppearance({ fontSize: 'large' });
+    expect(new UiPreferencesService().preferences().appearance.fontSize).toBe('large');
+  });
+
   it('migrates mouse defaults without losing saved keyboard overrides', () => {
     localStorage.setItem(key, JSON.stringify({ shortcuts: { 'move-forward': 'E' } }));
     const preferences = new UiPreferencesService();

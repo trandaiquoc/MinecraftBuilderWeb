@@ -6,6 +6,7 @@ export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
 export type BaseTheme = 'dark' | 'light';
 export type UiFont = 'geist' | 'minecraft-style';
+export type UiFontSize = 'small' | 'normal' | 'large';
 export type PersistedEditorMode = '3d' | 'y-layer';
 
 export interface UiPreferences {
@@ -16,6 +17,7 @@ export interface UiPreferences {
     readonly preset: ThemePreset;
     readonly base: BaseTheme;
     readonly font: UiFont;
+    readonly fontSize: UiFontSize;
     readonly editorBackground: BaseTheme;
   };
   readonly controls: {
@@ -47,7 +49,7 @@ const defaults: UiPreferences = {
   version: 1,
   locale: 'en',
   editorMode: '3d',
-  appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', editorBackground: 'dark' },
+  appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', fontSize: 'normal', editorBackground: 'dark' },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,
   mouseBindings: DEFAULT_MOUSE_BINDINGS,
@@ -115,6 +117,7 @@ function normalize(value: unknown): UiPreferences {
       preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset) ? (appearance as Partial<UiPreferences['appearance']>).preset! : defaults.appearance.preset,
       base: isBase((appearance as Partial<UiPreferences['appearance']>).base) ? (appearance as Partial<UiPreferences['appearance']>).base! : defaults.appearance.base,
       font: isFont((appearance as Partial<UiPreferences['appearance']>).font) ? (appearance as Partial<UiPreferences['appearance']>).font! : defaults.appearance.font,
+      fontSize: isFontSize((appearance as Partial<UiPreferences['appearance']>).fontSize) ? (appearance as Partial<UiPreferences['appearance']>).fontSize! : defaults.appearance.fontSize,
       editorBackground: isBase((appearance as Partial<UiPreferences['appearance']>).editorBackground) ? (appearance as Partial<UiPreferences['appearance']>).editorBackground! : defaults.appearance.editorBackground,
     },
     controls: {
@@ -145,6 +148,7 @@ function isLocale(value: unknown): value is UiLocale { return value === 'en' || 
 function isPreset(value: unknown): value is ThemePreset { return value === 'dark' || value === 'light' || value === 'craft' || value === 'custom'; }
 function isBase(value: unknown): value is BaseTheme { return value === 'dark' || value === 'light'; }
 function isFont(value: unknown): value is UiFont { return value === 'geist' || value === 'minecraft-style'; }
+function isFontSize(value: unknown): value is UiFontSize { return value === 'small' || value === 'normal' || value === 'large'; }
 function isEditorMode(value: unknown): value is PersistedEditorMode { return value === '3d' || value === 'y-layer'; }
 
 function normalizeLayout(value: unknown): UiPreferences['layout'] {

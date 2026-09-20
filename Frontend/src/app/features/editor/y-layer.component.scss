@@ -26,3 +26,18 @@
 .layer-controls button:hover, .layer-controls select:hover, .layer-controls input[type='number']:hover { background: var(--surface-hover); }
 .layer-controls input[type='range'] { accent-color: var(--accent); }
 :host-context([data-theme='craft']) .layer-control-group { border-right-color: var(--control-separator); }
+@media (max-width: 560px) {
+  .layer-controls { align-items: stretch; gap: .35rem; padding: .35rem .45rem; }
+  .layer-control-group { flex: 1 1 100%; min-width: 0; padding: 0 0 .35rem; border-right: 0; border-bottom: 1px solid var(--border); }
+  .layer-control-group:last-child { padding-bottom: 0; border-bottom: 0; }
+  .layer-controls label { min-width: 0; flex: 1 1 auto; }
+  .layer-slider { flex: 1 1 6rem; width: auto; min-width: 5rem; }
+  .layer-control-group:nth-child(2) button { flex: 1 1 0; min-width: 0; padding-inline: .28rem; white-space: normal; }
+  .layer-display-controls app-themed-select { flex: 1 1 8rem; min-width: 0; }
+  .layer-display-controls label { flex: 1 1 8rem; }
+  .layer-display-controls input[type='range'] { min-width: 4rem; }
+}
+@media (max-width: 380px) {
+  .layer-control-group:nth-child(2) { gap: .2rem; }
+  .layer-control-group:nth-child(2) button { font-size: .68rem; }
+}

@@ -1,7 +1,7 @@
 import { Component, computed, inject, output, signal } from '@angular/core';
 import { DialogService } from '../../core/ui/dialog.service';
 import { I18nService } from '../../core/ui/i18n.service';
-import { UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, BaseTheme } from '../../core/ui/ui-preferences.service';
+import { UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, UiFontSize, BaseTheme } from '../../core/ui/ui-preferences.service';
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
@@ -63,6 +63,9 @@ export class SettingsDialogComponent {
     this.updateDraft({ appearance: { ...this.draft().appearance, preset, base } });
   }
   protected setFont(font: UiFont): void { this.updateDraft({ appearance: { ...this.draft().appearance, font } }); }
+  protected setFontSize(fontSize: UiFontSize): void { this.updateDraft({ appearance: { ...this.draft().appearance, fontSize } }); }
+  protected fontSizeIndex(): number { return ({ small: 0, normal: 1, large: 2 } as const)[this.draft().appearance.fontSize]; }
+  protected setFontSizeIndex(event: Event): void { this.setFontSize((['small', 'normal', 'large'] as const)[Math.min(2, Math.max(0, Math.round(Number((event.target as HTMLInputElement).value))))]); }
   protected setEditorBackground(editorBackground: BaseTheme): void { this.updateDraft({ appearance: { ...this.draft().appearance, editorBackground } }); }
   protected setControl(key: keyof UiPreferences['controls'], value: string): void {
     const numeric = Number(value);
