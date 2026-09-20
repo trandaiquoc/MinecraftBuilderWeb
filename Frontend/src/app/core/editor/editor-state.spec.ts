@@ -3,7 +3,7 @@ import { ActiveBlockService } from '../blocks/active-block.service';
 import { ProjectDocument } from '../domain/project.types';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
 import { EditorModeService } from './editor-mode.service';
-import { SelectionService } from './selection.service';
+import { SelectionService } from './selection/selection.service';
 import { UiPreferencesService } from '../ui/ui-preferences.service';
 
 describe('editor mode state', () => {

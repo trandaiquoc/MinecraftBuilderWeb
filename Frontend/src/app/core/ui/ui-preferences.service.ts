@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
-import { DEFAULT_KEYBINDINGS, KeyboardAction, normalizeBindings } from '../editor/keyboard-bindings';
-import { DEFAULT_MOUSE_BINDINGS, MouseAction, normalizeMouseBindings } from '../editor/mouse-bindings';
+import { DEFAULT_KEYBINDINGS, KeyboardAction, normalizeBindings } from '../editor/input/keyboard-bindings';
+import { DEFAULT_MOUSE_BINDINGS, MouseAction, normalizeMouseBindings } from '../editor/input/mouse-bindings';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';

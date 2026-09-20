@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { ActiveBlockService } from '../blocks/active-block.service';
 import { BlockLibraryService } from '../blocks/block-library.service';
 import { ProjectDocument } from '../domain/project.types';
-import { HistoryService } from './history.service';
-import { SelectionService } from './selection.service';
+import { HistoryService } from './history/history.service';
+import { SelectionService } from './selection/selection.service';
 import { signLines, StructureEditorService } from './structure-editor.service';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
 

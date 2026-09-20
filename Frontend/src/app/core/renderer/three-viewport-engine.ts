@@ -4,9 +4,9 @@ import { ActiveBlock } from '../blocks/active-block.service';
 import { ProjectDocument, ProjectSize, VoxelCoordinate } from '../domain/project.types';
 import { FaceNormal, resolveAttachmentPlacement, placementStatus, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../editor/placement';
 import { blocksForLayers, YLayerVisibility } from '../editor/y-layer';
-import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../editor/camera';
-import { isBlockVisible } from '../editor/group-membership';
-import { GroupMovePreview } from '../editor/group.service';
+import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../editor/camera/camera';
+import { isBlockVisible } from '../editor/groups/group-membership';
+import { GroupMovePreview } from '../editor/groups/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import { BlockVisualProvider } from './block-model-geometry';
 import { PlacementPlan } from '../behavior/placement-plan';
@@ -15,8 +15,9 @@ import { PlacedDecoration } from '../decorations/decoration.types';
 import { DecorationPlacementPlan, facingFromNormal, planDecorationPlacement } from '../decorations/decoration-placement';
 import { createDecorationVisual } from './decoration-visuals';
 import type { ActiveDecoration } from '../decorations/decoration.service';
-import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../editor/keyboard-bindings';
-import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../editor/mouse-bindings';
+import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../editor/input/keyboard-bindings';
+import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../editor/input/mouse-bindings';
+import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
@@ -111,6 +112,8 @@ export class ThreeViewportEngine {
   private canvasSize = { width: 0, height: 0 };
   private themeApplied = false;
   private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9 };
+
+  constructor(readonly instrumentation = new RendererDiagnostics()) {}
 
   mount(container: HTMLElement): void {
     if (this.disposed) return;
@@ -260,6 +263,7 @@ export class ThreeViewportEngine {
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}): void {
     const generation = ++this.visualGeneration;
+    this.instrumentation.record('fullSceneRebuilds');
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
@@ -272,6 +276,9 @@ export class ThreeViewportEngine {
       const isolatedKeys = new Set(options.isolatedGroupPositions?.map((position) => `${position.x},${position.y},${position.z}`));
       const visibleBlocks = layeredBlocks.filter((block) => isBlockVisible(block, project.groups) && (!options.isolatedGroupId || isolatedKeys.has(`${block.position.x},${block.position.y},${block.position.z}`)));
       for (const block of visibleBlocks) {
+        this.instrumentation.record('blockVisualCreations');
+        this.instrumentation.record('geometryConstructions');
+        this.instrumentation.record('materialCreations');
         const isReference = options.layerY !== undefined && block.position.y !== options.layerY;
         const role = block.kind === 'missing' ? 'missing' : isReference ? 'reference' : 'normal';
         const material = new THREE.MeshLambertMaterial({ color: role === 'missing' ? this.palette.missingBlock : role === 'reference' ? this.palette.referenceBlock : this.palette.block, transparent: isReference, opacity: isReference ? options.referenceOpacity ?? 0.28 : 1 });
@@ -280,7 +287,9 @@ export class ThreeViewportEngine {
         mesh.userData['voxel'] = block.position;
         mesh.userData['renderRole'] = role;
         this.blocksGroup.add(mesh);
-        if (this.visualProvider && block.kind !== 'missing') void this.visualProvider.create(block, worldContext).then((visual) => {
+        if (this.visualProvider && block.kind !== 'missing') {
+          this.instrumentation.record('modelResolutions');
+          void this.visualProvider.create(block, worldContext).then((visual) => {
           if (generation !== this.visualGeneration || mesh.parent !== this.blocksGroup) return;
           mesh.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; mesh.userData['resolvedSupport'] = visual.resolved.support;
           mesh.userData['renderMode'] = visual.mode; mesh.userData['renderTrace'] = visual.trace;
@@ -295,10 +304,12 @@ export class ThreeViewportEngine {
             }
           });
           this.blocksGroup.remove(mesh); mesh.geometry.dispose(); material.dispose(); this.blocksGroup.add(object); this.render();
-        }).catch((error: unknown) => { mesh.userData['renderMode'] = 'fallback'; mesh.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.render(); });
+          }).catch((error: unknown) => { mesh.userData['renderMode'] = 'fallback'; mesh.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.render(); });
+        }
       }
       const layerDecorations = (project.decorations ?? []).filter((decoration) => options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y));
       for (const decoration of layerDecorations) {
+        this.instrumentation.record('decorationVisualCreations');
         const visual = createDecorationVisual(decoration, this.decorationTextureUrl);
         visual.userData['decorationInstanceId'] = decoration.instanceId;
         visual.userData['decoration'] = decoration;
@@ -410,6 +421,10 @@ export class ThreeViewportEngine {
 
   diagnostics(): ViewportDiagnostics {
     return { initialized: !!this.renderer, disposed: this.disposed, canvasWidth: this.canvasSize.width, canvasHeight: this.canvasSize.height, gridExists: !!this.projectGrid, boundsExists: !!this.boundsBox, rendererExists: !!this.renderer, sceneExists: true, cameraExists: true, controlsExist: !!this.controls, themeApplied: this.themeApplied, resizeApplied: this.canvasSize.width > 0 && this.canvasSize.height > 0, renderMode: 'demand', renderCount: this.renderCount };
+  }
+
+  rendererCounters(): RendererCounters {
+    return this.instrumentation.snapshot();
   }
 
   private setEditingPlane(y: number | undefined, project: ProjectDocument | undefined): void {

@@ -1,7 +1,7 @@
 import { BlockDefinition } from '../blocks/block-definition.types';
 import { coordinateKey } from '../domain/coordinates';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../domain/project.types';
-import { isBlockLocked } from '../editor/group-membership';
+import { isBlockLocked } from '../editor/groups/group-membership';
 import { PlacementContext } from '../editor/placement';
 import { expandLogicalObjectClosure, resolveLogicalObjectParts } from './logical-object';
 

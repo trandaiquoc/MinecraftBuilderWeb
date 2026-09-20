@@ -1,0 +1,134 @@
+import { AfterViewInit, Component, ElementRef, OnDestroy, effect, inject, isDevMode, viewChild, signal } from '@angular/core';
+import { ActiveBlockService } from '../../../core/blocks/active-block.service';
+import { BlockLibraryService } from '../../../core/blocks/block-library.service';
+import { StructureEditorService } from '../../../core/editor/structure-editor.service';
+import { PlacementStatus } from '../../../core/editor/placement';
+import { isPointerClick } from '../../../core/editor/input/interaction';
+import { SelectionService } from '../../../core/editor/selection/selection.service';
+import { EditorToolService } from '../../../core/editor/tool.service';
+import { CameraStateService } from '../../../core/editor/camera/camera-state.service';
+import { CameraPreset, voxelCameraBounds } from '../../../core/editor/camera/camera';
+import { GroupService } from '../../../core/editor/groups/group.service';
+import { clampVoxelBox, normalizeVoxelBox } from '../../../core/editor/selection/selection';
+import { ThreeViewportEngine } from '../../../core/renderer/three-viewport-engine';
+import { WorkspaceStateService } from '../../../core/ui/workspace-state.service';
+import { I18nService } from '../../../core/ui/i18n.service';
+import { ThemeService } from '../../../core/ui/theme.service';
+import { UiPreferencesService } from '../../../core/ui/ui-preferences.service';
+import { viewportThemePalette } from '../../../core/renderer/viewport-theme';
+import { VanillaAssetsService } from '../../../core/assets/vanilla-assets.service';
+import { SignTextSideService } from '../../../core/editor/sign-text-side.service';
+import { coordinateKey } from '../../../core/domain/coordinates';
+import { isSignId } from '../../../core/editor/structure-editor.service';
+import { DecorationService } from '../../../core/decorations/decoration.service';
+import { decorationAabb } from '../../../core/decorations/decoration-placement';
+import { facingFromNormal } from '../../../core/decorations/decoration-placement';
+import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
+import { MouseAction } from '../../../core/editor/input/mouse-bindings';
+
+@Component({ selector: 'app-viewport', templateUrl: './viewport.component.html', styleUrl: './viewport.component.scss' })
+export class ViewportComponent implements AfterViewInit, OnDestroy {
+  private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
+  private readonly workspace = inject(WorkspaceStateService);
+  private readonly active = inject(ActiveBlockService);
+  private readonly library = inject(BlockLibraryService);
+  private readonly editor = inject(StructureEditorService);
+  private readonly selection = inject(SelectionService);
+  private readonly tool = inject(EditorToolService);
+  private readonly cameraState = inject(CameraStateService);
+  private readonly groups = inject(GroupService);
+  protected readonly i18n = inject(I18nService);
+  private readonly theme = inject(ThemeService);
+  private readonly preferences = inject(UiPreferencesService);
+  private readonly assets = inject(VanillaAssetsService);
+  private readonly signTextSide = inject(SignTextSideService);
+  private readonly decorations = inject(DecorationService);
+  private readonly input = inject(KeyboardBindingService);
+  protected readonly status = signal<PlacementStatus>('invalid');
+  protected readonly decorationReason = signal('');
+  protected readonly target = signal<string>('');
+  private readonly engine = new ThreeViewportEngine();
+  private pointerStart?: { x: number; y: number };
+  private gestureAction?: MouseAction;
+  private boxCornerStart?: import('../../../core/domain/project.types').VoxelCoordinate;
+  private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
+  private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
+  private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setKeyboardBindings(preferences.shortcuts); this.engine.setMouseBindings(preferences.mouseBindings); });
+  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); });
+  private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
+
+  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); this.engine.mount(this.host().nativeElement); this.engine.restoreCamera(this.cameraState.get('3d')); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics()); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+
+  fitStructure(): void { this.engine.fitStructure(); }
+  focusSelection(): void {
+    const decoration = this.decorations.selected();
+    if (decoration) { const bounds = decorationAabb(decoration); this.engine.focusBounds(bounds); return; }
+    const box = this.selection.box();
+    if (box) { this.engine.focusBounds({ min: box.min, max: { x: box.max.x + 1, y: box.max.y + 1, z: box.max.z + 1 } }); return; }
+    this.engine.focusBounds(voxelCameraBounds(this.selection.logicalPositions()) ?? (this.selection.single() ? voxelCameraBounds([this.selection.single()!]) : undefined));
+  }
+  resetCamera(): void { this.engine.resetCamera(); }
+  setCameraPreset(preset: CameraPreset): void { this.engine.setCameraPreset(preset); }
+
+  protected resize(): void { this.engine.resize(); }
+  protected statusLabel(): string { return this.i18n.t(this.status()); }
+  protected pointerMove(event: PointerEvent): void { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place'); const activeDecoration = this.decorations.active(); const status = activeDecoration ? (hit.decorationPlan?.status === 'valid' ? 'valid' : 'invalid') : hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  protected pointerDown(event: PointerEvent): void {
+    const action = this.input.mouseActionForEvent(event);
+    if (!isEditorMouseAction(action)) return;
+    this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.gestureAction = action;
+    this.boxCornerStart = undefined;
+    if (action === 'primary-action' && this.tool.active() === 'select') { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false); this.boxCornerStart = hit.block ?? hit.target; }
+  }
+  protected pointerUp(event: PointerEvent): void {
+    const start = this.pointerStart;
+    this.pointerStart = undefined;
+    const gestureAction = this.gestureAction;
+    this.gestureAction = undefined;
+    const cornerStart = this.boxCornerStart;
+    this.boxCornerStart = undefined;
+    const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
+    if (!gestureAction) return;
+    if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart) {
+      const project = this.workspace.project(); const hit = this.engine.hit(event, project, this.active.active(), undefined, false); const cornerEnd = hit.block ?? hit.target;
+      if (project && cornerEnd) { const box = clampVoxelBox(normalizeVoxelBox(cornerStart, cornerEnd), project.size); if (box) this.selection.selectBoxLogical(box, project, (id) => this.library.get(id)); }
+      return;
+    }
+    if (!click) return;
+    const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place');
+    const activeDecoration = this.decorations.active();
+    const decorationWins = !!hit.decoration && (hit.blockDistance === undefined || hit.decorationDistance === undefined || hit.decorationDistance <= hit.blockDistance);
+    if (hit.decoration && decorationWins && (gestureAction !== 'primary-action' || this.tool.active() === 'select')) {
+      if (gestureAction === 'delete-target') this.decorations.delete(hit.decoration.instanceId);
+      else if (gestureAction === 'pick-block') this.decorations.pick(hit.decoration.instanceId);
+      else if (this.tool.active() === 'select') this.decorations.select(hit.decoration.instanceId);
+      return;
+    }
+    if (activeDecoration && hit.block && hit.faceNormal && this.tool.active() === 'place' && gestureAction === 'primary-action') {
+      const facing = facingFromNormal(hit.faceNormal);
+      if (facing && hit.decorationPlan?.status === 'valid') this.decorations.placeFromSupport(hit.block, facing);
+      return;
+    }
+    if (activeDecoration && hit.block && this.tool.active() === 'select') { this.decorations.select(undefined); }
+    const status = activeDecoration ? hit.decorationPlan?.status ?? hit.status : hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status;
+    if (this.tool.active() === 'place' && gestureAction === 'primary-action' && hit.block && this.editor.canStackCandle(hit.block)) {
+      this.editor.stackCandle(hit.block);
+      return;
+    }
+    if (gestureAction === 'pick-block' && hit.block) this.editor.pick(hit.block);
+    else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) { this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(hit.block!)); if (selected && isSignId(selected.id)) this.signTextSide.setFromHit(selected, hit.faceNormal); } }
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
+  }
+  protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }
+  protected pointerLeave(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set(''); }
+  protected cancelPointer(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.engine.clearInput(); }
+  protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
+}
+
+function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {
+  return action === 'primary-action' || action === 'delete-target' || action === 'pick-block';
+}

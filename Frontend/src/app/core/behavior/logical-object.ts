@@ -1,7 +1,7 @@
 import { BlockDefinition } from '../blocks/block-definition.types';
 import { coordinateKey } from '../domain/coordinates';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../domain/project.types';
-import { groupIdsOf, isBlockLocked } from '../editor/group-membership';
+import { groupIdsOf, isBlockLocked } from '../editor/groups/group-membership';
 
 export type LogicalBlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 

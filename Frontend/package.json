@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "benchmark:renderer": "vitest run src/app/core/renderer/renderer-benchmark.spec.ts --reporter=verbose"
   },
   "private": true,
   "packageManager": "npm@11.13.0",

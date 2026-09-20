@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BlockCatalog } from '../blocks/block-catalog';
 import { representativeBlockFixture } from '../blocks/block-catalog.fixture';
 import { PlacedBlock, ProjectDocument } from '../domain/project.types';
-import { SelectionService } from '../editor/selection.service';
+import { SelectionService } from '../editor/selection/selection.service';
 import { normalizeLogicalObjectMemberships, resolveLogicalObjectParts, transformPairedHorizontal } from './logical-object';
 
 const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
