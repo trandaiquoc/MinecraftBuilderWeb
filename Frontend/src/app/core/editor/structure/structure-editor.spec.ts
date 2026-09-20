@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ActiveBlockService } from '../../blocks/active-block.service';
-import { BlockLibraryService } from '../../blocks/block-library.service';
+import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
+import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { ProjectDocument } from '../../domain/project.types';
 import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
 import { signLines, StructureEditorService } from './structure-editor.service';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 
 function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService } {
   const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const history = new HistoryService(workspace); const library = new BlockLibraryService(active);

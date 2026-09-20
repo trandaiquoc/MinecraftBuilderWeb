@@ -1,10 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { ActiveBlockService } from '../blocks/active-block.service';
+import { ActiveBlockService } from '../blocks/placement-palette/active-block.service';
 import { ProjectDocument, VoxelCoordinate } from '../domain/project.types';
 import { HistoryService } from '../editor/history/history.service';
 import { SelectionService } from '../editor/selection/selection.service';
-import { WorkspaceStateService } from '../ui/workspace-state.service';
-import { planDecorationPlacement, DecorationPlacementPlan } from './decoration-placement';
+import { WorkspaceStateService } from '../workspace/workspace-state.service';
+import { planDecorationPlacement, DecorationPlacementPlan } from './placement/decoration-placement';
 import { DecorationFacing, DecorationKind, DecorationItemStack, PlacedDecoration, paintingVariant } from './decoration.types';
 
 export interface ActiveDecoration {

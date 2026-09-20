@@ -1,4 +1,4 @@
-import { BlockSupportLevel } from '../block-definition.types';
+import { BlockSupportLevel } from '../catalog/block-definition.types';
 import { BlockState } from '../../domain/project.types';
 import { AssetResourceProvider, BlockStateRotationResult, MemoryAssetResourceProvider, ResolvedBlockModel, ResolvedElement, ResolvedElementRotation, ResolvedFace, ResolvedModelPart, ResolverDiagnostic, ResolverDiagnosticCode, ResolverStateDefinitions } from './resolver.types';
 

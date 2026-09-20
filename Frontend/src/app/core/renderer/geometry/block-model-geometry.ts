@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { BlockModelResolver, ResolvedBlockModel, ResolvedElement, ResolvedFace, ResolvedModelPart } from '../../blocks/resolver';
-import { VanillaAssetProvider } from '../../assets/vanilla-asset-provider';
-import { texturePath } from '../../assets/vanilla-asset-provider';
+import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
+import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
-import { PlaceableItemDefinition } from '../../blocks/placeable-item';
+import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
 import { createFluidGeometry } from '../fluids/fluid-geometry';
 import { fluidKindForBlockId, FluidWorldLookup } from '../fluids/fluid-state';
 

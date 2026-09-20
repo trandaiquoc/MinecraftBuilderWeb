@@ -1,7 +1,7 @@
 import { Component, computed, inject, Input, Output, EventEmitter, signal } from '@angular/core';
 import { PAINTING_VARIANTS, PaintingVariant } from '../../../../core/decorations/decoration.types';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla-assets.service';
-import { I18nService } from '../../../../core/ui/i18n.service';
+import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { I18nService } from '../../../../core/ui/localization/i18n.service';
 
 @Component({
   selector: 'app-painting-picker',

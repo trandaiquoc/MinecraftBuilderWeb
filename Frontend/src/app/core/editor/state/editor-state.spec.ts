@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ActiveBlockService } from '../../blocks/active-block.service';
+import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 import { ProjectDocument } from '../../domain/project.types';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { EditorModeService } from './editor-mode.service';
 import { SelectionService } from '../selection/selection.service';
-import { UiPreferencesService } from '../../ui/ui-preferences.service';
+import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
 
 describe('editor mode state', () => {
   it('does not replace project, Active Block, or selection when switching modes', () => {

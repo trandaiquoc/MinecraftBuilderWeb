@@ -1,21 +1,21 @@
 import { Injectable, inject } from '@angular/core';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, SignBlockEntityData, SignSide, VoxelCoordinate } from '../../domain/project.types';
-import { ActiveBlockService } from '../../blocks/active-block.service';
+import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 import { SelectionService } from '../selection/selection.service';
 import { HistoryService } from '../history/history.service';
-import { BlockLibraryService } from '../../blocks/block-library.service';
+import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { BlockModelResolver } from '../../blocks/resolver/block-model-resolver';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { isBlockLocked as hasLockedMembership } from '../groups/group-membership';
-import { BlockRuleEngine, nextCandleState, RuleValidation } from '../../behavior/block-rule-engine';
-import { expandLogicalObjectClosure, resolveLogicalObjectParts, synchronizeLogicalObjectState, transformPairedHorizontal } from '../../behavior/logical-object';
+import { BlockRuleEngine, nextCandleState, RuleValidation } from '../../block-behavior/rules/block-rule-engine';
+import { expandLogicalObjectClosure, resolveLogicalObjectParts, synchronizeLogicalObjectState, transformPairedHorizontal } from '../../block-behavior/logical-objects/logical-object';
 import { PlacementContext } from '../placement/placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from '../../block-entities/sign/sign-text-metrics';
-import { planPlacement, PlacementPlan } from '../../behavior/placement-plan';
+import { planPlacement, PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import { isVanillaSignColor } from '../../block-entities/sign/sign-nbt';
 import { decoratedPotData, defaultDecoratedPotData, normalizeDecoratedPotSherd } from '../../block-entities/decorated-pot/decorated-pot';
-import { pruneInvalidDecorations } from '../../decorations/decoration-placement';
+import { pruneInvalidDecorations } from '../../decorations/placement/decoration-placement';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {

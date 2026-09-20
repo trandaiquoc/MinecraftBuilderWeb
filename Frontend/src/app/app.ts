@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { I18nService } from './core/ui/i18n.service';
-import { ThemeService } from './core/ui/theme.service';
+import { I18nService } from './core/ui/localization/i18n.service';
+import { ThemeService } from './core/ui/theme/theme.service';
 
 @Component({
   imports: [RouterOutlet],

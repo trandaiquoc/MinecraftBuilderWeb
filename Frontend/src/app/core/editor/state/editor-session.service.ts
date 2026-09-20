@@ -3,7 +3,7 @@ import { DecorationService } from '../../decorations/decoration.service';
 import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
 import { GroupService } from '../groups/group.service';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 
 /** Coordinates transient editor state when the active project changes. */
 @Injectable({ providedIn: 'root' })

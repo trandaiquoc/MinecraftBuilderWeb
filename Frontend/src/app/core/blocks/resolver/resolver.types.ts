@@ -1,4 +1,4 @@
-import { BlockStateDefinition, BlockSupportLevel } from '../block-definition.types';
+import { BlockStateDefinition, BlockSupportLevel } from '../catalog/block-definition.types';
 import { BlockState } from '../../domain/project.types';
 
 export interface AssetResourceProvider {

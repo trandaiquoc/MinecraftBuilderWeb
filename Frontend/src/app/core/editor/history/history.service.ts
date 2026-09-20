@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { ProjectDocument } from '../../domain/project.types';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 
 interface HistoryEntry { readonly label: string; readonly before: ProjectDocument; readonly after: ProjectDocument; }
 

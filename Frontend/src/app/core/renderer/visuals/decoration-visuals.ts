@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PlacedDecoration } from '../../decorations/decoration.types';
-import { decorationAabb, directionVector } from '../../decorations/decoration-placement';
+import { decorationAabb, directionVector } from '../../decorations/placement/decoration-placement';
 
 const textureCache = new Map<string, THREE.Texture>();
 

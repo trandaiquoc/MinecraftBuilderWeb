@@ -3,10 +3,10 @@ import { ProjectDocument } from '../../domain/project.types';
 import { HistoryService } from '../history/history.service';
 import { GroupService, validateGroupMove } from './group.service';
 import { SelectionService } from '../selection/selection.service';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { isBlockVisible } from './group-membership';
-import { ActiveBlockService } from '../../blocks/active-block.service';
-import { BlockLibraryService } from '../../blocks/block-library.service';
+import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
+import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 
 const project: ProjectDocument = { schemaVersion: 2, id: 'groups', metadata: { name: 'Groups', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [{ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: {} }], groups: [], editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: .28 } };
 

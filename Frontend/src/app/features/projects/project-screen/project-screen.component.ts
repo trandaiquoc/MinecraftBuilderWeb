@@ -1,13 +1,13 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { IndexedDbProjectStore } from '../../../core/persistence/indexeddb-project-store';
+import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
-import { ProjectSummary } from '../../../core/persistence/project-store.port';
+import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
 import { ProjectDocument } from '../../../core/domain/project.types';
-import { I18nService } from '../../../core/ui/i18n.service';
-import { WorkspaceStateService } from '../../../core/ui/workspace-state.service';
-import { DialogService } from '../../../core/ui/dialog.service';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
+import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 
 @Component({

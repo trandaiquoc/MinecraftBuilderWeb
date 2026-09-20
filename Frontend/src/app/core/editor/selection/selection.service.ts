@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
-import { BlockDefinition } from '../../blocks/block-definition.types';
-import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../../behavior/logical-object';
+import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
+import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../../block-behavior/logical-objects/logical-object';
 import { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { VoxelBox } from './selection';
 import { voxelInBox } from './selection';

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { decorationAabb, decorationAnchorFromSupport, decorationInBounds, planDecorationPlacement, supportsDecoration } from './decoration-placement';
-import { decorationToNbt, toStructureDecorationEntityInfo } from './decoration-nbt';
+import { decorationAabb, decorationAnchorFromSupport, decorationInBounds, planDecorationPlacement, supportsDecoration } from './placement/decoration-placement';
+import { decorationToNbt, toStructureDecorationEntityInfo } from './serialization/decoration-nbt';
 import { PAINTING_VARIANTS, chooseRandomPaintingVariant } from './decoration.types';
-import { ItemCatalog } from './item-catalog';
-import { parseVanillaItemRegistry } from '../items/vanilla-item-registry';
+import { DecorationItemCatalog } from './catalog/decoration-item-catalog';
+import { parseVanillaItemRegistry } from '../items/registry/vanilla-item-registry';
 
 describe('decorations domain', () => {
   it('keeps the verified painting catalog and chooses the largest fitting placeable variant', () => {
@@ -47,7 +47,7 @@ describe('decorations domain', () => {
     const registry = parseVanillaItemRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test', items: [
       { id: 'minecraft:diamond' }, { id: 'minecraft:oak_log' }, { id: 'minecraft:water_bucket' }, { id: 'minecraft:zombie_spawn_egg' }, { id: 'minecraft:air' },
     ] });
-    const catalog = new ItemCatalog(); catalog.load({ readJson: (path) => resources[path] }, registry);
+    const catalog = new DecorationItemCatalog(); catalog.load({ readJson: (path) => resources[path] }, registry);
     expect(catalog.search('diamond').map((entry) => entry.id)).toContain('minecraft:diamond');
     expect(catalog.search('oak log').map((entry) => entry.id)).toContain('minecraft:oak_log');
     expect(catalog.search('spawn egg').map((entry) => entry.id)).toContain('minecraft:zombie_spawn_egg');

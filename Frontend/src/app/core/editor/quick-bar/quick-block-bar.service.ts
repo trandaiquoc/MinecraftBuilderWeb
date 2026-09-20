@@ -1,7 +1,7 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
-import { ActiveBlock, ActiveBlockService } from '../../blocks/active-block.service';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
-import { canonicalPlaceableItemId } from '../../blocks/placeable-item';
+import { ActiveBlock, ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
+import { canonicalPlaceableItemId } from '../../blocks/placement-palette/placeable-item';
 import { DecorationService } from '../../decorations/decoration.service';
 
 export interface QuickBlockEntry extends ActiveBlock { readonly itemId: string; readonly displayName: string; }

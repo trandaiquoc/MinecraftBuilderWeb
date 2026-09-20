@@ -4,11 +4,11 @@ import { PlacedBlock, ProjectDocument, ProjectGroup, VoxelCoordinate } from '../
 import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
 import { VoxelBox, voxelInBox } from '../selection/selection';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { addGroup, groupIdsOf, hasGroup, isBlockLocked, removeGroup } from './group-membership';
-import { BlockLibraryService } from '../../blocks/block-library.service';
-import { expandLogicalObjectClosure, normalizeLogicalObjectMemberships } from '../../behavior/logical-object';
-import { BlockRuleEngine } from '../../behavior/block-rule-engine';
+import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
+import { expandLogicalObjectClosure, normalizeLogicalObjectMemberships } from '../../block-behavior/logical-objects/logical-object';
+import { BlockRuleEngine } from '../../block-behavior/rules/block-rule-engine';
 
 export interface GroupMovePreview { readonly groupId: string; readonly offset: VoxelCoordinate; readonly positions: readonly VoxelCoordinate[]; readonly valid: boolean; readonly reason?: 'bounds' | 'collision' | 'locked'; }
 
@@ -129,7 +129,7 @@ export class GroupService {
   private groupPositions(groupId: string | undefined): readonly VoxelCoordinate[] { const project = this.workspace.project(); if (!project || !groupId) return []; return this.movingBlocks(this.normalize(project), groupId).map((block) => block.position); }
 }
 
-export function validateGroupMove(project: ProjectDocument, groupId: string, offset: VoxelCoordinate, definition: (id: string) => import('../../blocks/block-definition.types').BlockDefinition | undefined = () => undefined): GroupMovePreview {
+export function validateGroupMove(project: ProjectDocument, groupId: string, offset: VoxelCoordinate, definition: (id: string) => import('../../blocks/catalog/block-definition.types').BlockDefinition | undefined = () => undefined): GroupMovePreview {
   const seeds = project.blocks.filter((block) => hasGroup(block, groupId));
   const moving = expandLogicalObjectClosure(project.blocks, seeds, definition);
   const group = project.groups.find((entry) => entry.id === groupId);

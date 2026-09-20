@@ -1,7 +1,7 @@
 import { Component, inject, output, signal } from '@angular/core';
 import { LucideX } from '@lucide/angular';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla-assets.service';
-import { I18nService } from '../../../../core/ui/i18n.service';
+import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { trapDialogFocus } from '../../../../shared/ui/dialog/dialog-focus';
 

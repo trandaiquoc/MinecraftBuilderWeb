@@ -1,10 +1,10 @@
 import { migrateProject } from '../domain/migrations';
 import { ProjectDocument, ProjectMetadata } from '../domain/project.types';
 import { validateProject } from '../domain/validation';
-import { DirtyState } from './dirty-state';
-import { AutosaveController } from './autosave';
-import { parseProjectPackage, serializeProjectPackage } from './project-package';
-import { ProjectStore } from './project-store.port';
+import { DirtyState } from './autosave/dirty-state';
+import { AutosaveController } from './autosave/autosave-controller';
+import { parseProjectPackage, serializeProjectPackage } from './project-package/project-package';
+import { ProjectStore } from './project-store/project-store.port';
 
 export class ProjectPersistenceService {
   readonly dirtyState = new DirtyState();

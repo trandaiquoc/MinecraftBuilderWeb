@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ActiveBlockService } from '../../blocks/active-block.service';
+import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 
 describe('quick block active state contract', () => {
   it('preserves a pinned BlockState when it becomes active again', () => {

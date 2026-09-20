@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../../blocks/resolver';
-import { VanillaAssetProvider } from '../../assets/vanilla-asset-provider';
+import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from '../engine/three-viewport-engine';
 import { viewportThemePalette } from '../engine/viewport-theme';

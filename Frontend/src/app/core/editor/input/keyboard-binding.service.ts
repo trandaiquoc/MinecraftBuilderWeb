@@ -1,5 +1,5 @@
 import { Injectable, computed, inject } from '@angular/core';
-import { UiPreferencesService } from '../../ui/ui-preferences.service';
+import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
 import { KeyboardAction, keyboardActionForEvent } from './keyboard-bindings';
 import { MouseAction, mouseActionForEvent } from './mouse-bindings';
 

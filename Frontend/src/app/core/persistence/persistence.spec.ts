@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
-import { DirtyState } from './dirty-state';
-import { AutosaveController } from './autosave';
-import { parseProjectPackage, serializeProjectPackage } from './project-package';
+import { DirtyState } from './autosave/dirty-state';
+import { AutosaveController } from './autosave/autosave-controller';
+import { parseProjectPackage, serializeProjectPackage } from './project-package/project-package';
 import { ProjectPersistenceService } from './project-persistence.service';
-import { ProjectStore, ProjectSummary } from './project-store.port';
+import { ProjectStore, ProjectSummary } from './project-store/project-store.port';
 
 const project: ProjectDocument = {
   schemaVersion: 2,

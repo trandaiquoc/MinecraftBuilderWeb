@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../../domain/project.types';
-import { WorkspaceStateService } from '../../ui/workspace-state.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { HistoryService } from './history.service';
 
 describe('history transactions', () => {

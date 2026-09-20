@@ -1,4 +1,4 @@
-import { BlockDefinition } from '../../blocks/block-definition.types';
+import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 
 export type FluidKind = 'water' | 'lava';

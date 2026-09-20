@@ -1,10 +1,10 @@
 import { Component, computed, inject, OnDestroy, output, signal } from '@angular/core';
 import { LucideX } from '@lucide/angular';
-import { auditVanillaAssets, VanillaAssetCoverageReport, VanillaAssetAuditRecord } from '../../../../core/assets/vanilla-asset-audit';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla-assets.service';
-import { BlockLibraryService } from '../../../../core/blocks/block-library.service';
-import { WorkspaceStateService } from '../../../../core/ui/workspace-state.service';
-import { I18nService } from '../../../../core/ui/i18n.service';
+import { auditVanillaAssets, VanillaAssetCoverageReport, VanillaAssetAuditRecord } from '../../../../core/assets/vanilla/vanilla-asset-audit';
+import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
+import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
+import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { trapDialogFocus } from '../../../../shared/ui/dialog/dialog-focus';
 

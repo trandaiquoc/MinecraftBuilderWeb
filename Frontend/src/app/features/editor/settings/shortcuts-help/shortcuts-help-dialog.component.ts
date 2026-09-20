@@ -2,7 +2,7 @@ import { Component, computed, inject, output } from '@angular/core';
 import { KEYBOARD_ACTIONS, KeyboardAction } from '../../../../core/editor/input/keyboard-bindings';
 import { MOUSE_ACTIONS, MouseAction, mouseBindingTokens } from '../../../../core/editor/input/mouse-bindings';
 import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-binding.service';
-import { I18nService } from '../../../../core/ui/i18n.service';
+import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { trapDialogFocus } from '../../../../shared/ui/dialog/dialog-focus';

@@ -1,5 +1,5 @@
 import { Injectable, Optional, signal } from '@angular/core';
-import { UiPreferencesService } from '../../ui/ui-preferences.service';
+import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
 
 export type EditorMode = '3d' | 'y-layer';
 
