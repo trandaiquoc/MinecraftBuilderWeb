@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BlockCatalog, normalizeSearchText } from './block-catalog';
 import { representativeBlockFixture } from './block-catalog.fixture';
+import { blockCapability, hasBlockCapability } from '../capabilities/block-capability-resolver';
+import { buildPlaceableItems } from '../placement-palette/placeable-item';
 
 describe('BlockCatalog', () => {
   it('loads resource-derived entries and exposes namespace/default state', () => {
@@ -8,6 +10,29 @@ describe('BlockCatalog', () => {
     catalog.load(representativeBlockFixture);
     expect(catalog.get('minecraft:oak_stairs')?.namespace).toBe('minecraft');
     expect(catalog.get('minecraft:oak_stairs')?.defaultState['facing']).toBe('north');
+  });
+
+  it('normalizes orthogonal capabilities without inventing behavior for unknown content', () => {
+    const catalog = new BlockCatalog();
+    catalog.load(representativeBlockFixture);
+    const stairs = catalog.get('minecraft:oak_stairs');
+    const door = catalog.get('minecraft:oak_door');
+    const example = catalog.get('example:missing_renderer');
+    expect(hasBlockCapability(stairs, 'directional')).toBe(true);
+    expect(hasBlockCapability(stairs, 'neighbor-dependent')).toBe(true);
+    expect(hasBlockCapability(stairs, 'waterloggable')).toBe(true);
+    expect(blockCapability(door, 'multi-block')).toMatchObject({ mode: 'double-height', evidence: 'verified' });
+    expect(hasBlockCapability(catalog.get('minecraft:red_bed'), 'special-renderer')).toBe(true);
+    expect(hasBlockCapability(catalog.get('minecraft:red_bed'), 'directional')).toBe(true);
+    expect(example?.capabilities).toEqual([]);
+  });
+
+  it('keeps item-backed capability at the item boundary', () => {
+    const catalog = new BlockCatalog();
+    catalog.load(representativeBlockFixture);
+    const bed = buildPlaceableItems(catalog.all()).find((item) => item.itemId === 'minecraft:red_bed');
+    expect(hasBlockCapability(bed?.capabilities, 'item-backed')).toBe(true);
+    expect(hasBlockCapability(catalog.get('minecraft:red_bed'), 'item-backed')).toBe(false);
   });
 
   it('searches normalized display name, ID, namespace and mod name', () => {

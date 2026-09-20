@@ -5,6 +5,7 @@ import { BlockModelResolver, ResolverDiagnosticCode } from '../../blocks/resolve
 import { VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-geometry';
 import { texturePath, VanillaAssetProvider, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
 import { VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
+import type { BlockCapabilityProfile } from '../../blocks/capabilities/block-capability.types';
 
 export type AssetAuditReason =
   | 'DEFAULT_STATE_UNKNOWN' | 'DEFAULT_STATE_INCOMPLETE' | 'DEFAULT_STATE_VARIANT_NO_MATCH'
@@ -16,7 +17,7 @@ export type AssetAuditReason =
 export interface VanillaAssetAuditRecord {
   readonly registryId: string;
   readonly family: string;
-  readonly catalog: { readonly found: true; readonly displayName: string; readonly behaviorSupport: BehaviorSupportLevel };
+  readonly catalog: { readonly found: true; readonly displayName: string; readonly behaviorSupport: BehaviorSupportLevel; readonly capabilities: BlockCapabilityProfile };
   readonly defaultState: { readonly known: boolean; readonly source: string; readonly state: Readonly<Record<string, string>> };
   readonly blockstate: { readonly resource: string; readonly exists: boolean; readonly parsed: boolean; readonly kind: 'variants' | 'multipart' | 'both' | 'other'; readonly selectedConfigurationCount: number };
   readonly model: { readonly ids: readonly string[]; readonly parentResolved: boolean; readonly elementCount: number; readonly faceCount: number; readonly resources: readonly string[]; readonly parentResources: readonly string[] };
@@ -113,7 +114,7 @@ async function auditDefinition(definition: BlockDefinition, provider: VanillaAss
   return {
     registryId: definition.id,
     family: reportFamily(definition.id),
-    catalog: { found: true, displayName: definition.displayName, behaviorSupport: definition.behaviorSupport },
+    catalog: { found: true, displayName: definition.displayName, behaviorSupport: definition.behaviorSupport, capabilities: definition.capabilities ?? [] },
     defaultState: { known: definition.defaultStateSource !== 'unknown', source: definition.defaultStateSource, state: { ...definition.defaultState } },
     blockstate: { resource: blockstateResource, exists: !!blockstateDocument, parsed: !!blockstateDocument, kind, selectedConfigurationCount: resolved.parts.length },
     model: { ids: resolved.trace.selectedModelIds, parentResolved: !resolved.diagnostics.some((item) => item.code === 'missing-parent' || item.code === 'parent-cycle'), elementCount: resolved.trace.elementCount, faceCount: resolved.trace.faceCount, resources: resolved.trace.modelResources, parentResources: resolved.trace.parentResources },

@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { coordinateKey } from '../../../../core/domain/coordinates';
-import { isSignId, signData, signLineWidth, StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
+import { isSignDefinition, isSignId, signData, signLineWidth, StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -19,7 +19,7 @@ export class SignInspectorComponent {
   protected readonly side = this.signTextSide.side;
   protected readonly draft = signal<SignSide['lines'] | undefined>(undefined);
   protected readonly colors = vanillaSignColors();
-  protected readonly selected = computed(() => { const project = this.workspace.project(); const position = this.selection.single(); const block = project && position ? project.blocks.find((entry) => coordinateKey(entry.position) === coordinateKey(position)) : undefined; return block && isSignId(block.id) ? block : undefined; });
+  protected readonly selected = computed(() => { const project = this.workspace.project(); const position = this.selection.single(); const block = project && position ? project.blocks.find((entry) => coordinateKey(entry.position) === coordinateKey(position)) : undefined; return block && (isSignDefinition(this.library.get(block.id)) || isSignId(block.id)) ? block : undefined; });
   protected readonly data = computed(() => signData(this.selected()?.blockEntityData));
   protected readonly definition = computed(() => { const block = this.selected(); return block ? this.library.get(block.id) : undefined; });
   protected readonly placementStates = computed(() => (this.definition()?.stateDefinitions ?? []).filter((state) => state.name === 'rotation' || state.name === 'facing'));

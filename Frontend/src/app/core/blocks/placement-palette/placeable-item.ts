@@ -1,4 +1,6 @@
-import { BlockDefinition, BlockSupportLevel, VisualSupportLevel } from '../catalog/block-definition.types';
+import type { BlockDefinition, BlockSupportLevel, VisualSupportLevel } from '../catalog/block-definition.types';
+import { addBlockCapability } from '../capabilities/block-capability-resolver';
+import { BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { PlacementContext } from '../../editor/placement/placement';
 import { normalizeSearchText } from '../catalog/block-catalog';
@@ -21,6 +23,8 @@ export interface PlaceableItemDefinition {
   readonly previewRecipe: PreviewRecipe;
   readonly support: BlockSupportLevel;
   readonly visualSupport: VisualSupportLevel;
+  /** Runtime item-backed profile; block definitions remain independent of item catalogs. */
+  readonly capabilities: BlockCapabilityProfile;
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
@@ -93,7 +97,7 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[]): re
 function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {
   const defaultState = { ...definition.defaultState, ...(entry.defaultState ?? {}) };
   const previewBlocks = previewFor(entry, definition, defaultState);
-  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, defaultState, concreteBlockIds, placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, previewBlocks };
+  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, defaultState, concreteBlockIds, placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: 'verified' }), previewBlocks };
 }
 
 function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState): readonly PlacedBlock[] {

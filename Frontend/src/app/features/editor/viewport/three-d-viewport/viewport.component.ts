@@ -19,7 +19,7 @@ import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
-import { isSignId } from '../../../../core/editor/structure/structure-editor.service';
+import { isSignDefinition, isSignId } from '../../../../core/editor/structure/structure-editor.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
 import { facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
@@ -119,7 +119,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     }
     if (gestureAction === 'pick-block' && hit.block) this.editor.pick(hit.block);
     else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
-    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) { this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(hit.block!)); if (selected && isSignId(selected.id)) this.signTextSide.setFromHit(selected, hit.faceNormal); } }
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) { this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(hit.block!)); if (selected && (isSignDefinition(this.library.get(selected.id)) || isSignId(selected.id))) this.signTextSide.setFromHit(selected, hit.faceNormal); } }
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
     else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
   }

@@ -1,4 +1,6 @@
-import { AssetBlockRecord, BlockDefinition } from './block-definition.types';
+import type { AssetBlockRecord, BlockDefinition, BlockVisualClassification, NormalizedBlockDefinition } from './block-definition.types';
+import { deriveBlockCapabilities } from '../capabilities/block-capability-resolver';
+import type { BlockCapability } from '../capabilities/block-capability.types';
 
 export interface BlockCatalogSource {
   readonly minecraftVersion: '1.21.1';
@@ -6,7 +8,7 @@ export interface BlockCatalogSource {
 }
 
 export class BlockCatalog {
-  private readonly entries = new Map<string, BlockDefinition>();
+  private readonly entries = new Map<string, NormalizedBlockDefinition>();
   private readonly searchIndex = new Map<string, string>();
 
   load(source: BlockCatalogSource): void {
@@ -19,8 +21,8 @@ export class BlockCatalog {
     }
   }
 
-  get(id: string): BlockDefinition | undefined { return this.entries.get(id); }
-  all(): readonly BlockDefinition[] { return [...this.entries.values()]; }
+  get(id: string): NormalizedBlockDefinition | undefined { return this.entries.get(id); }
+  all(): readonly NormalizedBlockDefinition[] { return [...this.entries.values()]; }
 
   search(query: string): readonly BlockDefinition[] {
     const normalized = normalizeSearchText(query);
@@ -29,20 +31,28 @@ export class BlockCatalog {
   }
 }
 
-function toDefinition(record: AssetBlockRecord): BlockDefinition {
+function toDefinition(record: AssetBlockRecord): NormalizedBlockDefinition {
   const separator = record.id.indexOf(':');
   if (separator <= 0 || separator === record.id.length - 1) throw new Error(`Invalid block registry ID: ${record.id}`);
   const namespace = record.id.slice(0, separator);
   const support = record.support ?? 'fallback';
+  const explicitRender = record.capabilities?.find((capability): capability is Extract<BlockCapability, { kind: 'standard-json-render' | 'special-renderer' | 'intentionally-invisible' }> => capability.kind === 'standard-json-render' || capability.kind === 'special-renderer' || capability.kind === 'intentionally-invisible');
+  const visualClassification = record.visualClassification ?? renderClassification(explicitRender) ?? 'standard-json';
+  const hasVisualEvidence = !!record.visualClassification || !!explicitRender || !!record.resources.blockstate || !!record.resources.model;
   return {
     ...record,
     namespace,
     support,
     behaviorSupport: record.behaviorSupport ?? (record.behavior ? support === 'full' ? 'full' : 'partial' : 'unknown'),
     visualSupport: record.visualSupport ?? (support === 'full' ? 'real' : support),
-    visualClassification: record.visualClassification ?? 'standard-json',
+    visualClassification,
     defaultStateSource: record.defaultStateSource ?? 'unknown',
+    capabilities: deriveBlockCapabilities({ behavior: record.behavior, visualClassification: hasVisualEvidence ? visualClassification : undefined, visualClassificationEvidence: record.visualClassificationEvidence ?? (record.visualClassification ? 'verified' : explicitRender?.evidence), stateDefinitions: record.stateDefinitions, explicit: record.capabilities }),
   };
+}
+
+function renderClassification(capability: Extract<BlockCapability, { kind: 'standard-json-render' | 'special-renderer' | 'intentionally-invisible' }> | undefined): BlockVisualClassification | undefined {
+  return capability?.kind === 'standard-json-render' ? 'standard-json' : capability?.kind === 'special-renderer' ? 'special-renderer-required' : capability?.kind === 'intentionally-invisible' ? 'intentionally-invisible' : undefined;
 }
 
 export function normalizeSearchText(value: string): string {

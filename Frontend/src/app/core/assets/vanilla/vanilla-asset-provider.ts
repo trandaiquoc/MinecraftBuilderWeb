@@ -128,16 +128,17 @@ export class VanillaAssetProvider implements AssetResourceProvider {
         support: 'partial',
         visualSupport: 'partial',
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : 'unknown',
+        capabilities: known?.capabilities,
       };
       const enriched = behaviorRegistry.enrich(generated);
       const resolved = resolver.resolve(id, enriched.defaultState, 'catalog');
       const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(texturePath(resource)));
       const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
       const visualSupport = fluid ? 'partial' : resolved.parts.length ? resolved.support === 'full' && texturesAvailable ? 'real' : 'partial' : known ? 'fallback' : 'partial';
-      const intentionallyInvisible = intentionallyInvisibleBlocks.has(id);
-      const specialRenderer = fluid || !intentionallyInvisible && resolved.parts.length > 0 && resolved.trace.elementCount === 0;
+      const intentionallyInvisible = intentionallyInvisibleBlocks.has(id) || known?.capabilities?.some((capability) => capability.kind === 'intentionally-invisible') === true;
+      const specialRenderer = !intentionallyInvisible && (fluid || known?.capabilities?.some((capability) => capability.kind === 'special-renderer') === true || resolved.parts.length > 0 && resolved.trace.elementCount === 0);
       const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
-      return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification };
+      return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
     });
     return { minecraftVersion: VANILLA_ASSET_VERSION, blocks };
   }

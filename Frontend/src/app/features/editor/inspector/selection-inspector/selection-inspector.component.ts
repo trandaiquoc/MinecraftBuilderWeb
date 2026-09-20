@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
-import { StructureEditorService, isSignId } from '../../../../core/editor/structure/structure-editor.service';
+import { StructureEditorService, isSignDefinition, isSignId } from '../../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -24,7 +24,7 @@ export class SelectionInspectorComponent {
   protected readonly selectedBlock = computed(() => { const project = this.workspace.project(); const selected = this.selection.single(); return project && selected ? project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(selected)) : undefined; });
   protected readonly stateEntries = computed(() => Object.entries(this.selectedBlock()?.state ?? {}));
   protected readonly selectedDefinition = computed(() => { const block = this.selectedBlock(); return block ? this.library.get(block.id) : undefined; });
-  protected readonly selectedBlockIsSign = computed(() => { const block = this.selectedBlock(); return !!block && isSignId(block.id); });
+  protected readonly selectedBlockIsSign = computed(() => { const block = this.selectedBlock(); return !!block && (isSignDefinition(this.library.get(block.id)) || isSignId(block.id)); });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
   protected readonly selectedBlockCount = computed(() => { const project = this.workspace.project(); const box = this.selection.box(); return project && box ? project.blocks.filter((block) => block.position.x >= box.min.x && block.position.x <= box.max.x && block.position.y >= box.min.y && block.position.y <= box.max.y && block.position.z >= box.min.z && block.position.z <= box.max.z).length : 0; });
   constructor() {

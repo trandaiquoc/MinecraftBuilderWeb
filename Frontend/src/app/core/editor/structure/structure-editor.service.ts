@@ -16,6 +16,8 @@ import { planPlacement, PlacementPlan } from '../../block-behavior/placement/pla
 import { isVanillaSignColor } from '../../block-entities/sign/sign-nbt';
 import { decoratedPotData, defaultDecoratedPotData, normalizeDecoratedPotSherd } from '../../block-entities/decorated-pot/decorated-pot';
 import { pruneInvalidDecorations } from '../../decorations/placement/decoration-placement';
+import { blockCapability } from '../../blocks/capabilities/block-capability-resolver';
+import type { BlockEntityKind } from '../../blocks/capabilities/block-capability.types';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -32,8 +34,9 @@ export class StructureEditorService {
       const placedKeys = new Set(plan.blocks.map((block) => coordinateKey(block.position)));
       return pruneInvalidDecorations({ ...plan.project, blocks: plan.project.blocks.map((block) => {
         if (!placedKeys.has(coordinateKey(block.position))) return block;
-        if (isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
-        if (block.id === 'minecraft:decorated_pot') return { ...block, blockEntityData: defaultDecoratedPotData() };
+        const entityKind = blockEntityKind(this.library.get(block.id));
+        if (entityKind === 'sign' || isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
+        if (entityKind === 'decorated-pot' || block.id === 'minecraft:decorated_pot') return { ...block, blockEntityData: defaultDecoratedPotData() };
         return block;
       }) });
     });
@@ -153,7 +156,7 @@ export class StructureEditorService {
   }
   updateSignText(position: VoxelCoordinate, side: 'front' | 'back', value: string): boolean {
     return this.history.execute('Sign text edit', (project) => {
-      const block = this.find(project, position); if (!block || !isSignId(block.id) || hasLockedMembership(block, project.groups)) return undefined;
+      const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const target = current[side]; const lines = signLines(value);
       const data: SignBlockEntityData = { ...current, [side]: { ...target, lines } };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
@@ -161,7 +164,7 @@ export class StructureEditorService {
   }
   updateSignAppearance(position: VoxelCoordinate, side: 'front' | 'back', patch: { readonly color?: string; readonly glowing?: boolean }): boolean {
     return this.history.execute('Sign appearance edit', (project) => {
-      const block = this.find(project, position); if (!block || !isSignId(block.id) || hasLockedMembership(block, project.groups)) return undefined;
+      const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const target = current[side];
       const color = patch.color === undefined ? target.color : patch.color;
       if (!isVanillaSignColor(color)) return undefined;
@@ -171,7 +174,7 @@ export class StructureEditorService {
   }
   updateSignWaxed(position: VoxelCoordinate, waxed: boolean): boolean {
     return this.history.execute('Sign wax edit', (project) => {
-      const block = this.find(project, position); if (!block || !isSignId(block.id) || hasLockedMembership(block, project.groups)) return undefined;
+      const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const data: SignBlockEntityData = { ...current, waxed };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
@@ -179,7 +182,7 @@ export class StructureEditorService {
   updateDecoratedPotDecoration(position: VoxelCoordinate, side: 'back' | 'left' | 'right' | 'front', sherd: string): boolean {
     return this.history.execute('Decorated Pot pattern edit', (project) => {
       const block = this.find(project, position);
-      if (!block || block.id !== 'minecraft:decorated_pot' || hasLockedMembership(block, project.groups)) return undefined;
+      if (!block || !(isBlockEntity(this.library.get(block.id), 'decorated-pot') || block.id === 'minecraft:decorated_pot') || hasLockedMembership(block, project.groups)) return undefined;
       const current = decoratedPotData(block.blockEntityData); const data = { ...current, decorations: { ...current.decorations, [side]: normalizeDecoratedPotSherd(sherd) } };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
@@ -196,6 +199,10 @@ export class StructureEditorService {
 }
 
 export function isSignId(id: string): boolean { return /(?:^|_)(?:wall_)?sign$/.test(id.split(':').at(-1) ?? id) || id.endsWith('_hanging_sign') || id.endsWith('_wall_hanging_sign'); }
+function isSignBlock(block: PlacedBlock, definition: ReturnType<BlockLibraryService['get']>): boolean { return isSignDefinition(definition) || isSignId(block.id); }
+function isBlockEntity(definition: ReturnType<BlockLibraryService['get']>, kind: BlockEntityKind): boolean { return blockCapability(definition, 'block-entity')?.entityKind === kind; }
+function blockEntityKind(definition: ReturnType<BlockLibraryService['get']>): BlockEntityKind | undefined { return blockCapability(definition, 'block-entity')?.entityKind; }
+export function isSignDefinition(definition: ReturnType<BlockLibraryService['get']>): boolean { return blockCapability(definition, 'block-entity')?.entityKind === 'sign'; }
 export function defaultSignData(): SignBlockEntityData { const side: SignSide = { lines: ['', '', '', ''], color: 'black', glowing: false }; return { kind: 'sign', front: side, back: { ...side, lines: [...side.lines] as SignSide['lines'] }, waxed: false }; }
 export function signData(value: unknown): SignBlockEntityData {
   const raw = value && typeof value === 'object' ? value as Readonly<Record<string, unknown>> : undefined;

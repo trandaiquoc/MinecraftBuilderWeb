@@ -1,3 +1,5 @@
+import type { BlockCapability, BlockCapabilityEvidence, BlockCapabilityProfile } from '../capabilities/block-capability.types';
+
 export type BlockSupportLevel = 'full' | 'partial' | 'fallback';
 export type BehaviorSupportLevel = 'full' | 'partial' | 'unknown';
 export type VisualSupportLevel = 'real' | 'partial' | 'fallback';
@@ -53,6 +55,13 @@ export interface BlockDefinition {
   /** Compatibility alias for existing placement code; do not use for coverage reporting. */
   readonly support: BlockSupportLevel;
   readonly behavior?: BlockBehavior;
+  /** Normalized, immutable routing metadata produced by BlockCatalog. Compatibility callers may omit it. */
+  readonly capabilities?: BlockCapabilityProfile;
+}
+
+/** Catalog output always has a normalized profile; legacy hand-authored callers may use BlockDefinition. */
+export interface NormalizedBlockDefinition extends BlockDefinition {
+  readonly capabilities: BlockCapabilityProfile;
 }
 
 /** Input produced by an approved asset extractor; it is kept separate from trusted registry entries. */
@@ -66,7 +75,10 @@ export interface AssetBlockRecord {
   readonly behaviorSupport?: BehaviorSupportLevel;
   readonly visualSupport?: VisualSupportLevel;
   readonly visualClassification?: BlockVisualClassification;
+  readonly visualClassificationEvidence?: BlockCapabilityEvidence;
   readonly defaultStateSource?: DefaultStateSource;
   readonly modName?: string;
   readonly behavior?: BlockBehavior;
+  /** Optional trusted hints; final profiles are derived centrally during catalog normalization. */
+  readonly capabilities?: readonly BlockCapability[];
 }

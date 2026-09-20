@@ -1346,6 +1346,7 @@ culling, static flow orientation, translucent water, and opaque lava. Fluid
 spreading, reactions, biome simulation, and waterlogging placement are outside
 the editor scope. Animated PNGs use a cached, nearest-filtered static frame
 view; no runtime fluid animation is run.
+
 ## Decorations (schema v3)
 
 Projects now persist Painting, Item Frame, and Glow Item Frame entities in the
@@ -1401,3 +1402,21 @@ provider owns and disposes shared geometry and textures. Decoration textures
 are scoped to the active provider generation and are disposed on replacement
 or engine teardown. Special visuals and world-dependent fluid geometry remain
 outside the generic geometry cache.
+
+# 60. Additive block capability metadata
+
+Block definitions produced by catalog normalization now expose an immutable,
+typed capability profile. Capabilities are orthogonal routing metadata (for
+example directional, attachment, neighbor-dependent, multi-block,
+block-entity, fluid, waterloggable, and render classification) and carry
+`verified` or `inferred` evidence. `BlockBehavior` remains the executable
+source for verified placement and neighbor rules.
+
+Capability derivation is centralized and conservative: a complete canonical
+`facing` state can add only an inferred directional profile; it does not prove
+attachment or support rules. A `half` property alone never creates a
+multi-block capability. Item-backed is added at the placeable-item boundary
+so the catalog does not depend on the item manifest. Capability profiles reject
+contradictory explicit metadata and are exposed in vanilla audit diagnostics.
+Decorations remain separate domain entities, and no provider composition or
+mod-JAR support is introduced by this phase.
