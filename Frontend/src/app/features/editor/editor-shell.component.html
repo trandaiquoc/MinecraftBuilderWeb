@@ -37,7 +37,7 @@
           </div>
         }
         </div>
-        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'tools'" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('assetManager') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('projectDiagnostics') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('modJarImport') }}</button></div>}</div>
+        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'tools'" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" (click)="openAssetManager()">{{ i18n.t('assetManager') }}</button><button type="button" (click)="openProjectDiagnostics()">{{ i18n.t('projectDiagnostics') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('modJarImport') }}</button></div>}</div>
         <div class="menu-entry settings-entry">
           <button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'settings'" (click)="toggleAppMenu('settings', $event)">{{ i18n.t('settingsMenu') }}</button>
         @if (activeMenu() === 'settings') {
@@ -158,7 +158,7 @@
         </div>
         @if (leftSidebarTab() === 'blocks') {
           <section class="sidebar-tab-content blocks-tab-content">
-            <app-block-browser></app-block-browser>
+            <app-block-browser (assetManagerRequested)="openAssetManager()"></app-block-browser>
           </section>
         }
         @if (leftSidebarTab() === 'decorations') {
@@ -409,10 +409,6 @@
               </dd>
             </div>
             <div>
-              <dt>{{ i18n.t('supportLevel') }}</dt>
-              <dd>{{ supportLabel(selectedSupport()) }}</dd>
-            </div>
-            <div>
               <dt>{{ i18n.t('group') }}</dt>
               <dd>{{ selectedGroupNames().join(', ') || i18n.t('none') }}</dd>
             </div>
@@ -520,5 +516,11 @@
   }
   @if (controlsHelpOpen()) {
     <app-shortcuts-help-dialog (closed)="controlsHelpOpen.set(false)"></app-shortcuts-help-dialog>
+  }
+  @if (assetManagerOpen()) {
+    <app-asset-manager-dialog (closed)="assetManagerOpen.set(false)"></app-asset-manager-dialog>
+  }
+  @if (diagnosticsOpen()) {
+    <app-project-diagnostics-dialog (closed)="diagnosticsOpen.set(false)"></app-project-diagnostics-dialog>
   }
 </div>

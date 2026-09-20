@@ -1,0 +1,20 @@
+<div class="tool-dialog-backdrop" role="presentation" (click)="$event.target === $event.currentTarget && closed.emit()">
+  <section class="tool-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('assetManagerTitle')">
+    <header><h2>{{ i18n.t('assetManagerTitle') }}</h2><button type="button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="closed.emit()"><svg lucideX aria-hidden="true"></svg></button></header>
+    <div class="tool-dialog-body">
+      <section class="manager-section manager-summary">
+        <h3>{{ i18n.t('assetManagerVanilla') }}</h3>
+        <p class="manager-status">{{ i18n.t('vanillaVersionStatus').replace('{status}', statusLabel()) }}</p>
+        <dl><div><dt>{{ i18n.t('assetManagerStatus') }}</dt><dd>{{ statusLabel() }}</dd></div><div><dt>{{ i18n.t('assetManagerSource') }}</dt><dd>{{ assets.sourceName() || i18n.t('noAssets') }}</dd></div><div><dt>{{ i18n.t('assetManagerResources') }}</dt><dd>{{ assets.diagnostics().resourceCount }}</dd></div><div><dt>{{ i18n.t('assetManagerCacheReady') }}</dt><dd>{{ assets.diagnostics().providerReady ? i18n.t('yes') : i18n.t('no') }}</dd></div></dl>
+        @if (assets.message()) { <p class="manager-error">{{ assets.message() }}</p> }
+        <input #jarInput type="file" hidden accept=".jar,.zip,application/java-archive,application/zip" (change)="importJar($event)" />
+        <button type="button" class="primary" [disabled]="importing() || assets.status() === 'importing'" (click)="jarInput.click()">{{ assets.status() === 'ready' ? i18n.t('assetManagerReplace') : i18n.t('assetManagerImport') }}</button>
+      </section>
+      <section class="manager-section">
+        <h3>{{ i18n.t('assetManagerMods') }}</h3>
+        <p>{{ i18n.t('assetManagerModUnavailable') }}</p>
+        <button type="button" disabled>{{ i18n.t('modJarImport') }}</button>
+      </section>
+    </div>
+  </section>
+</div>

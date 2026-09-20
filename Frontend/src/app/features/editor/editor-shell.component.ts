@@ -37,8 +37,10 @@ import { LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX }
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../shared/themed-select.component';
 import { ShortcutsHelpDialogComponent } from './shortcuts-help-dialog.component';
+import { AssetManagerDialogComponent } from './asset-manager-dialog.component';
+import { ProjectDiagnosticsDialogComponent } from './project-diagnostics-dialog.component';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, DecorationInspectorComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, ThemedSelectComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, DecorationInspectorComponent, QuickBlockBarComponent, SignInspectorComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ThemedSelectComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -67,10 +69,6 @@ export class EditorShellComponent implements OnDestroy {
     return project && selected ? project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(selected)) : undefined;
   });
   protected readonly selectedDecoration = this.decorations.selected;
-  protected readonly selectedSupport = computed(() => {
-    const block = this.selectedBlock();
-    return block ? this.library.get(block.id)?.support ?? (block.kind === 'missing' ? 'unknown' : 'fallback') : undefined;
-  });
   protected readonly stateEntries = computed(() => Object.entries(this.selectedBlock()?.state ?? {}));
   protected readonly selectedBlockCount = computed(() => { const project = this.workspace.project(); const box = this.selection.box(); return project && box ? project.blocks.filter((block) => block.position.x >= box.min.x && block.position.x <= box.max.x && block.position.y >= box.min.y && block.position.y <= box.max.y && block.position.z >= box.min.z && block.position.z <= box.max.z).length : 0; });
   protected readonly presets: readonly CameraPreset[] = ['perspective', 'top', 'front', 'back', 'left', 'right'];
@@ -90,6 +88,8 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly cameraMenuOpen = signal(false);
   protected readonly settingsDialogOpen = signal(false);
   protected readonly controlsHelpOpen = signal(false);
+  protected readonly assetManagerOpen = signal(false);
+  protected readonly diagnosticsOpen = signal(false);
   private readonly editorBody = viewChild<ElementRef<HTMLElement>>('editorBody');
   private readonly leftDragWidth = signal<number | undefined>(undefined);
   private readonly rightDragWidth = signal<number | undefined>(undefined);
@@ -141,7 +141,6 @@ export class EditorShellComponent implements OnDestroy {
   protected resetCamera(): void { this.currentViewport()?.resetCamera(); }
   protected setCameraPreset(preset: CameraPreset): void { this.currentViewport()?.setCameraPreset(preset); }
   protected presetLabel(preset: CameraPreset): string { return this.i18n.t(({ perspective: 'cameraPerspective', top: 'cameraTop', front: 'cameraFront', back: 'cameraBack', left: 'cameraLeft', right: 'cameraRight' } as const)[preset]); }
-  protected supportLabel(support: string | undefined): string { return support ? this.i18n.supportLevel(support as 'full' | 'partial' | 'fallback' | 'unknown') : ''; }
   protected updateSelectedState(property: string, event: Event): void { const selected = this.selection.single(); const value = (event.target as HTMLSelectElement).value; if (!selected || !this.editor.updateBlockState(selected, property, value)) this.stateFeedback.set('stateEditUnsupported'); else this.stateFeedback.set(''); }
   protected updateSelectedStateValue(property: string, value: string): void { const selected = this.selection.single(); if (!selected || !this.editor.updateBlockState(selected, property, value)) this.stateFeedback.set('stateEditUnsupported'); else this.stateFeedback.set(''); }
   protected rotateSelected(): void { const selected = this.selection.single(); if (!selected || !this.editor.rotateBlock(selected)) this.stateFeedback.set('rotationUnsupported'); else this.stateFeedback.set(''); }
@@ -167,6 +166,8 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected closeMenus(): void { this.activeMenu.set(undefined); this.cameraMenuOpen.set(false); }
   protected openSettingsDialog(): void { this.closeMenus(); this.settingsDialogOpen.set(true); }
+  protected openAssetManager(): void { this.closeMenus(); this.assetManagerOpen.set(true); }
+  protected openProjectDiagnostics(): void { this.closeMenus(); this.diagnosticsOpen.set(true); }
   protected closeSettingsDialog(): void { this.settingsDialogOpen.set(false); }
   protected toggleLayout(key: 'editorToolbarVisible' | 'leftSidebarVisible' | 'rightSidebarVisible' | 'quickBarVisible' | 'statusBarVisible'): void { this.layout.set(key, !this.layout.preferences()[key]); this.scheduleMovePanelClamp(); this.closeMenus(); }
   protected resetLayout(): void { this.sidebarDrag = undefined; this.leftDragWidth.set(undefined); this.rightDragWidth.set(undefined); this.layout.reset(); }
@@ -316,7 +317,7 @@ export class EditorShellComponent implements OnDestroy {
     return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
-    if (this.settingsDialogOpen() || this.controlsHelpOpen()) return;
+    if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen()) return;
     if (event.key === 'Escape') { this.closeMenus(); return; }
     const action = this.keyboard.actionForEvent(event); if (!action) return;
     const handled = this.executeKeyboardAction(action);

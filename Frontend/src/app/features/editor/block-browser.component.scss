@@ -2,9 +2,8 @@
 .asset-source { display: grid; gap: .25rem; }.browser-heading { display: flex; align-items: center; justify-content: space-between; gap: .35rem; }
 .asset-source small { overflow: hidden; color: var(--text-muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
 .asset-source .asset-error { color: var(--danger); white-space: normal; }
-.asset-import { display: inline-flex; justify-content: center; border: 1px solid var(--border-strong); border-radius: 5px; padding: .42rem .55rem; background: var(--surface-raised); color: var(--text); cursor: pointer; font-size: .72rem; }
-.asset-import:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.asset-import input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.asset-manager-link { justify-self: start; border: 0; border-radius: 4px; padding: .3rem .45rem; background: var(--control-normal); color: var(--text); cursor: pointer; font-size: .68rem; box-shadow: 0 2px 0 rgb(0 0 0 / .12); }
+.asset-manager-link:hover { background: var(--surface-hover); }
 .search-label { color: var(--text-muted); font-size: .78rem; }
 .block-browser > input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 5px; padding: .55rem .65rem; background: var(--surface-raised); color: var(--text); }
 .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: .45rem; max-height: 52vh; overflow: auto; }
@@ -32,7 +31,7 @@
 .block-item.active .block-copy small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
 .block-copy small, .active-block small { font-family: var(--font-ui); }
 
-:host-context([data-font='minecraft-style']) .asset-import,
+:host-context([data-font='minecraft-style']) .asset-manager-link,
 :host-context([data-font='minecraft-style']) .search-label,
 :host-context([data-font='minecraft-style']) .block-copy strong,
 :host-context([data-font='minecraft-style']) .active-block > span,

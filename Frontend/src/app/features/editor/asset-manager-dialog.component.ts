@@ -1,0 +1,25 @@
+import { Component, inject, output, signal } from '@angular/core';
+import { LucideX } from '@lucide/angular';
+import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
+import { I18nService } from '../../core/ui/i18n.service';
+import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
+
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideX, UiTooltipDirective], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss' })
+export class AssetManagerDialogComponent {
+  protected readonly i18n = inject(I18nService);
+  protected readonly assets = inject(VanillaAssetsService);
+  readonly closed = output<void>();
+  protected readonly importing = signal(false);
+
+  protected async importJar(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.importing.set(true);
+    try { await this.assets.importJar(file); } finally { this.importing.set(false); input.value = ''; }
+  }
+  protected statusLabel(): string {
+    const status = this.assets.status();
+    return status === 'ready' ? this.i18n.t('assetsReady') : status === 'importing' ? this.i18n.t('loadingAssets') : status === 'no-assets' ? this.i18n.t('noAssets') : this.i18n.t('importRequired');
+  }
+}
