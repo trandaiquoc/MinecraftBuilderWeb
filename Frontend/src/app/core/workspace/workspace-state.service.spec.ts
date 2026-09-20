@@ -56,7 +56,7 @@ describe('WorkspaceStateService', () => {
 
 function memoryStore(projects: readonly ProjectDocument[], onOpen?: () => void): ProjectStore {
   return {
-    create: async () => undefined, save: async () => undefined, delete: async () => undefined,
+    create: async () => undefined, exists: async () => false, save: async () => undefined, delete: async () => undefined,
     list: async () => projects.map((item) => ({ id: item.id, name: item.metadata.name, updatedAt: item.metadata.updatedAt })).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     open: async (id) => { onOpen?.(); return projects.find((item) => item.id === id); },
     saveRecoverySnapshot: async () => undefined, openRecoverySnapshot: async () => undefined, deleteRecoverySnapshot: async () => undefined,

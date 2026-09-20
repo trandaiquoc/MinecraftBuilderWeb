@@ -1,0 +1,8 @@
+:host { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; pointer-events: none; }
+.project-import-status { width: min(28rem, calc(100vw - 2rem)); padding: 1.2rem; border-radius: .5rem; background: var(--surface-raised, var(--surface)); color: var(--text); box-shadow: 0 18px 60px rgba(0,0,0,.3); pointer-events: auto; }
+.import-progress { height: .28rem; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
+.import-progress span { display: block; width: 42%; height: 100%; border-radius: inherit; background: var(--accent); animation: import-progress 1.2s ease-in-out infinite; }
+.import-stage { margin: .8rem 0 .25rem; font-weight: 650; }
+.import-file, .import-summary, details { margin: .25rem 0; color: var(--text-muted); font-size: .85rem; overflow-wrap: anywhere; }
+button { margin-top: .8rem; padding: .5rem .8rem; border: 0; border-radius: .35rem; background: var(--accent); color: var(--accent-contrast, #fff); cursor: pointer; }
+@keyframes import-progress { from { transform: translateX(-120%); } to { transform: translateX(260%); } }

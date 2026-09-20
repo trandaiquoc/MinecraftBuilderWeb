@@ -8,6 +8,7 @@ export interface ProjectSummary {
 
 export interface ProjectStore {
   create(project: ProjectDocument): Promise<void>;
+  exists(id: string): Promise<boolean>;
   open(id: string): Promise<ProjectDocument | undefined>;
   save(project: ProjectDocument): Promise<void>;
   delete(id: string): Promise<void>;

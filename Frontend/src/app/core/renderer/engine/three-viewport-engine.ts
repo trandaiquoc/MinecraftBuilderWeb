@@ -8,12 +8,12 @@ import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset
 import { isBlockVisible } from '../../editor/groups/group-membership';
 import { GroupMovePreview } from '../../editor/groups/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
-import { BlockVisualProvider } from '../geometry/block-model-geometry';
+import { BlockVisualProvider, VisualCacheStats } from '../geometry/block-model-geometry';
 import { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedDecoration } from '../../decorations/decoration.types';
 import { DecorationPlacementPlan, facingFromNormal, planDecorationPlacement } from '../../decorations/placement/decoration-placement';
-import { createDecorationVisual } from '../visuals/decoration-visuals';
+import { createDecorationVisual, DecorationTextureCache } from '../visuals/decoration-visuals';
 import type { ActiveDecoration } from '../../decorations/decoration.service';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
@@ -122,6 +122,7 @@ export class ThreeViewportEngine {
   private palette: ViewportThemePalette = viewportThemePalette('dark');
   private visualProvider?: BlockVisualProvider;
   private decorationTextureUrl?: (resource: string) => string | undefined;
+  private decorationTextureCache?: DecorationTextureCache;
   private placementPlanProvider?: PlacementPlanProvider;
   private ghostGeneration = 0;
   private disposed = false;
@@ -134,6 +135,7 @@ export class ThreeViewportEngine {
   private structureSyncKey = '';
   private syncedProject?: ProjectDocument;
   private providerGeneration = 0;
+  private providerStats?: VisualCacheStats;
 
   constructor(readonly instrumentation = new RendererDiagnostics()) {}
 
@@ -277,12 +279,20 @@ export class ThreeViewportEngine {
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
     this.visualProvider = provider;
+    this.providerStats = undefined;
     this.providerGeneration += 1;
     this.structureSyncKey = '';
     this.ghostModelKey = '';
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
-  setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined): void { this.decorationTextureUrl = provider; this.structureSyncKey = ''; this.update(this.project, this.activeBlock, this.renderOptions); }
+  setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined): void {
+    if (provider === this.decorationTextureUrl) return;
+    this.decorationTextureCache?.dispose();
+    this.decorationTextureCache = provider ? new DecorationTextureCache(provider) : undefined;
+    this.decorationTextureUrl = provider;
+    this.structureSyncKey = '';
+    this.update(this.project, this.activeBlock, this.renderOptions);
+  }
 
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
 
@@ -307,6 +317,7 @@ export class ThreeViewportEngine {
     this.clearDecorationGhost();
     this.updateDecorationSelection(options.selectedDecorationId);
     this.updateGhost(undefined, project, active);
+    this.recordProviderCacheStats();
     if (project && this.controls && !this.hasCameraFrame) this.resetCamera();
     this.render();
   }
@@ -372,12 +383,19 @@ export class ThreeViewportEngine {
         const object = visual.object; translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
         object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = isReference ? options.referenceOpacity ?? .28 : 1; } } });
-        this.blocksGroup.remove(fallback); fallback.geometry.dispose(); (fallback.material as THREE.Material).dispose(); this.blocksGroup.add(object); entry.object = object; this.render();
-      }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.render(); });
+        this.blocksGroup.remove(fallback); fallback.geometry.dispose(); (fallback.material as THREE.Material).dispose(); this.blocksGroup.add(object); entry.object = object; this.recordProviderCacheStats(); this.render();
+      }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.render(); });
     }
   }
 
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void { entry.revision += 1; if (entry.object.parent === this.blocksGroup) this.blocksGroup.remove(entry.object); if (entry.object !== entry.fallback) disposeObject(entry.object); else disposeObject(entry.fallback); this.renderedBlocks.delete(key); }
+
+  private recordProviderCacheStats(): void {
+    const stats = this.visualProvider?.cacheStats?.(); if (!stats) return;
+    const previous = this.providerStats;
+    for (const key of ['resolvedModelCacheHits', 'resolvedModelCacheMisses', 'geometryCacheHits', 'geometryCacheMisses', 'textureCacheHits', 'textureCacheMisses'] as const) this.instrumentation.record(key, Math.max(0, stats[key] - (previous?.[key] ?? 0)));
+    this.providerStats = stats;
+  }
 
   private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.structureSyncKey = ''; this.syncedProject = undefined; }
 
@@ -390,7 +408,7 @@ export class ThreeViewportEngine {
       if (!full && current?.signature === signature) continue;
       if (current) { this.removeDecorationEntry(id, current); this.instrumentation.record('decorationUpdates'); } else this.instrumentation.record('decorationAdds');
       this.instrumentation.record('decorationVisualCreations');
-      const visual = createDecorationVisual(decoration, this.decorationTextureUrl); visual.userData['decorationInstanceId'] = id; visual.userData['decoration'] = decoration; visual.traverse((child) => { child.userData['decorationInstanceId'] = id; child.userData['decoration'] = decoration; });
+      const visual = createDecorationVisual(decoration, this.decorationTextureUrl, this.decorationTextureCache); visual.userData['decorationInstanceId'] = id; visual.userData['decoration'] = decoration; visual.traverse((child) => { child.userData['decorationInstanceId'] = id; child.userData['decoration'] = decoration; });
       this.decorationsGroup.add(visual); this.renderedDecorations.set(id, { id, decoration, signature, object: visual });
     }
   }
@@ -453,6 +471,7 @@ export class ThreeViewportEngine {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.decorationTextureCache?.dispose(); this.decorationTextureCache = undefined;
     this.resizeObserver?.disconnect();
     this.controls?.removeEventListener('change', this.renderOnControlChange);
     this.controls?.dispose();
@@ -530,7 +549,7 @@ export class ThreeViewportEngine {
   private clearDecorationGhost(): void { for (const child of [...this.decorationGhostGroup.children]) { disposeObject(child); this.decorationGhostGroup.remove(child); } }
   private updateDecorationGhost(candidate: PlacedDecoration, status: DecorationPlacementPlan['status']): void {
     this.clearDecorationGhost();
-    const visual = createDecorationVisual(candidate, this.decorationTextureUrl);
+    const visual = createDecorationVisual(candidate, this.decorationTextureUrl, this.decorationTextureCache);
     visual.renderOrder = 2000;
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();
@@ -820,7 +839,7 @@ export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Cam
 }
 function isTextInput(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT' || element.isContentEditable); }
 function isDialogTarget(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.matches('[role="dialog"]') || element.closest('[role="dialog"]') !== null); }
-function disposeObject(object: THREE.Object3D): void { object.traverse((child) => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
+function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
 
 export function applyBlockTheme(root: THREE.Object3D, palette: ViewportThemePalette): void {
   root.traverse((object) => {

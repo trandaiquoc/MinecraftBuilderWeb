@@ -1,5 +1,8 @@
 import { PlacedDecoration } from '../../decorations/decoration.types';
 import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import * as THREE from 'three';
+import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
+import { VanillaBlockVisualProvider } from '../geometry/block-model-geometry';
 
 export type RendererBenchmarkSize = 'small' | 'medium' | 'large';
 
@@ -47,6 +50,20 @@ export function benchmarkBlock(index: number, position: VoxelCoordinate): Placed
   if (pattern === 2) return { kind: 'resolved', id: 'minecraft:oak_fence', namespace: 'minecraft', position, state: { north: 'false', east: 'false', south: 'false', west: 'false' } };
   if (pattern === 3) return { kind: 'resolved', id: 'minecraft:glass', namespace: 'minecraft', position, state: {} };
   return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: {} };
+}
+
+/** A tiny asset-backed provider makes the explicit benchmark exercise real cache reuse without bundling vanilla assets. */
+export function rendererBenchmarkVisualProvider(): VanillaBlockVisualProvider {
+  const json = {
+    'assets/minecraft/blockstates/stone.json': { variants: { '': { model: 'minecraft:block/stone' } } },
+    'assets/minecraft/models/block/stone.json': { parent: 'minecraft:block/cube_all', textures: { all: 'minecraft:block/stone' } },
+    'assets/minecraft/models/block/cube_all.json': { parent: 'block/cube', textures: { down: '#all', up: '#all', north: '#all', south: '#all', west: '#all', east: '#all' } },
+    'assets/minecraft/models/block/cube.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: `#${direction}` }])) }] },
+  };
+  const assets = new VanillaAssetProvider('benchmark-fixture', json, new Map([
+    ['assets/minecraft/textures/block/stone.png', new Uint8Array([1])],
+  ]));
+  return new VanillaBlockVisualProvider(assets, async () => new THREE.Texture());
 }
 
 function benchmarkDecorations(size: RendererBenchmarkSize): readonly PlacedDecoration[] {

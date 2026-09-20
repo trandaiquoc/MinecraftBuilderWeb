@@ -69,9 +69,8 @@ export function validatePlacedBlock(block: PlacedBlock, size: ProjectSize): read
 }
 
 export function validateProject(project: ProjectDocument): DomainValidationResult {
-  const issues: DomainValidationIssue[] = [
-    ...validateProjectSize(project.size),
-  ];
+  const issues: DomainValidationIssue[] = [];
+  for (const issue of validateProjectSize(project.size)) issues.push(issue);
   if (!project.metadata.name.trim()) {
     issues.push({ code: 'invalid-project-name', message: 'project name is required', path: 'metadata.name' });
   }
@@ -81,14 +80,17 @@ export function validateProject(project: ProjectDocument): DomainValidationResul
   if (project.editorSettings.referenceLayerOpacity < 0 || project.editorSettings.referenceLayerOpacity > 1) {
     issues.push({ code: 'invalid-opacity', message: 'reference layer opacity must be between 0 and 1', path: 'editorSettings.referenceLayerOpacity' });
   }
-  project.blocks.forEach((block, index) => {
-    issues.push(...validatePlacedBlock(block, project.size).map((issue) => ({ ...issue, path: `blocks.${index}.${issue.path ?? ''}` })));
-  });
-  project.decorations?.forEach((decoration, index) => {
+  for (let index = 0; index < project.blocks.length; index += 1) {
+    const block = project.blocks[index];
+    for (const issue of validatePlacedBlock(block, project.size)) issues.push({ code: issue.code, message: issue.message, path: `blocks.${index}.${issue.path ?? ''}` });
+  }
+  const decorations = project.decorations;
+  for (let index = 0; index < (decorations?.length ?? 0); index += 1) {
+    const decoration = decorations![index];
     const anchorIssues = validateCoordinate(decoration.anchor, project.size);
-    issues.push(...anchorIssues.map((issue) => ({ ...issue, path: `decorations.${index}.anchor.${issue.path ?? ''}` })));
+    for (const issue of anchorIssues) issues.push({ code: issue.code, message: issue.message, path: `decorations.${index}.anchor.${issue.path ?? ''}` });
     if (decoration.kind === 'painting' && !decoration.variantId) issues.push({ code: 'invalid-block-id', message: 'painting variant is required', path: `decorations.${index}.variantId` });
     if (decoration.rotation !== undefined && (!Number.isInteger(decoration.rotation) || decoration.rotation < 0 || decoration.rotation > 7)) issues.push({ code: 'invalid-coordinate', message: 'decoration rotation must be an integer from 0 to 7', path: `decorations.${index}.rotation` });
-  });
+  }
   return { valid: issues.length === 0, issues };
 }

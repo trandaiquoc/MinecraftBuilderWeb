@@ -44,7 +44,12 @@ export interface BlockVisualProvider {
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<string | undefined>;
+  cacheStats?(): Readonly<VisualCacheStats>;
+  resourceCounts?(): Readonly<VisualResourceCounts>;
 }
+
+export interface VisualCacheStats { readonly resolvedModelCacheHits: number; readonly resolvedModelCacheMisses: number; readonly geometryCacheHits: number; readonly geometryCacheMisses: number; readonly textureCacheHits: number; readonly textureCacheMisses: number; }
+export interface VisualResourceCounts { readonly resolvedModels: number; readonly geometries: number; readonly textures: number; readonly fluidTextures: number; readonly thumbnails: number; }
 
 export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly resolver: BlockModelResolver;
@@ -53,6 +58,8 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly fluidTextureCache = new Map<string, THREE.Texture>();
   private readonly specialVisuals: SpecialBlockVisualRegistry;
   private readonly thumbnailCache = new Map<string, Promise<string | undefined>>();
+  private readonly geometryCache = new Map<string, THREE.BufferGeometry>();
+  private readonly stats = { resolvedModelCacheHits: 0, resolvedModelCacheMisses: 0, geometryCacheHits: 0, geometryCacheMisses: 0, textureCacheHits: 0, textureCacheMisses: 0 };
   private thumbnailRenderer?: THREE.WebGLRenderer;
   private grassTintCache?: Promise<number | undefined>;
 
@@ -152,7 +159,10 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     this.thumbnailCache.set(key, task); return task;
   }
 
-  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
+  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
+
+  cacheStats(): Readonly<VisualCacheStats> { return { ...this.stats }; }
+  resourceCounts(): Readonly<VisualResourceCounts> { return { resolvedModels: this.resolvedCache.size, geometries: this.geometryCache.size, textures: this.textureCache.size, fluidTextures: this.fluidTextureCache.size, thumbnails: this.thumbnailCache.size }; }
 
   private async renderThumbnail(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined> {
     return this.renderThumbnailBlocks([{ kind: 'resolved', id: blockId, namespace: blockId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state }]);
@@ -178,7 +188,8 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
 
   private resolve(blockId: string, state: Readonly<Record<string, string>>): ResolvedBlockModel {
     const key = `${blockId}|${Object.entries(state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`;
-    const cached = this.resolvedCache.get(key); if (cached) return cached;
+    const cached = this.resolvedCache.get(key); if (cached) { this.stats.resolvedModelCacheHits += 1; return cached; }
+    this.stats.resolvedModelCacheMisses += 1;
     const resolved = this.resolver.resolve(blockId, state, key); this.resolvedCache.set(key, resolved); return resolved;
   }
 
@@ -198,7 +209,11 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const elementGroup = new THREE.Group();
     const origin = element.rotation ? vector(element.rotation.origin) : new THREE.Vector3();
     for (const [direction, face] of Object.entries(element.faces)) {
-      const geometry = faceGeometry(element, direction, face, part.transform.uvlock ? -(part.transform.x + part.transform.y) / 90 : 0, origin);
+      const uvlockTurns = part.transform.uvlock ? -(part.transform.x + part.transform.y) / 90 : 0;
+      const geometryKey = geometryCacheKey(element, direction, face, uvlockTurns, origin);
+      let geometry = this.geometryCache.get(geometryKey);
+      if (geometry) this.stats.geometryCacheHits += 1;
+      else { this.stats.geometryCacheMisses += 1; geometry = faceGeometry(element, direction, face, uvlockTurns, origin); geometry.userData['providerOwnedGeometry'] = true; this.geometryCache.set(geometryKey, geometry); }
       const texture = await this.texture(face.texture);
       const tint = tintColorForFace(blockId, face.tintindex, await this.tintColor(blockId, face.tintindex));
       const material = element.shade === false
@@ -223,7 +238,8 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 
   private texture(resource: string): Promise<THREE.Texture | undefined> {
-    const cached = this.textureCache.get(resource); if (cached) return cached;
+    const cached = this.textureCache.get(resource); if (cached) { this.stats.textureCacheHits += 1; return cached; }
+    this.stats.textureCacheMisses += 1;
     const url = this.assets.textureUrl(resource);
     const loading = url ? this.loadTexture(url).then((texture) => {
       texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter; texture.generateMipmaps = false; texture.colorSpace = THREE.SRGBColorSpace; return texture;
@@ -295,6 +311,10 @@ function recordValue(value: unknown): Record<string, unknown> { return typeof va
 function frameIndexValue(value: unknown): number { if (typeof value === 'number') return value; const frame = recordValue(value); return typeof frame['index'] === 'number' ? frame['index'] : 0; }
 
 function validBounds(bounds: THREE.Box3): boolean { const size = bounds.getSize(new THREE.Vector3()); return bounds.min.toArray().every(Number.isFinite) && bounds.max.toArray().every(Number.isFinite) && size.lengthSq() > 0; }
+
+function geometryCacheKey(element: ResolvedElement, direction: string, face: ResolvedFace, uvlockTurns: number, origin: THREE.Vector3): string {
+  return JSON.stringify({ from: element.from, to: element.to, elementRotation: element.rotation, direction, uv: face.uv, rotation: face.rotation ?? 0, uvlockTurns, origin: [origin.x, origin.y, origin.z] });
+}
 
 function boxBounds(bounds: THREE.Box3): { readonly min: readonly [number, number, number]; readonly max: readonly [number, number, number] } {
   return { min: [bounds.min.x, bounds.min.y, bounds.min.z], max: [bounds.max.x, bounds.max.y, bounds.max.z] };

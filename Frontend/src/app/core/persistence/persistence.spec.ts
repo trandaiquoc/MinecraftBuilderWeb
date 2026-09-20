@@ -3,9 +3,10 @@ import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
 import { DirtyState } from './autosave/dirty-state';
 import { AutosaveController } from './autosave/autosave-controller';
-import { parseProjectPackage, serializeProjectPackage } from './project-package/project-package';
+import { parseProjectPackage, ProjectPackageError, serializeProjectPackage } from './project-package/project-package';
 import { ProjectPersistenceService } from './project-persistence.service';
 import { ProjectStore, ProjectSummary } from './project-store/project-store.port';
+import { projectSummaryFromStoredRecord } from './project-store/indexeddb-project-store';
 
 const project: ProjectDocument = {
   schemaVersion: 2,
@@ -18,6 +19,24 @@ const project: ProjectDocument = {
 describe('local persistence helpers', () => {
   it('round-trips a versioned project package', () => {
     expect(parseProjectPackage(serializeProjectPackage(project))).toEqual(migrateProject(project));
+  });
+
+  it('classifies malformed, arbitrary, newer, and invalid package data without activating anything', () => {
+    expect(() => parseProjectPackage('{')).toThrowError(ProjectPackageError);
+    try { parseProjectPackage('{"blocks":[]}'); } catch (error) { expect(error).toMatchObject({ category: 'not-project-package' }); }
+    const newer = JSON.stringify({ format: 'minecraftbuilder-project', formatVersion: 1, project: { ...project, schemaVersion: 99 } });
+    expect(() => parseProjectPackage(newer)).toThrowError(/newer than supported/);
+    const invalid = JSON.stringify({ format: 'minecraftbuilder-project', formatVersion: 1, project: { ...project, blocks: [{ ...block('minecraft:stone', 99, 0, 0) }] } });
+    expect(() => parseProjectPackage(invalid)).toThrowError(/Invalid project package data/);
+  });
+
+  it('uses the cheap key lookup contract for import collision checks', async () => {
+    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
+    expect(await persistence.exists(project.id)).toBe(true); expect(await persistence.exists('missing')).toBe(false);
+  });
+
+  it('keeps summary migration independent from full project documents', () => {
+    expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', updatedAt: '2026-01-01T00:00:00Z' })).toEqual({ id: 'p1', name: 'Demo', updatedAt: '2026-01-01T00:00:00Z' });
   });
 
   it('does not mark a newer dirty revision clean when an older save completes', () => {
@@ -94,6 +113,7 @@ function withBlocks(...blocks: ProjectDocument['blocks']): ProjectDocument { ret
 class MemoryProjectStore implements ProjectStore {
   protected readonly projects = new Map<string, ProjectDocument>(); private readonly recovery = new Map<string, ProjectDocument>();
   async create(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
+  async exists(id: string): Promise<boolean> { return this.projects.has(id); }
   async open(id: string): Promise<ProjectDocument | undefined> { const value = this.projects.get(id); return value && structuredClone(value); }
   async save(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
   async delete(id: string): Promise<void> { this.projects.delete(id); }

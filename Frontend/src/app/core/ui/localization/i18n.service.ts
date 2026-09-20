@@ -12,6 +12,8 @@ type TranslationKey = keyof typeof translations.en;
 
 const translations = {
   en: {
+    importReadFailed: 'Unable to read file',
+    importSavingCurrent: 'Saving current project', importReadingFile: 'Reading file', importParsing: 'Parsing project file', importValidating: 'Validating project', importCheckingDestination: 'Checking destination', importSavingProject: 'Saving imported project', importOpeningProject: 'Opening project', importSuccess: 'Project imported successfully', importError: 'Import failed', importInvalidJson: 'Invalid JSON', importNotProjectPackage: 'Not a MinecraftBuilder Project Package', importUnsupportedPackage: 'Unsupported package version', importUnsupportedSchema: 'Unsupported project schema', importInvalidData: 'Invalid project data', importStorageFailed: 'Storage failed', importQuotaExceeded: 'Storage quota exceeded', importTryAgain: 'Try again', importClose: 'Close', importTechnicalDetails: 'Technical details',
     savingProject: 'Saving...',
     projectSaved: 'Saved',
     saveProjectError: 'Save error',
@@ -181,6 +183,8 @@ const translations = {
     signText: 'Sign', text: 'Text', appearance: 'Appearance', placement: 'Placement', rotateSign: 'Rotate sign', signTextHint: 'Edit the four lines on this side of the sign.', editOtherSignSide: 'Edit other side', signTextInput: 'Sign line {line}', signLineTooWide: 'Line {line} may be too wide', signGlowingHint: 'Makes sign text render brightly with glow-style emphasis. It does not emit light into the world.', signAdvanced: 'Advanced', signFront: 'Front', signBack: 'Back', signColor: 'Text color', signGlowing: 'Glowing text', signWaxed: 'Waxed', signWaxedHint: 'Waxed signs cannot normally have text, color, or glowing changed in Minecraft. MinecraftBuilder can still edit authored data.', waterloggedHint: 'Stores water in the same block space as the sign. Minecraft normally determines this during placement.', attachedHint: "Controls a ceiling hanging sign's attachment state. Minecraft normally derives it from support above.",
   },
   vi: {
+    importReadFailed: 'Kh\\u00f4ng th\\u1ec3 \\u0111\\u1ecdc t\\u1ec7p',
+    importSavingCurrent: '\u0110ang l\u01b0u d\u1ef1 \u00e1n hi\u1ec7n t\u1ea1i', importReadingFile: '\u0110ang \u0111\u1ecdc t\u1ec7p', importParsing: '\u0110ang ph\u00e2n t\u00edch t\u1ec7p d\u1ef1 \u00e1n', importValidating: '\u0110ang ki\u1ec3m tra d\u1ef1 \u00e1n', importCheckingDestination: '\u0110ang ki\u1ec3m tra n\u01a1i l\u01b0u', importSavingProject: '\u0110ang l\u01b0u d\u1ef1 \u00e1n \u0111\u00e3 nh\u1eadp', importOpeningProject: '\u0110ang m\u1edf d\u1ef1 \u00e1n', importSuccess: '\u0110\u00e3 nh\u1eadp d\u1ef1 \u00e1n th\u00e0nh c\u00f4ng', importError: 'Nh\u1eadp d\u1ef1 \u00e1n th\u1ea5t b\u1ea1i', importInvalidJson: 'JSON kh\u00f4ng h\u1ee3p l\u1ec7', importNotProjectPackage: 'Kh\u00f4ng ph\u1ea3i g\u00f3i d\u1ef1 \u00e1n MinecraftBuilder', importUnsupportedPackage: 'Phi\u00ean b\u1ea3n g\u00f3i kh\u00f4ng \u0111\u01b0\u1ee3c h\u1ed7 tr\u1ee3', importUnsupportedSchema: 'Schema d\u1ef1 \u00e1n kh\u00f4ng \u0111\u01b0\u1ee3c h\u1ed7 tr\u1ee3', importInvalidData: 'D\u1eef li\u1ec7u d\u1ef1 \u00e1n kh\u00f4ng h\u1ee3p l\u1ec7', importStorageFailed: 'L\u01b0u tr\u1eef th\u1ea5t b\u1ea1i', importQuotaExceeded: '\u0110\u00e3 v\u01b0\u1ee3t dung l\u01b0\u1ee3ng l\u01b0u tr\u1eef', importTryAgain: 'Th\u1eed l\u1ea1i', importClose: '\u0110\u00f3ng', importTechnicalDetails: 'Chi ti\u1ebft k\u1ef9 thu\u1eadt',
     savingProject: 'Đang lưu...',
     projectSaved: 'Đã lưu',
     saveProjectError: 'Lỗi lưu',

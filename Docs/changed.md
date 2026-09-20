@@ -1380,3 +1380,24 @@ live Apply/Cancel behavior, and default restoration. Place, select, delete,
 pick, orbit, pan, and wheel zoom use the configured bindings in both 3D and
 Y-Layer modes. Help > Controls & Shortcuts is a themed visual reference driven
 from the applied bindings instead of a hard-coded paragraph.
+
+# 59. Project package import and renderer resource optimization
+
+Project package import now exposes an observable state machine with localized
+saving, reading, parsing, validation, storage, activation, success, and error
+states. Large package bytes are transferred to a Web Worker for decode, parse,
+migration, and validation when the browser supports it; the direct parser
+remains the deterministic test/server fallback. The active project is not
+reset until validated data is stored.
+
+IndexedDB schema v2 keeps project summaries separate from full documents, so
+project lists no longer clone every structure. Create/save/delete update the
+document and summary stores atomically, and import collision checks use a key
+lookup instead of enumerating projects.
+
+The incremental renderer now shares immutable standard JSON face geometry by a
+complete geometry signature. Entries keep their own materials, while the
+provider owns and disposes shared geometry and textures. Decoration textures
+are scoped to the active provider generation and are disposed on replacement
+or engine teardown. Special visuals and world-dependent fluid geometry remain
+outside the generic geometry cache.

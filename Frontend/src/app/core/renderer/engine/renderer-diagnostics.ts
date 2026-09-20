@@ -11,6 +11,12 @@ export interface RendererCounters {
   readonly fallbackGeometryConstructions: number;
   readonly fallbackMaterialCreations: number;
   readonly modelResolutions: number;
+  readonly resolvedModelCacheHits: number;
+  readonly resolvedModelCacheMisses: number;
+  readonly geometryCacheHits: number;
+  readonly geometryCacheMisses: number;
+  readonly textureCacheHits: number;
+  readonly textureCacheMisses: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -26,6 +32,12 @@ const EMPTY_COUNTERS: RendererCounters = {
   fallbackGeometryConstructions: 0,
   fallbackMaterialCreations: 0,
   modelResolutions: 0,
+  resolvedModelCacheHits: 0,
+  resolvedModelCacheMisses: 0,
+  geometryCacheHits: 0,
+  geometryCacheMisses: 0,
+  textureCacheHits: 0,
+  textureCacheMisses: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

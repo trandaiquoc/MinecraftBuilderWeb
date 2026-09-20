@@ -25,6 +25,14 @@ export class ProjectPersistenceService {
     this.dirtyState.markClean();
   }
 
+  /** Explicit contract for a package that already completed migration and validation. */
+  async createValidatedImportedProject(project: ProjectDocument): Promise<void> {
+    await this.store.create(migrateProject(project));
+    this.dirtyState.markClean();
+  }
+
+  exists(id: string): Promise<boolean> { return this.store.exists(id); }
+
   open(id: string): Promise<ProjectDocument | undefined> {
     return this.store.open(id);
   }

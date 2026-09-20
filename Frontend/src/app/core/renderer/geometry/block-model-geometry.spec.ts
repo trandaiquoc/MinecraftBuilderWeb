@@ -58,6 +58,21 @@ describe('block model geometry', () => {
     expect(result.resolved.parts[0].elements[0].rotation).toMatchObject({ axis: 'y', angle: 22.5, rescale: true });
   });
 
+  it('reuses standard model geometry while keeping materials instance-owned', async () => {
+    const provider = realLikeVisualProvider();
+    const first = await provider.create(block('minecraft:stone', {}));
+    const second = await provider.create(block('minecraft:stone', {}));
+    const firstMesh = first.object!.children[0].children[0].children[0] as THREE.Mesh;
+    const secondMesh = second.object!.children[0].children[0].children[0] as THREE.Mesh;
+    expect(secondMesh.geometry).toBe(firstMesh.geometry);
+    expect(secondMesh.material).not.toBe(firstMesh.material);
+    expect(provider.cacheStats()).toMatchObject({ geometryCacheMisses: 6, geometryCacheHits: 6 });
+    const dispose = vi.spyOn(firstMesh.geometry, 'dispose');
+    provider.dispose();
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect((firstMesh.geometry as THREE.BufferGeometry).userData['providerOwnedGeometry']).toBe(true);
+  });
+
   it('returns a controlled fallback result without losing ID or state', async () => {
     const provider = new VanillaAssetProvider('fixture.jar', {}, new Map());
     const result = await new VanillaBlockVisualProvider(provider).create({ kind: 'resolved', id: 'minecraft:missing', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north' } });

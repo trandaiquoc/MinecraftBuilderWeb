@@ -36,8 +36,10 @@ import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help/shortcu
 import { AssetManagerDialogComponent } from '../tools/asset-manager/asset-manager-dialog.component';
 import { ProjectDiagnosticsDialogComponent } from '../tools/diagnostics/project-diagnostics-dialog.component';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
+import { ProjectPackageImportService } from '../../../core/persistence/project-package/project-package-import.service';
+import { ProjectImportStatusComponent } from '../project-import/project-import-status.component';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -56,6 +58,8 @@ export class EditorShellComponent implements OnDestroy {
   private readonly editor = inject(StructureEditorService);
   private readonly router = inject(Router);
   private readonly persistence = new ProjectPersistenceService(new IndexedDbProjectStore());
+  protected readonly importCoordinator = new ProjectPackageImportService(this.persistence);
+  protected readonly importState = this.importCoordinator.state;
   private readonly library = inject(BlockLibraryService);
   private readonly session = inject(EditorSessionService);
   private readonly threeDViewport = viewChild(ViewportComponent);
@@ -192,24 +196,17 @@ export class EditorShellComponent implements OnDestroy {
     try { await this.autosave.flush(); await this.dialogs.success(this.i18n.t('saveProjectSuccess')); }
     catch { await this.dialogs.error(this.i18n.t('saveProjectError'), this.i18n.t('saveProjectError')); }
   }
-  protected triggerProjectImport(input: HTMLInputElement): void { this.closeMenus(); input.value = ''; input.click(); }
+  protected triggerProjectImport(input: HTMLInputElement): void { if (this.importState().stage !== 'idle' && this.importState().stage !== 'success' && this.importState().stage !== 'error') return; this.closeMenus(); input.value = ''; input.click(); }
   protected async importProjectPackage(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    try {
-      await this.autosave.flush();
-      const imported = this.persistence.importPackage(await file.text());
-      const summaries = await this.persistence.list();
-      const collision = summaries.some((summary) => summary.id === imported.id);
-      const id = collision ? createProjectId() : imported.id;
-      const project = collision ? { ...imported, id, metadata: { ...imported.metadata, name: `${imported.metadata.name} (imported)`, updatedAt: new Date().toISOString() } } : imported;
-      await this.persistence.create(project);
-      this.session.resetForProjectChange(project.id, true);
-      this.workspace.activate(project);
-    } catch {
-      await this.dialogs.error(this.i18n.t('importProjectTitle'), this.i18n.t('importProjectError'));
-    } finally { input.value = ''; }
+    input.value = '';
+    await this.importCoordinator.import(
+      file,
+      () => this.autosave.flush(),
+      (project) => { this.session.resetForProjectChange(project.id, true); this.workspace.activate(project); },
+    );
   }
   protected exportProjectPackage(): void {
     this.closeMenus();
@@ -352,5 +349,4 @@ export class EditorShellComponent implements OnDestroy {
   }
 }
 
-function createProjectId(): string { return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `project-${Date.now()}`; }
 function sanitizeFilename(value: string): string { return value.trim().replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'minecraft-project'; }
