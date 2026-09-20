@@ -4,7 +4,7 @@ import { BlockLibraryService } from '../../blocks/catalog/block-library.service'
 import { ProjectDocument } from '../../domain/project.types';
 import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
-import { signLines, StructureEditorService } from './structure-editor.service';
+import { isSignId, signLines, StructureEditorService } from './structure-editor.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 
 function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService } {
@@ -106,6 +106,11 @@ describe('StructureEditorService mutations', () => {
 });
 
 describe('sign text normalization', () => {
+  it('does not classify external sign-looking IDs as vanilla signs', () => {
+    expect(isSignId('minecraft:oak_sign')).toBe(true);
+    expect(isSignId('example:oak_sign')).toBe(false);
+  });
+
   it('keeps textarea data as exactly four canonical lines without guessed character rejection', () => {
     expect(signLines('Hello\nMinecraft\nBuilder')).toEqual(['Hello', 'Minecraft', 'Builder', '']);
     expect(signLines('1\n2\n3\n4\n5')).toEqual(['1', '2', '3', '4']);

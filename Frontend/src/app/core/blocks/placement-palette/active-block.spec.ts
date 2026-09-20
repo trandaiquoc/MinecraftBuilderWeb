@@ -7,7 +7,13 @@ describe('ActiveBlockService', () => {
   it('selects a block with its default state and support level', () => {
     const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
     const service = new ActiveBlockService(); service.select(catalog.get('minecraft:oak_stairs')!);
-    expect(service.active()).toEqual({ id: 'minecraft:oak_stairs', state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' }, support: 'full' });
+    expect(service.active()).toEqual({ id: 'minecraft:oak_stairs', sourceId: 'vanilla', state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' }, support: 'full' });
+  });
+
+  it('preserves the originating source when selecting an item-backed definition', () => {
+    const catalog = new BlockCatalog(); catalog.load({ ...representativeBlockFixture, sourceId: 'example', sourceName: 'Example', blocks: [{ ...representativeBlockFixture.blocks[0], id: 'example:stone', sourceId: 'example' }] });
+    const service = new ActiveBlockService(); service.select(catalog.get('example:stone')!);
+    expect(service.active()?.sourceId).toBe('example');
   });
 
   it('picks a placed block without losing state or fallback status', () => {

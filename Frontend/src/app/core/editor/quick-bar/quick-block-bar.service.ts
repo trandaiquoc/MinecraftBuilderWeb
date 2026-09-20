@@ -3,6 +3,7 @@ import { ActiveBlock, ActiveBlockService } from '../../blocks/placement-palette/
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { canonicalPlaceableItemId } from '../../blocks/placement-palette/placeable-item';
 import { DecorationService } from '../../decorations/decoration.service';
+import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 
 export interface QuickBlockEntry extends ActiveBlock { readonly itemId: string; readonly displayName: string; }
 const slots = 10;
@@ -12,6 +13,7 @@ export class QuickBlockBarService {
   private readonly workspace = inject(WorkspaceStateService);
   private readonly activeBlock = inject(ActiveBlockService);
   private readonly decorations = inject(DecorationService);
+  private readonly library = inject(BlockLibraryService);
   readonly active = this.activeBlock.active;
   readonly entries = signal<readonly QuickBlockEntry[]>([]);
   readonly capacity = slots;
@@ -29,7 +31,12 @@ export class QuickBlockBarService {
     return true;
   }
   remove(index: number): void { this.save(this.entries().filter((_, current) => current !== index)); }
-  select(entry: QuickBlockEntry): void { this.decorations.clearActive(); this.activeBlock.set(entry); }
+  select(entry: QuickBlockEntry): void {
+    // A persisted slot can outlive the content source that provided it. Never
+    // reactivate an entry whose item definition is no longer available.
+    if (!this.library.getItem(entry.itemId)) { this.activeBlock.clear(); return; }
+    this.decorations.clearActive(); this.activeBlock.set(entry);
+  }
   private save(entries: readonly QuickBlockEntry[]): void { this.entries.set(entries); const id = this.activeProjectId; if (!id) return; try { localStorage.setItem(key(id), JSON.stringify(entries)); } catch { /* The palette remains useful for this session. */ } }
 }
 

@@ -43,7 +43,7 @@ export class VanillaBehaviorRegistry {
       if (!record.id.startsWith('minecraft:') || !record.behavior) continue;
       this.explicit.set(record.id, {
         behavior: record.behavior,
-        support: record.support === 'full' ? 'full' : 'partial',
+        support: record.behavior.kind === 'horizontal-connect' ? 'partial' : record.support === 'full' ? 'full' : 'partial',
         defaultState: record.defaultState,
         stateDefinitions: record.stateDefinitions,
       });
@@ -255,7 +255,10 @@ function vanillaBannerMetadata(id: string): BehaviorMetadata | undefined {
 }
 
 function connectMetadata(family: 'fence' | 'pane' | 'wall', connectionGroup: string, compatibleGroups: readonly string[], stateDefinitions: readonly BlockStateDefinition[], defaultState: Readonly<Record<string, string>>): BehaviorMetadata {
-  return { behavior: { kind: 'horizontal-connect', family, connectionGroup, compatibleGroups, connectsToSolid: true, derivedProperties: family === 'wall' ? ['north', 'east', 'south', 'west', 'up'] : ['north', 'east', 'south', 'west'] }, support: 'full', defaultState, stateDefinitions };
+  // The editor has no vanilla voxel-shape/sturdiness metadata for arbitrary
+  // solid neighbors yet. Keep verified family connections, but do not claim
+  // complete Java placement parity for solid/support-dependent cases.
+  return { behavior: { kind: 'horizontal-connect', family, connectionGroup, compatibleGroups, connectsToSolid: true, derivedProperties: family === 'wall' ? ['north', 'east', 'south', 'west', 'up'] : ['north', 'east', 'south', 'west'] }, support: 'partial', defaultState, stateDefinitions };
 }
 
 function mergeStateDefinitions(base: readonly BlockStateDefinition[], metadata: readonly BlockStateDefinition[]): readonly BlockStateDefinition[] {

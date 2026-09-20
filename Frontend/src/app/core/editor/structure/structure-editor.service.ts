@@ -198,7 +198,12 @@ export class StructureEditorService {
   private inBounds(position: VoxelCoordinate, project: ProjectDocument): boolean { return position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < project.size.x && position.y < project.size.y && position.z < project.size.z && Number.isInteger(position.x) && Number.isInteger(position.y) && Number.isInteger(position.z); }
 }
 
-export function isSignId(id: string): boolean { return /(?:^|_)(?:wall_)?sign$/.test(id.split(':').at(-1) ?? id) || id.endsWith('_hanging_sign') || id.endsWith('_wall_hanging_sign'); }
+/** Legacy fixture fallback for vanilla signs only; external sources must declare sign capability metadata. */
+export function isSignId(id: string): boolean {
+  if (!id.startsWith('minecraft:')) return false;
+  const path = id.slice('minecraft:'.length);
+  return /(?:^|_)(?:wall_)?sign$/.test(path) || path.endsWith('_hanging_sign') || path.endsWith('_wall_hanging_sign');
+}
 function isSignBlock(block: PlacedBlock, definition: ReturnType<BlockLibraryService['get']>): boolean { return isSignDefinition(definition) || isSignId(block.id); }
 function isBlockEntity(definition: ReturnType<BlockLibraryService['get']>, kind: BlockEntityKind): boolean { return blockCapability(definition, 'block-entity')?.entityKind === kind; }
 function blockEntityKind(definition: ReturnType<BlockLibraryService['get']>): BlockEntityKind | undefined { return blockCapability(definition, 'block-entity')?.entityKind; }

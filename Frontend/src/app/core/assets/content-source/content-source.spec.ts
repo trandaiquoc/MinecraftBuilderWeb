@@ -50,6 +50,14 @@ describe('ContentSourceRegistry', () => {
     expect(registry.remove('first')).toBe(true); expect(first.disposed).toBe(true); expect(second.disposed).toBe(false);
   });
 
+  it('rejects sources targeting an incompatible Minecraft version', () => {
+    const registry = new ContentSourceRegistry();
+    const incompatible = new FakeSource('old', ['old'], {});
+    (incompatible.source as { minecraftVersion: string }).minecraftVersion = '1.20.6';
+    expect(() => registry.register(incompatible)).toThrow(/Expected 1\.21\.1/);
+    expect(registry.sources()).toEqual([]);
+  });
+
   it('reports duplicate block IDs without replacing the first contribution', () => {
     const registry = new ContentSourceRegistry();
     registry.register(new FakeSource('one', ['one'], {}, [block('shared:block', 'one')]));
@@ -57,5 +65,15 @@ describe('ContentSourceRegistry', () => {
     const catalog: BlockCatalog = registry.catalog();
     expect(catalog.get('shared:block')?.sourceId).toBe('one');
     expect(catalog.conflicts()).toEqual([{ id: 'shared:block', sourceIds: ['one', 'two'] }]);
+  });
+
+  it('keeps catalog diagnostics current across repeated reads and source replacement', () => {
+    const registry = new ContentSourceRegistry();
+    registry.register(new FakeSource('one', ['one'], {}, [block('shared:block', 'one')]));
+    registry.register(new FakeSource('two', ['two'], {}, [block('shared:block', 'two')]));
+    expect(registry.catalogConflicts()).toEqual([{ id: 'shared:block', sourceIds: ['one', 'two'] }]);
+    expect(registry.catalogConflicts()).toEqual([{ id: 'shared:block', sourceIds: ['one', 'two'] }]);
+    registry.remove('two');
+    expect(registry.catalogConflicts()).toEqual([]);
   });
 });

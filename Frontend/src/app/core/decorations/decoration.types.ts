@@ -5,7 +5,7 @@ export type DecorationFacing = 'down' | 'up' | 'north' | 'south' | 'west' | 'eas
 
 /** Browser/catalog source metadata; this does not become placed-decoration data. */
 export interface DecorationBrowserSource { readonly id: string; }
-export const DECORATION_BROWSER_SOURCES: readonly DecorationBrowserSource[] = [{ id: 'minecraft' }];
+export const DECORATION_BROWSER_SOURCES: readonly DecorationBrowserSource[] = [{ id: 'vanilla' }];
 
 export interface DecorationItemStack {
   readonly id: string;

@@ -3,6 +3,8 @@ import { BlockCatalog, normalizeSearchText } from './block-catalog';
 import { representativeBlockFixture } from './block-catalog.fixture';
 import { blockCapability, hasBlockCapability } from '../capabilities/block-capability-resolver';
 import { buildPlaceableItems } from '../placement-palette/placeable-item';
+import { ActiveBlockService } from '../placement-palette/active-block.service';
+import { BlockLibraryService } from './block-library.service';
 
 describe('BlockCatalog', () => {
   it('loads resource-derived entries and exposes namespace/default state', () => {
@@ -48,5 +50,21 @@ describe('BlockCatalog', () => {
     const catalog = new BlockCatalog();
     expect(() => catalog.load({ ...representativeBlockFixture, minecraftVersion: '1.20.6' as '1.21.1' })).toThrow('Unsupported Minecraft version');
     expect(() => catalog.load({ ...representativeBlockFixture, blocks: [...representativeBlockFixture.blocks, representativeBlockFixture.blocks[0]] })).toThrow('Duplicate block ID');
+  });
+
+  it('invalidates an active block when its source is removed without touching project data', () => {
+    const active = new ActiveBlockService();
+    const library = new BlockLibraryService(active);
+    const source = {
+      minecraftVersion: '1.21.1' as const,
+      sourceId: 'example',
+      sourceName: 'Example',
+      blocks: [{ id: 'example:machine', displayName: 'Machine', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' as const, sourceId: 'example' }],
+    };
+    library.replaceSource(source);
+    active.select(library.get('example:machine')!);
+    expect(active.active()?.sourceId).toBe('example');
+    library.removeSource('example');
+    expect(active.active()).toBeUndefined();
   });
 });

@@ -58,7 +58,7 @@ describe('VanillaAssetProvider', () => {
       'data/minecraft/tags/block/beds.json': { values: ['minecraft:red_bed'] },
     }, new Map([['assets/minecraft/textures/block/custom_visual.png', new Uint8Array([1])]]));
     const catalog = new BlockCatalog(); catalog.load(provider.catalog());
-    expect(catalog.get('minecraft:acacia_fence')).toMatchObject({ visualSupport: 'partial', behaviorSupport: 'full', behavior: { family: 'fence' } });
+    expect(catalog.get('minecraft:acacia_fence')).toMatchObject({ visualSupport: 'partial', behaviorSupport: 'partial', behavior: { family: 'fence' } });
     expect(catalog.get('minecraft:red_bed')).toMatchObject({ visualSupport: 'fallback', behaviorSupport: 'full', behavior: { kind: 'paired-horizontal' } });
     expect(catalog.get('minecraft:custom_visual')).toMatchObject({ visualSupport: 'real', behaviorSupport: 'unknown' });
     expect(catalog.get('minecraft:custom_visual')?.behavior).toBeUndefined();

@@ -1,5 +1,5 @@
 import { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
-import { ContentSourceDescriptor, ContentSourceProvider, RenderableAssetResourceProvider } from './content-source.types';
+import { CONTENT_SOURCE_MINECRAFT_VERSION, ContentSourceDescriptor, ContentSourceProvider, RenderableAssetResourceProvider } from './content-source.types';
 
 /** Routes namespaced resources to their explicitly registered owner. */
 export class CompositeAssetResourceProvider implements AssetResourceProvider, RenderableAssetResourceProvider {
@@ -13,6 +13,7 @@ export class CompositeAssetResourceProvider implements AssetResourceProvider, Re
   sources(): readonly ContentSourceDescriptor[] { return [...this.providers.values()].map((provider) => provider.source); }
 
   register(provider: ContentSourceProvider): void {
+    if (provider.source.minecraftVersion !== CONTENT_SOURCE_MINECRAFT_VERSION) throw new Error(`Unsupported content source Minecraft version: ${provider.source.minecraftVersion}. Expected ${CONTENT_SOURCE_MINECRAFT_VERSION}.`);
     if (this.providers.has(provider.source.id)) throw new Error(`Content source is already registered: ${provider.source.id}`);
     for (const namespace of provider.source.namespaces) {
       if (this.owners.has(namespace)) throw new Error(`Content namespace is already owned: ${namespace}`);

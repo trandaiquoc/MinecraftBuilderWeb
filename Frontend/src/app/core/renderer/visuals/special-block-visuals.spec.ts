@@ -4,7 +4,7 @@ import { chestModelFor, chestRotationRadians, chestTextureResource, conduitInact
 import { modelPartCuboidUv } from './special-model-descriptor';
 
 const registry = new SpecialBlockVisualRegistry();
-const block = (id: string) => ({ kind: 'resolved' as const, id, namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north' } });
+const block = (id: string) => ({ kind: 'resolved' as const, id, namespace: id.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north' } });
 
 describe('special block visuals', () => {
   it.each([['minecraft:red_bed', 'beds'], ['minecraft:chest', 'chests'], ['minecraft:barrel', 'containers'], ['minecraft:oak_sign', 'signs'], ['minecraft:red_banner', 'banners'], ['minecraft:skeleton_skull', 'heads-skulls'], ['minecraft:blue_shulker_box', 'shulker-boxes']])('creates a static visual for %s', (id, family) => {
@@ -13,6 +13,12 @@ describe('special block visuals', () => {
     expect(adapter?.create(block(id)).children.length).toBeGreaterThan(0);
   });
   it('does not claim generic JSON blocks as special', () => expect(registry.resolve(block('minecraft:stone'))).toBeUndefined());
+
+  it('keeps Vanilla special adapters namespace-isolated', () => {
+    for (const id of ['examplemod:barrel', 'examplemod:red_shulker_box', 'examplemod:oak_sign', 'examplemod:oak_bed', 'examplemod:dragon_head', 'examplemod:decorated_pot', 'examplemod:conduit']) {
+      expect(registry.resolve(block(id))).toBeUndefined();
+    }
+  });
   it('uses the exact Decorated Pot adapter and independent side resources', () => {
     const adapter = registry.resolve({ ...block('minecraft:decorated_pot'), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:angler_pottery_sherd', left: 'minecraft:flow_pottery_sherd', right: 'minecraft:skull_pottery_sherd', front: 'minecraft:guster_pottery_sherd' } } });
     expect(adapter?.family).toBe('decorated-pots'); expect(adapter?.overrideGeneric).toBe(true);

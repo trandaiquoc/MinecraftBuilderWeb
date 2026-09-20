@@ -12,7 +12,7 @@ describe('VanillaBehaviorRegistry', () => {
       ['data/minecraft/tags/block/stairs.json', { values: ['minecraft:oak_stairs'] }],
     ]);
     const registry = new VanillaBehaviorRegistry({ readJson: (path) => resources.get(path) });
-    expect(registry.enrich(baseRecord('minecraft:spruce_fence'))).toMatchObject({ behaviorSupport: 'full', behavior: { family: 'fence', connectionGroup: 'wood-fence' }, defaultState: { north: 'false' } });
+    expect(registry.enrich(baseRecord('minecraft:spruce_fence'))).toMatchObject({ behaviorSupport: 'partial', behavior: { family: 'fence', connectionGroup: 'wood-fence' }, defaultState: { north: 'false' } });
     expect(registry.enrich(baseRecord('minecraft:nether_brick_fence'))).toMatchObject({ behavior: { family: 'fence', connectionGroup: 'nether-fence' } });
     expect(registry.enrich(baseRecord('minecraft:oak_stairs'))).toMatchObject({ behaviorSupport: 'full', behavior: { kind: 'stairs' }, defaultState: { shape: 'straight' } });
     expect(registry.enrich(baseRecord('example:oak_fence'))).toEqual(baseRecord('example:oak_fence'));
@@ -20,7 +20,7 @@ describe('VanillaBehaviorRegistry', () => {
 
   it('uses verified representative metadata when a legacy normalized cache has no block tags', () => {
     const registry = new VanillaBehaviorRegistry();
-    expect(registry.enrich(baseRecord('minecraft:oak_fence'))).toMatchObject({ behaviorSupport: 'full', behavior: { kind: 'horizontal-connect', family: 'fence' } });
+    expect(registry.enrich(baseRecord('minecraft:oak_fence'))).toMatchObject({ behaviorSupport: 'partial', behavior: { kind: 'horizontal-connect', family: 'fence' } });
     expect(registry.enrich(baseRecord('minecraft:oak_door'))).toMatchObject({ behaviorSupport: 'partial', behavior: { kind: 'double-height' }, defaultState: { half: 'lower' } });
     expect(registry.enrich(baseRecord('minecraft:dandelion'))).toMatchObject({ behaviorSupport: 'partial', behavior: { kind: 'floor-supported' } });
   });

@@ -1443,3 +1443,15 @@ Recent Projects also exposes a separate per-row delete action. It deletes by
 `ProjectSummary.id` without opening the full document first; deleting the
 remembered active project reuses the autosave-safe lifecycle and clears the
 remembered project pointer. Cancelled or failed deletion leaves the row intact.
+
+# 62. Pre-Prompt-13 correctness gate hardening
+
+Content source registration now rejects Minecraft versions other than 1.21.1,
+and source-catalog diagnostics are rebuilt from current contributions instead
+of accumulating stale entries. Active blocks retain known `sourceId` metadata;
+Quick Bar activation refuses unavailable source entries without deleting the
+saved reference. Decoration source selection uses the canonical `vanilla` ID.
+
+Vanilla horizontal connection behavior remains intentionally Partial because
+the editor does not yet carry complete Java voxel-shape/sturdiness metadata for
+all solid neighbors; verified family connections still refresh as before.

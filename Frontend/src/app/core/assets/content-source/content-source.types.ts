@@ -2,6 +2,7 @@ import type { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
 
 export type ContentSourceKind = 'vanilla' | 'external';
+export const CONTENT_SOURCE_MINECRAFT_VERSION = '1.21.1' as const;
 
 export interface ContentSourceDescriptor {
   readonly id: string;
