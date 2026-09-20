@@ -10,7 +10,7 @@
       <app-painting-picker [compact]="true" [selectedId]="selected.variantId ?? ''" (selectionChange)="selectVariant($event)" />
       <details class="disclosure">
         <summary>{{ i18n.t('placementInfo') }}</summary>
-        <dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ facingLabel(selected.facing) }}</dd></div><div><dt>{{ i18n.t('variant') }}</dt><dd>{{ paintingLabel(selected.variantId) }} <small class="technical-value">({{ selected.variantId }})</small></dd></div></dl>
+        <dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ facingLabel(selected.facing) }}</dd></div><div><dt>{{ i18n.t('variant') }}</dt><dd>{{ paintingLabel(selected.variantId) }} <small>({{ selected.variantId }})</small></dd></div></dl>
       </details>
     } @else {
       <label class="field-label">{{ i18n.t('frameItem') }}<app-searchable-dropdown [options]="itemOptions()" [selectedId]="selected.item?.id ?? ''" [placeholder]="i18n.t('searchItems')" [emptyLabel]="i18n.t('emptyFrame')" [ariaLabel]="i18n.t('frameItem')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" (selectionChange)="selectItem($event)" /></label>

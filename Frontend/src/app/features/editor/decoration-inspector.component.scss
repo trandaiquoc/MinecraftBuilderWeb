@@ -15,7 +15,6 @@
 .disclosure dl div { display: flex; justify-content: space-between; gap: .5rem; min-width: 0; }
 .disclosure dt { color: var(--text-muted); font-size: .7rem; }
 .disclosure dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: .74rem; }
-.technical-value { font-family: var(--font-mono); font-size: .72rem; }
 .frame-control { display: flex; align-items: center; justify-content: space-between; gap: .4rem; min-width: 0; }
 .frame-control > span:first-child { display: grid; gap: .15rem; min-width: 0; }
 .frame-control strong { font-size: .75rem; }

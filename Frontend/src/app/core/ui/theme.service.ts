@@ -44,7 +44,6 @@ export class ThemeService {
     this.document.documentElement.dataset['font'] = font;
     this.document.documentElement.style.setProperty('--font-ui', font === 'minecraft-style' ? "'VT323', 'Geist Variable'" : "'Geist Variable'");
     this.document.documentElement.style.setProperty('--font-readable', "'Geist Variable'");
-    this.document.documentElement.style.setProperty('--font-mono', 'ui-monospace, SFMono-Regular, Consolas, monospace');
     this.document.documentElement.style.setProperty('--editor-viewport-bg', editorBackground === 'light' ? '#e3e8ee' : '#0c1015');
   }
 }

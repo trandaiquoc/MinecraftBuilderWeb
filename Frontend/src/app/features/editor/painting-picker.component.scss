@@ -17,5 +17,9 @@
 .change-painting:hover { background: var(--surface-hover); }
 .painting-card.selected small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
 
+/* Keep pixel-art previews readable when the resizable sidebar grows. */
+.painting-card { grid-template-rows: 4.5rem auto; }
+.painting-image { width: min(100%, 8rem); height: 4.5rem; justify-self: center; }
+
 :host-context([data-font='minecraft-style']) .painting-card-meta strong { font-size: .88rem; line-height: 1.05; font-weight: 400; }
 :host-context([data-font='minecraft-style']) .painting-card-meta small { font-size: .74rem; line-height: 1.05; }
