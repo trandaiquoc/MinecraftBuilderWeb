@@ -24,8 +24,12 @@
       @else if (loadStatus() === 'error') { <p class="error" role="alert">{{ i18n.t('projectListError') }}</p><button type="button" (click)="retryLoad()">{{ i18n.t('retry') }}</button> }
       @else if (projects().length === 0) { <p class="muted">{{ i18n.t('noProjects') }}</p> }
       @else { @for (project of projects(); track project.id) {
-        <button class="project-row" [class.opening]="openingId() === project.id" type="button" [disabled]="!!openingId() || creating()" (click)="openProject(project.id)"><span>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</span><small>{{ project.updatedAt | date:'short' }}</small><strong>{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</strong></button>
+        <div class="project-row" [class.opening]="openingId() === project.id" [class.deleting]="deletingProjectIds().has(project.id)">
+          <button class="project-open-action" type="button" [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)" (click)="openProject(project.id)"><span>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</span><small>{{ project.updatedAt | date:'short' }}</small><strong>{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</strong></button>
+          <button class="project-delete-action" type="button" uiTooltip="{{ i18n.t('deleteProjectAriaLabel').replace('{name}', project.name) }}" [disabled]="deletingProjectIds().has(project.id)" [attr.aria-label]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" [attr.title]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" (click)="deleteProject(project, $event)"><svg lucideX aria-hidden="true"></svg></button>
+        </div>
       } }
+      @if (deleteError()) { <p class="error recent-project-error" role="alert">{{ deleteError() }}</p> }
     </section>
   </section>
 </main>

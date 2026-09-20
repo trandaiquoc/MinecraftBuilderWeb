@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../domain/project.types';
 import { ProjectStore } from '../persistence/project-store/project-store.port';
-import { WorkspaceStateService } from './workspace-state.service';
+import { ACTIVE_PROJECT_KEY, WorkspaceStateService } from './workspace-state.service';
 
 const project = (id: string, updatedAt: string): ProjectDocument => ({
   schemaVersion: 2,
@@ -51,6 +51,17 @@ describe('WorkspaceStateService', () => {
     await workspace.restore(store, storage);
     expect(workspace.project()?.id).toBe('retry');
     expect(attempts).toBe(2);
+  });
+
+  it('clears only the remembered project requested by direct deletion', () => {
+    const values = new Map([[ACTIVE_PROJECT_KEY, 'project-a']]);
+    const storage = { getItem: (key: string) => values.get(key) ?? null, removeItem: (key: string) => values.delete(key) };
+    const workspace = new WorkspaceStateService();
+    expect(workspace.isRememberedProject('project-b', storage)).toBe(false);
+    workspace.clearRememberedProject('project-b', storage);
+    expect(values.get(ACTIVE_PROJECT_KEY)).toBe('project-a');
+    workspace.clearRememberedProject('project-a', storage);
+    expect(values.has(ACTIVE_PROJECT_KEY)).toBe(false);
   });
 });
 

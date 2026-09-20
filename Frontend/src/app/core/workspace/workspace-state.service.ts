@@ -28,6 +28,14 @@ export class WorkspaceStateService {
     try { storage?.removeItem(ACTIVE_PROJECT_KEY); } catch { /* In-memory workspace is still cleared. */ }
   }
 
+  isRememberedProject(id: string, storage: Pick<Storage, 'getItem'> | undefined = browserStorage()): boolean {
+    try { return storage?.getItem(ACTIVE_PROJECT_KEY) === id; } catch { return false; }
+  }
+
+  clearRememberedProject(id: string, storage: Pick<Storage, 'getItem' | 'removeItem'> | undefined = browserStorage()): void {
+    try { if (storage?.getItem(ACTIVE_PROJECT_KEY) === id) storage.removeItem(ACTIVE_PROJECT_KEY); } catch { /* The project list remains usable when browser storage is unavailable. */ }
+  }
+
   restore(store: ProjectStore, storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = browserStorage()): Promise<ProjectDocument | undefined> {
     if (this.project()) return Promise.resolve(this.project());
     if (this.restorePromise) return this.restorePromise;

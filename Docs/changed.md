@@ -1438,3 +1438,8 @@ Project deletion is centralized in File > Delete Project. The operation drains
 autosave, atomically removes the project, summary, and recovery snapshot, clears
 the active session, and returns to the project screen. A failed delete leaves
 the current project active.
+
+Recent Projects also exposes a separate per-row delete action. It deletes by
+`ProjectSummary.id` without opening the full document first; deleting the
+remembered active project reuses the autosave-safe lifecycle and clears the
+remembered project pointer. Cancelled or failed deletion leaves the row intact.

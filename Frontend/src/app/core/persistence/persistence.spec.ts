@@ -140,6 +140,18 @@ describe('local persistence helpers', () => {
     expect(await store.open(project.id)).toBeDefined();
   });
 
+  it('deletes by summary id without opening the full project document', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    let opens = 0;
+    const openStoredProject = store.open.bind(store);
+    store.open = async (id: string) => { opens += 1; return openStoredProject(id); };
+    const persistence = new ProjectPersistenceService(store, 0);
+
+    await persistence.delete(project.id);
+    expect(opens).toBe(0);
+    expect(await openStoredProject(project.id)).toBeUndefined();
+  });
+
   it('cannot resurrect a deleted project when a later destroy flush runs', async () => {
     const store = new MemoryProjectStore(); await store.create(project);
     const persistence = new ProjectPersistenceService(store, 25);

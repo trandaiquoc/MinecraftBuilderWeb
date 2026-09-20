@@ -9,10 +9,13 @@ import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
+import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
+import { LucideX } from '@lucide/angular';
+import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
 @Component({
   selector: 'app-project-screen',
-  imports: [DatePipe],
+  imports: [DatePipe, LucideX, UiTooltipDirective],
   templateUrl: './project-screen.component.html',
   styleUrl: './project-screen.component.scss',
 })
@@ -32,6 +35,9 @@ export class ProjectScreenComponent {
   protected readonly loadStatus = signal<'loading' | 'ready' | 'error'>('loading');
   protected readonly creating = signal(false);
   protected readonly openingId = signal<string | undefined>(undefined);
+  protected readonly deletingProjectIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly deleteError = signal<string | undefined>(undefined);
+  private readonly autosave = inject(ProjectAutosaveService);
   private persistence?: ProjectPersistenceService;
 
   constructor() {
@@ -76,6 +82,40 @@ export class ProjectScreenComponent {
     finally { this.openingId.set(undefined); }
   }
 
+  protected async deleteProject(summary: ProjectSummary, event: Event): Promise<void> {
+    event.stopPropagation();
+    if (this.creating() || this.openingId() || !canDeleteProject(this.deletingProjectIds(), summary.id)) return;
+    this.deletingProjectIds.update((ids) => new Set(ids).add(summary.id));
+    this.deleteError.set(undefined);
+    const isCurrentProject = this.workspace.project()?.id === summary.id;
+    const isRememberedProject = this.workspace.isRememberedProject(summary.id);
+    try {
+      const confirmed = await this.dialogs.confirm({
+        title: this.i18n.t('deleteProjectTitle'),
+        text: this.i18n.t('deleteProjectText').replace('{name}', summary.name),
+        confirmButtonText: this.i18n.t('deleteProjectConfirm'),
+        cancelButtonText: this.i18n.t('cancel'),
+        icon: 'warning',
+        destructive: true,
+      });
+      if (!confirmed) return;
+
+      if (isCurrentProject) await this.autosave.deleteProject(summary.id);
+      else await this.getPersistence().delete(summary.id);
+      this.projects.update((items) => items.filter((item) => item.id !== summary.id));
+      if (isCurrentProject) {
+        this.session.clearActiveProject();
+        this.workspace.deactivate();
+      } else if (isRememberedProject) {
+        this.workspace.clearRememberedProject(summary.id);
+      }
+    } catch {
+      this.deleteError.set(this.i18n.t('deleteProjectError'));
+    } finally {
+      this.deletingProjectIds.update((ids) => { const next = new Set(ids); next.delete(summary.id); return next; });
+    }
+  }
+
   protected async retryLoad(): Promise<void> { await this.loadProjects(); }
   protected validDimensions(): boolean { return [this.sizeX(), this.sizeY(), this.sizeZ()].every((value) => /^\d+$/.test(value.trim()) && Number(value) >= 1); }
 
@@ -93,6 +133,10 @@ export class ProjectScreenComponent {
 export function projectCreationGuard(creating: boolean, opening: boolean, dimensionsValid: boolean): 'busy' | 'invalid' | undefined {
   if (creating || opening) return 'busy';
   return dimensionsValid ? undefined : 'invalid';
+}
+
+export function canDeleteProject(deletingProjectIds: ReadonlySet<string>, projectId: string): boolean {
+  return !deletingProjectIds.has(projectId);
 }
 
 function createId(): string {
