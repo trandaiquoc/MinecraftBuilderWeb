@@ -8,6 +8,16 @@ import { BlockLibraryService } from '../../blocks/catalog/block-library.service'
 export interface QuickBlockEntry extends ActiveBlock { readonly itemId: string; readonly displayName: string; }
 const slots = 10;
 
+/** Canonical item identity shared by Block Browser, Pick Block, and Quick Bar. */
+export function activeItemId(active: Pick<ActiveBlock, 'id' | 'itemId'> | undefined): string | undefined {
+  return active ? canonicalPlaceableItemId(active.itemId ?? active.id) : undefined;
+}
+
+export function quickEntryMatchesActive(entry: Pick<QuickBlockEntry, 'id' | 'itemId' | 'state'>, active: Pick<ActiveBlock, 'id' | 'itemId' | 'state'> | undefined, available = true): boolean {
+  if (!active || !available) return false;
+  return activeItemId(active) === canonicalPlaceableItemId(entry.itemId || entry.id) && stateKey(active.state) === stateKey(entry.state);
+}
+
 @Injectable({ providedIn: 'root' })
 export class QuickBlockBarService {
   private readonly workspace = inject(WorkspaceStateService);
@@ -41,6 +51,7 @@ export class QuickBlockBarService {
 }
 
 function key(projectId: string): string { return `minecraft-builder.quick-blocks.${projectId}`; }
-function stateKey(state: Readonly<Record<string, string>>): string { return Object.entries(state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(','); }
+export function quickStateKey(state: Readonly<Record<string, string>>): string { return Object.entries(state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(','); }
 function load(projectId: string): readonly QuickBlockEntry[] { try { const raw = localStorage.getItem(key(projectId)); const value: unknown = raw ? JSON.parse(raw) : []; return Array.isArray(value) ? value.filter(valid).map((entry) => { const itemId = canonicalPlaceableItemId(entry.itemId ?? entry.id); return { ...entry, id: itemId, itemId }; }).slice(0, slots) : []; } catch { return []; } }
+function stateKey(state: Readonly<Record<string, string>>): string { return quickStateKey(state); }
 function valid(value: unknown): value is QuickBlockEntry { if (!value || typeof value !== 'object') return false; const entry = value as Partial<QuickBlockEntry>; return typeof entry.id === 'string' && typeof entry.displayName === 'string' && !!entry.state && typeof entry.state === 'object'; }

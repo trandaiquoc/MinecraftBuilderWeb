@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject } from '@angular/core';
-import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
+import { QuickBlockBarService, quickEntryMatchesActive, quickStateKey } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-assets.service';
@@ -13,7 +13,5 @@ export class QuickBlockBarComponent {
   private readonly library = inject(BlockLibraryService);
   protected readonly assets = inject(VanillaAssetsService);
   private readonly thumbnailSync = effect(() => { this.assets.generation(); for (const entry of this.quick.entries()) { const item = this.library.getItem(entry.itemId); if (item) this.assets.prepareItemThumbnail({ ...item, defaultState: entry.state }); else this.assets.prepareThumbnail(entry.itemId, entry.state); } });
-  protected readonly entries = computed(() => { const active = this.quick.active(); return this.quick.entries().map((entry) => { const state = stateKey(entry.state); return { ...entry, key: `${entry.itemId}|${state}`, thumbnail: this.assets.thumbnailUrl(entry.itemId, entry.state), active: active?.itemId === entry.itemId && state === stateKey(active.state) }; }); });
+  protected readonly entries = computed(() => { const active = this.quick.active(); return this.quick.entries().map((entry) => { const state = quickStateKey(entry.state); return { ...entry, key: `${entry.itemId}|${state}`, thumbnail: this.assets.thumbnailUrl(entry.itemId, entry.state), active: quickEntryMatchesActive(entry, active, !!this.library.getItem(entry.itemId)) }; }); });
 }
-
-function stateKey(state: Readonly<Record<string, string>>): string { return Object.entries(state).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join(','); }
