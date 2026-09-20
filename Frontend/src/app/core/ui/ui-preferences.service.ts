@@ -6,10 +6,12 @@ export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
 export type BaseTheme = 'dark' | 'light';
 export type UiFont = 'geist' | 'minecraft-style';
+export type PersistedEditorMode = '3d' | 'y-layer';
 
 export interface UiPreferences {
   readonly version: 1;
   readonly locale: UiLocale;
+  readonly editorMode: PersistedEditorMode;
   readonly appearance: {
     readonly preset: ThemePreset;
     readonly base: BaseTheme;
@@ -44,6 +46,7 @@ const LEGACY_LAYOUT_KEY = 'minecraft-builder.editor-layout';
 const defaults: UiPreferences = {
   version: 1,
   locale: 'en',
+  editorMode: '3d',
   appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', editorBackground: 'dark' },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,
@@ -107,6 +110,7 @@ function normalize(value: unknown): UiPreferences {
     ...defaults,
     ...candidate,
     locale: isLocale(candidate.locale) ? candidate.locale : defaults.locale,
+    editorMode: isEditorMode(candidate.editorMode) ? candidate.editorMode : defaults.editorMode,
     appearance: {
       preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset) ? (appearance as Partial<UiPreferences['appearance']>).preset! : defaults.appearance.preset,
       base: isBase((appearance as Partial<UiPreferences['appearance']>).base) ? (appearance as Partial<UiPreferences['appearance']>).base! : defaults.appearance.base,
@@ -141,6 +145,7 @@ function isLocale(value: unknown): value is UiLocale { return value === 'en' || 
 function isPreset(value: unknown): value is ThemePreset { return value === 'dark' || value === 'light' || value === 'craft' || value === 'custom'; }
 function isBase(value: unknown): value is BaseTheme { return value === 'dark' || value === 'light'; }
 function isFont(value: unknown): value is UiFont { return value === 'geist' || value === 'minecraft-style'; }
+function isEditorMode(value: unknown): value is PersistedEditorMode { return value === '3d' || value === 'y-layer'; }
 
 function normalizeLayout(value: unknown): UiPreferences['layout'] {
   if (!value || typeof value !== 'object') return defaults.layout;

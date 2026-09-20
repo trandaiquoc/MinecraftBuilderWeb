@@ -1,5 +1,5 @@
 <div class="tool-dialog-backdrop" role="presentation" (click)="$event.target === $event.currentTarget && closed.emit()">
-  <section class="tool-dialog diagnostics-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('diagnosticsTitle')">
+  <section class="tool-dialog diagnostics-dialog" role="dialog" aria-modal="true" tabindex="-1" autofocus (keydown)="trapFocus($event)" [attr.aria-label]="i18n.t('diagnosticsTitle')">
     <header><h2>{{ i18n.t('diagnosticsTitle') }}</h2><button type="button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="closed.emit()"><svg lucideX aria-hidden="true"></svg></button></header>
     <div class="tool-dialog-body">
       <section class="diagnostic-summary"><strong>{{ issues().length }}</strong><span>{{ i18n.t('diagnosticsTitle') }}</span></section>

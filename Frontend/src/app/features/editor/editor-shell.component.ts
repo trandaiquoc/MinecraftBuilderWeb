@@ -90,6 +90,9 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly controlsHelpOpen = signal(false);
   protected readonly assetManagerOpen = signal(false);
   protected readonly diagnosticsOpen = signal(false);
+  protected readonly leftDrawerOpen = signal(false);
+  protected readonly rightDrawerOpen = signal(false);
+  private drawerOpener?: HTMLElement;
   private readonly editorBody = viewChild<ElementRef<HTMLElement>>('editorBody');
   private readonly leftDragWidth = signal<number | undefined>(undefined);
   private readonly rightDragWidth = signal<number | undefined>(undefined);
@@ -151,6 +154,14 @@ export class EditorShellComponent implements OnDestroy {
   protected createGroup(): void { if (this.groups.create(this.newGroupName().trim())) this.newGroupName.set(''); }
   protected updateGroupSearch(event: Event): void { this.groupSearch.set((event.target as HTMLInputElement).value); }
   protected clearGroupSearch(): void { this.groupSearch.set(''); }
+  protected handleSidebarTabKeydown(event: KeyboardEvent, index: number): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    const tabs = ['blocks', 'decorations', 'groups'] as const;
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    this.leftSidebarTab.set(tabs[next]);
+    document.getElementById(`sidebar-tab-${tabs[next]}`)?.focus();
+  }
   protected renameGroup(event: Event): void { this.groups.renameActive((event.target as HTMLInputElement).value); }
   protected setMoveOffset(axis: 'x' | 'y' | 'z', event: Event): void { this.groups.setMoveOffset(axis, Number((event.target as HTMLInputElement).value)); }
   protected setMoveStep(event: Event): void { this.groups.setMoveStep(Number((event.target as HTMLInputElement).value)); }
@@ -165,6 +176,22 @@ export class EditorShellComponent implements OnDestroy {
     this.activeMenu.set(undefined);
     this.cameraMenuOpen.update((open) => !open);
   }
+  protected handleAppMenuKeydown(event: KeyboardEvent): void {
+    const trigger = event.target instanceof HTMLElement ? event.target.closest('.app-menu-trigger') : null;
+    if (event.key === 'Escape' && (trigger || this.activeMenu())) {
+      event.preventDefault();
+      const activeTrigger = (trigger as HTMLElement | null) ?? document.querySelector<HTMLElement>('.app-menu-trigger.active');
+      this.closeMenus();
+      activeTrigger?.focus();
+      return;
+    }
+    if (!this.activeMenu() || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
+    const entry = (trigger as HTMLElement | null)?.closest('.menu-entry') ?? document.querySelector('.menu-popover')?.parentElement;
+    const items = entry?.querySelectorAll<HTMLButtonElement>('.menu-popover button:not(:disabled)');
+    if (!items?.length) return;
+    event.preventDefault();
+    (event.key === 'ArrowUp' ? items[items.length - 1] : items[0]).focus();
+  }
   protected closeMenus(): void { this.activeMenu.set(undefined); this.cameraMenuOpen.set(false); }
   protected openSettingsDialog(): void { this.closeMenus(); this.settingsDialogOpen.set(true); }
   protected openAssetManager(): void { this.closeMenus(); this.assetManagerOpen.set(true); }
@@ -176,7 +203,16 @@ export class EditorShellComponent implements OnDestroy {
   protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void { this.theme.setPreset(theme); this.closeMenus(); }
   protected chooseFont(font: 'geist' | 'minecraft-style'): void { this.theme.setFont(font); this.closeMenus(); }
   protected chooseEditorBackground(background: 'dark' | 'light'): void { this.theme.setEditorBackground(background); this.closeMenus(); }
-  protected setEditorMode(mode: '3d' | 'y-layer'): void { this.mode.mode.set(mode); this.closeMenus(); }
+  protected setEditorMode(mode: '3d' | 'y-layer'): void { this.mode.setMode(mode); this.closeMenus(); }
+  protected openDrawer(side: 'left' | 'right', event: Event): void {
+    this.drawerOpener = event.currentTarget as HTMLElement;
+    if (side === 'left') { this.leftDrawerOpen.set(true); this.rightDrawerOpen.set(false); }
+    else { this.rightDrawerOpen.set(true); this.leftDrawerOpen.set(false); }
+  }
+  protected closeDrawers(returnFocus = true): void {
+    this.leftDrawerOpen.set(false); this.rightDrawerOpen.set(false);
+    if (returnFocus) { const opener = this.drawerOpener; this.drawerOpener = undefined; opener?.focus(); }
+  }
   protected async navigateToProjects(): Promise<void> { this.closeMenus(); await this.autosave.flush().catch(() => undefined); await this.router.navigateByUrl('/'); }
   protected async saveProject(): Promise<void> {
     this.closeMenus();
@@ -319,7 +355,10 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
     if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen()) return;
-    if (event.key === 'Escape') { this.closeMenus(); return; }
+    if (event.key === 'Escape') {
+      if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
+      this.closeMenus(); return;
+    }
     const action = this.keyboard.actionForEvent(event); if (!action) return;
     const handled = this.executeKeyboardAction(action);
     if (handled) event.preventDefault();
@@ -333,8 +372,8 @@ export class EditorShellComponent implements OnDestroy {
     if (action === 'delete-selection') return this.editor.deleteSelection();
     if (action === 'tool-place') { this.tool.active.set('place'); return true; }
     if (action === 'tool-select') { this.tool.active.set('select'); return true; }
-    if (action === 'mode-3d') { this.mode.mode.set('3d'); return true; }
-    if (action === 'mode-y-layer') { this.mode.mode.set('y-layer'); return true; }
+    if (action === 'mode-3d') { this.mode.setMode('3d'); return true; }
+    if (action === 'mode-y-layer') { this.mode.setMode('y-layer'); return true; }
     if (action === 'fit-structure') { this.fitStructure(); return true; }
     if (action === 'focus-selection') { if (!this.focusSelectionAvailable()) return false; this.focusSelection(); return true; }
     if (action === 'save-project') { void this.saveProject(); return true; }

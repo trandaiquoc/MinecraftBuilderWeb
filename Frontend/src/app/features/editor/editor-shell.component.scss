@@ -62,3 +62,22 @@
 .group-move-toolbar { border-color: var(--accent); font-family: var(--font-ui); }
 @media (max-width: 1100px) { .camera-presets { display: none; } } @media (max-width: 850px) { .editor-body { grid-template-columns: 180px minmax(0, 1fr); } .right-panel { display: none; } } @media (max-width: 560px) { .editor-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(300px, 1fr); } .left-panel { display: none; } }
 .history-actions svg, .camera-actions svg { width: .9rem; height: .9rem; }.group-search-clear svg, .group-move-close svg { width: .85rem; height: .85rem; }
+
+.drawer-close, .responsive-drawer-actions, .drawer-backdrop { display: none; }
+@media (max-width: 850px) {
+  .editor-body { grid-template-columns: minmax(0, 1fr) !important; }
+  .sidebar-resize-handle { display: none; }
+  .panel.left-panel, .panel.right-panel { position: absolute; top: 0; bottom: 0; z-index: 12; display: flex; width: min(360px, calc(100vw - 2.5rem)); box-sizing: border-box; max-width: calc(100vw - 2.5rem); transition: transform .16s ease, visibility .16s ease; box-shadow: var(--shadow-dialog); }
+  .panel.left-panel { left: 0; transform: translateX(-105%); }
+  .panel.right-panel { right: 0; transform: translateX(105%); }
+  .panel.left-panel.drawer-open, .panel.right-panel.drawer-open { transform: translateX(0); visibility: visible; }
+  .panel.left-panel:not(.drawer-open), .panel.right-panel:not(.drawer-open) { visibility: hidden; pointer-events: none; }
+  .drawer-close { display: block; align-self: flex-end; flex: 0 0 auto; margin: .45rem .55rem 0 auto; border: 0; border-radius: var(--radius-sm); padding: .38rem .55rem; background: var(--control-normal); color: var(--text); cursor: pointer; }
+  .drawer-backdrop { position: absolute; inset: 0; z-index: 10; display: block; width: 100%; height: 100%; border: 0; background: rgb(0 0 0 / .38); cursor: default; }
+  .responsive-drawer-actions { position: absolute; top: .65rem; left: .65rem; right: .65rem; z-index: 11; display: flex; justify-content: space-between; pointer-events: none; }
+  .responsive-drawer-actions button { pointer-events: auto; min-height: 2.3rem; border: 0; border-radius: var(--radius-sm); padding: .45rem .65rem; background: var(--surface-raised); color: var(--text); box-shadow: var(--shadow-card); cursor: pointer; }
+  .responsive-drawer-actions button:last-child { margin-left: auto; }
+}
+@media (max-width: 560px) {
+  .panel.left-panel, .panel.right-panel { width: min(340px, calc(100vw - 1.25rem)); max-width: calc(100vw - 1.25rem); }
+}

@@ -3,13 +3,15 @@ import { LucideX } from '@lucide/angular';
 import { VanillaAssetsService } from '../../core/assets/vanilla-assets.service';
 import { I18nService } from '../../core/ui/i18n.service';
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
+import { trapDialogFocus } from '../../shared/dialog-focus';
 
-@Component({ selector: 'app-asset-manager-dialog', imports: [LucideX, UiTooltipDirective], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss' })
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideX, UiTooltipDirective], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closed.emit()' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(VanillaAssetsService);
   readonly closed = output<void>();
   protected readonly importing = signal(false);
+  protected trapFocus(event: KeyboardEvent): void { trapDialogFocus(event, event.currentTarget as HTMLElement); }
 
   protected openJarPicker(input: HTMLInputElement): void {
     if (this.importing() || this.assets.status() === 'importing') return;

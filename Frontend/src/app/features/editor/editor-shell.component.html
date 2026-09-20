@@ -3,11 +3,11 @@
   <header class="shell-header">
     <div class="app-menu-row">
       <a class="brand" routerLink="/">{{ i18n.t('appName') }}</a>
-      <nav class="app-menus" aria-label="Application menu">
+      <nav class="app-menus" aria-label="Application menu" (keydown)="handleAppMenuKeydown($event)">
         <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'file'" (click)="toggleAppMenu('file', $event)">{{ i18n.t('fileMenu') }}</button>@if (activeMenu() === 'file') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" (click)="navigateToProjects()">{{ i18n.t('newProjectMenu') }}</button><button type="button" (click)="navigateToProjects()">{{ i18n.t('openProjectMenu') }}</button><button type="button" (click)="saveProject()">{{ i18n.t('saveProjectMenu') }}</button><hr /><button type="button" (click)="triggerProjectImport(projectImportInput)">{{ i18n.t('importProjectPackage') }}</button><button type="button" (click)="exportProjectPackage()">{{ i18n.t('exportProjectPackage') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('structureNbtUnavailable')" (click)="showStructureExportUnavailable()">{{ i18n.t('exportStructureNbt') }}</button></div>}</div>
         <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'edit'" (click)="toggleAppMenu('edit', $event)">{{ i18n.t('editMenu') }}</button>@if (activeMenu() === 'edit') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" [disabled]="!history.canUndo()" (click)="undoEdit()">{{ i18n.t('undo') }}</button><button type="button" [disabled]="!history.canRedo()" (click)="redoEdit()">{{ i18n.t('redo') }}</button><hr /><button type="button" (click)="selectAll()">{{ i18n.t('selectAll') }}</button><button type="button" [disabled]="!logicalSelectionCount() && !selection.box()" (click)="clearSelection()">{{ i18n.t('clearSelection') }}</button><button type="button" [disabled]="!logicalSelectionCount() && !selection.box()" (click)="deleteSelection()">{{ i18n.t('deleteSelection') }}</button></div>}</div>
         <div class="menu-entry">
-          <button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'view'" (click)="toggleAppMenu('view', $event)">{{ i18n.t('viewMenu') }}</button>
+          <button type="button" class="app-menu-trigger" aria-haspopup="menu" [attr.aria-expanded]="activeMenu() === 'view'" [class.active]="activeMenu() === 'view'" (click)="toggleAppMenu('view', $event)">{{ i18n.t('viewMenu') }}</button>
         @if (activeMenu() === 'view') {
           <div class="menu-popover" (click)="$event.stopPropagation()">
             <button type="button" [class.active]="mode.mode() === '3d'" (click)="setEditorMode('3d')">{{ i18n.t('mode3d') }}</button>
@@ -68,12 +68,12 @@
     @if (layout.preferences().editorToolbarVisible) {
       <div class="editor-toolbar-row">
         <nav class="toolbar-group mode-switch" [attr.aria-label]="i18n.t('editorNavigation')">
-          <button type="button" [class.active]="mode.mode() === '3d'" (click)="mode.mode.set('3d')">
+          <button type="button" [class.active]="mode.mode() === '3d'" (click)="setEditorMode('3d')">
             {{ i18n.t('mode3d') }}</button
           ><button
             type="button"
             [class.active]="mode.mode() === 'y-layer'"
-            (click)="mode.mode.set('y-layer')"
+            (click)="setEditorMode('y-layer')"
           >
             {{ i18n.t('modeYLayer') }}
           </button>
@@ -150,24 +150,25 @@
       <div class="sidebar-resize-handle right-resize-handle" role="separator" tabindex="0" aria-orientation="vertical" [style.right.px]="effectiveSidebarWidth('right')" (pointerdown)="beginSidebarResize('right', $event)" (lostpointercapture)="endSidebarResize()" (keydown)="adjustSidebarWithKeyboard('right', $event)"></div>
     }
     @if (layout.preferences().leftSidebarVisible) {
-      <aside class="panel left-panel">
-        <div class="sidebar-tabs" role="tablist">
-          <button type="button" role="tab" [class.active]="leftSidebarTab() === 'blocks'" (click)="leftSidebarTab.set('blocks')">{{ i18n.t('blocksPanel') }}</button>
-          <button type="button" role="tab" [class.active]="leftSidebarTab() === 'decorations'" (click)="leftSidebarTab.set('decorations')">{{ i18n.t('decorationsPanel') }}</button>
-          <button type="button" role="tab" [class.active]="leftSidebarTab() === 'groups'" (click)="leftSidebarTab.set('groups')">{{ i18n.t('groupsPanel') }}</button>
+      <aside class="panel left-panel" [class.drawer-open]="leftDrawerOpen()">
+        <button type="button" class="drawer-close" (click)="closeDrawers()" [attr.aria-label]="i18n.t('closePanel')">{{ i18n.t('closePanel') }}</button>
+        <div class="sidebar-tabs" role="tablist" [attr.aria-label]="i18n.t('sidebarTabs')">
+          <button id="sidebar-tab-blocks" type="button" role="tab" [attr.aria-selected]="leftSidebarTab() === 'blocks'" [attr.aria-controls]="'sidebar-panel-blocks'" [class.active]="leftSidebarTab() === 'blocks'" (keydown)="handleSidebarTabKeydown($event, 0)" (click)="leftSidebarTab.set('blocks')">{{ i18n.t('blocksPanel') }}</button>
+          <button id="sidebar-tab-decorations" type="button" role="tab" [attr.aria-selected]="leftSidebarTab() === 'decorations'" [attr.aria-controls]="'sidebar-panel-decorations'" [class.active]="leftSidebarTab() === 'decorations'" (keydown)="handleSidebarTabKeydown($event, 1)" (click)="leftSidebarTab.set('decorations')">{{ i18n.t('decorationsPanel') }}</button>
+          <button id="sidebar-tab-groups" type="button" role="tab" [attr.aria-selected]="leftSidebarTab() === 'groups'" [attr.aria-controls]="'sidebar-panel-groups'" [class.active]="leftSidebarTab() === 'groups'" (keydown)="handleSidebarTabKeydown($event, 2)" (click)="leftSidebarTab.set('groups')">{{ i18n.t('groupsPanel') }}</button>
         </div>
         @if (leftSidebarTab() === 'blocks') {
-          <section class="sidebar-tab-content blocks-tab-content">
+          <section id="sidebar-panel-blocks" role="tabpanel" aria-labelledby="sidebar-tab-blocks" class="sidebar-tab-content blocks-tab-content">
             <app-block-browser (assetManagerRequested)="openAssetManager()"></app-block-browser>
           </section>
         }
         @if (leftSidebarTab() === 'decorations') {
-          <section class="sidebar-tab-content decorations-tab-content">
+          <section id="sidebar-panel-decorations" role="tabpanel" aria-labelledby="sidebar-tab-decorations" class="sidebar-tab-content decorations-tab-content">
             <app-decoration-browser (assetManagerRequested)="openAssetManager()"></app-decoration-browser>
           </section>
         }
         @if (leftSidebarTab() === 'groups') {
-        <section class="sidebar-tab-content groups-tab-content">
+        <section id="sidebar-panel-groups" role="tabpanel" aria-labelledby="sidebar-tab-groups" class="sidebar-tab-content groups-tab-content">
         <section class="groups-panel">
           <div class="group-create">
             <input
@@ -261,6 +262,11 @@
         }
       </aside>
     }
+    <div class="responsive-drawer-actions" aria-label="{{ i18n.t('sidebarControls') }}">
+      @if (layout.preferences().leftSidebarVisible) { <button type="button" (click)="openDrawer('left', $event)" [attr.aria-label]="i18n.t('openLeftSidebar')">{{ i18n.t('blocksPanel') }}</button> }
+      @if (layout.preferences().rightSidebarVisible) { <button type="button" (click)="openDrawer('right', $event)" [attr.aria-label]="i18n.t('openRightSidebar')">{{ i18n.t('selection') }}</button> }
+    </div>
+    @if (leftDrawerOpen() || rightDrawerOpen()) { <button type="button" class="drawer-backdrop" aria-label="{{ i18n.t('closePanel') }}" (click)="closeDrawers()"></button> }
     <main #viewportHost class="viewport" [attr.aria-label]="i18n.t('viewport')" (window:resize)="clampMovePanel()">
       @if (mode.mode() === '3d') {
         <app-viewport></app-viewport>
@@ -389,7 +395,8 @@
       }
     </main>
     @if (layout.preferences().rightSidebarVisible) {
-      <aside class="panel right-panel">
+      <aside class="panel right-panel" [class.drawer-open]="rightDrawerOpen()">
+        <button type="button" class="drawer-close" (click)="closeDrawers()" [attr.aria-label]="i18n.t('closePanel')">{{ i18n.t('closePanel') }}</button>
         <h2>{{ i18n.t('selection') }}</h2>
         @if (selectedDecoration(); as decoration) {
           <app-decoration-inspector></app-decoration-inspector>

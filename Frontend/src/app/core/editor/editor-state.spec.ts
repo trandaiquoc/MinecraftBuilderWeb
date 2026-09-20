@@ -4,6 +4,7 @@ import { ProjectDocument } from '../domain/project.types';
 import { WorkspaceStateService } from '../ui/workspace-state.service';
 import { EditorModeService } from './editor-mode.service';
 import { SelectionService } from './selection.service';
+import { UiPreferencesService } from '../ui/ui-preferences.service';
 
 describe('editor mode state', () => {
   it('does not replace project, Active Block, or selection when switching modes', () => {
@@ -45,5 +46,14 @@ describe('editor mode state', () => {
     selection.clearIf({ x: 4, y: 5, z: 6 });
     expect(selection.single()).toBeUndefined();
     expect(active.active()?.state).toEqual({ facing: 'north' });
+  });
+
+  it('persists the last editor mode through UI preferences', () => {
+    localStorage.removeItem('minecraft-builder.ui-preferences');
+    const preferences = new UiPreferencesService();
+    const mode = new EditorModeService(preferences);
+    mode.setMode('y-layer');
+    expect(new UiPreferencesService().preferences().editorMode).toBe('y-layer');
+    localStorage.removeItem('minecraft-builder.ui-preferences');
   });
 });

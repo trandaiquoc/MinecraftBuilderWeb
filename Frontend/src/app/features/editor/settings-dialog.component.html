@@ -1,5 +1,5 @@
 <div class="settings-backdrop" role="presentation" (click)="onBackdropClick($event)">
-  <section class="settings-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('settingsDialogTitle')" tabindex="-1">
+    <section class="settings-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('settingsDialogTitle')" tabindex="-1" autofocus (keydown)="trapFocus($event)">
     <header class="settings-dialog-header">
       <h2>{{ i18n.t('settingsDialogTitle') }}</h2>
       <button type="button" class="settings-close" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="requestClose()"><svg lucideX aria-hidden="true"></svg></button>

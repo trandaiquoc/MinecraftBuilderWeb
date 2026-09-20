@@ -6,11 +6,12 @@ import { BlockLibraryService } from '../../core/blocks/block-library.service';
 import { WorkspaceStateService } from '../../core/ui/workspace-state.service';
 import { I18nService } from '../../core/ui/i18n.service';
 import { UiTooltipDirective } from '../../shared/ui-tooltip.directive';
+import { trapDialogFocus } from '../../shared/dialog-focus';
 
 type DiagnosticSeverity = 'error' | 'warning' | 'info';
 interface ProjectIssue { readonly severity: DiagnosticSeverity; readonly title: string; readonly detail: string; readonly id?: string; }
 
-@Component({ selector: 'app-project-diagnostics-dialog', imports: [LucideX, UiTooltipDirective], templateUrl: './project-diagnostics-dialog.component.html', styleUrl: './project-diagnostics-dialog.component.scss' })
+@Component({ selector: 'app-project-diagnostics-dialog', imports: [LucideX, UiTooltipDirective], templateUrl: './project-diagnostics-dialog.component.html', styleUrl: './project-diagnostics-dialog.component.scss', host: { '(document:keydown.escape)': 'closed.emit()' } })
 export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   private readonly workspace = inject(WorkspaceStateService);
@@ -22,6 +23,7 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   protected readonly auditProgress = signal(0);
   protected readonly auditing = signal(false);
   private controller?: AbortController;
+  protected trapFocus(event: KeyboardEvent): void { trapDialogFocus(event, event.currentTarget as HTMLElement); }
   ngOnDestroy(): void { this.controller?.abort(); }
   protected readonly issues = computed<readonly ProjectIssue[]>(() => {
     const project = this.workspace.project();
