@@ -17,11 +17,13 @@ export class MemoryAssetResourceProvider implements AssetResourceProvider {
 export interface ModelTransform {
   readonly x: number;
   readonly y: number;
+  readonly z?: number;
   readonly uvlock: boolean;
 }
 
 export interface ResolvedFace {
   readonly texture: string;
+  readonly forceTranslucent?: boolean;
   readonly uv?: readonly [number, number, number, number];
   readonly rotation?: number;
   readonly cullface?: string;
@@ -40,6 +42,7 @@ export interface ResolvedElement {
   readonly to: readonly [number, number, number];
   readonly rotation?: ResolvedElementRotation;
   readonly shade?: boolean;
+  readonly shadeDirectionOverride?: string;
   readonly faces: Readonly<Record<string, ResolvedFace>>;
 }
 

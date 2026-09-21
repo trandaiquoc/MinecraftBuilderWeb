@@ -25,6 +25,15 @@ describe('Minecraft block model resolver', () => {
     expect(result.parts[0].elements[0].faces['north']).toEqual({ texture: 'minecraft:block/stone', uv: [0, 0, 16, 16], rotation: 90, cullface: 'north', tintindex: 2 });
   });
 
+  it('supports structured sprite texture entries and configured z rotation', () => {
+    const result = resolver({
+      'assets/minecraft/blockstates/test.json': { variants: { '': { model: 'minecraft:block/test', z: 90 } } },
+      'assets/minecraft/models/block/test.json': { textures: { all: { sprite: 'minecraft:block/glass', force_translucent: true } }, elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: { up: { texture: '#all' } } }] },
+    }).resolve('minecraft:test');
+    expect(result.parts[0].transform.z).toBe(90);
+    expect(result.parts[0].elements[0].faces['up']).toMatchObject({ texture: 'minecraft:block/glass', forceTranslucent: true });
+  });
+
   it('keeps variant subset matching and preserves raw element coordinates/reversed UV', () => {
     const result = resolver({
       'assets/minecraft/blockstates/test.json': { __comment: 'ignored metadata', variants: { 'facing=north,half=bottom': { model: 'minecraft:block/test' } } },

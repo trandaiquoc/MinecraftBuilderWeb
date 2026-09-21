@@ -618,3 +618,12 @@ invalidates older bundles so a selected version is rebuilt instead of appearing
 ready with incomplete item evidence. BlockCatalog and PlaceableItem catalog
 remain separate: internal world blocks are preserved for rendering and import,
 while palette entries require item evidence or a verified logical rule.
+
+## Generic render normalization
+
+Blockstate-derived default values are independent from behavior compatibility,
+so ordinary target blocks remain renderable even when placement behavior is not
+verified. Texture maps accept legacy strings and structured sprite values;
+`force_translucent` is preserved as a render hint. Configured model x/y/z
+rotations share one representation, and element shade-direction metadata is
+retained for future lighting support.

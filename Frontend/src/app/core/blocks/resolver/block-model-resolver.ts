@@ -4,7 +4,7 @@ import { AssetResourceProvider, BlockStateRotationResult, MemoryAssetResourcePro
 
 interface ModelDocument { parent?: unknown; textures?: unknown; elements?: unknown; ambientocclusion?: unknown; }
 interface BlockStateDocument { variants?: unknown; multipart?: unknown; }
-interface ConfiguredModel { model: string; x?: number; y?: number; uvlock?: boolean; weight?: number; }
+interface ConfiguredModel { model: string; x?: number; y?: number; z?: number; uvlock?: boolean; weight?: number; }
 
 export class BlockModelResolver {
   constructor(private readonly provider: AssetResourceProvider) {}
@@ -23,8 +23,8 @@ export class BlockModelResolver {
     for (const configured of selected) {
       const model = this.resolveModel(configured.model, diagnostics, new Set(), modelResources, parentResources);
       if (!model) continue;
-      const textures = resolveTextures(model.textures, diagnostics, configured.model);
-      parts.push({ model: configured.model, weight: configured.weight ?? 1, transform: { x: configured.x ?? 0, y: configured.y ?? 0, uvlock: configured.uvlock ?? false }, elements: parseElements(model.elements, textures, diagnostics, configured.model), textures, ambientOcclusion: typeof model.ambientocclusion === 'boolean' ? model.ambientocclusion : undefined });
+      const textureMap = resolveTextures(model.textures, diagnostics, configured.model);
+      parts.push({ model: configured.model, weight: configured.weight ?? 1, transform: { x: configured.x ?? 0, y: configured.y ?? 0, ...(configured.z ? { z: configured.z } : {}), uvlock: configured.uvlock ?? false }, elements: parseElements(model.elements, textureMap.values, textureMap.hints, diagnostics, configured.model), textures: textureMap.values, ambientOcclusion: typeof model.ambientocclusion === 'boolean' ? model.ambientocclusion : undefined });
     }
     const support: BlockSupportLevel = parts.length && !diagnostics.some((item) => item.code === 'missing-parent' || item.code === 'parent-cycle' || item.code === 'missing-model' || item.code === 'missing-texture' || item.code === 'malformed-model' || item.code === 'unsupported-model-behavior') ? 'full' : parts.length ? 'partial' : 'fallback';
     return { blockId, state: { ...state }, parts, support, diagnostics, trace: resolverTrace(blockPath, matchedVariantKeys, selected, modelResources, parentResources, parts) };
@@ -81,7 +81,7 @@ function selectConfiguredModels(document: BlockStateDocument, state: BlockState,
 function configuredModels(value: unknown, seed: string, diagnostics: ResolverDiagnostic[]): ConfiguredModel[] {
   const list = Array.isArray(value) ? value.filter(isRecord) : [value].filter(isRecord);
   if (!list.length) { diagnostics.push(diagnostic('malformed-blockstate', 'Configured blockstate model is not an object.')); return []; }
-  const models = list.filter((item) => typeof item['model'] === 'string').map((item) => ({ model: item['model'] as string, x: numberOrUndefined(item['x']), y: numberOrUndefined(item['y']), uvlock: typeof item['uvlock'] === 'boolean' ? item['uvlock'] : undefined, weight: typeof item['weight'] === 'number' && item['weight'] > 0 ? item['weight'] : 1 }));
+  const models = list.filter((item) => typeof item['model'] === 'string').map((item) => ({ model: item['model'] as string, x: numberOrUndefined(item['x']), y: numberOrUndefined(item['y']), z: numberOrUndefined(item['z']), uvlock: typeof item['uvlock'] === 'boolean' ? item['uvlock'] : undefined, weight: typeof item['weight'] === 'number' && item['weight'] > 0 ? item['weight'] : 1 }));
   if (!models.length) diagnostics.push(diagnostic('malformed-blockstate', 'Configured blockstate model is missing a model reference.'));
   if (models.length <= 1) return models;
   const total = models.reduce((sum, model) => sum + (model.weight ?? 1), 0);
@@ -103,7 +103,7 @@ function multipartMatches(value: unknown, state: BlockState): boolean {
   return Object.entries(value).every(([property, expected]) => typeof expected === 'string' && expected.split('|').includes(state[property]));
 }
 
-function parseElements(value: unknown, textures: Readonly<Record<string, string>>, diagnostics: ResolverDiagnostic[], resource: string): ResolvedElement[] {
+function parseElements(value: unknown, textures: Readonly<Record<string, string>>, textureHints: Readonly<Record<string, boolean>>, diagnostics: ResolverDiagnostic[], resource: string): ResolvedElement[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).flatMap((item) => {
     const from = tuple(item['from'], 3); const to = tuple(item['to'], 3);
@@ -113,9 +113,9 @@ function parseElements(value: unknown, textures: Readonly<Record<string, string>
     for (const [direction, rawFace] of Object.entries(item['faces'])) {
       if (!isRecord(rawFace) || typeof rawFace['texture'] !== 'string') { diagnostics.push(diagnostic('malformed-model', `Invalid face in model: ${resource}`, resource)); continue; }
       const texture = resolveTextureReference(rawFace['texture'], textures, diagnostics, resource);
-      faces[direction] = { texture, uv: tuple4(rawFace['uv']) ?? defaultFaceUv(direction, from, to), rotation: numberOrUndefined(rawFace['rotation']), cullface: typeof rawFace['cullface'] === 'string' ? rawFace['cullface'] : undefined, tintindex: numberOrUndefined(rawFace['tintindex']) };
+      faces[direction] = { texture, ...(textureHints[texture] === true ? { forceTranslucent: true } : {}), uv: tuple4(rawFace['uv']) ?? defaultFaceUv(direction, from, to), rotation: numberOrUndefined(rawFace['rotation']), cullface: typeof rawFace['cullface'] === 'string' ? rawFace['cullface'] : undefined, tintindex: numberOrUndefined(rawFace['tintindex']) };
     }
-    return [{ from, to, rotation, shade: typeof item['shade'] === 'boolean' ? item['shade'] : undefined, faces }];
+    return [{ from, to, rotation, ...(typeof item['shade'] === 'boolean' ? { shade: item['shade'] } : {}), ...(typeof item['shade_direction_override'] === 'string' ? { shadeDirectionOverride: item['shade_direction_override'] } : {}), faces }];
   });
 }
 
@@ -125,10 +125,17 @@ function parseRotation(value: unknown): ResolvedElementRotation | undefined {
   return { origin, axis: value['axis'] as 'x' | 'y' | 'z', angle: value['angle'], rescale: value['rescale'] === true };
 }
 
-function resolveTextures(value: unknown, diagnostics: ResolverDiagnostic[], resource: string): Record<string, string> {
-  const raw = isRecord(value) ? value : {}; const output: Record<string, string> = {};
-  for (const key of Object.keys(raw)) output[key] = resolveTextureReference(String(raw[key]), raw, diagnostics, resource, new Set());
-  return output;
+function resolveTextures(value: unknown, diagnostics: ResolverDiagnostic[], resource: string): { readonly values: Record<string, string>; readonly hints: Record<string, boolean> } {
+  const raw = isRecord(value) ? value : {}; const output: Record<string, string> = {}; const hints: Record<string, boolean> = {};
+  for (const key of Object.keys(raw)) {
+    const entry = raw[key];
+    const reference = typeof entry === 'string' ? entry : isRecord(entry) && typeof entry['sprite'] === 'string' ? entry['sprite'] : undefined;
+    if (!reference) { diagnostics.push(diagnostic('unsupported-model-behavior', `Unsupported texture reference for ${key}`, resource)); continue; }
+    const resolved = resolveTextureReference(reference, raw, diagnostics, resource, new Set());
+    output[key] = resolved;
+    if (isRecord(entry) && entry['force_translucent'] === true) hints[resolved] = true;
+  }
+  return { values: output, hints };
 }
 
 function resolveTextureReference(value: string, textures: Readonly<Record<string, unknown>>, diagnostics: ResolverDiagnostic[], resource: string, chain = new Set<string>()): string {
@@ -136,8 +143,9 @@ function resolveTextureReference(value: string, textures: Readonly<Record<string
   const key = value.slice(1);
   if (chain.has(key)) { diagnostics.push(diagnostic('texture-cycle', `Circular texture variable detected: ${value}`, resource)); return value; }
   const next = textures[key];
-  if (typeof next !== 'string') { diagnostics.push(diagnostic('missing-texture', `Missing texture variable: ${value}`, resource)); return value; }
-  return resolveTextureReference(next, textures, diagnostics, resource, new Set([...chain, key]));
+  const nextReference = typeof next === 'string' ? next : isRecord(next) && typeof next['sprite'] === 'string' ? next['sprite'] : undefined;
+  if (!nextReference) { diagnostics.push(diagnostic('missing-texture', `Missing texture variable: ${value}`, resource)); return value; }
+  return resolveTextureReference(nextReference, textures, diagnostics, resource, new Set([...chain, key]));
 }
 
 function blockstatePath(id: string): string { const [namespace, name] = id.split(':'); return `assets/${namespace ?? 'minecraft'}/blockstates/${name ?? id}.json`; }

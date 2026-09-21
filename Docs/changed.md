@@ -1527,3 +1527,13 @@ incompatible values remain unsupported. Ordinary fully resolved JSON cubes can
 provide placement support without being assigned a `solid` behavior entry;
 connection, fluid, and attachment families remain non-supporting unless their
 own contract says otherwise.
+
+## Generic target resource rendering
+
+Generic resource defaults are derived from selected blockstate domains even when
+common behavior compatibility is unknown. Modern texture-map entries may use
+`{ sprite, force_translucent }`; the resolver normalizes the sprite reference
+and carries the translucency hint into Three.js materials. Configured
+blockstate `z` rotation and element shade-direction metadata are retained in the
+shared resolver representation. Barrel geometry is diagnostic-only; a valid
+target JSON model takes precedence.

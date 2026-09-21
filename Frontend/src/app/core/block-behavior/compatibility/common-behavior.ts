@@ -22,7 +22,7 @@ const booleanValues = ['true', 'false'] as const;
  */
 export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: CommonBehaviorResourceProvider): CommonBehaviorEvaluation {
   const definitions = record.stateDefinitions;
-  const defaultState = deriveResourceState(definitions);
+  const defaultState = deriveResourceDefaultState(definitions);
   const blockstate = record.resources.blockstate ? resources?.readJson(record.resources.blockstate) : undefined;
   const modelEvidence = typeof record.resources.model === 'string' || hasModelReference(blockstate);
 
@@ -81,16 +81,16 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
     if (!connectionValuesCompatible) return changed(record, definitions, defaultState, 'connections', 'Horizontal connection properties are not compatible with the common rule.');
     const connectionDefinitions = expandBooleanConnections(definitions);
     const connectionContract = contract(connectionDefinitions, { north: booleanValues, east: booleanValues, south: booleanValues, west: booleanValues });
-    if (connectionContract.complete && modelEvidence) return complete(record, connectionDefinitions, family, { kind: 'horizontal-connect', family, connectionGroup: family, compatibleGroups: [family], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west'] }, { ...deriveResourceState(connectionDefinitions), north: 'false', east: 'false', south: 'false', west: 'false' }, 'compatible-common');
+    if (connectionContract.complete && modelEvidence) return complete(record, connectionDefinitions, family, { kind: 'horizontal-connect', family, connectionGroup: family, compatibleGroups: [family], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west'] }, { ...deriveResourceDefaultState(connectionDefinitions), north: 'false', east: 'false', south: 'false', west: 'false' }, 'compatible-common');
     return changed(record, definitions, defaultState, 'connections', 'Horizontal connection properties are not compatible with the common rule.');
   }
 
   const wall = contract(definitions, { north: ['none', 'low', 'tall'], east: ['none', 'low', 'tall'], south: ['none', 'low', 'tall'], west: ['none', 'low', 'tall'], up: booleanValues });
-  if (wall.complete && isWallEvidence(blockstate, record.resources.model)) return complete(record, definitions, 'walls', { kind: 'horizontal-connect', family: 'wall', connectionGroup: 'wall', compatibleGroups: ['wall'], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west', 'up'] }, deriveResourceState(definitions), 'compatible-common');
+  if (wall.complete && isWallEvidence(blockstate, record.resources.model)) return complete(record, definitions, 'walls', { kind: 'horizontal-connect', family: 'wall', connectionGroup: 'wall', compatibleGroups: ['wall'], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west', 'up'] }, deriveResourceDefaultState(definitions), 'compatible-common');
   if (wall.partial && isWallEvidence(blockstate, record.resources.model)) return changed(record, definitions, defaultState, 'walls', 'Wall connection properties are not compatible with the common rule.');
 
   const stairs = contract(definitions, { facing: horizontal, half: ['top', 'bottom'], shape: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] });
-  if (stairs.complete) return complete(record, definitions, 'stairs', { kind: 'stairs', derivedProperties: ['shape'] }, { ...deriveResourceState(definitions), shape: 'straight' }, 'compatible-common');
+  if (stairs.complete) return complete(record, definitions, 'stairs', { kind: 'stairs', derivedProperties: ['shape'] }, { ...deriveResourceDefaultState(definitions), shape: 'straight' }, 'compatible-common');
   if (stairs.partial && looksLikeStairs(record.id, definitions)) return changed(record, definitions, defaultState, 'stairs', 'Stair state contract differs from the common facing/half/shape properties.');
 
   return { defaultState, stateDefinitions: definitions, defaultStateSource: Object.keys(defaultState).length ? 'resource-derived' : 'unknown', compatible: false };
@@ -120,7 +120,7 @@ function canFillCommon(record: AssetBlockRecord, definitions: readonly BlockStat
   return definitions.every((definition) => expected[definition.name] === undefined || definition.values.every((value) => expected[definition.name].includes(value)));
 }
 
-function deriveResourceState(definitions: readonly BlockStateDefinition[]): Readonly<Record<string, string>> {
+export function deriveResourceDefaultState(definitions: readonly BlockStateDefinition[]): Readonly<Record<string, string>> {
   const values: Record<string, string> = {};
   for (const definition of definitions) {
     const preferred = preferredValue(definition.name, definition.values);
@@ -130,7 +130,7 @@ function deriveResourceState(definitions: readonly BlockStateDefinition[]): Read
 }
 
 function mergeValidDefaults(definitions: readonly BlockStateDefinition[], defaults: Readonly<Record<string, string>>): Readonly<Record<string, string>> {
-  const fallback = deriveResourceState(definitions);
+  const fallback = deriveResourceDefaultState(definitions);
   return Object.fromEntries(definitions.flatMap((definition) => {
     const value = defaults[definition.name] ?? fallback[definition.name];
     return value !== undefined && definition.values.includes(value) ? [[definition.name, value]] : [];

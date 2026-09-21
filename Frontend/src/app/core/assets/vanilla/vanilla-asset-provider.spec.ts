@@ -85,6 +85,16 @@ describe('VanillaAssetProvider', () => {
     expect([...restored.readBinary('assets/minecraft/textures/block/stone.png')!]).toEqual([4, 5]);
   });
 
+  it('derives a renderable generic default state independently of behavior compatibility', () => {
+    const provider = new VanillaAssetProvider('target.jar', {
+      'assets/minecraft/blockstates/acacia_log.json': { variants: { 'axis=x': { model: 'minecraft:block/log' }, 'axis=y': { model: 'minecraft:block/log' }, 'axis=z': { model: 'minecraft:block/log' } } },
+      'assets/minecraft/models/block/log.json': { elements: [] },
+    }, new Map());
+    const log = provider.catalog().blocks.find((entry) => entry.id === 'minecraft:acacia_log');
+    expect(log?.defaultState).toEqual({ axis: 'y' });
+    expect(log?.defaultStateSource).toBe('resource-derived');
+  });
+
   it('rejects a stale normalized cache schema', () => {
     const original = new VanillaAssetProvider('fixture.jar', {}, new Map()).serialize();
     expect(() => VanillaAssetProvider.deserialize({ ...original, schemaVersion: 1 } as never)).toThrow('cache is outdated');

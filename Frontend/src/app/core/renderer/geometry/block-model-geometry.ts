@@ -197,9 +197,9 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const model = new THREE.Group();
     model.userData['model'] = part.model; model.userData['uvlock'] = part.transform.uvlock; model.userData['ambientOcclusion'] = part.ambientOcclusion;
     for (const element of part.elements) model.add(await this.createElement(element, part, blockId));
-    if (part.transform.x || part.transform.y) {
+    if (part.transform.x || part.transform.y || part.transform.z) {
       const pivot = new THREE.Group(); pivot.position.set(.5, .5, .5); model.position.set(-.5, -.5, -.5); pivot.add(model);
-      pivot.rotation.order = 'YXZ'; pivot.rotation.x = THREE.MathUtils.degToRad(part.transform.x); pivot.rotation.y = THREE.MathUtils.degToRad(-part.transform.y);
+      pivot.rotation.order = 'YXZ'; pivot.rotation.x = THREE.MathUtils.degToRad(part.transform.x); pivot.rotation.y = THREE.MathUtils.degToRad(-part.transform.y); pivot.rotation.z = THREE.MathUtils.degToRad(part.transform.z ?? 0);
       const wrapper = new THREE.Group(); wrapper.add(pivot); return wrapper;
     }
     return model;
@@ -217,8 +217,8 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       const texture = await this.texture(face.texture);
       const tint = tintColorForFace(blockId, face.tintindex, await this.tintColor(blockId, face.tintindex));
       const material = element.shade === false
-        ? new THREE.MeshBasicMaterial({ map: texture, color: tint ?? 0xffffff, transparent: true, alphaTest: .1, side: THREE.DoubleSide })
-        : new THREE.MeshLambertMaterial({ map: texture, color: tint ?? 0xffffff, transparent: true, alphaTest: .1, side: THREE.DoubleSide });
+        ? new THREE.MeshBasicMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide })
+        : new THREE.MeshLambertMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide });
       if (!texture) material.color.setHex(0xd04cff);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData['face'] = direction; mesh.userData['cullface'] = face.cullface; mesh.userData['tintindex'] = face.tintindex; mesh.userData['texture'] = face.texture;

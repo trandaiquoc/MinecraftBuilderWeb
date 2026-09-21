@@ -8,7 +8,7 @@ import { ZipArchive } from '../archive/zip-archive';
 import { ContentSourceProvider } from '../content-source/content-source.types';
 import { VanillaResourceFormatProfile } from './vanilla-resource-format';
 import { selectVanillaResourceFormatAdapter } from './format/resource-format-adapter';
-import { evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
+import { deriveResourceDefaultState, evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
 import type { TargetItemEvidence } from './format/item-evidence';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
@@ -144,7 +144,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const generated: AssetBlockRecord = {
         id,
         displayName: typeof language[`block.${namespace}.${name.replaceAll('/', '.')}`] === 'string' ? language[`block.${namespace}.${name.replaceAll('/', '.')}`] as string : humanize(name),
-        defaultState: registryEntry?.defaultState ?? known?.defaultState ?? {},
+        defaultState: registryEntry?.defaultState ?? known?.defaultState ?? deriveResourceDefaultState(registryEntry?.properties ?? known?.stateDefinitions ?? inferStateDefinitions(blockstate)),
         stateDefinitions: registryEntry?.properties ?? known?.stateDefinitions ?? inferStateDefinitions(blockstate),
         resources: { blockstate: path, model: models[0], textures: [] },
         support: 'partial',
@@ -173,7 +173,12 @@ function toBlockItemEvidence(evidence: TargetItemEvidence) {
 }
 
 function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<typeof evaluateCommonBehavior>): AssetBlockRecord {
-  if (!evaluation.compatible) return record;
+  const resourceState = Object.keys(evaluation.defaultState).length ? {
+    defaultState: evaluation.defaultState,
+    stateDefinitions: evaluation.stateDefinitions,
+    defaultStateSource: evaluation.defaultStateSource,
+  } : {};
+  if (!evaluation.compatible) return { ...record, ...resourceState };
   return {
     ...record,
     defaultState: evaluation.defaultState,
