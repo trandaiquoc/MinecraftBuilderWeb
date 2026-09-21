@@ -30,12 +30,21 @@ export interface ResolvedFace {
   readonly tintindex?: number;
 }
 
-export interface ResolvedElementRotation {
-  readonly origin: readonly [number, number, number];
-  readonly axis: 'x' | 'y' | 'z';
-  readonly angle: number;
-  readonly rescale: boolean;
-}
+export type ResolvedElementRotation =
+  | {
+      readonly mode: 'axis-angle';
+      readonly origin: readonly [number, number, number];
+      readonly axis: 'x' | 'y' | 'z';
+      readonly angle: number;
+      readonly rescale: boolean;
+    }
+  | {
+      readonly mode: 'xyz';
+      readonly origin: readonly [number, number, number];
+      readonly x: number;
+      readonly y: number;
+      readonly z: number;
+    };
 
 export interface ResolvedElement {
   readonly from: readonly [number, number, number];
