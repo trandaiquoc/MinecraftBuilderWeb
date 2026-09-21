@@ -10,8 +10,8 @@ class FakeSource implements ContentSourceProvider {
   private readonly json: Readonly<Record<string, unknown>>;
   private readonly binary = new Map<string, Uint8Array>();
   disposed = false;
-  constructor(id: string, namespaces: readonly string[], json: Readonly<Record<string, unknown>>, blocks: readonly AssetBlockRecord[] = []) {
-    this.source = { id, kind: id === 'vanilla' ? 'vanilla' as const : 'external' as const, displayName: id === 'vanilla' ? 'Vanilla' : 'Example Content', minecraftVersion: '1.21.1', namespaces };
+  constructor(id: string, namespaces: readonly string[], json: Readonly<Record<string, unknown>>, blocks: readonly AssetBlockRecord[] = [], minecraftVersion = '1.21.1') {
+    this.source = { id, kind: id === 'vanilla' ? 'vanilla' as const : 'external' as const, displayName: id === 'vanilla' ? 'Vanilla' : 'Example Content', minecraftVersion, namespaces };
     this.json = json; this.blocks = blocks;
   }
   readonly blocks: readonly AssetBlockRecord[];
@@ -56,6 +56,12 @@ describe('ContentSourceRegistry', () => {
     (incompatible.source as { minecraftVersion: string }).minecraftVersion = '1.20.6';
     expect(() => registry.register(incompatible)).toThrow(/Expected 1\.21\.1/);
     expect(registry.sources()).toEqual([]);
+  });
+
+  it('accepts sources matching a selected non-default active version', () => {
+    const registry = new ContentSourceRegistry('1.20.6');
+    registry.register(new FakeSource('vanilla-1.20.6', ['minecraft'], {}, [], '1.20.6'));
+    expect(registry.sources().map((source) => source.minecraftVersion)).toEqual(['1.20.6']);
   });
 
   it('reports duplicate block IDs without replacing the first contribution', () => {

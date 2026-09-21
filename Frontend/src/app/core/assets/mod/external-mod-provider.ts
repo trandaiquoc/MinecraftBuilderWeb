@@ -5,6 +5,7 @@ import { CONTENT_SOURCE_MINECRAFT_VERSION } from '../content-source/content-sour
 import { texturePath } from '../vanilla/vanilla-asset-provider';
 
 export const EXTERNAL_MOD_CACHE_SCHEMA_VERSION = 1 as const;
+export type SupportedModLoader = 'fabric' | 'forge' | 'neoforge' | 'quilt' | 'unknown';
 
 export interface FabricModMetadata {
   readonly id: string;
@@ -21,7 +22,7 @@ export interface ModImportDiagnostic {
 }
 
 export interface ModImportReport {
-  readonly metadataFormat: 'fabric' | 'unsupported' | 'missing';
+  readonly metadataFormat: SupportedModLoader;
   readonly metadata?: FabricModMetadata;
   readonly namespaces: readonly string[];
   readonly retainedResourceCount: number;
@@ -33,7 +34,7 @@ export interface SerializedExternalMod {
   readonly schemaVersion: 1;
   readonly sourceId: string;
   readonly metadata: FabricModMetadata;
-  readonly minecraftVersion: '1.21.1';
+  readonly minecraftVersion: string;
   readonly namespaces: readonly string[];
   readonly json: Readonly<Record<string, unknown>>;
   readonly binary: readonly { readonly path: string; readonly data: ArrayBuffer }[];
@@ -42,6 +43,7 @@ export interface SerializedExternalMod {
 
 export interface ExternalModResourceInput {
   readonly metadata: unknown;
+  readonly minecraftVersion?: string;
   readonly resources: ReadonlyMap<string, Uint8Array>;
   readonly json: ReadonlyMap<string, unknown>;
   readonly diagnostics?: readonly ModImportDiagnostic[];
@@ -50,7 +52,7 @@ export interface ExternalModResourceInput {
 export class ExternalModProvider implements ContentSourceProvider {
   readonly source;
   readonly gameEdition = 'java' as const;
-  readonly gameVersion = CONTENT_SOURCE_MINECRAFT_VERSION;
+  readonly gameVersion: string;
   readonly metadata: FabricModMetadata;
   readonly report: ModImportReport;
   private readonly objectUrls = new Map<string, string>();
@@ -60,10 +62,12 @@ export class ExternalModProvider implements ContentSourceProvider {
     private readonly json: Readonly<Record<string, unknown>>,
     private readonly binary: ReadonlyMap<string, Uint8Array>,
     namespaces: readonly string[],
+    minecraftVersion: string,
     diagnostics: readonly ModImportDiagnostic[] = [],
   ) {
     this.metadata = metadata;
-    this.source = { id: `mod:${metadata.id}`, kind: 'external' as const, displayName: metadata.displayName, minecraftVersion: CONTENT_SOURCE_MINECRAFT_VERSION, sourceVersion: metadata.version, namespaces: [...namespaces] };
+    this.gameVersion = minecraftVersion;
+    this.source = { id: `mod:${metadata.id}`, kind: 'external' as const, displayName: metadata.displayName, minecraftVersion, sourceVersion: metadata.version, namespaces: [...namespaces] };
     const candidateBlockCount = namespaces.reduce((count, namespace) => count + Object.keys(json).filter((path) => path.startsWith(`assets/${namespace}/blockstates/`) && path.endsWith('.json')).length, 0);
     this.report = { metadataFormat: 'fabric', metadata, namespaces: [...namespaces], retainedResourceCount: Object.keys(json).length + binary.size, candidateBlockCount, diagnostics: [...diagnostics] };
   }
@@ -73,22 +77,25 @@ export class ExternalModProvider implements ContentSourceProvider {
     const namespaces = discoverNamespaces(input.json, input.resources);
     if (!namespaces.length) throw new Error('The Fabric mod contains no supported assets namespaces');
     const diagnostics = [...(input.diagnostics ?? [])];
+    const compatibility = assessFabricCompatibility(metadata.minecraftCompatibility, input.minecraftVersion ?? CONTENT_SOURCE_MINECRAFT_VERSION);
+    if (compatibility === 'incompatible') throw new Error(`Fabric mod ${metadata.id} is not compatible with Minecraft ${input.minecraftVersion ?? CONTENT_SOURCE_MINECRAFT_VERSION}.`);
+    if (compatibility === 'unknown') diagnostics.push({ severity: 'warning', code: 'minecraft-version-unknown', message: 'Minecraft compatibility could not be verified for the selected project version.' });
     for (const [path, value] of input.json) {
       if (!path.includes('/models/') || !value || typeof value !== 'object' || Array.isArray(value)) continue;
       if (typeof (value as Record<string, unknown>)['loader'] === 'string') diagnostics.push({ severity: 'warning', code: 'custom-model-loader', message: 'Custom model loader was retained but is not executed.', path });
     }
-    return new ExternalModProvider(metadata, Object.fromEntries(input.json), input.resources, namespaces, diagnostics);
+    return new ExternalModProvider(metadata, Object.fromEntries(input.json), input.resources, namespaces, input.minecraftVersion ?? CONTENT_SOURCE_MINECRAFT_VERSION, diagnostics);
   }
 
   static deserialize(value: SerializedExternalMod): ExternalModProvider {
-    if (value.schemaVersion !== EXTERNAL_MOD_CACHE_SCHEMA_VERSION || value.minecraftVersion !== CONTENT_SOURCE_MINECRAFT_VERSION) throw new Error('Imported mod cache is outdated or incompatible');
+    if (value.schemaVersion !== EXTERNAL_MOD_CACHE_SCHEMA_VERSION || typeof value.minecraftVersion !== 'string') throw new Error('Imported mod cache is outdated or incompatible');
     const metadata = parseFabricModMetadata(value.metadata);
     if (!Array.isArray(value.namespaces) || !value.namespaces.every((namespace) => typeof namespace === 'string') || !value.json || typeof value.json !== 'object' || !Array.isArray(value.binary)) throw new Error('Imported mod cache is malformed');
-    return new ExternalModProvider(metadata, value.json, new Map(value.binary.map((entry) => [entry.path, new Uint8Array(entry.data)])), value.namespaces, Array.isArray(value.report?.diagnostics) ? value.report.diagnostics : []);
+    return new ExternalModProvider(metadata, value.json, new Map(value.binary.map((entry) => [entry.path, new Uint8Array(entry.data)])), value.namespaces, value.minecraftVersion, Array.isArray(value.report?.diagnostics) ? value.report.diagnostics : []);
   }
 
   serialize(): SerializedExternalMod {
-    return { schemaVersion: EXTERNAL_MOD_CACHE_SCHEMA_VERSION, sourceId: this.source.id, metadata: this.metadata, minecraftVersion: CONTENT_SOURCE_MINECRAFT_VERSION, namespaces: this.source.namespaces, json: this.json, binary: [...this.binary].map(([path, data]) => ({ path, data: data.slice().buffer })), report: this.report };
+    return { schemaVersion: EXTERNAL_MOD_CACHE_SCHEMA_VERSION, sourceId: this.source.id, metadata: this.metadata, minecraftVersion: this.source.minecraftVersion, namespaces: this.source.namespaces, json: this.json, binary: [...this.binary].map(([path, data]) => ({ path, data: data.slice().buffer })), report: this.report };
   }
 
   readJson(path: string): unknown | undefined { return this.json[path]; }
@@ -136,7 +143,7 @@ export class ExternalModProvider implements ContentSourceProvider {
         modName: this.source.displayName,
       });
     }
-    return { minecraftVersion: CONTENT_SOURCE_MINECRAFT_VERSION, sourceId: this.source.id, sourceName: this.source.displayName, blocks: records };
+    return { minecraftVersion: this.source.minecraftVersion, sourceId: this.source.id, sourceName: this.source.displayName, blocks: records };
   }
 
   dispose(): void { for (const url of this.objectUrls.values()) URL.revokeObjectURL(url); this.objectUrls.clear(); }
@@ -147,6 +154,17 @@ export class ExternalModProvider implements ContentSourceProvider {
     const fallback = Object.entries(this.json).find(([path, value]) => path.startsWith(`assets/${namespace}/lang/`) && path.endsWith('.json') && !!value && typeof value === 'object' && !Array.isArray(value));
     return (fallback?.[1] ?? {}) as Record<string, unknown>;
   }
+}
+
+export type FabricCompatibility = 'compatible' | 'incompatible' | 'unknown';
+export function assessFabricCompatibility(expression: string | undefined, version: string): FabricCompatibility {
+  if (!expression) return 'unknown';
+  const value = expression.trim();
+  if (value === version) return 'compatible';
+  const wildcard = /^(\d+)\.(\d+)(?:\.x|\.\*)$/.exec(value);
+  if (wildcard) return version.startsWith(`${wildcard[1]}.${wildcard[2]}.`) ? 'compatible' : 'incompatible';
+  if (/^\d+\.\d+\.\d+$/.test(value)) return 'incompatible';
+  return 'unknown';
 }
 
 export function parseFabricModMetadata(value: unknown): FabricModMetadata {

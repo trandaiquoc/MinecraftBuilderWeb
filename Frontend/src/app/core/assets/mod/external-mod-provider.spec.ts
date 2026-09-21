@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ExternalModProvider, parseFabricModMetadata } from './external-mod-provider';
+import { assessFabricCompatibility, ExternalModProvider, parseFabricModMetadata } from './external-mod-provider';
 
 const blockstate = { variants: { 'powered=false': { model: 'example:block/widget' }, 'powered=true': { model: 'example:block/widget' } } };
 
 describe('ExternalModProvider', () => {
+  it('keeps Fabric compatibility conservative across project versions', () => {
+    expect(assessFabricCompatibility('1.21.x', '1.21.1')).toBe('compatible');
+    expect(assessFabricCompatibility('1.20.6', '1.21.1')).toBe('incompatible');
+    expect(assessFabricCompatibility('[1.20,1.22)', '1.21.1')).toBe('unknown');
+  });
   it('parses Fabric metadata and keeps source identity separate from namespaces', () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'example', name: 'Example Mod', version: '1.2.3', depends: { minecraft: '1.21.x' } },

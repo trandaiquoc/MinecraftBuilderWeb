@@ -3,6 +3,7 @@ import { ProjectDocument } from '../../domain/project.types';
 export interface ProjectSummary {
   readonly id: string;
   readonly name: string;
+  readonly minecraftVersion: string;
   readonly updatedAt: string;
 }
 

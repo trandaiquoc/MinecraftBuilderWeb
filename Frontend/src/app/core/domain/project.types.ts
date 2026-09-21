@@ -1,5 +1,7 @@
 /** Current persisted project format version. Increment when the JSON shape changes. */
 export const CURRENT_PROJECT_SCHEMA_VERSION = 3 as const;
+export const DEFAULT_MINECRAFT_VERSION = '1.21.1' as const;
+export type MinecraftVersion = string;
 
 export type ProjectSchemaVersion = 1 | 2 | typeof CURRENT_PROJECT_SCHEMA_VERSION;
 
@@ -81,7 +83,7 @@ export interface EditorSettings {
 
 export interface ProjectMetadata {
   readonly name: string;
-  readonly minecraftVersion: '1.21.1';
+  readonly minecraftVersion: MinecraftVersion;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

@@ -9,6 +9,8 @@
     <form class="project-form" (submit)="$event.preventDefault(); createProject()">
       <h2>{{ i18n.t('newProject') }}</h2>
       <label>{{ i18n.t('projectName') }}<input [value]="name()" (input)="updateName($any($event.target).value)" required /></label>
+      <label>{{ i18n.t('minecraftVersion') }}<app-searchable-dropdown [options]="versionOptions()" [selectedId]="minecraftVersion()" [placeholder]="i18n.t('searchMinecraftVersions')" [emptyLabel]="i18n.t('minecraftVersionUnavailable')" [noResults]="i18n.t('noMinecraftVersions')" [ariaLabel]="i18n.t('minecraftVersion')" (selectionChange)="setMinecraftVersion($any($event))" /></label>
+      <p class="version-support"><strong>{{ versionSupportLabel() }}</strong>@if (minecraftVersion() !== '1.21.1') { <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span> }</p>
       <div class="size-grid">
         <label>{{ i18n.t('sizeX') }}<input type="number" min="1" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
         <label>{{ i18n.t('sizeY') }}<input type="number" min="1" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
@@ -25,7 +27,7 @@
       @else if (projects().length === 0) { <p class="muted">{{ i18n.t('noProjects') }}</p> }
       @else { @for (project of projects(); track project.id) {
         <div class="project-row" [class.opening]="openingId() === project.id" [class.deleting]="deletingProjectIds().has(project.id)">
-          <button class="project-open-action" type="button" [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)" (click)="openProject(project.id)"><span>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</span><small>{{ project.updatedAt | date:'short' }}</small><strong>{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</strong></button>
+          <button class="project-open-action" type="button" [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)" (click)="openProject(project.id)"><span>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</span><small>{{ i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion) }} · {{ project.updatedAt | date:'short' }}</small><strong>{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</strong></button>
           <button class="project-delete-action" type="button" uiTooltip="{{ i18n.t('deleteProjectAriaLabel').replace('{name}', project.name) }}" [disabled]="deletingProjectIds().has(project.id)" [attr.aria-label]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" [attr.title]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" (click)="deleteProject(project, $event)"><svg lucideX aria-hidden="true"></svg></button>
         </div>
       } }

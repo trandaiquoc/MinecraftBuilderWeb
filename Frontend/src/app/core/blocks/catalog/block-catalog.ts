@@ -3,7 +3,7 @@ import { deriveBlockCapabilities } from '../capabilities/block-capability-resolv
 import type { BlockCapability } from '../capabilities/block-capability.types';
 
 export interface BlockCatalogSource {
-  readonly minecraftVersion: '1.21.1';
+  readonly minecraftVersion: string;
   readonly blocks: readonly AssetBlockRecord[];
   readonly sourceId?: string;
   readonly sourceName?: string;
@@ -25,7 +25,6 @@ export class BlockCatalog {
   }
 
   replaceSource(source: BlockCatalogSource): void {
-    if (source.minecraftVersion !== '1.21.1') throw new Error(`Unsupported Minecraft version: ${source.minecraftVersion}`);
     const sourceId = source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla';
     const sourceName = source.sourceName ?? source.blocks[0]?.sourceName ?? sourceId;
     this.contributions.set(sourceId, source.blocks.map((record) => toDefinition(record, sourceId, sourceName)));

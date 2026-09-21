@@ -8,6 +8,7 @@ export type DomainValidationCode =
   | 'invalid-block-id'
   | 'invalid-namespace'
   | 'invalid-project-name'
+  | 'invalid-minecraft-version'
   | 'invalid-current-y'
   | 'invalid-opacity';
 
@@ -73,6 +74,9 @@ export function validateProject(project: ProjectDocument): DomainValidationResul
   for (const issue of validateProjectSize(project.size)) issues.push(issue);
   if (!project.metadata.name.trim()) {
     issues.push({ code: 'invalid-project-name', message: 'project name is required', path: 'metadata.name' });
+  }
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(project.metadata.minecraftVersion)) {
+    issues.push({ code: 'invalid-minecraft-version', message: 'Minecraft version must use a release version format', path: 'metadata.minecraftVersion' });
   }
   if (!Number.isInteger(project.editorSettings.currentY) || !isWithinBounds({ x: 0, y: project.editorSettings.currentY, z: 0 }, project.size)) {
     issues.push({ code: 'invalid-current-y', message: 'current Y must be inside project bounds', path: 'editorSettings.currentY' });

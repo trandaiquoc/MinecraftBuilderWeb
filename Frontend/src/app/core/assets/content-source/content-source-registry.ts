@@ -1,6 +1,6 @@
 import { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
-import { CONTENT_SOURCE_MINECRAFT_VERSION, ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
+import { ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
 import { CompositeAssetResourceProvider } from './composite-asset-provider';
 
 export interface SourceRegistrationDiagnostic { readonly sourceId: string; readonly message: string; }
@@ -10,15 +10,20 @@ export class ContentSourceRegistry {
   readonly resources = new CompositeAssetResourceProvider();
   private readonly contributions = new Map<string, BlockCatalogSource>();
   private conflictsValue: SourceRegistrationDiagnostic[] = [];
+  constructor(private activeVersion = '1.21.1') { this.resources.setActiveVersion(activeVersion); }
+
+  setActiveVersion(version: string): void { this.activeVersion = version; this.resources.setActiveVersion(version); }
+  activeMinecraftVersion(): string { return this.activeVersion; }
+  clear(): void { for (const source of this.sources()) this.remove(source.id); }
 
   register(provider: ContentSourceProvider): void {
-    assertCompatibleSource(provider.source);
+    assertCompatibleSource(provider.source, this.activeVersion);
     this.resources.register(provider);
     const catalog = provider.catalog?.();
     if (catalog) this.contributions.set(provider.source.id, catalog);
   }
   replace(provider: ContentSourceProvider): void {
-    assertCompatibleSource(provider.source);
+    assertCompatibleSource(provider.source, this.activeVersion);
     this.resources.replace(provider);
     const catalog = provider.catalog?.();
     if (catalog) this.contributions.set(provider.source.id, catalog); else this.contributions.delete(provider.source.id);
@@ -42,8 +47,6 @@ export class ContentSourceRegistry {
   }
 }
 
-export function assertCompatibleSource(source: Pick<ContentSourceDescriptor, 'minecraftVersion'>): void {
-  if (source.minecraftVersion !== CONTENT_SOURCE_MINECRAFT_VERSION) {
-    throw new Error(`Unsupported content source Minecraft version: ${source.minecraftVersion}. Expected ${CONTENT_SOURCE_MINECRAFT_VERSION}.`);
-  }
+export function assertCompatibleSource(source: Pick<ContentSourceDescriptor, 'minecraftVersion'>, activeVersion = '1.21.1'): void {
+  if (source.minecraftVersion !== activeVersion) throw new Error(`Unsupported content source Minecraft version: ${source.minecraftVersion}. Expected ${activeVersion}.`);
 }

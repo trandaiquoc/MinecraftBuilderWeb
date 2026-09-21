@@ -43,7 +43,7 @@ describe('WorkspaceStateService', () => {
   it('clears a settled restore attempt so retry reads storage again', async () => {
     let attempts = 0;
     const stored = project('retry', '2026-03-01');
-    const store: ProjectStore = { ...memoryStore([stored]), list: async () => { attempts++; if (attempts === 1) throw new Error('temporary'); return [{ id: stored.id, name: stored.metadata.name, updatedAt: stored.metadata.updatedAt }]; } };
+    const store: ProjectStore = { ...memoryStore([stored]), list: async () => { attempts++; if (attempts === 1) throw new Error('temporary'); return [{ id: stored.id, name: stored.metadata.name, minecraftVersion: stored.metadata.minecraftVersion, updatedAt: stored.metadata.updatedAt }]; } };
     const workspace = new WorkspaceStateService();
     const storage = { getItem: () => null, setItem: () => undefined };
     await workspace.restore(store, storage);
@@ -68,7 +68,7 @@ describe('WorkspaceStateService', () => {
 function memoryStore(projects: readonly ProjectDocument[], onOpen?: () => void): ProjectStore {
   return {
     create: async () => undefined, exists: async () => false, save: async () => undefined, delete: async () => undefined,
-    list: async () => projects.map((item) => ({ id: item.id, name: item.metadata.name, updatedAt: item.metadata.updatedAt })).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    list: async () => projects.map((item) => ({ id: item.id, name: item.metadata.name, minecraftVersion: item.metadata.minecraftVersion, updatedAt: item.metadata.updatedAt })).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     open: async (id) => { onOpen?.(); return projects.find((item) => item.id === id); },
     saveRecoverySnapshot: async () => undefined, openRecoverySnapshot: async () => undefined, deleteRecoverySnapshot: async () => undefined,
   };

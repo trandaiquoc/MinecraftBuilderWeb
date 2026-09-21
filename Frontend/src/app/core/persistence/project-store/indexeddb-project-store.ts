@@ -1,17 +1,17 @@
 import { migrateProject } from '../../domain/migrations';
-import { ProjectDocument } from '../../domain/project.types';
+import { DEFAULT_MINECRAFT_VERSION, ProjectDocument } from '../../domain/project.types';
 import { ProjectStore, ProjectSummary } from './project-store.port';
 
 const DATABASE_NAME = 'minecraft-builder';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const PROJECTS_STORE = 'projects';
 const PROJECT_SUMMARIES_STORE = 'project-summaries';
 const RECOVERY_STORE = 'recovery-snapshots';
 
-interface StoredProject { readonly id: string; readonly name: string; readonly updatedAt: string; readonly document: ProjectDocument; }
+interface StoredProject { readonly id: string; readonly name: string; readonly minecraftVersion?: string; readonly updatedAt: string; readonly document: ProjectDocument; }
 
-export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' | 'name' | 'updatedAt'>): ProjectSummary {
-  return { id: record.id, name: record.name, updatedAt: record.updatedAt };
+export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' | 'name' | 'minecraftVersion' | 'updatedAt'>): ProjectSummary {
+  return { id: record.id, name: record.name, minecraftVersion: record.minecraftVersion ?? DEFAULT_MINECRAFT_VERSION, updatedAt: record.updatedAt };
 }
 
 export class IndexedDbProjectStore implements ProjectStore {
@@ -63,8 +63,8 @@ export class IndexedDbProjectStore implements ProjectStore {
   }
 }
 
-function toStoredProject(project: ProjectDocument): StoredProject { return { id: project.id, name: project.metadata.name, updatedAt: project.metadata.updatedAt, document: project }; }
-function toSummary(project: ProjectDocument): ProjectSummary { return projectSummaryFromStoredRecord({ id: project.id, name: project.metadata.name, updatedAt: project.metadata.updatedAt }); }
+function toStoredProject(project: ProjectDocument): StoredProject { return { id: project.id, name: project.metadata.name, minecraftVersion: project.metadata.minecraftVersion, updatedAt: project.metadata.updatedAt, document: project }; }
+function toSummary(project: ProjectDocument): ProjectSummary { return projectSummaryFromStoredRecord({ id: project.id, name: project.metadata.name, minecraftVersion: project.metadata.minecraftVersion, updatedAt: project.metadata.updatedAt }); }
 
 function openDatabase(name: string): Promise<IDBDatabase> {
   if (typeof indexedDB === 'undefined') return Promise.reject(new Error('IndexedDB is not available in this environment'));
@@ -74,18 +74,16 @@ function openDatabase(name: string): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(PROJECTS_STORE)) database.createObjectStore(PROJECTS_STORE, { keyPath: 'id' });
-      if (!database.objectStoreNames.contains(PROJECT_SUMMARIES_STORE)) {
-        const summaries = database.createObjectStore(PROJECT_SUMMARIES_STORE, { keyPath: 'id' });
-        const projects = request.transaction?.objectStore(PROJECTS_STORE);
-        if (projects) {
-          projects.openCursor().onsuccess = (event) => {
-            const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
-            if (!cursor) return;
-            const record = cursor.value as StoredProject;
-            summaries.put(projectSummaryFromStoredRecord(record));
-            cursor.continue();
-          };
-        }
+      const summaries = database.objectStoreNames.contains(PROJECT_SUMMARIES_STORE) ? request.transaction?.objectStore(PROJECT_SUMMARIES_STORE) : database.createObjectStore(PROJECT_SUMMARIES_STORE, { keyPath: 'id' });
+      const projects = request.transaction?.objectStore(PROJECTS_STORE);
+      if (projects && summaries) {
+        projects.openCursor().onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+          if (!cursor) return;
+          const record = cursor.value as StoredProject;
+          summaries.put(projectSummaryFromStoredRecord(record));
+          cursor.continue();
+        };
       }
       if (!database.objectStoreNames.contains(RECOVERY_STORE)) database.createObjectStore(RECOVERY_STORE, { keyPath: 'id' });
     };

@@ -6,6 +6,7 @@ export interface DecorationItemDefinition { readonly id: string; readonly displa
 /** Indexes registered item IDs; model resources are visual-only and never determine eligibility. */
 export class DecorationItemCatalog {
   private entries: readonly DecorationItemDefinition[] = [];
+  clear(): void { this.entries = []; }
   load(provider: AssetResourceProvider, registry: VanillaItemRegistry): void {
     this.entries = registry.all().filter((entry) => entry.id !== 'minecraft:air').map(({ id }) => {
       const [namespace, path] = id.split(':', 2);

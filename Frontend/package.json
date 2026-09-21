@@ -5,7 +5,6 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "build:vercel": "node tools/prepare-vercel-vanilla.mjs && npm run build && node tools/verify-static-assets.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "benchmark:renderer": "node src/app/core/renderer/benchmark/renderer-benchmark-runner.cjs"

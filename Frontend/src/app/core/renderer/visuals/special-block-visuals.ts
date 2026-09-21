@@ -12,9 +12,9 @@ export class SpecialBlockVisualRegistry {
   private readonly beds: BedVisualProvider;
   private readonly signs: SignVisualProvider;
   private readonly adapters: readonly SpecialBlockVisualAdapter[];
-  constructor(gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter]; }
+  constructor(private readonly gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter]; }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
-  resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined { return this.adapters.find((adapter) => adapter.matches(block)); }
+  resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined { return this.gameVersion === '1.21.1' ? this.adapters.find((adapter) => adapter.matches(block)) : undefined; }
 }
 
 /** Extension point for a normalized mod bed descriptor; it never infers Java runtime renderers. */

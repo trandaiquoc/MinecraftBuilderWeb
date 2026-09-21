@@ -46,9 +46,9 @@ describe('BlockCatalog', () => {
     expect(normalizeSearchText('Tiếng Việt')).toBe('tieng viet');
   });
 
-  it('rejects unsupported versions and duplicate IDs', () => {
+  it('accepts versioned sources and rejects duplicate IDs', () => {
     const catalog = new BlockCatalog();
-    expect(() => catalog.load({ ...representativeBlockFixture, minecraftVersion: '1.20.6' as '1.21.1' })).toThrow('Unsupported Minecraft version');
+    expect(() => catalog.load({ ...representativeBlockFixture, minecraftVersion: '1.20.6' })).not.toThrow();
     expect(() => catalog.load({ ...representativeBlockFixture, blocks: [...representativeBlockFixture.blocks, representativeBlockFixture.blocks[0]] })).toThrow('Duplicate block ID');
   });
 

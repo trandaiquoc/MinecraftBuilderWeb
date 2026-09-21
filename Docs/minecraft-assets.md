@@ -156,25 +156,9 @@ stable source identity and declares its owned namespaces; resources are routed
 directly to that owner. The Vanilla source owns `minecraft`, and external
 sources may reference Vanilla parents or textures without replacing it.
 
-The current bundle/cache contract is explicitly Vanilla-only. Mod JAR parsing,
-metadata extraction, and imported-mod persistence remain deferred until Prompt
-13. Local asset caches remain disposable and are never part of a project file.
-
-Any local generated cache directory must be excluded by `.gitignore`.
-
-Recommended local-only cache name:
-
-```text
-Frontend/.minecraft-assets/
-```
-
-If this directory is adopted, add:
-
-```gitignore
-Frontend/.minecraft-assets/
-```
-
-to the repository `.gitignore`.
+The normalized Vanilla cache is stored in IndexedDB by Minecraft version and is
+never part of a project file. Imported Fabric resource-only mods are cached
+separately and are activated only for their compatible project version.
 
 ## 6. Representative block fixture set
 
@@ -300,7 +284,8 @@ The application must reject or explicitly handle incompatible catalog versions r
 
 When working on Minecraft asset support:
 
-1. Target Minecraft Java Edition `1.21.1`.
+1. Treat Minecraft Java Edition `1.21.1` as the verified behavior profile. Other
+   selected releases may use generic resource-derived rendering only.
 2. Do not invent vanilla block/model behavior when a fixture can be checked.
 3. Do not silently replace missing or unsupported blocks with `minecraft:air`.
 4. Keep parsing/model-resolution code independent from Angular UI.
@@ -313,27 +298,30 @@ When working on Minecraft asset support:
 
 This asset-source checkpoint is considered complete because:
 
-- a local Minecraft Java 1.21.1 JAR source has been identified;
+- the runtime source resolves official client JARs through Mojang's Piston metadata;
 - the required resource directory structure has been verified;
 - `en_us.json` has been verified;
 - the representative BlockState fixture set has been verified;
 - the repository policy avoids depending on a committed full vanilla asset tree;
-- the asset source can be rediscovered or selected on another development machine.
+- the asset source can be rediscovered or selected on another development machine;
+- manual File API JAR import remains available as an explicit fallback.
 
 The next implementation stage may proceed using this policy and the representative fixture set.
 
 ## 12. Browser asset loading implementation
 
-MinecraftBuilder accepts a user-selected Minecraft Java 1.21.1 JAR or ZIP in
-the Block Browser. The browser reads the ZIP central directory locally and only
+For the selected project version, MinecraftBuilder first restores an exact
+version from IndexedDB, then resolves and downloads the official client JAR via
+Mojang's Piston metadata, and finally offers a user-selected JAR/ZIP as a
+manual fallback. The browser reads the ZIP central directory locally and only
 extracts namespaced JSON/PNG resources under `assets/`. The file is never sent
-to a server and the application does not depend on the machine-specific
-Modrinth path.
+to a server and the application does not depend on a machine-specific path.
 
 Normalized resources are cached in IndexedDB database
-`minecraft-builder-assets`, store `asset-bundles`, under version key `1.21.1`.
-Project documents contain no asset bytes. A cached bundle is restored on the
-next editor session; selecting another JAR replaces that local asset bundle.
+`minecraft-builder-assets`, store `asset-bundles`, under the exact Minecraft
+version key (for example `1.21.1` or `1.20.6`). Project documents contain no
+asset bytes. A cached bundle is restored on the next editor session; selecting
+another project version never activates a different version's cache.
 The normalized asset-cache schema is currently version 2. Version 1 used the
 same resource payload, so it is migrated in place: JSON, PNG, language, and tag
 resources are retained while only the metadata schema marker is upgraded. An
@@ -348,12 +336,13 @@ Supported resources are:
 - generic namespaced PNG textures;
 - `assets/minecraft/lang/en_us.json`.
 
-The runtime catalog entry set, property definitions, and default BlockStates
-come from the bundled normalized `vanilla-block-registry-1.21.1.json`. English
-display names come independently from the selected JAR's `en_us.json`; visual
-resources come from its blockstates/models/textures; verified behavior comes
-from `VanillaBehaviorRegistry`. Missing visual resources therefore cannot erase
-canonical registry state or behavior metadata.
+For 1.21.1, the runtime catalog uses the bundled normalized
+`vanilla-block-registry-1.21.1.json` and `VanillaBehaviorRegistry`. For other
+selected releases, entries are derived from the downloaded resources and their
+behavior/default-state support remains unknown unless separately verified.
+English display names come independently from the selected JAR's `en_us.json`;
+visual resources come from its blockstates/models/textures. Missing visual
+resources therefore cannot erase canonical registry state or behavior metadata.
 
 The normalized registry is generated from Minecraft Java 1.21.1 data-generator
 output `reports/blocks.json` with:
@@ -371,9 +360,9 @@ entries.
 
 Textures use cached object URLs and shared decoded Three.js textures with
 nearest-neighbor filtering. Resolver/model failures preserve the registry ID and
-BlockState and retain the fallback cube with diagnostics metadata. No full JAR,
-extracted tree, or texture cache is committed; `Frontend/.minecraft-assets/` is
-reserved and gitignored for optional developer extraction workflows.
+BlockState and retain the fallback cube with diagnostics metadata. No client JAR
+or extracted tree is committed; official resources are normalized locally in the
+browser.
 
 ## 13. Active provider lifecycle and render diagnostics
 
@@ -443,11 +432,11 @@ successful generic JSON geometry.
 ## 15. Asset bundles and default source priority
 
 `AssetBundle` is the normalized resource contract shared by vanilla and future
-mod imports. Startup resolves an optional gitignored local development bundle at
-`Frontend/public/local-assets/vanilla/1.21.1/asset-bundle.json`, then IndexedDB,
-and finally an explicit File API JAR import. Generate the local-only bundle from
-a user-owned JAR with `node tools/build-local-vanilla-bundle.mjs <jar-path>`.
-It is never committed. The Block Browser presents a thumbnail/name/source grid;
+mod imports. For an active project, startup resolves the exact Minecraft version
+from IndexedDB, then downloads the official client through Mojang's Piston
+metadata flow, and finally offers an explicit File API JAR import fallback. The
+raw client JAR is parsed in the browser and is never uploaded by the editor. The
+Block Browser presents a thumbnail/name/source grid;
 technical support diagnostics remain in details/debug paths. Static special
 visual adapters currently cover beds, containers, signs, banners, heads, and
 shulker boxes without changing canonical behavior or block-entity data.
@@ -546,34 +535,3 @@ are unavailable. Painting textures resolve from `textures/painting/<id>.png`;
 frame visuals use the existing namespaced texture provider. Item-frame item
 search indexes item model paths and language data only; item model resolution is
 lazy when a frame is rendered.
-
-## Deployment bundle preparation
-
-The dedicated `npm run build:vercel` command prepares the public default Vanilla
-bundle before running the normal Angular production build. It invokes the
-existing `tools/build-local-vanilla-bundle.mjs` generator and validates the
-resulting `public/local-assets/vanilla/1.21.1/asset-bundle.json` manifest.
-
-The raw Minecraft client JAR is build-time input only. It is never copied into
-`public/` or Angular `dist/`; the generated normalized bundle is a public
-deployment asset and can be downloaded by clients of the application.
-
-For local verification, set `VANILLA_JAR_PATH` to a user-owned Java 1.21.1 JAR:
-
-```text
-# PowerShell
-$env:VANILLA_JAR_PATH = '<path-to-minecraft-1.21.1.jar>'; npm run build:vercel
-
-# cmd.exe
-set VANILLA_JAR_PATH=<path-to-minecraft-1.21.1.jar> && npm run build:vercel
-
-# POSIX shell
-VANILLA_JAR_PATH=<path-to-minecraft-1.21.1.jar> npm run build:vercel
-```
-
-In Vercel, set the Frontend directory as the Root Directory and use
-`npm run build:vercel` as the Build Command. Configure `VANILLA_JAR_URL` as a
-private or signed build-time URL. `VANILLA_JAR_TOKEN` is optional and, when
-used, is sent only as a build-time Bearer token; it is never written to the
-bundle or exposed to the browser. Preview and Production environments each
-need their own appropriate build-time variables.

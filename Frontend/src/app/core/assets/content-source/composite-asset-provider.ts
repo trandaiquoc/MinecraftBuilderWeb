@@ -1,11 +1,17 @@
 import { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
-import { CONTENT_SOURCE_MINECRAFT_VERSION, ContentSourceDescriptor, ContentSourceProvider, RenderableAssetResourceProvider } from './content-source.types';
+import { ContentSourceDescriptor, ContentSourceProvider, RenderableAssetResourceProvider } from './content-source.types';
 
 /** Routes namespaced resources to their explicitly registered owner. */
 export class CompositeAssetResourceProvider implements AssetResourceProvider, RenderableAssetResourceProvider {
   private readonly owners = new Map<string, ContentSourceProvider>();
   private readonly providers = new Map<string, ContentSourceProvider>();
   private revisionValue = 0;
+  private activeVersion = '1.21.1';
+
+  setActiveVersion(version: string): void {
+    if (this.providers.size && [...this.providers.values()].some((provider) => provider.source.minecraftVersion !== version)) throw new Error('Remove content sources before changing the active Minecraft version.');
+    this.activeVersion = version;
+  }
 
   get revision(): number { return this.revisionValue; }
   get generation(): number { return this.revisionValue; }
@@ -13,7 +19,7 @@ export class CompositeAssetResourceProvider implements AssetResourceProvider, Re
   sources(): readonly ContentSourceDescriptor[] { return [...this.providers.values()].map((provider) => provider.source); }
 
   register(provider: ContentSourceProvider): void {
-    if (provider.source.minecraftVersion !== CONTENT_SOURCE_MINECRAFT_VERSION) throw new Error(`Unsupported content source Minecraft version: ${provider.source.minecraftVersion}. Expected ${CONTENT_SOURCE_MINECRAFT_VERSION}.`);
+    if (provider.source.minecraftVersion !== this.activeVersion) throw new Error(`Unsupported content source Minecraft version: ${provider.source.minecraftVersion}. Expected ${this.activeVersion}.`);
     if (this.providers.has(provider.source.id)) throw new Error(`Content source is already registered: ${provider.source.id}`);
     for (const namespace of provider.source.namespaces) {
       if (this.owners.has(namespace)) throw new Error(`Content namespace is already owned: ${namespace}`);

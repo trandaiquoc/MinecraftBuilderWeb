@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
@@ -12,10 +12,13 @@ import { EditorSessionService } from '../../../core/editor/state/editor-session.
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
+import { SearchableDropdownComponent, SearchableDropdownOption } from '../../../shared/ui/searchable-dropdown/searchable-dropdown.component';
+import { MojangRelease, MojangVersionService } from '../../../core/assets/vanilla/mojang-vanilla-asset-source';
+import { DEFAULT_MINECRAFT_VERSION } from '../../../core/domain/project.types';
 
 @Component({
   selector: 'app-project-screen',
-  imports: [DatePipe, LucideX, UiTooltipDirective],
+  imports: [DatePipe, LucideX, UiTooltipDirective, SearchableDropdownComponent],
   templateUrl: './project-screen.component.html',
   styleUrl: './project-screen.component.scss',
 })
@@ -29,6 +32,13 @@ export class ProjectScreenComponent {
   protected readonly sizeX = signal('16');
   protected readonly sizeY = signal('16');
   protected readonly sizeZ = signal('16');
+  protected readonly minecraftVersion = signal<string>(DEFAULT_MINECRAFT_VERSION);
+  protected readonly versions = inject(MojangVersionService);
+  protected readonly versionOptions = computed<readonly SearchableDropdownOption[]>(() => {
+    const releases = this.versions.releases();
+    const entries = releases.length ? releases : [{ id: DEFAULT_MINECRAFT_VERSION, type: 'release' as const, url: '' } satisfies MojangRelease];
+    return entries.map((release) => ({ id: release.id, label: `Java ${release.id}`, secondary: release.id === DEFAULT_MINECRAFT_VERSION ? this.i18n.t('verifiedSupport') : this.i18n.t('resourceCompatibility') }));
+  });
   protected readonly projects = signal<readonly ProjectSummary[]>([]);
   protected readonly error = signal<string | undefined>(undefined);
   protected readonly listError = signal(false);
@@ -42,6 +52,7 @@ export class ProjectScreenComponent {
 
   constructor() {
     void this.loadProjects();
+    void this.loadVersions();
   }
 
   protected updateName(value: string): void { this.name.set(value); }
@@ -49,6 +60,8 @@ export class ProjectScreenComponent {
     ({ x: () => this.sizeX.set(value), y: () => this.sizeY.set(value), z: () => this.sizeZ.set(value) }[axis])();
     this.error.set(undefined);
   }
+  protected setMinecraftVersion(value: string): void { if (value) this.minecraftVersion.set(value); }
+  protected versionSupportLabel(): string { return this.minecraftVersion() === DEFAULT_MINECRAFT_VERSION ? this.i18n.t('verifiedSupport') : this.i18n.t('resourceCompatibility'); }
 
   protected async createProject(): Promise<void> {
     const guard = projectCreationGuard(this.creating(), !!this.openingId(), this.validDimensions());
@@ -57,7 +70,7 @@ export class ProjectScreenComponent {
     this.creating.set(true); this.error.set(undefined);
     const now = new Date().toISOString();
     const project: ProjectDocument = {
-      schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || this.i18n.t('untitledStructure'), minecraftVersion: '1.21.1', createdAt: now, updatedAt: now },
+      schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || this.i18n.t('untitledStructure'), minecraftVersion: this.minecraftVersion(), createdAt: now, updatedAt: now },
       size: { x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
     };
     try {
@@ -124,6 +137,7 @@ export class ProjectScreenComponent {
     try { this.projects.set(await this.getPersistence().list()); this.loadStatus.set('ready'); }
     catch { this.projects.set([]); this.listError.set(true); this.loadStatus.set('error'); }
   }
+  private async loadVersions(): Promise<void> { try { await this.versions.loadReleases(); } catch { /* Keep the safe 1.21.1 fallback when Mojang metadata is offline. */ } }
 
   private getPersistence(): ProjectPersistenceService {
     return this.persistence ??= new ProjectPersistenceService(new IndexedDbProjectStore());

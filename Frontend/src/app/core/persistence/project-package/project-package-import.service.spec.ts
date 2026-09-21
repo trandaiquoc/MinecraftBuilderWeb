@@ -33,7 +33,7 @@ class ImportStore implements ProjectStore {
   async open(id: string): Promise<ProjectDocument | undefined> { return this.values.get(id); }
   async save(value: ProjectDocument): Promise<void> { this.values.set(value.id, structuredClone(value)); }
   async delete(id: string): Promise<void> { this.values.delete(id); }
-  async list(): Promise<readonly ProjectSummary[]> { return [...this.values.values()].map((value) => ({ id: value.id, name: value.metadata.name, updatedAt: value.metadata.updatedAt })); }
+  async list(): Promise<readonly ProjectSummary[]> { return [...this.values.values()].map((value) => ({ id: value.id, name: value.metadata.name, minecraftVersion: value.metadata.minecraftVersion, updatedAt: value.metadata.updatedAt })); }
   async saveRecoverySnapshot(): Promise<void> { /* no-op test store */ }
   async openRecoverySnapshot(): Promise<ProjectDocument | undefined> { return undefined; }
   async deleteRecoverySnapshot(): Promise<void> { /* no-op test store */ }

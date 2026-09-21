@@ -3,7 +3,7 @@ import { BehaviorSupportLevel, BlockDefinition, VisualSupportLevel } from '../..
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { BlockModelResolver, ResolverDiagnosticCode } from '../../blocks/resolver';
 import { VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-geometry';
-import { texturePath, VanillaAssetProvider, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
+import { texturePath, VanillaAssetProvider } from './vanilla-asset-provider';
 import { VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import type { BlockCapabilityProfile } from '../../blocks/capabilities/block-capability.types';
 
@@ -29,7 +29,7 @@ export interface VanillaAssetAuditRecord {
 
 export interface VanillaAssetCoverageReport {
   readonly schemaVersion: 1;
-  readonly minecraftVersion: '1.21.1';
+  readonly minecraftVersion: string;
   readonly sourceName: string;
   readonly generatedAt: string;
   readonly methodology: readonly string[];
@@ -71,7 +71,7 @@ export async function auditVanillaAssets(provider: VanillaAssetProvider, options
     await Promise.resolve();
   }
   visualProvider.dispose();
-  return buildReport(provider.sourceName, records);
+  return buildReport(provider.minecraftVersion, provider.sourceName, records);
 }
 
 async function auditDefinition(definition: BlockDefinition, provider: VanillaAssetProvider, resolver: BlockModelResolver, visualProvider: VanillaBlockVisualProvider, decodeCache: Map<string, Promise<boolean>>, decodeTexture: (bytes: Uint8Array, path: string) => Promise<boolean>): Promise<VanillaAssetAuditRecord> {
@@ -130,13 +130,13 @@ export function classifyVisualSupport(input: { readonly renderMode: 'real' | 'pa
   return input.renderMode === 'partial' || !input.defaultKnown || input.specialModel || !input.texturesDecoded ? 'partial' : 'real';
 }
 
-function buildReport(sourceName: string, records: readonly VanillaAssetAuditRecord[]): VanillaAssetCoverageReport {
+function buildReport(minecraftVersion: string, sourceName: string, records: readonly VanillaAssetAuditRecord[]): VanillaAssetCoverageReport {
   const count = <T extends string>(values: readonly T[], choices: readonly T[]): Record<T, number> => Object.fromEntries(choices.map((choice) => [choice, values.filter((value) => value === choice).length])) as Record<T, number>;
   const reasons: Record<string, number> = {}; const families: Record<string, number> = {};
   for (const item of records) { families[item.family] = (families[item.family] ?? 0) + 1; for (const reason of item.render.reasons) reasons[reason] = (reasons[reason] ?? 0) + 1; }
   return {
-    schemaVersion: 1, minecraftVersion: VANILLA_ASSET_VERSION, sourceName, generatedAt: new Date().toISOString(),
-    methodology: ['Catalog entries and default states come from the normalized Minecraft 1.21.1 reports/blocks.json registry.', 'Display names come from the active en_us language resource; visual resources and behavior metadata remain independent.', 'Geometry is built headlessly through the production resolver/geometry provider without a viewport.', 'PNG decode uses createImageBitmap when available and a strict PNG container check in headless tooling.'],
+    schemaVersion: 1, minecraftVersion, sourceName, generatedAt: new Date().toISOString(),
+    methodology: [`Catalog entries and default states come from the selected Minecraft ${minecraftVersion} asset source.`, 'Display names come from the active en_us language resource; visual resources and behavior metadata remain independent.', 'Geometry is built headlessly through the production resolver/geometry provider without a viewport.', 'PNG decode uses createImageBitmap when available and a strict PNG container check in headless tooling.'],
     summary: { totalEntries: records.length, visual: count(records.map((item) => item.render.visualSupport), ['real', 'partial', 'fallback']), behavior: count(records.map((item) => item.catalog.behaviorSupport), ['full', 'partial', 'unknown']), thumbnail: count(records.map((item) => item.thumbnail), ['real', 'fallback', 'unavailable']), defaultState: { known: records.filter((item) => item.defaultState.known).length, unknown: records.filter((item) => !item.defaultState.known).length }, specialRendererRequired: records.filter((item) => item.render.classification === 'special-renderer-required').length, intentionallyInvisible: records.filter((item) => item.render.classification === 'intentionally-invisible').length, failureReasons: sortCounts(reasons), families: sortCounts(families) },
     records,
   };

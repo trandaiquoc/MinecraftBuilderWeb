@@ -16,7 +16,7 @@ const MAX_CACHE_BYTES = 256 * 1024 * 1024;
 
 export interface SerializedVanillaAssets {
   readonly schemaVersion: 2;
-  readonly minecraftVersion: '1.21.1';
+  readonly minecraftVersion: string;
   readonly sourceName: string;
   readonly json: Readonly<Record<string, unknown>>;
   readonly binary: readonly { readonly path: string; readonly data: ArrayBuffer }[];
@@ -33,16 +33,25 @@ export interface VanillaAssetProviderDiagnostics {
 export class VanillaAssetProvider implements ContentSourceProvider {
   private readonly objectUrls = new Map<string, string>();
   readonly gameEdition = 'java' as const;
-  readonly gameVersion = VANILLA_ASSET_VERSION;
-  readonly source = { id: 'vanilla', kind: 'vanilla' as const, displayName: 'Vanilla', minecraftVersion: VANILLA_ASSET_VERSION, sourceVersion: VANILLA_ASSET_VERSION, namespaces: ['minecraft'] as const, decorationSupport: true };
+  readonly gameVersion: string;
+  readonly source;
 
-  constructor(
-    readonly sourceName: string,
-    private readonly json: Readonly<Record<string, unknown>>,
-    private readonly binary: ReadonlyMap<string, Uint8Array>,
-  ) {}
+  constructor(sourceName: string, json: Readonly<Record<string, unknown>>, binary: ReadonlyMap<string, Uint8Array>);
+  constructor(sourceName: string, minecraftVersion: string, json: Readonly<Record<string, unknown>>, binary: ReadonlyMap<string, Uint8Array>);
+  constructor(sourceName: string, versionOrJson: string | Readonly<Record<string, unknown>>, jsonOrBinary: Readonly<Record<string, unknown>> | ReadonlyMap<string, Uint8Array>, maybeBinary?: ReadonlyMap<string, Uint8Array>) {
+    this.sourceName = sourceName;
+    this.minecraftVersion = typeof versionOrJson === 'string' ? versionOrJson : VANILLA_ASSET_VERSION;
+    this.json = (typeof versionOrJson === 'string' ? jsonOrBinary : versionOrJson) as Readonly<Record<string, unknown>>;
+    this.binary = (typeof versionOrJson === 'string' ? maybeBinary : jsonOrBinary) as ReadonlyMap<string, Uint8Array>;
+    this.gameVersion = this.minecraftVersion;
+    this.source = { id: 'vanilla', kind: 'vanilla' as const, displayName: 'Vanilla', minecraftVersion: this.minecraftVersion, sourceVersion: this.minecraftVersion, namespaces: ['minecraft'] as const, decorationSupport: true };
+  }
+  readonly sourceName: string;
+  readonly minecraftVersion: string;
+  private readonly json: Readonly<Record<string, unknown>>;
+  private readonly binary: ReadonlyMap<string, Uint8Array>;
 
-  static async fromJar(file: File): Promise<VanillaAssetProvider> {
+  static async fromJar(file: Blob, minecraftVersion = VANILLA_ASSET_VERSION, sourceName = 'Imported Minecraft assets'): Promise<VanillaAssetProvider> {
     const archive = await ZipArchive.open(file);
     const entries = archive.entries.filter((entry) => RESOURCE_PATH.test(entry.name) || BLOCK_TAG_PATH.test(entry.name) || DECORATION_DATA_PATH.test(entry.name));
     const totalSize = entries.reduce((sum, entry) => sum + entry.uncompressedSize, 0);
@@ -61,17 +70,16 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       }
     }
     if (!json['assets/minecraft/lang/en_us.json']) throw new Error('Minecraft en_us language resource is missing');
-    return new VanillaAssetProvider(file.name, json, binary);
+    return new VanillaAssetProvider(sourceName, minecraftVersion, json, binary);
   }
 
   static deserialize(bundle: SerializedVanillaAssets): VanillaAssetProvider {
-    if (bundle.schemaVersion !== VANILLA_ASSET_CACHE_SCHEMA_VERSION) throw new Error('Vanilla asset cache is outdated. Import the Minecraft 1.21.1 JAR again.');
-    if (bundle.minecraftVersion !== VANILLA_ASSET_VERSION) throw new Error(`Unsupported asset version: ${bundle.minecraftVersion}`);
-    return new VanillaAssetProvider(bundle.sourceName, bundle.json, new Map(bundle.binary.map((entry) => [entry.path, new Uint8Array(entry.data)])));
+    if (bundle.schemaVersion !== VANILLA_ASSET_CACHE_SCHEMA_VERSION) throw new Error('Vanilla asset cache is outdated. Import the selected Minecraft JAR again.');
+    return new VanillaAssetProvider(bundle.sourceName, bundle.minecraftVersion, bundle.json, new Map(bundle.binary.map((entry) => [entry.path, new Uint8Array(entry.data)])));
   }
 
   serialize(): SerializedVanillaAssets {
-    return { schemaVersion: VANILLA_ASSET_CACHE_SCHEMA_VERSION, minecraftVersion: VANILLA_ASSET_VERSION, sourceName: this.sourceName, json: this.json, binary: [...this.binary].map(([path, data]) => ({ path, data: data.slice().buffer })) };
+    return { schemaVersion: VANILLA_ASSET_CACHE_SCHEMA_VERSION, minecraftVersion: this.minecraftVersion, sourceName: this.sourceName, json: this.json, binary: [...this.binary].map(([path, data]) => ({ path, data: data.slice().buffer })) };
   }
 
   readJson(path: string): unknown | undefined { return this.json[path]; }
@@ -90,7 +98,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
 
   assertUsable(): void {
     const state = this.diagnostics();
-    if (!state.language || !state.stoneBlockstate || !state.stoneModel || !state.stoneTexture) throw new Error('Cached vanilla assets are incomplete. Import the Minecraft 1.21.1 JAR again.');
+    if (!state.language || !state.stoneBlockstate || !state.stoneModel || !state.stoneTexture) throw new Error(`Cached vanilla assets for Minecraft ${this.minecraftVersion} are incomplete. Import the selected JAR again.`);
   }
 
   textureUrl(resource: string): string | undefined {
@@ -109,8 +117,8 @@ export class VanillaAssetProvider implements ContentSourceProvider {
 
   catalog(registry?: VanillaBlockRegistry): BlockCatalogSource {
     const language = record(this.json['assets/minecraft/lang/en_us.json']);
-    const verified = new Map(representativeBlockFixture.blocks.map((entry) => [entry.id, entry]));
-    const behaviorRegistry = new VanillaBehaviorRegistry(this);
+    const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
+    const behaviorRegistry = this.minecraftVersion === VANILLA_ASSET_VERSION ? new VanillaBehaviorRegistry(this) : undefined;
     const resolver = new BlockModelResolver(this);
     const resources = registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : Object.keys(this.json).filter((path) => /\/blockstates\/[^/]+\.json$/.test(path)).sort().map((path) => {
       const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
@@ -132,7 +140,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : 'unknown',
         capabilities: known?.capabilities,
       };
-      const enriched = behaviorRegistry.enrich(generated);
+      const enriched = behaviorRegistry?.enrich(generated) ?? generated;
       const resolved = resolver.resolve(id, enriched.defaultState, 'catalog');
       const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(texturePath(resource)));
       const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
@@ -142,7 +150,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
       return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
     });
-    return { minecraftVersion: VANILLA_ASSET_VERSION, sourceId: this.source.id, sourceName: this.source.displayName, blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })) };
+    return { minecraftVersion: this.minecraftVersion, sourceId: this.source.id, sourceName: this.source.displayName, blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })) };
   }
 }
 
