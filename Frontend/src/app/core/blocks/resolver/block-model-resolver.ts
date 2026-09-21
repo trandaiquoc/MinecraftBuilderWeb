@@ -120,9 +120,14 @@ function parseElements(value: unknown, textures: Readonly<Record<string, string>
 }
 
 function parseRotation(value: unknown): ResolvedElementRotation | undefined {
-  if (!isRecord(value) || !Array.isArray(value['origin']) || !['x', 'y', 'z'].includes(String(value['axis'])) || typeof value['angle'] !== 'number') return undefined;
+  if (!isRecord(value) || !Array.isArray(value['origin'])) return undefined;
   const origin = tuple(value['origin'], 3); if (!origin) return undefined;
-  return { origin, axis: value['axis'] as 'x' | 'y' | 'z', angle: value['angle'], rescale: value['rescale'] === true };
+  if (['x', 'y', 'z'].includes(String(value['axis'])) && typeof value['angle'] === 'number') return { origin, axis: value['axis'] as 'x' | 'y' | 'z', angle: value['angle'], rescale: value['rescale'] === true };
+  if (Array.isArray(value['rotations'])) {
+    const rotations = value['rotations'].filter(isRecord).flatMap((entry) => ['x', 'y', 'z'].includes(String(entry['axis'])) && typeof entry['angle'] === 'number' ? [{ axis: entry['axis'] as 'x' | 'y' | 'z', angle: entry['angle'] as number }] : []);
+    return rotations.length ? { origin, rotations, rescale: false } : undefined;
+  }
+  return undefined;
 }
 
 function resolveTextures(value: unknown, diagnostics: ResolverDiagnostic[], resource: string): { readonly values: Record<string, string>; readonly hints: Record<string, boolean> } {

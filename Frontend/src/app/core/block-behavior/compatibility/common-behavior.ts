@@ -93,7 +93,7 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (stairs.complete) return complete(record, definitions, 'stairs', { kind: 'stairs', derivedProperties: ['shape'] }, { ...deriveResourceDefaultState(definitions), shape: 'straight' }, 'compatible-common');
   if (stairs.partial && looksLikeStairs(record.id, definitions)) return changed(record, definitions, defaultState, 'stairs', 'Stair state contract differs from the common facing/half/shape properties.');
 
-  return { defaultState, stateDefinitions: definitions, defaultStateSource: Object.keys(defaultState).length ? 'resource-derived' : 'unknown', compatible: false };
+  return { defaultState, stateDefinitions: definitions, defaultStateSource: Object.keys(defaultState).length ? (usesArbitraryValue(definitions) ? 'resource-render-fallback' : 'resource-derived') : 'unknown', compatible: false };
 }
 
 function complete(record: AssetBlockRecord, definitions: readonly BlockStateDefinition[], family: string, behavior: BlockBehavior, defaults: Readonly<Record<string, string>>, source: DefaultStateSource): CommonBehaviorEvaluation {
@@ -156,9 +156,13 @@ function markDerived(definitions: readonly BlockStateDefinition[], behavior: Blo
 function doorState(definitions: readonly BlockStateDefinition[]): Readonly<Record<string, string>> { return mergeValidDefaults(definitions, { facing: 'north', half: 'lower', hinge: 'left', open: 'false', powered: 'false' }); }
 function buttonState(definitions: readonly BlockStateDefinition[]): Readonly<Record<string, string>> { return mergeValidDefaults(definitions, { face: 'floor', facing: 'north', powered: 'false' }); }
 function preferredValue(name: string, values: readonly string[]): string | undefined {
-  const preferences: Readonly<Record<string, string>> = { facing: 'north', half: 'bottom', part: 'foot', shape: 'straight', hinge: 'left', open: 'false', powered: 'false', waterlogged: 'false', lit: 'false', attached: 'false', hanging: 'false', axis: 'y', face: 'floor', rotation: '0', candles: '1', level: '0', up: 'true' };
+  const preferences: Readonly<Record<string, string>> = { facing: 'north', half: 'bottom', part: 'foot', type: 'bottom', shape: 'straight', hinge: 'left', open: 'false', powered: 'false', waterlogged: 'false', lit: 'false', attached: 'false', hanging: 'false', axis: 'y', face: 'floor', rotation: '0', candles: '1', level: '0', honey_level: '0', in_wall: 'false', up: 'true' };
   const value = preferences[name];
   return value && values.includes(value) ? value : values[0];
+}
+function usesArbitraryValue(definitions: readonly BlockStateDefinition[]): boolean {
+  const semantic = new Set(['facing', 'half', 'part', 'type', 'shape', 'hinge', 'open', 'powered', 'waterlogged', 'lit', 'attached', 'hanging', 'axis', 'face', 'rotation', 'candles', 'level', 'honey_level', 'in_wall', 'up', 'age']);
+  return definitions.some((definition) => definition.values.length > 0 && !semantic.has(definition.name));
 }
 
 function hasAny(definitions: readonly BlockStateDefinition[], names: readonly string[]): boolean { return names.some((name) => definitions.some((definition) => definition.name === name)); }

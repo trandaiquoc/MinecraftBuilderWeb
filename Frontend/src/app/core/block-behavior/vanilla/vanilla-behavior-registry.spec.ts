@@ -19,7 +19,7 @@ describe('VanillaBehaviorRegistry', () => {
     const registry = new VanillaBehaviorRegistry({ readJson: (path) => resources.get(path) });
     expect(registry.enrich(baseRecord('minecraft:spruce_fence'))).toMatchObject({ behaviorSupport: 'partial', behavior: { family: 'fence', connectionGroup: 'wood-fence' }, defaultState: { north: 'false' } });
     expect(registry.enrich(baseRecord('minecraft:nether_brick_fence'))).toMatchObject({ behavior: { family: 'fence', connectionGroup: 'nether-fence' } });
-    expect(registry.enrich(baseRecord('minecraft:oak_stairs'))).toMatchObject({ behaviorSupport: 'full', behavior: { kind: 'stairs' }, defaultState: { shape: 'straight' } });
+    expect(registry.enrich(baseRecord('minecraft:oak_stairs'))).toMatchObject({ behaviorSupport: 'full', behavior: { kind: 'stairs' }, defaultState: { shape: 'straight' }, defaultStateSource: 'compatible-common' });
     expect(registry.enrich(baseRecord('example:oak_fence'))).toEqual(baseRecord('example:oak_fence'));
   });
 

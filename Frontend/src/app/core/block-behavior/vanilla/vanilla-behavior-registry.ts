@@ -102,6 +102,7 @@ export class VanillaBehaviorRegistry {
       stateDefinitions: mergeStateDefinitions(record.stateDefinitions, metadata.stateDefinitions),
       behavior: metadata.behavior,
       behaviorSupport: metadata.support,
+      defaultStateSource: record.defaultStateSource === 'authoritative-report' || record.defaultStateSource === 'verified-fixture' ? record.defaultStateSource : 'compatible-common',
     };
   }
 

@@ -141,15 +141,17 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const known = verified.get(id);
       const blockstate = this.json[path];
       const models = configuredModelIds(blockstate);
+      const inferredDefinitions = registryEntry?.properties ?? known?.stateDefinitions ?? inferStateDefinitions(blockstate);
+      const resourceDefault = resourceDefaultState(blockstate, inferredDefinitions);
       const generated: AssetBlockRecord = {
         id,
         displayName: typeof language[`block.${namespace}.${name.replaceAll('/', '.')}`] === 'string' ? language[`block.${namespace}.${name.replaceAll('/', '.')}`] as string : humanize(name),
-        defaultState: registryEntry?.defaultState ?? known?.defaultState ?? deriveResourceDefaultState(registryEntry?.properties ?? known?.stateDefinitions ?? inferStateDefinitions(blockstate)),
-        stateDefinitions: registryEntry?.properties ?? known?.stateDefinitions ?? inferStateDefinitions(blockstate),
+        defaultState: registryEntry?.defaultState ?? known?.defaultState ?? resourceDefault.state,
+        stateDefinitions: inferredDefinitions,
         resources: { blockstate: path, model: models[0], textures: [] },
         support: 'partial',
         visualSupport: 'partial',
-        behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : 'unknown',
+        behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : resourceDefault.source,
         capabilities: known?.capabilities,
         itemEvidence: itemByBlock.has(id) ? toBlockItemEvidence(itemByBlock.get(id)!) : undefined,
       };
@@ -212,6 +214,24 @@ function inferStateDefinitions(value: unknown): readonly BlockStateDefinition[] 
   const visitCondition = (condition: unknown): void => { const object = record(condition); for (const [name, raw] of Object.entries(object)) { if (name === 'OR' || name === 'AND') { if (Array.isArray(raw)) for (const child of raw) visitCondition(child); } else if (typeof raw === 'string') addExpression(`${name}=${raw}`); } };
   if (Array.isArray(document['multipart'])) for (const part of document['multipart']) visitCondition(record(part)['when']);
   return [...values].map(([name, options]) => ({ name, values: [...options] }));
+}
+
+function resourceDefaultState(value: unknown, definitions: readonly BlockStateDefinition[]): { readonly state: Readonly<Record<string, string>>; readonly source: 'resource-derived' | 'resource-render-fallback' | 'unknown' } {
+  const document = record(value);
+  const variants = record(document['variants']);
+  const keys = Object.keys(variants).filter(Boolean).sort((left, right) => right.split(',').length - left.split(',').length || left.localeCompare(right));
+  if (keys.length) {
+    const candidate: Record<string, string> = {};
+    for (const entry of keys[0].split(',')) {
+      const [name, raw] = entry.split('=');
+      if (name && raw && definitions.some((definition) => definition.name === name && definition.values.includes(raw))) candidate[name] = raw;
+    }
+    const fallback = deriveResourceDefaultState(definitions);
+    const state = { ...fallback, ...candidate };
+    if (Object.keys(state).length) return { state, source: Object.keys(candidate).length ? 'resource-derived' : 'resource-render-fallback' };
+  }
+  const state = deriveResourceDefaultState(definitions);
+  return Object.keys(state).length ? { state, source: 'resource-derived' } : { state: {}, source: 'unknown' };
 }
 
 function record(value: unknown): Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }

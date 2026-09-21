@@ -90,4 +90,11 @@ describe('common resource behavior evaluation', () => {
     ]));
     expect(cake.behavior).toBeUndefined();
   });
+
+  it('labels arbitrary resource values as render fallbacks rather than semantic defaults', () => {
+    const result = evaluateCommonBehavior(record('example:custom', [{ name: 'mode', values: ['alpha', 'beta'] }]));
+    expect(result.defaultState).toEqual({ mode: 'alpha' });
+    expect(result.defaultStateSource).toBe('resource-render-fallback');
+    expect(result.compatible).toBe(false);
+  });
 });

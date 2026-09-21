@@ -1528,6 +1528,13 @@ provide placement support without being assigned a `solid` behavior entry;
 connection, fluid, and attachment families remain non-supporting unless their
 own contract says otherwise.
 
+Default-state provenance distinguishes semantic resource defaults from a
+deterministic render fallback. Common behavior enrichment marks filled
+contracts as `compatible-common` without downgrading authoritative or verified
+states. Element `shade_direction_override` is consumed as a deterministic
+directional material-lighting approximation; it is not a full Minecraft light
+engine.
+
 ## Generic target resource rendering
 
 Generic resource defaults are derived from selected blockstate domains even when

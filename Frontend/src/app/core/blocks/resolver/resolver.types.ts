@@ -32,8 +32,9 @@ export interface ResolvedFace {
 
 export interface ResolvedElementRotation {
   readonly origin: readonly [number, number, number];
-  readonly axis: 'x' | 'y' | 'z';
-  readonly angle: number;
+  readonly axis?: 'x' | 'y' | 'z';
+  readonly angle?: number;
+  readonly rotations?: readonly { readonly axis: 'x' | 'y' | 'z'; readonly angle: number }[];
   readonly rescale: boolean;
 }
 

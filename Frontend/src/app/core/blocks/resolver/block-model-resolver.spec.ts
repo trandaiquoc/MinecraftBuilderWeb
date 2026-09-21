@@ -34,6 +34,14 @@ describe('Minecraft block model resolver', () => {
     expect(result.parts[0].elements[0].faces['up']).toMatchObject({ texture: 'minecraft:block/glass', forceTranslucent: true });
   });
 
+  it('normalizes feature-detected multi-axis element rotations', () => {
+    const result = resolver({
+      'assets/minecraft/blockstates/test.json': { variants: { '': { model: 'minecraft:block/test' } } },
+      'assets/minecraft/models/block/test.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], rotation: { origin: [8, 8, 8], rotations: [{ axis: 'x', angle: 15 }, { axis: 'y', angle: 25 }, { axis: 'z', angle: 35 }] }, faces: { up: { texture: 'minecraft:block/stone' } } }] },
+    }).resolve('minecraft:test');
+    expect(result.parts[0].elements[0].rotation).toEqual({ origin: [8, 8, 8], rotations: [{ axis: 'x', angle: 15 }, { axis: 'y', angle: 25 }, { axis: 'z', angle: 35 }], rescale: false });
+  });
+
   it('keeps variant subset matching and preserves raw element coordinates/reversed UV', () => {
     const result = resolver({
       'assets/minecraft/blockstates/test.json': { __comment: 'ignored metadata', variants: { 'facing=north,half=bottom': { model: 'minecraft:block/test' } } },

@@ -219,6 +219,10 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       const material = element.shade === false
         ? new THREE.MeshBasicMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide })
         : new THREE.MeshLambertMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide });
+      if (element.shadeDirectionOverride) {
+        material.color.multiplyScalar(shadeDirectionFactor(element.shadeDirectionOverride));
+        material.userData['shadeDirectionOverride'] = element.shadeDirectionOverride;
+      }
       if (!texture) material.color.setHex(0xd04cff);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData['face'] = direction; mesh.userData['cullface'] = face.cullface; mesh.userData['tintindex'] = face.tintindex; mesh.userData['texture'] = face.texture;
@@ -226,8 +230,13 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     }
     if (element.rotation) {
       elementGroup.position.copy(origin);
-      elementGroup.rotation[element.rotation.axis] = THREE.MathUtils.degToRad(element.rotation.angle);
-      if (element.rotation.rescale) {
+      if (element.rotation.rotations?.length) {
+        elementGroup.rotation.order = 'XYZ';
+        for (const rotation of element.rotation.rotations) elementGroup.rotation[rotation.axis] = THREE.MathUtils.degToRad(rotation.angle);
+      } else if (element.rotation.axis && element.rotation.angle !== undefined) {
+        elementGroup.rotation[element.rotation.axis] = THREE.MathUtils.degToRad(element.rotation.angle);
+      }
+      if (element.rotation.rescale && element.rotation.axis && element.rotation.angle !== undefined) {
         const scale = 1 / Math.cos(THREE.MathUtils.degToRad(element.rotation.angle));
         if (element.rotation.axis !== 'x') elementGroup.scale.x = scale;
         if (element.rotation.axis !== 'y') elementGroup.scale.y = scale;
@@ -255,6 +264,19 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private async sampleGrassTint(): Promise<number | undefined> {
     const texture = await this.texture('minecraft:colormap/grass');
     return texture ? sampleGrassColormap(texture) : undefined;
+  }
+}
+
+/** Deterministic face-lighting approximation for the target's explicit shade direction. */
+export function shadeDirectionFactor(direction: string): number {
+  switch (direction) {
+    case 'up': return 1;
+    case 'down': return .7;
+    case 'north':
+    case 'south': return .85;
+    case 'east':
+    case 'west': return .9;
+    default: return 1;
   }
 }
 

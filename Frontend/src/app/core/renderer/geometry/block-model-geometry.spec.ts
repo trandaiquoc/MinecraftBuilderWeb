@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../../blocks/resolver';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
-import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
+import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from '../engine/three-viewport-engine';
 import { viewportThemePalette } from '../engine/viewport-theme';
 
@@ -24,6 +24,11 @@ describe('block model geometry', () => {
     expect(tintColorForFace('minecraft:stone', 0, grass)).toBeUndefined();
     expect(isGrassTintBlock('minecraft:tall_grass')).toBe(true);
     expect(grassColormapSampleCoordinate(256, 256)).toEqual([127, 127]);
+  });
+  it('maps explicit shade direction to deterministic material intent', () => {
+    expect(shadeDirectionFactor('up')).toBe(1);
+    expect(shadeDirectionFactor('down')).toBeLessThan(shadeDirectionFactor('north'));
+    expect(shadeDirectionFactor('unknown')).toBe(1);
   });
 
   it('samples the vanilla default grass pixel from the colormap image data', () => {
