@@ -1430,8 +1430,8 @@ resource-pack override/load-order semantics remain out of scope.
 
 `BlockCatalog` and placeable items retain source ownership and can compose
 multiple contributions without rewriting project data when a source is removed.
-The current Vanilla bundle is explicitly typed as a vanilla bundle; real mod
-JAR parsing and imported-mod management remain deferred to Prompt 13. The
+The current Vanilla bundle is explicitly typed as a vanilla bundle; local
+Fabric resource-only mod imports use a separate normalized external cache. The
 Decoration browser only advertises sources that declare decoration support.
 
 Project deletion is centralized in File > Delete Project. The operation drains
@@ -1455,3 +1455,6 @@ saved reference. Decoration source selection uses the canonical `vanilla` ID.
 Vanilla horizontal connection behavior remains intentionally Partial because
 the editor does not yet carry complete Java voxel-shape/sturdiness metadata for
 all solid neighbors; verified family connections still refresh as before.
+# Prompt 13 - local Fabric mod resources
+
+Local Fabric JAR imports are resource-only and never execute archive code. Imported sources use stable `mod:<fabric-id>` identities, may own multiple namespaces, and contribute candidates only from valid `assets/<namespace>/blockstates/*.json` resources. Imported resources are normalized into the external-mod IndexedDB store and use the existing composite provider, generic model resolver, catalog, and renderer-generation invalidation path. Runtime behavior and item identity remain unknown/inferred unless separately verified; removing a source preserves placed project data.

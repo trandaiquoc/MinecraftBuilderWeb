@@ -12,8 +12,22 @@
       </section>
       <section class="manager-section">
         <h3>{{ i18n.t('assetManagerMods') }}</h3>
-        <p>{{ i18n.t('assetManagerModUnavailable') }}</p>
-        <button type="button" disabled>{{ i18n.t('modJarImport') }}</button>
+        <p>{{ i18n.t('assetManagerModHint') }}</p>
+        <input #modInput class="file-input" type="file" accept=".jar,.zip,application/java-archive,application/zip" (change)="importMod($event)" />
+        <div class="mod-import-row"><button type="button" class="primary" [disabled]="importing()" (click)="openJarPicker(modInput)">{{ i18n.t('modJarImport') }}</button><small>{{ i18n.t('assetManagerModPolicy') }}</small></div>
+        @if (modError()) { <p class="manager-error" role="alert">{{ modError() }}</p> }
+        @if (assets.importedMods().length) {
+          <div class="imported-mod-list">
+            @for (mod of assets.importedMods(); track mod.sourceId) {
+              <article class="imported-mod">
+                <div><strong>{{ mod.displayName }}</strong><span>{{ mod.modId }} · {{ mod.version }}</span><small>{{ mod.namespaces.join(', ') }} · {{ mod.candidateBlockCount }} {{ i18n.t('assetManagerCandidates') }}</small>@if (mod.report.diagnostics.length) {<details><summary>{{ i18n.t('assetManagerDiagnostics') }} ({{ mod.report.diagnostics.length }})</summary><ul>@for (diagnostic of mod.report.diagnostics; track $index) {<li>{{ diagnostic.message }}@if (diagnostic.path) { <code>{{ diagnostic.path }}</code> }</li>}</ul></details>}</div>
+                <button type="button" [disabled]="removing() === mod.sourceId" (click)="removeMod(mod.sourceId)">{{ i18n.t('remove') }}</button>
+              </article>
+            }
+          </div>
+        } @else {
+          <p class="manager-empty">{{ i18n.t('assetManagerNoMods') }}</p>
+        }
       </section>
     </div>
   </section>

@@ -8,9 +8,12 @@ import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CA
 import { loadVanillaBlockRegistry, VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import { VanillaAssetBundle, IndexedDbAssetBundleSource, JarImportSource, LocalDefaultBundleSource, providerFromBundle } from '../bundle/asset-bundle';
 import { ContentSourceRegistry } from '../content-source/content-source-registry';
+import { ExternalModProvider, ModImportReport } from '../mod/external-mod-provider';
+import { importFabricModJar } from '../mod/external-mod-importer';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'importing' | 'ready' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
+export interface ImportedModSummary { readonly sourceId: string; readonly modId: string; readonly displayName: string; readonly version: string; readonly namespaces: readonly string[]; readonly candidateBlockCount: number; readonly report: ModImportReport; }
 
 @Injectable({ providedIn: 'root' })
 export class VanillaAssetsService {
@@ -26,6 +29,7 @@ export class VanillaAssetsService {
   readonly diagnostics = signal<VanillaAssetDiagnostics>({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: false, generation: 0, providerReady: false, resourceCount: 0, stoneBlockstate: false, stoneModel: false, stoneTexture: false, language: false });
   private readonly registry = loadVanillaBlockRegistry();
   readonly sources = new ContentSourceRegistry();
+  readonly importedMods = signal<readonly ImportedModSummary[]>([]);
 
   constructor() { void this.restore(); }
 
@@ -40,6 +44,24 @@ export class VanillaAssetsService {
     } catch (error) {
       this.status.set('import-required'); this.message.set(error instanceof Error ? error.message : 'Unable to import Minecraft assets');
     }
+  }
+
+  async importModJar(file: File): Promise<ModImportReport> {
+    const provider = await importFabricModJar(file);
+    this.assertExternalSourceAvailable(provider);
+    await this.cache.saveExternalMod(provider.serialize());
+    this.activateExternal(provider);
+    return provider.report;
+  }
+
+  async removeMod(sourceId: string): Promise<void> {
+    if (!this.sources.providerForSource(sourceId)) return;
+    this.sources.remove(sourceId);
+    this.library.removeSource(sourceId);
+    this.refreshVisualProvider();
+    this.bumpGeneration();
+    this.importedMods.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
+    await this.cache.deleteExternalMod(sourceId);
   }
 
   prepareThumbnails(blocks: readonly BlockDefinition[]): void {
@@ -89,6 +111,7 @@ export class VanillaAssetsService {
         this.library.load(new VanillaAssetProvider('registry-only', {}, new Map()).catalog(registry));
         this.status.set('no-assets');
       }
+      await this.restoreExternalMods();
     } catch (error) {
       if (registry) this.library.load(new VanillaAssetProvider('registry-only', {}, new Map()).catalog(registry));
       this.status.set('cache-error'); this.message.set(error instanceof Error ? error.message : 'Unable to restore vanilla assets');
@@ -124,6 +147,40 @@ export class VanillaAssetsService {
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
     this.sourceName.set(provider.sourceName); this.status.set('ready'); this.message.set('');
   }
+
+  private activateExternal(provider: ExternalModProvider): void {
+    this.assertExternalSourceAvailable(provider);
+    if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider); else this.sources.register(provider);
+    this.library.replaceSource(provider.catalog());
+    this.refreshVisualProvider();
+    this.bumpGeneration();
+    const summary = summarizeMod(provider);
+    this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
+  }
+
+  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailUrls.set(new Map()); }
+  private bumpGeneration(): void { this.generation.update((value) => value + 1); }
+
+  private assertExternalSourceAvailable(provider: ExternalModProvider): void {
+    for (const namespace of provider.source.namespaces) {
+      if (namespace === 'minecraft') throw new Error('External mods cannot silently override the Vanilla namespace');
+      const owner = this.sources.resources.providerForNamespace(namespace);
+      if (owner && owner.source.id !== provider.source.id) throw new Error(`Content namespace is already owned: ${namespace}`);
+    }
+  }
+
+  private async restoreExternalMods(): Promise<void> {
+    let stored: readonly import('../mod/external-mod-provider').SerializedExternalMod[] = [];
+    try { stored = await this.cache.loadExternalMods(); } catch { return; }
+    for (const serialized of stored) {
+      try { this.activateExternal(ExternalModProvider.deserialize(serialized)); }
+      catch { /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
+    }
+  }
+}
+
+function summarizeMod(provider: ExternalModProvider): ImportedModSummary {
+  return { sourceId: provider.source.id, modId: provider.metadata.id, displayName: provider.metadata.displayName, version: provider.metadata.version, namespaces: provider.source.namespaces, candidateBlockCount: provider.report.candidateBlockCount, report: provider.report };
 }
 
 export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single'): string {

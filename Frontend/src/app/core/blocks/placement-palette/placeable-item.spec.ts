@@ -3,6 +3,7 @@ import { BlockCatalog } from '../catalog/block-catalog';
 import { representativeBlockFixture } from '../catalog/block-catalog.fixture';
 import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, placementItemSearch, previewBlocksForItem, resolveConcreteBlockId, resolveItemBlock } from './placeable-item';
 import type { AssetBlockRecord } from '../catalog/block-definition.types';
+import { blockCapability } from '../capabilities/block-capability-resolver';
 
 function catalogWith(...ids: string[]): BlockCatalog {
   const source = [...representativeBlockFixture.blocks];
@@ -27,6 +28,12 @@ describe('vanilla placeable item layer', () => {
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:light')!)).toBe(false);
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:bedrock')!)).toBe(true);
     expect(isNormalBuildingExportEligible('minecraft:structure_void')).toBe(false);
+  });
+  it('does not claim verified runtime item evidence for external resource candidates', () => {
+    const catalog = new BlockCatalog();
+    catalog.load({ minecraftVersion: '1.21.1', sourceId: 'mod:example', sourceName: 'Example Mod', blocks: [{ id: 'example:widget', displayName: 'Widget', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'partial', sourceId: 'mod:example', sourceName: 'Example Mod' }] });
+    const item = buildPlaceableItems(catalog.all()).find((entry) => entry.itemId === 'example:widget')!;
+    expect(blockCapability(item.capabilities, 'item-backed')?.evidence).toBe('inferred');
   });
   it('represents fluids as Water/Lava Bucket logical items', () => {
     const catalog = catalogWith('minecraft:water', 'minecraft:lava');

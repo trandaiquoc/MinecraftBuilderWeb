@@ -44,7 +44,7 @@
           </div>
         }
         </div>
-        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'tools'" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" (click)="openAssetManager()">{{ i18n.t('assetManager') }}</button><button type="button" (click)="openProjectDiagnostics()">{{ i18n.t('projectDiagnostics') }}</button><button type="button" aria-disabled="true" [attr.title]="i18n.t('featureUnavailable')" (click)="showUnavailableFeature()">{{ i18n.t('modJarImport') }}</button></div>}</div>
+        <div class="menu-entry"><button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'tools'" (click)="toggleAppMenu('tools', $event)">{{ i18n.t('toolsMenu') }}</button>@if (activeMenu() === 'tools') {<div class="menu-popover" (click)="$event.stopPropagation()"><button type="button" (click)="openAssetManager()">{{ i18n.t('assetManager') }}</button><button type="button" (click)="openProjectDiagnostics()">{{ i18n.t('projectDiagnostics') }}</button><button type="button" (click)="openAssetManager()">{{ i18n.t('modJarImport') }}</button></div>}</div>
         <div class="menu-entry settings-entry">
           <button type="button" class="app-menu-trigger" [class.active]="activeMenu() === 'settings'" (click)="toggleAppMenu('settings', $event)">{{ i18n.t('settingsMenu') }}</button>
         @if (activeMenu() === 'settings') {

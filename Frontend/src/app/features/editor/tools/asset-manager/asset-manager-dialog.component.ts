@@ -11,6 +11,8 @@ export class AssetManagerDialogComponent {
   protected readonly assets = inject(VanillaAssetsService);
   readonly closed = output<void>();
   protected readonly importing = signal(false);
+  protected readonly removing = signal<string | undefined>(undefined);
+  protected readonly modError = signal('');
   protected trapFocus(event: KeyboardEvent): void { trapDialogFocus(event, event.currentTarget as HTMLElement); }
 
   protected openJarPicker(input: HTMLInputElement): void {
@@ -29,6 +31,20 @@ export class AssetManagerDialogComponent {
     if (!file) return;
     this.importing.set(true);
     try { await this.assets.importJar(file); } finally { this.importing.set(false); input.value = ''; }
+  }
+  protected async importMod(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.importing.set(true); this.modError.set('');
+    try { await this.assets.importModJar(file); }
+    catch (error) { this.modError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); }
+    finally { this.importing.set(false); input.value = ''; }
+  }
+  protected async removeMod(sourceId: string): Promise<void> {
+    if (this.removing()) return;
+    this.removing.set(sourceId);
+    try { await this.assets.removeMod(sourceId); } finally { this.removing.set(undefined); }
   }
   protected statusLabel(): string {
     const status = this.assets.status();
