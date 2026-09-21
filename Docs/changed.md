@@ -1458,3 +1458,21 @@ all solid neighbors; verified family connections still refresh as before.
 # Prompt 13 - local Fabric mod resources
 
 Local Fabric JAR imports are resource-only and never execute archive code. Imported sources use stable `mod:<fabric-id>` identities, may own multiple namespaces, and contribute candidates only from valid `assets/<namespace>/blockstates/*.json` resources. Imported resources are normalized into the external-mod IndexedDB store and use the existing composite provider, generic model resolver, catalog, and renderer-generation invalidation path. Runtime behavior and item identity remain unknown/inferred unless separately verified; removing a source preserves placed project data.
+
+# Multi-version vanilla compatibility foundation
+
+Vanilla 1.21.1 remains the verified behavior baseline, but it is no longer a
+global version gate. Other Vanilla resource bundles are evaluated against
+common state/resource contracts and can reuse generic behavior when the
+contract matches. Changed contracts are classified as needing a delta;
+unverified or mod-specific behavior remains Unknown and is never inferred from
+registry names alone.
+
+Catalog defaults now retain provenance (`compatible-common` or
+`resource-derived`) alongside the existing authoritative/fixture sources.
+Asset Manager exposes a versioned compatibility report and JSON export without
+placing diagnostics in ProjectDocument or the asset cache contract.
+
+Official downloads, manual Vanilla imports, and mod imports are protected
+operations. Browser unload and editor navigation warn while a non-resumable
+operation is active; cancelling navigation does not mutate project data.

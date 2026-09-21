@@ -4,7 +4,7 @@ export type BlockSupportLevel = 'full' | 'partial' | 'fallback';
 export type BehaviorSupportLevel = 'full' | 'partial' | 'unknown';
 export type VisualSupportLevel = 'real' | 'partial' | 'fallback';
 export type BlockVisualClassification = 'standard-json' | 'special-renderer-required' | 'intentionally-invisible';
-export type DefaultStateSource = 'authoritative-report' | 'verified-fixture' | 'unknown';
+export type DefaultStateSource = 'authoritative-report' | 'verified-fixture' | 'compatible-common' | 'resource-derived' | 'unknown';
 
 export interface BlockStateDefinition {
   readonly name: string;
@@ -38,6 +38,7 @@ export type BlockBehavior =
   | { readonly kind: 'decorated-pot-placement'; readonly facingProperty: 'facing' }
   | { readonly kind: 'conduit-placement'; readonly waterloggedProperty: 'waterlogged' }
   | { readonly kind: 'fluid'; readonly fluid: 'water' | 'lava' }
+  | { readonly kind: 'button'; readonly faceProperty: 'face'; readonly facingProperty: 'facing'; readonly poweredProperty: 'powered' }
   | { readonly kind: 'head-placement'; readonly wall: boolean; readonly rotationProperty: 'rotation'; readonly facingProperty: 'facing' };
 
 export interface BlockDefinition {

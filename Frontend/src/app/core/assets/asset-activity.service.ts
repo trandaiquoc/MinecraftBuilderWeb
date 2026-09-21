@@ -14,12 +14,21 @@ export interface AssetActivityEntry {
   readonly progress?: AssetActivityProgress;
 }
 
+export interface ProtectedAssetOperation { readonly id: number; readonly label: string; }
+
 /** Ephemeral activity feed shared by Vanilla and mod source workflows. */
 @Injectable({ providedIn: 'root' })
 export class AssetActivityService {
   readonly entries = signal<readonly AssetActivityEntry[]>([]);
   readonly current = signal<AssetActivityEntry | undefined>(undefined);
+  readonly protectedOperations = signal<readonly ProtectedAssetOperation[]>([]);
+  readonly hasProtectedOperation = () => this.protectedOperations().length > 0;
   private nextId = 1;
+  private nextProtectedId = 1;
+
+  constructor() {
+    if (typeof window !== 'undefined') window.addEventListener('beforeunload', this.handleBeforeUnload);
+  }
 
   begin(operation: string, message: string, category: AssetActivityCategory = 'vanilla'): AssetActivityEntry {
     const entry = this.push({ category, level: 'info', operation, message });
@@ -47,6 +56,20 @@ export class AssetActivityService {
   }
 
   clear(): void { this.entries.set([]); }
+
+  protect(label: string): number {
+    const id = this.nextProtectedId++;
+    this.protectedOperations.update((items) => [...items, { id, label }]);
+    return id;
+  }
+
+  releaseProtected(id: number): void { this.protectedOperations.update((items) => items.filter((item) => item.id !== id)); }
+
+  private readonly handleBeforeUnload = (event: BeforeUnloadEvent): void => {
+    if (!this.hasProtectedOperation()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  };
 
   private push(value: Omit<AssetActivityEntry, 'id' | 'timestamp'>): AssetActivityEntry {
     const entry = { ...value, id: this.nextId++, timestamp: Date.now() };

@@ -6,7 +6,9 @@ import { AUTHORITATIVE_DEFAULT_STATE_SOURCE, VanillaBlockRegistry } from '../../
 import { VanillaBehaviorRegistry } from '../../block-behavior/vanilla/vanilla-behavior-registry';
 import { ZipArchive } from '../archive/zip-archive';
 import { ContentSourceProvider } from '../content-source/content-source.types';
-import { detectVanillaResourceFormat, VanillaResourceFormatProfile } from './vanilla-resource-format';
+import { VanillaResourceFormatProfile } from './vanilla-resource-format';
+import { selectVanillaResourceFormatAdapter } from './format/resource-format-adapter';
+import { evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 2;
@@ -88,7 +90,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   paths(): readonly string[] { return [...Object.keys(this.json), ...this.binary.keys()]; }
 
   diagnostics(): VanillaAssetProviderDiagnostics {
-    const resourceFormat = detectVanillaResourceFormat(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION);
+    const resourceFormat = selectVanillaResourceFormatAdapter(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION).profile;
     return {
       resourceCount: Object.keys(this.json).length + this.binary.size,
       stoneBlockstate: !!this.json['assets/minecraft/blockstates/stone.json'],
@@ -120,11 +122,12 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   dispose(): void { for (const url of this.objectUrls.values()) URL.revokeObjectURL(url); this.objectUrls.clear(); }
 
   catalog(registry?: VanillaBlockRegistry): BlockCatalogSource {
-    const language = record(this.json['assets/minecraft/lang/en_us.json'] ?? Object.entries(this.json).find(([path]) => /^assets\/[^/]+\/lang\/[^/]+\.json$/.test(path))?.[1]);
+    const format = selectVanillaResourceFormatAdapter(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION);
+    const language = record(this.json['assets/minecraft/lang/en_us.json'] ?? this.json[format.languagePath(this.json) ?? '']);
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
     const behaviorRegistry = this.minecraftVersion === VANILLA_ASSET_VERSION ? new VanillaBehaviorRegistry(this) : undefined;
     const resolver = new BlockModelResolver(this);
-    const resources = registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : Object.keys(this.json).filter((path) => /\/blockstates\/[^/]+\.json$/.test(path)).sort().map((path) => {
+    const resources = registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
       const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
     });
     const blocks = resources.map(({ id, registry: registryEntry }): AssetBlockRecord => {
@@ -144,7 +147,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : 'unknown',
         capabilities: known?.capabilities,
       };
-      const enriched = behaviorRegistry?.enrich(generated) ?? generated;
+      const enriched = behaviorRegistry?.enrich(generated) ?? applyCommonBehavior(generated, evaluateCommonBehavior(generated, this));
       const resolved = resolver.resolve(id, enriched.defaultState, 'catalog');
       const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(texturePath(resource)));
       const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
@@ -156,6 +159,16 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     });
     return { minecraftVersion: this.minecraftVersion, sourceId: this.source.id, sourceName: this.source.displayName, blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })) };
   }
+}
+
+function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<typeof evaluateCommonBehavior>): AssetBlockRecord {
+  return {
+    ...record,
+    defaultState: evaluation.defaultState,
+    stateDefinitions: evaluation.stateDefinitions,
+    ...(evaluation.behavior ? { behavior: evaluation.behavior, behaviorSupport: 'partial' as const } : {}),
+    defaultStateSource: evaluation.defaultStateSource,
+  };
 }
 
 export function texturePath(resource: string): string {

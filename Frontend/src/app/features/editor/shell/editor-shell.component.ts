@@ -38,6 +38,7 @@ import { ProjectDiagnosticsDialogComponent } from '../tools/diagnostics/project-
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 import { ProjectPackageImportService } from '../../../core/persistence/project-package/project-package-import.service';
 import { ProjectImportStatusComponent } from '../project-import/project-import-status.component';
+import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-assets.service';
 
 @Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
@@ -55,6 +56,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly autosave = inject(ProjectAutosaveService);
   protected readonly layout = inject(EditorLayoutPreferencesService);
   private readonly dialogs = inject(DialogService);
+  private readonly assets = inject(VanillaAssetsService);
   private readonly editor = inject(StructureEditorService);
   private readonly router = inject(Router);
   private readonly persistence = new ProjectPersistenceService(new IndexedDbProjectStore());
@@ -181,7 +183,10 @@ export class EditorShellComponent implements OnDestroy {
   protected chooseEditorBackground(background: 'dark' | 'light'): void { this.theme.setEditorBackground(background); this.closeMenus(); }
   protected setEditorMode(mode: '3d' | 'y-layer'): void { this.mode.setMode(mode); this.closeMenus(); }
   protected retryRestore(): void { void this.workspace.restore(new IndexedDbProjectStore()); }
-  protected async backToProjects(): Promise<void> { await this.router.navigateByUrl('/'); }
+  protected async backToProjects(): Promise<void> {
+    if (!await this.confirmLeavingProtectedAssetOperation()) return;
+    await this.router.navigateByUrl('/');
+  }
   protected openDrawer(side: 'left' | 'right', event: Event): void {
     this.drawerOpener = event.currentTarget as HTMLElement;
     if (side === 'left') { this.leftDrawerOpen.set(true); this.rightDrawerOpen.set(false); }
@@ -191,7 +196,10 @@ export class EditorShellComponent implements OnDestroy {
     this.leftDrawerOpen.set(false); this.rightDrawerOpen.set(false);
     if (returnFocus) { const opener = this.drawerOpener; this.drawerOpener = undefined; opener?.focus(); }
   }
-  protected async navigateToProjects(): Promise<void> { this.closeMenus(); await this.autosave.flush().catch(() => undefined); await this.router.navigateByUrl('/'); }
+  protected async navigateToProjects(): Promise<void> {
+    if (!await this.confirmLeavingProtectedAssetOperation()) return;
+    this.closeMenus(); await this.autosave.flush().catch(() => undefined); await this.router.navigateByUrl('/');
+  }
   protected async saveProject(): Promise<void> {
     this.closeMenus();
     try { await this.autosave.flush(); await this.dialogs.success(this.i18n.t('saveProjectSuccess')); }
@@ -359,6 +367,17 @@ export class EditorShellComponent implements OnDestroy {
 
   private currentViewport(): ViewportComponent | YLayerComponent | undefined {
     return this.mode.mode() === '3d' ? this.threeDViewport() : this.yLayerViewport();
+  }
+  private async confirmLeavingProtectedAssetOperation(): Promise<boolean> {
+    if (!this.assets.activity.hasProtectedOperation()) return true;
+    return this.dialogs.confirm({
+      title: this.i18n.t('assetOperationLeaveTitle'),
+      text: this.i18n.t('assetOperationLeaveText'),
+      confirmButtonText: this.i18n.t('leave'),
+      cancelButtonText: this.i18n.t('stay'),
+      icon: 'warning',
+      destructive: true,
+    });
   }
   private clampSidebarWidth(side: 'left' | 'right', width: number): number {
     const total = this.editorBody()?.nativeElement.clientWidth || (typeof window === 'undefined' ? 1024 : window.innerWidth);

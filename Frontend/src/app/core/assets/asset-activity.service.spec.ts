@@ -21,4 +21,13 @@ describe('AssetActivityService', () => {
     activity.fail('download', 'Failed');
     expect(activity.current()).toMatchObject({ level: 'error', message: 'Failed' });
   });
+
+  it('tracks protected operations independently from the activity feed', () => {
+    const activity = new AssetActivityService();
+    const id = activity.protect('Downloading assets');
+    expect(activity.hasProtectedOperation()).toBe(true);
+    expect(activity.protectedOperations()).toEqual([{ id, label: 'Downloading assets' }]);
+    activity.releaseProtected(id);
+    expect(activity.hasProtectedOperation()).toBe(false);
+  });
 });

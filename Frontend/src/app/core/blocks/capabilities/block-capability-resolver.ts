@@ -95,6 +95,7 @@ function addBehaviorCapabilities(behavior: BlockBehavior | undefined, add: (capa
     case 'decorated-pot-placement': directional('horizontal'); entity('decorated-pot'); break;
     case 'conduit-placement': entity('conduit'); break;
     case 'fluid': add({ kind: 'fluid', fluid: behavior.fluid, evidence: verified }); break;
+    case 'button': directional('horizontal'); attachment('floor', 'wall', 'ceiling'); break;
     case 'head-placement':
       if (behavior.wall) { directional('horizontal'); attachment('wall'); }
       else { rotatable('sixteen-step'); attachment('floor'); }

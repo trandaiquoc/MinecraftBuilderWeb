@@ -15,6 +15,9 @@ import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { DEFAULT_MINECRAFT_VERSION } from '../../domain/project.types';
 import { AssetActivityService } from '../asset-activity.service';
 import { VanillaResourceFormatProfile } from './vanilla-resource-format';
+import { CompatibilityReport } from './compatibility/compatibility.types';
+import { evaluateCompatibility } from './compatibility/compatibility-evaluator';
+import { downloadCompatibilityReport } from './compatibility/compatibility-report';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -40,6 +43,7 @@ export class VanillaAssetsService {
   readonly cachedVersions = signal<readonly string[]>([]);
   readonly sources = new ContentSourceRegistry();
   readonly importedMods = signal<readonly ImportedModSummary[]>([]);
+  readonly compatibilityReport = signal<CompatibilityReport | undefined>(undefined);
   private loadRequest = 0;
   private inFlight?: { readonly version: string; readonly promise: Promise<void> };
 
@@ -50,6 +54,7 @@ export class VanillaAssetsService {
 
   async importJar(file: File): Promise<void> {
     const request = ++this.loadRequest;
+    const protection = this.activity.protect(`Importing ${file.name}`);
     this.status.set('importing'); this.message.set('');
     this.activity.begin('manual-import', `Reading ${file.name}`);
     try {
@@ -62,10 +67,13 @@ export class VanillaAssetsService {
     } catch (error) {
       this.status.set('import-required'); this.message.set(error instanceof Error ? error.message : 'Unable to import Minecraft assets');
       this.activity.fail('manual-import', this.message());
+    } finally {
+      this.activity.releaseProtected(protection);
     }
   }
 
   async importModJar(file: File): Promise<ModImportReport> {
+    const protection = this.activity.protect(`Importing ${file.name}`);
     this.activity.begin('mod-import', `Reading ${file.name}`, 'mod');
     try {
       const provider = await importFabricModJar(file, this.activeVersion());
@@ -77,6 +85,8 @@ export class VanillaAssetsService {
     } catch (error) {
       this.activity.fail('mod-import', error instanceof Error ? error.message : 'Mod import failed', 'mod');
       throw error;
+    } finally {
+      this.activity.releaseProtected(protection);
     }
   }
 
@@ -94,7 +104,15 @@ export class VanillaAssetsService {
   async removeCachedVersion(version = this.activeVersion()): Promise<void> {
     if (version === this.activeVersion()) { this.loadRequest += 1; this.inFlight = undefined; }
     await this.cache.deleteVanilla(version); await this.refreshCachedVersions();
-    if (version === this.activeVersion()) { this.clearActiveSources(); this.status.set('no-assets'); this.sourceName.set(''); this.message.set(''); this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 })); this.activity.event('cache', `Removed cached assets for Java ${version}`, 'info', 'cache'); }
+    if (version === this.activeVersion()) { this.clearActiveSources(); this.compatibilityReport.set(undefined); this.status.set('no-assets'); this.sourceName.set(''); this.message.set(''); this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 })); this.activity.event('cache', `Removed cached assets for Java ${version}`, 'info', 'cache'); }
+  }
+
+  exportCompatibilityReport(): CompatibilityReport | undefined {
+    const report = this.compatibilityReport() ?? (this.provider() ? evaluateCompatibility(this.provider()!) : undefined);
+    if (!report) return undefined;
+    this.compatibilityReport.set(report);
+    downloadCompatibilityReport(report);
+    return report;
   }
 
   prepareThumbnails(blocks: readonly BlockDefinition[]): void {
@@ -137,7 +155,7 @@ export class VanillaAssetsService {
   private ensureVersion(version: string, force = false): Promise<void> {
     if (!shouldStartVersionLoad(this.provider()?.minecraftVersion, this.status(), version, this.inFlight?.version, force)) return this.inFlight?.promise ?? Promise.resolve();
     const request = ++this.loadRequest;
-    this.activeVersion.set(version); this.status.set('loading-cache'); this.message.set(''); this.downloadProgress.set(undefined); this.clearActiveSources();
+    this.activeVersion.set(version); this.status.set('loading-cache'); this.message.set(''); this.downloadProgress.set(undefined); this.compatibilityReport.set(undefined); this.clearActiveSources();
     const promise = this.loadVersion(version, request).finally(() => { if (this.inFlight?.promise === promise) this.inFlight = undefined; });
     this.inFlight = { version, promise };
     return promise;
@@ -155,21 +173,26 @@ export class VanillaAssetsService {
       }
       this.activity.event('cache', `No cached assets found for Java ${version}`, 'info', 'cache');
       this.status.set('downloading');
+      const protection = this.activity.protect(`Downloading Minecraft Java ${version}`);
       this.activity.begin('metadata', `Resolving official Mojang metadata for Java ${version}`);
-      const provider = await this.official.load(version, (progress) => { if (request !== this.loadRequest) return; this.downloadProgress.set(progress); this.activity.update({ loaded: progress.loaded, ...(progress.total !== undefined ? { total: progress.total } : {}) }, progress.phase === 'download' ? `Downloading Minecraft Java ${version}` : undefined); });
-      this.activity.event('download', `Official client downloaded for Java ${version}`, 'success');
-      provider.assertUsable();
-      await this.cache.save(provider.serialize());
-      this.activity.event('cache', `Saved normalized assets for Java ${version}`, 'success', 'cache');
-      await this.refreshCachedVersions();
-      if (request !== this.loadRequest) return;
-      await this.activateVersion(provider, request);
+      try {
+        const provider = await this.official.load(version, (progress) => { if (request !== this.loadRequest) return; this.downloadProgress.set(progress); this.activity.update({ loaded: progress.loaded, ...(progress.total !== undefined ? { total: progress.total } : {}) }, progress.phase === 'download' ? `Downloading Minecraft Java ${version}` : undefined); });
+        this.activity.event('download', `Official client downloaded for Java ${version}`, 'success');
+        provider.assertUsable();
+        await this.cache.save(provider.serialize());
+        this.activity.event('cache', `Saved normalized assets for Java ${version}`, 'success', 'cache');
+        await this.refreshCachedVersions();
+        if (request !== this.loadRequest) return;
+        await this.activateVersion(provider, request);
+      } finally {
+        this.activity.releaseProtected(protection);
+      }
     } catch (error) {
       if (request !== this.loadRequest) return;
       const message = error instanceof Error ? error.message : 'Unable to load official Minecraft assets';
       const unsupported = /resource format is not supported|no Minecraft asset resources|incomplete/i.test(message);
       this.status.set(unsupported ? 'unsupported-format' : 'offline'); this.message.set(message);
-      this.sourceName.set('');
+      this.sourceName.set(''); this.compatibilityReport.set(undefined);
       this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 }));
       this.activity.fail('assets', message, 'vanilla');
       this.library.load({ minecraftVersion: version, sourceId: 'vanilla', sourceName: 'Vanilla', blocks: [] });
@@ -192,9 +215,21 @@ export class VanillaAssetsService {
     const generation = this.generation() + 1;
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
+    this.compatibilityReport.set(undefined);
     this.sourceName.set(provider.sourceName); this.activeVersion.set(version); this.status.set('ready'); this.message.set('');
     this.activity.finish('assets', `${provider.diagnostics().resourceFormat.label}; Java ${version} ready`);
+    void this.generateCompatibilityReport(provider, request);
     await this.restoreExternalMods(version);
+  }
+
+  private async generateCompatibilityReport(provider: VanillaAssetProvider, request: number): Promise<void> {
+    await Promise.resolve();
+    if (request !== this.loadRequest || this.provider() !== provider) return;
+    this.activity.begin('compatibility', `Evaluating common block compatibility for Java ${provider.minecraftVersion}`);
+    const report = evaluateCompatibility(provider);
+    if (request !== this.loadRequest || this.provider() !== provider) return;
+    this.compatibilityReport.set(report);
+    this.activity.finish('compatibility', `Compatibility report ready: ${report.summary.compatibleReused} reused, ${report.summary.changedNeedsDelta} changed, ${report.summary.newGenericSupported} generic, ${report.summary.unsupported} unsupported`);
   }
 
   private activateExternal(provider: ExternalModProvider): void {

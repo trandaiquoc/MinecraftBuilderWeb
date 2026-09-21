@@ -556,3 +556,29 @@ are unavailable. Painting textures resolve from `textures/painting/<id>.png`;
 frame visuals use the existing namespaced texture provider. Item-frame item
 search indexes item model paths and language data only; item model resolution is
 lazy when a frame is rendered.
+
+## Version-aware common behavior and compatibility reports
+
+The verified 1.21.1 behavior registry is evidence for that exact version; it is
+not a global gate for every later or earlier resource bundle. Other versions are
+evaluated against common resource/state contracts first. A matching contract can
+reuse generic behavior (for example doors, buttons, stairs, and compatible
+connection families) while a changed contract is reported as requiring a delta.
+Unknown or mod-specific behavior remains `unknown` and is never inferred only
+from a registry-name heuristic.
+
+Common default states carry provenance: `compatible-common` means a complete
+contract supplied the canonical defaults, while `resource-derived` means the
+resource definitions supplied a deterministic fallback. This provenance is
+catalog metadata and is not written into `ProjectDocument`.
+
+`VanillaAssetsService` generates an in-memory compatibility report after a
+provider is activated. The report separates `compatible-reused`,
+`changed-needs-delta`, `new-generic-supported`, and `unsupported` entries and
+can be exported as a versioned JSON diagnostics file from Asset Manager. It is
+not a project-file or asset-cache dependency.
+
+Manual imports, official downloads, and normalized cache writes are protected
+operations. The browser receives a `beforeunload` warning while one is active;
+editor navigation asks for the same confirmation and otherwise leaves project
+data untouched.
