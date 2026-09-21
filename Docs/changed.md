@@ -1589,8 +1589,22 @@ provenance wins property-by-property during enrichment.
 
 The official Java 26.3 audit is checked in as
 `Docs/vanilla-asset-coverage-26.3.json` and `.md`. It reports 1,286 world
-block entries, 1,189 Real / 71 Partial / 26 Fallback visuals, 0 known palette
-leaks, and content-domain counts from the independent item catalog. A clean
-official 1.21.1 client was also run through the same audit path as a regression
-check; its representative fence, pane, door, bed, glass, water, and lava
-entries resolved without palette leaks.
+block entries, 1,190 Real / 70 Partial / 26 Fallback visuals, 0 known palette
+leaks, and no `TEXTURE_NOT_FOUND` records. A clean official 1.21.1 client was
+also run through the same audit path as a regression check; its representative
+fence, pane, door, bed, glass, water, and lava entries resolved without
+palette leaks.
+
+## Final Vanilla runtime hotfix
+
+Fence connection contracts now complete boolean state domains even when a
+multipart resource only exposes `true` branches. Double-height placement
+normalizes the requested half to the semantic lower half before support
+validation, then creates the lower/upper pair atomically. This keeps the
+common Door and Tall Plant path independent of resource branch ordering.
+
+Modern 26.3 block faces may reference a texture variable without the legacy
+`#` prefix (for example `"texture": "all"`). The shared resolver now resolves
+bare keys through the existing texture map; it does not add an atlas or special
+renderer fallback. `minecraft:heavy_core` therefore resolves its real
+`minecraft:block/heavy_core` PNG and is no longer reported as missing texture.

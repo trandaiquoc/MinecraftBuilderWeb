@@ -396,7 +396,9 @@ function mergeStateDefinitions(base: readonly BlockStateDefinition[], metadata: 
   const merged = new Map(base.map((definition) => [definition.name, definition]));
   for (const definition of metadata) {
     const existing = merged.get(definition.name);
-    merged.set(definition.name, existing ? { ...existing, derived: definition.derived ?? existing.derived } : definition);
+    merged.set(definition.name, existing
+      ? { ...existing, values: [...new Set([...existing.values, ...definition.values])], derived: definition.derived ?? existing.derived }
+      : definition);
   }
   return [...merged.values()];
 }

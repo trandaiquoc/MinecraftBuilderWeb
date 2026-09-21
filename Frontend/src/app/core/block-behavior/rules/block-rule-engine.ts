@@ -100,6 +100,12 @@ export class BlockRuleEngine {
   private preparePlacement(block: PlacedBlock, context: PlacementContext | undefined): PlacedBlock | undefined {
     const definition = this.definition(block.id);
     const behavior = definition?.behavior;
+    if (behavior?.kind === 'double-height') {
+      // The resource-selected branch is visual evidence only. A new logical
+      // two-block placement always starts from its lower half so support is
+      // validated against the floor before the upper half is created.
+      return { ...block, state: { ...block.state, [behavior.halfProperty]: 'lower' } };
+    }
     if (behavior?.kind === 'torch-placement' && context?.faceNormal) {
       const normal = context.faceNormal;
       if (normal.y < 0) return undefined;

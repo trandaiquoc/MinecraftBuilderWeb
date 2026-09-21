@@ -24,6 +24,19 @@ describe('vanilla asset coverage audit', () => {
     expect(report.summary.defaultState.unknown).toBeGreaterThan(0);
   });
 
+  it('does not report a missing texture for the 26.3 bare-variable Heavy Core model', async () => {
+    const provider = new VanillaAssetProvider('26.3-heavy-core.jar', '26.3', {
+      'assets/minecraft/blockstates/heavy_core.json': { variants: { '': { model: 'minecraft:block/heavy_core' } } },
+      'assets/minecraft/models/block/heavy_core.json': {
+        textures: { all: 'block/heavy_core' },
+        elements: [{ from: [4, 0, 4], to: [12, 8, 12], faces: { north: { texture: 'all' } } }],
+      },
+    }, new Map([['assets/minecraft/textures/block/heavy_core.png', new Uint8Array([137, 80, 78, 71])]]));
+    const record = find(await auditVanillaAssets(provider, { decodeTexture: async () => true }), 'minecraft:heavy_core');
+    expect(record.texture.missingCount).toBe(0);
+    expect(record.render.reasons).not.toContain('TEXTURE_NOT_FOUND');
+  });
+
   it('produces deterministic report summaries and human-readable output', async () => {
     const report = await auditVanillaAssets(fixtureProvider(), { decodeTexture: async () => true });
     expect(report.summary.totalEntries).toBe(4);

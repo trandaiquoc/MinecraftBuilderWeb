@@ -1,15 +1,15 @@
 # Vanilla Asset Coverage - Minecraft Java 26.3
 
-Generated from `Mojang official Java 26.3 client.jar` at 2026-09-21T16:53:09.067Z.
+Generated from `Mojang official Java 26.3 client.jar` at 2026-09-21T17:25:47.883Z.
 
 ## Summary
 
 - Total authoritative block entries: **1286**
-- Visual: REAL **1189**, PARTIAL **71**, FALLBACK **26**
+- Visual: REAL **1190**, PARTIAL **70**, FALLBACK **26**
 - Special renderer required: **91**
 - Intentionally invisible: **5**
 - Behavior: Full **142**, Partial **194**, Unknown **950**
-- Thumbnail: real **1189**, fallback **71**, unavailable **26**
+- Thumbnail: real **1190**, fallback **70**, unavailable **26**
 - Default state: known **1286**, unknown **0**
 
 ## Methodology
@@ -24,7 +24,6 @@ Generated from `Mojang official Java 26.3 client.jar` at 2026-09-21T16:53:09.067
 - NO_ELEMENTS: **96**
 - SPECIAL_RENDERER_REQUIRED: **91**
 - INTENTIONALLY_INVISIBLE: **5**
-- TEXTURE_NOT_FOUND: **1**
 
 ## Representative Samples
 
@@ -62,10 +61,6 @@ Generated from `Mojang official Java 26.3 client.jar` at 2026-09-21T16:53:09.067
 - `minecraft:structure_void`
 - `minecraft:void_air`
 
-### TEXTURE_NOT_FOUND (1)
-
-- `minecraft:heavy_core`
-
 ## Family Distribution
 
 - other: 732
@@ -94,9 +89,9 @@ Generated from `Mojang official Java 26.3 client.jar` at 2026-09-21T16:53:09.067
 - Bed: `minecraft:red_bed` is REAL (no asset diagnostic).
 - Trapdoor: `minecraft:oak_trapdoor` is REAL (no asset diagnostic).
 - Wall Torch: REAL (no asset diagnostic).
-- Fence: REAL (no asset diagnostic); connection refresh remains a behavior issue.
-- Door: REAL (no asset diagnostic); placement failure remains a behavior issue.
-- Sunflower: REAL (no asset diagnostic); placement failure remains a behavior issue.
+- Fence: REAL (no asset diagnostic); neighbor refresh is covered by the rule-engine smoke tests.
+- Door: REAL (no asset diagnostic); atomic lower/upper placement is covered by the rule-engine smoke tests.
+- Sunflower: REAL (no asset diagnostic); atomic lower/upper placement is covered by the rule-engine smoke tests.
 - Dandelion: REAL (no asset diagnostic).
 - Glass Pane: REAL (no asset diagnostic).
 - Wall: REAL (no asset diagnostic).

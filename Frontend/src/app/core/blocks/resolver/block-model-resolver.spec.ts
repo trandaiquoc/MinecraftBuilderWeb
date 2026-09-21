@@ -34,6 +34,18 @@ describe('Minecraft block model resolver', () => {
     expect(result.parts[0].elements[0].faces['up']).toMatchObject({ texture: 'minecraft:block/glass', forceTranslucent: true });
   });
 
+  it('resolves modern bare texture variables used by 26.3 block faces', () => {
+    const result = resolver({
+      'assets/minecraft/blockstates/heavy_core.json': { variants: { '': { model: 'minecraft:block/heavy_core' } } },
+      'assets/minecraft/models/block/heavy_core.json': {
+        textures: { all: 'minecraft:block/heavy_core' },
+        elements: [{ from: [4, 0, 4], to: [12, 8, 12], faces: { north: { texture: 'all' } } }],
+      },
+    }).resolve('minecraft:heavy_core');
+    expect(result.diagnostics).toEqual([]);
+    expect(result.parts[0].elements[0].faces['north']?.texture).toBe('minecraft:block/heavy_core');
+  });
+
   it('normalizes Mojang modern x/y/z element rotations and preserves legacy precedence', () => {
     const result = resolver({
       'assets/minecraft/blockstates/test.json': { variants: { '': { model: 'minecraft:block/test' } } },

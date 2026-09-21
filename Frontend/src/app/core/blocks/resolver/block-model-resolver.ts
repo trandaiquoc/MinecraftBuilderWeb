@@ -144,8 +144,12 @@ function resolveTextures(value: unknown, diagnostics: ResolverDiagnostic[], reso
 }
 
 function resolveTextureReference(value: string, textures: Readonly<Record<string, unknown>>, diagnostics: ResolverDiagnostic[], resource: string, chain = new Set<string>()): string {
-  if (!value.startsWith('#')) return value.includes(':') ? value : `${resource.split(':')[0]}:${value}`;
-  const key = value.slice(1);
+  // Java 26.x block models may use a bare texture variable in a face
+  // (for example `"texture": "all"`) instead of the legacy `#all` form.
+  // Resolve it through the same variable chain before treating the value as
+  // a namespaced resource location.
+  const key = value.startsWith('#') ? value.slice(1) : Object.prototype.hasOwnProperty.call(textures, value) ? value : undefined;
+  if (key === undefined) return value.includes(':') ? value : `${resource.split(':')[0]}:${value}`;
   if (chain.has(key)) { diagnostics.push(diagnostic('texture-cycle', `Circular texture variable detected: ${value}`, resource)); return value; }
   const next = textures[key];
   const nextReference = typeof next === 'string' ? next : isRecord(next) && typeof next['sprite'] === 'string' ? next['sprite'] : undefined;

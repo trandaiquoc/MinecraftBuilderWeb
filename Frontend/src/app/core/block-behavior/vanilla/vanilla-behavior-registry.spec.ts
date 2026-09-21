@@ -22,6 +22,18 @@ describe('VanillaBehaviorRegistry', () => {
     expect(registry.enrich(baseRecord('minecraft:oak_stairs'))).toMatchObject({ behaviorSupport: 'full', behavior: { kind: 'stairs' }, defaultState: { shape: 'straight' }, defaultStateSource: 'compatible-common' });
     expect(registry.enrich(baseRecord('example:oak_fence'))).toEqual(baseRecord('example:oak_fence'));
   });
+  it('completes boolean connection states when blockstate evidence only exposes true branches', () => {
+    const resources = new Map<string, unknown>([
+      ['data/minecraft/tags/block/wooden_fences.json', { values: ['minecraft:oak_fence'] }],
+      ['assets/minecraft/blockstates/oak_fence.json', { multipart: [{ when: { north: 'true' }, apply: { model: 'minecraft:block/oak_fence_side' } }] }],
+    ]);
+    const result = new VanillaBehaviorRegistry({ readJson: (path) => resources.get(path) }).enrich({
+      ...baseRecord('minecraft:oak_fence'), resources: { blockstate: 'assets/minecraft/blockstates/oak_fence.json', textures: [] },
+      stateDefinitions: [{ name: 'north', values: ['true'] }, { name: 'east', values: ['true'] }, { name: 'south', values: ['true'] }, { name: 'west', values: ['true'] }],
+    });
+    expect(result.stateDefinitions.filter((entry) => ['north', 'east', 'south', 'west'].includes(entry.name)).every((entry) => entry.values.includes('false'))).toBe(true);
+    expect(result.stateDefinitions.find((entry) => entry.name === 'north')?.values).toEqual(['true', 'false']);
+  });
 
   it('uses verified representative metadata when a legacy normalized cache has no block tags', () => {
     const registry = new VanillaBehaviorRegistry();

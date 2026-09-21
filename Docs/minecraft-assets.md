@@ -674,3 +674,17 @@ node tools/audit-vanilla-assets.mjs ../extracted 26.3
 
 The command writes `Docs/vanilla-asset-coverage-26.3.json` and `.md` without
 copying the JAR or extracted assets into the repository.
+
+## Runtime compatibility hotfix
+
+The shared Vanilla behavior path completes connection state domains from the
+verified fence contract, so multipart resources that list only `true` branches
+still expose canonical `true|false` state values. Door and Tall Plant placement
+always validates support using a lower-half semantic request before creating
+both halves.
+
+The model resolver also accepts Mojang's modern bare texture-variable face
+form. For example, a face using `"texture": "all"` resolves through the model
+texture map to `minecraft:block/heavy_core`; no fake texture or atlas fallback
+is introduced. The regenerated 26.3 audit has zero `TEXTURE_NOT_FOUND` entries
+and zero palette leaks.

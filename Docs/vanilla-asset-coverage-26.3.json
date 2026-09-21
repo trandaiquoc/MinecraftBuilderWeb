@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "minecraftVersion": "26.3",
   "sourceName": "Mojang official Java 26.3 client.jar",
-  "generatedAt": "2026-09-21T16:53:09.067Z",
+  "generatedAt": "2026-09-21T17:25:47.883Z",
   "methodology": [
     "Catalog entries and default states come from the selected Minecraft 26.3 asset source.",
     "Display names come from the active en_us language resource; visual resources and behavior metadata remain independent.",
@@ -12,8 +12,8 @@
   "summary": {
     "totalEntries": 1286,
     "visual": {
-      "real": 1189,
-      "partial": 71,
+      "real": 1190,
+      "partial": 70,
       "fallback": 26
     },
     "behavior": {
@@ -22,8 +22,8 @@
       "unknown": 950
     },
     "thumbnail": {
-      "real": 1189,
-      "fallback": 71,
+      "real": 1190,
+      "fallback": 70,
       "unavailable": 26
     },
     "defaultState": {
@@ -35,8 +35,7 @@
     "failureReasons": {
       "NO_ELEMENTS": 96,
       "SPECIAL_RENDERER_REQUIRED": 91,
-      "INTENTIONALLY_INVISIBLE": 5,
-      "TEXTURE_NOT_FOUND": 1
+      "INTENTIONALLY_INVISIBLE": 5
     },
     "families": {
       "other": 732,
@@ -38979,9 +38978,9 @@
       },
       "texture": {
         "referencedCount": 1,
-        "resolvedCount": 0,
-        "missingCount": 1,
-        "decodeSuccessCount": 0,
+        "resolvedCount": 1,
+        "missingCount": 0,
+        "decodeSuccessCount": 1,
         "decodeFailureCount": 0
       },
       "geometry": {
@@ -39001,14 +39000,12 @@
         }
       },
       "render": {
-        "visualSupport": "partial",
+        "visualSupport": "real",
         "classification": "standard-json",
-        "renderMode": "partial",
-        "reasons": [
-          "TEXTURE_NOT_FOUND"
-        ]
+        "renderMode": "real",
+        "reasons": []
       },
-      "thumbnail": "fallback"
+      "thumbnail": "real"
     },
     {
       "registryId": "minecraft:heavy_weighted_pressure_plate",

@@ -41,6 +41,16 @@ describe('BlockRuleEngine', () => {
     expect(removed.blocks[0].state['east']).toBe('false');
   });
 
+  it('normalizes a resource-selected upper half before placing a double-height object', () => {
+    const supported = { ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 }), block('minecraft:stone', { x: 3, y: 0, z: 2 })] };
+    const door = engine.place(supported, block('minecraft:oak_door', { x: 2, y: 1, z: 2 }, { ...catalog.get('minecraft:oak_door')!.defaultState, half: 'upper' }));
+    expect(door.validation).toMatchObject({ status: 'valid', reason: 'ok' });
+    expect(door.project?.blocks.filter((entry) => entry.id === 'minecraft:oak_door').map((entry) => entry.state['half'])).toEqual(['lower', 'upper']);
+    const sunflower = engine.place(supported, block('minecraft:sunflower', { x: 3, y: 1, z: 2 }, { half: 'upper' }));
+    expect(sunflower.validation).toMatchObject({ status: 'valid', reason: 'ok' });
+    expect(sunflower.project?.blocks.filter((entry) => entry.id === 'minecraft:sunflower').map((entry) => entry.state['half'])).toEqual(['lower', 'upper']);
+  });
+
   it('uses verified fence compatibility metadata for wood, nether brick, and solid blocks', () => {
     const center = block('minecraft:oak_fence', { x: 3, y: 1, z: 3 });
     const refreshed = engine.refresh({ ...base, blocks: [
