@@ -546,3 +546,34 @@ are unavailable. Painting textures resolve from `textures/painting/<id>.png`;
 frame visuals use the existing namespaced texture provider. Item-frame item
 search indexes item model paths and language data only; item model resolution is
 lazy when a frame is rendered.
+
+## Deployment bundle preparation
+
+The dedicated `npm run build:vercel` command prepares the public default Vanilla
+bundle before running the normal Angular production build. It invokes the
+existing `tools/build-local-vanilla-bundle.mjs` generator and validates the
+resulting `public/local-assets/vanilla/1.21.1/asset-bundle.json` manifest.
+
+The raw Minecraft client JAR is build-time input only. It is never copied into
+`public/` or Angular `dist/`; the generated normalized bundle is a public
+deployment asset and can be downloaded by clients of the application.
+
+For local verification, set `VANILLA_JAR_PATH` to a user-owned Java 1.21.1 JAR:
+
+```text
+# PowerShell
+$env:VANILLA_JAR_PATH = '<path-to-minecraft-1.21.1.jar>'; npm run build:vercel
+
+# cmd.exe
+set VANILLA_JAR_PATH=<path-to-minecraft-1.21.1.jar> && npm run build:vercel
+
+# POSIX shell
+VANILLA_JAR_PATH=<path-to-minecraft-1.21.1.jar> npm run build:vercel
+```
+
+In Vercel, set the Frontend directory as the Root Directory and use
+`npm run build:vercel` as the Build Command. Configure `VANILLA_JAR_URL` as a
+private or signed build-time URL. `VANILLA_JAR_TOKEN` is optional and, when
+used, is sent only as a build-time Bearer token; it is never written to the
+bundle or exposed to the browser. Preview and Production environments each
+need their own appropriate build-time variables.
