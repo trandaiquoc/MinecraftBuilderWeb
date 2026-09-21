@@ -5,6 +5,7 @@ import { IndexedDbProjectStore } from '../../../core/persistence/project-store/i
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
 import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
 import { ProjectDocument } from '../../../core/domain/project.types';
+import { validateProject } from '../../../core/domain/validation';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
@@ -73,12 +74,27 @@ export class ProjectScreenComponent {
       schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || this.i18n.t('untitledStructure'), minecraftVersion: this.minecraftVersion(), createdAt: now, updatedAt: now },
       size: { x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
     };
+    const validation = validateProject(project);
+    if (!validation.valid) {
+      const issue = validation.issues[0];
+      const detail = issue.code === 'invalid-minecraft-version'
+        ? this.i18n.t('invalidMinecraftVersionValue').replace('{version}', project.metadata.minecraftVersion)
+        : issue.message;
+      this.error.set(detail);
+      await this.dialogs.error(this.i18n.t('createErrorTitle'), detail);
+      this.creating.set(false);
+      return;
+    }
     try {
       await this.getPersistence().create(project);
       this.session.resetForProjectChange(project.id);
       this.workspace.activate(project);
       await this.router.navigateByUrl('/editor');
-    } catch { this.error.set(this.i18n.t('createError')); await this.dialogs.error(this.i18n.t('createErrorTitle'), this.i18n.t('createError')); }
+    } catch (error) {
+      const message = projectCreationFailureMessage(error, this.i18n.t('createStorageError'), this.i18n.t('createError'));
+      this.error.set(message);
+      await this.dialogs.error(this.i18n.t('createErrorTitle'), message);
+    }
     finally { this.creating.set(false); }
   }
 
@@ -151,6 +167,12 @@ export function projectCreationGuard(creating: boolean, opening: boolean, dimens
 
 export function canDeleteProject(deletingProjectIds: ReadonlySet<string>, projectId: string): boolean {
   return !deletingProjectIds.has(projectId);
+}
+
+export function projectCreationFailureMessage(error: unknown, storageMessage: string, genericMessage: string): string {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException && /indexeddb|storage|quota|transaction/i.test(`${error.name} ${error.message}`)) return storageMessage;
+  if (error instanceof Error && /indexeddb|storage|quota|transaction/i.test(error.message)) return storageMessage;
+  return genericMessage;
 }
 
 function createId(): string {

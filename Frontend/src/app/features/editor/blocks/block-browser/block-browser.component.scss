@@ -1,5 +1,7 @@
 .block-browser { min-height: 0; display: grid; gap: .6rem; }
 .asset-empty-state { display: grid; gap: .45rem; padding: .7rem; border-radius: 5px; background: var(--surface-muted); color: var(--text-muted); font-size: .72rem; }
+.asset-loading-state { display: grid; gap: .35rem; padding: .7rem; border-radius: 5px; background: var(--surface-muted); color: var(--text-muted); font-size: .72rem; }
+.asset-loading-state strong { color: var(--text); }.asset-loading-state progress { width: 100%; height: .45rem; accent-color: var(--accent); }.asset-loading-state small { font-size: .66rem; }
 .asset-empty-state p { margin: 0; }
 .asset-empty-state button { justify-self: start; border: 0; border-radius: 4px; padding: .3rem .45rem; background: var(--control-normal); color: var(--text); cursor: pointer; font-size: .68rem; box-shadow: 0 2px 0 rgb(0 0 0 / .12); }
 .asset-empty-state button:hover { background: var(--surface-hover); }

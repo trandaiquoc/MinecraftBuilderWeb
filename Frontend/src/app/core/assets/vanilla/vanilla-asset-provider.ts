@@ -6,10 +6,11 @@ import { AUTHORITATIVE_DEFAULT_STATE_SOURCE, VanillaBlockRegistry } from '../../
 import { VanillaBehaviorRegistry } from '../../block-behavior/vanilla/vanilla-behavior-registry';
 import { ZipArchive } from '../archive/zip-archive';
 import { ContentSourceProvider } from '../content-source/content-source.types';
+import { detectVanillaResourceFormat, VanillaResourceFormatProfile } from './vanilla-resource-format';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 2;
-const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/en_us\.json)$/;
+const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/[^/]+\.json)$/;
 const BLOCK_TAG_PATH = /^data\/[^/]+\/tags\/block\/.*\.json$/;
 const DECORATION_DATA_PATH = /^data\/[^/]+\/(?:painting_variant\/.*\.json|tags\/painting_variant\/.*\.json)$/;
 const MAX_CACHE_BYTES = 256 * 1024 * 1024;
@@ -28,6 +29,7 @@ export interface VanillaAssetProviderDiagnostics {
   readonly stoneModel: boolean;
   readonly stoneTexture: boolean;
   readonly language: boolean;
+  readonly resourceFormat: VanillaResourceFormatProfile;
 }
 
 export class VanillaAssetProvider implements ContentSourceProvider {
@@ -69,7 +71,6 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         } else binary.set(entry.name, bytes);
       }
     }
-    if (!json['assets/minecraft/lang/en_us.json']) throw new Error('Minecraft en_us language resource is missing');
     return new VanillaAssetProvider(sourceName, minecraftVersion, json, binary);
   }
 
@@ -87,18 +88,21 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   paths(): readonly string[] { return [...Object.keys(this.json), ...this.binary.keys()]; }
 
   diagnostics(): VanillaAssetProviderDiagnostics {
+    const resourceFormat = detectVanillaResourceFormat(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION);
     return {
       resourceCount: Object.keys(this.json).length + this.binary.size,
       stoneBlockstate: !!this.json['assets/minecraft/blockstates/stone.json'],
       stoneModel: !!this.json['assets/minecraft/models/block/stone.json'],
       stoneTexture: this.binary.has('assets/minecraft/textures/block/stone.png'),
-      language: !!this.json['assets/minecraft/lang/en_us.json'],
+      language: Object.keys(this.json).some((path) => /^assets\/[^/]+\/lang\/[^/]+\.json$/.test(path)),
+      resourceFormat,
     };
   }
 
   assertUsable(): void {
     const state = this.diagnostics();
-    if (!state.language || !state.stoneBlockstate || !state.stoneModel || !state.stoneTexture) throw new Error(`Cached vanilla assets for Minecraft ${this.minecraftVersion} are incomplete. Import the selected JAR again.`);
+    if (state.resourceFormat.support === 'unsupported-resource-format') throw new Error(`Official assets for Minecraft ${this.minecraftVersion} were downloaded, but their resource format is not supported yet.`);
+    if (this.minecraftVersion === VANILLA_ASSET_VERSION && (!state.language || !state.stoneBlockstate || !state.stoneModel || !state.stoneTexture)) throw new Error(`Cached vanilla assets for Minecraft ${this.minecraftVersion} are incomplete. Import the selected JAR again.`);
   }
 
   textureUrl(resource: string): string | undefined {
@@ -116,7 +120,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   dispose(): void { for (const url of this.objectUrls.values()) URL.revokeObjectURL(url); this.objectUrls.clear(); }
 
   catalog(registry?: VanillaBlockRegistry): BlockCatalogSource {
-    const language = record(this.json['assets/minecraft/lang/en_us.json']);
+    const language = record(this.json['assets/minecraft/lang/en_us.json'] ?? Object.entries(this.json).find(([path]) => /^assets\/[^/]+\/lang\/[^/]+\.json$/.test(path))?.[1]);
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
     const behaviorRegistry = this.minecraftVersion === VANILLA_ASSET_VERSION ? new VanillaBehaviorRegistry(this) : undefined;
     const resolver = new BlockModelResolver(this);

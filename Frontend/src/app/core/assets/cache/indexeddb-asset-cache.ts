@@ -45,7 +45,7 @@ type CachedExternalMod = SerializedExternalMod & { readonly id: string };
 
 export function migrateCachedVanillaAssets(bundle: CachedVanillaAssets, expectedVersion = bundle.minecraftVersion ?? VANILLA_ASSET_VERSION): SerializedVanillaAssets {
   if (bundle.minecraftVersion !== expectedVersion || typeof bundle.sourceName !== 'string' || !bundle.json || typeof bundle.json !== 'object' || !Array.isArray(bundle.binary)) throw new Error('Vanilla asset cache is invalid. Import the selected Minecraft version again.');
-  if (bundle.schemaVersion !== 1 && bundle.schemaVersion !== VANILLA_ASSET_CACHE_SCHEMA_VERSION) throw new Error('Vanilla asset cache schema is unsupported. Import the Minecraft 1.21.1 JAR again.');
+  if (bundle.schemaVersion !== 1 && bundle.schemaVersion !== VANILLA_ASSET_CACHE_SCHEMA_VERSION) throw new Error('Vanilla asset cache schema is unsupported. Import the selected Minecraft asset JAR again.');
   return { schemaVersion: VANILLA_ASSET_CACHE_SCHEMA_VERSION, minecraftVersion: expectedVersion, sourceName: bundle.sourceName, json: bundle.json, binary: bundle.binary };
 }
 

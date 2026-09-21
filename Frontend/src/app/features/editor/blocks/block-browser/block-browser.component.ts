@@ -33,6 +33,23 @@ export class BlockBrowserComponent {
   private readonly thumbnailSync = effect(() => { this.assets.visualProvider(); this.assets.prepareItemThumbnails(this.library.results()); });
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }
+  protected retryAssets(): void { void this.assets.redownload(); }
+  protected assetLoading(): boolean { return ['loading-cache', 'downloading', 'importing'].includes(this.assets.status()); }
+  protected assetStatusText(): string {
+    const status = this.assets.status();
+    if (status === 'loading-cache') return this.i18n.t('checkingAssetCache');
+    if (status === 'downloading') return this.i18n.t('downloadingAsset');
+    if (status === 'importing') return this.i18n.t('preparingAssets');
+    return this.i18n.t('assetsReady');
+  }
+  protected progressPercent(): number | undefined {
+    const progress = this.assets.downloadProgress();
+    return progress?.total ? Math.min(100, Math.round(progress.loaded / progress.total * 100)) : undefined;
+  }
+  protected formatBytes(value: number): string {
+    if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
   protected selectSource(id: string): void { this.selectedSource.set(id); }
   protected select(block: PlaceableItemDefinition): void { this.decorations.clearActive(); this.library.select(block); }
   protected addToQuickBar(event: Event, block: PlaceableItemDefinition): void {

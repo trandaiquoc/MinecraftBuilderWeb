@@ -25,6 +25,8 @@ export interface DomainValidationResult {
 
 const REGISTRY_ID_PATTERN = /^[a-z0-9_.-]+:[a-z0-9_.-]+$/;
 const NAMESPACE_PATTERN = /^[a-z0-9_.-]+$/;
+/** Mojang release IDs are identifiers, not SemVer (for example 26.3 is valid). */
+export const MINECRAFT_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$/;
 
 export function validateProjectSize(size: ProjectSize): readonly DomainValidationIssue[] {
   const issues: DomainValidationIssue[] = [];
@@ -75,7 +77,7 @@ export function validateProject(project: ProjectDocument): DomainValidationResul
   if (!project.metadata.name.trim()) {
     issues.push({ code: 'invalid-project-name', message: 'project name is required', path: 'metadata.name' });
   }
-  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(project.metadata.minecraftVersion)) {
+  if (!MINECRAFT_VERSION_PATTERN.test(project.metadata.minecraftVersion)) {
     issues.push({ code: 'invalid-minecraft-version', message: 'Minecraft version must use a release version format', path: 'metadata.minecraftVersion' });
   }
   if (!Number.isInteger(project.editorSettings.currentY) || !isWithinBounds({ x: 0, y: project.editorSettings.currentY, z: 0 }, project.size)) {

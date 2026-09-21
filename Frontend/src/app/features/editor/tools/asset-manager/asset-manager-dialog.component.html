@@ -2,13 +2,15 @@
   <section class="tool-dialog" role="dialog" aria-modal="true" tabindex="-1" autofocus (keydown)="trapFocus($event)" [attr.aria-label]="i18n.t('assetManagerTitle')">
     <header><h2>{{ i18n.t('assetManagerTitle') }}</h2><button type="button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="closed.emit()"><svg lucideX aria-hidden="true"></svg></button></header>
     <div class="tool-dialog-body">
+      <div class="manager-controls">
       <section class="manager-section manager-summary">
         <h3>{{ i18n.t('assetManagerVanilla') }}</h3>
         <p class="manager-status">{{ i18n.t('minecraftJavaVersion').replace('{version}', assets.activeVersion()) }}</p>
-        <dl><div><dt>{{ i18n.t('assetManagerStatus') }}</dt><dd>{{ statusLabel() }}</dd></div><div><dt>{{ i18n.t('assetManagerSource') }}</dt><dd>{{ assets.sourceName() || i18n.t('noAssets') }}</dd></div><div><dt>{{ i18n.t('assetManagerResources') }}</dt><dd>{{ assets.diagnostics().resourceCount }}</dd></div><div><dt>{{ i18n.t('assetManagerCacheReady') }}</dt><dd>{{ assets.cachedVersions().includes(assets.activeVersion()) ? i18n.t('yes') : i18n.t('no') }}</dd></div></dl>
+        <dl><div><dt>{{ i18n.t('assetManagerStatus') }}</dt><dd>{{ statusLabel() }}</dd></div><div><dt>{{ i18n.t('assetManagerSource') }}</dt><dd>{{ assets.sourceName() || i18n.t('noAssets') }}</dd></div><div><dt>{{ i18n.t('assetManagerResources') }}</dt><dd>{{ assets.diagnostics().resourceCount }}</dd></div><div><dt>{{ i18n.t('assetManagerResourceSupport') }}</dt><dd>{{ assets.diagnostics().resourceFormat.label }}</dd></div><div><dt>{{ i18n.t('assetManagerCacheReady') }}</dt><dd>{{ assets.cachedVersions().includes(assets.activeVersion()) ? i18n.t('yes') : i18n.t('no') }}</dd></div></dl>
         @if (assets.message()) { <p class="manager-error">{{ assets.message() }}</p> }
         <input #jarInput class="file-input" type="file" [attr.aria-label]="assets.status() === 'ready' ? i18n.t('assetManagerReplace') : i18n.t('assetManagerImport')" accept=".jar,.zip,application/java-archive,application/zip" (change)="importJar($event)" />
-        <div class="manager-actions"><button type="button" class="primary" [disabled]="importing()" (click)="redownload()">{{ i18n.t('assetManagerRedownload') }}</button><span class="manager-fallback-label">{{ i18n.t('assetManagerManualFallback') }}</span><button type="button" [disabled]="importing() || assets.status() === 'importing'" (click)="openJarPicker(jarInput)">{{ i18n.t('assetManagerImport') }}</button><button type="button" [disabled]="importing() || !assets.cachedVersions().includes(assets.activeVersion())" (click)="removeCached()">{{ i18n.t('assetManagerRemoveCache') }}</button></div>
+        <div class="manager-actions manager-official-actions"><button type="button" class="primary" [disabled]="importing()" (click)="redownload()">{{ i18n.t('assetManagerRedownload') }}</button><button type="button" [disabled]="importing() || !assets.cachedVersions().includes(assets.activeVersion())" (click)="removeCached()">{{ i18n.t('assetManagerRemoveCache') }}</button></div>
+        <div class="manager-fallback"><strong>{{ i18n.t('assetManagerManualFallback') }}</strong><p>{{ i18n.t('assetManagerManualImportConfirmText').replace('{version}', assets.activeVersion()) }}</p><button type="button" [disabled]="importing() || assets.status() === 'importing'" (click)="openJarPicker(jarInput)">{{ i18n.t('assetManagerImport') }}</button></div>
       </section>
       <section class="manager-section">
         <h3>{{ i18n.t('assetManagerMods') }}</h3>
@@ -29,6 +31,13 @@
           <p class="manager-empty">{{ i18n.t('assetManagerNoMods') }}</p>
         }
       </section>
+      </div>
+      <aside class="manager-activity" aria-live="polite">
+        <div class="activity-heading"><h3>{{ i18n.t('assetActivity') }}</h3><button type="button" [disabled]="!assets.activity.entries().length" (click)="assets.activity.clear()">{{ i18n.t('clear') }}</button></div>
+        @if (assets.activity.current(); as current) { <section class="activity-current"><small>{{ i18n.t('assetActivityCurrent') }}</small><strong>{{ current.message }}</strong>@if (current.progress; as progress) { @if (progress.total) { <progress max="100" [value]="progress.loaded / progress.total * 100" [attr.aria-label]="current.message"></progress><span>{{ formatBytes(progress.loaded) }} / {{ formatBytes(progress.total) }}</span> } @else { <progress [attr.aria-label]="current.message"></progress> } }</section> }
+        <small class="activity-recent">{{ i18n.t('assetActivityRecent') }}</small>
+        <div class="activity-list">@for (entry of assets.activity.entries(); track entry.id) { <div class="activity-entry" [class]="'level-' + entry.level"><time>{{ formatTime(entry.timestamp) }}</time><span>{{ entry.message }}</span></div> } @empty { <p class="manager-empty">{{ i18n.t('assetActivityEmpty') }}</p> }</div>
+      </aside>
     </div>
   </section>
 </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canDeleteProject, projectCreationGuard } from './project-screen.component';
+import { canDeleteProject, projectCreationFailureMessage, projectCreationGuard } from './project-screen.component';
 
 describe('projectCreationGuard', () => {
   it('ignores duplicate create/open actions without reporting invalid dimensions', () => {
@@ -18,5 +18,12 @@ describe('recent project deletion state', () => {
     const deleting = new Set(['large-project']);
     expect(canDeleteProject(deleting, 'large-project')).toBe(false);
     expect(canDeleteProject(deleting, 'other-project')).toBe(true);
+  });
+});
+
+describe('project creation failure classification', () => {
+  it('keeps validation/persistence failures distinct for user-facing messages', () => {
+    expect(projectCreationFailureMessage(new Error('Invalid Minecraft version'), 'storage', 'generic')).toBe('generic');
+    expect(projectCreationFailureMessage(new Error('IndexedDB quota exceeded'), 'storage', 'generic')).toBe('storage');
   });
 });

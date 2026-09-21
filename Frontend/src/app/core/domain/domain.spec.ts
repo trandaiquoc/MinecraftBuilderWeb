@@ -33,6 +33,16 @@ describe('domain validation', () => {
     expect(validateProject(project).issues.map(({ code }) => code)).toContain('out-of-bounds');
   });
 
+  it('accepts Mojang release identifiers without treating them as SemVer', () => {
+    const base: ProjectDocument = {
+      schemaVersion: 3, id: 'project-version', metadata: { name: 'Version test', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' },
+      size: { x: 1, y: 1, z: 1 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [],
+      editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 },
+    };
+    for (const version of ['1.21.1', '1.21', '26.3']) expect(validateProject({ ...base, metadata: { ...base.metadata, minecraftVersion: version } }).valid).toBe(true);
+    for (const version of ['', ' 26.3 ', '../26.3', '26/3', '26.3\\client']) expect(validateProject({ ...base, metadata: { ...base.metadata, minecraftVersion: version } }).issues.map(({ code }) => code)).toContain('invalid-minecraft-version');
+  });
+
   it('creates stable coordinate keys', () => {
     expect(coordinateKey({ x: 1, y: 2, z: 3 })).toBe('1,2,3');
   });

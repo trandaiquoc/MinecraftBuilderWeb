@@ -334,7 +334,7 @@ Supported resources are:
 - namespaced blockstate JSON;
 - namespaced model JSON and parent models;
 - generic namespaced PNG textures;
-- `assets/minecraft/lang/en_us.json`.
+- namespaced language JSON resources under `assets/<namespace>/lang/`.
 
 For 1.21.1, the runtime catalog uses the bundled normalized
 `vanilla-block-registry-1.21.1.json` and `VanillaBehaviorRegistry`. For other
@@ -343,6 +343,27 @@ behavior/default-state support remains unknown unless separately verified.
 English display names come independently from the selected JAR's `en_us.json`;
 visual resources come from its blockstates/models/textures. Missing visual
 resources therefore cannot erase canonical registry state or behavior metadata.
+
+### Version-aware support levels
+
+Every release entry exposed by Mojang's official release manifest may be
+selected and the browser attempts to download that exact client JAR. Download
+success is reported separately from editor resource support:
+
+- `verified`: the exact Minecraft Java 1.21.1 profile, including the checked
+  registry and behavior metadata;
+- `resource-compatible`: a modern JSON blockstate/model resource layout that
+  can be normalized generically, without borrowing 1.21.1 behavior data;
+- `legacy-limited`: legitimate older resources were extracted, but generic
+  model reconstruction is intentionally limited;
+- `unsupported-resource-format`: the archive was read but contains no resource
+  families currently understood by the provider.
+
+The status and activity feed distinguish cache lookup, official metadata,
+download/checksum verification, normalization, cache save, and activation.
+Activity is ephemeral (bounded to the most recent 100 events) and is not part
+of `ProjectDocument`. A format mismatch is never reported as a network failure
+and does not cause an unknown block to be replaced with `minecraft:air`.
 
 The normalized registry is generated from Minecraft Java 1.21.1 data-generator
 output `reports/blocks.json` with:

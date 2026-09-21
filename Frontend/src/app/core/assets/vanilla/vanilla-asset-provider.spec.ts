@@ -86,6 +86,23 @@ describe('VanillaAssetProvider', () => {
     expect(() => provider.assertUsable()).not.toThrow();
   });
 
+  it('does not apply the verified 1.21.1 Stone checks to another modern release', () => {
+    const provider = new VanillaAssetProvider('fixture-26.3.jar', '26.3', {
+      'assets/minecraft/blockstates/custom.json': {},
+      'assets/minecraft/models/block/custom.json': {},
+    }, new Map());
+    expect(provider.diagnostics().resourceFormat.support).toBe('resource-compatible');
+    expect(() => provider.assertUsable()).not.toThrow();
+  });
+
+  it('accepts a legacy-limited resource set without calling it a bad download', () => {
+    const provider = new VanillaAssetProvider('legacy.jar', '1.7.10', {
+      'assets/minecraft/lang/en_us.json': {},
+    }, new Map([['assets/minecraft/textures/stone.png', new Uint8Array([1])]]));
+    expect(provider.diagnostics().resourceFormat.support).toBe('legacy-limited');
+    expect(() => provider.assertUsable()).not.toThrow();
+  });
+
   it('composes authoritative defaults, translations, visual resources, and behavior independently', () => {
     const registry = parseVanillaBlockRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test report', blocks: [
       { id: 'minecraft:acacia_stairs', properties: [{ name: 'facing', values: ['north', 'south'] }, { name: 'half', values: ['top', 'bottom'] }, { name: 'shape', values: ['straight'] }, { name: 'waterlogged', values: ['true', 'false'] }], defaultState: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' } },
