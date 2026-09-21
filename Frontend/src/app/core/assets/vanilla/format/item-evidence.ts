@@ -1,12 +1,7 @@
+import type { CatalogItemEvidence } from '../../../blocks/catalog/block-definition.types';
+
 /** Normalized evidence extracted from a target-version item definition. */
-export interface TargetItemEvidence {
-  readonly itemId: string;
-  readonly referencedModels: readonly string[];
-  readonly referencedResources: readonly string[];
-  /** Optional only when the target resource explicitly identifies its block target. */
-  readonly explicitBlockPlacement?: { readonly blockId: string };
-  readonly sourceFormat: 'modern-item-definition' | 'legacy-item-model' | 'unknown';
-}
+export type TargetItemEvidence = Omit<CatalogItemEvidence, 'sourceFormat'> & { readonly sourceFormat: 'modern-item-definition' | 'legacy-item-model' | 'unknown' };
 
 export function itemEvidenceFromResources(
   json: Readonly<Record<string, unknown>>,
@@ -14,7 +9,7 @@ export function itemEvidenceFromResources(
   sourceFormat: TargetItemEvidence['sourceFormat'] = 'modern-item-definition',
 ): readonly TargetItemEvidence[] {
   const entries = paths
-    .filter((path) => /^assets\/[^/]+\/items\/[^/]+\.json$/.test(path) || /^assets\/[^/]+\/models\/item\/[^/]+\.json$/.test(path))
+    .filter((path) => /^assets\/[^/]+\/items\/.+\.json$/.test(path) || /^assets\/[^/]+\/models\/item\/.+\.json$/.test(path))
     .map((path): TargetItemEvidence | undefined => {
       const match = /^assets\/([^/]+)\/(?:items|models\/item)\/(.+)\.json$/.exec(path);
       if (!match) return undefined;

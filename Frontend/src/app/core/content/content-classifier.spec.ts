@@ -16,6 +16,9 @@ describe('content classification', () => {
   });
 
   it('does not apply vanilla semantic names to mod namespaces', () => {
+    for (const id of ['example:magic_wall_sign', 'example:custom_crop', 'example:potted_machine', 'example:future_wall_torch']) {
+      expect(classifyContent({ id, hasWorldBlock: true, hasItemEvidence: true })).toMatchObject({ kind: 'block-backed-item', placeable: true, internal: false });
+    }
     expect(classifyContent({ id: 'example:item_frame', hasItemEvidence: true })).toMatchObject({ kind: 'item-only', placeable: false });
   });
 });

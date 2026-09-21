@@ -14,4 +14,14 @@ describe('vanilla resource format adapters', () => {
     expect(adapter.canNormalizeModels).toBe(false);
     expect(adapter.languagePath({ 'assets/minecraft/lang/en_us.json': {} })).toBe('assets/minecraft/lang/en_us.json');
   });
+  it('uses legacy item models when a modern-shaped pack has no items directory', () => {
+    const json = {
+      'assets/minecraft/blockstates/stone.json': {},
+      'assets/minecraft/models/block/stone.json': {},
+      'assets/minecraft/models/item/stone.json': { parent: 'minecraft:block/stone' },
+    };
+    const adapter = selectVanillaResourceFormatAdapter(json, new Map());
+    expect(adapter.id).toBe('modern-json');
+    expect(adapter.itemEvidence(json)).toMatchObject([{ itemId: 'minecraft:stone', sourceFormat: 'legacy-item-model' }]);
+  });
 });

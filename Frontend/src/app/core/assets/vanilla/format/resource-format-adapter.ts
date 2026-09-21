@@ -17,8 +17,14 @@ class ModernJsonResourceAdapter implements VanillaResourceFormatAdapter {
   readonly canNormalizeModels = true;
   readonly canExposeLanguage = true;
   readonly blockstatePaths = blockstateResourcePaths;
-  readonly itemDefinitionPaths = itemDefinitionResourcePaths;
-  readonly itemEvidence = (json: Readonly<Record<string, unknown>>) => itemEvidenceFromResources(json, this.itemDefinitionPaths(json), 'modern-item-definition');
+  readonly itemDefinitionPaths = (json: Readonly<Record<string, unknown>>): readonly string[] => {
+    const modern = itemDefinitionResourcePaths(json);
+    return modern.length ? modern : legacyItemModelResourcePaths(json);
+  };
+  readonly itemEvidence = (json: Readonly<Record<string, unknown>>) => {
+    const modern = itemDefinitionResourcePaths(json);
+    return modern.length ? itemEvidenceFromResources(json, modern, 'modern-item-definition') : itemEvidenceFromResources(json, legacyItemModelResourcePaths(json), 'legacy-item-model');
+  };
   readonly languagePath = languageResourcePath;
   constructor(readonly profile: VanillaResourceFormatProfile) {}
 }
@@ -50,11 +56,11 @@ function blockstateResourcePaths(json: Readonly<Record<string, unknown>>): reado
 }
 
 function itemDefinitionResourcePaths(json: Readonly<Record<string, unknown>>): readonly string[] {
-  return Object.keys(json).filter((path) => /^assets\/[^/]+\/items\/[^/]+\.json$/.test(path)).sort();
+  return Object.keys(json).filter((path) => /^assets\/[^/]+\/items\/.+\.json$/.test(path)).sort();
 }
 
 function legacyItemModelResourcePaths(json: Readonly<Record<string, unknown>>): readonly string[] {
-  return Object.keys(json).filter((path) => /^assets\/[^/]+\/models\/item\/[^/]+\.json$/.test(path)).sort();
+  return Object.keys(json).filter((path) => /^assets\/[^/]+\/models\/item\/.+\.json$/.test(path)).sort();
 }
 
 function languageResourcePath(json: Readonly<Record<string, unknown>>): string | undefined {

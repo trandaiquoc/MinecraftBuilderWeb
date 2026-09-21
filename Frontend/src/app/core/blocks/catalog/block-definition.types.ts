@@ -28,6 +28,17 @@ export interface BlockItemEvidence {
   readonly referencedResources?: readonly string[];
 }
 
+/** Source-level item evidence. Item registry identity is independent from BlockDefinition identity. */
+export interface CatalogItemEvidence {
+  readonly itemId: string;
+  readonly referencedModels: readonly string[];
+  readonly referencedResources: readonly string[];
+  readonly explicitBlockPlacement?: { readonly blockId: string };
+  readonly sourceFormat: 'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
+  readonly sourceId?: string;
+  readonly sourceName?: string;
+}
+
 export type BlockBehavior =
   | { readonly kind: 'solid' }
   | { readonly kind: 'horizontal-connect'; readonly family: 'fence' | 'pane' | 'wall'; readonly connectionGroup: string; readonly compatibleGroups: readonly string[]; readonly connectsToSolid: boolean; readonly derivedProperties: readonly string[] }

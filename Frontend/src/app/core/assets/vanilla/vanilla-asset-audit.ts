@@ -7,7 +7,9 @@ import { texturePath, VanillaAssetProvider } from './vanilla-asset-provider';
 import { VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import type { BlockCapabilityProfile } from '../../blocks/capabilities/block-capability.types';
 import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
-import { classifyBlockDefinition, classifyContent, isDecorationEntityId } from '../../content/content-classifier';
+import { classifyBlockDefinition, classifyContent, isDecorationEntityId, isInternalBlockId, isTechnicalBlockId } from '../../content/content-classifier';
+import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
+import type { PlaceableItemDefinition, PlaceableItemEvidence } from '../../blocks/placement-palette/placeable-item';
 
 export type AssetAuditReason =
   | 'DEFAULT_STATE_UNKNOWN' | 'DEFAULT_STATE_INCOMPLETE' | 'DEFAULT_STATE_VARIANT_NO_MATCH'
@@ -52,7 +54,7 @@ export interface VanillaAssetCoverageReport {
 
 export interface ContentDomainAudit {
   readonly counts: Readonly<Record<import('../../content/content-classifier').MinecraftContentKind, number>>;
-  readonly paletteLeaks: readonly { readonly itemId: string; readonly code: 'CONTENT_DOMAIN_MISMATCH' | 'ENTITY_IN_BLOCK_PALETTE' | 'INTERNAL_BLOCK_IN_PALETTE' | 'ITEM_ONLY_IN_BLOCK_PALETTE' }[];
+  readonly paletteLeaks: readonly { readonly itemId: string; readonly code: 'CONTENT_DOMAIN_MISMATCH' | 'ENTITY_IN_BLOCK_PALETTE' | 'INTERNAL_BLOCK_IN_PALETTE' | 'TECHNICAL_BLOCK_IN_PALETTE' | 'ITEM_ONLY_IN_BLOCK_PALETTE' }[];
 }
 
 export function auditContentDomains(provider: VanillaAssetProvider): ContentDomainAudit {
@@ -60,17 +62,39 @@ export function auditContentDomains(provider: VanillaAssetProvider): ContentDoma
   const catalog = new BlockCatalog(); catalog.load(source);
   const definitions = catalog.all();
   const counts = Object.fromEntries(['world-block', 'block-backed-item', 'logical-block-item', 'internal-block', 'technical-block', 'decoration-entity', 'item-only', 'unknown'].map((kind) => [kind, 0])) as Record<import('../../content/content-classifier').MinecraftContentKind, number>;
-  const evidenceIds = new Set(provider.paths().filter((path) => /^assets\/[^/]+\/(?:items|models\/item)\/.*\.json$/.test(path)).map((path) => { const match = /^assets\/([^/]+)\/(?:items|models\/item)\/(.+)\.json$/.exec(path); return match ? `${match[1]}:${match[2]}` : ''; }).filter(Boolean));
   for (const definition of definitions) counts[classifyBlockDefinition(definition).kind] += 1;
-  for (const id of evidenceIds) if (!definitions.some((definition) => definition.id === id)) counts[classifyContent({ id, hasItemEvidence: true }).kind] += 1;
-  const items = buildPlaceableItems(definitions);
-  const paletteLeaks: ContentDomainAudit['paletteLeaks'] = items.flatMap((item): ContentDomainAudit['paletteLeaks'] => {
-    const id = item.itemId;
-    if (isDecorationEntityId(id)) return [{ itemId: id, code: 'ENTITY_IN_BLOCK_PALETTE' as const }];
-    const classification = classifyContent({ id, hasWorldBlock: true, hasItemEvidence: true });
-    return classification.placeable ? [] : [{ itemId: id, code: 'CONTENT_DOMAIN_MISMATCH' as const }];
+  const targetItems = source.targetItems ?? [];
+  const worldIds = new Set(definitions.map((definition) => definition.id));
+  const placeableItems = buildPlaceableItems(definitions, targetItems, source.itemEvidenceAvailable);
+  const placeableIds = new Set(placeableItems.map((item) => item.itemId));
+  for (const evidence of targetItems) {
+    if (worldIds.has(evidence.itemId)) continue;
+    counts[placeableIds.has(evidence.itemId) ? 'logical-block-item' : classifyContent({ id: evidence.itemId, hasItemEvidence: true }).kind] += 1;
+  }
+  return { counts, paletteLeaks: auditPaletteLeaks(placeableItems, definitions, targetItems, source.itemEvidenceAvailable) };
+}
+
+/** Audits an already-built palette against real world/item evidence; useful for source and fixture tests. */
+export function auditPaletteLeaks(
+  items: readonly PlaceableItemDefinition[],
+  definitions: readonly BlockDefinition[],
+  targetItems: readonly (CatalogItemEvidence | PlaceableItemEvidence)[] = [],
+  itemEvidenceAvailable = targetItems.length > 0,
+): ContentDomainAudit['paletteLeaks'] {
+  const worldIds = new Set(definitions.map((definition) => definition.id));
+  const targetIds = new Set(targetItems.map((item) => item.itemId));
+  return items.flatMap((item): ContentDomainAudit['paletteLeaks'] => {
+    if (isDecorationEntityId(item.itemId)) return [{ itemId: item.itemId, code: 'ENTITY_IN_BLOCK_PALETTE' as const }];
+    // Logical items may legitimately include hidden concrete variants (for
+    // example oak_wall_sign). Audit the user-facing/display block, not every
+    // concrete voxel used by the logical placement recipe.
+    if (isTechnicalBlockId(item.displayBlockId)) return [{ itemId: item.itemId, code: 'TECHNICAL_BLOCK_IN_PALETTE' as const }];
+    if (isInternalBlockId(item.displayBlockId)) return [{ itemId: item.itemId, code: 'INTERNAL_BLOCK_IN_PALETTE' as const }];
+    if (!item.concreteBlockIds.every((id) => worldIds.has(id))) return [{ itemId: item.itemId, code: 'ITEM_ONLY_IN_BLOCK_PALETTE' as const }];
+    if (itemEvidenceAvailable && !targetIds.has(item.itemId)) return [{ itemId: item.itemId, code: 'ITEM_ONLY_IN_BLOCK_PALETTE' as const }];
+    if (item.concreteBlockIds.length === 0) return [{ itemId: item.itemId, code: 'CONTENT_DOMAIN_MISMATCH' as const }];
+    return [];
   });
-  return { counts, paletteLeaks };
 }
 
 export interface VanillaAssetAuditOptions {

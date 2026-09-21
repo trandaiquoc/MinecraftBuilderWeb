@@ -22,7 +22,7 @@ const booleanValues = ['true', 'false'] as const;
  */
 export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: CommonBehaviorResourceProvider): CommonBehaviorEvaluation {
   const definitions = record.stateDefinitions;
-  const defaultState = deriveResourceDefaultState(definitions);
+  const defaultState = Object.keys(record.defaultState).length ? record.defaultState : deriveResourceDefaultState(definitions);
   const blockstate = record.resources.blockstate ? resources?.readJson(record.resources.blockstate) : undefined;
   const modelEvidence = typeof record.resources.model === 'string' || hasModelReference(blockstate);
 
@@ -93,7 +93,7 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (stairs.complete) return complete(record, definitions, 'stairs', { kind: 'stairs', derivedProperties: ['shape'] }, { ...deriveResourceDefaultState(definitions), shape: 'straight' }, 'compatible-common');
   if (stairs.partial && looksLikeStairs(record.id, definitions)) return changed(record, definitions, defaultState, 'stairs', 'Stair state contract differs from the common facing/half/shape properties.');
 
-  return { defaultState, stateDefinitions: definitions, defaultStateSource: Object.keys(defaultState).length ? (usesArbitraryValue(definitions) ? 'resource-render-fallback' : 'resource-derived') : 'unknown', compatible: false };
+  return { defaultState, stateDefinitions: definitions, defaultStateSource: record.defaultStateSource === 'resource-render-fallback' || usesArbitraryValue(definitions) ? 'resource-render-fallback' : Object.keys(defaultState).length ? 'resource-derived' : 'unknown', compatible: false };
 }
 
 function complete(record: AssetBlockRecord, definitions: readonly BlockStateDefinition[], family: string, behavior: BlockBehavior, defaults: Readonly<Record<string, string>>, source: DefaultStateSource): CommonBehaviorEvaluation {

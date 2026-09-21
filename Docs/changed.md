@@ -1564,3 +1564,33 @@ an ordered internal representation; legacy `axis`/`angle` wins when both are
 present. Explicit `shade_direction_override` uses an unlit material plus a
 deterministic directional factor so the override is not re-shaded by Lambert
 face normals. This remains an editor approximation, not a lighting engine.
+
+## Final Vanilla source boundary cleanup
+
+`BlockCatalogSource.targetItems` is now a first-class, source-owned item
+catalog. `BlockLibraryService` passes it unchanged into `buildPlaceableItems`,
+so logical mappings such as `minecraft:water_bucket` -> `minecraft:water` do
+not require same-ID evidence on the world block. An inspected but empty/unknown
+item domain is conservative and does not expose every block as an inventory
+item. Legacy `models/item/<nested/path>.json` resources are normalized with the
+full namespaced path.
+
+Vanilla suffix rules are namespace-safe: `minecraft:potted_*`, crop states,
+and wall concrete variants may be classified as internal, while an
+`example:custom_crop` remains generic until trusted source metadata says
+otherwise. Palette eligibility and world-block serialization are separate
+policies; internal concrete blocks remain serializable even when hidden from
+the normal palette. Decorations remain in the Decoration persistence route.
+
+Default-state provenance marks a deterministic blockstate-branch choice as
+`resource-render-fallback`; `resource-derived` is reserved for a semantic
+resource default. Higher-confidence authoritative, fixture, and common
+provenance wins property-by-property during enrichment.
+
+The official Java 26.3 audit is checked in as
+`Docs/vanilla-asset-coverage-26.3.json` and `.md`. It reports 1,286 world
+block entries, 1,189 Real / 71 Partial / 26 Fallback visuals, 0 known palette
+leaks, and content-domain counts from the independent item catalog. A clean
+official 1.21.1 client was also run through the same audit path as a regression
+check; its representative fence, pane, door, bed, glass, water, and lava
+entries resolved without palette leaks.

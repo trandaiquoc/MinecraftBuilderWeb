@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BlockCatalog } from '../catalog/block-catalog';
 import { representativeBlockFixture } from '../catalog/block-catalog.fixture';
-import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, placementItemSearch, previewBlocksForItem, resolveConcreteBlockId, resolveItemBlock } from './placeable-item';
+import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, isWorldBlockSerializable, placementItemSearch, previewBlocksForItem, resolveConcreteBlockId, resolveItemBlock } from './placeable-item';
 import type { AssetBlockRecord } from '../catalog/block-definition.types';
 import { blockCapability } from '../capabilities/block-capability-resolver';
 
@@ -58,7 +58,9 @@ describe('vanilla placeable item layer', () => {
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:bedrock')!)).toBe(true);
     expect(isNormalBuildingExportEligible('minecraft:structure_void')).toBe(false);
     expect(isNormalBuildingExportEligible('minecraft:item_frame')).toBe(false);
-    expect(isNormalBuildingExportEligible('minecraft:potted_torchflower')).toBe(false);
+    expect(isNormalBuildingExportEligible('minecraft:potted_torchflower')).toBe(true);
+    expect(isWorldBlockSerializable('minecraft:potted_torchflower')).toBe(true);
+    expect(isNormalBuildingPaletteEligible({ id: 'minecraft:potted_torchflower', namespace: 'minecraft' })).toBe(false);
   });
   it('does not expose decoration entities as normal block items even if a stale block record exists', () => {
     const catalog = catalogWith('minecraft:item_frame', 'minecraft:glow_item_frame', 'minecraft:painting');
@@ -72,7 +74,7 @@ describe('vanilla placeable item layer', () => {
     expect(blockCapability(item.capabilities, 'item-backed')?.evidence).toBe('inferred');
   });
   it('represents fluids as Water/Lava Bucket logical items', () => {
-    const catalog = catalogWith('minecraft:water', 'minecraft:lava');
+    const catalog = catalogWith('minecraft:water', 'minecraft:lava', 'minecraft:bedrock');
     const items = buildPlaceableItems(catalog.all());
     expect(items.filter((item) => item.placementKind === 'fluid-bucket').map((item) => item.itemId)).toEqual(['minecraft:lava_bucket', 'minecraft:water_bucket']);
     expect(items.some((item) => item.itemId === 'minecraft:water')).toBe(false);
@@ -85,6 +87,33 @@ describe('vanilla placeable item layer', () => {
     expect(items.find((item) => item.itemId === 'minecraft:water_bucket')?.previewBlocks[0]).toMatchObject({ id: 'minecraft:water', state: { level: '0' } });
     const water = items.find((item) => item.itemId === 'minecraft:water_bucket')!;
     expect(resolveItemBlock(water, water.defaultState, { x: 1, y: 2, z: 3 }, undefined, (id) => catalog.get(id))).toMatchObject({ id: 'minecraft:water', state: { level: '0' }, blockEntityData: undefined });
+  });
+
+  it('uses independent modern water/lava bucket evidence instead of same-ID block evidence', () => {
+    const catalog = catalogWith('minecraft:water', 'minecraft:lava', 'minecraft:bedrock');
+    const targetItems = [
+      { itemId: 'minecraft:water_bucket', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' as const },
+      { itemId: 'minecraft:lava_bucket', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' as const },
+      { itemId: 'minecraft:bedrock', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' as const },
+    ];
+    const items = buildPlaceableItems(catalog.all(), targetItems, true);
+    expect(items.map((item) => item.itemId)).toEqual(expect.arrayContaining(['minecraft:water_bucket', 'minecraft:lava_bucket', 'minecraft:bedrock']));
+    expect(items.some((item) => item.itemId === 'minecraft:water')).toBe(false);
+    expect(items.some((item) => item.itemId === 'minecraft:lava')).toBe(false);
+    expect(items.find((item) => item.itemId === 'minecraft:water_bucket')?.concreteBlockIds).toEqual(['minecraft:water']);
+  });
+
+  it('does not manufacture a modern logical item without target item evidence', () => {
+    const catalog = catalogWith('minecraft:red_bed');
+    const items = buildPlaceableItems(catalog.all(), [], true);
+    expect(items.some((item) => item.itemId === 'minecraft:red_bed')).toBe(false);
+    expect(catalog.get('minecraft:red_bed')).toBeDefined();
+  });
+
+  it('accepts a legacy item model as conservative item evidence', () => {
+    const catalog = catalogWith('minecraft:bedrock');
+    const items = buildPlaceableItems(catalog.all(), [{ itemId: 'minecraft:bedrock', referencedModels: ['minecraft:item/bedrock'], referencedResources: [], sourceFormat: 'legacy-item-model' }], true);
+    expect(items.some((item) => item.itemId === 'minecraft:bedrock')).toBe(true);
   });
 
   it('builds complete logical previews for multi-block families', () => {

@@ -19,13 +19,13 @@ export class BlockLibraryService {
 
   constructor(readonly activeBlock: ActiveBlockService, private readonly decorations?: DecorationService) {
     this.catalog.load(representativeBlockFixture);
-    this.items = buildPlaceableItems(this.catalog.all());
+    this.items = buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence());
   }
 
   setQuery(query: string): void { this.query.set(query); }
   load(source: BlockCatalogSource): void { this.replaceSource(source); }
-  replaceSource(source: BlockCatalogSource): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.replaceSource(source); this.items = buildPlaceableItems(this.catalog.all()); if (activeId && activeSource === (source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla') && !this.catalog.get(activeId)) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
-  removeSource(sourceId: string): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.removeSource(sourceId); this.items = buildPlaceableItems(this.catalog.all()); if (activeSource === sourceId) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
+  replaceSource(source: BlockCatalogSource): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.replaceSource(source); this.items = buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence()); if (activeId && activeSource === (source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla') && !this.catalog.get(activeId)) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
+  removeSource(sourceId: string): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.removeSource(sourceId); this.items = buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence()); if (activeSource === sourceId) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
   sourceIds(): readonly string[] { return this.catalog.sources(); }
   catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog.conflicts(); }
   select(item: PlaceableItemDefinition): void { this.decorations?.clearActive(); this.activeBlock.select(item); }

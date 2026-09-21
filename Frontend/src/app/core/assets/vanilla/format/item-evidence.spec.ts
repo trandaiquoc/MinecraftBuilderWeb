@@ -10,4 +10,12 @@ describe('target item evidence', () => {
     expect(evidence[0]).not.toHaveProperty('placeableBlockCandidates');
     expect(evidence[0]).not.toHaveProperty('explicitBlockPlacement');
   });
+
+  it('normalizes nested item and legacy model resource IDs', () => {
+    const evidence = itemEvidenceFromResources({
+      'assets/example/items/tools/hammer.json': { model: { type: 'minecraft:model', model: 'example:item/tools/hammer' } },
+      'assets/example/models/item/tools/hammer.json': { parent: 'item/generated', textures: { layer0: 'example:item/tools/hammer' } },
+    }, ['assets/example/items/tools/hammer.json', 'assets/example/models/item/tools/hammer.json']);
+    expect(evidence.map((entry) => entry.itemId)).toEqual(['example:tools/hammer', 'example:tools/hammer']);
+  });
 });

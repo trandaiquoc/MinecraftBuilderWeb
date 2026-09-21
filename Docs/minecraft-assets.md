@@ -569,9 +569,10 @@ Unknown or mod-specific behavior remains `unknown` and is never inferred only
 from a registry-name heuristic.
 
 Common default states carry provenance: `compatible-common` means a complete
-contract supplied the canonical defaults, while `resource-derived` means the
-resource definitions supplied a deterministic fallback. This provenance is
-catalog metadata and is not written into `ProjectDocument`.
+contract supplied the canonical defaults, `resource-derived` means semantic
+resource defaults were justified, and `resource-render-fallback` means a
+deterministic renderable branch was selected without semantic proof. This
+provenance is catalog metadata and is not written into `ProjectDocument`.
 
 `VanillaAssetsService` generates an in-memory compatibility report after a
 provider is activated. The report separates `compatible-reused`,
@@ -640,3 +641,36 @@ the Decoration route rather than the BlockCatalog/PlaceableItem route. An item
 resource proves that an item exists, not that a same-ID world block is
 placeable; direct palette eligibility combines target item evidence with world
 block evidence and conservative Java semantic rules.
+
+## Item/catalog source boundary
+
+Every normalized source exposes `blocks` and an independent `targetItems`
+catalog. `BlockLibraryService` uses both inputs. A target item may map to a
+different concrete world block (for example Water Bucket -> Water or Lava
+Bucket -> Lava); the item and block registry IDs are never conflated. If an
+inspected target has no usable item evidence, the normal palette stays
+conservative rather than treating every blockstate as an item. Legacy item
+models are accepted as existence evidence, including nested resource paths.
+
+The content classifier only applies Vanilla suffix semantics inside the
+`minecraft` namespace. Internal world variants (wall signs, potted blocks,
+crop states, and similar concrete forms) remain in the world catalog and can
+be serialized, but are not independent palette entries. Item Frame, Glow Item
+Frame, and Painting are decorations and are serialized through the decoration
+route, not as voxel blocks.
+
+Default-state reporting distinguishes a semantic `resource-derived` value from
+a merely renderable `resource-render-fallback` branch. The latter must not
+override authoritative, fixture, or compatible-common state evidence.
+
+The committed 26.3 report was generated from the official client JAR after
+extraction with:
+
+```text
+tar -xf client.jar -C extracted
+cd Frontend
+node tools/audit-vanilla-assets.mjs ../extracted 26.3
+```
+
+The command writes `Docs/vanilla-asset-coverage-26.3.json` and `.md` without
+copying the JAR or extracted assets into the repository.

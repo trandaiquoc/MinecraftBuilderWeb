@@ -67,4 +67,20 @@ describe('BlockCatalog', () => {
     library.removeSource('example');
     expect(active.active()).toBeUndefined();
   });
+
+  it('passes independent target item evidence into the placeable library', () => {
+    const library = new BlockLibraryService(new ActiveBlockService());
+    library.replaceSource({
+      minecraftVersion: '26.3', sourceId: 'vanilla-26.3', sourceName: 'Vanilla 26.3', itemEvidenceAvailable: true,
+      blocks: [
+        { id: 'minecraft:water', displayName: 'Water', defaultState: { level: '0' }, stateDefinitions: [{ name: 'level', values: ['0', '1'] }], resources: { textures: [] }, support: 'partial' },
+        { id: 'minecraft:lava', displayName: 'Lava', defaultState: { level: '0' }, stateDefinitions: [{ name: 'level', values: ['0', '1'] }], resources: { textures: [] }, support: 'partial' },
+      ],
+      targetItems: [
+        { itemId: 'minecraft:water_bucket', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' },
+        { itemId: 'minecraft:lava_bucket', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' },
+      ],
+    });
+    expect(library.allItems().map((item) => item.itemId)).toEqual(['minecraft:lava_bucket', 'minecraft:water_bucket']);
+  });
 });

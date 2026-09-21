@@ -1,4 +1,4 @@
-import type { AssetBlockRecord, BlockDefinition, BlockVisualClassification, NormalizedBlockDefinition } from './block-definition.types';
+import type { AssetBlockRecord, BlockDefinition, BlockVisualClassification, CatalogItemEvidence, NormalizedBlockDefinition } from './block-definition.types';
 import { deriveBlockCapabilities } from '../capabilities/block-capability-resolver';
 import type { BlockCapability } from '../capabilities/block-capability.types';
 
@@ -7,10 +7,16 @@ export interface BlockCatalogSource {
   readonly blocks: readonly AssetBlockRecord[];
   readonly sourceId?: string;
   readonly sourceName?: string;
+  /** Independent target item registry evidence; never inferred from block IDs. */
+  readonly targetItems?: readonly CatalogItemEvidence[];
+  /** True when the source format has an item domain that was inspected, even if it is empty. */
+  readonly itemEvidenceAvailable?: boolean;
 }
 
+interface CatalogContribution { readonly definitions: readonly NormalizedBlockDefinition[]; readonly targetItems: readonly CatalogItemEvidence[]; readonly itemEvidenceAvailable: boolean; }
+
 export class BlockCatalog {
-  private readonly contributions = new Map<string, readonly NormalizedBlockDefinition[]>();
+  private readonly contributions = new Map<string, CatalogContribution>();
   private readonly entries = new Map<string, NormalizedBlockDefinition>();
   private readonly searchIndex = new Map<string, string>();
 
@@ -27,7 +33,7 @@ export class BlockCatalog {
   replaceSource(source: BlockCatalogSource): void {
     const sourceId = source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla';
     const sourceName = source.sourceName ?? source.blocks[0]?.sourceName ?? sourceId;
-    this.contributions.set(sourceId, source.blocks.map((record) => toDefinition(record, sourceId, sourceName)));
+    this.contributions.set(sourceId, { definitions: source.blocks.map((record) => toDefinition(record, sourceId, sourceName)), targetItems: (source.targetItems ?? []).map((item) => ({ ...item, sourceId: item.sourceId ?? sourceId, sourceName: item.sourceName ?? sourceName })), itemEvidenceAvailable: source.itemEvidenceAvailable === true });
     this.rebuild();
   }
 
@@ -35,13 +41,13 @@ export class BlockCatalog {
   sources(): readonly string[] { return [...this.contributions.keys()]; }
   conflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] {
     const owners = new Map<string, string[]>();
-    for (const [sourceId, definitions] of this.contributions) for (const definition of definitions) owners.set(definition.id, [...(owners.get(definition.id) ?? []), sourceId]);
+    for (const [sourceId, contribution] of this.contributions) for (const definition of contribution.definitions) owners.set(definition.id, [...(owners.get(definition.id) ?? []), sourceId]);
     return [...owners].filter(([, sourceIds]) => sourceIds.length > 1).map(([id, sourceIds]) => ({ id, sourceIds }));
   }
 
   private rebuild(): void {
     this.entries.clear(); this.searchIndex.clear();
-    for (const definitions of this.contributions.values()) for (const definition of definitions) {
+    for (const contribution of this.contributions.values()) for (const definition of contribution.definitions) {
       if (this.entries.has(definition.id)) continue;
       this.entries.set(definition.id, definition);
       this.searchIndex.set(definition.id, [definition.displayName, definition.id, definition.namespace, definition.modName ?? '', definition.sourceName].map(normalizeSearchText).join('\u0000'));
@@ -50,6 +56,8 @@ export class BlockCatalog {
 
   get(id: string): NormalizedBlockDefinition | undefined { return this.entries.get(id); }
   all(): readonly NormalizedBlockDefinition[] { return [...this.entries.values()]; }
+  targetItems(): readonly CatalogItemEvidence[] { return [...this.contributions.values()].flatMap((contribution) => contribution.targetItems); }
+  hasTargetItemEvidence(): boolean { return [...this.contributions.values()].some((contribution) => contribution.itemEvidenceAvailable); }
 
   search(query: string): readonly BlockDefinition[] {
     const normalized = normalizeSearchText(query);

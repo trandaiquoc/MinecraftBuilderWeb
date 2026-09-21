@@ -100,7 +100,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       stoneModel: !!this.json['assets/minecraft/models/block/stone.json'],
       stoneTexture: this.binary.has('assets/minecraft/textures/block/stone.png'),
       language: Object.keys(this.json).some((path) => /^assets\/[^/]+\/lang\/[^/]+\.json$/.test(path)),
-      itemDefinitions: Object.keys(this.json).filter((path) => /^assets\/[^/]+\/items\/[^/]+\.json$/.test(path)).length,
+      itemDefinitions: Object.keys(this.json).filter((path) => /^assets\/[^/]+\/(?:items|models\/item)\/.+\.json$/.test(path)).length,
       resourceFormat,
     };
   }
@@ -167,7 +167,17 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
       return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
     });
-    return { minecraftVersion: this.minecraftVersion, sourceId: this.source.id, sourceName: this.source.displayName, blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })) };
+    return {
+      minecraftVersion: this.minecraftVersion,
+      sourceId: this.source.id,
+      sourceName: this.source.displayName,
+      blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })),
+      targetItems: itemEvidence.map((item) => ({ ...item, sourceId: this.source.id, sourceName: this.source.displayName })),
+      // The Vanilla provider has inspected the item domain even when the
+      // target resource format contains no usable item definitions. Keep an
+      // empty/unknown catalog conservative rather than exposing every block.
+      itemEvidenceAvailable: true,
+    };
   }
 }
 
@@ -221,6 +231,10 @@ function inferStateDefinitions(value: unknown): readonly BlockStateDefinition[] 
 function resourceDefaultState(value: unknown, definitions: readonly BlockStateDefinition[]): { readonly state: Readonly<Record<string, string>>; readonly source: 'resource-derived' | 'resource-render-fallback' | 'unknown' } {
   const document = record(value);
   const variants = record(document['variants']);
+  const fallback = deriveResourceDefaultState(definitions);
+  if (Object.prototype.hasOwnProperty.call(variants, '') && !Object.keys(fallback).length) return { state: {}, source: 'resource-derived' };
+  const multipart = document['multipart'];
+  if (Array.isArray(multipart) && multipart.length > 0 && multipart.every((part) => !Object.prototype.hasOwnProperty.call(record(part), 'when')) && !Object.keys(fallback).length) return { state: {}, source: 'resource-derived' };
   const keys = Object.keys(variants).filter(Boolean).sort((left, right) => right.split(',').length - left.split(',').length || left.localeCompare(right));
   if (keys.length) {
     const candidate: Record<string, string> = {};
@@ -228,12 +242,16 @@ function resourceDefaultState(value: unknown, definitions: readonly BlockStateDe
       const [name, raw] = entry.split('=');
       if (name && raw && definitions.some((definition) => definition.name === name && definition.values.includes(raw))) candidate[name] = raw;
     }
-    const fallback = deriveResourceDefaultState(definitions);
     const state = { ...fallback, ...candidate };
-    if (Object.keys(state).length) return { state, source: Object.keys(candidate).length ? 'resource-derived' : 'resource-render-fallback' };
+    if (Object.keys(state).length) return { state, source: Object.keys(candidate).length ? 'resource-render-fallback' : usesArbitraryResourceState(definitions) ? 'resource-render-fallback' : 'resource-derived' };
   }
   const state = deriveResourceDefaultState(definitions);
-  return Object.keys(state).length ? { state, source: 'resource-derived' } : { state: {}, source: 'unknown' };
+  return Object.keys(state).length ? { state, source: usesArbitraryResourceState(definitions) ? 'resource-render-fallback' : 'resource-derived' } : { state: {}, source: 'unknown' };
+}
+
+function usesArbitraryResourceState(definitions: readonly BlockStateDefinition[]): boolean {
+  const semantic = new Set(['facing', 'half', 'part', 'type', 'shape', 'hinge', 'open', 'powered', 'waterlogged', 'lit', 'attached', 'hanging', 'axis', 'face', 'rotation', 'candles', 'level', 'honey_level', 'in_wall', 'up', 'age']);
+  return definitions.some((definition) => definition.values.length > 0 && !semantic.has(definition.name));
 }
 
 function record(value: unknown): Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }

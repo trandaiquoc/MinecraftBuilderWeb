@@ -49,6 +49,18 @@ describe('VanillaAssetProvider', () => {
     expect(source.blocks.find((block) => block.id === 'minecraft:potted_torchflower')?.itemEvidence).toBeUndefined();
   });
 
+  it('keeps item registry evidence independent when an item targets a different fluid block', () => {
+    const provider = new VanillaAssetProvider('26.3.jar', '26.3', {
+      'assets/minecraft/items/water_bucket.json': { model: { type: 'minecraft:model', model: 'minecraft:item/water_bucket' } },
+      'assets/minecraft/items/lava_bucket.json': { model: { type: 'minecraft:model', model: 'minecraft:item/lava_bucket' } },
+      'assets/minecraft/blockstates/water.json': { variants: { level: { model: 'minecraft:block/water' } } },
+      'assets/minecraft/blockstates/lava.json': { variants: { level: { model: 'minecraft:block/lava' } } },
+    }, new Map());
+    const source = provider.catalog();
+    expect(source.targetItems?.map((item) => item.itemId)).toEqual(['minecraft:lava_bucket', 'minecraft:water_bucket']);
+    expect(source.targetItems?.every((item) => !source.blocks.some((block) => block.id === item.itemId))).toBe(true);
+  });
+
   it('keeps declared Full support only when the representative model and PNG resolve', () => {
     const provider = new VanillaAssetProvider('fixture.jar', {
       'assets/minecraft/lang/en_us.json': { 'block.minecraft.stone': 'Stone' },
@@ -91,8 +103,15 @@ describe('VanillaAssetProvider', () => {
       'assets/minecraft/models/block/log.json': { elements: [] },
     }, new Map());
     const log = provider.catalog().blocks.find((entry) => entry.id === 'minecraft:acacia_log');
-    expect(log?.defaultState).toEqual({ axis: 'y' });
-    expect(log?.defaultStateSource).toBe('resource-derived');
+    expect(log?.defaultState).toEqual({ axis: 'x' });
+    expect(log?.defaultStateSource).toBe('resource-render-fallback');
+  });
+
+  it('treats an unconditional empty blockstate variant as a known empty default', () => {
+    const provider = new VanillaAssetProvider('target.jar', {
+      'assets/example/blockstates/simple.json': { variants: { '': { model: 'example:block/simple' } } },
+    }, new Map());
+    expect(provider.catalog().blocks.find((entry) => entry.id === 'example:simple')).toMatchObject({ defaultState: {}, defaultStateSource: 'resource-derived' });
   });
 
   it('rejects a stale normalized cache schema', () => {
