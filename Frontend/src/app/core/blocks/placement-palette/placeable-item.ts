@@ -4,6 +4,7 @@ import { BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { PlacementContext } from '../../editor/placement/placement';
 import { normalizeSearchText } from '../catalog/block-catalog';
+import { classifyBlockDefinition, isInternalBlockId, isTechnicalBlockId, isDecorationEntityId } from '../../content/content-classifier';
 
 export type PlaceablePlacementKind =
   | 'direct' | 'sign' | 'hanging-sign' | 'torch' | 'head' | 'banner' | 'coral-fan'
@@ -30,7 +31,7 @@ export interface PlaceableItemDefinition {
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
-export interface PlaceableItemEvidence { readonly itemId: string; readonly placeable?: boolean; }
+export interface PlaceableItemEvidence { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: string; }
 
 interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; }
 
@@ -75,20 +76,23 @@ export const VANILLA_PLACEABLE_MANIFEST = manifest();
 const MANIFEST_BY_CONCRETE = new Map(VANILLA_PLACEABLE_MANIFEST.flatMap((entry) => entry.concreteBlockIds.map((blockId) => [blockId, entry] as const)));
 
 export function isNormalBuildingPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace'>): boolean {
-  return block.namespace !== 'minecraft' || !TECHNICAL_IDS.has(block.id);
+  return !isTechnicalBlockId(block.id) && !isInternalBlockId(block.id) && !isDecorationEntityId(block.id);
 }
 
-export function isNormalBuildingExportEligible(blockId: string): boolean { return !TECHNICAL_IDS.has(blockId); }
+export function isNormalBuildingExportEligible(blockId: string): boolean { return !isTechnicalBlockId(blockId) && !isInternalBlockId(blockId) && !isDecorationEntityId(blockId); }
 export function technicalBuildingIds(): readonly string[] { return [...TECHNICAL_IDS]; }
 
 export function buildPlaceableItems(definitions: readonly BlockDefinition[], targetItems: readonly PlaceableItemEvidence[] = []): readonly PlaceableItemDefinition[] {
   const byId = new Map(definitions.map((definition) => [definition.id, definition]));
+  const targetItemIds = new Set(targetItems.filter((item) => item.placeable === true).map((item) => item.itemId));
+  const hasTargetItemEvidence = targetItemIds.size > 0 || definitions.some((definition) => definition.itemEvidence !== undefined);
   const covered = new Set<string>();
   const result: PlaceableItemDefinition[] = [];
   for (const entry of VANILLA_PLACEABLE_MANIFEST) {
     const concreteBlockIds = entry.concreteBlockIds.filter((blockId) => byId.has(blockId));
     const display = byId.get(entry.itemId) ?? byId.get(concreteBlockIds[0]);
     if (!display || !concreteBlockIds.length || !isNormalBuildingPaletteEligible(display)) continue;
+    if (hasTargetItemEvidence && display.itemEvidence?.placeable !== true && !targetItemIds.has(entry.itemId)) continue;
     for (const blockId of concreteBlockIds) covered.add(blockId);
     result.push(toItem(display, entry, concreteBlockIds));
   }
@@ -96,17 +100,16 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[], tar
     if (covered.has(entry.itemId) || !entry.concreteBlockIds.every((blockId) => byId.has(blockId))) continue;
     const display = byId.get(entry.itemId);
     if (!display || !isNormalBuildingPaletteEligible(display)) continue;
+    if (hasTargetItemEvidence && display.itemEvidence?.placeable !== true && !targetItemIds.has(entry.itemId)) continue;
     for (const blockId of entry.concreteBlockIds) covered.add(blockId);
     result.push(toItem(display, entry, entry.concreteBlockIds));
   }
-  const targetItemIds = new Set(targetItems.filter((item) => item.placeable !== false).map((item) => item.itemId));
-  const hasTargetItemEvidence = targetItemIds.size > 0 || definitions.some((definition) => definition.itemEvidence !== undefined);
   for (const definition of definitions) {
     if (!isNormalBuildingPaletteEligible(definition) || covered.has(definition.id) || MANIFEST_BY_CONCRETE.has(definition.id)) continue;
     // A block catalog is intentionally broader than the player-facing item
     // palette. Once the target resource set exposes item definitions, only
     // blocks backed by that evidence may become direct palette entries.
-    if (hasTargetItemEvidence && definition.itemEvidence?.placeable !== true && !targetItemIds.has(definition.id)) continue;
+    if (hasTargetItemEvidence && classifyBlockDefinition(definition).placeable !== true && !targetItemIds.has(definition.id)) continue;
     result.push(toItem(definition, { itemId: definition.id, concreteBlockIds: [definition.id], kind: 'direct', recipe: 'single' }, [definition.id]));
   }
   return result.sort((left, right) => left.displayName.localeCompare(right.displayName));

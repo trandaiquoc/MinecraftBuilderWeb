@@ -30,6 +30,17 @@ describe('block model geometry', () => {
     expect(shadeDirectionFactor('down')).toBeLessThan(shadeDirectionFactor('north'));
     expect(shadeDirectionFactor('unknown')).toBe(1);
   });
+  it('uses unlit materials for explicit shade direction overrides', async () => {
+    const assets = new VanillaAssetProvider('fixture.jar', {
+      'assets/minecraft/blockstates/test.json': { variants: { '': { model: 'minecraft:block/test' } } },
+      'assets/minecraft/models/block/test.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], shade_direction_override: 'up', faces: { north: { texture: 'minecraft:block/stone' } } }] },
+    }, new Map([['assets/minecraft/textures/block/stone.png', new Uint8Array([1])]]));
+    const visual = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create({ kind: 'resolved', id: 'minecraft:test', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} });
+    let material: THREE.Material | undefined;
+    visual.object?.traverse((object) => { if (object instanceof THREE.Mesh) material = object.material as THREE.Material; });
+    expect(material).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(material?.userData['shadeDirectionOverride']).toBe('up');
+  });
 
   it('samples the vanilla default grass pixel from the colormap image data', () => {
     const data = new Uint8Array(256 * 256 * 4);
@@ -130,6 +141,15 @@ describe('block model geometry', () => {
     expect(result.object?.userData['specialVisualFamily']).toBe('chests');
     expect(result.object?.userData['specialModel']).toBe('minecraft-java-chest-single-1.21.1');
     expect(result.resolved.state).toEqual({ facing: 'south', type: 'single', waterlogged: 'false' });
+  });
+  it('keeps non-classic bed families on their target generic model path', async () => {
+    const assets = new VanillaAssetProvider('26.3.jar', '26.3', {
+      'assets/minecraft/blockstates/straw_bed.json': { variants: { 'facing=north,part=foot,occupied=false': { model: 'minecraft:block/straw_bed' } } },
+      'assets/minecraft/models/block/straw_bed.json': { elements: [{ from: [0, 0, 0], to: [16, 8, 16], faces: { up: { texture: 'minecraft:block/straw' } } }] },
+    }, new Map([['assets/minecraft/textures/block/straw.png', new Uint8Array([1])]]));
+    const visual = await new VanillaBlockVisualProvider(assets, async () => new THREE.Texture()).create({ kind: 'resolved', id: 'minecraft:straw_bed', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north', part: 'foot', occupied: 'false' } });
+    expect(visual.mode).toBe('real');
+    expect(visual.object?.userData['specialVisualFamily']).toBeUndefined();
   });
 
   it('renders a vanilla Shulker Box special visual as real when its texture is available', async () => {

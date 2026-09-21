@@ -6,6 +6,8 @@ import { VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-
 import { texturePath, VanillaAssetProvider } from './vanilla-asset-provider';
 import { VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import type { BlockCapabilityProfile } from '../../blocks/capabilities/block-capability.types';
+import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
+import { classifyBlockDefinition, classifyContent, isDecorationEntityId } from '../../content/content-classifier';
 
 export type AssetAuditReason =
   | 'DEFAULT_STATE_UNKNOWN' | 'DEFAULT_STATE_INCOMPLETE' | 'DEFAULT_STATE_VARIANT_NO_MATCH'
@@ -43,8 +45,32 @@ export interface VanillaAssetCoverageReport {
     readonly intentionallyInvisible: number;
     readonly failureReasons: Readonly<Record<string, number>>;
     readonly families: Readonly<Record<string, number>>;
+    readonly contentDomain: ContentDomainAudit;
   };
   readonly records: readonly VanillaAssetAuditRecord[];
+}
+
+export interface ContentDomainAudit {
+  readonly counts: Readonly<Record<import('../../content/content-classifier').MinecraftContentKind, number>>;
+  readonly paletteLeaks: readonly { readonly itemId: string; readonly code: 'CONTENT_DOMAIN_MISMATCH' | 'ENTITY_IN_BLOCK_PALETTE' | 'INTERNAL_BLOCK_IN_PALETTE' | 'ITEM_ONLY_IN_BLOCK_PALETTE' }[];
+}
+
+export function auditContentDomains(provider: VanillaAssetProvider): ContentDomainAudit {
+  const source = provider.catalog();
+  const catalog = new BlockCatalog(); catalog.load(source);
+  const definitions = catalog.all();
+  const counts = Object.fromEntries(['world-block', 'block-backed-item', 'logical-block-item', 'internal-block', 'technical-block', 'decoration-entity', 'item-only', 'unknown'].map((kind) => [kind, 0])) as Record<import('../../content/content-classifier').MinecraftContentKind, number>;
+  const evidenceIds = new Set(provider.paths().filter((path) => /^assets\/[^/]+\/(?:items|models\/item)\/.*\.json$/.test(path)).map((path) => { const match = /^assets\/([^/]+)\/(?:items|models\/item)\/(.+)\.json$/.exec(path); return match ? `${match[1]}:${match[2]}` : ''; }).filter(Boolean));
+  for (const definition of definitions) counts[classifyBlockDefinition(definition).kind] += 1;
+  for (const id of evidenceIds) if (!definitions.some((definition) => definition.id === id)) counts[classifyContent({ id, hasItemEvidence: true }).kind] += 1;
+  const items = buildPlaceableItems(definitions);
+  const paletteLeaks: ContentDomainAudit['paletteLeaks'] = items.flatMap((item): ContentDomainAudit['paletteLeaks'] => {
+    const id = item.itemId;
+    if (isDecorationEntityId(id)) return [{ itemId: id, code: 'ENTITY_IN_BLOCK_PALETTE' as const }];
+    const classification = classifyContent({ id, hasWorldBlock: true, hasItemEvidence: true });
+    return classification.placeable ? [] : [{ itemId: id, code: 'CONTENT_DOMAIN_MISMATCH' as const }];
+  });
+  return { counts, paletteLeaks };
 }
 
 export interface VanillaAssetAuditOptions {
@@ -71,7 +97,7 @@ export async function auditVanillaAssets(provider: VanillaAssetProvider, options
     await Promise.resolve();
   }
   visualProvider.dispose();
-  return buildReport(provider.minecraftVersion, provider.sourceName, records);
+  return buildReport(provider, records);
 }
 
 async function auditDefinition(definition: BlockDefinition, provider: VanillaAssetProvider, resolver: BlockModelResolver, visualProvider: VanillaBlockVisualProvider, decodeCache: Map<string, Promise<boolean>>, decodeTexture: (bytes: Uint8Array, path: string) => Promise<boolean>): Promise<VanillaAssetAuditRecord> {
@@ -130,14 +156,16 @@ export function classifyVisualSupport(input: { readonly renderMode: 'real' | 'pa
   return input.renderMode === 'partial' || !input.defaultKnown || input.specialModel || !input.texturesDecoded ? 'partial' : 'real';
 }
 
-function buildReport(minecraftVersion: string, sourceName: string, records: readonly VanillaAssetAuditRecord[]): VanillaAssetCoverageReport {
+function buildReport(provider: VanillaAssetProvider, records: readonly VanillaAssetAuditRecord[]): VanillaAssetCoverageReport {
+  const minecraftVersion = provider.minecraftVersion;
+  const sourceName = provider.sourceName;
   const count = <T extends string>(values: readonly T[], choices: readonly T[]): Record<T, number> => Object.fromEntries(choices.map((choice) => [choice, values.filter((value) => value === choice).length])) as Record<T, number>;
   const reasons: Record<string, number> = {}; const families: Record<string, number> = {};
   for (const item of records) { families[item.family] = (families[item.family] ?? 0) + 1; for (const reason of item.render.reasons) reasons[reason] = (reasons[reason] ?? 0) + 1; }
   return {
     schemaVersion: 1, minecraftVersion, sourceName, generatedAt: new Date().toISOString(),
     methodology: [`Catalog entries and default states come from the selected Minecraft ${minecraftVersion} asset source.`, 'Display names come from the active en_us language resource; visual resources and behavior metadata remain independent.', 'Geometry is built headlessly through the production resolver/geometry provider without a viewport.', 'PNG decode uses createImageBitmap when available and a strict PNG container check in headless tooling.'],
-    summary: { totalEntries: records.length, visual: count(records.map((item) => item.render.visualSupport), ['real', 'partial', 'fallback']), behavior: count(records.map((item) => item.catalog.behaviorSupport), ['full', 'partial', 'unknown']), thumbnail: count(records.map((item) => item.thumbnail), ['real', 'fallback', 'unavailable']), defaultState: { known: records.filter((item) => item.defaultState.known).length, unknown: records.filter((item) => !item.defaultState.known).length }, specialRendererRequired: records.filter((item) => item.render.classification === 'special-renderer-required').length, intentionallyInvisible: records.filter((item) => item.render.classification === 'intentionally-invisible').length, failureReasons: sortCounts(reasons), families: sortCounts(families) },
+    summary: { totalEntries: records.length, visual: count(records.map((item) => item.render.visualSupport), ['real', 'partial', 'fallback']), behavior: count(records.map((item) => item.catalog.behaviorSupport), ['full', 'partial', 'unknown']), thumbnail: count(records.map((item) => item.thumbnail), ['real', 'fallback', 'unavailable']), defaultState: { known: records.filter((item) => item.defaultState.known).length, unknown: records.filter((item) => !item.defaultState.known).length }, specialRendererRequired: records.filter((item) => item.render.classification === 'special-renderer-required').length, intentionallyInvisible: records.filter((item) => item.render.classification === 'intentionally-invisible').length, failureReasons: sortCounts(reasons), families: sortCounts(families), contentDomain: auditContentDomains(provider) },
     records,
   };
 }

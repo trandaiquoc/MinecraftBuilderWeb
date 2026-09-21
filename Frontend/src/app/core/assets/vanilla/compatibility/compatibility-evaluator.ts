@@ -61,7 +61,7 @@ function evaluateDefinition(provider: VanillaAssetProvider, definition: BlockDef
     ...(variantPairs ? { variantPairs } : {}),
     stateContract: definition.stateDefinitions.map((entry) => `${entry.name}=${entry.values.join('|')}`),
     itemEvidence: definition.itemEvidence ? 'observed' as const : 'unobserved' as const,
-    ...(definition.itemEvidence ? { itemId: definition.itemEvidence.itemId, itemEligibility: 'placeable' as const } : { itemEligibility: 'internal-or-unobserved' as const }),
+    ...(definition.itemEvidence ? { itemId: definition.itemEvidence.itemId, itemEligibility: definition.itemEvidence.placeable === true ? 'placeable' as const : 'internal-or-unobserved' as const } : { itemEligibility: 'internal-or-unobserved' as const }),
   } satisfies Omit<CompatibilityEntry, 'classification'>;
   if (common?.reason) return { ...base, classification: 'changed-needs-delta', reasonCode: 'STATE_CONTRACT_CHANGED', message: common.reason, actualProperties: definition.stateDefinitions.map((entry) => entry.name) };
   if (special.family && special.missingResources.length) return { ...base, classification: 'changed-needs-delta', reasonCode: 'MISSING_SPECIAL_RESOURCE', message: `Special renderer ${special.family} is known but required resources are missing.`, missingResources: special.missingResources };

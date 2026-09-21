@@ -122,11 +122,11 @@ function parseElements(value: unknown, textures: Readonly<Record<string, string>
 function parseRotation(value: unknown): ResolvedElementRotation | undefined {
   if (!isRecord(value) || !Array.isArray(value['origin'])) return undefined;
   const origin = tuple(value['origin'], 3); if (!origin) return undefined;
+  // Modern Mojang resources expose independent x/y/z angles. Legacy
+  // axis/angle remains authoritative when both forms are present.
   if (['x', 'y', 'z'].includes(String(value['axis'])) && typeof value['angle'] === 'number') return { origin, axis: value['axis'] as 'x' | 'y' | 'z', angle: value['angle'], rescale: value['rescale'] === true };
-  if (Array.isArray(value['rotations'])) {
-    const rotations = value['rotations'].filter(isRecord).flatMap((entry) => ['x', 'y', 'z'].includes(String(entry['axis'])) && typeof entry['angle'] === 'number' ? [{ axis: entry['axis'] as 'x' | 'y' | 'z', angle: entry['angle'] as number }] : []);
-    return rotations.length ? { origin, rotations, rescale: false } : undefined;
-  }
+  const rotations = (['x', 'y', 'z'] as const).flatMap((axis) => typeof value[axis] === 'number' && value[axis] !== 0 ? [{ axis, angle: value[axis] as number }] : []);
+  if (rotations.length) return { origin, rotations, rescale: false };
   return undefined;
 }
 

@@ -3,7 +3,8 @@ export interface TargetItemEvidence {
   readonly itemId: string;
   readonly referencedModels: readonly string[];
   readonly referencedResources: readonly string[];
-  readonly placeableBlockCandidates: readonly string[];
+  /** Optional only when the target resource explicitly identifies its block target. */
+  readonly explicitBlockPlacement?: { readonly blockId: string };
   readonly sourceFormat: 'modern-item-definition' | 'legacy-item-model' | 'unknown';
 }
 
@@ -25,7 +26,6 @@ export function itemEvidenceFromResources(
         itemId,
         referencedModels: [...models],
         referencedResources: [...resources],
-        placeableBlockCandidates: [itemId],
         sourceFormat,
       };
     })

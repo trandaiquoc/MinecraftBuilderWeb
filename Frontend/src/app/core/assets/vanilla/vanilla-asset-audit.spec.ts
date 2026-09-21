@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { auditVanillaAssets, classifyVisualSupport, coverageReportMarkdown } from './vanilla-asset-audit';
+import { auditContentDomains, auditVanillaAssets, classifyVisualSupport, coverageReportMarkdown } from './vanilla-asset-audit';
 import { VanillaAssetProvider } from './vanilla-asset-provider';
 
 describe('vanilla asset coverage audit', () => {
@@ -33,6 +33,19 @@ describe('vanilla asset coverage audit', () => {
 
   it('classifies a geometry build failure as visual Fallback', () => {
     expect(classifyVisualSupport({ renderMode: 'real', defaultKnown: true, specialModel: false, texturesDecoded: true, geometryBuilt: false })).toBe('fallback');
+  });
+  it('audits content domains separately from visual block coverage', () => {
+    const provider = new VanillaAssetProvider('target.jar', '26.3', {
+      'assets/minecraft/items/item_frame.json': { model: { type: 'minecraft:model', model: 'minecraft:item/item_frame' } },
+      'assets/minecraft/items/test_item.json': { model: { type: 'minecraft:model', model: 'minecraft:item/test_item' } },
+      'assets/minecraft/blockstates/test_block.json': { variants: { '': { model: 'minecraft:block/test_block' } } },
+      'assets/minecraft/items/test_block.json': { model: { type: 'minecraft:model', model: 'minecraft:item/test_block' } },
+    }, new Map());
+    const result = auditContentDomains(provider);
+    expect(result.counts['decoration-entity']).toBe(1);
+    expect(result.counts['item-only']).toBe(1);
+    expect(result.counts['block-backed-item']).toBe(1);
+    expect(result.paletteLeaks).toEqual([]);
   });
 });
 

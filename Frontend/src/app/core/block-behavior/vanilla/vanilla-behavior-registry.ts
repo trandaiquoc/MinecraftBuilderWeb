@@ -1,4 +1,4 @@
-import { AssetBlockRecord, BehaviorSupportLevel, BlockBehavior, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
+import { AssetBlockRecord, BehaviorSupportLevel, BlockBehavior, BlockStateDefinition, DefaultStateSource } from '../../blocks/catalog/block-definition.types';
 import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
 
 export interface VanillaBehaviorResourceProvider {
@@ -96,9 +96,10 @@ export class VanillaBehaviorRegistry {
     const metadata = this.metadata(record);
     if (!metadata) return record;
     if (!isCompatibleContract(record, metadata, this.resources)) return record;
+    const recordSource = record.defaultStateSource ?? 'unknown';
     return {
       ...record,
-      defaultState: { ...metadata.defaultState, ...record.defaultState },
+      defaultState: mergeDefaultStateByProvenance(metadata.defaultState, 'compatible-common', record.defaultState, recordSource),
       stateDefinitions: mergeStateDefinitions(record.stateDefinitions, metadata.stateDefinitions),
       behavior: metadata.behavior,
       behaviorSupport: metadata.support,
@@ -178,6 +179,28 @@ export class VanillaBehaviorRegistry {
     }
     return ids;
   }
+}
+
+const DEFAULT_STATE_SOURCE_RANK: Readonly<Record<DefaultStateSource, number>> = {
+  'authoritative-report': 6, 'verified-fixture': 5, 'compatible-common': 4,
+  'resource-derived': 3, 'resource-render-fallback': 2, unknown: 1,
+};
+
+/** Merges semantic defaults without allowing a low-confidence first variant to
+ * replace a known common contract. Unknown target-only properties are kept. */
+export function mergeDefaultStateByProvenance(
+  commonState: Readonly<Record<string, string>>, commonSource: DefaultStateSource,
+  targetState: Readonly<Record<string, string>>, targetSource: DefaultStateSource,
+): Readonly<Record<string, string>> {
+  const result: Record<string, string> = {};
+  const keys = new Set([...Object.keys(commonState), ...Object.keys(targetState)]);
+  for (const key of keys) {
+    const common = commonState[key]; const target = targetState[key];
+    if (common === undefined) { if (target !== undefined) result[key] = target; continue; }
+    if (target === undefined) { result[key] = common; continue; }
+    result[key] = DEFAULT_STATE_SOURCE_RANK[targetSource] >= DEFAULT_STATE_SOURCE_RANK[commonSource] ? target : common;
+  }
+  return result;
 }
 
 function isCompatibleContract(record: AssetBlockRecord, metadata: BehaviorMetadata, resources: VanillaBehaviorResourceProvider | undefined): boolean {

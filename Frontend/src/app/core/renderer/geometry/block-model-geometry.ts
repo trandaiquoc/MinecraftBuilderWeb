@@ -70,7 +70,9 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     if (fluidKindForBlockId(block.id)) return this.createFluid(block, resolved, context);
     const resources = resolved.trace.textureResources;
     const texturePaths = resources.map(texturePath);
-    const special = this.specialVisuals.resolve(block);
+    const compatibleSpecial = this.specialVisuals.resolveCompatible(block);
+    const diagnosticSpecial = this.specialVisuals.resolveDiagnosticFallback(block);
+    const special = compatibleSpecial ?? (resolved.parts.some((part) => part.elements.length) ? undefined : diagnosticSpecial);
     if (special && (special.overrideGeneric === true || special.family === 'chests' || special.family === 'shulker-boxes' || !resolved.parts.some((part) => part.elements.length))) {
       const resource = special.textureResource?.(block);
       const resourceMap = special.textureResources?.(block) ?? (resource ? { default: resource } : {});
@@ -216,10 +218,11 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       else { this.stats.geometryCacheMisses += 1; geometry = faceGeometry(element, direction, face, uvlockTurns, origin); geometry.userData['providerOwnedGeometry'] = true; this.geometryCache.set(geometryKey, geometry); }
       const texture = await this.texture(face.texture);
       const tint = tintColorForFace(blockId, face.tintindex, await this.tintColor(blockId, face.tintindex));
-      const material = element.shade === false
+      const explicitShade = element.shadeDirectionOverride !== undefined;
+      const material = element.shade === false || explicitShade
         ? new THREE.MeshBasicMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide })
         : new THREE.MeshLambertMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide });
-      if (element.shadeDirectionOverride) {
+      if (explicitShade) {
         material.color.multiplyScalar(shadeDirectionFactor(element.shadeDirectionOverride));
         material.userData['shadeDirectionOverride'] = element.shadeDirectionOverride;
       }
@@ -231,7 +234,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     if (element.rotation) {
       elementGroup.position.copy(origin);
       if (element.rotation.rotations?.length) {
-        elementGroup.rotation.order = 'XYZ';
+        elementGroup.rotation.order = 'ZYX';
         for (const rotation of element.rotation.rotations) elementGroup.rotation[rotation.axis] = THREE.MathUtils.degToRad(rotation.angle);
       } else if (element.rotation.axis && element.rotation.angle !== undefined) {
         elementGroup.rotation[element.rotation.axis] = THREE.MathUtils.degToRad(element.rotation.angle);

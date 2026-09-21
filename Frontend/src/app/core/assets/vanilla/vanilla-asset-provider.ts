@@ -10,6 +10,7 @@ import { VanillaResourceFormatProfile } from './vanilla-resource-format';
 import { selectVanillaResourceFormatAdapter } from './format/resource-format-adapter';
 import { deriveResourceDefaultState, evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
 import type { TargetItemEvidence } from './format/item-evidence';
+import { classifyContent, isDecorationEntityId } from '../../content/content-classifier';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -132,9 +133,9 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
     const behaviorRegistry = new VanillaBehaviorRegistry(this);
     const resolver = new BlockModelResolver(this);
-    const resources = registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
+    const resources = (registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
       const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
-    });
+    })).filter(({ id }) => !isDecorationEntityId(id));
     const blocks = resources.map(({ id, registry: registryEntry }): AssetBlockRecord => {
       const [namespace, name] = id.split(':', 2);
       const path = `assets/${namespace}/blockstates/${name}.json`;
@@ -153,7 +154,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         visualSupport: 'partial',
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : resourceDefault.source,
         capabilities: known?.capabilities,
-        itemEvidence: itemByBlock.has(id) ? toBlockItemEvidence(itemByBlock.get(id)!) : undefined,
+        itemEvidence: itemByBlock.has(id) && !isDecorationEntityId(id) ? toBlockItemEvidence(itemByBlock.get(id)!, !!registryEntry) : undefined,
       };
       const registryEnriched = behaviorRegistry.enrich(generated);
       const enriched = registryEnriched.behavior ? registryEnriched : applyCommonBehavior(registryEnriched, evaluateCommonBehavior(registryEnriched, this));
@@ -170,8 +171,9 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   }
 }
 
-function toBlockItemEvidence(evidence: TargetItemEvidence) {
-  return { itemId: evidence.itemId, placeable: true, sourceFormat: evidence.sourceFormat, referencedModels: evidence.referencedModels, referencedResources: evidence.referencedResources } as const;
+function toBlockItemEvidence(evidence: TargetItemEvidence, authoritative = false) {
+  const classification = classifyContent({ id: evidence.explicitBlockPlacement?.blockId ?? evidence.itemId, hasWorldBlock: true, hasItemEvidence: true, authoritative });
+  return { itemId: evidence.itemId, placeable: classification.placeable, contentKind: classification.kind, provenance: classification.provenance, sourceFormat: evidence.sourceFormat, referencedModels: evidence.referencedModels, referencedResources: evidence.referencedResources } as const;
 }
 
 function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<typeof evaluateCommonBehavior>): AssetBlockRecord {

@@ -57,6 +57,13 @@ describe('vanilla placeable item layer', () => {
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:light')!)).toBe(false);
     expect(isNormalBuildingPaletteEligible(catalog.get('minecraft:bedrock')!)).toBe(true);
     expect(isNormalBuildingExportEligible('minecraft:structure_void')).toBe(false);
+    expect(isNormalBuildingExportEligible('minecraft:item_frame')).toBe(false);
+    expect(isNormalBuildingExportEligible('minecraft:potted_torchflower')).toBe(false);
+  });
+  it('does not expose decoration entities as normal block items even if a stale block record exists', () => {
+    const catalog = catalogWith('minecraft:item_frame', 'minecraft:glow_item_frame', 'minecraft:painting');
+    const items = buildPlaceableItems(catalog.all());
+    expect(items.some((item) => ['minecraft:item_frame', 'minecraft:glow_item_frame', 'minecraft:painting'].includes(item.itemId))).toBe(false);
   });
   it('does not claim verified runtime item evidence for external resource candidates', () => {
     const catalog = new BlockCatalog();

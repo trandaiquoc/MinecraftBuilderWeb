@@ -16,6 +16,7 @@ describe('special block visuals', () => {
     expect(adapter?.create(block(id)).children.length).toBeGreaterThan(0);
   });
   it('does not claim generic JSON blocks as special', () => expect(registry.resolve(block('minecraft:stone'))).toBeUndefined());
+  it('does not fabricate a classic entity-bed texture for a new bed family', () => expect(registry.resolve(block('minecraft:straw_bed'))).toBeUndefined());
 
   it('keeps Vanilla special adapters namespace-isolated', () => {
     for (const id of ['examplemod:barrel', 'examplemod:red_shulker_box', 'examplemod:oak_sign', 'examplemod:oak_bed', 'examplemod:dragon_head', 'examplemod:decorated_pot', 'examplemod:conduit']) {

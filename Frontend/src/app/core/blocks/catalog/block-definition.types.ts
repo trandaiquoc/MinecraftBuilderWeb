@@ -20,7 +20,9 @@ export interface BlockResourceReference {
 
 export interface BlockItemEvidence {
   readonly itemId: string;
-  readonly placeable: boolean;
+  readonly placeable?: boolean;
+  readonly contentKind?: import('../../content/content-classifier').MinecraftContentKind;
+  readonly provenance?: import('../../content/content-classifier').ContentClassificationProvenance;
   readonly sourceFormat?: 'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
   readonly referencedModels?: readonly string[];
   readonly referencedResources?: readonly string[];

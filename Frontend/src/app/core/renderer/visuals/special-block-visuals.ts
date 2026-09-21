@@ -36,12 +36,13 @@ export class SpecialBlockVisualRegistry {
   }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
   resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
-    const inspection = this.inspect(block);
-    // Rendering keeps the adapter when resources are incomplete so the caller
-    // can produce a visible partial diagnostic instead of silently dropping
-    // the special geometry. Compatibility consumers use `inspect()` to decide
-    // whether the adapter is fully reusable.
-    return inspection.adapter ?? this.adapters.find((candidate) => candidate.matches(block));
+    return this.resolveCompatible(block) ?? this.resolveDiagnosticFallback(block);
+  }
+  resolveCompatible(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
+    return this.inspect(block).adapter;
+  }
+  resolveDiagnosticFallback(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
+    return this.adapters.find((candidate) => candidate.matches(block));
   }
   inspect(block: PlacedBlock): SpecialVisualCompatibility {
     const adapter = this.adapters.find((candidate) => candidate.matches(block));
@@ -104,9 +105,10 @@ const box = (root: THREE.Group, size: readonly [number, number, number], at: rea
 const named = (family: string, match: (id: string) => boolean, build: (block: PlacedBlock) => THREE.Group): SpecialBlockVisualAdapter => ({ family, matches: (block) => match(block.id), create: build });
 const colorFromId = (id: string, fallback: number): number => { const name = id.split(':').at(-1) ?? ''; const colors: Record<string, number> = { red: 0xb83832, blue: 0x3f61b7, green: 0x4f8c4e, black: 0x252525, white: 0xe8e6df, yellow: 0xd6b432, purple: 0x744a9c, orange: 0xcb7b32, pink: 0xd47aa4, cyan: 0x4aa7ae, gray: 0x6b6b6b, brown: 0x6e4a31 }; return Object.entries(colors).find(([key]) => name.startsWith(key))?.[1] ?? fallback; };
 
+const CLASSIC_BED_COLORS = new Set(['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black']);
 const vanillaBedDescriptor: BedVisualDescriptor = {
   metadata: { providerId: 'minecraft-java-bed-common', gameEdition: 'java', gameVersion: 'common', namespace: 'minecraft', family: 'bed', priority: 100 },
-  matches: (block) => block.namespace === 'minecraft' && block.id.endsWith('_bed'),
+  matches: (block) => block.namespace === 'minecraft' && CLASSIC_BED_COLORS.has(bedColor(block.id)) && block.id.endsWith('_bed'),
   textureResource: (block) => `minecraft:entity/bed/${bedColor(block.id)}`,
   model: (block) => block.state['part'] === 'head' ? vanillaBedHead : vanillaBedFoot,
   transform: (block, root) => applyBedTransform(root, block.state['facing']),

@@ -1544,3 +1544,23 @@ and carries the translucency hint into Three.js materials. Configured
 blockstate `z` rotation and element shade-direction metadata are retained in the
 shared resolver representation. Barrel geometry is diagnostic-only; a valid
 target JSON model takes precedence.
+
+## Final Vanilla domain boundary hardening
+
+Target item definitions are evidence that an item resource exists; they no
+longer manufacture a same-ID block placement candidate. A direct palette entry
+requires both target world-block evidence and item-backed classification, while
+logical standing/wall and multi-block entries remain explicit rules. Item Frame,
+Glow Item Frame, and Painting stay in Decorations and are excluded from the
+BlockCatalog/PlaceableItem route. Technical and internal concrete blocks remain
+resolvable in the world catalog but are not normal palette entries.
+
+The shared content classifier records conservative kind/provenance results for
+palette routing and asset-domain diagnostics and does not apply Vanilla name
+semantics to non-minecraft namespaces.
+
+Modern element rotations normalize Mojang's direct `rotation.x/y/z` values into
+an ordered internal representation; legacy `axis`/`angle` wins when both are
+present. Explicit `shade_direction_override` uses an unlit material plus a
+deterministic directional factor so the override is not re-shaded by Lambert
+face normals. This remains an editor approximation, not a lighting engine.

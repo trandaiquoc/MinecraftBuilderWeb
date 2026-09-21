@@ -626,7 +626,7 @@ so ordinary target blocks remain renderable even when placement behavior is not
 verified. Texture maps accept legacy strings and structured sprite values;
 `force_translucent` is preserved as a render hint. Configured model x/y/z
 rotations share one representation, and element shade-direction metadata is
-retained for future lighting support.
+applied through the renderer's deterministic unlit directional factor.
 
 The current renderer applies explicit shade-direction metadata as a stable
 directional material factor while retaining legacy `shade` semantics. This is
@@ -634,3 +634,9 @@ an editor approximation, not biome/light simulation. Classic entity-bed visuals
 remain resource-contract dependent; unknown/new bed families can retain shared
 behavior while falling back to generic JSON when the classic entity texture is
 absent.
+
+The final domain classifier keeps Painting, Item Frame, and Glow Item Frame in
+the Decoration route rather than the BlockCatalog/PlaceableItem route. An item
+resource proves that an item exists, not that a same-ID world block is
+placeable; direct palette eligibility combines target item evidence with world
+block evidence and conservative Java semantic rules.

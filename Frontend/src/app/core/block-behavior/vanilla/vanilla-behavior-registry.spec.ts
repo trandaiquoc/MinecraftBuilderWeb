@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AssetBlockRecord } from '../../blocks/catalog/block-definition.types';
-import { VANILLA_BEHAVIOR_COMPATIBILITY, isVanillaCandleId, VanillaBehaviorRegistry } from './vanilla-behavior-registry';
+import { mergeDefaultStateByProvenance, VANILLA_BEHAVIOR_COMPATIBILITY, isVanillaCandleId, VanillaBehaviorRegistry } from './vanilla-behavior-registry';
 
 const baseRecord = (id: string): AssetBlockRecord => ({ id, displayName: id, defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'fallback', visualSupport: 'fallback', behaviorSupport: 'unknown', defaultStateSource: 'unknown' });
 
@@ -50,6 +50,10 @@ describe('VanillaBehaviorRegistry', () => {
     expect(registry.enrich(baseRecord('minecraft:skeleton_skull')).behavior).toMatchObject({ kind: 'head-placement', wall: false });
     expect(registry.enrich(baseRecord('minecraft:skeleton_wall_skull')).behavior).toMatchObject({ kind: 'head-placement', wall: true });
     expect(registry.enrich(baseRecord('minecraft:piston_head'))).toEqual(baseRecord('minecraft:piston_head'));
+  });
+  it('uses state provenance when merging common semantics with target defaults', () => {
+    expect(mergeDefaultStateByProvenance({ facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common', { facing: 'east', part: 'foot', occupied: 'false', custom: 'target' }, 'resource-render-fallback')).toEqual({ facing: 'north', part: 'foot', occupied: 'false', custom: 'target' });
+    expect(mergeDefaultStateByProvenance({ facing: 'north' }, 'compatible-common', { facing: 'east' }, 'authoritative-report')).toEqual({ facing: 'east' });
   });
   it('keeps contextual wall torch and wall banner metadata exact to vanilla IDs', () => {
     const registry = new VanillaBehaviorRegistry();

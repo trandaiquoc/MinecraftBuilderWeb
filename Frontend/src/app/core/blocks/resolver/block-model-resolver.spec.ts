@@ -34,12 +34,17 @@ describe('Minecraft block model resolver', () => {
     expect(result.parts[0].elements[0].faces['up']).toMatchObject({ texture: 'minecraft:block/glass', forceTranslucent: true });
   });
 
-  it('normalizes feature-detected multi-axis element rotations', () => {
+  it('normalizes Mojang modern x/y/z element rotations and preserves legacy precedence', () => {
     const result = resolver({
       'assets/minecraft/blockstates/test.json': { variants: { '': { model: 'minecraft:block/test' } } },
-      'assets/minecraft/models/block/test.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], rotation: { origin: [8, 8, 8], rotations: [{ axis: 'x', angle: 15 }, { axis: 'y', angle: 25 }, { axis: 'z', angle: 35 }] }, faces: { up: { texture: 'minecraft:block/stone' } } }] },
+      'assets/minecraft/models/block/test.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], rotation: { origin: [8, 8, 8], x: 15, y: 25, z: 35 }, faces: { up: { texture: 'minecraft:block/stone' } } }] },
     }).resolve('minecraft:test');
     expect(result.parts[0].elements[0].rotation).toEqual({ origin: [8, 8, 8], rotations: [{ axis: 'x', angle: 15 }, { axis: 'y', angle: 25 }, { axis: 'z', angle: 35 }], rescale: false });
+    const legacy = resolver({
+      'assets/minecraft/blockstates/test.json': { variants: { '': { model: 'minecraft:block/test' } } },
+      'assets/minecraft/models/block/test.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], rotation: { origin: [8, 8, 8], axis: 'y', angle: 22.5, x: 90 }, faces: { up: { texture: 'minecraft:block/stone' } } }] },
+    }).resolve('minecraft:test');
+    expect(legacy.parts[0].elements[0].rotation).toMatchObject({ axis: 'y', angle: 22.5, rescale: false });
   });
 
   it('keeps variant subset matching and preserves raw element coordinates/reversed UV', () => {
