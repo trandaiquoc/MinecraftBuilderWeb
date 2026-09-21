@@ -22,6 +22,19 @@ describe('vanilla placeable item layer', () => {
     expect(canonicalPlaceableItemId('minecraft:skeleton_wall_skull')).toBe('minecraft:skeleton_skull');
   });
 
+  it('discovers compatible standing/wall pairs from the active catalog', () => {
+    const catalog = catalogWith('minecraft:azure_sign', 'minecraft:azure_wall_sign', 'minecraft:amethyst_head', 'minecraft:amethyst_wall_head');
+    const items = buildPlaceableItems(catalog.all());
+    expect(items.find((item) => item.itemId === 'minecraft:azure_sign')?.concreteBlockIds).toEqual(['minecraft:azure_sign', 'minecraft:azure_wall_sign']);
+    expect(items.find((item) => item.itemId === 'minecraft:amethyst_head')?.concreteBlockIds).toEqual(['minecraft:amethyst_head', 'minecraft:amethyst_wall_head']);
+  });
+
+  it('does not advertise a wall variant when the counterpart is absent', () => {
+    const catalog = catalogWith('minecraft:azure_sign');
+    const item = buildPlaceableItems(catalog.all()).find((entry) => entry.itemId === 'minecraft:azure_sign');
+    expect(item?.concreteBlockIds).toEqual(['minecraft:azure_sign']);
+  });
+
   it('keeps raw technical IDs resolvable while excluding them from normal palette/export', () => {
     const catalog = catalogWith('minecraft:air', 'minecraft:light', 'minecraft:structure_void', 'minecraft:bedrock');
     expect(catalog.get('minecraft:light')).toBeDefined();

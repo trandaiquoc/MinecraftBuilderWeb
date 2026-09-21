@@ -38,18 +38,48 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   }
   if (door.partial && looksLikeDoor(record.id, definitions)) return changed(record, definitions, defaultState, 'doors', 'Door state contract is missing one or more common properties.');
 
+  const doubleHeight = contract(definitions, { half: ['lower', 'upper'] });
+  if (doubleHeight.complete && !looksLikeDoor(record.id, definitions)) return complete(record, definitions, 'double-height', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, { half: 'lower' }, 'compatible-common');
+
+  const bed = contract(definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues });
+  if (bed.complete) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
+
+  const candle = contract(definitions, { candles: ['1', '2', '3', '4'], lit: booleanValues, waterlogged: booleanValues });
+  // The state contract is the evidence. Do not classify a mod block by an
+  // ID suffix (which would also misclassify candle-cake variants).
+  if (candle.complete) return complete(record, definitions, 'candles', { kind: 'candle', candlesProperty: 'candles', maxCandles: 4 }, { candles: '1', lit: 'false', waterlogged: 'false' }, 'compatible-common');
+
+  const fluid = contract(definitions, { level: Array.from({ length: 16 }, (_, value) => String(value)) });
+  if (fluid.complete && (record.id === 'minecraft:water' || record.id === 'minecraft:lava')) return complete(record, definitions, 'fluids', { kind: 'fluid', fluid: record.id.endsWith('lava') ? 'lava' : 'water' }, { level: '0' }, 'compatible-common');
+
+  const sixFace = contract(definitions, { facing: ['down', 'up', 'north', 'south', 'west', 'east'] });
+  if (sixFace.complete && looksLikeShulker(record)) return complete(record, definitions, 'shulker-boxes', { kind: 'six-face-placement', facingProperty: 'facing' }, { facing: 'up' }, 'compatible-common');
+
+  const conduit = contract(definitions, { waterlogged: booleanValues });
+  if (conduit.complete && record.id === 'minecraft:conduit') return complete(record, definitions, 'conduits', { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, { waterlogged: 'true' }, 'compatible-common');
+
+  const lantern = contract(definitions, { hanging: booleanValues, waterlogged: booleanValues });
+  if (lantern.complete && looksLikeLantern(record)) return complete(record, definitions, 'lanterns', { kind: 'lantern-placement', hangingProperty: 'hanging', chainId: 'minecraft:chain' }, { hanging: 'false', waterlogged: 'false' }, 'compatible-common');
+
+  const chain = contract(definitions, { axis: ['x', 'y', 'z'], waterlogged: booleanValues });
+  if (chain.complete && looksLikeChain(record)) return complete(record, definitions, 'chains', { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' }, { axis: 'y', waterlogged: 'false' }, 'compatible-common');
+
   const button = contract(definitions, { face: ['floor', 'wall', 'ceiling'], facing: horizontal, powered: booleanValues });
   if (button.complete) {
     return complete(record, definitions, 'buttons', { kind: 'button', faceProperty: 'face', facingProperty: 'facing', poweredProperty: 'powered' }, buttonState(definitions), 'compatible-common');
   }
   if (button.partial && looksLikeButton(record.id, definitions)) return changed(record, definitions, defaultState, 'buttons', 'Button state contract differs from the common face/facing/powered properties.');
 
+  const family = connectionFamily(blockstate, record.resources.model);
   const connections = contract(definitions, { north: booleanValues, east: booleanValues, south: booleanValues, west: booleanValues });
-  if (connections.complete && modelEvidence) {
-    const family = connectionFamily(blockstate, record.resources.model);
-    if (family) return complete(record, definitions, family, { kind: 'horizontal-connect', family, connectionGroup: family, compatibleGroups: [family], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west'] }, deriveResourceState(definitions), 'compatible-common');
+  if (connections.partial && family) {
+    const connectionValuesCompatible = definitions.filter((definition) => horizontal.includes(definition.name as typeof horizontal[number])).every((definition) => definition.values.every((value) => booleanValues.includes(value as typeof booleanValues[number])));
+    if (!connectionValuesCompatible) return changed(record, definitions, defaultState, 'connections', 'Horizontal connection properties are not compatible with the common rule.');
+    const connectionDefinitions = expandBooleanConnections(definitions);
+    const connectionContract = contract(connectionDefinitions, { north: booleanValues, east: booleanValues, south: booleanValues, west: booleanValues });
+    if (connectionContract.complete && modelEvidence) return complete(record, connectionDefinitions, family, { kind: 'horizontal-connect', family, connectionGroup: family, compatibleGroups: [family], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west'] }, { ...deriveResourceState(connectionDefinitions), north: 'false', east: 'false', south: 'false', west: 'false' }, 'compatible-common');
+    return changed(record, definitions, defaultState, 'connections', 'Horizontal connection properties are not compatible with the common rule.');
   }
-  if (connections.partial && connectionFamily(blockstate, record.resources.model)) return changed(record, definitions, defaultState, 'connections', 'Horizontal connection properties are not compatible with the common rule.');
 
   const wall = contract(definitions, { north: ['none', 'low', 'tall'], east: ['none', 'low', 'tall'], south: ['none', 'low', 'tall'], west: ['none', 'low', 'tall'], up: booleanValues });
   if (wall.complete && isWallEvidence(blockstate, record.resources.model)) return complete(record, definitions, 'walls', { kind: 'horizontal-connect', family: 'wall', connectionGroup: 'wall', compatibleGroups: ['wall'], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west', 'up'] }, deriveResourceState(definitions), 'compatible-common');
@@ -98,6 +128,17 @@ function mergeValidDefaults(definitions: readonly BlockStateDefinition[], defaul
   }));
 }
 
+function expandBooleanConnections(definitions: readonly BlockStateDefinition[]): readonly BlockStateDefinition[] {
+  const merged = new Map(definitions.map((definition) => [definition.name, definition]));
+  for (const name of horizontal) {
+    const current = merged.get(name);
+    merged.set(name, current
+      ? { ...current, values: [...booleanValues], derived: true }
+      : { name, values: [...booleanValues], derived: true });
+  }
+  return [...merged.values()];
+}
+
 function markDerived(definitions: readonly BlockStateDefinition[], behavior: BlockBehavior): readonly BlockStateDefinition[] {
   const names = new Set<string>(behavior.kind === 'horizontal-connect' || behavior.kind === 'stairs' ? behavior.derivedProperties : behavior.kind === 'double-height' ? [behavior.halfProperty] : []);
   return definitions.map((definition) => names.has(definition.name) ? { ...definition, derived: true } : definition);
@@ -115,6 +156,9 @@ function hasAny(definitions: readonly BlockStateDefinition[], names: readonly st
 function looksLikeDoor(id: string, definitions: readonly BlockStateDefinition[]): boolean { return id.endsWith('_door') || hasAny(definitions, ['hinge', 'half']) && hasAny(definitions, ['open', 'powered']); }
 function looksLikeButton(id: string, definitions: readonly BlockStateDefinition[]): boolean { return id.endsWith('_button') || hasAny(definitions, ['face', 'powered']); }
 function looksLikeStairs(id: string, definitions: readonly BlockStateDefinition[]): boolean { return id.endsWith('_stairs') || hasAny(definitions, ['shape']); }
+function looksLikeShulker(record: AssetBlockRecord): boolean { return record.id.endsWith('_shulker_box') || `${record.resources.model ?? ''} ${record.resources.blockstate ?? ''}`.includes('shulker'); }
+function looksLikeLantern(record: AssetBlockRecord): boolean { return record.id.endsWith('lantern') || `${record.resources.model ?? ''} ${record.resources.blockstate ?? ''}`.includes('lantern'); }
+function looksLikeChain(record: AssetBlockRecord): boolean { return record.id.endsWith('chain') || `${record.resources.model ?? ''} ${record.resources.blockstate ?? ''}`.includes('chain'); }
 function connectionFamily(blockstate: unknown, model: string | undefined): 'fence' | 'pane' | undefined {
   const evidence = `${JSON.stringify(blockstate ?? '')} ${model ?? ''}`.toLowerCase();
   // Resource/model evidence chooses the family; the shared connection contract

@@ -125,7 +125,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     const format = selectVanillaResourceFormatAdapter(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION);
     const language = record(this.json['assets/minecraft/lang/en_us.json'] ?? this.json[format.languagePath(this.json) ?? '']);
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
-    const behaviorRegistry = this.minecraftVersion === VANILLA_ASSET_VERSION ? new VanillaBehaviorRegistry(this) : undefined;
+    const behaviorRegistry = new VanillaBehaviorRegistry(this);
     const resolver = new BlockModelResolver(this);
     const resources = registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
       const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
@@ -147,7 +147,8 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : 'unknown',
         capabilities: known?.capabilities,
       };
-      const enriched = behaviorRegistry?.enrich(generated) ?? applyCommonBehavior(generated, evaluateCommonBehavior(generated, this));
+      const registryEnriched = behaviorRegistry.enrich(generated);
+      const enriched = registryEnriched.behavior ? registryEnriched : applyCommonBehavior(registryEnriched, evaluateCommonBehavior(registryEnriched, this));
       const resolved = resolver.resolve(id, enriched.defaultState, 'catalog');
       const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(texturePath(resource)));
       const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
@@ -162,6 +163,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
 }
 
 function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<typeof evaluateCommonBehavior>): AssetBlockRecord {
+  if (!evaluation.compatible) return record;
   return {
     ...record,
     defaultState: evaluation.defaultState,

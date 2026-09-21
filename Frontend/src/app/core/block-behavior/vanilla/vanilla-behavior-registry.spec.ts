@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { AssetBlockRecord } from '../../blocks/catalog/block-definition.types';
-import { isVanillaCandleId, VanillaBehaviorRegistry } from './vanilla-behavior-registry';
+import { VANILLA_BEHAVIOR_COMPATIBILITY, isVanillaCandleId, VanillaBehaviorRegistry } from './vanilla-behavior-registry';
 
 const baseRecord = (id: string): AssetBlockRecord => ({ id, displayName: id, defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'fallback', visualSupport: 'fallback', behaviorSupport: 'unknown', defaultStateSource: 'unknown' });
 
 describe('VanillaBehaviorRegistry', () => {
+  it('has an explicit compatibility strategy for every BlockBehavior kind', () => {
+    const expected = ['solid', 'horizontal-connect', 'stairs', 'wall-mounted', 'wall-sign', 'standing-sign', 'hanging-sign', 'wall-hanging-sign', 'floor-supported', 'vertical-chain', 'lantern-placement', 'torch-placement', 'double-height', 'paired-horizontal', 'candle', 'six-face-placement', 'decorated-pot-placement', 'conduit-placement', 'fluid', 'button', 'head-placement'];
+    expect(Object.keys(VANILLA_BEHAVIOR_COMPATIBILITY).sort()).toEqual([...expected].sort());
+    expect(Object.values(VANILLA_BEHAVIOR_COMPATIBILITY).every((entry) => entry.evidence.length > 0)).toBe(true);
+  });
   it('resolves nested authoritative block tags without registry-name heuristics', () => {
     const resources = new Map<string, unknown>([
       ['data/minecraft/tags/block/fences.json', { values: ['#minecraft:wooden_fences', 'minecraft:nether_brick_fence'] }],
@@ -72,6 +77,20 @@ describe('VanillaBehaviorRegistry', () => {
   it('keeps Conduit catalog default true while exposing only waterlogged state', () => {
     const result = new VanillaBehaviorRegistry().enrich(baseRecord('minecraft:conduit'));
     expect(result).toMatchObject({ behavior: { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, defaultState: { waterlogged: 'true' }, stateDefinitions: [{ name: 'waterlogged', values: ['true', 'false'] }] });
+  });
+  it('discovers new vanilla standing/wall pairs from the selected resource catalog', () => {
+    const states = new Map<string, unknown>([
+      ['assets/minecraft/blockstates/cherry_sign.json', {}],
+      ['assets/minecraft/blockstates/cherry_wall_sign.json', {}],
+      ['assets/minecraft/blockstates/cherry_head.json', {}],
+      ['assets/minecraft/blockstates/cherry_wall_head.json', {}],
+    ]);
+    const registry = new VanillaBehaviorRegistry({ readJson: (path) => states.get(path) });
+    expect(registry.enrich({ ...baseRecord('minecraft:cherry_sign'), stateDefinitions: [
+      { name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) },
+      { name: 'waterlogged', values: ['true', 'false'] },
+    ], resources: { blockstate: 'assets/minecraft/blockstates/cherry_sign.json', textures: [] } })).toMatchObject({ behavior: { kind: 'standing-sign', wallBlockId: 'minecraft:cherry_wall_sign' } });
+    expect(registry.enrich({ ...baseRecord('minecraft:cherry_wall_head'), stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }], resources: { blockstate: 'assets/minecraft/blockstates/cherry_wall_head.json', textures: [] } })).toMatchObject({ behavior: { kind: 'head-placement', wall: true } });
   });
   it('keeps raw water and lava as level-only fluid blocks', () => {
     const registry = new VanillaBehaviorRegistry();

@@ -2,7 +2,6 @@ import { Injectable, effect, inject, signal } from '@angular/core';
 import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.service';
 import { DecorationItemCatalog, DecorationItemDefinition } from './decoration-item-catalog';
 import { loadVanillaItemRegistry, VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
-import { DEFAULT_MINECRAFT_VERSION } from '../../domain/project.types';
 
 @Injectable({ providedIn: 'root' })
 export class DecorationItemCatalogService {
@@ -14,9 +13,9 @@ export class DecorationItemCatalogService {
   search(query: string): readonly DecorationItemDefinition[] { this.generation(); return this.catalog.search(query); }
   all(): readonly DecorationItemDefinition[] { this.generation(); return this.catalog.all(); }
   private async load(provider: Parameters<DecorationItemCatalog['load']>[0]): Promise<void> {
-    if ((provider as { gameVersion?: string }).gameVersion !== DEFAULT_MINECRAFT_VERSION) { this.catalog.clear(); this.generation.update((value) => value + 1); return; }
-    const registry: VanillaItemRegistry | undefined = await this.registry;
-    if (!registry || provider !== this.assets.provider()) return;
+    const version = (provider as { gameVersion?: string }).gameVersion;
+    const registry: VanillaItemRegistry | undefined = version === '1.21.1' ? await this.registry : undefined;
+    if (provider !== this.assets.provider()) return;
     this.catalog.load(provider, registry);
     this.generation.update((value) => value + 1);
   }

@@ -1446,9 +1446,10 @@ remembered project pointer. Cancelled or failed deletion leaves the row intact.
 
 # 62. Pre-Prompt-13 correctness gate hardening
 
-Content source registration now rejects Minecraft versions other than 1.21.1,
-and source-catalog diagnostics are rebuilt from current contributions instead
-of accumulating stale entries. Active blocks retain known `sourceId` metadata;
+Content source registration now rejects providers whose version differs from
+the currently selected active version (the default remains 1.21.1), and
+source-catalog diagnostics are rebuilt from current contributions instead of
+accumulating stale entries. Active blocks retain known `sourceId` metadata;
 Quick Bar activation refuses unavailable source entries without deleting the
 saved reference. Decoration source selection uses the canonical `vanilla` ID.
 
@@ -1476,3 +1477,32 @@ placing diagnostics in ProjectDocument or the asset cache contract.
 Official downloads, manual Vanilla imports, and mod imports are protected
 operations. Browser unload and editor navigation warn while a non-resumable
 operation is active; cancelling navigation does not mutate project data.
+
+# Multi-version behavior and visual contract reuse
+
+Vanilla behavior enrichment now runs for every selected asset version. The
+registry validates the target state contract before reusing verified metadata;
+missing legacy state definitions are preserved rather than treated as a
+contradictory contract, while incompatible values remain `unknown` and are not
+overwritten. The common evaluator supplies contract-driven defaults for doors,
+stairs, buttons, connection families, double-height/paired objects, candles,
+fluids, chains, lanterns, and compatible six-face blocks. Candle behavior is
+state-contract based and does not classify candle-cake IDs by suffix.
+
+Connection state domains are normalized only when blockstate/model evidence
+identifies a fence or pane family. Boolean multipart connection subsets are
+completed with false defaults; wall domains retain `none|low|tall` and `up`.
+This keeps target-version evidence intact while allowing the existing rule
+engine to refresh derived neighbors.
+
+Special visuals are no longer disabled by a version string. Their adapters are
+inspected against the selected provider's required entity resources. Rendering
+keeps a known adapter for a partial diagnostic when a texture is missing, while
+compatibility reports classify the family as `missing-resource`.
+
+Placeable logical standing/wall entries are discovered from the active catalog
+when both concrete IDs exist. Vanilla pairs can use canonical suffix evidence;
+non-vanilla pairs require explicit compatible behavior metadata, so a suffix
+alone cannot grant mod placement semantics. Decoration item catalogs use the
+authoritative 1.21.1 item report when available and otherwise discover item
+models from the selected resource provider.

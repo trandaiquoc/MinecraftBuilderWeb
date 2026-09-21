@@ -474,10 +474,11 @@ normal block-model texture. Its special visual is represented by a versioned
 provider and a reusable renderer-independent `SpecialModelDescriptor`:
 provider metadata, texture size/resource, ModelPart hierarchy, cuboids, pivots,
 rotations, mirror flag, state transform, and bounds. The verified Java 1.21.1
-Bed provider is selected only for that exact asset-provider version. Later
-vanilla/mod providers can coexist without changing the Three.js descriptor
-consumer. A custom Java-only renderer remains Partial/Fallback rather than
-guessed or executed in the browser.
+Bed provider is reused when the selected provider exposes the same bed
+state/resource contract; it is not disabled solely because the version string
+differs. Later vanilla/mod providers can coexist without changing the Three.js
+descriptor consumer. A custom Java-only renderer remains Partial/Fallback
+rather than guessed or executed in the browser.
 
 Special ModelPart descriptors retain raw model-space cuboid coordinates and a
 pitch/yaw/roll transform. The Three.js evaluator converts cuboid vertices from
@@ -582,3 +583,23 @@ Manual imports, official downloads, and normalized cache writes are protected
 operations. The browser receives a `beforeunload` warning while one is active;
 editor navigation asks for the same confirmation and otherwise leaves project
 data untouched.
+
+## Version-aware behavior and special-resource compatibility
+
+The active Vanilla provider discovers blockstate IDs, tags, models, and entity
+resources for the selected version. Common behavior is reused only after its
+state contract is validated: connection families require fence/pane evidence,
+walls retain the `none|low|tall` domain, and complete multi-block/candle/fluid/
+placement contracts provide deterministic defaults. A changed contract is
+reported as a delta and its target evidence is not overwritten.
+
+Special adapters (beds, containers, signs, banners, heads, shulkers, pots, and
+conduits) expose a compatibility/resource inventory. The renderer can show a
+partial special visual with diagnostics when a required texture is absent; the
+compatibility report marks that family as missing-resource. Adapter model names
+identify the geometry baseline only and are not runtime version gates.
+
+Standing/wall logical items are formed from concrete IDs discovered in the
+active catalog. Vanilla pairs require both counterparts; non-vanilla pairs need
+explicit behavior metadata. Unknown mod content remains generic or unknown and
+is never silently replaced with `minecraft:air`.

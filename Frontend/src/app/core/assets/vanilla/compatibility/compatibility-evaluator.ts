@@ -2,6 +2,8 @@ import { BlockCatalog } from '../../../blocks/catalog/block-catalog';
 import type { BlockDefinition } from '../../../blocks/catalog/block-definition.types';
 import { BlockModelResolver } from '../../../blocks/resolver';
 import { evaluateCommonBehavior } from '../../../block-behavior/compatibility/common-behavior';
+import { SpecialBlockVisualRegistry } from '../../../renderer/visuals/special-block-visuals';
+import type { PlacedBlock } from '../../../domain/project.types';
 import { CompatibilityClassification, CompatibilityEntry, CompatibilityReport } from './compatibility.types';
 import type { VanillaAssetProvider } from '../vanilla-asset-provider';
 
@@ -9,9 +11,10 @@ export function evaluateCompatibility(provider: VanillaAssetProvider): Compatibi
   const catalog = new BlockCatalog();
   catalog.load(provider.catalog());
   const resolver = new BlockModelResolver(provider);
+  const specialVisuals = new SpecialBlockVisualRegistry(provider);
   const groups: Record<CompatibilityClassification, CompatibilityEntry[]> = { 'compatible-reused': [], 'changed-needs-delta': [], 'new-generic-supported': [], unsupported: [] };
   for (const definition of catalog.all()) {
-    const entry = evaluateDefinition(provider, definition, resolver);
+    const entry = evaluateDefinition(provider, definition, resolver, specialVisuals);
     groups[entry.classification].push(entry);
   }
   const sort = (items: CompatibilityEntry[]): readonly CompatibilityEntry[] => [...items].sort((left, right) => left.id.localeCompare(right.id));
@@ -32,9 +35,12 @@ export function evaluateCompatibility(provider: VanillaAssetProvider): Compatibi
   };
 }
 
-function evaluateDefinition(provider: VanillaAssetProvider, definition: BlockDefinition, resolver: BlockModelResolver): CompatibilityEntry {
+function evaluateDefinition(provider: VanillaAssetProvider, definition: BlockDefinition, resolver: BlockModelResolver, specialVisuals: SpecialBlockVisualRegistry): CompatibilityEntry {
   const resolved = resolver.resolve(definition.id, definition.defaultState, 'compatibility');
-  const common = provider.minecraftVersion === '1.21.1' ? undefined : evaluateCommonBehavior({ ...definition, resources: definition.resources }, provider);
+  const common = evaluateCommonBehavior({ ...definition, resources: definition.resources }, provider);
+  const probe: PlacedBlock = { kind: 'resolved', id: definition.id, namespace: definition.namespace, position: { x: 0, y: 0, z: 0 }, state: definition.defaultState };
+  const special = specialVisuals.inspect(probe);
+  const variantPairs = definition.behavior?.kind === 'standing-sign' || definition.behavior?.kind === 'hanging-sign' ? [definition.behavior.wallBlockId] : undefined;
   const family = common?.family ?? familyFromDefinition(definition);
   const base = {
     minecraftVersion: provider.minecraftVersion,
@@ -49,8 +55,15 @@ function evaluateDefinition(provider: VanillaAssetProvider, definition: BlockDef
     visualClassification: definition.visualClassification,
     behaviorSupport: definition.behaviorSupport,
     defaultStateSource: definition.defaultStateSource,
+    ...(definition.behavior ? { behaviorImplementation: definition.behavior.kind, behaviorCompatibility: 'reused' as const } : { behaviorCompatibility: 'unknown' as const }),
+    logicalObjectCompatibility: definition.behavior?.kind === 'double-height' || definition.behavior?.kind === 'paired-horizontal' ? 'reused' : 'not-applicable',
+    ...(special.family ? { specialRendererFamily: special.family, specialRendererCompatibility: special.missingResources.length ? 'missing-resource' as const : 'reused' as const, ...(special.missingResources.length ? { missingResources: special.missingResources } : {}) } : { specialRendererCompatibility: 'not-applicable' as const }),
+    ...(variantPairs ? { variantPairs } : {}),
+    stateContract: definition.stateDefinitions.map((entry) => `${entry.name}=${entry.values.join('|')}`),
   } satisfies Omit<CompatibilityEntry, 'classification'>;
   if (common?.reason) return { ...base, classification: 'changed-needs-delta', reasonCode: 'STATE_CONTRACT_CHANGED', message: common.reason, actualProperties: definition.stateDefinitions.map((entry) => entry.name) };
+  if (special.family && special.missingResources.length) return { ...base, classification: 'changed-needs-delta', reasonCode: 'MISSING_SPECIAL_RESOURCE', message: `Special renderer ${special.family} is known but required resources are missing.`, missingResources: special.missingResources };
+  if (special.family) return { ...base, classification: 'compatible-reused', message: `Special renderer ${special.family} is compatible with the target resources.` };
   if (common?.compatible || definition.defaultStateSource === 'compatible-common') return { ...base, classification: 'compatible-reused', message: 'Common behavior contract matched the target resource state.' };
   if (provider.minecraftVersion === '1.21.1' && (definition.defaultStateSource === 'authoritative-report' || definition.defaultStateSource === 'verified-fixture' || definition.behaviorSupport !== 'unknown') && resolved.parts.length && !hasBlockingDiagnostic(resolved.diagnostics)) return { ...base, classification: 'compatible-reused', message: 'Verified 1.21.1 behavior and resource evidence were reused.' };
   if (resolved.parts.length && !hasBlockingDiagnostic(resolved.diagnostics)) return { ...base, classification: 'new-generic-supported', message: 'Generic blockstate/model pipeline resolved this block.' };

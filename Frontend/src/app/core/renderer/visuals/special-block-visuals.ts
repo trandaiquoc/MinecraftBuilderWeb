@@ -2,19 +2,58 @@ import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { modelPartCuboidUv, ModelPartFace, SpecialCuboidDescriptor, SpecialModelDescriptor, SpecialModelPartDescriptor } from './special-model-descriptor';
 
+export interface SpecialVisualResourceProvider { readonly gameVersion?: string; readBinary(path: string): Uint8Array | undefined; }
+
 export interface SpecialVisualContext { readonly texture?: THREE.Texture; readonly textures?: Readonly<Record<string, THREE.Texture | undefined>>; }
 export interface SpecialVisualProviderMetadata { readonly providerId: string; readonly gameEdition: 'java'; readonly gameVersion: string; readonly namespace: string; readonly family: string; readonly priority: number; }
 export interface BedVisualDescriptor { readonly metadata: SpecialVisualProviderMetadata; matches(block: PlacedBlock): boolean; textureResource(block: PlacedBlock): string | undefined; model(block: PlacedBlock): SpecialModelDescriptor | undefined; transform(block: PlacedBlock, root: THREE.Group): void; }
 export interface SpecialBlockVisualAdapter { readonly family: string; readonly overrideGeneric?: boolean; matches(block: PlacedBlock): boolean; textureResource?(block: PlacedBlock): string | undefined; textureResources?(block: PlacedBlock): Readonly<Record<string, string>>; create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group; }
+export interface SpecialVisualCompatibility { readonly adapter?: SpecialBlockVisualAdapter; readonly family?: string; readonly missingResources: readonly string[]; }
+export const SPECIAL_VISUAL_COMPATIBILITY: Readonly<Record<string, { readonly requiredState: readonly string[]; readonly requiredResource: string }>> = {
+  beds: { requiredState: ['part', 'facing', 'occupied'], requiredResource: 'entity/bed/<color>' },
+  chests: { requiredState: ['facing', 'type'], requiredResource: 'entity/chest/<variant>' },
+  containers: { requiredState: [], requiredResource: 'generic-or-fallback' },
+  signs: { requiredState: ['rotation|facing'], requiredResource: 'entity/signs/<wood>' },
+  banners: { requiredState: ['facing|rotation'], requiredResource: 'banner-or-generic-model' },
+  'heads-skulls': { requiredState: ['rotation|facing'], requiredResource: 'entity/<family>/<texture>' },
+  'shulker-boxes': { requiredState: ['facing'], requiredResource: 'entity/shulker/<color>' },
+  'decorated-pots': { requiredState: ['facing', 'waterlogged'], requiredResource: 'entity/decorated_pot/*' },
+  conduits: { requiredState: ['waterlogged'], requiredResource: 'entity/conduit/base' },
+};
 
 /** Static editor visuals for vanilla blocks which have no generic JSON elements. */
 export class SpecialBlockVisualRegistry {
   private readonly beds: BedVisualProvider;
   private readonly signs: SignVisualProvider;
   private readonly adapters: readonly SpecialBlockVisualAdapter[];
-  constructor(private readonly gameVersion = '1.21.1') { this.beds = new BedVisualProvider(gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(gameVersion); this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter]; }
+  private readonly gameVersion: string;
+  private readonly resources?: SpecialVisualResourceProvider;
+  constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
+    this.resources = typeof gameVersionOrResources === 'string' ? undefined : gameVersionOrResources;
+    this.gameVersion = typeof gameVersionOrResources === 'string' ? gameVersionOrResources : gameVersionOrResources.gameVersion ?? '1.21.1';
+    this.beds = new BedVisualProvider(this.gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(this.gameVersion);
+    this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
+  }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
-  resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined { return this.gameVersion === '1.21.1' ? this.adapters.find((adapter) => adapter.matches(block)) : undefined; }
+  resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
+    const inspection = this.inspect(block);
+    // Rendering keeps the adapter when resources are incomplete so the caller
+    // can produce a visible partial diagnostic instead of silently dropping
+    // the special geometry. Compatibility consumers use `inspect()` to decide
+    // whether the adapter is fully reusable.
+    return inspection.adapter ?? this.adapters.find((candidate) => candidate.matches(block));
+  }
+  inspect(block: PlacedBlock): SpecialVisualCompatibility {
+    const adapter = this.adapters.find((candidate) => candidate.matches(block));
+    if (!adapter) return { missingResources: [] };
+    const missingResources = this.resourcesSupport(adapter, block);
+    return { adapter: missingResources.length ? undefined : adapter, family: adapter.family, missingResources };
+  }
+  private resourcesSupport(adapter: SpecialBlockVisualAdapter, block: PlacedBlock): readonly string[] {
+    if (!this.resources) return [];
+    const resources = adapter.textureResources?.(block) ?? (adapter.textureResource?.(block) ? { default: adapter.textureResource(block)! } : {});
+    return Object.values(resources).map(resourcePath).filter((path) => !this.resources?.readBinary(path));
+  }
 }
 
 /** Extension point for a normalized mod bed descriptor; it never infers Java runtime renderers. */
@@ -25,14 +64,14 @@ export class BedVisualProvider implements SpecialBlockVisualAdapter {
   matches(block: PlacedBlock): boolean { return !!this.resolve(block); }
   textureResource(block: PlacedBlock): string | undefined { return this.resolve(block)?.textureResource(block); }
   create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group { const descriptor = this.resolve(block); if (!descriptor) return new THREE.Group(); const model = descriptor.model(block); if (!model) return new THREE.Group(); const root = createSpecialModel(model, context?.texture); descriptor.transform(block, root); root.userData['specialModel'] = model.id; root.userData['providerId'] = descriptor.metadata.providerId; return root; }
-  private resolve(block: PlacedBlock): BedVisualDescriptor | undefined { return this.descriptors.filter((descriptor) => descriptor.metadata.gameVersion === this.gameVersion && descriptor.metadata.namespace === block.namespace && descriptor.matches(block)).sort((left, right) => right.metadata.priority - left.metadata.priority)[0]; }
+  private resolve(block: PlacedBlock): BedVisualDescriptor | undefined { return this.descriptors.filter((descriptor) => descriptor.metadata.namespace === block.namespace && descriptor.matches(block)).sort((left, right) => right.metadata.priority - left.metadata.priority)[0]; }
 }
 
 /** Java 1.21.1 block-entity sign renderer represented as ModelPart descriptors. */
 export class SignVisualProvider implements SpecialBlockVisualAdapter {
   readonly family = 'signs';
   constructor(private readonly gameVersion: string) {}
-  matches(block: PlacedBlock): boolean { return this.gameVersion === '1.21.1' && block.namespace === 'minecraft' && signVariant(block.id) !== undefined; }
+  matches(block: PlacedBlock): boolean { return block.namespace === 'minecraft' && signVariant(block.id) !== undefined; }
   textureResource(block: PlacedBlock): string | undefined {
     const wood = signWood(block.id); const variant = signVariant(block.id);
     return wood && variant ? `minecraft:entity/signs/${variant.includes('hanging') ? 'hanging/' : ''}${wood}` : undefined;
@@ -556,4 +595,9 @@ function signTextColor(color: string | undefined, glowing: boolean): string {
   if (!glowing) return value;
   const glowPalette: Readonly<Record<string, string>> = { white: '#ffffff', orange: '#ffb25c', magenta: '#f09be8', light_blue: '#8fe5ff', yellow: '#fff4a3', lime: '#c8ff62', pink: '#ffc2d8', gray: '#aab3b6', light_gray: '#e6e6de', cyan: '#69eeee', purple: '#d78aff', blue: '#8d96ff', brown: '#d6a36e', green: '#a8d65e', red: '#ff7770', black: '#777777' };
   return glowPalette[color ?? 'black'] ?? value;
+}
+
+function resourcePath(resource: string): string {
+  const [namespace, path] = resource.includes(':') ? resource.split(':', 2) : ['minecraft', resource];
+  return `assets/${namespace}/textures/${path}.png`;
 }

@@ -5,6 +5,31 @@ export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
 }
 
+export type VanillaBehaviorCompatibilityMode = 'common-reusable' | 'delta-validated' | 'unsupported-with-reason';
+export const VANILLA_BEHAVIOR_COMPATIBILITY: Readonly<Record<BlockBehavior['kind'], { readonly mode: VanillaBehaviorCompatibilityMode; readonly evidence: string }>> = {
+  solid: { mode: 'common-reusable', evidence: 'generic voxel/catalog contract' },
+  'horizontal-connect': { mode: 'common-reusable', evidence: 'connection state domain and family resource evidence' },
+  stairs: { mode: 'common-reusable', evidence: 'facing/half/shape state contract' },
+  'wall-mounted': { mode: 'common-reusable', evidence: 'facing attachment state contract' },
+  'wall-sign': { mode: 'common-reusable', evidence: 'wall sign facing and resource contract' },
+  'standing-sign': { mode: 'common-reusable', evidence: 'rotation plus wall counterpart contract' },
+  'hanging-sign': { mode: 'common-reusable', evidence: 'rotation/attached plus wall counterpart contract' },
+  'wall-hanging-sign': { mode: 'common-reusable', evidence: 'wall hanging sign facing contract' },
+  'floor-supported': { mode: 'common-reusable', evidence: 'support-only placement contract' },
+  'vertical-chain': { mode: 'common-reusable', evidence: 'axis and waterlogged contract' },
+  'lantern-placement': { mode: 'common-reusable', evidence: 'hanging and chain support contract' },
+  'torch-placement': { mode: 'common-reusable', evidence: 'standing/wall counterpart contract' },
+  'double-height': { mode: 'common-reusable', evidence: 'lower/upper atomic object contract' },
+  'paired-horizontal': { mode: 'common-reusable', evidence: 'foot/head pair contract' },
+  candle: { mode: 'common-reusable', evidence: 'candles/lit/waterlogged contract' },
+  'six-face-placement': { mode: 'common-reusable', evidence: 'six-direction facing contract' },
+  'decorated-pot-placement': { mode: 'common-reusable', evidence: 'facing/waterlogged placement contract' },
+  'conduit-placement': { mode: 'common-reusable', evidence: 'waterlogged and entity resource contract' },
+  fluid: { mode: 'common-reusable', evidence: 'level/fluid resource contract' },
+  button: { mode: 'common-reusable', evidence: 'face/facing/powered contract' },
+  'head-placement': { mode: 'common-reusable', evidence: 'rotation or wall-facing and special resource contract' },
+};
+
 interface BehaviorMetadata {
   readonly behavior: BlockBehavior;
   readonly support: BehaviorSupportLevel;
@@ -32,7 +57,7 @@ const horizontalBooleanState: readonly BlockStateDefinition[] = [
 ];
 const horizontalFalse = { north: 'false', east: 'false', south: 'false', west: 'false', waterlogged: 'false' } as const;
 
-/** Maps verified vanilla 1.21.1 families to editor behavior without coupling them to visual assets. */
+/** Maps verified vanilla families to reusable editor behavior without coupling them to visual assets. */
 export class VanillaBehaviorRegistry {
   private readonly tags = new Map<string, ReadonlySet<string>>();
   private readonly explicit = new Map<string, BehaviorMetadata>();
@@ -68,8 +93,9 @@ export class VanillaBehaviorRegistry {
 
   enrich(record: AssetBlockRecord): AssetBlockRecord {
     if (!record.id.startsWith('minecraft:')) return record;
-    const metadata = this.metadata(record.id);
+    const metadata = this.metadata(record);
     if (!metadata) return record;
+    if (!isCompatibleContract(record, metadata, this.resources)) return record;
     return {
       ...record,
       defaultState: { ...metadata.defaultState, ...record.defaultState },
@@ -79,7 +105,8 @@ export class VanillaBehaviorRegistry {
     };
   }
 
-  private metadata(id: string): BehaviorMetadata | undefined {
+  private metadata(record: AssetBlockRecord): BehaviorMetadata | undefined {
+    const id = record.id;
     if (id === 'minecraft:decorated_pot') return decoratedPotMetadata;
     if (id === 'minecraft:conduit') return conduitMetadata;
     if (id === 'minecraft:water') return waterMetadata;
@@ -97,7 +124,41 @@ export class VanillaBehaviorRegistry {
     if (this.has('tallFlowers', id)) return tallFlowerMetadata;
     if (this.has('beds', id)) return bedMetadata;
     if (this.has('smallFlowers', id)) return floorSupportedMetadata;
-    return this.explicit.get(id);
+    return this.explicit.get(id) ?? this.dynamicMetadata(record);
+  }
+
+  private dynamicMetadata(record: AssetBlockRecord): BehaviorMetadata | undefined {
+    const name = record.id.slice('minecraft:'.length);
+    const definitions = record.stateDefinitions;
+    const facing = hasState(definitions, 'facing', ['north', 'east', 'south', 'west']);
+    const rotation = hasState(definitions, 'rotation', Array.from({ length: 16 }, (_, value) => String(value)));
+    const waterlogged = hasState(definitions, 'waterlogged', ['true', 'false']);
+    if (name.endsWith('_wall_sign') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_sign$/, '_sign')}`)) return wallSignMetadata;
+    if (name.endsWith('_sign') && !name.endsWith('_wall_sign') && rotation && waterlogged && this.hasBlockstate(`minecraft:${name.replace(/_sign$/, '_wall_sign')}`)) {
+      return standingSignMetadata(name.replace(/_sign$/, ''));
+    }
+    if (name.endsWith('_wall_hanging_sign') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_hanging_sign$/, '_hanging_sign')}`)) return wallHangingSignMetadata;
+    if (name.endsWith('_hanging_sign') && !name.endsWith('_wall_hanging_sign') && rotation && waterlogged && hasState(definitions, 'attached', ['true', 'false']) && this.hasBlockstate(`minecraft:${name.replace(/_hanging_sign$/, '_wall_hanging_sign')}`)) {
+      return hangingSignMetadata(name.replace(/_hanging_sign$/, ''));
+    }
+    if (name.endsWith('_wall_head') || name.endsWith('_wall_skull')) {
+      const standing = name.replace(/_wall_(head|skull)$/, '_$1');
+      if (facing && this.hasBlockstate(`minecraft:${standing}`)) return wallHeadMetadata;
+    }
+    if ((name.endsWith('_head') || name.endsWith('_skull')) && !name.startsWith('piston_') && rotation) {
+      const wallName = name.replace(/_(head|skull)$/, (match) => `_wall${match}`);
+      if (this.hasBlockstate(`minecraft:${wallName}`)) return standingHeadMetadata;
+    }
+    if (name.endsWith('_wall_banner') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_banner$/, '_banner')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+    if (name.endsWith('_banner') && !name.endsWith('_wall_banner') && rotation && this.hasBlockstate(`minecraft:${name.replace(/_banner$/, '_wall_banner')}`)) return undefined;
+    if (name.endsWith('_wall_fan') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_fan$/, '_fan')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+    if (name.startsWith('wall_') && name.endsWith('_torch') && facing && this.hasBlockstate(`minecraft:${name.replace(/^wall_/, '')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+    if (name.endsWith('_torch') && !name.startsWith('wall_') && this.hasBlockstate(`minecraft:wall_${name}`)) return { behavior: { kind: 'torch-placement', wallBlockId: `minecraft:wall_${name}` }, support: 'full', defaultState: {}, stateDefinitions: [] };
+    return undefined;
+  }
+
+  private hasBlockstate(id: string): boolean {
+    return !!this.resources?.readJson(`assets/${id.split(':')[0]}/blockstates/${id.split(':')[1]}.json`);
   }
 
   private has(tag: keyof typeof tagPaths, id: string): boolean { return this.tags.get(tag)?.has(id) ?? false; }
@@ -116,6 +177,49 @@ export class VanillaBehaviorRegistry {
     }
     return ids;
   }
+}
+
+function isCompatibleContract(record: AssetBlockRecord, metadata: BehaviorMetadata, resources: VanillaBehaviorResourceProvider | undefined): boolean {
+  // Standalone fixture callers have no target resource evidence; retain the
+  // verified metadata behavior used by the domain tests in that context.
+  if (!resources) return true;
+  for (const expected of metadata.stateDefinitions) {
+    const actual = record.stateDefinitions.find((definition) => definition.name === expected.name);
+    if (!actual) {
+      // Empty state metadata (floor support, torch variant selection, etc.)
+      // intentionally has no state contract to validate.
+      if (metadata.stateDefinitions.length === 0) continue;
+      // A normalized legacy record may not have retained its blockstate path
+      // or state definitions. There is no contradictory target evidence to
+      // reject in that case, so keep the authoritative tag/fixture contract.
+      if (!record.resources.blockstate) continue;
+      if (metadata.behavior.kind === 'horizontal-connect' && hasConnectionStateEvidence(record, resources)) continue;
+      return false;
+    }
+    // Multipart blockstates often mention only the true branch. A target
+    // domain that is a subset of the known common domain is completed below;
+    // an unknown value is evidence of a changed contract and is rejected.
+    if (!actual.values.every((value) => expected.values.includes(value))) return false;
+  }
+  return true;
+}
+
+function hasMultipartEvidence(record: AssetBlockRecord, resources: VanillaBehaviorResourceProvider | undefined): boolean {
+  if (!record.resources.blockstate) return false;
+  const value = resources?.readJson(record.resources.blockstate);
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && ('multipart' in value || 'variants' in value);
+}
+
+function hasConnectionStateEvidence(record: AssetBlockRecord, resources: VanillaBehaviorResourceProvider | undefined): boolean {
+  if (hasMultipartEvidence(record, resources)) return true;
+  if (record.stateDefinitions.length === 0 && !record.resources.blockstate) return true;
+  // Some normalized catalogs preserve only the properties explicitly present
+  // in a tag-derived fixture. A boolean connection subset is still valid
+  // evidence; the missing directions are completed by the common contract.
+  const names = new Set(['north', 'east', 'south', 'west']);
+  return record.stateDefinitions.length > 0
+    && record.stateDefinitions.every((definition) => names.has(definition.name)
+      && definition.values.every((value) => value === 'true' || value === 'false'));
 }
 
 export function isVanillaCandleId(id: string): boolean {
@@ -268,6 +372,11 @@ function mergeStateDefinitions(base: readonly BlockStateDefinition[], metadata: 
     merged.set(definition.name, existing ? { ...existing, derived: definition.derived ?? existing.derived } : definition);
   }
   return [...merged.values()];
+}
+
+function hasState(definitions: readonly BlockStateDefinition[], name: string, values: readonly string[]): boolean {
+  const definition = definitions.find((entry) => entry.name === name);
+  return !!definition && values.every((value) => definition.values.includes(value));
 }
 
 function tagValues(value: unknown): readonly string[] {

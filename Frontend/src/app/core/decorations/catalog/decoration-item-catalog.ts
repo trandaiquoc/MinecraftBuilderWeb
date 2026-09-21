@@ -7,8 +7,9 @@ export interface DecorationItemDefinition { readonly id: string; readonly displa
 export class DecorationItemCatalog {
   private entries: readonly DecorationItemDefinition[] = [];
   clear(): void { this.entries = []; }
-  load(provider: AssetResourceProvider, registry: VanillaItemRegistry): void {
-    this.entries = registry.all().filter((entry) => entry.id !== 'minecraft:air').map(({ id }) => {
+  load(provider: AssetResourceProvider, registry?: VanillaItemRegistry): void {
+    const ids = registry?.all().map((entry) => entry.id) ?? itemModelIds(provider);
+    this.entries = ids.filter((id) => id !== 'minecraft:air').map((id) => {
       const [namespace, path] = id.split(':', 2);
       const language = provider.readJson(`assets/${namespace}/lang/en_us.json`);
       const values = language && typeof language === 'object' ? language as Record<string, unknown> : {};
@@ -21,6 +22,14 @@ export class DecorationItemCatalog {
     return (value ? this.entries.filter((entry) => normalize(`${entry.displayName} ${entry.id}`).includes(value)) : this.entries).slice(0, 100);
   }
   all(): readonly DecorationItemDefinition[] { return this.entries; }
+}
+
+function itemModelIds(provider: AssetResourceProvider): readonly string[] {
+  const paths = typeof (provider as { paths?: () => readonly string[] }).paths === 'function' ? (provider as { paths: () => readonly string[] }).paths() : [];
+  return paths.flatMap((path) => {
+    const match = /^assets\/([^/]+)\/models\/item\/(.+)\.json$/.exec(path);
+    return match ? [`${match[1]}:${match[2]}`] : [];
+  });
 }
 
 function normalize(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, ' '); }

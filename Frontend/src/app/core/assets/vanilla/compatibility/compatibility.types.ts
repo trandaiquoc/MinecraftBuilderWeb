@@ -23,6 +23,14 @@ export interface CompatibilityEntry {
   readonly visualClassification?: string;
   readonly behaviorSupport?: string;
   readonly defaultStateSource?: string;
+  readonly behaviorImplementation?: string;
+  readonly behaviorCompatibility?: 'reused' | 'changed' | 'unknown';
+  readonly logicalObjectCompatibility?: 'reused' | 'changed' | 'not-applicable';
+  readonly specialRendererFamily?: string;
+  readonly specialRendererCompatibility?: 'reused' | 'missing-resource' | 'not-applicable';
+  readonly stateContract?: readonly string[];
+  readonly missingResources?: readonly string[];
+  readonly variantPairs?: readonly string[];
 }
 
 export interface CompatibilityReportSummary {

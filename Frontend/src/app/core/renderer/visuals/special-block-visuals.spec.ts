@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { chestModelFor, chestRotationRadians, chestTextureResource, conduitInactiveModel, decoratedPotBaseModel, decoratedPotRootRotationRadians, decoratedPotSideModels, decoratedPotSherdTextureResource, shulkerFacingQuaternion, shulkerTextureResource, SpecialBlockVisualRegistry, createSpecialModel, signTextLayout } from './special-block-visuals';
+import { chestModelFor, chestRotationRadians, chestTextureResource, conduitInactiveModel, decoratedPotBaseModel, decoratedPotRootRotationRadians, decoratedPotSideModels, decoratedPotSherdTextureResource, shulkerFacingQuaternion, shulkerTextureResource, SPECIAL_VISUAL_COMPATIBILITY, SpecialBlockVisualRegistry, createSpecialModel, signTextLayout } from './special-block-visuals';
 import { modelPartCuboidUv } from './special-model-descriptor';
 
 const registry = new SpecialBlockVisualRegistry();
 const block = (id: string) => ({ kind: 'resolved' as const, id, namespace: id.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north' } });
 
 describe('special block visuals', () => {
+  it('keeps an explicit compatibility contract for every registered special family', () => {
+    expect(Object.keys(SPECIAL_VISUAL_COMPATIBILITY).sort()).toEqual(['banners', 'beds', 'chests', 'conduits', 'containers', 'decorated-pots', 'heads-skulls', 'shulker-boxes', 'signs'].sort());
+  });
   it.each([['minecraft:red_bed', 'beds'], ['minecraft:chest', 'chests'], ['minecraft:barrel', 'containers'], ['minecraft:oak_sign', 'signs'], ['minecraft:red_banner', 'banners'], ['minecraft:skeleton_skull', 'heads-skulls'], ['minecraft:blue_shulker_box', 'shulker-boxes']])('creates a static visual for %s', (id, family) => {
     const adapter = registry.resolve(block(id));
     expect(adapter?.family).toBe(family);
@@ -314,8 +317,18 @@ describe('special block visuals', () => {
       expect(bounds.min.y).toBeCloseTo(0, 5);
     }
   });
-  it('does not select the 1.21.1 Bed provider for an unverified game version', () => {
-    expect(new SpecialBlockVisualRegistry('1.22').resolve(block('minecraft:red_bed'))).toBeUndefined();
+  it('reuses a compatible Bed provider across game versions when no resource gate is supplied', () => {
+    expect(new SpecialBlockVisualRegistry('1.22').resolve(block('minecraft:red_bed'))?.family).toBe('beds');
+  });
+  it('gates special visuals by resources when a selected asset provider is available', () => {
+    const available = new SpecialBlockVisualRegistry({
+      gameVersion: '1.22',
+      readBinary: (path) => path === 'assets/minecraft/textures/entity/bed/red.png' ? new Uint8Array([1]) : undefined,
+    });
+    expect(available.inspect(block('minecraft:red_bed'))).toMatchObject({ family: 'beds', missingResources: [] });
+
+    const missing = new SpecialBlockVisualRegistry({ gameVersion: '1.22', readBinary: () => undefined });
+    expect(missing.inspect(block('minecraft:red_bed'))).toMatchObject({ family: 'beds', adapter: undefined, missingResources: ['assets/minecraft/textures/entity/bed/red.png'] });
   });
   it('derives all six ModelPart cuboid UV regions without a cropped texture clone', () => {
     const uv = modelPartCuboidUv({ id: 'head', uv: [0, 0], from: [0, 0, 0], size: [16, 16, 6] });

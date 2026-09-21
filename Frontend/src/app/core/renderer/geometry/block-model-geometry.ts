@@ -63,7 +63,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private thumbnailRenderer?: THREE.WebGLRenderer;
   private grassTintCache?: Promise<number | undefined>;
 
-  constructor(private readonly assets: RenderableAssetResourceProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets.gameVersion ?? '1.21.1'); }
+  constructor(private readonly assets: RenderableAssetResourceProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets); }
 
   async create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
     const resolved = this.resolve(block.id, block.state);

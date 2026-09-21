@@ -84,7 +84,15 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[]): re
   const covered = new Set<string>();
   const result: PlaceableItemDefinition[] = [];
   for (const entry of VANILLA_PLACEABLE_MANIFEST) {
-    const display = byId.get(entry.itemId) ?? byId.get(entry.concreteBlockIds[0]);
+    const concreteBlockIds = entry.concreteBlockIds.filter((blockId) => byId.has(blockId));
+    const display = byId.get(entry.itemId) ?? byId.get(concreteBlockIds[0]);
+    if (!display || !concreteBlockIds.length || !isNormalBuildingPaletteEligible(display)) continue;
+    for (const blockId of concreteBlockIds) covered.add(blockId);
+    result.push(toItem(display, entry, concreteBlockIds));
+  }
+  for (const entry of discoverLogicalEntries(definitions, byId)) {
+    if (covered.has(entry.itemId) || !entry.concreteBlockIds.every((blockId) => byId.has(blockId))) continue;
+    const display = byId.get(entry.itemId);
     if (!display || !isNormalBuildingPaletteEligible(display)) continue;
     for (const blockId of entry.concreteBlockIds) covered.add(blockId);
     result.push(toItem(display, entry, entry.concreteBlockIds));
@@ -94,6 +102,57 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[]): re
     result.push(toItem(definition, { itemId: definition.id, concreteBlockIds: [definition.id], kind: 'direct', recipe: 'single' }, [definition.id]));
   }
   return result.sort((left, right) => left.displayName.localeCompare(right.displayName));
+}
+
+function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: ReadonlyMap<string, BlockDefinition>): readonly ManifestEntry[] {
+  const entries: ManifestEntry[] = [];
+  const seen = new Set<string>();
+  for (const definition of definitions) {
+    if (seen.has(definition.id)) continue;
+    const name = definition.id.slice(definition.namespace.length + 1);
+    const pair = logicalPair(name);
+    if (pair) {
+      const standing = `${definition.namespace}:${pair.standing}`;
+      const wall = `${definition.namespace}:${pair.wall}`;
+      const standingDefinition = byId.get(standing);
+      const wallDefinition = byId.get(wall);
+      if (standingDefinition && wallDefinition && pairIsSupported(definition.namespace, pair.kind, standingDefinition, wallDefinition)) {
+        seen.add(standing); seen.add(wall);
+        entries.push({ itemId: standing, concreteBlockIds: [standing, wall], kind: pair.kind, recipe: 'single' });
+      }
+      continue;
+    }
+    const behavior = definition.behavior?.kind;
+    if (behavior === 'paired-horizontal') entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind: 'bed', recipe: 'bed' });
+    else if (behavior === 'double-height') entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind: name.endsWith('_door') ? 'door' : 'tall-plant', recipe: name.endsWith('_door') ? 'door' : 'tall-plant' });
+  }
+  return entries;
+}
+
+function pairIsSupported(namespace: string, kind: PlaceablePlacementKind, standing: BlockDefinition, wall: BlockDefinition): boolean {
+  // Vanilla resource catalogs can discover newly added families by their
+  // canonical standing/wall IDs. Modded pairs still need explicit behavior
+  // metadata; a suffix alone must never grant placement semantics.
+  if (namespace === 'minecraft') return true;
+  const standingKind = standing.behavior?.kind;
+  const wallKind = wall.behavior?.kind;
+  return kind === 'sign' && standingKind === 'standing-sign' && wallKind === 'wall-sign'
+    || kind === 'hanging-sign' && standingKind === 'hanging-sign' && wallKind === 'wall-hanging-sign'
+    || kind === 'head' && standingKind === 'head-placement' && wallKind === 'head-placement'
+    || kind === 'torch' && standingKind === 'torch-placement' && wallKind === 'wall-mounted'
+    || kind === 'banner' && wallKind === 'wall-mounted'
+    || kind === 'coral-fan' && wallKind === 'wall-mounted';
+}
+
+function logicalPair(name: string): { readonly standing: string; readonly wall: string; readonly kind: PlaceablePlacementKind } | undefined {
+  if (name.endsWith('_wall_sign')) return { standing: name.replace(/_wall_sign$/, '_sign'), wall: name, kind: 'sign' };
+  if (name.endsWith('_wall_hanging_sign')) return { standing: name.replace(/_wall_hanging_sign$/, '_hanging_sign'), wall: name, kind: 'hanging-sign' };
+  if (name.endsWith('_wall_banner')) return { standing: name.replace(/_wall_banner$/, '_banner'), wall: name, kind: 'banner' };
+  if (name.endsWith('_wall_fan')) return { standing: name.replace(/_wall_fan$/, '_fan'), wall: name, kind: 'coral-fan' };
+  if (name.endsWith('_wall_head')) return { standing: name.replace(/_wall_head$/, '_head'), wall: name, kind: 'head' };
+  if (name.endsWith('_wall_skull')) return { standing: name.replace(/_wall_skull$/, '_skull'), wall: name, kind: 'head' };
+  if (name.startsWith('wall_') && name.endsWith('_torch')) return { standing: name.replace(/^wall_/, ''), wall: name, kind: 'torch' };
+  return undefined;
 }
 
 function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {
