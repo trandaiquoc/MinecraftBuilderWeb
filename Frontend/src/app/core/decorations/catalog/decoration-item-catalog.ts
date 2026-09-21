@@ -27,7 +27,7 @@ export class DecorationItemCatalog {
 function itemModelIds(provider: AssetResourceProvider): readonly string[] {
   const paths = typeof (provider as { paths?: () => readonly string[] }).paths === 'function' ? (provider as { paths: () => readonly string[] }).paths() : [];
   return paths.flatMap((path) => {
-    const match = /^assets\/([^/]+)\/models\/item\/(.+)\.json$/.exec(path);
+    const match = /^assets\/([^/]+)\/(?:models\/item|items)\/(.+)\.json$/.exec(path);
     return match ? [`${match[1]}:${match[2]}`] : [];
   });
 }

@@ -31,6 +31,10 @@ export interface CompatibilityEntry {
   readonly stateContract?: readonly string[];
   readonly missingResources?: readonly string[];
   readonly variantPairs?: readonly string[];
+  /** Evidence used for palette eligibility is intentionally separate from block rendering. */
+  readonly itemEvidence?: 'observed' | 'unobserved' | 'contradicted';
+  readonly itemId?: string;
+  readonly itemEligibility?: 'placeable' | 'internal-or-unobserved';
 }
 
 export interface CompatibilityReportSummary {

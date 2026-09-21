@@ -30,6 +30,8 @@ export interface PlaceableItemDefinition {
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
+export interface PlaceableItemEvidence { readonly itemId: string; readonly placeable?: boolean; }
+
 interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; }
 
 const WOODS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
@@ -79,7 +81,7 @@ export function isNormalBuildingPaletteEligible(block: Pick<BlockDefinition, 'id
 export function isNormalBuildingExportEligible(blockId: string): boolean { return !TECHNICAL_IDS.has(blockId); }
 export function technicalBuildingIds(): readonly string[] { return [...TECHNICAL_IDS]; }
 
-export function buildPlaceableItems(definitions: readonly BlockDefinition[]): readonly PlaceableItemDefinition[] {
+export function buildPlaceableItems(definitions: readonly BlockDefinition[], targetItems: readonly PlaceableItemEvidence[] = []): readonly PlaceableItemDefinition[] {
   const byId = new Map(definitions.map((definition) => [definition.id, definition]));
   const covered = new Set<string>();
   const result: PlaceableItemDefinition[] = [];
@@ -97,8 +99,14 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[]): re
     for (const blockId of entry.concreteBlockIds) covered.add(blockId);
     result.push(toItem(display, entry, entry.concreteBlockIds));
   }
+  const targetItemIds = new Set(targetItems.filter((item) => item.placeable !== false).map((item) => item.itemId));
+  const hasTargetItemEvidence = targetItemIds.size > 0 || definitions.some((definition) => definition.itemEvidence !== undefined);
   for (const definition of definitions) {
     if (!isNormalBuildingPaletteEligible(definition) || covered.has(definition.id) || MANIFEST_BY_CONCRETE.has(definition.id)) continue;
+    // A block catalog is intentionally broader than the player-facing item
+    // palette. Once the target resource set exposes item definitions, only
+    // blocks backed by that evidence may become direct palette entries.
+    if (hasTargetItemEvidence && definition.itemEvidence?.placeable !== true && !targetItemIds.has(definition.id)) continue;
     result.push(toItem(definition, { itemId: definition.id, concreteBlockIds: [definition.id], kind: 'direct', recipe: 'single' }, [definition.id]));
   }
   return result.sort((left, right) => left.displayName.localeCompare(right.displayName));
@@ -152,6 +160,7 @@ function logicalPair(name: string): { readonly standing: string; readonly wall: 
   if (name.endsWith('_wall_head')) return { standing: name.replace(/_wall_head$/, '_head'), wall: name, kind: 'head' };
   if (name.endsWith('_wall_skull')) return { standing: name.replace(/_wall_skull$/, '_skull'), wall: name, kind: 'head' };
   if (name.startsWith('wall_') && name.endsWith('_torch')) return { standing: name.replace(/^wall_/, ''), wall: name, kind: 'torch' };
+  if (name.endsWith('_wall_torch')) return { standing: name.replace(/_wall_torch$/, '_torch'), wall: name, kind: 'torch' };
   return undefined;
 }
 
@@ -171,7 +180,10 @@ function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState
   return [make({ x: 0, y: 0, z: 0 })];
 }
 
-export function canonicalPlaceableItemId(concreteId: string): string { return MANIFEST_BY_CONCRETE.get(concreteId)?.itemId ?? concreteId; }
+export function canonicalPlaceableItemId(concreteId: string, items?: readonly PlaceableItemDefinition[]): string {
+  const dynamic = items?.find((item) => item.concreteBlockIds.includes(concreteId));
+  return dynamic?.itemId ?? MANIFEST_BY_CONCRETE.get(concreteId)?.itemId ?? concreteId;
+}
 
 export function resolveConcreteBlockId(item: PlaceableItemDefinition, context?: PlacementContext): string {
   const normal = item.concreteBlockIds.find((value) => !isWallVariant(value)) ?? item.displayBlockId;

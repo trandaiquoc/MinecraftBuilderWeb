@@ -8,6 +8,8 @@ describe('VanillaAssetProvider', () => {
 
   it('resolves generic namespaced texture paths and preserves missing resources', () => {
     expect(texturePath('minecraft:block/stone')).toBe('assets/minecraft/textures/block/stone.png');
+    expect(texturePath('minecraft:textures/block/yellow_stained_glass.png')).toBe('assets/minecraft/textures/block/yellow_stained_glass.png');
+    expect(texturePath('assets/minecraft/textures/entity/shulker/shulker_yellow.png')).toBe('assets/minecraft/textures/entity/shulker/shulker_yellow.png');
     expect(texturePath('example:custom/path')).toBe('assets/example/textures/custom/path.png');
     const provider = new VanillaAssetProvider('fixture.jar', { 'assets/example/models/block/test.json': { elements: [] } }, new Map());
     expect(provider.readJson('assets/example/models/block/test.json')).toEqual({ elements: [] });
@@ -33,6 +35,18 @@ describe('VanillaAssetProvider', () => {
     const catalog = new BlockCatalog(); catalog.load(provider.catalog());
     expect(catalog.get('minecraft:stone')).toMatchObject({ displayName: 'Stone', namespace: 'minecraft', support: 'fallback' });
     expect(catalog.get('example:machine')).toMatchObject({ displayName: 'Machine', namespace: 'example', support: 'partial', stateDefinitions: [{ name: 'facing', values: ['north', 'south'] }] });
+  });
+
+  it('retains modern item definitions as placeable evidence without promoting internal blocks', () => {
+    const provider = new VanillaAssetProvider('26.3.jar', '26.3', {
+      'assets/minecraft/items/copper_torch.json': { model: { type: 'minecraft:model', model: 'minecraft:block/copper_torch' } },
+      'assets/minecraft/blockstates/copper_torch.json': { variants: { '': { model: 'minecraft:block/copper_torch' } } },
+      'assets/minecraft/blockstates/copper_wall_torch.json': { variants: { facing: { model: 'minecraft:block/copper_wall_torch' } } },
+      'assets/minecraft/blockstates/potted_torchflower.json': { variants: { '': { model: 'minecraft:block/potted_torchflower' } } },
+    }, new Map());
+    const source = provider.catalog();
+    expect(source.blocks.find((block) => block.id === 'minecraft:copper_torch')?.itemEvidence).toMatchObject({ itemId: 'minecraft:copper_torch', placeable: true, sourceFormat: 'modern-item-definition' });
+    expect(source.blocks.find((block) => block.id === 'minecraft:potted_torchflower')?.itemEvidence).toBeUndefined();
   });
 
   it('keeps declared Full support only when the representative model and PNG resolve', () => {

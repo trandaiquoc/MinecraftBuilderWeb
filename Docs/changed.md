@@ -1506,3 +1506,24 @@ non-vanilla pairs require explicit compatible behavior metadata, so a suffix
 alone cannot grant mod placement semantics. Decoration item catalogs use the
 authoritative 1.21.1 item report when available and otherwise discover item
 models from the selected resource provider.
+
+# Current Vanilla item/catalog compatibility
+
+The Vanilla block catalog intentionally retains every target-version block,
+including potted, crop, upper/lower, and wall concrete forms. The user-facing
+PlaceableItem catalog is built separately from normalized target item evidence
+(`assets/<namespace>/items/*.json`, with a conservative legacy item-model
+adapter) plus verified logical placement rules. Item-backed direct entries are
+therefore not inferred from every blockstate.
+
+The normalized Vanilla cache schema is now `3` so bundles retain item
+definitions; stale bundles are rejected and rebuilt. Standing/wall canonical
+identity is derived from the final active PlaceableItem catalog, including
+suffixed torch families such as `<base>_torch` / `<base>_wall_torch`.
+
+Missing runtime properties in visual blockstate JSON are treated as unobserved
+evidence and may be completed from a compatible common contract. Explicitly
+incompatible values remain unsupported. Ordinary fully resolved JSON cubes can
+provide placement support without being assigned a `solid` behavior entry;
+connection, fluid, and attachment families remain non-supporting unless their
+own contract says otherwise.

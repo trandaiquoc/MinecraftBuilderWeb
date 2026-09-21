@@ -7,6 +7,7 @@ export interface VanillaResourceFormatProfile {
   readonly models: number;
   readonly textures: number;
   readonly languages: number;
+  readonly items: number;
   readonly label: string;
 }
 
@@ -17,7 +18,8 @@ export function detectVanillaResourceFormat(json: Readonly<Record<string, unknow
   const models = paths.filter((path) => /\/models\/.*\.json$/.test(path)).length;
   const textures = [...binary.keys()].filter((path) => /\/textures\/.*\.png$/.test(path)).length;
   const languages = paths.filter((path) => /\/lang\/[^/]+\.json$/.test(path)).length;
-  if (blockstates > 0 && models > 0) return { id: 'modern-json', support: verified ? 'verified' : 'resource-compatible', blockstates, models, textures, languages, label: verified ? 'Verified JSON resource profile' : 'Resource-compatible JSON profile' };
-  if (textures > 0 || languages > 0 || blockstates > 0 || models > 0) return { id: 'legacy', support: 'legacy-limited', blockstates, models, textures, languages, label: 'Legacy resource format' };
-  return { id: 'unsupported', support: 'unsupported-resource-format', blockstates, models, textures, languages, label: 'Unsupported resource format' };
+  const items = paths.filter((path) => /\/items\/[^/]+\.json$/.test(path)).length;
+  if (blockstates > 0 && (models > 0 || items > 0)) return { id: 'modern-json', support: verified ? 'verified' : 'resource-compatible', blockstates, models, textures, languages, items, label: verified ? 'Verified JSON resource profile' : 'Resource-compatible JSON profile' };
+  if (textures > 0 || languages > 0 || blockstates > 0 || models > 0) return { id: 'legacy', support: 'legacy-limited', blockstates, models, textures, languages, items, label: 'Legacy resource format' };
+  return { id: 'unsupported', support: 'unsupported-resource-format', blockstates, models, textures, languages, items, label: 'Unsupported resource format' };
 }

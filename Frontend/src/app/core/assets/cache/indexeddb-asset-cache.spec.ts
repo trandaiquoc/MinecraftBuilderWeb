@@ -12,7 +12,7 @@ const legacy = {
 describe('vanilla asset cache migration', () => {
   it('upgrades v1 metadata without dropping the resource payload', () => {
     const migrated = migrateCachedVanillaAssets(legacy);
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(3);
     expect(migrated.json).toBe(legacy.json);
     expect(migrated.binary).toBe(legacy.binary);
   });

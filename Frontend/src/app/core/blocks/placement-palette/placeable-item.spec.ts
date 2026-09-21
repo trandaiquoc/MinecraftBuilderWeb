@@ -29,6 +29,22 @@ describe('vanilla placeable item layer', () => {
     expect(items.find((item) => item.itemId === 'minecraft:amethyst_head')?.concreteBlockIds).toEqual(['minecraft:amethyst_head', 'minecraft:amethyst_wall_head']);
   });
 
+  it('discovers suffixed torch wall pairs and keeps internal blocks out when item evidence is present', () => {
+    const source: AssetBlockRecord[] = [
+      { id: 'minecraft:copper_torch', displayName: 'Copper Torch', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', itemEvidence: { itemId: 'minecraft:copper_torch', placeable: true, sourceFormat: 'modern-item-definition' } },
+      { id: 'minecraft:copper_wall_torch', displayName: 'Copper Wall Torch', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }], resources: { textures: [] }, support: 'full' },
+      { id: 'minecraft:potted_torchflower', displayName: 'Potted Torchflower', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' },
+      { id: 'minecraft:torchflower_crop', displayName: 'Torchflower Crop', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' },
+    ];
+    const catalog = new BlockCatalog(); catalog.load({ minecraftVersion: '26.3', blocks: source });
+    const items = buildPlaceableItems(catalog.all());
+    expect(items.find((item) => item.itemId === 'minecraft:copper_torch')?.concreteBlockIds).toEqual(['minecraft:copper_torch', 'minecraft:copper_wall_torch']);
+    expect(items.some((item) => item.itemId === 'minecraft:copper_wall_torch')).toBe(false);
+    expect(items.some((item) => item.itemId === 'minecraft:potted_torchflower')).toBe(false);
+    expect(items.some((item) => item.itemId === 'minecraft:torchflower_crop')).toBe(false);
+    expect(canonicalPlaceableItemId('minecraft:copper_wall_torch', items)).toBe('minecraft:copper_torch');
+  });
+
   it('does not advertise a wall variant when the counterpart is absent', () => {
     const catalog = catalogWith('minecraft:azure_sign');
     const item = buildPlaceableItems(catalog.all()).find((entry) => entry.itemId === 'minecraft:azure_sign');

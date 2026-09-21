@@ -18,6 +18,14 @@ export interface BlockResourceReference {
   readonly textures: readonly string[];
 }
 
+export interface BlockItemEvidence {
+  readonly itemId: string;
+  readonly placeable: boolean;
+  readonly sourceFormat?: 'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
+  readonly referencedModels?: readonly string[];
+  readonly referencedResources?: readonly string[];
+}
+
 export type BlockBehavior =
   | { readonly kind: 'solid' }
   | { readonly kind: 'horizontal-connect'; readonly family: 'fence' | 'pane' | 'wall'; readonly connectionGroup: string; readonly compatibleGroups: readonly string[]; readonly connectsToSolid: boolean; readonly derivedProperties: readonly string[] }
@@ -60,6 +68,7 @@ export interface BlockDefinition {
   readonly behavior?: BlockBehavior;
   /** Normalized, immutable routing metadata produced by BlockCatalog. Compatibility callers may omit it. */
   readonly capabilities?: BlockCapabilityProfile;
+  readonly itemEvidence?: BlockItemEvidence;
 }
 
 /** Catalog output always has a normalized profile; legacy hand-authored callers may use BlockDefinition. */
@@ -88,4 +97,5 @@ export interface AssetBlockRecord {
   readonly behavior?: BlockBehavior;
   /** Optional trusted hints; final profiles are derived centrally during catalog normalization. */
   readonly capabilities?: readonly BlockCapability[];
+  readonly itemEvidence?: BlockItemEvidence;
 }

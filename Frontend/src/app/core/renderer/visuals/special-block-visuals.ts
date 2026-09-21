@@ -104,10 +104,9 @@ const box = (root: THREE.Group, size: readonly [number, number, number], at: rea
 const named = (family: string, match: (id: string) => boolean, build: (block: PlacedBlock) => THREE.Group): SpecialBlockVisualAdapter => ({ family, matches: (block) => match(block.id), create: build });
 const colorFromId = (id: string, fallback: number): number => { const name = id.split(':').at(-1) ?? ''; const colors: Record<string, number> = { red: 0xb83832, blue: 0x3f61b7, green: 0x4f8c4e, black: 0x252525, white: 0xe8e6df, yellow: 0xd6b432, purple: 0x744a9c, orange: 0xcb7b32, pink: 0xd47aa4, cyan: 0x4aa7ae, gray: 0x6b6b6b, brown: 0x6e4a31 }; return Object.entries(colors).find(([key]) => name.startsWith(key))?.[1] ?? fallback; };
 
-const vanillaBedIds = new Set(['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'].map((color) => `minecraft:${color}_bed`));
 const vanillaBedDescriptor: BedVisualDescriptor = {
-  metadata: { providerId: 'minecraft-java-bed-1.21.1', gameEdition: 'java', gameVersion: '1.21.1', namespace: 'minecraft', family: 'bed', priority: 100 },
-  matches: (block) => vanillaBedIds.has(block.id),
+  metadata: { providerId: 'minecraft-java-bed-common', gameEdition: 'java', gameVersion: 'common', namespace: 'minecraft', family: 'bed', priority: 100 },
+  matches: (block) => block.namespace === 'minecraft' && block.id.endsWith('_bed'),
   textureResource: (block) => `minecraft:entity/bed/${bedColor(block.id)}`,
   model: (block) => block.state['part'] === 'head' ? vanillaBedHead : vanillaBedFoot,
   transform: (block, root) => applyBedTransform(root, block.state['facing']),
@@ -314,16 +313,9 @@ const conduitAdapter: SpecialBlockVisualAdapter = {
     return root;
   },
 };
-const vanillaShulkerBoxIds = new Set([
-  'minecraft:shulker_box', 'minecraft:white_shulker_box', 'minecraft:orange_shulker_box', 'minecraft:magenta_shulker_box',
-  'minecraft:light_blue_shulker_box', 'minecraft:yellow_shulker_box', 'minecraft:lime_shulker_box', 'minecraft:pink_shulker_box',
-  'minecraft:gray_shulker_box', 'minecraft:light_gray_shulker_box', 'minecraft:cyan_shulker_box', 'minecraft:purple_shulker_box',
-  'minecraft:blue_shulker_box', 'minecraft:brown_shulker_box', 'minecraft:green_shulker_box', 'minecraft:red_shulker_box',
-  'minecraft:black_shulker_box',
-]);
 const shulkerAdapter: SpecialBlockVisualAdapter = {
   family: 'shulker-boxes',
-  matches: (block) => vanillaShulkerBoxIds.has(block.id),
+  matches: (block) => block.namespace === 'minecraft' && (block.id === 'minecraft:shulker_box' || block.id.endsWith('_shulker_box')),
   textureResource: (block) => shulkerTextureResource(block),
   create: (block, context) => createShulkerVisual(block, context?.texture),
 };
@@ -502,7 +494,6 @@ export function signTextLayout(variant: SignVariant): SignTextLayout {
     ? { y: -.32, z: .073, scale: .9, lineHeight: 9, maxWidth: 60 }
     : { y: .33333334, z: .046666667, scale: 2 / 3, lineHeight: 10, maxWidth: 90 };
 }
-const signWoods = new Set(['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped']);
 function signVariant(id: string): SignVariant | undefined {
   if (id.endsWith('_wall_hanging_sign')) return 'wall-hanging';
   if (id.endsWith('_hanging_sign')) return 'hanging';
@@ -513,7 +504,7 @@ function signVariant(id: string): SignVariant | undefined {
 function signWood(id: string): string | undefined {
   const name = id.split(':').at(-1) ?? '';
   const wood = name.replace(/_(?:wall_)?(?:hanging_)?sign$/, '');
-  return signWoods.has(wood) ? wood : undefined;
+  return wood && /^[a-z0-9_]+$/.test(wood) ? wood : undefined;
 }
 function normalSignModel(showStick: boolean): SpecialModelDescriptor {
   return { id: `minecraft-java-normal-sign-1.21.1-${showStick ? 'standing' : 'wall'}`, textureSize: [64, 32], parts: [
@@ -598,6 +589,7 @@ function signTextColor(color: string | undefined, glowing: boolean): string {
 }
 
 function resourcePath(resource: string): string {
+  if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
   const [namespace, path] = resource.includes(':') ? resource.split(':', 2) : ['minecraft', resource];
-  return `assets/${namespace}/textures/${path}.png`;
+  return `assets/${namespace}/textures/${path.replace(/^textures\//, '').replace(/\.png$/, '')}.png`;
 }

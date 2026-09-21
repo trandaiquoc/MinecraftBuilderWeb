@@ -9,16 +9,17 @@ import { ContentSourceProvider } from '../content-source/content-source.types';
 import { VanillaResourceFormatProfile } from './vanilla-resource-format';
 import { selectVanillaResourceFormatAdapter } from './format/resource-format-adapter';
 import { evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
+import type { TargetItemEvidence } from './format/item-evidence';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
-export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 2;
-const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/[^/]+\.json)$/;
+export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
+const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|items\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/[^/]+\.json)$/;
 const BLOCK_TAG_PATH = /^data\/[^/]+\/tags\/block\/.*\.json$/;
 const DECORATION_DATA_PATH = /^data\/[^/]+\/(?:painting_variant\/.*\.json|tags\/painting_variant\/.*\.json)$/;
 const MAX_CACHE_BYTES = 256 * 1024 * 1024;
 
 export interface SerializedVanillaAssets {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: number;
   readonly minecraftVersion: string;
   readonly sourceName: string;
   readonly json: Readonly<Record<string, unknown>>;
@@ -31,6 +32,7 @@ export interface VanillaAssetProviderDiagnostics {
   readonly stoneModel: boolean;
   readonly stoneTexture: boolean;
   readonly language: boolean;
+  readonly itemDefinitions: number;
   readonly resourceFormat: VanillaResourceFormatProfile;
 }
 
@@ -97,6 +99,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       stoneModel: !!this.json['assets/minecraft/models/block/stone.json'],
       stoneTexture: this.binary.has('assets/minecraft/textures/block/stone.png'),
       language: Object.keys(this.json).some((path) => /^assets\/[^/]+\/lang\/[^/]+\.json$/.test(path)),
+      itemDefinitions: Object.keys(this.json).filter((path) => /^assets\/[^/]+\/items\/[^/]+\.json$/.test(path)).length,
       resourceFormat,
     };
   }
@@ -123,6 +126,8 @@ export class VanillaAssetProvider implements ContentSourceProvider {
 
   catalog(registry?: VanillaBlockRegistry): BlockCatalogSource {
     const format = selectVanillaResourceFormatAdapter(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION);
+    const itemEvidence = format.itemEvidence(this.json);
+    const itemByBlock = new Map(itemEvidence.map((entry) => [entry.itemId, entry]));
     const language = record(this.json['assets/minecraft/lang/en_us.json'] ?? this.json[format.languagePath(this.json) ?? '']);
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
     const behaviorRegistry = new VanillaBehaviorRegistry(this);
@@ -146,6 +151,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         visualSupport: 'partial',
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : 'unknown',
         capabilities: known?.capabilities,
+        itemEvidence: itemByBlock.has(id) ? toBlockItemEvidence(itemByBlock.get(id)!) : undefined,
       };
       const registryEnriched = behaviorRegistry.enrich(generated);
       const enriched = registryEnriched.behavior ? registryEnriched : applyCommonBehavior(registryEnriched, evaluateCommonBehavior(registryEnriched, this));
@@ -162,6 +168,10 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   }
 }
 
+function toBlockItemEvidence(evidence: TargetItemEvidence) {
+  return { itemId: evidence.itemId, placeable: true, sourceFormat: evidence.sourceFormat, referencedModels: evidence.referencedModels, referencedResources: evidence.referencedResources } as const;
+}
+
 function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<typeof evaluateCommonBehavior>): AssetBlockRecord {
   if (!evaluation.compatible) return record;
   return {
@@ -174,8 +184,10 @@ function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<ty
 }
 
 export function texturePath(resource: string): string {
+  if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
   const [namespace, path] = resource.includes(':') ? resource.split(':', 2) : ['minecraft', resource];
-  return `assets/${namespace}/textures/${path}.png`;
+  const normalized = path.replace(/^textures\//, '').replace(/\.png$/, '');
+  return `assets/${namespace}/textures/${normalized}.png`;
 }
 
 function configuredModelIds(value: unknown): string[] {

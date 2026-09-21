@@ -603,3 +603,18 @@ Standing/wall logical items are formed from concrete IDs discovered in the
 active catalog. Vanilla pairs require both counterparts; non-vanilla pairs need
 explicit behavior metadata. Unknown mod content remains generic or unknown and
 is never silently replaced with `minecraft:air`.
+
+## Target item definitions and cache schema
+
+The Vanilla extractor retains the selected version's normalized blockstate,
+model, texture, language, tag, decoration, and
+`assets/<namespace>/items/*.json` resources. Modern item definitions are
+normalized as `TargetItemEvidence`; a legacy adapter may use
+`models/item/*.json` when that is the only available item signal. Raw client JAR
+bytes are never stored in IndexedDB.
+
+The normalized Vanilla cache schema is `3`. Changing the retained resource set
+invalidates older bundles so a selected version is rebuilt instead of appearing
+ready with incomplete item evidence. BlockCatalog and PlaceableItem catalog
+remain separate: internal world blocks are preserved for rendering and import,
+while palette entries require item evidence or a verified logical rule.

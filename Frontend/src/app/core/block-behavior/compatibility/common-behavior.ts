@@ -36,6 +36,9 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (door.complete) {
     return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, doorState(definitions), 'compatible-common');
   }
+  if (door.partial && canFillCommon(record, definitions, { facing: horizontal, half: ['lower', 'upper'], hinge: ['left', 'right'], open: booleanValues, powered: booleanValues }) && looksLikeDoor(record.id, definitions)) {
+    return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, doorState(definitions), 'compatible-common');
+  }
   if (door.partial && looksLikeDoor(record.id, definitions)) return changed(record, definitions, defaultState, 'doors', 'Door state contract is missing one or more common properties.');
 
   const doubleHeight = contract(definitions, { half: ['lower', 'upper'] });
@@ -43,6 +46,7 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
 
   const bed = contract(definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues });
   if (bed.complete) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
+  if (bed.partial && canFillCommon(record, definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues }) && looksLikeBed(record)) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
 
   const candle = contract(definitions, { candles: ['1', '2', '3', '4'], lit: booleanValues, waterlogged: booleanValues });
   // The state contract is the evidence. Do not classify a mod block by an
@@ -111,6 +115,11 @@ function contract(definitions: readonly BlockStateDefinition[], expected: Readon
   return { complete, partial: present > 0 };
 }
 
+function canFillCommon(record: AssetBlockRecord, definitions: readonly BlockStateDefinition[], expected: Readonly<Record<string, readonly string[]>>): boolean {
+  if (!record.id.startsWith('minecraft:') && !record.itemEvidence) return false;
+  return definitions.every((definition) => expected[definition.name] === undefined || definition.values.every((value) => expected[definition.name].includes(value)));
+}
+
 function deriveResourceState(definitions: readonly BlockStateDefinition[]): Readonly<Record<string, string>> {
   const values: Record<string, string> = {};
   for (const definition of definitions) {
@@ -154,6 +163,7 @@ function preferredValue(name: string, values: readonly string[]): string | undef
 
 function hasAny(definitions: readonly BlockStateDefinition[], names: readonly string[]): boolean { return names.some((name) => definitions.some((definition) => definition.name === name)); }
 function looksLikeDoor(id: string, definitions: readonly BlockStateDefinition[]): boolean { return id.endsWith('_door') || hasAny(definitions, ['hinge', 'half']) && hasAny(definitions, ['open', 'powered']); }
+function looksLikeBed(record: AssetBlockRecord): boolean { return record.id.endsWith('_bed') || `${record.resources.model ?? ''} ${record.resources.blockstate ?? ''}`.includes('bed'); }
 function looksLikeButton(id: string, definitions: readonly BlockStateDefinition[]): boolean { return id.endsWith('_button') || hasAny(definitions, ['face', 'powered']); }
 function looksLikeStairs(id: string, definitions: readonly BlockStateDefinition[]): boolean { return id.endsWith('_stairs') || hasAny(definitions, ['shape']); }
 function looksLikeShulker(record: AssetBlockRecord): boolean { return record.id.endsWith('_shulker_box') || `${record.resources.model ?? ''} ${record.resources.blockstate ?? ''}`.includes('shulker'); }

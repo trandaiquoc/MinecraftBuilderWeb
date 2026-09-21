@@ -30,7 +30,9 @@ export class BlockLibraryService {
   catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog.conflicts(); }
   select(item: PlaceableItemDefinition): void { this.decorations?.clearActive(); this.activeBlock.select(item); }
   get(id: string): NormalizedBlockDefinition | undefined { return this.catalog.get(id); }
-  getItem(itemId: string): PlaceableItemDefinition | undefined { return this.items.find((item) => item.itemId === itemId); }
-  itemForBlock(blockId: string): PlaceableItemDefinition | undefined { const itemId = canonicalPlaceableItemId(blockId); return this.getItem(itemId); }
+  getItem(itemId: string): PlaceableItemDefinition | undefined { return this.items.find((item) => item.itemId === itemId || item.concreteBlockIds.includes(itemId)); }
+  itemForBlock(blockId: string): PlaceableItemDefinition | undefined {
+    return this.items.find((item) => item.concreteBlockIds.includes(blockId)) ?? this.getItem(canonicalPlaceableItemId(blockId, this.items));
+  }
   allItems(): readonly PlaceableItemDefinition[] { return this.items; }
 }

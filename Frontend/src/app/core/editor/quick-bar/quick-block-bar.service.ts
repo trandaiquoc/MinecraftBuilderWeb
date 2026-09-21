@@ -9,13 +9,13 @@ export interface QuickBlockEntry extends ActiveBlock { readonly itemId: string; 
 const slots = 10;
 
 /** Canonical item identity shared by Block Browser, Pick Block, and Quick Bar. */
-export function activeItemId(active: Pick<ActiveBlock, 'id' | 'itemId'> | undefined): string | undefined {
-  return active ? canonicalPlaceableItemId(active.itemId ?? active.id) : undefined;
+export function activeItemId(active: Pick<ActiveBlock, 'id' | 'itemId'> | undefined, items?: readonly import('../../blocks/placement-palette/placeable-item').PlaceableItemDefinition[]): string | undefined {
+  return active ? canonicalPlaceableItemId(active.itemId ?? active.id, items) : undefined;
 }
 
-export function quickEntryMatchesActive(entry: Pick<QuickBlockEntry, 'id' | 'itemId' | 'state'>, active: Pick<ActiveBlock, 'id' | 'itemId' | 'state'> | undefined, available = true): boolean {
+export function quickEntryMatchesActive(entry: Pick<QuickBlockEntry, 'id' | 'itemId' | 'state'>, active: Pick<ActiveBlock, 'id' | 'itemId' | 'state'> | undefined, available = true, items?: readonly import('../../blocks/placement-palette/placeable-item').PlaceableItemDefinition[]): boolean {
   if (!active || !available) return false;
-  return activeItemId(active) === canonicalPlaceableItemId(entry.itemId || entry.id) && stateKey(active.state) === stateKey(entry.state);
+  return activeItemId(active, items) === canonicalPlaceableItemId(entry.itemId || entry.id, items) && stateKey(active.state) === stateKey(entry.state);
 }
 
 @Injectable({ providedIn: 'root' })
@@ -30,11 +30,11 @@ export class QuickBlockBarService {
   readonly collapsed = signal(false);
   private activeProjectId?: string;
   constructor() { effect(() => { const id = this.workspace.project()?.id; if (id !== this.activeProjectId) { this.activeProjectId = id; this.entries.set(id ? load(id) : []); } }); }
-  has(entry: Pick<QuickBlockEntry, 'itemId' | 'id' | 'state'>): boolean { const itemId = canonicalPlaceableItemId(entry.itemId || entry.id); const state = stateKey(entry.state); return this.entries().some((item) => item.itemId === itemId && stateKey(item.state) === state); }
+  has(entry: Pick<QuickBlockEntry, 'itemId' | 'id' | 'state'>): boolean { const itemId = this.canonical(entry.itemId || entry.id); const state = stateKey(entry.state); return this.entries().some((item) => item.itemId === itemId && stateKey(item.state) === state); }
   canAdd(entry: Pick<QuickBlockEntry, 'itemId' | 'id' | 'state'>): boolean { return this.has(entry) || this.entries().length < slots; }
   isFull(): boolean { return this.entries().length >= slots; }
   add(entry: QuickBlockEntry): boolean {
-    const canonical = { ...entry, itemId: canonicalPlaceableItemId(entry.itemId || entry.id) };
+    const canonical = { ...entry, itemId: this.canonical(entry.itemId || entry.id) };
     if (this.has(canonical)) return false;
     if (this.isFull()) return false;
     this.save([...this.entries(), canonical]);
@@ -44,10 +44,12 @@ export class QuickBlockBarService {
   select(entry: QuickBlockEntry): void {
     // A persisted slot can outlive the content source that provided it. Never
     // reactivate an entry whose item definition is no longer available.
-    if (!this.library.getItem(entry.itemId)) { this.activeBlock.clear(); return; }
-    this.decorations.clearActive(); this.activeBlock.set(entry);
+    const item = this.library.getItem(entry.itemId) ?? this.library.itemForBlock(entry.id);
+    if (!item) { this.activeBlock.clear(); return; }
+    this.decorations.clearActive(); this.activeBlock.set({ ...entry, id: item.itemId, itemId: item.itemId });
   }
   private save(entries: readonly QuickBlockEntry[]): void { this.entries.set(entries); const id = this.activeProjectId; if (!id) return; try { localStorage.setItem(key(id), JSON.stringify(entries)); } catch { /* The palette remains useful for this session. */ } }
+  private canonical(id: string): string { return canonicalPlaceableItemId(id, this.library.allItems()); }
 }
 
 function key(projectId: string): string { return `minecraft-builder.quick-blocks.${projectId}`; }

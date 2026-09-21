@@ -39,7 +39,7 @@ export class VanillaAssetsService {
   readonly message = signal('');
   readonly sourceName = signal('');
   readonly generation = signal(0);
-  readonly diagnostics = signal<VanillaAssetDiagnostics>({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: false, generation: 0, providerReady: false, resourceCount: 0, stoneBlockstate: false, stoneModel: false, stoneTexture: false, language: false, resourceFormat: { id: 'unsupported', support: 'unsupported-resource-format', blockstates: 0, models: 0, textures: 0, languages: 0, label: 'Unsupported resource format' } });
+  readonly diagnostics = signal<VanillaAssetDiagnostics>({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: false, generation: 0, providerReady: false, resourceCount: 0, stoneBlockstate: false, stoneModel: false, stoneTexture: false, language: false, itemDefinitions: 0, resourceFormat: { id: 'unsupported', support: 'unsupported-resource-format', blockstates: 0, models: 0, textures: 0, languages: 0, items: 0, label: 'Unsupported resource format' } });
   readonly cachedVersions = signal<readonly string[]>([]);
   readonly sources = new ContentSourceRegistry();
   readonly importedMods = signal<readonly ImportedModSummary[]>([]);

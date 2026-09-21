@@ -60,12 +60,14 @@ function evaluateDefinition(provider: VanillaAssetProvider, definition: BlockDef
     ...(special.family ? { specialRendererFamily: special.family, specialRendererCompatibility: special.missingResources.length ? 'missing-resource' as const : 'reused' as const, ...(special.missingResources.length ? { missingResources: special.missingResources } : {}) } : { specialRendererCompatibility: 'not-applicable' as const }),
     ...(variantPairs ? { variantPairs } : {}),
     stateContract: definition.stateDefinitions.map((entry) => `${entry.name}=${entry.values.join('|')}`),
+    itemEvidence: definition.itemEvidence ? 'observed' as const : 'unobserved' as const,
+    ...(definition.itemEvidence ? { itemId: definition.itemEvidence.itemId, itemEligibility: 'placeable' as const } : { itemEligibility: 'internal-or-unobserved' as const }),
   } satisfies Omit<CompatibilityEntry, 'classification'>;
   if (common?.reason) return { ...base, classification: 'changed-needs-delta', reasonCode: 'STATE_CONTRACT_CHANGED', message: common.reason, actualProperties: definition.stateDefinitions.map((entry) => entry.name) };
   if (special.family && special.missingResources.length) return { ...base, classification: 'changed-needs-delta', reasonCode: 'MISSING_SPECIAL_RESOURCE', message: `Special renderer ${special.family} is known but required resources are missing.`, missingResources: special.missingResources };
   if (special.family) return { ...base, classification: 'compatible-reused', message: `Special renderer ${special.family} is compatible with the target resources.` };
   if (common?.compatible || definition.defaultStateSource === 'compatible-common') return { ...base, classification: 'compatible-reused', message: 'Common behavior contract matched the target resource state.' };
-  if (provider.minecraftVersion === '1.21.1' && (definition.defaultStateSource === 'authoritative-report' || definition.defaultStateSource === 'verified-fixture' || definition.behaviorSupport !== 'unknown') && resolved.parts.length && !hasBlockingDiagnostic(resolved.diagnostics)) return { ...base, classification: 'compatible-reused', message: 'Verified 1.21.1 behavior and resource evidence were reused.' };
+  if ((definition.defaultStateSource === 'authoritative-report' || definition.defaultStateSource === 'verified-fixture' || definition.behaviorSupport !== 'unknown') && resolved.parts.length && !hasBlockingDiagnostic(resolved.diagnostics)) return { ...base, classification: 'compatible-reused', message: 'Verified behavior and compatible target resources were reused.' };
   if (resolved.parts.length && !hasBlockingDiagnostic(resolved.diagnostics)) return { ...base, classification: 'new-generic-supported', message: 'Generic blockstate/model pipeline resolved this block.' };
   return { ...base, classification: 'unsupported', reasonCode: resolved.diagnostics[0]?.code ?? 'NO_RENDERABLE_RESOURCE', message: resolved.diagnostics[0]?.message ?? 'No supported generic resource path was found.' };
 }

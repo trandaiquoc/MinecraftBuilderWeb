@@ -162,7 +162,7 @@ export class BlockRuleEngine {
     const behavior = this.definition(block.id)?.behavior;
     if (behavior?.kind === 'hanging-sign') {
       const above = find(project.blocks, add(block.position, { x: 0, y: 1, z: 0 }));
-      const attached = !!above && this.definition(above.id)?.behavior?.kind === 'solid';
+      const attached = !!above && this.isSupportBlock(above.id);
       return { ...block, state: { ...block.state, [behavior.attachedProperty]: attached ? 'true' : 'false' } };
     }
     if (behavior?.kind !== 'lantern-placement') return block;
@@ -183,7 +183,7 @@ export class BlockRuleEngine {
       const supports = [clockwise(facing), counterClockwise(facing)].map((direction) => add(block.position, directionOffset(direction)));
       const valid = supports.find((position) => {
         const support = find(project.blocks, position);
-        return this.definition(support?.id ?? '')?.behavior?.kind === 'solid' || compatibleWallHanging(support, facing, this.definition);
+        return this.isSupportBlock(support?.id ?? '') || compatibleWallHanging(support, facing, this.definition);
       });
       return valid
         ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, valid] }
@@ -204,7 +204,7 @@ export class BlockRuleEngine {
       const support = find(project.blocks, supportPosition!);
       if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition!] };
       const supportBehavior = this.definition(support.id)?.behavior;
-      return supportBehavior?.kind === 'solid' || supportBehavior?.kind === 'vertical-chain' && support.state[supportBehavior.axisProperty] === supportBehavior.verticalAxis
+      return this.isSupportBlock(support.id) || supportBehavior?.kind === 'vertical-chain' && support.state[supportBehavior.axisProperty] === supportBehavior.verticalAxis
         ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, supportPosition!] }
         : !supportBehavior ? { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition!] }
           : { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition!] };
@@ -215,8 +215,8 @@ export class BlockRuleEngine {
     const support = find(project.blocks, supportPosition);
     if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
     const supportBehavior = this.definition(support.id)?.behavior;
-    if (!supportBehavior) return { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition] };
-    return supportBehavior.kind === 'solid'
+    if (!supportBehavior && !this.isSupportBlock(support.id)) return { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition] };
+    return this.isSupportBlock(support.id)
       ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, supportPosition] }
       : { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
   }
@@ -227,14 +227,14 @@ export class BlockRuleEngine {
       const state = { ...block.state };
       for (const [name, offset] of horizontalDirections) {
         const neighbor = find(blocks, add(block.position, offset)); const neighborBehavior = neighbor && this.definition(neighbor.id)?.behavior;
-        const connects = behavior.connectsToSolid && neighborBehavior?.kind === 'solid'
+        const connects = behavior.connectsToSolid && !!neighbor && this.isSupportBlock(neighbor.id)
           || neighborBehavior?.kind === 'horizontal-connect' && behavior.compatibleGroups.includes(neighborBehavior.connectionGroup);
         state[name] = behavior.family === 'wall' ? connects ? 'low' : 'none' : connects ? 'true' : 'false';
       }
       if (behavior.family === 'wall') {
         const connectedDirections = horizontalDirections.filter(([name]) => state[name] !== 'none');
         const upper = find(blocks, add(block.position, { x: 0, y: 1, z: 0 }));
-        const upperIsSolid = upper && this.definition(upper.id)?.behavior?.kind === 'solid';
+        const upperIsSolid = upper && this.isSupportBlock(upper.id);
         if (upperIsSolid) for (const [name] of connectedDirections) state[name] = 'tall';
         state['up'] = connectedDirections.length === 4 ? 'false' : 'true';
       }
@@ -243,9 +243,18 @@ export class BlockRuleEngine {
     if (behavior?.kind === 'stairs') return { ...block.state, shape: stairShape(block, blocks, this.definition) };
     if (behavior?.kind === 'hanging-sign') {
       const above = find(blocks, add(block.position, { x: 0, y: 1, z: 0 }));
-      return { ...block.state, [behavior.attachedProperty]: this.definition(above?.id ?? '')?.behavior?.kind === 'solid' ? 'true' : 'false' };
+      return { ...block.state, [behavior.attachedProperty]: above && this.isSupportBlock(above.id) ? 'true' : 'false' };
     }
     return undefined;
+  }
+
+  private isSupportBlock(id: string): boolean {
+    const definition = this.definition(id);
+    if (!definition) return false;
+    const behavior = definition.behavior;
+    if (behavior?.kind === 'solid') return true;
+    if (behavior && ['fluid', 'horizontal-connect', 'wall-mounted', 'wall-sign', 'wall-hanging-sign', 'floor-supported', 'torch-placement', 'lantern-placement', 'vertical-chain'].includes(behavior.kind)) return false;
+    return definition.support === 'full' && definition.visualSupport === 'real' && definition.visualClassification === 'standard-json';
   }
 }
 

@@ -132,19 +132,19 @@ export class VanillaBehaviorRegistry {
     const definitions = record.stateDefinitions;
     const facing = hasState(definitions, 'facing', ['north', 'east', 'south', 'west']);
     const rotation = hasState(definitions, 'rotation', Array.from({ length: 16 }, (_, value) => String(value)));
-    const waterlogged = hasState(definitions, 'waterlogged', ['true', 'false']);
     if (name.endsWith('_wall_sign') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_sign$/, '_sign')}`)) return wallSignMetadata;
-    if (name.endsWith('_sign') && !name.endsWith('_wall_sign') && rotation && waterlogged && this.hasBlockstate(`minecraft:${name.replace(/_sign$/, '_wall_sign')}`)) {
+    if (name.endsWith('_sign') && !name.endsWith('_wall_sign') && rotation && this.hasBlockstate(`minecraft:${name.replace(/_sign$/, '_wall_sign')}`)) {
       return standingSignMetadata(name.replace(/_sign$/, ''));
     }
     if (name.endsWith('_wall_hanging_sign') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_hanging_sign$/, '_hanging_sign')}`)) return wallHangingSignMetadata;
-    if (name.endsWith('_hanging_sign') && !name.endsWith('_wall_hanging_sign') && rotation && waterlogged && hasState(definitions, 'attached', ['true', 'false']) && this.hasBlockstate(`minecraft:${name.replace(/_hanging_sign$/, '_wall_hanging_sign')}`)) {
+    if (name.endsWith('_hanging_sign') && !name.endsWith('_wall_hanging_sign') && rotation && this.hasBlockstate(`minecraft:${name.replace(/_hanging_sign$/, '_wall_hanging_sign')}`)) {
       return hangingSignMetadata(name.replace(/_hanging_sign$/, ''));
     }
     if (name.endsWith('_wall_head') || name.endsWith('_wall_skull')) {
       const standing = name.replace(/_wall_(head|skull)$/, '_$1');
       if (facing && this.hasBlockstate(`minecraft:${standing}`)) return wallHeadMetadata;
     }
+    if (name.endsWith('_wall_torch') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_torch$/, '_torch')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
     if ((name.endsWith('_head') || name.endsWith('_skull')) && !name.startsWith('piston_') && rotation) {
       const wallName = name.replace(/_(head|skull)$/, (match) => `_wall${match}`);
       if (this.hasBlockstate(`minecraft:${wallName}`)) return standingHeadMetadata;
@@ -153,7 +153,7 @@ export class VanillaBehaviorRegistry {
     if (name.endsWith('_banner') && !name.endsWith('_wall_banner') && rotation && this.hasBlockstate(`minecraft:${name.replace(/_banner$/, '_wall_banner')}`)) return undefined;
     if (name.endsWith('_wall_fan') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_fan$/, '_fan')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
     if (name.startsWith('wall_') && name.endsWith('_torch') && facing && this.hasBlockstate(`minecraft:${name.replace(/^wall_/, '')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
-    if (name.endsWith('_torch') && !name.startsWith('wall_') && this.hasBlockstate(`minecraft:wall_${name}`)) return { behavior: { kind: 'torch-placement', wallBlockId: `minecraft:wall_${name}` }, support: 'full', defaultState: {}, stateDefinitions: [] };
+    if (name.endsWith('_torch') && !name.startsWith('wall_') && (this.hasBlockstate(`minecraft:wall_${name}`) || this.hasBlockstate(`minecraft:${name.replace(/_torch$/, '_wall_torch')}`))) return { behavior: { kind: 'torch-placement', wallBlockId: this.hasBlockstate(`minecraft:${name.replace(/_torch$/, '_wall_torch')}`) ? `minecraft:${name.replace(/_torch$/, '_wall_torch')}` : `minecraft:wall_${name}` }, support: 'full', defaultState: {}, stateDefinitions: [] };
     return undefined;
   }
 
@@ -194,7 +194,10 @@ function isCompatibleContract(record: AssetBlockRecord, metadata: BehaviorMetada
       // reject in that case, so keep the authoritative tag/fixture contract.
       if (!record.resources.blockstate) continue;
       if (metadata.behavior.kind === 'horizontal-connect' && hasConnectionStateEvidence(record, resources)) continue;
-      return false;
+      // Visual blockstate JSON is only a model-selection contract. Missing
+      // runtime properties are unobserved evidence and are completed from the
+      // compatible family metadata; only explicit values can contradict it.
+      continue;
     }
     // Multipart blockstates often mention only the true branch. A target
     // domain that is a subset of the known common domain is completed below;
