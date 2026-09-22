@@ -48,14 +48,20 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (bed.complete && hasFamilyEvidence(record, 'beds')) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
   if (bed.partial && hasFamilyEvidence(record, 'beds') && canFillCommon(record, definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues }) && (record.behaviorEvidenceRequired === true || looksLikeBed(record))) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
 
-  // Standard sign tags are sufficient evidence for wall variants whose
-  // attachment state is self-contained. Standing/hanging variants additionally
-  // need a verified paired wall block and therefore remain source-specific.
-  if (record.trustedBehaviorFamilies?.includes('wall-sign') === true && definitions.some((definition) => definition.name === 'facing')) {
-    return complete(record, definitions, 'wall-sign', { kind: 'wall-sign', facingProperty: 'facing' }, mergeValidDefaults(definitions, { facing: 'north', waterlogged: 'false' }), 'compatible-common');
+  // Standard sign tags prove the common Java state contract even when a mod
+  // ships model-only blockstates. The renderer and placement layers consume
+  // this normalized state instead of relying on resource JSON properties.
+  if (record.trustedBehaviorFamilies?.includes('standing-sign') === true) {
+    return complete(record, signDefinitions(definitions, { rotation: Array.from({ length: 16 }, (_, index) => String(index)), waterlogged: booleanValues }), 'standing-sign', { kind: 'standing-sign', rotationProperty: 'rotation', wallBlockId: '' }, { rotation: '0', waterlogged: 'false' }, 'compatible-common');
   }
-  if (record.trustedBehaviorFamilies?.includes('wall-hanging-sign') === true && definitions.some((definition) => definition.name === 'facing')) {
-    return complete(record, definitions, 'wall-hanging-sign', { kind: 'wall-hanging-sign', facingProperty: 'facing' }, mergeValidDefaults(definitions, { facing: 'north', waterlogged: 'false' }), 'compatible-common');
+  if (record.trustedBehaviorFamilies?.includes('wall-sign') === true) {
+    return complete(record, signDefinitions(definitions, { facing: horizontal, waterlogged: booleanValues }), 'wall-sign', { kind: 'wall-sign', facingProperty: 'facing' }, { facing: 'north', waterlogged: 'false' }, 'compatible-common');
+  }
+  if (record.trustedBehaviorFamilies?.includes('hanging-sign') === true) {
+    return complete(record, signDefinitions(definitions, { rotation: Array.from({ length: 16 }, (_, index) => String(index)), attached: booleanValues, waterlogged: booleanValues }), 'hanging-sign', { kind: 'hanging-sign', rotationProperty: 'rotation', attachedProperty: 'attached', wallBlockId: '' }, { rotation: '0', attached: 'false', waterlogged: 'false' }, 'compatible-common');
+  }
+  if (record.trustedBehaviorFamilies?.includes('wall-hanging-sign') === true) {
+    return complete(record, signDefinitions(definitions, { facing: horizontal, waterlogged: booleanValues }), 'wall-hanging-sign', { kind: 'wall-hanging-sign', facingProperty: 'facing' }, { facing: 'north', waterlogged: 'false' }, 'compatible-common');
   }
 
   const candle = contract(definitions, { candles: ['1', '2', '3', '4'], lit: booleanValues, waterlogged: booleanValues });
@@ -169,6 +175,15 @@ function preferredValue(name: string, values: readonly string[]): string | undef
   const preferences: Readonly<Record<string, string>> = { facing: 'north', half: 'bottom', part: 'foot', type: 'bottom', shape: 'straight', hinge: 'left', open: 'false', powered: 'false', waterlogged: 'false', lit: 'false', attached: 'false', hanging: 'false', axis: 'y', face: 'floor', rotation: '0', candles: '1', level: '0', honey_level: '0', in_wall: 'false', up: 'true' };
   const value = preferences[name];
   return value && values.includes(value) ? value : values[0];
+}
+
+function signDefinitions(definitions: readonly BlockStateDefinition[], expected: Readonly<Record<string, readonly string[]>>): readonly BlockStateDefinition[] {
+  const merged = new Map(definitions.map((definition) => [definition.name, definition]));
+  for (const [name, values] of Object.entries(expected)) {
+    const current = merged.get(name);
+    merged.set(name, current ? { ...current, values: [...new Set([...current.values, ...values])] } : { name, values: [...values] });
+  }
+  return [...merged.values()];
 }
 
 function hasFamilyEvidence(record: AssetBlockRecord, family: string): boolean {

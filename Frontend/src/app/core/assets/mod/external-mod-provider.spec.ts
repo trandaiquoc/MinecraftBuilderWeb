@@ -111,6 +111,25 @@ describe('ExternalModProvider', () => {
     expect(entries.find((entry) => entry.id === 'example:maple_wall_sign')?.specialVisual).toMatchObject({ contractId: 'common-sign', variant: 'wall' });
   });
 
+  it('supplies the common sign state contract for model-only blockstates and nested tags', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'model-only-sign', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/example/blockstates/example_hanging_sign.json', { variants: { '': { model: 'example:block/example_hanging_sign' } } }],
+        ['data/minecraft/tags/block/ceiling_hanging_signs.json', { values: ['#example:hanging_signs'] }],
+        ['data/example/tags/block/hanging_signs.json', { values: ['example:example_hanging_sign'] }],
+      ]),
+      resources: new Map([
+        ['assets/minecraft/textures/entity/signs/hanging/example.png', new Uint8Array([1])],
+      ]),
+    });
+    const definition = provider.catalog().blocks[0]!;
+    expect(definition.behavior?.kind).toBe('hanging-sign');
+    expect(definition.defaultState).toMatchObject({ rotation: '0', attached: 'false', waterlogged: 'false' });
+    expect(definition.stateDefinitions.map((entry) => entry.name)).toEqual(['attached', 'rotation', 'waterlogged']);
+    expect(definition.specialVisual).toMatchObject({ variant: 'hanging' });
+  });
+
   it('discovers data-driven painting variants and placeable tag state', () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'paintings', version: '1.0.0', depends: { minecraft: '1.21.1' } },

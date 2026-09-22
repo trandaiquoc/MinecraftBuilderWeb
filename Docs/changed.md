@@ -1698,3 +1698,11 @@ asset-cache schema; F2 owns any UI exposure.
   visuals.
 - A read-only JVM class-file evidence boundary is present and fail-closed;
   unsupported or ambiguous bytecode emits diagnostics and never executes code.
+
+The final F2 Sign hotfix merges standard Sign-family tag evidence into the
+common Java state contract even when external blockstates are model-only.
+Verified external Signs therefore receive canonical rotation/facing,
+waterlogged, and hanging attachment defaults before descriptor matching. The
+generic descriptor now reuses the shared Sign geometry, transforms, and
+front/back text branches for all four Sign variants; untagged name lookalikes
+remain generic content.

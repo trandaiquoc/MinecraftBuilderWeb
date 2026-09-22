@@ -48,17 +48,24 @@ export class SpecialBlockVisualRegistry {
     this.descriptorKeys.add(key);
     this.adapters.unshift({
       family: 'signs',
-      matches: (block) => block.id === descriptor.contentId && descriptor.stateDependencies.every((property) => block.state[property] !== undefined),
+      matches: (block) => block.id === descriptor.contentId && (descriptor.variant !== undefined || descriptor.stateDependencies.every((property) => block.state[property] !== undefined)),
       textureResource: () => texture,
       create: (block, context) => {
         const variant = descriptor.variant ?? (block.state['facing'] !== undefined && block.state['rotation'] === undefined ? 'wall' : 'standing');
+        const renderBlock = descriptor.variant ? withSignDefaults(block, variant) : block;
         const wall = variant === 'wall' || variant === 'wall-hanging';
-        const model = variant === 'hanging' || variant === 'wall-hanging' ? hangingSignModel(variant, block.state['attached'] === 'true') : normalSignModel(!wall);
-        const root = createSpecialModel(model, context?.texture);
-        const placement = new THREE.Group(); while (root.children.length) placement.add(root.children[0]); root.add(placement);
-        if (variant === 'hanging' || variant === 'wall-hanging') applyHangingSignTransform(root, placement, block);
-        else applyNormalSignTransform(root, placement, placement, block, wall);
+        const model = variant === 'hanging' || variant === 'wall-hanging' ? hangingSignModel(variant, renderBlock.state['attached'] === 'true') : normalSignModel(!wall);
+        const root = new THREE.Group();
+        const modelRoot = createSpecialModel(model, context?.texture);
+        const modelBranch = new THREE.Group();
+        while (modelRoot.children.length) modelBranch.add(modelRoot.children[0]);
+        const placement = new THREE.Group();
+        placement.add(modelBranch, addSignText(renderBlock, variant));
+        root.add(placement);
+        if (variant === 'hanging' || variant === 'wall-hanging') applyHangingSignTransform(root, modelBranch, renderBlock);
+        else applyNormalSignTransform(root, placement, modelBranch, renderBlock, wall);
         root.userData['providerId'] = 'minecraftbuilder:common-sign-descriptor';
+        root.userData['signVariant'] = variant;
         return root;
       },
     });
@@ -524,6 +531,14 @@ export function signTextLayout(variant: SignVariant): SignTextLayout {
   return variant === 'hanging' || variant === 'wall-hanging'
     ? { y: -.32, z: .073, scale: .9, lineHeight: 9, maxWidth: 60 }
     : { y: .33333334, z: .046666667, scale: 2 / 3, lineHeight: 10, maxWidth: 90 };
+}
+function withSignDefaults(block: PlacedBlock, variant: SignVariant): PlacedBlock {
+  const state = { ...block.state };
+  if (variant === 'standing' || variant === 'hanging') state['rotation'] ??= '0';
+  else state['facing'] ??= 'north';
+  if (variant === 'hanging') state['attached'] ??= 'false';
+  state['waterlogged'] ??= 'false';
+  return { ...block, state };
 }
 function signVariant(id: string): SignVariant | undefined {
   if (id.endsWith('_wall_hanging_sign')) return 'wall-hanging';

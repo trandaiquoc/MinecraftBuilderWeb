@@ -22,6 +22,16 @@ describe('special block visuals', () => {
     const target = { ...block('example:maple_sign'), state: { facing: 'north' } };
     expect(registry.resolve(target)?.family).toBe('signs');
     expect(registry.resolve(target)?.textureResource?.(target)).toBe('example:entity/signs/maple');
+    const visual = registry.resolve(target)!.create({ ...target, blockEntityData: { kind: 'sign', front: { lines: ['A', '', '', ''], color: 'black', glowing: false }, back: { lines: ['', '', '', ''], color: 'black', glowing: false }, waxed: false } });
+    expect(visual.userData['signVariant']).toBe('wall');
+    expect(visual.getObjectByName('frontTextSide')).toBeDefined();
+  });
+  it('uses verified sign defaults when an older project omitted orientation state', () => {
+    registry.registerDescriptor({ contentId: 'example:legacy_sign', contractId: 'common-sign', variant: 'standing', resources: { default: 'example:entity/signs/legacy' }, stateDependencies: ['rotation'], provenance: 'trusted-data' });
+    const target = { ...block('example:legacy_sign'), state: {} };
+    const adapter = registry.resolve(target);
+    expect(adapter?.family).toBe('signs');
+    expect(adapter?.create(target).userData['signVariant']).toBe('standing');
   });
 
   it('keeps Vanilla special adapters namespace-isolated', () => {
