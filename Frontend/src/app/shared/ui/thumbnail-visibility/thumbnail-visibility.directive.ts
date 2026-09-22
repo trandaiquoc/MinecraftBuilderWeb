@@ -1,4 +1,4 @@
-import { AfterViewInit, Directive, ElementRef, OnDestroy, output } from '@angular/core';
+import { AfterViewInit, Directive, ElementRef, Input, OnDestroy, output } from '@angular/core';
 import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnail-task-queue';
 
 export interface VisibilityEvent { readonly priority: ThumbnailTaskPriority; }
@@ -14,6 +14,13 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
   readonly thumbnailVisible = output<VisibilityEvent>();
   private root?: Element;
   private shared?: SharedObserverState;
+  private currentPriority?: ThumbnailTaskPriority;
+  private initialized = false;
+
+  @Input()
+  set thumbnailVisibilityEpoch(_value: number) {
+    if (this.initialized && this.currentPriority) this.thumbnailVisible.emit({ priority: this.currentPriority });
+  }
 
   constructor(private readonly host: ElementRef<HTMLElement>) {}
 
@@ -21,6 +28,7 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
     const element = this.host.nativeElement;
     this.root = element.closest('.results') ?? undefined;
     if (typeof IntersectionObserver === 'undefined') {
+      this.currentPriority = 'visible'; this.initialized = true;
       queueMicrotask(() => this.thumbnailVisible.emit({ priority: 'visible' }));
       return;
     }
@@ -35,6 +43,7 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
     this.shared = shared;
     shared.directives.set(element, this);
     shared.observer.observe(element);
+    this.initialized = true;
   }
 
   private handleEntry(entry: IntersectionObserverEntry): void {
@@ -42,7 +51,8 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
     const rootRect = this.root?.getBoundingClientRect();
     const rect = entry.boundingClientRect;
     const visible = !rootRect || (rect.bottom > rootRect.top && rect.top < rootRect.bottom && rect.right > rootRect.left && rect.left < rootRect.right);
-    this.thumbnailVisible.emit({ priority: visible ? 'visible' : 'prefetch' });
+    this.currentPriority = visible ? 'visible' : 'prefetch';
+    this.thumbnailVisible.emit({ priority: this.currentPriority });
   }
 
   ngOnDestroy(): void {

@@ -49,6 +49,7 @@ export class VanillaAssetsService {
   readonly message = signal('');
   readonly sourceName = signal('');
   readonly generation = signal(0);
+  readonly thumbnailEpoch = signal(0);
   readonly diagnostics = signal<VanillaAssetDiagnostics>({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: false, generation: 0, providerReady: false, resourceCount: 0, stoneBlockstate: false, stoneModel: false, stoneTexture: false, language: false, itemDefinitions: 0, resourceFormat: { id: 'unsupported', support: 'unsupported-resource-format', blockstates: 0, models: 0, textures: 0, languages: 0, items: 0, label: 'Unsupported resource format' } });
   readonly cachedVersions = signal<readonly string[]>([]);
   readonly sources = new ContentSourceRegistry();
@@ -322,7 +323,7 @@ export class VanillaAssetsService {
     if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
     this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
     const catalog = provider.catalog(registry);
-    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map());
+    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map()); this.thumbnailEpoch.update((value) => value + 1);
     const generation = this.generation() + 1;
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
@@ -354,7 +355,7 @@ export class VanillaAssetsService {
     this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
   }
 
-  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map()); }
+  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map()); this.thumbnailEpoch.update((value) => value + 1); }
   private bumpGeneration(): void { this.generation.update((value) => value + 1); }
 
   private assertExternalSourceAvailable(provider: ExternalModProvider): void {
