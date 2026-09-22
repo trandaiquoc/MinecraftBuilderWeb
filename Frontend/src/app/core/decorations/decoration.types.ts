@@ -34,10 +34,17 @@ export interface PaintingVariant {
   readonly id: string;
   readonly width: number;
   readonly height: number;
+  /** Canonical namespaced texture resource, not the raw asset_id from a data file. */
   readonly assetPath: string;
   readonly placeable?: boolean;
   readonly sourceId?: string;
   readonly sourceName?: string;
+}
+
+export function paintingTextureResource(assetId: string, fallbackNamespace = 'minecraft'): string {
+  const value = assetId.includes(':') ? assetId : `${fallbackNamespace}:${assetId}`;
+  const [namespace, path = ''] = value.split(':', 2);
+  return `${namespace}:${path.startsWith('painting/') ? path : `painting/${path}`}`;
 }
 
 export const PAINTING_VARIANTS: readonly PaintingVariant[] = [
@@ -51,7 +58,7 @@ export const PAINTING_VARIANTS: readonly PaintingVariant[] = [
   ...['backyard', 'pond'].map((id) => ({ id, width: 3, height: 4 })),
   ...['bouquet', 'cavebird', 'cotan', 'endboss', 'fern', 'owlemons', 'sunflowers', 'tides'].map((id) => ({ id, width: 3, height: 3 })),
   ...['earth', 'wind', 'water', 'fire'].map((id) => ({ id, width: 2, height: 2, placeable: false })),
-].map((variant) => ({ ...variant, assetPath: `minecraft:painting/${variant.id}` }));
+].map((variant) => ({ ...variant, assetPath: paintingTextureResource(variant.id) }));
 
 const externalPaintingVariants = new Map<string, PaintingVariant>();
 export function registerPaintingVariants(entries: readonly PaintingVariant[]): void { for (const entry of entries) externalPaintingVariants.set(entry.id, entry); }

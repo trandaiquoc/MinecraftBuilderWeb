@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { modelPartCuboidUv, ModelPartFace, SpecialCuboidDescriptor, SpecialModelDescriptor, SpecialModelPartDescriptor } from './special-model-descriptor';
 import { resolveResourceLocation } from '../../content/resource-location';
+import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 
 export interface SpecialVisualResourceProvider { readonly gameVersion?: string; readBinary(path: string): Uint8Array | undefined; }
 
 export interface SpecialVisualContext { readonly texture?: THREE.Texture; readonly textures?: Readonly<Record<string, THREE.Texture | undefined>>; }
+export interface NormalizedSpecialVisualDescriptor extends ContentSpecialVisualDescriptor { readonly contentId: string; }
 export interface SpecialVisualProviderMetadata { readonly providerId: string; readonly gameEdition: 'java'; readonly gameVersion: string; readonly namespace: string; readonly family: string; readonly priority: number; }
 export interface BedVisualDescriptor { readonly metadata: SpecialVisualProviderMetadata; matches(block: PlacedBlock): boolean; textureResource(block: PlacedBlock): string | undefined; model(block: PlacedBlock): SpecialModelDescriptor | undefined; transform(block: PlacedBlock, root: THREE.Group): void; }
 export interface SpecialBlockVisualAdapter { readonly family: string; readonly overrideGeneric?: boolean; matches(block: PlacedBlock): boolean; textureResource?(block: PlacedBlock): string | undefined; textureResources?(block: PlacedBlock): Readonly<Record<string, string>>; create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group; }
@@ -26,7 +28,8 @@ export const SPECIAL_VISUAL_COMPATIBILITY: Readonly<Record<string, { readonly re
 export class SpecialBlockVisualRegistry {
   private readonly beds: BedVisualProvider;
   private readonly signs: SignVisualProvider;
-  private readonly adapters: readonly SpecialBlockVisualAdapter[];
+  private readonly adapters: SpecialBlockVisualAdapter[];
+  private readonly descriptorKeys = new Set<string>();
   private readonly gameVersion: string;
   private readonly resources?: SpecialVisualResourceProvider;
   constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
@@ -36,6 +39,28 @@ export class SpecialBlockVisualRegistry {
     this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
   }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
+  registerDescriptor(descriptor: NormalizedSpecialVisualDescriptor): void {
+    if (descriptor.contractId !== 'common-sign') return;
+    const texture = descriptor.resources['default'] ?? descriptor.resources['front'];
+    if (!texture) return;
+    const key = `${descriptor.contentId}|${descriptor.contractId}|${texture}`;
+    if (this.descriptorKeys.has(key)) return;
+    this.descriptorKeys.add(key);
+    this.adapters.unshift({
+      family: 'signs',
+      matches: (block) => block.id === descriptor.contentId && descriptor.stateDependencies.every((property) => block.state[property] !== undefined),
+      textureResource: () => texture,
+      create: (block, context) => {
+        const wall = block.state['facing'] !== undefined && block.state['rotation'] === undefined;
+        const model = normalSignModel(!wall);
+        const root = createSpecialModel(model, context?.texture);
+        const placement = new THREE.Group(); while (root.children.length) placement.add(root.children[0]); root.add(placement);
+        if (wall) applyNormalSignTransform(root, placement, placement, block, true); else applyNormalSignTransform(root, placement, placement, block, false);
+        root.userData['providerId'] = 'minecraftbuilder:common-sign-descriptor';
+        return root;
+      },
+    });
+  }
   resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
     return this.resolveCompatible(block) ?? this.resolveDiagnosticFallback(block);
   }

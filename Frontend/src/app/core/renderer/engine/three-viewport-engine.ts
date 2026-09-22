@@ -9,6 +9,8 @@ import { isBlockVisible } from '../../editor/groups/group-membership';
 import { GroupMovePreview } from '../../editor/groups/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import { BlockVisualProvider, VisualCacheStats } from '../geometry/block-model-geometry';
+import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-block-visuals';
+import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 import { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedDecoration } from '../../decorations/decoration.types';
@@ -123,6 +125,8 @@ export class ThreeViewportEngine {
   private palette: ViewportThemePalette = viewportThemePalette('dark');
   private visualProvider?: BlockVisualProvider;
   private decorationTextureUrl?: (resource: string) => string | undefined;
+  private paintingResource?: (variantId: string) => string | undefined;
+  private specialVisualResolver?: (blockId: string) => ContentSpecialVisualDescriptor | undefined;
   private decorationTextureCache?: DecorationTextureCache;
   private placementPlanProvider?: PlacementPlanProvider;
   private ghostGeneration = 0;
@@ -303,6 +307,13 @@ export class ThreeViewportEngine {
     this.providerGeneration += 1;
     this.structureSyncKey = '';
     this.ghostModelKey = '';
+    if (provider && this.specialVisualResolver) provider.setSpecialVisualDescriptors?.(this.collectSpecialVisualDescriptors());
+    this.update(this.project, this.activeBlock, this.renderOptions);
+  }
+  setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined): void {
+    this.specialVisualResolver = resolver;
+    this.visualProvider?.setSpecialVisualDescriptors?.(this.collectSpecialVisualDescriptors());
+    this.structureSyncKey = '';
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined): void {
@@ -313,13 +324,25 @@ export class ThreeViewportEngine {
     this.structureSyncKey = '';
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
+  setPaintingTextureResolver(provider: ((variantId: string) => string | undefined) | undefined): void {
+    if (provider === this.paintingResource) return;
+    this.paintingResource = provider;
+    this.structureSyncKey = '';
+    this.update(this.project, this.activeBlock, this.renderOptions);
+  }
 
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
+
+  private collectSpecialVisualDescriptors(): readonly NormalizedSpecialVisualDescriptor[] {
+    const ids = new Set([...(this.project?.blocks ?? []).map((block) => block.id), ...(this.activeBlock ? [this.activeBlock.id] : [])]);
+    return [...ids].flatMap((id) => { const descriptor = this.specialVisualResolver?.(id); return descriptor ? [{ ...descriptor, contentId: id }] : []; });
+  }
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}): void {
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
+    this.visualProvider?.setSpecialVisualDescriptors?.(this.collectSpecialVisualDescriptors());
     const syncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}|${this.providerGeneration}` : 'empty';
     const persistentInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
     const full = syncKey !== this.structureSyncKey;
@@ -428,7 +451,7 @@ export class ThreeViewportEngine {
       if (!full && current?.signature === signature) continue;
       if (current) { this.removeDecorationEntry(id, current); this.instrumentation.record('decorationUpdates'); } else this.instrumentation.record('decorationAdds');
       this.instrumentation.record('decorationVisualCreations');
-      const visual = createDecorationVisual(decoration, this.decorationTextureUrl, this.decorationTextureCache); visual.userData['decorationInstanceId'] = id; visual.userData['decoration'] = decoration; visual.traverse((child) => { child.userData['decorationInstanceId'] = id; child.userData['decoration'] = decoration; });
+      const visual = createDecorationVisual(decoration, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource); visual.userData['decorationInstanceId'] = id; visual.userData['decoration'] = decoration; visual.traverse((child) => { child.userData['decorationInstanceId'] = id; child.userData['decoration'] = decoration; });
       this.decorationsGroup.add(visual); this.renderedDecorations.set(id, { id, decoration, signature, object: visual });
     }
   }
@@ -569,7 +592,7 @@ export class ThreeViewportEngine {
   private clearDecorationGhost(): void { for (const child of [...this.decorationGhostGroup.children]) { disposeObject(child); this.decorationGhostGroup.remove(child); } }
   private updateDecorationGhost(candidate: PlacedDecoration, status: DecorationPlacementPlan['status']): void {
     this.clearDecorationGhost();
-    const visual = createDecorationVisual(candidate, this.decorationTextureUrl, this.decorationTextureCache);
+    const visual = createDecorationVisual(candidate, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource);
     visual.renderOrder = 2000;
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();

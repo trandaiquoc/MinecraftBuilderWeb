@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ContentIntrospectionEngine } from './content-introspection';
+import { ContentIntrospectionEngine, SemanticManifestEvidenceProvider } from './content-introspection';
 import type { AssetResourceProvider } from '../blocks/resolver/resolver.types';
 import type { AssetBlockRecord } from '../blocks/catalog/block-definition.types';
 
@@ -87,5 +87,14 @@ describe('content introspection', () => {
     const evidenceProvider = { supplementsFor: (id: string) => id === 'fixture:provider' ? [{ id, properties: [{ name: 'runtime_mode', values: ['safe'], effects: { behavior: true } }] }] : [] };
     const descriptor = new ContentIntrospectionEngine(provider, evidenceProvider).inspectBlock({ id: 'fixture:provider', displayName: 'Provider', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'partial', sourceId: 'fixture' });
     expect(descriptor.properties.find((property) => property.name === 'runtime_mode')?.effects.behavior).toBe(true);
+  });
+
+  it('loads the versioned generic semantic manifest and reports malformed manifests', () => {
+    const provider = new Resources({ 'data/minecraftbuilder/semantic-manifest.json': { schemaVersion: 1, content: { 'fixture:showcase': { properties: { facing: { values: ['north'], defaultValue: 'north' } }, capabilities: [{ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' }], itemHostVisual: { slots: [{ index: 0, position: [0, 0.5, 0], scale: [0.5, 0.5, 0.5] }] } } } } });
+    const evidence = new SemanticManifestEvidenceProvider(provider, 'fixture');
+    expect(evidence.supplementsFor('fixture:showcase', 'fixture')[0]?.capabilities).toContainEqual({ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' });
+    expect(evidence.supplementsFor('fixture:showcase', 'fixture')[0]?.itemHostVisual?.slots[0]).toEqual({ index: 0, position: [0, 0.5, 0], scale: [0.5, 0.5, 0.5] });
+    const malformed = new SemanticManifestEvidenceProvider(new Resources({ 'data/minecraftbuilder/semantic-manifest.json': { schemaVersion: 2, content: {} } }), 'fixture');
+    expect(malformed.diagnostics[0]?.code).toBe('malformed-resource');
   });
 });

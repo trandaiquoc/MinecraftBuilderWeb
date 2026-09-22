@@ -42,13 +42,23 @@ export class ContentSourceRegistry {
     try {
       const catalog = provider.catalog?.();
       if (catalog) { this.contributions.set(provider.source.id, catalog); this.paintingContributions.set(provider.source.id, catalog.paintingVariants ?? []); } else { this.contributions.delete(provider.source.id); this.paintingContributions.delete(provider.source.id); }
+      if (previous && previous !== provider) previous.dispose?.();
     } catch (error) {
       this.resources.remove(provider.source.id);
       if (previous) this.resources.register(previous);
       throw error;
     }
   }
-  remove(sourceId: string): boolean { const removed = this.resources.remove(sourceId); if (removed) { this.contributions.delete(sourceId); this.paintingContributions.delete(sourceId); } return removed; }
+  remove(sourceId: string): boolean {
+    const provider = this.resources.providerForSource(sourceId);
+    const removed = this.resources.remove(sourceId);
+    if (removed) {
+      this.contributions.delete(sourceId);
+      this.paintingContributions.delete(sourceId);
+      provider?.dispose?.();
+    }
+    return removed;
+  }
   get generation(): number { return this.resources.revision; }
   sources(): readonly ContentSourceDescriptor[] { return this.resources.sources(); }
   providerForSource(sourceId: string): ContentSourceProvider | undefined { return this.resources.providerForSource(sourceId); }

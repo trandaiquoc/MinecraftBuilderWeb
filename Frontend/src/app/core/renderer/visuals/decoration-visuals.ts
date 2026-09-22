@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PlacedDecoration } from '../../decorations/decoration.types';
+import { paintingTextureResource } from '../../decorations/decoration.types';
 import { decorationAabb, directionVector } from '../../decorations/placement/decoration-placement';
 
 export class DecorationTextureCache {
@@ -17,7 +18,7 @@ export class DecorationTextureCache {
   dispose(): void { for (const texture of this.textures.values()) texture.dispose(); this.textures.clear(); }
 }
 
-export function createDecorationVisual(decoration: PlacedDecoration, textureUrl?: (resource: string) => string | undefined, cache?: DecorationTextureCache): THREE.Group {
+export function createDecorationVisual(decoration: PlacedDecoration, textureUrl?: (resource: string) => string | undefined, cache?: DecorationTextureCache, paintingResource?: (variantId: string) => string | undefined): THREE.Group {
   const root = new THREE.Group();
   const localCache = cache ?? (textureUrl ? new DecorationTextureCache(textureUrl) : undefined);
   if (localCache && !cache) root.userData['ownedDecorationTextureCache'] = localCache;
@@ -25,7 +26,7 @@ export function createDecorationVisual(decoration: PlacedDecoration, textureUrl?
   root.userData['decoration'] = decoration;
   const aabb = decorationAabb(decoration);
   const size = { x: aabb.max.x - aabb.min.x, y: aabb.max.y - aabb.min.y, z: aabb.max.z - aabb.min.z };
-  const textureResource = decoration.kind === 'painting' ? `minecraft:painting/${decoration.variantId ?? 'kebab'}` : decoration.kind === 'glow-item-frame' ? 'minecraft:block/glow_item_frame' : 'minecraft:block/item_frame';
+  const textureResource = decoration.kind === 'painting' ? paintingResource?.(decoration.variantId ?? 'kebab') ?? paintingTextureResource(decoration.variantId ?? 'kebab') : decoration.kind === 'glow-item-frame' ? 'minecraft:block/glow_item_frame' : 'minecraft:block/item_frame';
   const texture = localCache?.get(textureResource);
   const material = new THREE.MeshLambertMaterial({ color: decoration.kind === 'painting' ? 0xffffff : decoration.kind === 'glow-item-frame' ? 0xf4d35e : 0xb07d52, map: texture, transparent: decoration.invisible ?? false, opacity: decoration.invisible ? 0.18 : 1 });
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(size.x, .03), Math.max(size.y, .03), Math.max(size.z, .03)), material);

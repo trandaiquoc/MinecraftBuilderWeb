@@ -102,7 +102,24 @@ describe('ExternalModProvider', () => {
       ]),
       resources: new Map(),
     });
-    expect(provider.catalog().paintingVariants).toEqual([{ id: 'example:poster', width: 2, height: 1, assetPath: 'example:poster', placeable: true, sourceId: 'mod:paintings', sourceName: 'paintings' }]);
+    expect(provider.catalog().paintingVariants).toEqual([{ id: 'example:poster', width: 2, height: 1, assetPath: 'example:painting/poster', placeable: true, sourceId: 'mod:paintings', sourceName: 'paintings' }]);
+  });
+  it('preserves nested painting asset paths during normalization', () => {
+    const provider = ExternalModProvider.create({ metadata: { id: 'nested-paintings', version: '1.0.0' }, json: new Map([['data/example/painting_variant/gallery.json', { width: 1, height: 1, asset_id: 'example:gallery/poster' }]]), resources: new Map() });
+    expect(provider.catalog().paintingVariants?.[0]?.assetPath).toBe('example:painting/gallery/poster');
+  });
+  it('connects a generic semantic manifest to the external catalog descriptor', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'semantic', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/semantic/blockstates/showcase.json', { variants: { 'facing=north': { model: 'semantic:block/showcase' } } }],
+        ['data/minecraftbuilder/semantic-manifest.json', { schemaVersion: 1, content: { 'semantic:showcase': { properties: { slot: { values: ['0'], defaultValue: '0', effects: { itemDisplay: true } } }, capabilities: [{ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' }], specialVisual: { contractId: 'common-sign', resources: { default: 'semantic:entity/signs/maple' }, stateDependencies: ['facing'] } } } }],
+      ]), resources: new Map(),
+    });
+    const definition = provider.catalog().blocks[0]!;
+    expect(definition.contentDescriptor?.properties.map((property) => property.name)).toContain('slot');
+    expect(definition.capabilities).toContainEqual({ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' });
+    expect(definition.specialVisual?.contractId).toBe('common-sign');
   });
 
   it('reevaluates a normalized cache entry for a different project version', () => {

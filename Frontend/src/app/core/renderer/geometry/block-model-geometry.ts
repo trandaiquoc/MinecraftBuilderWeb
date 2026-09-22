@@ -3,10 +3,11 @@ import { PlacedBlock } from '../../domain/project.types';
 import { BlockModelResolver, ResolvedBlockModel, ResolvedElement, ResolvedFace, ResolvedModelPart } from '../../blocks/resolver';
 import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
 import { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
-import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
+import { NormalizedSpecialVisualDescriptor, SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
 import { createFluidGeometry } from '../fluids/fluid-geometry';
 import { fluidKindForBlockId, FluidWorldLookup } from '../fluids/fluid-state';
+import { resolveResourceLocation, resourcePath } from '../../content/resource-location';
 
 export type BlockRenderMode = 'real' | 'partial' | 'fallback';
 export type BlockRenderDiagnosticCode = 'MODEL_NOT_FOUND' | 'TEXTURE_NOT_FOUND' | 'TEXTURE_DECODE_FAILED' | 'GEOMETRY_BUILD_FAILED' | 'UNKNOWN_ERROR';
@@ -44,6 +45,7 @@ export interface BlockVisualProvider {
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<string | undefined>;
+  setSpecialVisualDescriptors?(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void;
   cacheStats?(): Readonly<VisualCacheStats>;
   resourceCounts?(): Readonly<VisualResourceCounts>;
 }
@@ -157,8 +159,11 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<string | undefined> {
     const key = `item-thumbnail-v2|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`).join(';')}`;
     const cached = this.thumbnailCache.get(key); if (cached) return cached;
-    const task = this.renderThumbnailBlocks(item.previewBlocks).catch(() => this.thumbnailUrl(item.displayBlockId, item.defaultState));
+    const task = this.renderThumbnailBlocks(item.previewBlocks).then((url) => url ?? this.itemThumbnailResource(item.itemId)).catch(() => this.itemThumbnailResource(item.itemId) ?? this.thumbnailUrl(item.displayBlockId, item.defaultState));
     this.thumbnailCache.set(key, task); return task;
+  }
+  setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void {
+    for (const descriptor of descriptors) this.specialVisuals.registerDescriptor(descriptor);
   }
 
   dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
@@ -186,6 +191,11 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7)); camera.lookAt(center);
     renderer.render(scene, camera); for (const object of visuals) scene.remove(object);
     return renderer.domElement.toDataURL('image/png');
+  }
+
+  private itemThumbnailResource(itemId: string): string | undefined {
+    const resource = itemVisualResource(this.assets, itemId);
+    return resource ? this.assets.textureUrl?.(resource) : undefined;
   }
 
   private resolve(blockId: string, state: Readonly<Record<string, string>>): ResolvedBlockModel {
@@ -269,6 +279,47 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     return texture ? sampleGrassColormap(texture) : undefined;
   }
 }
+
+/** Resolves the first statically declared inventory texture for an Item. This
+ * intentionally supports only data-driven item formats; runtime renderers are
+ * left unresolved instead of being guessed. */
+export function itemVisualResource(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, itemId: string): string | undefined {
+  const location = resolveResourceLocation(itemId);
+  if (!location) return undefined;
+  const [namespace, name] = location.split(':', 2);
+  const modernPath = `assets/${namespace}/items/${name}.json`;
+  const legacyPath = `assets/${namespace}/models/item/${name}.json`;
+  const raw = provider.readJson(modernPath) ?? provider.readJson(legacyPath);
+  const directTextures = isRecord(raw) && isRecord(raw['textures']) ? raw['textures'] : undefined;
+  if (directTextures) for (const key of Object.keys(directTextures).filter((key) => /^layer\d+$/.test(key)).sort()) {
+    const value = directTextures[key]; if (typeof value === 'string') return resolveResourceLocation(value, namespace) ?? value;
+  }
+  const model = modelReference(raw) ?? `${namespace}:item/${name}`;
+  const visited = new Set<string>();
+  const visit = (modelId: string): string | undefined => {
+    const normalized = resolveResourceLocation(modelId, namespace) ?? modelId;
+    const path = resourcePath(normalized, 'models') ?? `assets/${namespace}/models/${normalized.split(':').at(-1)}.json`;
+    if (visited.has(path)) return undefined;
+    visited.add(path);
+    const document = provider.readJson(path);
+    if (!isRecord(document)) return undefined;
+    const textures = isRecord(document['textures']) ? document['textures'] : {};
+    for (const key of Object.keys(textures).filter((key) => /^layer\d+$/.test(key)).sort()) {
+      const value = textures[key]; if (typeof value === 'string') return resolveResourceLocation(value, normalized.split(':')[0]) ?? value;
+    }
+    if (typeof document['parent'] === 'string') return visit(document['parent']);
+    return undefined;
+  };
+  return model ? visit(model) : undefined;
+}
+
+function modelReference(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  if (typeof value['model'] === 'string') return value['model'];
+  const model = value['model'];
+  return isRecord(model) && typeof model['model'] === 'string' ? model['model'] : undefined;
+}
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
 /** Deterministic face-lighting approximation for the target's explicit shade direction. */
 export function shadeDirectionFactor(direction: string): number {

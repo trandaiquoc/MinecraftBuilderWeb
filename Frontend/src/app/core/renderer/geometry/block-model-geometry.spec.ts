@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../../blocks/resolver';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
-import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
+import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, itemVisualResource, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from '../engine/three-viewport-engine';
 import { viewportThemePalette } from '../engine/viewport-theme';
 
@@ -48,6 +48,15 @@ describe('block model geometry', () => {
     data.set([0x72, 0xb8, 0x55, 0xff], offset);
     const texture = new THREE.Texture({ width: 256, height: 256, data });
     expect(sampleGrassColormap(texture)).toBe(0x72b855);
+  });
+  it('resolves legacy and modern Item textures without requiring a Block model', () => {
+    const resources = {
+      'assets/example/models/item/hammer.json': { parent: 'item/generated', textures: { layer0: 'example:item/hammer' } },
+      'assets/example/items/gem.json': { model: { type: 'minecraft:model', model: 'example:item/gem' } },
+      'assets/example/models/item/gem.json': { parent: 'item/generated', textures: { layer0: 'example:item/gem' } },
+    };
+    expect(itemVisualResource({ readJson: (path) => resources[path as keyof typeof resources] }, 'example:hammer')).toBe('example:item/hammer');
+    expect(itemVisualResource({ readJson: (path) => resources[path as keyof typeof resources] }, 'example:gem')).toBe('example:item/gem');
   });
   it('preserves out-of-range element coordinates and reversed UV ordering', () => {
     const element: ResolvedElement = { from: [-2, 0, 0], to: [20, 8, 16], faces: { north: face } };

@@ -1,5 +1,5 @@
 import type { BlockCapability, BlockCapabilityEvidence, BlockCapabilityProfile } from '../capabilities/block-capability.types';
-import type { ContentSemanticEvidence, NormalizedContentDescriptor } from '../../content/content-introspection';
+import type { ContentItemHostVisualDescriptor, ContentSemanticEvidence, ContentSpecialVisualDescriptor, NormalizedContentDescriptor } from '../../content/content-introspection';
 
 export type BlockSupportLevel = 'full' | 'partial' | 'fallback';
 export type BehaviorSupportLevel = 'full' | 'partial' | 'unknown';
@@ -99,6 +99,8 @@ export interface BlockDefinition {
   readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
   readonly supportContracts?: readonly string[];
+  readonly specialVisual?: ContentSpecialVisualDescriptor;
+  readonly itemHostVisual?: ContentItemHostVisualDescriptor;
 }
 
 /** Catalog output always has a normalized profile; legacy hand-authored callers may use BlockDefinition. */
@@ -135,4 +137,6 @@ export interface AssetBlockRecord {
   readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
   readonly supportContracts?: readonly string[];
+  readonly specialVisual?: ContentSpecialVisualDescriptor;
+  readonly itemHostVisual?: ContentItemHostVisualDescriptor;
 }

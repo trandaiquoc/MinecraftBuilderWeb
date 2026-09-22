@@ -1,6 +1,7 @@
 import type { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
 import type { PaintingVariant } from '../../decorations/decoration.types';
+import type { ContentSemanticEvidenceProvider } from '../../content/content-introspection';
 
 export type ContentSourceKind = 'vanilla' | 'external';
 export const CONTENT_SOURCE_MINECRAFT_VERSION = '1.21.1' as const;
@@ -18,6 +19,7 @@ export interface ContentSourceDescriptor {
 export interface ContentSourceProvider extends AssetResourceProvider {
   readonly source: ContentSourceDescriptor;
   catalog?(): BlockCatalogSource & { readonly paintingVariants?: readonly PaintingVariant[] };
+  readonly semanticEvidenceProviders?: readonly ContentSemanticEvidenceProvider[];
   dispose?(): void;
 }
 

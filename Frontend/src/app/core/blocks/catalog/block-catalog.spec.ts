@@ -49,6 +49,18 @@ describe('BlockCatalog', () => {
     expect(hasBlockCapability(catalog.get('example:lookalike'), 'item-storage-display')).toBe(false);
   });
 
+  it('retains the effective merged descriptor on the normalized definition', () => {
+    const catalog = new BlockCatalog();
+    catalog.load({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{
+      id: 'example:display', displayName: 'Display', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'partial',
+      contentDescriptor: { id: 'example:display', sourceId: 'example', sourceName: 'Example', roles: ['block'], roleEvidence: [], resources: [], properties: [], predicates: [], placementDefault: {}, representativeVisualState: {}, relationships: [], capabilities: [], semanticEvidence: [], stateSchemaIncomplete: true, resourceGraph: { nodes: [], edges: [], diagnostics: [] }, diagnostics: [] },
+      semanticSupplements: [{ id: 'example:display', properties: [{ name: 'slot', values: ['0'], effects: { itemDisplay: true } }], capabilities: [{ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' }] }],
+    }] });
+    const descriptor = catalog.get('example:display')?.contentDescriptor;
+    expect(descriptor?.properties.map((property) => property.name)).toContain('slot');
+    expect(hasBlockCapability(catalog.get('example:display'), 'item-storage-display')).toBe(true);
+  });
+
   it('searches normalized display name, ID, namespace and mod name', () => {
     const catalog = new BlockCatalog();
     catalog.load(representativeBlockFixture);

@@ -88,12 +88,15 @@ function toDefinition(record: AssetBlockRecord, sourceId = record.sourceId ?? 'v
     stateDefinitions,
     supportRequirements: descriptor?.supportRequirements ?? record.supportRequirements,
     supportContracts: descriptor?.supportContracts ?? record.supportContracts,
+    specialVisual: descriptor?.specialVisual ?? record.specialVisual,
+    itemHostVisual: descriptor?.itemHostVisual ?? record.itemHostVisual,
     support,
     behaviorSupport: record.behaviorSupport ?? (record.behavior ? support === 'full' ? 'full' : 'partial' : 'unknown'),
     visualSupport: record.visualSupport ?? (support === 'full' ? 'real' : support),
     visualClassification,
     defaultStateSource: record.defaultStateSource ?? 'unknown',
     capabilities: deriveBlockCapabilities({ behavior: record.behavior, visualClassification: hasVisualEvidence ? visualClassification : undefined, visualClassificationEvidence: record.visualClassificationEvidence ?? (record.visualClassification ? 'verified' : explicitRender?.evidence), stateDefinitions, explicit: explicitCapabilities }),
+    ...(descriptor ? { contentDescriptor: descriptor } : {}),
   };
 }
 

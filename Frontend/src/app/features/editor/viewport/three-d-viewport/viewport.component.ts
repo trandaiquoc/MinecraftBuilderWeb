@@ -25,6 +25,7 @@ import { decorationAabb } from '../../../../core/decorations/placement/decoratio
 import { facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
 import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-binding.service';
 import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
+import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 
 @Component({ selector: 'app-viewport', templateUrl: './viewport.component.html', styleUrl: './viewport.component.scss' })
 export class ViewportComponent implements AfterViewInit, OnDestroy {
@@ -44,6 +45,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly signTextSide = inject(SignTextSideService);
   private readonly decorations = inject(DecorationService);
   private readonly input = inject(KeyboardBindingService);
+  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   protected readonly status = signal<PlacementStatus>('invalid');
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
@@ -54,7 +56,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setKeyboardBindings(preferences.shortcuts); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); });
-  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); });
+  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver((id) => this.library.get(id)?.specialVisual); this.engine.setDecorationTextureProvider((resource) => this.assets.provider()?.textureUrl(resource)); this.engine.setPaintingTextureResolver((id) => this.paintingCatalog.get(id)?.assetPath); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); this.engine.mount(this.host().nativeElement); this.engine.restoreCamera(this.cameraState.get('3d')); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics()); }

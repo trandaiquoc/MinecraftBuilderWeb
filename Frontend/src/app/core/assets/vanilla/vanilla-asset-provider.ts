@@ -15,7 +15,7 @@ import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vani
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
 import { resolveResourceLocation } from '../../content/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
-import { ContentIntrospectionEngine } from '../../content/content-introspection';
+import { ContentIntrospectionEngine, SemanticManifestEvidenceProvider } from '../../content/content-introspection';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -47,6 +47,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   readonly gameEdition = 'java' as const;
   readonly gameVersion: string;
   readonly source;
+  readonly semanticEvidenceProviders: readonly SemanticManifestEvidenceProvider[];
 
   constructor(sourceName: string, json: Readonly<Record<string, unknown>>, binary: ReadonlyMap<string, Uint8Array>);
   constructor(sourceName: string, minecraftVersion: string, json: Readonly<Record<string, unknown>>, binary: ReadonlyMap<string, Uint8Array>);
@@ -57,6 +58,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     this.binary = (typeof versionOrJson === 'string' ? maybeBinary : jsonOrBinary) as ReadonlyMap<string, Uint8Array>;
     this.gameVersion = this.minecraftVersion;
     this.source = { id: 'vanilla', kind: 'vanilla' as const, displayName: 'Vanilla', minecraftVersion: this.minecraftVersion, sourceVersion: this.minecraftVersion, namespaces: ['minecraft'] as const, decorationSupport: true };
+    this.semanticEvidenceProviders = [new SemanticManifestEvidenceProvider(this, this.source.id, this.source.displayName)];
   }
   readonly sourceName: string;
   readonly minecraftVersion: string;
@@ -138,7 +140,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
     const behaviorRegistry = new VanillaBehaviorRegistry(this);
     const resolver = new BlockModelResolver(this);
-    const introspection = new ContentIntrospectionEngine(this);
+    const introspection = new ContentIntrospectionEngine(this, this.semanticEvidenceProviders);
     const resources = (registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
       const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
     })).filter(({ id }) => !isDecorationEntityId(id));

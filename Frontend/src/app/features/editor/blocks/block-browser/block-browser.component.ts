@@ -33,7 +33,7 @@ export class BlockBrowserComponent {
   });
   protected readonly activeSource = computed(() => this.sources().some((source) => source.id === this.selectedSource()) ? this.selectedSource() : ALL_CONTENT_SOURCE);
   protected readonly results = computed(() => placementItemSearch(filterByContentSource(this.library.allPlaceableItems(), this.activeSource()), this.library.query()));
-  private readonly thumbnailSync = effect(() => { this.assets.visualProvider(); this.assets.prepareItemThumbnails(this.library.results()); });
+  private readonly thumbnailSync = effect(() => { this.assets.visualProvider(); this.assets.prepareItemThumbnails(this.results()); });
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }
   protected retryAssets(): void { void this.assets.redownload(); }

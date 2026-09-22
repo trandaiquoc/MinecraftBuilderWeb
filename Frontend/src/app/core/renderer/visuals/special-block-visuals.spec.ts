@@ -17,6 +17,12 @@ describe('special block visuals', () => {
   });
   it('does not claim generic JSON blocks as special', () => expect(registry.resolve(block('minecraft:stone'))).toBeUndefined());
   it('does not fabricate a classic entity-bed texture for a new bed family', () => expect(registry.resolve(block('minecraft:straw_bed'))).toBeUndefined());
+  it('accepts a verified common-sign descriptor for an external namespace', () => {
+    registry.registerDescriptor({ contentId: 'example:maple_sign', contractId: 'common-sign', resources: { default: 'example:entity/signs/maple' }, stateDependencies: ['facing'], provenance: 'trusted-data' });
+    const target = { ...block('example:maple_sign'), state: { facing: 'north' } };
+    expect(registry.resolve(target)?.family).toBe('signs');
+    expect(registry.resolve(target)?.textureResource?.(target)).toBe('example:entity/signs/maple');
+  });
 
   it('keeps Vanilla special adapters namespace-isolated', () => {
     for (const id of ['examplemod:barrel', 'examplemod:red_shulker_box', 'examplemod:oak_sign', 'examplemod:oak_bed', 'examplemod:dragon_head', 'examplemod:decorated_pot', 'examplemod:conduit']) {

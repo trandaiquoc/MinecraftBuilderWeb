@@ -1654,3 +1654,28 @@ separate from deterministic representative visual state, and expose a
 source-aware resource dependency graph plus structured missing/cycle/schema
 diagnostics. This is additive metadata and does not change project schema or
 asset-cache schema; F2 owns any UI exposure.
+
+## Prompt 13B-F2 Hotfix
+
+- External sources may provide verified runtime semantics through the versioned
+  `data/minecraftbuilder/semantic-manifest.json` (or equivalent
+  `assets/minecraftbuilder/semantic-manifest.json`) schema with
+  `schemaVersion: 1` and a `content` map. Malformed manifests are diagnostic
+  only; no runtime code is executed and static-only content remains incomplete.
+  Entries may declare `properties`, `defaultState`, verified `capabilities`,
+  `supportRequirements`, `supportContracts`, and a `specialVisual` descriptor
+  (`contractId`, namespaced `resources`, and `stateDependencies`). Verified
+  item-host display transforms may be supplied separately as
+  `itemHostVisual.slots`; slot count alone never implies a transform.
+- Effective content descriptors are retained on normalized BlockDefinitions.
+  Representative visual state is used only by palette previews; placement
+  continues to use canonical default state.
+- Painting `asset_id` values are normalized once to namespaced
+  `namespace:painting/<path>` resources and are used by browser and world
+  rendering. External sources are not substituted with the Minecraft
+  namespace.
+- Item thumbnails first use the world preview and then a data-driven Item
+  model texture fallback (legacy `models/item` and modern `items` references);
+  unsupported runtime Item renderers remain unresolved.
+- Block Browser thumbnail preparation follows the currently visible source and
+  search result set rather than the entire catalog.

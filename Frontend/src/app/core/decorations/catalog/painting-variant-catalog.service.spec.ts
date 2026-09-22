@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PaintingVariantCatalogService } from './painting-variant-catalog.service';
+import { PaintingVariantCatalog } from './painting-catalog';
 
 describe('PaintingVariantCatalogService', () => {
   it('normalizes legacy vanilla variants and filters external paintings by source', () => {
@@ -11,5 +12,14 @@ describe('PaintingVariantCatalogService', () => {
     expect(catalog.placeable().some((entry) => entry.id === 'example:poster')).toBe(true);
     catalog.removeSource('example-paintings');
     expect(catalog.placeable().some((entry) => entry.id === 'example:poster')).toBe(false);
+  });
+
+  it('canonicalizes asset ids when loading a source catalog', () => {
+    const catalog = new PaintingVariantCatalog();
+    catalog.load({
+      paths: () => ['data/example/painting_variant/gallery.json'],
+      readJson: () => ({ width: 1, height: 1, asset_id: 'example:gallery/poster' }),
+    }, 'example-source', 'Example');
+    expect(catalog.get('example:gallery')).toMatchObject({ assetPath: 'example:painting/gallery/poster' });
   });
 });

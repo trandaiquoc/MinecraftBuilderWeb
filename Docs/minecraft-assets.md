@@ -723,3 +723,17 @@ edges and source ownership, including cross-source references through the
 composite provider. Missing resources and unknown runtime semantics are
 diagnostics; content is never replaced with `air` or dropped. No cache-schema
 bump is required because these descriptors are transient derived metadata.
+
+## F2 hotfix integration
+
+External sources may optionally include the versioned semantic manifest at
+`data/minecraftbuilder/semantic-manifest.json` (or the equivalent
+`assets/minecraftbuilder/semantic-manifest.json`). It is static evidence only;
+the importer never executes source code. Legacy `models/item` and modern
+`items` definitions are both retained. Browser thumbnails use the rendered
+world preview first and a resolved Item texture fallback when a world model is
+not renderable. Painting `asset_id` values are normalized to the canonical
+`namespace:painting/<path>` resource before picker or world rendering.
+Verified item-host display transforms can be carried as
+`itemHostVisual.slots` (`index`, optional `position`, `rotation`, and `scale`);
+storage capability metadata without this contract remains visually partial.

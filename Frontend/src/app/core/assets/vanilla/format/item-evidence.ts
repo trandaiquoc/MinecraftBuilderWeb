@@ -36,7 +36,7 @@ function collectItemReferences(value: unknown, models: Set<string>, resources: S
   if (!value || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value)) {
     if (typeof child === 'string' && (key === 'model' || key === 'parent' || key === 'texture' || key === 'textures')) {
-      (key === 'model' || key === 'parent' ? models : resources).add(resolveResourceLocation(child, 'minecraft') ?? child);
+      (key === 'model' || key === 'parent' ? models : resources).add(resolveResourceLocation(child, namespace) ?? child);
     } else if (typeof child === 'object') collectItemReferences(child, models, resources, namespace);
   }
 }
