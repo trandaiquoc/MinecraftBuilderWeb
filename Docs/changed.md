@@ -1630,3 +1630,27 @@ renderer fallback. `minecraft:heavy_core` therefore resolves its real
 - External cache schema is now version-independent from the active project version. Cached normalized content is reevaluated against the current Minecraft requirement when a project version changes.
 - Source removal removes Block/Item/Painting/resource contributions while preserving existing project IDs as unresolved data.
 - No Prompt 13C Asset Manager redesign, Forge implementation, runtime code execution, backend, or automatic Internet lookup was added.
+
+## Prompt 13B-F1: shared resource and content introspection
+
+Resource-location parsing is centralized in `core/content/resource-location.ts`.
+Bare model, texture, item, and painting references use the supported default
+namespace semantics; `#name` remains a distinct texture-variable form. The
+resolver, vanilla texture provider, composite provider, special visuals, and
+item evidence reader now share this boundary.
+
+`TagIndex` normalizes block, item, and painting-variant tags across active
+sources. It preserves raw contributions, source provenance, `replace` flags,
+optional/object values, recursive members, cycle diagnostics, and unresolved
+members. It is evidence only; it does not manufacture behavior. External
+common behavior no longer needs an ID/name heuristic when a strict source has
+an explicit family contract/tag evidence.
+
+`ContentIntrospectionEngine` produces optional normalized descriptors for block,
+item, and decoration roles. Block descriptors retain every statically observed
+property/value from variants and multipart predicates, compare resource-backed
+visual signatures without Cartesian enumeration, keep placement defaults
+separate from deterministic representative visual state, and expose a
+source-aware resource dependency graph plus structured missing/cycle/schema
+diagnostics. This is additive metadata and does not change project schema or
+asset-cache schema; F2 owns any UI exposure.

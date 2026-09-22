@@ -1,5 +1,7 @@
 import { BlockSupportLevel } from '../catalog/block-definition.types';
 import { BlockState } from '../../domain/project.types';
+import { resolveResourceLocation, resourcePath } from '../../content/resource-location';
+import { variantKeyMatches, normalizePredicate, predicateMatches } from '../../content/normalized-predicate';
 import { AssetResourceProvider, BlockStateRotationResult, MemoryAssetResourceProvider, ResolvedBlockModel, ResolvedElement, ResolvedElementRotation, ResolvedFace, ResolvedModelPart, ResolverDiagnostic, ResolverDiagnosticCode, ResolverStateDefinitions } from './resolver.types';
 
 interface ModelDocument { parent?: unknown; textures?: unknown; elements?: unknown; ambientocclusion?: unknown; }
@@ -54,9 +56,9 @@ export class BlockModelResolver {
     const current = raw as ModelDocument;
     const parentId = typeof current.parent === 'string' ? current.parent : undefined;
     if (!parentId) return current;
-    const parentResource = modelPath(resolveResourceLocation(parentId, model));
+    const parentResource = modelPath(resolveResourceLocation(parentId) ?? parentId);
     parentResources.add(parentResource);
-    const parent = this.resolveModel(resolveResourceLocation(parentId, model), diagnostics, new Set([...chain, path]), modelResources, parentResources);
+    const parent = this.resolveModel(resolveResourceLocation(parentId) ?? parentId, diagnostics, new Set([...chain, path]), modelResources, parentResources);
     if (!parent) { diagnostics.push(diagnostic('missing-parent', `Missing model parent: ${parentId}`, path)); return current; }
     return { ...parent, ...current, textures: { ...(isRecord(parent.textures) ? parent.textures : {}), ...(isRecord(current.textures) ? current.textures : {}) }, elements: current.elements ?? parent.elements, ambientocclusion: current.ambientocclusion ?? parent.ambientocclusion };
   }
@@ -91,16 +93,12 @@ function configuredModels(value: unknown, seed: string, diagnostics: ResolverDia
 }
 
 function variantMatches(key: string, state: BlockState): boolean {
-  if (!key) return true;
-  return key.split(',').every((entry) => { const [property, expected] = entry.split('='); return !!property && expected !== undefined && expected.split('|').includes(state[property]); });
+  return variantKeyMatches(key, state);
 }
 
 function multipartMatches(value: unknown, state: BlockState): boolean {
   if (value === undefined) return true;
-  if (!isRecord(value)) return false;
-  if (Array.isArray(value['OR'])) return value['OR'].some((item) => multipartMatches(item, state));
-  if (Array.isArray(value['AND'])) return value['AND'].every((item) => multipartMatches(item, state));
-  return Object.entries(value).every(([property, expected]) => typeof expected === 'string' && expected.split('|').includes(state[property]));
+  return isRecord(value) && predicateMatches(normalizePredicate(value), state);
 }
 
 function parseElements(value: unknown, textures: Readonly<Record<string, string>>, textureHints: Readonly<Record<string, boolean>>, diagnostics: ResolverDiagnostic[], resource: string): ResolvedElement[] {
@@ -149,7 +147,7 @@ function resolveTextureReference(value: string, textures: Readonly<Record<string
   // Resolve it through the same variable chain before treating the value as
   // a namespaced resource location.
   const key = value.startsWith('#') ? value.slice(1) : Object.prototype.hasOwnProperty.call(textures, value) ? value : undefined;
-  if (key === undefined) return value.includes(':') ? value : `${resource.split(':')[0]}:${value}`;
+  if (key === undefined) return resolveResourceLocation(value) ?? value;
   if (chain.has(key)) { diagnostics.push(diagnostic('texture-cycle', `Circular texture variable detected: ${value}`, resource)); return value; }
   const next = textures[key];
   const nextReference = typeof next === 'string' ? next : isRecord(next) && typeof next['sprite'] === 'string' ? next['sprite'] : undefined;
@@ -157,9 +155,8 @@ function resolveTextureReference(value: string, textures: Readonly<Record<string
   return resolveTextureReference(nextReference, textures, diagnostics, resource, new Set([...chain, key]));
 }
 
-function blockstatePath(id: string): string { const [namespace, name] = id.split(':'); return `assets/${namespace ?? 'minecraft'}/blockstates/${name ?? id}.json`; }
-function modelPath(id: string): string { const location = resolveResourceLocation(id, 'minecraft:block/stone'); return `assets/${location.split(':')[0]}/models/${location.split(':')[1]}.json`; }
-function resolveResourceLocation(id: string, context: string): string { return id.includes(':') ? id : `${context.split(':')[0]}:${id}`; }
+function blockstatePath(id: string): string { return resourcePath(id, 'blockstates') ?? `assets/minecraft/blockstates/${id}.json`; }
+function modelPath(id: string): string { return resourcePath(id, 'models') ?? `assets/minecraft/models/${id}.json`; }
 function specificity(key: string): number { return key ? key.split(',').length : 0; }
 function stableHash(value: string): number { let hash = 2166136261; for (let index = 0; index < value.length; index++) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619); return (hash >>> 0); }
 function numberOrUndefined(value: unknown): number | undefined { return typeof value === 'number' ? value : undefined; }

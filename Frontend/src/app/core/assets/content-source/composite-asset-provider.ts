@@ -1,5 +1,6 @@
 import { AssetResourceProvider } from '../../blocks/resolver/resolver.types';
 import { ContentSourceDescriptor, ContentSourceProvider, RenderableAssetResourceProvider } from './content-source.types';
+import { resolveResourceLocation } from '../../content/resource-location';
 
 export interface ResourceContributionConflict {
   readonly path: string;
@@ -87,9 +88,11 @@ export class CompositeAssetResourceProvider implements AssetResourceProvider, Re
   }
   readBinary(path: string): Uint8Array | undefined { return this.effectiveResource(path)?.readBinary?.(path); }
   textureUrl(resource: string): string | undefined {
-    const [namespace, path] = resource.includes(':') ? resource.split(':', 2) : ['minecraft', resource];
-    const assetPath = `assets/${namespace}/textures/${path.replace(/^textures\//, '').replace(/\.png$/, '')}.png`;
-    return this.effectiveResource(assetPath)?.textureUrl?.(`${namespace}:${path}`);
+    const location = resolveResourceLocation(resource.replace(/^textures\//, '').replace(/\.png$/, ''));
+    if (!location) return undefined;
+    const [namespace, path] = location.split(':', 2);
+    const assetPath = `assets/${namespace}/textures/${path}.png`;
+    return this.effectiveResource(assetPath)?.textureUrl?.(location);
   }
   paths(): readonly string[] { return [...new Set([...this.providerPaths.values()].flat())].sort(); }
 

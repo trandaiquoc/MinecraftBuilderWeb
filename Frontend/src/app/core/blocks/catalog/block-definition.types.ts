@@ -1,4 +1,5 @@
 import type { BlockCapability, BlockCapabilityEvidence, BlockCapabilityProfile } from '../capabilities/block-capability.types';
+import type { ContentSemanticEvidence, NormalizedContentDescriptor } from '../../content/content-introspection';
 
 export type BlockSupportLevel = 'full' | 'partial' | 'fallback';
 export type BehaviorSupportLevel = 'full' | 'partial' | 'unknown';
@@ -86,6 +87,9 @@ export interface BlockDefinition {
   readonly trustedBehaviorFamilies?: readonly string[];
   /** External resource sources set this to require explicit family evidence. */
   readonly behaviorEvidenceRequired?: boolean;
+  /** Resource-backed roles/state/effect evidence shared by block, item and decoration tooling. */
+  readonly contentDescriptor?: NormalizedContentDescriptor;
+  readonly semanticEvidence?: readonly ContentSemanticEvidence[];
 }
 
 /** Catalog output always has a normalized profile; legacy hand-authored callers may use BlockDefinition. */
@@ -117,4 +121,6 @@ export interface AssetBlockRecord {
   readonly itemEvidence?: BlockItemEvidence;
   readonly trustedBehaviorFamilies?: readonly string[];
   readonly behaviorEvidenceRequired?: boolean;
+  readonly contentDescriptor?: NormalizedContentDescriptor;
+  readonly semanticEvidence?: readonly ContentSemanticEvidence[];
 }

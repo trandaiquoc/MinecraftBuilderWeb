@@ -1,4 +1,5 @@
 import type { CatalogItemEvidence } from '../../../blocks/catalog/block-definition.types';
+import { resolveResourceLocation } from '../../../content/resource-location';
 
 /** Normalized evidence extracted from a target-version item definition. */
 export type TargetItemEvidence = Omit<CatalogItemEvidence, 'sourceFormat'> & { readonly sourceFormat: 'modern-item-definition' | 'legacy-item-model' | 'unknown' };
@@ -16,7 +17,7 @@ export function itemEvidenceFromResources(
       const itemId = `${match[1]}:${match[2]}`;
       const models = new Set<string>();
       const resources = new Set<string>();
-      collectItemReferences(json[path], models, resources);
+      collectItemReferences(json[path], models, resources, match[1]);
       return {
         itemId,
         referencedModels: [...models],
@@ -30,12 +31,12 @@ export function itemEvidenceFromResources(
 
 function isItemEvidence(value: TargetItemEvidence | undefined): value is TargetItemEvidence { return value !== undefined; }
 
-function collectItemReferences(value: unknown, models: Set<string>, resources: Set<string>): void {
-  if (Array.isArray(value)) { value.forEach((entry) => collectItemReferences(entry, models, resources)); return; }
+function collectItemReferences(value: unknown, models: Set<string>, resources: Set<string>, namespace = 'minecraft'): void {
+  if (Array.isArray(value)) { value.forEach((entry) => collectItemReferences(entry, models, resources, namespace)); return; }
   if (!value || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value)) {
     if (typeof child === 'string' && (key === 'model' || key === 'parent' || key === 'texture' || key === 'textures')) {
-      (key === 'model' || key === 'parent' ? models : resources).add(child);
-    } else if (typeof child === 'object') collectItemReferences(child, models, resources);
+      (key === 'model' || key === 'parent' ? models : resources).add(resolveResourceLocation(child, 'minecraft') ?? child);
+    } else if (typeof child === 'object') collectItemReferences(child, models, resources, namespace);
   }
 }

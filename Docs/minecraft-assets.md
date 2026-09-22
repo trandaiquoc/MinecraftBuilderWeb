@@ -705,3 +705,21 @@ Inspection and activation are separate. `inspectModJar()` produces a disposable 
 Content discovery is independent: blockstate JSON is Block evidence, `assets/<namespace>/items/**/*.json` and legacy `models/item/**/*.json` are Item evidence, and `data/<namespace>/painting_variant/**/*.json` plus the standard placeable tag are Painting evidence. An item-only resource never becomes a placeable Block. External block behavior is only shared with Vanilla contracts when trusted standard tag evidence and state/resource shape agree; name suffixes are not behavior metadata.
 
 Composite resource routing is exact-path based rather than namespace-owned. Unique additive resources under `minecraft` are accepted, exact ordinary collisions are blocking, additive tags merge, and `replace:true` tag contributions remain unsupported without an explicit load-order policy. Missing external dependencies and unsupported custom loaders are surfaced as diagnostics while the usable static resource graph is preserved.
+
+## Resource and content introspection (Prompt 13B-F1)
+
+All supported sources use the shared resource-location resolver for namespaced,
+bare, and texture-variable references. The normalized `TagIndex` merges active
+block/item/painting tags deterministically, expands nested references safely,
+detects cycles, preserves optional entries and replacement diagnostics, and
+keeps source provenance.
+
+The additive `ContentIntrospectionEngine` describes independent Block, Item,
+and Decoration roles from retained static evidence. It preserves all observed
+variant/multipart properties, normalizes predicates, identifies resource-backed
+visual effects with deterministic representative states, and records placement
+defaults separately. A dependency graph retains blockstate/model/parent/texture
+edges and source ownership, including cross-source references through the
+composite provider. Missing resources and unknown runtime semantics are
+diagnostics; content is never replaced with `air` or dropped. No cache-schema
+bump is required because these descriptors are transient derived metadata.

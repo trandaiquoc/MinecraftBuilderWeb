@@ -13,6 +13,7 @@ import type { TargetItemEvidence } from './format/item-evidence';
 import { classifyContent, isDecorationEntityId } from '../../content/content-classifier';
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
+import { resolveResourceLocation } from '../../content/resource-location';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -209,9 +210,11 @@ function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<ty
 
 export function texturePath(resource: string): string {
   if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
-  const [namespace, path] = resource.includes(':') ? resource.split(':', 2) : ['minecraft', resource];
-  const normalized = path.replace(/^textures\//, '').replace(/\.png$/, '');
-  return `assets/${namespace}/textures/${normalized}.png`;
+  const normalized = resolveResourceLocation(resource.replace(/^textures\//, '').replace(/\.png$/, ''));
+  if (!normalized) return resource;
+  const [namespace, rawPath] = normalized.split(':', 2);
+  const path = rawPath.replace(/^textures\//, '').replace(/\.png$/, '');
+  return `assets/${namespace}/textures/${path}.png`;
 }
 
 function configuredModelIds(value: unknown): string[] {

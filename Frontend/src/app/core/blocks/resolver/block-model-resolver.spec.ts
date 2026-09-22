@@ -46,6 +46,16 @@ describe('Minecraft block model resolver', () => {
     expect(result.parts[0].elements[0].faces['north']?.texture).toBe('minecraft:block/heavy_core');
   });
 
+  it('resolves a bare model parent in the default minecraft namespace', () => {
+    const result = resolver({
+      'assets/example/blockstates/widget.json': { variants: { '': { model: 'example:block/widget' } } },
+      'assets/example/models/block/widget.json': { parent: 'block/cube_all' },
+      'assets/minecraft/models/block/cube_all.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: { north: { texture: 'minecraft:block/stone' } } }] },
+    }).resolve('example:widget');
+    expect(result.support).toBe('full');
+    expect(result.trace.parentResources).toContain('assets/minecraft/models/block/cube_all.json');
+  });
+
   it('normalizes Mojang modern x/y/z element rotations and preserves legacy precedence', () => {
     const result = resolver({
       'assets/minecraft/blockstates/test.json': { variants: { '': { model: 'minecraft:block/test' } } },

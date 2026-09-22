@@ -4,6 +4,7 @@ import type { PaintingVariant } from '../../decorations/decoration.types';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
 import { CompositeAssetResourceProvider } from './composite-asset-provider';
+import { TagIndex } from '../../content/tag-index';
 
 export interface SourceRegistrationDiagnostic { readonly sourceId: string; readonly message: string; }
 export interface ContentContributionConflict { readonly kind: 'block-id' | 'item-id' | 'decoration-id'; readonly id: string; readonly sourceIds: readonly string[]; }
@@ -51,6 +52,8 @@ export class ContentSourceRegistry {
   get generation(): number { return this.resources.revision; }
   sources(): readonly ContentSourceDescriptor[] { return this.resources.sources(); }
   providerForSource(sourceId: string): ContentSourceProvider | undefined { return this.resources.providerForSource(sourceId); }
+  /** Normalized tag evidence across all active sources, without exposing source-specific JSON shape. */
+  tagIndex(): TagIndex { return new TagIndex(this.sources().map((source) => this.providerForSource(source.id)).filter((provider): provider is ContentSourceProvider => !!provider)); }
   decorationSources(): readonly ContentSourceDescriptor[] { return this.sources().filter((source) => source.decorationSupport === true); }
   paintingVariants(): readonly PaintingVariant[] { return [...this.paintingContributions.values()].flat(); }
   itemEvidenceSources(): readonly ItemEvidenceSource[] {

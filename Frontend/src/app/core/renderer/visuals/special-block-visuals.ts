@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { modelPartCuboidUv, ModelPartFace, SpecialCuboidDescriptor, SpecialModelDescriptor, SpecialModelPartDescriptor } from './special-model-descriptor';
+import { resolveResourceLocation } from '../../content/resource-location';
 
 export interface SpecialVisualResourceProvider { readonly gameVersion?: string; readBinary(path: string): Uint8Array | undefined; }
 
@@ -593,6 +594,8 @@ function signTextColor(color: string | undefined, glowing: boolean): string {
 
 function resourcePath(resource: string): string {
   if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
-  const [namespace, path] = resource.includes(':') ? resource.split(':', 2) : ['minecraft', resource];
-  return `assets/${namespace}/textures/${path.replace(/^textures\//, '').replace(/\.png$/, '')}.png`;
+  const normalized = resolveResourceLocation(resource.replace(/^textures\//, '').replace(/\.png$/, ''));
+  if (!normalized) return resource;
+  const [namespace, path] = normalized.split(':', 2);
+  return `assets/${namespace}/textures/${path}.png`;
 }
