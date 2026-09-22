@@ -411,8 +411,14 @@ export function deriveAssetBootstrapStatus(status: VanillaAssetStatus, restore: 
 }
 
 function yieldToBrowser(): Promise<void> {
-  if (typeof requestAnimationFrame === 'function') return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  return new Promise((resolve) => setTimeout(resolve, 0));
+  if (typeof document === 'undefined' || document.visibilityState !== 'visible' || typeof requestAnimationFrame !== 'function') return new Promise((resolve) => setTimeout(resolve, 0));
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (): void => { if (settled) return; settled = true; document.removeEventListener('visibilitychange', onVisibilityChange); resolve(); };
+    const onVisibilityChange = (): void => { if (document.visibilityState !== 'visible') finish(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    requestAnimationFrame(finish);
+  });
 }
 
 export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single', concreteBlockIds: readonly string[] = []): string {

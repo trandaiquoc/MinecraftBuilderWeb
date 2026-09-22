@@ -16,7 +16,7 @@ export class DecorationInspectorComponent {
   protected readonly catalog = inject(ItemCatalogService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
-  protected paintingTexture(id: string | undefined): string | undefined { this.assets.generation(); return id ? this.assets.sources.resources.textureUrl(`minecraft:painting/${id}`) : undefined; }
+  protected paintingTexture(id: string | undefined): string | undefined { this.assets.generation(); const variant = this.paintingCatalog.get(id); return variant ? this.assets.sources.resources.textureUrl(variant.assetPath) : undefined; }
   protected paintingLabel(id: string | undefined): string { return id ? humanizeItemId(id) : ''; }
   protected facingLabel(value: string): string { return this.i18n.stateValue(value); }
   protected paintingSize(id: string | undefined): string { const variant = this.paintingCatalog.get(id); return variant ? `${variant.width} x ${variant.height}` : ''; }
