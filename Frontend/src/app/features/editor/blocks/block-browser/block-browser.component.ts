@@ -10,8 +10,9 @@ import { LucidePlus } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ContentSourceOption, ContentSourceSelectorComponent } from '../../../../shared/ui/content-source-selector/content-source-selector.component';
 import { ALL_CONTENT_SOURCE, filterByContentSource, sourceOptions } from '../../../../shared/ui/content-source-selector/content-source-filter';
+import { ThumbnailVisibilityDirective } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
 
-@Component({ selector: 'app-block-browser', imports: [LucidePlus, UiTooltipDirective, ContentSourceSelectorComponent], templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
+@Component({ selector: 'app-block-browser', imports: [LucidePlus, UiTooltipDirective, ContentSourceSelectorComponent, ThumbnailVisibilityDirective], templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
 export class BlockBrowserComponent {
   readonly assetManagerRequested = output<void>();
   protected readonly i18n = inject(I18nService);
@@ -33,11 +34,12 @@ export class BlockBrowserComponent {
   });
   protected readonly activeSource = computed(() => this.sources().some((source) => source.id === this.selectedSource()) ? this.selectedSource() : ALL_CONTENT_SOURCE);
   protected readonly results = computed(() => placementItemSearch(filterByContentSource(this.library.allPlaceableItems(), this.activeSource()), this.library.query()));
-  private readonly thumbnailSync = effect(() => { this.assets.visualProvider(); this.assets.prepareItemThumbnails(this.results()); });
+  private readonly thumbnailScope = effect(() => { this.assets.visualProvider(); this.results(); this.assets.invalidateQueuedThumbnails(); });
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }
   protected retryAssets(): void { void this.assets.redownload(); }
   protected assetsUnavailable(): boolean { return !['loading-cache', 'downloading', 'importing', 'ready'].includes(this.assets.status()); }
+  protected requestThumbnail(block: PlaceableItemDefinition, event: { readonly priority: 'visible' | 'prefetch' }): void { this.assets.requestItemThumbnail(block, event.priority); }
   protected selectSource(id: string): void { this.selectedSource.set(id); }
   protected select(block: PlaceableItemDefinition): void { this.decorations.clearActive(); this.library.select(block); }
   protected addToQuickBar(event: Event, block: PlaceableItemDefinition): void {

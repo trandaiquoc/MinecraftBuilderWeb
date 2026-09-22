@@ -20,6 +20,12 @@ export class EditorStatusBarComponent {
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionCount())); }
   protected assetStatus(): ReturnType<typeof deriveAssetBootstrapStatus> { return deriveAssetBootstrapStatus(this.assets.status(), this.assets.contentRestore(), this.assets.downloadProgress()); }
+  protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods'; }
+  protected assetProgressPercent(status: ReturnType<typeof deriveAssetBootstrapStatus>): number | null {
+    if (status.kind === 'downloading' && status.percent !== undefined) return Math.max(0, Math.min(100, Math.round(status.percent)));
+    if (status.kind === 'restoring-mods' && status.total && status.current !== undefined) return Math.max(0, Math.min(100, Math.round(status.current / status.total * 100)));
+    return null;
+  }
   protected assetStatusLabel(): string {
     const status = this.assetStatus();
     if (status.kind === 'loading-cache') return this.i18n.t('checkingAssetCache');

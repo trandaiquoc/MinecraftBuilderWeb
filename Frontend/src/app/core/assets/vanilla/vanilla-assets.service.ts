@@ -19,6 +19,7 @@ import { CompatibilityReport } from './compatibility/compatibility.types';
 import { evaluateCompatibility } from './compatibility/compatibility-evaluator';
 import { downloadCompatibilityReport } from './compatibility/compatibility-report';
 import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
+import { ThumbnailTaskPriority, ThumbnailTaskQueue } from './thumbnail-task-queue';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -37,6 +38,7 @@ export class VanillaAssetsService {
   private readonly official = new MojangVanillaAssetSource();
   readonly activity = inject(AssetActivityService);
   private readonly thumbnailUrls = signal<ReadonlyMap<string, string>>(new Map());
+  private readonly thumbnailQueue = new ThumbnailTaskQueue(4);
   readonly provider = signal<VanillaAssetProvider | undefined>(undefined);
   readonly visualProvider = signal<VanillaBlockVisualProvider | undefined>(undefined);
   readonly status = signal<VanillaAssetStatus>('loading-cache');
@@ -206,15 +208,26 @@ export class VanillaAssetsService {
 
   prepareItemThumbnails(items: readonly PlaceableItemDefinition[]): void { for (const item of items) this.prepareItemThumbnail(item); }
 
-  prepareItemThumbnail(item: PlaceableItemDefinition): void {
+  requestItemThumbnail(item: PlaceableItemDefinition, priority: ThumbnailTaskPriority = 'visible'): void {
     const visual = this.visualProvider(); if (!visual) return;
-    const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, item.previewState ?? item.defaultState) };
     const previewState = item.previewState ?? item.defaultState;
+    const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, previewState) };
     const key = this.itemThumbnailKey(item, previewState);
     if (this.thumbnailUrls().has(key)) return;
     const fallback = visual.thumbnailUrl(item.displayBlockId, previewState);
     if (fallback) this.thumbnailUrls.set(new Map(this.thumbnailUrls()).set(key, fallback));
-    if (visual.perspectiveItemThumbnail) void visual.perspectiveItemThumbnail(previewItem).then((url) => { if (!url) return; const current = new Map(this.thumbnailUrls()); current.set(key, url); this.thumbnailUrls.set(current); });
+    if (!visual.perspectiveItemThumbnail) return;
+    this.thumbnailQueue.enqueue(key, priority, async () => {
+      const url = await visual.perspectiveItemThumbnail!(previewItem);
+      if (!url) return;
+      const current = new Map(this.thumbnailUrls()); current.set(key, url); this.thumbnailUrls.set(current);
+    });
+  }
+
+  invalidateQueuedThumbnails(): void { this.thumbnailQueue.invalidate(); }
+
+  prepareItemThumbnail(item: PlaceableItemDefinition): void {
+    this.requestItemThumbnail(item, 'visible');
   }
 
   prepareThumbnail(blockId: string, state: Readonly<Record<string, string>>): void {
@@ -309,7 +322,7 @@ export class VanillaAssetsService {
     if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
     this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
     const catalog = provider.catalog(registry);
-    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailUrls.set(new Map());
+    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map());
     const generation = this.generation() + 1;
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
@@ -341,7 +354,7 @@ export class VanillaAssetsService {
     this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
   }
 
-  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailUrls.set(new Map()); }
+  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map()); }
   private bumpGeneration(): void { this.generation.update((value) => value + 1); }
 
   private assertExternalSourceAvailable(provider: ExternalModProvider): void {
@@ -352,6 +365,7 @@ export class VanillaAssetsService {
   }
 
   private clearActiveSources(): void {
+    this.thumbnailQueue.invalidate();
     for (const source of this.sources.sources()) { this.sources.remove(source.id); this.library.removeSource(source.id); this.paintingCatalog.removeSource(source.id); }
     this.importedMods.set([]); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
   }
