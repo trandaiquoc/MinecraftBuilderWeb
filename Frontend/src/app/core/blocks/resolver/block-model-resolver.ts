@@ -1,7 +1,7 @@
 import { BlockSupportLevel } from '../catalog/block-definition.types';
 import { BlockState } from '../../domain/project.types';
 import { resolveResourceLocation, resourcePath } from '../../content/resource-location';
-import { variantKeyMatches, normalizePredicate, predicateMatches } from '../../content/normalized-predicate';
+import { variantKeyMatches, normalizePredicate, predicateMatches, invalidPredicateReasons } from '../../content/normalized-predicate';
 import { AssetResourceProvider, BlockStateRotationResult, MemoryAssetResourceProvider, ResolvedBlockModel, ResolvedElement, ResolvedElementRotation, ResolvedFace, ResolvedModelPart, ResolverDiagnostic, ResolverDiagnosticCode, ResolverStateDefinitions } from './resolver.types';
 
 interface ModelDocument { parent?: unknown; textures?: unknown; elements?: unknown; ambientocclusion?: unknown; }
@@ -75,7 +75,13 @@ function selectConfiguredModels(document: BlockStateDocument, state: BlockState,
     else diagnostics.push(diagnostic('no-matching-variant', 'No blockstate variant matches the supplied BlockState.'));
   } else if (document['variants'] !== undefined) diagnostics.push(diagnostic('malformed-blockstate', 'Blockstate variants must be an object.'));
   if (Array.isArray(document['multipart'])) {
-    for (const part of document['multipart']) if (isRecord(part) && multipartMatches(part['when'], state)) output.push(...configuredModels(part['apply'], seed, diagnostics));
+    for (const part of document['multipart']) if (isRecord(part)) {
+      if (part['when'] !== undefined) {
+        const predicate = normalizePredicate(part['when']);
+        invalidPredicateReasons([predicate]).forEach((reason) => diagnostics.push(diagnostic('malformed-blockstate', `Malformed multipart predicate: ${reason}`)));
+      }
+      if (multipartMatches(part['when'], state)) output.push(...configuredModels(part['apply'], seed, diagnostics));
+    }
   } else if (document['multipart'] !== undefined) diagnostics.push(diagnostic('malformed-blockstate', 'Blockstate multipart must be an array.'));
   return output;
 }

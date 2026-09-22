@@ -2,7 +2,7 @@ import type { AssetResourceProvider, ResolvedBlockModel } from '../blocks/resolv
 import { BlockModelResolver } from '../blocks/resolver/block-model-resolver';
 import type { AssetBlockRecord, BlockItemEvidence, BlockStateDefinition, CatalogItemEvidence } from '../blocks/catalog/block-definition.types';
 import { resourcePath, resolveResourceLocation } from './resource-location';
-import { parseVariantKey, normalizePredicate, type NormalizedPredicate, type NormalizedPropertyPredicate } from './normalized-predicate';
+import { blockStatePredicates, invalidPredicateReasons, type NormalizedPredicate, type NormalizedPropertyPredicate } from './normalized-predicate';
 
 export type ContentRole = 'block' | 'item' | 'decoration';
 export type EvidenceProvenance = 'authoritative-registry' | 'trusted-data' | 'resource-backed' | 'inferred' | 'unknown';
@@ -115,6 +115,7 @@ export class ContentIntrospectionEngine {
     const resolved = this.resolver.resolve(record.id, representativeVisualState);
     const graph = buildResourceGraph(record.id, resources, resolved, this.provider, source);
     const diagnostics = [...graph.diagnostics, ...resolved.diagnostics.map((diagnostic) => mapResolverDiagnostic(diagnostic.code, diagnostic.message, diagnostic.resource, source.id))];
+    invalidPredicateReasons(predicates).forEach((reason) => diagnostics.push({ code: 'malformed-resource', message: `Malformed blockstate predicate: ${reason}`, resource: record.resources.blockstate, sourceId: source.id }));
     const roleEvidence: ContentRoleEvidence[] = [{ role: 'block', confidence: base.support === 'full' ? 'full' : base.support === 'partial' ? 'partial' : 'unknown', provenance: record.defaultStateSource === 'authoritative-report' ? 'authoritative-registry' : record.resources.blockstate ? 'resource-backed' : 'unknown', resources }];
     if (record.itemEvidence) roleEvidence.push({ role: 'item', confidence: 'partial', provenance: itemProvenance(record.itemEvidence), resources: [...(record.itemEvidence.referencedModels ?? []), ...(record.itemEvidence.referencedResources ?? [])] });
     const relationships: ContentRelationship[] = record.itemEvidence?.placeable === true ? [{ kind: 'item-block', from: record.itemEvidence.itemId, to: record.id, provenance: itemProvenance(record.itemEvidence) }] : [];
@@ -154,11 +155,7 @@ export class ContentIntrospectionEngine {
 }
 
 export function extractPredicates(document: unknown): readonly NormalizedPredicate[] {
-  if (!isRecord(document)) return [];
-  const result: NormalizedPredicate[] = [];
-  if (isRecord(document['variants'])) for (const key of Object.keys(document['variants'])) result.push({ kind: 'properties', properties: parseVariantKey(key) });
-  if (Array.isArray(document['multipart'])) for (const part of document['multipart']) if (isRecord(part) && part['when'] !== undefined) result.push(normalizePredicate(part['when']));
-  return result;
+  return blockStatePredicates(document);
 }
 
 function mergeDefinitions(definitions: readonly BlockStateDefinition[], predicates: readonly NormalizedPredicate[]): readonly BlockStateDefinition[] {

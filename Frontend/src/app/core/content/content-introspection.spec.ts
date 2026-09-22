@@ -48,4 +48,15 @@ describe('content introspection', () => {
     expect(descriptor.predicates[0]?.kind).toBe('properties');
     expect(descriptor.predicates[1]?.kind).toBe('all');
   });
+
+  it('reports malformed explicit predicates without treating them as unconditional', () => {
+    const provider = new Resources({
+      'assets/fixture/blockstates/widget.json': { multipart: [{ when: { stage: { unsupported: true } }, apply: { model: 'fixture:block/side' } }] },
+      'assets/fixture/models/block/side.json': { elements: [] },
+    });
+    const descriptor = new ContentIntrospectionEngine(provider).inspectBlock({ id: 'fixture:widget', displayName: 'Widget', defaultState: {}, stateDefinitions: [], resources: { blockstate: 'assets/fixture/blockstates/widget.json', model: 'fixture:block/side', textures: [] }, support: 'partial', sourceId: 'fixture' });
+    expect(descriptor.predicates[0]?.kind).toBe('invalid');
+    expect(descriptor.diagnostics.some((diagnostic) => diagnostic.code === 'malformed-resource')).toBe(true);
+    expect(descriptor.representativeVisualState).toEqual({});
+  });
 });

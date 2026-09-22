@@ -148,4 +148,19 @@ describe('Minecraft block model resolver', () => {
     expect(engine.rotateState({ axis: 'x' }, [{ name: 'axis', values: ['x', 'y', 'z'] }], 1).state?.['axis']).toBe('z');
     expect(engine.rotateState({ mode: 'custom' }, [{ name: 'mode', values: ['custom'] }], 1).supported).toBe(false);
   });
+
+  it('matches numeric and boolean multipart predicates without activating malformed branches', () => {
+    const result = resolver({
+      'assets/example/blockstates/widget.json': { multipart: [
+        { when: { AND: [{ stage: 0 }, { anchored: false }] }, apply: { model: 'example:block/stage_0' } },
+        { when: { AND: [{ stage: 1 }, { anchored: true }] }, apply: { model: 'example:block/stage_1' } },
+        { when: { stage: { invalid: true } }, apply: { model: 'example:block/invalid' } },
+      ] },
+      'assets/example/models/block/stage_0.json': { elements: [] },
+      'assets/example/models/block/stage_1.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: {} }] },
+      'assets/example/models/block/invalid.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: {} }] },
+    }).resolve('example:widget', { stage: '1', anchored: 'true' });
+    expect(result.parts.map((part) => part.model)).toEqual(['example:block/stage_1']);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === 'malformed-blockstate')).toBe(true);
+  });
 });

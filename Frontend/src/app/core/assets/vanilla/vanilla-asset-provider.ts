@@ -14,6 +14,7 @@ import { classifyContent, isDecorationEntityId } from '../../content/content-cla
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
 import { resolveResourceLocation } from '../../content/resource-location';
+import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -145,7 +146,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const known = verified.get(id);
       const blockstate = this.json[path];
       const models = configuredModelIds(blockstate);
-      const inferredDefinitions = registryEntry?.properties ?? known?.stateDefinitions ?? inferStateDefinitions(blockstate);
+      const inferredDefinitions = registryEntry?.properties ?? known?.stateDefinitions ?? stateDefinitionsFromBlockstate(blockstate);
       const resourceDefault = resourceDefaultState(blockstate, inferredDefinitions);
       const generated: AssetBlockRecord = {
         id,
@@ -225,15 +226,6 @@ function configuredModelIds(value: unknown): string[] {
     for (const child of Object.values(object)) if (typeof child === 'object' && child !== null) visit(child);
   };
   visit(value); return [...result];
-}
-
-function inferStateDefinitions(value: unknown): readonly BlockStateDefinition[] {
-  const values = new Map<string, Set<string>>();
-  const addExpression = (expression: string): void => { for (const item of expression.split(',')) { const [name, raw] = item.split('='); if (!name || raw === undefined) continue; const options = values.get(name) ?? new Set<string>(); for (const option of raw.split('|')) options.add(option); values.set(name, options); } };
-  const document = record(value); const variants = record(document['variants']); for (const key of Object.keys(variants)) addExpression(key);
-  const visitCondition = (condition: unknown): void => { const object = record(condition); for (const [name, raw] of Object.entries(object)) { if (name === 'OR' || name === 'AND') { if (Array.isArray(raw)) for (const child of raw) visitCondition(child); } else if (typeof raw === 'string') addExpression(`${name}=${raw}`); } };
-  if (Array.isArray(document['multipart'])) for (const part of document['multipart']) visitCondition(record(part)['when']);
-  return [...values].map(([name, options]) => ({ name, values: [...options] }));
 }
 
 function resourceDefaultState(value: unknown, definitions: readonly BlockStateDefinition[]): { readonly state: Readonly<Record<string, string>>; readonly source: 'resource-derived' | 'resource-render-fallback' | 'unknown' } {

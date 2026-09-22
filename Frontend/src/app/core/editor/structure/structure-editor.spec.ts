@@ -77,6 +77,18 @@ describe('StructureEditorService mutations', () => {
     expect(history.undo()).toBe(true); expect(workspace.project()!.blocks[0].state['half']).toBe('top');
   });
 
+  it('edits discovered numeric and boolean state values as canonical strings with history', () => {
+    const { editor, workspace, history, library, active } = makeEditor({ ...project, blocks: [] });
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{ id: 'example:widget', displayName: 'Widget', defaultState: { stage: '0', anchored: 'false' }, stateDefinitions: [{ name: 'stage', values: ['0', '1'] }, { name: 'anchored', values: ['false', 'true'] }], resources: { textures: [] }, support: 'full' }] });
+    active.select(library.get('example:widget')!);
+    expect(editor.place({ x: 1, y: 1, z: 1 })).toBe(true);
+    expect(editor.updateBlockState({ x: 1, y: 1, z: 1 }, 'stage', '1')).toBe(true);
+    expect(editor.updateBlockState({ x: 1, y: 1, z: 1 }, 'anchored', 'true')).toBe(true);
+    expect(workspace.project()!.blocks[0].state).toEqual({ stage: '1', anchored: 'true' });
+    expect(history.undo()).toBe(true); expect(workspace.project()!.blocks[0].state).toEqual({ stage: '1', anchored: 'false' });
+    expect(history.redo()).toBe(true); expect(workspace.project()!.blocks[0].state).toEqual({ stage: '1', anchored: 'true' });
+  });
+
   it('rejects delete and state changes for locked groups', () => {
     const locked = { ...project, groups: [{ id: 'locked', name: 'Locked', visible: true, locked: true }], blocks: [{ ...project.blocks[0], groupId: 'locked' }] };
     const { editor, workspace } = makeEditor(locked);
