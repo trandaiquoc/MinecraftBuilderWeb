@@ -144,6 +144,16 @@ describe('vanilla placeable item layer', () => {
     }
   });
 
+  it('routes an external sign only through explicit placement variants', () => {
+    const source: AssetBlockRecord[] = [
+      { id: 'example:front_panel', displayName: 'Panel', defaultState: { rotation: '0' }, stateDefinitions: [{ name: 'rotation', values: ['0'] }], resources: { textures: [] }, support: 'full', sourceId: 'mod:example', placementVariants: { standing: 'example:front_panel', wall: 'example:side_panel' } },
+      { id: 'example:side_panel', displayName: 'Side Panel', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }], resources: { textures: [] }, support: 'full', sourceId: 'mod:example' },
+    ];
+    const catalog = new BlockCatalog(); catalog.load({ minecraftVersion: '1.21.1', sourceId: 'mod:example', blocks: source, targetItems: [{ itemId: 'example:front_panel', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' }], itemEvidenceAvailable: true });
+    const item = buildPlaceableItems(catalog.all(), catalog.targetItems(), true).find((entry) => entry.itemId === 'example:front_panel')!;
+    expect(resolveConcreteBlockId(item, { faceNormal: { x: 1, y: 0, z: 0 } })).toBe('example:side_panel');
+  });
+
   it('rebuilds contextual state from the concrete variant definition', () => {
     const source: AssetBlockRecord[] = [
       { id: 'minecraft:oak_sign', displayName: 'Oak Sign', defaultState: { rotation: '0', waterlogged: 'false' }, stateDefinitions: [{ name: 'rotation', values: ['0'] }, { name: 'waterlogged', values: ['false', 'true'] }], resources: { textures: [] }, support: 'full' as const },

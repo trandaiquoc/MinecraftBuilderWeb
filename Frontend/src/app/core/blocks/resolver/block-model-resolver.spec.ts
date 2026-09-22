@@ -12,6 +12,16 @@ function resolver(resources: Readonly<Record<string, unknown>>): BlockModelResol
 }
 
 describe('Minecraft block model resolver', () => {
+  it('resolves an item block-model reference without requiring blockstate JSON', () => {
+    const result = resolver({
+      'assets/example/models/block/widget.json': { parent: 'minecraft:block/base', textures: { all: 'example:block/widget' }, elements: cube.elements },
+      'assets/minecraft/models/block/base.json': { textures: { all: 'minecraft:block/stone' }, elements: cube.elements },
+    }).resolveModelReference('example:block/widget');
+    expect(result.support).toBe('full');
+    expect(result.parts[0]?.model).toBe('example:block/widget');
+    expect(result.parts[0]?.elements).toHaveLength(1);
+  });
+
   it('matches the most specific variant and preserves configured rotation/UV lock', () => {
     const result = resolver({
       'assets/minecraft/blockstates/test.json': { variants: { 'facing=north': { model: 'minecraft:block/test', x: 90, y: 180, uvlock: true } } },

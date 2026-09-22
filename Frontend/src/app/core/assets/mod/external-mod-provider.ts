@@ -207,7 +207,7 @@ export class ExternalModProvider implements ContentSourceProvider {
       records.push({ ...withState, defaultState: { ...withState.defaultState, ...descriptor.placementDefault }, stateDefinitions: [...descriptor.properties].map((property) => ({ name: property.name, values: property.values, ...(property.derived ? { derived: true } : {}) })), capabilities: descriptor.capabilityProfile ?? initial.capabilities, supportRequirements: descriptor.supportRequirements, supportContracts: descriptor.supportContracts, specialVisual: descriptor.specialVisual ?? signVisual, itemHostVisual: descriptor.itemHostVisual, semanticEvidence: descriptor.semanticEvidence, itemEvidence: matchingItem ? { itemId: id, placeable: true, sourceFormat: matchingItem.sourceFormat, referencedModels: matchingItem.referencedModels, referencedResources: matchingItem.referencedResources } : undefined, contentDescriptor: descriptor });
     }
     const targetItems: CatalogItemEvidence[] = itemEvidence.map((entry) => ({ ...entry, explicitBlockPlacement: blockIds.has(entry.itemId) ? { blockId: entry.itemId } : undefined, sourceId: this.source.id, sourceName: this.source.displayName }));
-    return { minecraftVersion: this.source.minecraftVersion, sourceId: this.source.id, sourceName: this.source.displayName, blocks: records, targetItems, itemEvidenceAvailable: true, paintingVariants: discoverPaintingVariants(this.json, this.source.id, this.source.displayName, tagIndex) };
+    return { minecraftVersion: this.source.minecraftVersion, sourceId: this.source.id, sourceName: this.source.displayName, blocks: addVerifiedSignPlacementVariants(records), targetItems, itemEvidenceAvailable: true, paintingVariants: discoverPaintingVariants(this.json, this.source.id, this.source.displayName, tagIndex) };
   }
 
   dispose(): void { for (const url of this.objectUrls.values()) URL.revokeObjectURL(url); this.objectUrls.clear(); }
@@ -239,6 +239,26 @@ function externalSignVisual(id: string, families: readonly string[], paths: read
   if (candidates.length !== 1) return undefined;
   const match = /^assets\/([^/]+)\/textures\/(.+)\.png$/.exec(candidates[0]); if (!match) return undefined;
   return { contractId: 'common-sign', variant, resources: { default: `${match[1]}:${match[2]}` }, stateDependencies: variant === 'standing' || variant === 'hanging' ? ['rotation'] : ['facing'], provenance: 'trusted-data' };
+}
+function addVerifiedSignPlacementVariants(records: readonly AssetBlockRecord[]): readonly AssetBlockRecord[] {
+  const groups = new Map<string, { standing?: string; wall?: string; hanging?: string; wallHanging?: string }>();
+  for (const record of records) {
+    const visual = record.specialVisual;
+    if (visual?.contractId !== 'common-sign' || !visual.resources['default']) continue;
+    const group = groups.get(visual.resources['default']) ?? {};
+    if (visual.variant === 'standing') group.standing = record.id;
+    if (visual.variant === 'wall') group.wall = record.id;
+    if (visual.variant === 'hanging') group.hanging = record.id;
+    if (visual.variant === 'wall-hanging') group.wallHanging = record.id;
+    groups.set(visual.resources['default'], group);
+  }
+  const variantsById = new Map<string, { readonly standing?: string; readonly wall?: string; readonly hanging?: string; readonly wallHanging?: string }>();
+  for (const group of groups.values()) {
+    const variants = Object.fromEntries(Object.entries(group).filter(([, value]) => !!value));
+    if (!(group.standing || group.hanging) || Object.keys(variants).length < 2) continue;
+    for (const id of Object.values(group).filter((value): value is string => !!value)) variantsById.set(id, variants);
+  }
+  return records.map((record) => { const placementVariants = variantsById.get(record.id); return placementVariants ? { ...record, placementVariants } : record; });
 }
 function trustedTagIdsFor(id: string, tags: TagIndex): readonly string[] { return tags.contributions('block').filter((contribution) => tags.hasMember('block', contribution.id, id)).map((contribution) => contribution.id).sort(); }
 function discoverPaintingVariants(json: Readonly<Record<string, unknown>>, sourceId = 'vanilla', sourceName = 'Vanilla', tags?: TagIndex): readonly PaintingVariant[] { const placeable = new Set<string>(); for (const [path, value] of Object.entries(json)) if (/^data\/[^/]+\/tags\/painting_variant\/placeable\.json$/.test(path)) { const entries = value && typeof value === 'object' && !Array.isArray(value) && Array.isArray((value as Record<string, unknown>)['values']) ? (value as Record<string, unknown>)['values'] as unknown[] : []; entries.forEach((entry) => { if (typeof entry === 'string' && !entry.startsWith('#')) placeable.add(resolveResourceLocation(entry) ?? entry); }); } return Object.entries(json).flatMap(([path, raw]) => { const match = /^data\/([^/]+)\/painting_variant\/(.+)\.json$/.exec(path); if (!match || !raw || typeof raw !== 'object' || Array.isArray(raw)) return []; const value = raw as Record<string, unknown>; const width = Number(value['width']); const height = Number(value['height']); if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) return []; const id = `${match[1]}:${match[2]}`; const assetPath = typeof value['asset_id'] === 'string' ? paintingTextureResource(value['asset_id'], match[1]) : paintingTextureResource(match[2], match[1]); const tagPlaceable = tags ? (tags.hasMember('painting_variant', 'minecraft:placeable', id) || tags.hasMember('painting_variant', `${match[1]}:placeable`, id)) : undefined; return [{ id, width, height, assetPath, placeable: tagPlaceable ?? (placeable.size ? placeable.has(id) : true), sourceId, sourceName }]; }); }

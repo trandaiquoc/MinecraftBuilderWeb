@@ -109,6 +109,7 @@ describe('ExternalModProvider', () => {
     const entries = provider.catalog().blocks;
     expect(entries.find((entry) => entry.id === 'example:maple_sign')?.specialVisual).toMatchObject({ contractId: 'common-sign', variant: 'standing', resources: { default: 'minecraft:entity/signs/maple' } });
     expect(entries.find((entry) => entry.id === 'example:maple_wall_sign')?.specialVisual).toMatchObject({ contractId: 'common-sign', variant: 'wall' });
+    expect(entries.find((entry) => entry.id === 'example:maple_sign')?.placementVariants).toEqual({ standing: 'example:maple_sign', wall: 'example:maple_wall_sign' });
   });
 
   it('supplies the common sign state contract for model-only blockstates and nested tags', () => {

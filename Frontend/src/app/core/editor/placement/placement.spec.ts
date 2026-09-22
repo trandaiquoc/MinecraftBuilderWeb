@@ -62,4 +62,9 @@ describe('Lantern to Chain attachment snap', () => {
     const sign = { ...chain, id: 'minecraft:oak_hanging_sign', state: { rotation: '0', attached: 'false', waterlogged: 'false' } };
     expect(resolveAttachmentPlacement('minecraft:oak_hanging_sign', sign.position, { y: 4.5 }, [sign])).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-stack' });
   });
+  it('uses verified external hanging-sign and vertical-chain behavior without namespace rules', () => {
+    const definition = (id: string) => id === 'example:hanging' ? ({ behavior: { kind: 'hanging-sign', rotationProperty: 'rotation', attachedProperty: 'attached', wallBlockId: '' } } as never) : ({ behavior: { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' } } as never);
+    const externalChain = { ...chain, id: 'example:chain', namespace: 'example' };
+    expect(resolveAttachmentPlacement('example:hanging', externalChain.position, { y: 4.5 }, [externalChain], definition)).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-chain' });
+  });
 });

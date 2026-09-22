@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shouldStartVersionLoad, thumbnailKey } from './vanilla-assets.service';
+import { contentRestoreAfterMods, shouldStartVersionLoad, thumbnailIdentityForItem, thumbnailKey } from './vanilla-assets.service';
 
 describe('thumbnail cache key', () => {
   it('is stable for canonical state order and changes for provider generation', () => {
@@ -8,9 +8,19 @@ describe('thumbnail cache key', () => {
     expect(first).not.toBe(thumbnailKey(3, '1.21.1', 'minecraft:oak_stairs', { facing: 'north', half: 'top' }));
     expect(first).not.toBe(thumbnailKey(2, '1.22', 'minecraft:oak_stairs', { facing: 'north', half: 'top' }));
   });
+  it('uses the same preview identity for thumbnail preparation and lookup', () => {
+    const item = { itemId: 'example:plant', previewRecipe: 'single' as const, concreteBlockIds: ['example:plant'] as const };
+    const preview = thumbnailIdentityForItem(4, '1.21.1', item, { phase: '1' });
+    expect(preview).toBe(thumbnailIdentityForItem(4, '1.21.1', item, { phase: '1' }));
+    expect(preview).not.toBe(thumbnailIdentityForItem(4, '1.21.1', item, { phase: '0' }));
+  });
 });
 
 describe('version load state', () => {
+  it('keeps final content readiness partial when one cached mod fails', () => {
+    expect(contentRestoreAfterMods(2, 1)).toEqual({ phase: 'partial', current: 2, total: 2, failed: 1 });
+    expect(contentRestoreAfterMods(2, 0).phase).toBe('ready');
+  });
   it('starts the first request even when the initial status is loading-cache', () => {
     expect(shouldStartVersionLoad(undefined, 'loading-cache', '1.21.1', undefined)).toBe(true);
   });

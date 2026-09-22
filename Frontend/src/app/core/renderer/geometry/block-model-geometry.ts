@@ -209,6 +209,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private async renderItemVisualThumbnail(itemId: string): Promise<string | undefined> {
     if (typeof document === 'undefined') return undefined;
     const visual = resolveItemVisual(this.assets, itemId);
+    if (visual.kind === 'block-model' && visual.model) return this.renderStandaloneModelThumbnail(itemId, visual.model);
     if (visual.kind !== 'generated-layers' || !visual.layers.length) return undefined;
     const textures = await Promise.all(visual.layers.map((layer) => this.texture(layer)));
     if (!textures.some(Boolean)) return undefined;
@@ -218,6 +219,20 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const root = new THREE.Group();
     textures.forEach((texture, index) => { if (!texture) return; const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }); const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), material); mesh.position.z = index * .002; root.add(mesh); });
     scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return renderer.domElement.toDataURL('image/png');
+  }
+
+  private async renderStandaloneModelThumbnail(itemId: string, modelId: string): Promise<string | undefined> {
+    const resolved = this.resolver.resolveModelReference(modelId);
+    if (!resolved.parts.some((part) => part.elements.length)) return undefined;
+    const renderer = this.thumbnailRenderer ??= new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(96, 96, false); renderer.setClearColor(0x000000, 0);
+    const root = new THREE.Group();
+    for (const part of resolved.parts) root.add(await this.createPart(part, itemId));
+    root.updateMatrixWorld(true);
+    const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3)); const key = new THREE.DirectionalLight(0xffffff, 1.45); key.position.set(4, 6, 5); scene.add(key); scene.add(root);
+    const bounds = new THREE.Box3().setFromObject(root); if (!validBounds(bounds)) return undefined;
+    const center = bounds.getCenter(new THREE.Vector3()); const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), .5);
+    const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7)); camera.lookAt(center); renderer.render(scene, camera); scene.remove(root); return renderer.domElement.toDataURL('image/png');
   }
 
   private resolve(blockId: string, state: Readonly<Record<string, string>>): ResolvedBlockModel {

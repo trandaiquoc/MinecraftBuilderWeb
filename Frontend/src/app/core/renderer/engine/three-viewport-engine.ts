@@ -11,6 +11,7 @@ import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import { BlockVisualProvider, VisualCacheStats } from '../geometry/block-model-geometry';
 import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-block-visuals';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
+import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedDecoration } from '../../decorations/decoration.types';
@@ -127,6 +128,7 @@ export class ThreeViewportEngine {
   private decorationTextureUrl?: (resource: string) => string | undefined;
   private paintingResource?: (variantId: string) => string | undefined;
   private specialVisualResolver?: (blockId: string) => ContentSpecialVisualDescriptor | undefined;
+  private definitionResolver?: (blockId: string) => BlockDefinition | undefined;
   private decorationTextureCache?: DecorationTextureCache;
   private placementPlanProvider?: PlacementPlanProvider;
   private ghostGeneration = 0;
@@ -332,6 +334,7 @@ export class ThreeViewportEngine {
   }
 
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
+  setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined): void { this.definitionResolver = resolver; }
 
   private collectSpecialVisualDescriptors(): readonly NormalizedSpecialVisualDescriptor[] {
     const ids = new Set([...(this.project?.blocks ?? []).map((block) => block.id), ...(this.activeBlock ? [this.activeBlock.id] : [])]);
@@ -487,7 +490,7 @@ export class ThreeViewportEngine {
       const normal = (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
       faceNormal = { x: normal.x, y: normal.y, z: normal.z };
       hitPoint = blockHit.point;
-      const attachment = resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks);
+      const attachment = resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver);
       target = attachment?.target ?? targetFromBlockFace(block, normal as FaceNormal);
       if (attachment) faceNormal = { x: 0, y: attachment.snapType === 'chain-extension' ? 1 : -1, z: 0 };
     } else if (this.ground) {
@@ -499,7 +502,7 @@ export class ThreeViewportEngine {
       if (planeY === undefined || hitVoxel.y === planeY) block = hitVoxel;
     }
     const facing = active?.state['facing'];
-    const attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks) : undefined;
+    const attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver) : undefined;
     const placementContext = faceNormal ? { faceNormal, hitPoint: hitPoint ? { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z } : undefined, facing: isHorizontalDirection(facing) ? facing : undefined, yaw: cameraYaw(this.camera), stateOverride: attachment?.stateOverride } : undefined;
     const plan = target && active && this.placementPlanProvider ? this.placementPlanProvider(project, active, target, placementContext) : undefined;
     const decorationPlan = this.renderOptions.activeDecoration && block && faceNormal ? planDecorationPlacement(project, this.renderOptions.activeDecoration, block, facingFromNormal(faceNormal) ?? 'up') : undefined;

@@ -13,6 +13,14 @@ export interface PlacementSupportRequirement {
   readonly evidence: 'verified';
 }
 
+/** Explicit logical placement variants for one placeable item. */
+export interface BlockPlacementVariants {
+  readonly standing?: string;
+  readonly wall?: string;
+  readonly hanging?: string;
+  readonly wallHanging?: string;
+}
+
 export interface BlockStateDefinition {
   readonly name: string;
   readonly values: readonly string[];
@@ -99,6 +107,7 @@ export interface BlockDefinition {
   readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
   readonly supportContracts?: readonly string[];
+  readonly placementVariants?: BlockPlacementVariants;
   readonly specialVisual?: ContentSpecialVisualDescriptor;
   readonly itemHostVisual?: ContentItemHostVisualDescriptor;
 }
@@ -137,6 +146,7 @@ export interface AssetBlockRecord {
   readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
   readonly supportContracts?: readonly string[];
+  readonly placementVariants?: BlockPlacementVariants;
   readonly specialVisual?: ContentSpecialVisualDescriptor;
   readonly itemHostVisual?: ContentItemHostVisualDescriptor;
 }

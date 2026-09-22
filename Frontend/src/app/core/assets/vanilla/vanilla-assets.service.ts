@@ -1,4 +1,4 @@
-import { effect, Injectable, inject, signal } from '@angular/core';
+import { computed, effect, Injectable, inject, signal } from '@angular/core';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { PlaceableItemDefinition, previewBlocksForItem } from '../../blocks/placement-palette/placeable-item';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
@@ -23,6 +23,8 @@ import { PaintingVariantCatalogService } from '../../decorations/catalog/paintin
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
 export interface ImportedModSummary { readonly sourceId: string; readonly modId: string; readonly displayName: string; readonly version: string; readonly namespaces: readonly string[]; readonly candidateBlockCount: number; readonly report: ModImportReport; }
+export type ContentRestorePhase = 'vanilla' | 'restoring-mods' | 'ready' | 'partial' | 'error';
+export interface ContentRestoreState { readonly phase: ContentRestorePhase; readonly current: number; readonly total: number; readonly sourceName?: string; readonly failed: number; }
 
 @Injectable({ providedIn: 'root' })
 export class VanillaAssetsService {
@@ -36,6 +38,8 @@ export class VanillaAssetsService {
   readonly provider = signal<VanillaAssetProvider | undefined>(undefined);
   readonly visualProvider = signal<VanillaBlockVisualProvider | undefined>(undefined);
   readonly status = signal<VanillaAssetStatus>('loading-cache');
+  readonly contentRestore = signal<ContentRestoreState>({ phase: 'vanilla', current: 0, total: 0, failed: 0 });
+  readonly contentReady = computed(() => this.contentRestore().phase === 'ready' || this.contentRestore().phase === 'partial');
   readonly activeVersion = signal<string>(DEFAULT_MINECRAFT_VERSION);
   readonly downloadProgress = signal<VanillaDownloadProgress | undefined>(undefined);
   readonly message = signal('');
@@ -204,7 +208,7 @@ export class VanillaAssetsService {
     const visual = this.visualProvider(); if (!visual) return;
     const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, item.previewState ?? item.defaultState) };
     const previewState = item.previewState ?? item.defaultState;
-    const key = thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', item.itemId, previewState, item.previewRecipe);
+    const key = this.itemThumbnailKey(item, previewState);
     if (this.thumbnailUrls().has(key)) return;
     const fallback = visual.thumbnailUrl(item.displayBlockId, previewState);
     if (fallback) this.thumbnailUrls.set(new Map(this.thumbnailUrls()).set(key, fallback));
@@ -213,7 +217,7 @@ export class VanillaAssetsService {
 
   prepareThumbnail(blockId: string, state: Readonly<Record<string, string>>): void {
     const item = this.library.getItem(blockId);
-    if (item) { this.prepareItemThumbnail({ ...item, defaultState: { ...state } }); return; }
+    if (item) { this.prepareItemThumbnail({ ...item, defaultState: { ...state }, previewState: { ...state } }); return; }
     const visual = this.visualProvider(); if (!visual) return;
     const key = thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', blockId, state);
     if (this.thumbnailUrls().has(key)) return;
@@ -228,14 +232,25 @@ export class VanillaAssetsService {
   }
 
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>> = {}): string | undefined {
-    const recipe = this.library.getItem(blockId)?.previewRecipe ?? 'single';
+    const item = this.library.getItem(blockId);
+    if (item) return this.thumbnailUrlForItem({ ...item, defaultState: { ...state }, previewState: { ...state } });
+    const recipe = 'single';
     return this.thumbnailUrls().get(thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', blockId, state, recipe));
+  }
+
+  thumbnailUrlForItem(item: PlaceableItemDefinition): string | undefined {
+    const state = item.previewState ?? item.defaultState;
+    return this.thumbnailUrls().get(this.itemThumbnailKey(item, state));
+  }
+
+  private itemThumbnailKey(item: PlaceableItemDefinition, state: Readonly<Record<string, string>>): string {
+    return thumbnailIdentityForItem(this.generation(), this.provider()?.gameVersion ?? 'unavailable', item, state);
   }
 
   private ensureVersion(version: string, force = false): Promise<void> {
     if (!shouldStartVersionLoad(this.provider()?.minecraftVersion, this.status(), version, this.inFlight?.version, force)) return this.inFlight?.promise ?? Promise.resolve();
     const request = ++this.loadRequest;
-    this.activeVersion.set(version); this.status.set('loading-cache'); this.message.set(''); this.downloadProgress.set(undefined); this.compatibilityReport.set(undefined); this.clearActiveSources();
+    this.activeVersion.set(version); this.status.set('loading-cache'); this.contentRestore.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 }); this.message.set(''); this.downloadProgress.set(undefined); this.compatibilityReport.set(undefined); this.clearActiveSources();
     const promise = this.loadVersion(version, request).finally(() => { if (this.inFlight?.promise === promise) this.inFlight = undefined; });
     this.inFlight = { version, promise };
     return promise;
@@ -271,7 +286,7 @@ export class VanillaAssetsService {
       if (request !== this.loadRequest) return;
       const message = error instanceof Error ? error.message : 'Unable to load official Minecraft assets';
       const unsupported = /resource format is not supported|no Minecraft asset resources|incomplete/i.test(message);
-      this.status.set(unsupported ? 'unsupported-format' : 'offline'); this.message.set(message);
+      this.status.set(unsupported ? 'unsupported-format' : 'offline'); this.contentRestore.set({ phase: 'error', current: 0, total: 0, failed: 1 }); this.message.set(message);
       this.sourceName.set(''); this.compatibilityReport.set(undefined);
       this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 }));
       this.activity.fail('assets', message, 'vanilla');
@@ -297,7 +312,7 @@ export class VanillaAssetsService {
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
     this.compatibilityReport.set(undefined);
-    this.sourceName.set(provider.sourceName); this.activeVersion.set(version); this.status.set('ready'); this.message.set('');
+    this.sourceName.set(provider.sourceName); this.activeVersion.set(version); this.status.set('ready'); this.contentRestore.set({ phase: 'vanilla', current: 0, total: 0, failed: 0, sourceName: provider.sourceName }); this.message.set('');
     this.activity.finish('assets', `${provider.diagnostics().resourceFormat.label}; Java ${version} ready`);
     void this.generateCompatibilityReport(provider, request);
     await this.restoreExternalMods(version);
@@ -341,15 +356,26 @@ export class VanillaAssetsService {
 
   private async restoreExternalMods(version: string): Promise<void> {
     let stored: readonly import('../mod/external-mod-provider').SerializedExternalMod[] = [];
-    try { stored = await this.cache.loadExternalMods(); } catch { return; }
+    try { stored = await this.cache.loadExternalMods(); } catch { this.contentRestore.set({ phase: 'partial', current: 0, total: 0, failed: 1 }); return; }
+    const total = stored.length;
+    this.contentRestore.set({ phase: total ? 'restoring-mods' : 'ready', current: 0, total, failed: 0 });
+    if (!total) return;
+    let failed = 0; let current = 0;
+    this.activity.begin('mod-restore', `Restoring imported Mods (0 / ${total})`, 'mod');
     for (const serialized of stored) {
+      let sourceName = serialized.metadata?.displayName;
       try {
         const provider = ExternalModProvider.deserialize(serialized, version);
-        if (provider.report.canActivate === false) continue;
-        this.activateExternal(provider);
-      }
-      catch { /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
+        sourceName = provider.metadata.displayName;
+        if (provider.report.canActivate === false) failed += 1;
+        else this.activateExternal(provider);
+      } catch { failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
+      current += 1;
+      this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
+      this.activity.update({ loaded: current, total }, sourceName ? `Restoring imported Mods (${current} / ${total}): ${sourceName}` : `Restoring imported Mods (${current} / ${total})`);
     }
+    this.contentRestore.set(contentRestoreAfterMods(total, failed));
+    this.activity.finish('mod-restore', failed ? `Imported Mods restored with ${failed} warning${failed === 1 ? '' : 's'}` : 'Imported Mods restored', 'mod');
   }
 
   private async refreshCachedVersions(): Promise<void> { try { this.cachedVersions.set(await this.cache.listVanillaVersions()); } catch { /* Cache availability is reported by the active load. */ } }
@@ -365,7 +391,15 @@ export function shouldStartVersionLoad(providerVersion: string | undefined, stat
   return inFlightVersion !== requestedVersion;
 }
 
-export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single'): string {
+export function contentRestoreAfterMods(total: number, failed: number): ContentRestoreState {
+  return { phase: failed > 0 ? 'partial' : 'ready', current: Math.max(0, total), total: Math.max(0, total), failed: Math.max(0, failed) };
+}
+
+export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single', concreteBlockIds: readonly string[] = []): string {
   const serializedState = Object.entries(state).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join(',');
-  return `thumbnail-v5|${generation}|${gameVersion}|item-preview-v2|${recipe}|${blockId}|${serializedState}`;
+  return `thumbnail-v6|${generation}|${gameVersion}|item-preview-v3|${recipe}|${blockId}|${concreteBlockIds.slice().sort().join(',')}|${serializedState}`;
+}
+
+export function thumbnailIdentityForItem(generation: number, gameVersion: string, item: Pick<PlaceableItemDefinition, 'itemId' | 'previewRecipe' | 'concreteBlockIds'>, previewState: Readonly<Record<string, string>>): string {
+  return thumbnailKey(generation, gameVersion, item.itemId, previewState, item.previewRecipe, item.concreteBlockIds);
 }

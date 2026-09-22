@@ -23,13 +23,26 @@ export class BlockModelResolver {
     if (!selected.length) return result(blockId, state, [], 'fallback', ...diagnostics);
     const parts: ResolvedModelPart[] = [];
     for (const configured of selected) {
-      const model = this.resolveModel(configured.model, diagnostics, new Set(), modelResources, parentResources);
+      const model = this.resolveModelDocument(configured.model, diagnostics, new Set(), modelResources, parentResources);
       if (!model) continue;
       const textureMap = resolveTextures(model.textures, diagnostics, configured.model);
       parts.push({ model: configured.model, weight: configured.weight ?? 1, transform: { x: configured.x ?? 0, y: configured.y ?? 0, ...(configured.z ? { z: configured.z } : {}), uvlock: configured.uvlock ?? false }, elements: parseElements(model.elements, textureMap.values, textureMap.hints, diagnostics, configured.model), textures: textureMap.values, ambientOcclusion: typeof model.ambientocclusion === 'boolean' ? model.ambientocclusion : undefined });
     }
     const support: BlockSupportLevel = parts.length && !diagnostics.some((item) => item.code === 'missing-parent' || item.code === 'parent-cycle' || item.code === 'missing-model' || item.code === 'missing-texture' || item.code === 'malformed-model' || item.code === 'unsupported-model-behavior') ? 'full' : parts.length ? 'partial' : 'fallback';
     return { blockId, state: { ...state }, parts, support, diagnostics, trace: resolverTrace(blockPath, matchedVariantKeys, selected, modelResources, parentResources, parts) };
+  }
+
+  /** Resolves an inventory/static model directly, without requiring a blockstate JSON. */
+  resolveModelReference(modelId: string, seed = ''): ResolvedBlockModel {
+    const diagnostics: ResolverDiagnostic[] = [];
+    const modelResources = new Set<string>(); const parentResources = new Set<string>();
+    const model = this.resolveModelDocument(modelId, diagnostics, new Set(), modelResources, parentResources);
+    if (!model) return { blockId: modelId, state: {}, parts: [], support: 'fallback', diagnostics, trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [], modelResources: [...modelResources], parentResources: [...parentResources], elementCount: 0, faceCount: 0, textureResources: [] } };
+    const textureMap = resolveTextures(model.textures, diagnostics, modelId);
+    const elements = parseElements(model.elements, textureMap.values, textureMap.hints, diagnostics, modelId);
+    const part: ResolvedModelPart = { model: modelId, weight: 1, transform: { x: 0, y: 0, uvlock: false }, elements, textures: textureMap.values, ambientOcclusion: typeof model.ambientocclusion === 'boolean' ? model.ambientocclusion : undefined };
+    const support: BlockSupportLevel = elements.length && !diagnostics.some((item) => item.code === 'missing-parent' || item.code === 'parent-cycle' || item.code === 'missing-model' || item.code === 'missing-texture' || item.code === 'malformed-model') ? 'full' : elements.length ? 'partial' : 'fallback';
+    return { blockId: modelId, state: {}, parts: [part], support, diagnostics, trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [modelId], modelResources: [...modelResources], parentResources: [...parentResources], elementCount: elements.length, faceCount: elements.reduce((sum, element) => sum + Object.keys(element.faces).length, 0), textureResources: Object.values(textureMap.values) } };
   }
 
   rotateState(state: BlockState, definitions: ResolverStateDefinitions, quarterTurns: number): BlockStateRotationResult {
@@ -46,7 +59,7 @@ export class BlockModelResolver {
     return { supported: false, diagnostics: [diagnostic('unsupported-model-behavior', 'BlockState rotation is not supported for the supplied properties.')] };
   }
 
-  private resolveModel(model: string, diagnostics: ResolverDiagnostic[], chain: Set<string>, modelResources: Set<string>, parentResources: Set<string>): ModelDocument | undefined {
+  private resolveModelDocument(model: string, diagnostics: ResolverDiagnostic[], chain: Set<string>, modelResources: Set<string>, parentResources: Set<string>): ModelDocument | undefined {
     const path = modelPath(model);
     modelResources.add(path);
     if (chain.has(path)) { diagnostics.push(diagnostic('parent-cycle', `Circular model parent detected at ${model}`, path)); return undefined; }
@@ -58,7 +71,7 @@ export class BlockModelResolver {
     if (!parentId) return current;
     const parentResource = modelPath(resolveResourceLocation(parentId) ?? parentId);
     parentResources.add(parentResource);
-    const parent = this.resolveModel(resolveResourceLocation(parentId) ?? parentId, diagnostics, new Set([...chain, path]), modelResources, parentResources);
+    const parent = this.resolveModelDocument(resolveResourceLocation(parentId) ?? parentId, diagnostics, new Set([...chain, path]), modelResources, parentResources);
     if (!parent) { diagnostics.push(diagnostic('missing-parent', `Missing model parent: ${parentId}`, path)); return current; }
     return { ...parent, ...current, textures: { ...(isRecord(parent.textures) ? parent.textures : {}), ...(isRecord(current.textures) ? current.textures : {}) }, elements: current.elements ?? parent.elements, ambientocclusion: current.ambientocclusion ?? parent.ambientocclusion };
   }

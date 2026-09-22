@@ -12,6 +12,6 @@ export class QuickBlockBarComponent {
   protected readonly quick = inject(QuickBlockBarService);
   private readonly library = inject(BlockLibraryService);
   protected readonly assets = inject(VanillaAssetsService);
-  private readonly thumbnailSync = effect(() => { this.assets.generation(); for (const entry of this.quick.entries()) { const item = this.library.getItem(entry.itemId) ?? this.library.itemForBlock(entry.id); if (item) this.assets.prepareItemThumbnail({ ...item, defaultState: entry.state }); else this.assets.prepareThumbnail(entry.itemId, entry.state); } });
+  private readonly thumbnailSync = effect(() => { this.assets.generation(); for (const entry of this.quick.entries()) { const item = this.library.getItem(entry.itemId) ?? this.library.itemForBlock(entry.id); if (item) this.assets.prepareItemThumbnail({ ...item, defaultState: entry.state, previewState: entry.state }); else this.assets.prepareThumbnail(entry.itemId, entry.state); } });
   protected readonly entries = computed(() => { const active = this.quick.active(); const items = this.library.allItems(); return this.quick.entries().map((entry) => { const state = quickStateKey(entry.state); return { ...entry, key: `${entry.itemId}|${state}`, thumbnail: this.assets.thumbnailUrl(entry.itemId, entry.state), active: quickEntryMatchesActive(entry, active, !!this.library.getItem(entry.itemId), items) }; }); });
 }

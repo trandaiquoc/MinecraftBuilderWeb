@@ -1706,3 +1706,14 @@ waterlogged, and hanging attachment defaults before descriptor matching. The
 generic descriptor now reuses the shared Sign geometry, transforms, and
 front/back text branches for all four Sign variants; untagged name lookalikes
 remain generic content.
+
+The final F2 corrective pass separates Vanilla asset readiness from complete
+active-content restoration. Cached external Mods restore with per-source
+progress and a partial-ready state when stale entries are skipped; Vanilla
+remains usable. Sign and Hanging Sign placement consumes explicit normalized
+placement variants and verified behavior metadata, with only the authoritative
+Minecraft manifest/name fallback retained for Vanilla compatibility. Thumbnail
+generation and lookup now share one item-preview identity based on
+`previewState`; `defaultState` remains placement-only. Static Item block-model
+references use the shared model resolver, while generated Item layers keep
+their existing path.
