@@ -15,6 +15,7 @@ import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vani
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
 import { resolveResourceLocation } from '../../content/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
+import { ContentIntrospectionEngine } from '../../content/content-introspection';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -137,6 +138,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
     const behaviorRegistry = new VanillaBehaviorRegistry(this);
     const resolver = new BlockModelResolver(this);
+    const introspection = new ContentIntrospectionEngine(this);
     const resources = (registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
       const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
     })).filter(({ id }) => !isDecorationEntityId(id));
@@ -169,7 +171,8 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const intentionallyInvisible = intentionallyInvisibleBlocks.has(id) || known?.capabilities?.some((capability) => capability.kind === 'intentionally-invisible') === true;
       const specialRenderer = !intentionallyInvisible && (fluid || known?.capabilities?.some((capability) => capability.kind === 'special-renderer') === true || resolved.parts.length > 0 && resolved.trace.elementCount === 0);
       const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
-      return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
+      const finalRecord: AssetBlockRecord = { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
+      return { ...finalRecord, contentDescriptor: introspection.inspectBlock(finalRecord) };
     });
     const paintingCatalog = new PaintingVariantCatalog();
     paintingCatalog.load(this, this.source.id, this.source.displayName);

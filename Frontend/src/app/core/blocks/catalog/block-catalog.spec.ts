@@ -37,6 +37,18 @@ describe('BlockCatalog', () => {
     expect(hasBlockCapability(catalog.get('minecraft:red_bed'), 'item-backed')).toBe(false);
   });
 
+  it('normalizes verified semantic supplements into the block definition', () => {
+    const catalog = new BlockCatalog();
+    catalog.load({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{
+      id: 'example:display', displayName: 'Display', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full',
+      capabilities: [{ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' }], supportContracts: ['decorative-support'],
+    }] });
+    const definition = catalog.get('example:display');
+    expect(hasBlockCapability(definition, 'item-storage-display')).toBe(true);
+    expect(definition?.supportContracts).toEqual(['decorative-support']);
+    expect(hasBlockCapability(catalog.get('example:lookalike'), 'item-storage-display')).toBe(false);
+  });
+
   it('searches normalized display name, ID, namespace and mod name', () => {
     const catalog = new BlockCatalog();
     catalog.load(representativeBlockFixture);

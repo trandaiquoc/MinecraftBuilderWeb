@@ -19,8 +19,9 @@ class FakeSource implements ContentSourceProvider {
   paths(): readonly string[] { return Object.keys(this.json); }
   readBinary(path: string): Uint8Array | undefined { return this.binary.get(path); }
   textureUrl(): string | undefined { return undefined; }
-  catalog() { return { minecraftVersion: '1.21.1' as const, sourceId: this.source.id, sourceName: this.source.displayName, blocks: this.blocks, targetItems: this.items, itemEvidenceAvailable: this.items.length > 0 }; }
+  catalog() { return { minecraftVersion: '1.21.1' as const, sourceId: this.source.id, sourceName: this.source.displayName, blocks: this.blocks, targetItems: this.items, itemEvidenceAvailable: this.items.length > 0, paintingVariants: this.paintings }; }
   items: readonly import('../../blocks/catalog/block-definition.types').CatalogItemEvidence[] = [];
+  paintings: readonly import('../../decorations/decoration.types').PaintingVariant[] = [];
   dispose(): void { this.disposed = true; }
 }
 
@@ -107,5 +108,13 @@ describe('ContentSourceRegistry', () => {
     const external = new FakeSource('example', ['example'], {}); external.items = [{ itemId: 'example:gem', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' }];
     registry.register(vanilla); registry.register(external);
     expect(registry.itemEvidenceSources().flatMap((source) => source.items.map((item) => item.itemId))).toEqual(['minecraft:stone', 'example:gem']);
+  });
+
+  it('exposes an external source with painting contributions in the decoration picker', () => {
+    const registry = new ContentSourceRegistry();
+    const source = new FakeSource('paintings', ['example'], {});
+    source.paintings = [{ id: 'example:poster', width: 2, height: 1, assetPath: 'example:painting/poster', sourceId: 'paintings', sourceName: 'Paintings' }];
+    registry.register(source);
+    expect(registry.decorationSources().map((entry) => entry.id)).toEqual(['paintings']);
   });
 });

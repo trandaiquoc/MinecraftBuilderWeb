@@ -178,6 +178,8 @@ export class BlockRuleEngine {
   }
 
   private validateSupport(project: ProjectDocument, block: PlacedBlock, definition: BlockDefinition | undefined): RuleValidation {
+    const contractSupport = this.validateSupportContracts(project, block, definition);
+    if (contractSupport) return contractSupport;
     const behavior = definition?.behavior;
     if (!behavior) return { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position] };
     let supportPosition: VoxelCoordinate | undefined;
@@ -225,6 +227,25 @@ export class BlockRuleEngine {
     return this.isSupportBlock(support.id)
       ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, supportPosition] }
       : { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
+  }
+
+  private validateSupportContracts(project: ProjectDocument, block: PlacedBlock, definition: BlockDefinition | undefined): RuleValidation | undefined {
+    const requirements = definition?.supportRequirements;
+    if (!requirements?.length) return undefined;
+    const affected = [block.position];
+    let unknown = false;
+    for (const requirement of requirements) {
+      const offset = requirement.direction === 'below' ? { x: 0, y: -1, z: 0 } : requirement.direction === 'above' ? { x: 0, y: 1, z: 0 } : directionOffset(requirement.direction);
+      const position = add(block.position, offset); affected.push(position);
+      const support = find(project.blocks, position);
+      if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: affected };
+      const supportDefinition = this.definition(support.id);
+      if (!supportDefinition) { unknown = true; continue; }
+      if (supportDefinition.supportContracts?.includes(requirement.contractId)) continue;
+      if (!supportDefinition.supportContracts?.length) { unknown = true; continue; }
+      return { status: 'invalid', reason: 'missing-support', affectedPositions: affected };
+    }
+    return unknown ? { status: 'unknown', reason: 'unknown-behavior', affectedPositions: affected } : { status: 'valid', reason: 'ok', affectedPositions: affected };
   }
 
   private derivedState(block: PlacedBlock, blocks: readonly PlacedBlock[]): Readonly<Record<string, string>> | undefined {

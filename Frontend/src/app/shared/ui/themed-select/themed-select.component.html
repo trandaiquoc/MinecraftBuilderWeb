@@ -1,5 +1,5 @@
 <div class="themed-select" [class.open]="open()">
-  <button type="button" class="themed-select-trigger" role="combobox" [attr.aria-label]="ariaLabel" [attr.aria-expanded]="open()" aria-haspopup="listbox" (click)="toggle()" (keydown)="onTriggerKeydown($event)">
+  <button type="button" class="themed-select-trigger" role="combobox" [disabled]="disabled" [attr.aria-label]="ariaLabel" [attr.aria-expanded]="open()" aria-haspopup="listbox" (click)="toggle()" (keydown)="onTriggerKeydown($event)">
     <span>{{ selectedLabel }}</span><svg lucideChevronDown aria-hidden="true"></svg>
   </button>
   @if (open()) {

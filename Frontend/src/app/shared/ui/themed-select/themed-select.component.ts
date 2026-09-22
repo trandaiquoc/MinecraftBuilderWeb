@@ -14,13 +14,14 @@ export class ThemedSelectComponent {
   @Input() options: readonly ThemedSelectOption[] = [];
   @Input() selectedId = '';
   @Input() ariaLabel = '';
+  @Input() disabled = false;
   @Output() readonly selectionChange = new EventEmitter<string>();
   protected readonly open = signal(false);
   protected readonly activeIndex = signal(0);
   private readonly host = inject(ElementRef<HTMLElement>);
 
   protected get selectedLabel(): string { return this.options.find((option) => option.id === this.selectedId)?.label ?? ''; }
-  protected toggle(): void { this.open.update((open) => !open); this.activeIndex.set(Math.max(0, this.options.findIndex((option) => option.id === this.selectedId))); }
+  protected toggle(): void { if (this.disabled) return; this.open.update((open) => !open); this.activeIndex.set(Math.max(0, this.options.findIndex((option) => option.id === this.selectedId))); }
   protected choose(id: string): void { this.selectionChange.emit(id); this.open.set(false); }
   protected onTriggerKeydown(event: KeyboardEvent): void {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); this.open.set(true); this.activeIndex.update((index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + this.options.length) % Math.max(1, this.options.length)); return; }

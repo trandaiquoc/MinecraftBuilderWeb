@@ -9,6 +9,7 @@ import { DecorationService } from '../../../../core/decorations/decoration.servi
 import { LucidePlus } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ContentSourceOption, ContentSourceSelectorComponent } from '../../../../shared/ui/content-source-selector/content-source-selector.component';
+import { ALL_CONTENT_SOURCE, filterByContentSource, sourceOptions } from '../../../../shared/ui/content-source-selector/content-source-filter';
 
 @Component({ selector: 'app-block-browser', imports: [LucidePlus, UiTooltipDirective, ContentSourceSelectorComponent], templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
 export class BlockBrowserComponent {
@@ -18,7 +19,7 @@ export class BlockBrowserComponent {
   protected readonly assets = inject(VanillaAssetsService);
   private readonly quick = inject(QuickBlockBarService);
   private readonly decorations = inject(DecorationService);
-  protected readonly selectedSource = signal('vanilla');
+  protected readonly selectedSource = signal<string>(ALL_CONTENT_SOURCE);
   protected readonly sources = computed<readonly ContentSourceOption[]>(() => {
     const grouped = new Map<string, { readonly label: string; count: number }>();
     for (const item of this.library.allPlaceableItems()) {
@@ -26,10 +27,12 @@ export class BlockBrowserComponent {
       const current = grouped.get(id);
       grouped.set(id, { label: id === 'vanilla' ? this.i18n.t('vanillaSource') : item.sourceName || item.modName || id, count: (current?.count ?? 0) + 1 });
     }
-    return [...grouped.entries()].sort(([left], [right]) => left === 'vanilla' ? -1 : right === 'vanilla' ? 1 : left.localeCompare(right)).map(([id, value]) => ({ id, label: value.label, count: value.count, tooltip: `${value.label} (${value.count})` }));
+    const options = [...grouped.entries()].map(([id, value]) => ({ id, label: value.label, count: value.count, tooltip: `${value.label} (${value.count})` }));
+    const count = new Set(this.library.allPlaceableItems().map((item) => item.itemId)).size;
+    return sourceOptions(options, count, this.i18n.t('allSources'), `${this.i18n.t('allSources')} (${count})`);
   });
-  protected readonly activeSource = computed(() => this.sources().some((source) => source.id === this.selectedSource()) ? this.selectedSource() : this.sources()[0]?.id);
-  protected readonly results = computed(() => placementItemSearch(this.library.allPlaceableItems().filter((item) => (item.sourceId ?? item.namespace) === this.activeSource()), this.library.query()));
+  protected readonly activeSource = computed(() => this.sources().some((source) => source.id === this.selectedSource()) ? this.selectedSource() : ALL_CONTENT_SOURCE);
+  protected readonly results = computed(() => placementItemSearch(filterByContentSource(this.library.allPlaceableItems(), this.activeSource()), this.library.query()));
   private readonly thumbnailSync = effect(() => { this.assets.visualProvider(); this.assets.prepareItemThumbnails(this.library.results()); });
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }

@@ -154,6 +154,20 @@ describe('BlockRuleEngine', () => {
     expect(engine.place(base, block('example:missing_renderer', { x: 1, y: 1, z: 1 })).validation).toMatchObject({ status: 'unknown', reason: 'unknown-behavior' });
   });
 
+  it('uses verified generic support contracts without requiring solid behavior', () => {
+    const supportDefinition = { id: 'example:soil', namespace: 'example', displayName: 'Soil', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'partial' as const, behaviorSupport: 'full' as const, visualSupport: 'partial' as const, visualClassification: 'standard-json' as const, defaultStateSource: 'verified-fixture' as const, supportContracts: ['plantable-soil'] };
+    const plantDefinition = { id: 'example:plant', namespace: 'example', displayName: 'Plant', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'partial' as const, behaviorSupport: 'full' as const, visualSupport: 'partial' as const, visualClassification: 'standard-json' as const, defaultStateSource: 'verified-fixture' as const, behavior: { kind: 'floor-supported' as const }, supportRequirements: [{ direction: 'below' as const, contractId: 'plantable-soil', evidence: 'verified' as const }] };
+    const contractEngine = new BlockRuleEngine((id) => id === supportDefinition.id ? supportDefinition : id === plantDefinition.id ? plantDefinition : catalog.get(id));
+    const soil = block(supportDefinition.id, { x: 2, y: 0, z: 2 });
+    expect(contractEngine.place({ ...base, blocks: [soil] }, block(plantDefinition.id, { x: 2, y: 1, z: 2 })).validation.status).toBe('valid');
+    const unrelated = { ...soil, id: 'example:other-soil', namespace: 'example' };
+    const unknownEngine = new BlockRuleEngine((id) => id === supportDefinition.id ? supportDefinition : id === plantDefinition.id ? plantDefinition : id === unrelated.id ? { ...supportDefinition, id: unrelated.id, supportContracts: ['other'] } : catalog.get(id));
+    expect(unknownEngine.place({ ...base, blocks: [unrelated] }, block(plantDefinition.id, { x: 2, y: 1, z: 2 })).validation.status).toBe('invalid');
+    const noMetadata = { ...supportDefinition, id: 'example:unverified-soil', supportContracts: undefined };
+    const honestEngine = new BlockRuleEngine((id) => id === noMetadata.id ? noMetadata : id === plantDefinition.id ? plantDefinition : catalog.get(id));
+    expect(honestEngine.place({ ...base, blocks: [block(noMetadata.id, { x: 2, y: 0, z: 2 })] }, block(plantDefinition.id, { x: 2, y: 1, z: 2 })).validation.status).toBe('unknown');
+  });
+
   it('places and deletes door and tall plant pairs atomically', () => {
     const supported = { ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 })] };
     const door = engine.place(supported, block('minecraft:oak_door', { x: 2, y: 1, z: 2 })).project!;

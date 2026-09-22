@@ -1,6 +1,8 @@
 import type { AssetResourceProvider, ResolvedBlockModel } from '../blocks/resolver/resolver.types';
 import { BlockModelResolver } from '../blocks/resolver/block-model-resolver';
 import type { AssetBlockRecord, BlockItemEvidence, BlockStateDefinition, CatalogItemEvidence } from '../blocks/catalog/block-definition.types';
+import type { BlockCapabilityProfile } from '../blocks/capabilities/block-capability.types';
+import type { PlacementSupportRequirement } from '../blocks/catalog/block-definition.types';
 import { resourcePath, resolveResourceLocation } from './resource-location';
 import { blockStatePredicates, invalidPredicateReasons, type NormalizedPredicate, type NormalizedPropertyPredicate } from './normalized-predicate';
 
@@ -38,6 +40,7 @@ export interface ContentPropertyEffects {
 export interface ContentPropertyDescriptor {
   readonly name: string;
   readonly values: readonly string[];
+  readonly defaultValue?: string;
   readonly derived: boolean;
   readonly provenance: EvidenceProvenance;
   readonly effects: ContentPropertyEffects;
@@ -91,16 +94,47 @@ export interface NormalizedContentDescriptor {
   readonly representativeVisualState: Readonly<Record<string, string>>;
   readonly relationships: readonly ContentRelationship[];
   readonly capabilities: readonly string[];
+  readonly capabilityProfile?: BlockCapabilityProfile;
+  readonly supportRequirements?: readonly PlacementSupportRequirement[];
+  readonly supportContracts?: readonly string[];
   readonly semanticEvidence: readonly ContentSemanticEvidence[];
   readonly stateSchemaIncomplete: boolean;
   readonly resourceGraph: ResourceDependencyGraph;
   readonly diagnostics: readonly ContentIntrospectionDiagnostic[];
 }
 
+export interface ContentPropertySupplement {
+  readonly name: string;
+  readonly values: readonly string[];
+  readonly defaultValue?: string;
+  readonly derived?: boolean;
+  readonly effects?: Partial<ContentPropertyEffects>;
+  readonly provenance?: EvidenceProvenance;
+  readonly evidence?: readonly string[];
+}
+
+/** Verified runtime evidence supplied by an explicit, source-independent producer. */
+export interface ContentSemanticSupplement {
+  readonly id: string;
+  readonly sourceId?: string;
+  readonly properties?: readonly ContentPropertySupplement[];
+  readonly defaultState?: Readonly<Record<string, string>>;
+  readonly capabilities?: BlockCapabilityProfile;
+  readonly supportRequirements?: readonly PlacementSupportRequirement[];
+  readonly supportContracts?: readonly string[];
+  readonly semanticEvidence?: readonly ContentSemanticEvidence[];
+  readonly diagnostics?: readonly ContentIntrospectionDiagnostic[];
+  readonly stateSchemaIncomplete?: boolean;
+}
+
+export interface ContentSemanticEvidenceProvider {
+  supplementsFor(contentId: string, sourceId?: string): readonly ContentSemanticSupplement[];
+}
+
 /** Resource-backed introspection shared by vanilla and external content sources. */
 export class ContentIntrospectionEngine {
   private readonly resolver: BlockModelResolver;
-  constructor(private readonly provider: AssetResourceProvider) { this.resolver = new BlockModelResolver(provider); }
+  constructor(private readonly provider: AssetResourceProvider, private readonly semanticEvidenceProvider?: ContentSemanticEvidenceProvider) { this.resolver = new BlockModelResolver(provider); }
 
   inspectBlock(record: AssetBlockRecord): NormalizedContentDescriptor {
     const source = sourceMetadata(this.provider, record.sourceId, record.sourceName);
@@ -124,7 +158,8 @@ export class ContentIntrospectionEngine {
     const stateSchemaIncomplete = record.defaultStateSource !== 'authoritative-report';
     if (stateSchemaIncomplete) diagnostics.push({ code: 'state-schema-incomplete', message: 'Static resources cannot prove runtime-registered properties.', sourceId: source.id });
     if (properties.some((property) => property.effects.runtimeUnknown)) diagnostics.push({ code: 'unknown-runtime-semantic', message: 'One or more observed properties have no verified runtime semantic contract.', sourceId: source.id });
-    return { id: record.id, sourceId: source.id, sourceName: source.name, roles: roleEvidence.map((entry) => entry.role), roleEvidence, resources, properties, predicates, placementDefault, representativeVisualState, relationships, capabilities, semanticEvidence, stateSchemaIncomplete, resourceGraph: graph, diagnostics: uniqueDiagnostics(diagnostics) };
+    const descriptor: NormalizedContentDescriptor = { id: record.id, sourceId: source.id, sourceName: source.name, roles: roleEvidence.map((entry) => entry.role), roleEvidence, resources, properties, predicates, placementDefault, representativeVisualState, relationships, capabilities, capabilityProfile: record.capabilities, supportRequirements: record.supportRequirements, supportContracts: record.supportContracts, semanticEvidence, stateSchemaIncomplete, resourceGraph: graph, diagnostics: uniqueDiagnostics(diagnostics) };
+    return mergeContentEvidence(descriptor, [...(record.semanticSupplements ?? []), ...(this.semanticEvidenceProvider?.supplementsFor(record.id, source.id) ?? [])]);
   }
 
   inspectItem(evidence: CatalogItemEvidence | BlockItemEvidence): NormalizedContentDescriptor {
@@ -150,8 +185,51 @@ export class ContentIntrospectionEngine {
     });
     const evidence = visual ? ['resource model selection differs for at least one observed value'] : ['no resource selection difference observed'];
     const behavior = behaviorEffects(record, definition.name);
-    return { name: definition.name, values, derived: definition.derived === true, provenance: 'resource-backed', effects: { visual, placement: behavior.placement, behavior: behavior.behavior, attachment: behavior.attachment, connection: behavior.connection, itemDisplay: false, runtimeUnknown: !behavior.known }, evidence: [...evidence, ...behavior.evidence] };
+    return { name: definition.name, values, ...(baseline[definition.name] !== undefined ? { defaultValue: baseline[definition.name] } : {}), derived: definition.derived === true, provenance: 'resource-backed', effects: { visual, placement: behavior.placement, behavior: behavior.behavior, attachment: behavior.attachment, connection: behavior.connection, itemDisplay: false, runtimeUnknown: !behavior.known }, evidence: [...evidence, ...behavior.evidence] };
   }
+}
+
+export function mergeContentEvidence(staticDescriptor: NormalizedContentDescriptor, supplements: readonly ContentSemanticSupplement[] = []): NormalizedContentDescriptor {
+  const relevant = supplements.filter((supplement) => supplement.id === staticDescriptor.id && (!supplement.sourceId || supplement.sourceId === staticDescriptor.sourceId));
+  if (!relevant.length) return staticDescriptor;
+  const properties = new Map(staticDescriptor.properties.map((property) => [property.name, property]));
+  const diagnostics = [...staticDescriptor.diagnostics];
+  const defaults: Record<string, string> = { ...staticDescriptor.placementDefault };
+  const capabilityProfile = [...(staticDescriptor.capabilityProfile ?? [])];
+  const supportRequirements = [...(staticDescriptor.supportRequirements ?? [])];
+  const supportContracts = [...(staticDescriptor.supportContracts ?? [])];
+  const semanticEvidence = [...staticDescriptor.semanticEvidence];
+  let stateSchemaIncomplete = staticDescriptor.stateSchemaIncomplete;
+  for (const supplement of relevant) {
+    for (const [name, value] of Object.entries(supplement.defaultState ?? {})) {
+      if (defaults[name] !== undefined && defaults[name] !== value) diagnostics.push({ code: 'semantic-contract-mismatch', message: `Verified semantic evidence conflicts with the default value for ${name}.`, sourceId: staticDescriptor.sourceId });
+      else defaults[name] = value;
+    }
+    for (const property of supplement.properties ?? []) {
+      const current = properties.get(property.name);
+      if (current && current.values.length && property.values.length && !current.values.some((value) => property.values.includes(value))) diagnostics.push({ code: 'semantic-contract-mismatch', message: `Verified semantic evidence conflicts with static property values for ${property.name}.`, sourceId: staticDescriptor.sourceId });
+      const effects: ContentPropertyEffects = {
+        visual: property.effects?.visual ?? current?.effects.visual ?? false,
+        placement: property.effects?.placement ?? current?.effects.placement ?? false,
+        behavior: property.effects?.behavior ?? current?.effects.behavior ?? false,
+        attachment: property.effects?.attachment ?? current?.effects.attachment ?? false,
+        connection: property.effects?.connection ?? current?.effects.connection ?? false,
+        itemDisplay: property.effects?.itemDisplay ?? current?.effects.itemDisplay ?? false,
+        runtimeUnknown: property.effects?.runtimeUnknown ?? current?.effects.runtimeUnknown ?? true,
+      };
+      properties.set(property.name, { name: property.name, values: [...new Set([...(current?.values ?? []), ...property.values])].sort(), ...(property.defaultValue !== undefined || current?.defaultValue !== undefined ? { defaultValue: property.defaultValue ?? current?.defaultValue } : {}), derived: property.derived ?? current?.derived ?? false, provenance: property.provenance ?? 'trusted-data', effects, evidence: [...new Set([...(current?.evidence ?? []), ...(property.evidence ?? [])])] });
+      if (property.defaultValue !== undefined && defaults[property.name] === undefined) defaults[property.name] = property.defaultValue;
+      else if (property.defaultValue !== undefined && defaults[property.name] !== undefined && defaults[property.name] !== property.defaultValue) diagnostics.push({ code: 'semantic-contract-mismatch', message: `Verified semantic evidence conflicts with the default value for ${property.name}.`, sourceId: staticDescriptor.sourceId });
+    }
+    for (const capability of supplement.capabilities ?? []) if (!capabilityProfile.some((current) => JSON.stringify(current) === JSON.stringify(capability))) capabilityProfile.push(capability);
+    for (const requirement of supplement.supportRequirements ?? []) if (!supportRequirements.some((current) => JSON.stringify(current) === JSON.stringify(requirement))) supportRequirements.push(requirement);
+    for (const contract of supplement.supportContracts ?? []) if (!supportContracts.includes(contract)) supportContracts.push(contract);
+    semanticEvidence.push(...(supplement.semanticEvidence ?? []));
+    diagnostics.push(...(supplement.diagnostics ?? []));
+    if (supplement.stateSchemaIncomplete !== undefined) stateSchemaIncomplete = supplement.stateSchemaIncomplete;
+  }
+  const mergedProperties = [...properties.values()].sort((left, right) => left.name.localeCompare(right.name));
+  return { ...staticDescriptor, properties: mergedProperties, placementDefault: defaults, capabilities: [...new Set([...staticDescriptor.capabilities, ...capabilityProfile.map((capability) => capability.kind)])], capabilityProfile: capabilityProfile.length ? capabilityProfile : staticDescriptor.capabilityProfile, supportRequirements: supportRequirements.length ? supportRequirements : staticDescriptor.supportRequirements, supportContracts: supportContracts.length ? supportContracts : staticDescriptor.supportContracts, semanticEvidence, stateSchemaIncomplete, diagnostics: uniqueDiagnostics(diagnostics) };
 }
 
 export function extractPredicates(document: unknown): readonly NormalizedPredicate[] {

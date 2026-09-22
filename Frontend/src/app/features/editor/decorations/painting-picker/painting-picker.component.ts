@@ -12,19 +12,23 @@ import { I18nService } from '../../../../core/ui/localization/i18n.service';
 export class PaintingPickerComponent {
   @Input() selectedId = '';
   @Input() compact = false;
+  @Input() sourceId = '__minecraftbuilder_all__';
   @Output() readonly selectionChange = new EventEmitter<string>();
   protected readonly i18n = inject(I18nService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly catalog = inject(PaintingVariantCatalogService);
   protected readonly query = signal('');
   protected readonly open = signal(false);
-  protected variants(): readonly PaintingVariant[] { return this.catalog.placeable(); }
+  protected variants(): readonly PaintingVariant[] { return this.catalog.placeable(this.sourceId); }
   protected readonly filteredVariants = computed(() => {
     const query = normalize(this.query());
     const variants = this.variants();
-    return query ? variants.filter((entry) => normalize(`${humanize(entry.id)} ${entry.id} ${entry.width}x${entry.height}`).includes(query)) : variants;
+    return query ? variants.filter((entry) => normalize(`${humanize(entry.id)} ${entry.id} ${entry.sourceName ?? entry.sourceId ?? ''} ${entry.width}x${entry.height}`).includes(query)) : variants;
   });
-  protected selectedVariant(): PaintingVariant | undefined { return this.catalog.get(this.selectedId); }
+  protected selectedVariant(): PaintingVariant | undefined {
+    const selected = this.catalog.get(this.selectedId);
+    return selected && (this.sourceId === '__minecraftbuilder_all__' || (selected.sourceId ?? 'vanilla') === this.sourceId) ? selected : undefined;
+  }
   protected imageSize(variant: PaintingVariant, stage: 'card' | 'selected'): { readonly width: number; readonly height: number } {
     const sourceWidth = variant.width * 16;
     const sourceHeight = variant.height * 16;

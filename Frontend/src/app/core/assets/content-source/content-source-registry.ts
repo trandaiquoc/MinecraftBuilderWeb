@@ -54,7 +54,9 @@ export class ContentSourceRegistry {
   providerForSource(sourceId: string): ContentSourceProvider | undefined { return this.resources.providerForSource(sourceId); }
   /** Normalized tag evidence across all active sources, without exposing source-specific JSON shape. */
   tagIndex(): TagIndex { return new TagIndex(this.sources().map((source) => this.providerForSource(source.id)).filter((provider): provider is ContentSourceProvider => !!provider)); }
-  decorationSources(): readonly ContentSourceDescriptor[] { return this.sources().filter((source) => source.decorationSupport === true); }
+  decorationSources(): readonly ContentSourceDescriptor[] {
+    return this.sources().filter((source) => source.decorationSupport === true || (this.paintingContributions.get(source.id)?.length ?? 0) > 0);
+  }
   paintingVariants(): readonly PaintingVariant[] { return [...this.paintingContributions.values()].flat(); }
   itemEvidenceSources(): readonly ItemEvidenceSource[] {
     return [...this.contributions.entries()].map(([sourceId, source]) => ({

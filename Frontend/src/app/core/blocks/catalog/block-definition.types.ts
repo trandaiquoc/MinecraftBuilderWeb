@@ -7,6 +7,12 @@ export type VisualSupportLevel = 'real' | 'partial' | 'fallback';
 export type BlockVisualClassification = 'standard-json' | 'special-renderer-required' | 'intentionally-invisible';
 export type DefaultStateSource = 'authoritative-report' | 'verified-fixture' | 'compatible-common' | 'resource-derived' | 'resource-render-fallback' | 'unknown';
 
+export interface PlacementSupportRequirement {
+  readonly direction: 'below' | 'above' | 'north' | 'east' | 'south' | 'west';
+  readonly contractId: string;
+  readonly evidence: 'verified';
+}
+
 export interface BlockStateDefinition {
   readonly name: string;
   readonly values: readonly string[];
@@ -90,6 +96,9 @@ export interface BlockDefinition {
   /** Resource-backed roles/state/effect evidence shared by block, item and decoration tooling. */
   readonly contentDescriptor?: NormalizedContentDescriptor;
   readonly semanticEvidence?: readonly ContentSemanticEvidence[];
+  readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
+  readonly supportRequirements?: readonly PlacementSupportRequirement[];
+  readonly supportContracts?: readonly string[];
 }
 
 /** Catalog output always has a normalized profile; legacy hand-authored callers may use BlockDefinition. */
@@ -123,4 +132,7 @@ export interface AssetBlockRecord {
   readonly behaviorEvidenceRequired?: boolean;
   readonly contentDescriptor?: NormalizedContentDescriptor;
   readonly semanticEvidence?: readonly ContentSemanticEvidence[];
+  readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
+  readonly supportRequirements?: readonly PlacementSupportRequirement[];
+  readonly supportContracts?: readonly string[];
 }

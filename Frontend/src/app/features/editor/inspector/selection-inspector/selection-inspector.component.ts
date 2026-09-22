@@ -12,6 +12,7 @@ import { SignInspectorComponent } from '../sign-inspector/sign-inspector.compone
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
 import { ItemDisplayInspectorComponent } from '../item-display-inspector/item-display-inspector.component';
 import { blockCapability } from '../../../../core/blocks/capabilities/block-capability-resolver';
+import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';
 
 @Component({ selector: 'app-selection-inspector', imports: [DecorationInspectorComponent, SignInspectorComponent, ThemedSelectComponent, ItemDisplayInspectorComponent], templateUrl: './selection-inspector.component.html', styleUrl: './selection-inspector.component.scss' })
 export class SelectionInspectorComponent {
@@ -26,6 +27,17 @@ export class SelectionInspectorComponent {
   protected readonly selectedBlock = computed(() => { const project = this.workspace.project(); const selected = this.selection.single(); return project && selected ? project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(selected)) : undefined; });
   protected readonly stateEntries = computed(() => Object.entries(this.selectedBlock()?.state ?? {}));
   protected readonly selectedDefinition = computed(() => { const block = this.selectedBlock(); return block ? this.library.get(block.id) : undefined; });
+  protected readonly stateProperties = computed<readonly ContentPropertyDescriptor[]>(() => {
+    const block = this.selectedBlock(); const definition = this.selectedDefinition();
+    if (!block || !definition) return [];
+    const properties = new Map((definition.contentDescriptor?.properties ?? definition.stateDefinitions.map((state) => ({ name: state.name, values: state.values, derived: state.derived === true, provenance: 'unknown' as const, effects: { visual: false, placement: false, behavior: false, attachment: false, connection: false, itemDisplay: false, runtimeUnknown: true }, evidence: [] as readonly string[] }))).map((property) => [property.name, property]));
+    for (const [name, value] of Object.entries(block.state)) {
+      const current = properties.get(name);
+      if (!current) properties.set(name, { name, values: [value], defaultValue: value, derived: false, provenance: 'unknown', effects: { visual: false, placement: false, behavior: false, attachment: false, connection: false, itemDisplay: false, runtimeUnknown: true }, evidence: ['Preserved from project state without static schema evidence.'] });
+      else if (!current.values.includes(value)) properties.set(name, { ...current, values: [...current.values, value].sort(), evidence: [...current.evidence, 'Current project value is outside the known static value set.'] });
+    }
+    return [...properties.values()].sort((left, right) => left.name.localeCompare(right.name));
+  });
   protected readonly selectedBlockIsSign = computed(() => { const block = this.selectedBlock(); return !!block && (isSignDefinition(this.library.get(block.id)) || isSignId(block.id)); });
   protected readonly selectedItemCapability = computed(() => {
     const definition = this.selectedDefinition();
@@ -42,6 +54,7 @@ export class SelectionInspectorComponent {
     });
   }
   protected stateOptions(values: readonly string[]): readonly ThemedSelectOption[] { return values.map((value) => ({ id: value, label: this.i18n.stateValue(value) })); }
+  protected propertyEffects(property: ContentPropertyDescriptor): string[] { const labels: string[] = []; if (property.effects.visual) labels.push(this.i18n.t('propertyVisual')); if (property.effects.behavior) labels.push(this.i18n.t('propertyBehavior')); if (property.effects.placement) labels.push(this.i18n.t('propertyPlacement')); if (property.derived) labels.push(this.i18n.t('propertyDerived')); if (property.effects.runtimeUnknown) labels.push(this.i18n.t('propertyRuntimeUnknown')); return labels; }
   protected updateSelectedStateValue(property: string, value: string): void { const selected = this.selection.single(); if (!selected || !this.editor.updateBlockState(selected, property, value)) this.stateFeedback.set('stateEditUnsupported'); else this.stateFeedback.set(''); }
   protected rotateSelected(): void { const selected = this.selection.single(); if (!selected || !this.editor.rotateBlock(selected)) this.stateFeedback.set('rotationUnsupported'); else this.stateFeedback.set(''); }
   protected feedbackLabel(): string { const key = this.stateFeedback(); return key ? this.i18n.t(key as 'stateEditUnsupported' | 'rotationUnsupported') : ''; }

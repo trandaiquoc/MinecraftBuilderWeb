@@ -1,6 +1,7 @@
 import type { AssetBlockRecord, BlockDefinition, BlockVisualClassification, CatalogItemEvidence, NormalizedBlockDefinition } from './block-definition.types';
 import { deriveBlockCapabilities } from '../capabilities/block-capability-resolver';
 import type { BlockCapability } from '../capabilities/block-capability.types';
+import { mergeContentEvidence } from '../../content/content-introspection';
 
 export interface BlockCatalogSource {
   readonly minecraftVersion: string;
@@ -75,18 +76,35 @@ function toDefinition(record: AssetBlockRecord, sourceId = record.sourceId ?? 'v
   const explicitRender = record.capabilities?.find((capability): capability is Extract<BlockCapability, { kind: 'standard-json-render' | 'special-renderer' | 'intentionally-invisible' }> => capability.kind === 'standard-json-render' || capability.kind === 'special-renderer' || capability.kind === 'intentionally-invisible');
   const visualClassification = record.visualClassification ?? renderClassification(explicitRender) ?? 'standard-json';
   const hasVisualEvidence = !!record.visualClassification || !!explicitRender || !!record.resources.blockstate || !!record.resources.model;
+  const descriptor = record.contentDescriptor ? mergeContentEvidence(record.contentDescriptor, record.semanticSupplements ?? []) : undefined;
+  const stateDefinitions = mergeStateDefinitions(record.stateDefinitions, descriptor?.properties);
+  const explicitCapabilities = [...(record.capabilities ?? []), ...(descriptor?.capabilityProfile ?? [])];
   return {
     ...record,
     sourceId,
     sourceName,
     namespace,
+    defaultState: { ...record.defaultState, ...(descriptor?.placementDefault ?? {}) },
+    stateDefinitions,
+    supportRequirements: descriptor?.supportRequirements ?? record.supportRequirements,
+    supportContracts: descriptor?.supportContracts ?? record.supportContracts,
     support,
     behaviorSupport: record.behaviorSupport ?? (record.behavior ? support === 'full' ? 'full' : 'partial' : 'unknown'),
     visualSupport: record.visualSupport ?? (support === 'full' ? 'real' : support),
     visualClassification,
     defaultStateSource: record.defaultStateSource ?? 'unknown',
-    capabilities: deriveBlockCapabilities({ behavior: record.behavior, visualClassification: hasVisualEvidence ? visualClassification : undefined, visualClassificationEvidence: record.visualClassificationEvidence ?? (record.visualClassification ? 'verified' : explicitRender?.evidence), stateDefinitions: record.stateDefinitions, explicit: record.capabilities }),
+    capabilities: deriveBlockCapabilities({ behavior: record.behavior, visualClassification: hasVisualEvidence ? visualClassification : undefined, visualClassificationEvidence: record.visualClassificationEvidence ?? (record.visualClassification ? 'verified' : explicitRender?.evidence), stateDefinitions, explicit: explicitCapabilities }),
   };
+}
+
+function mergeStateDefinitions(base: readonly import('./block-definition.types').BlockStateDefinition[], properties: readonly import('../../content/content-introspection').ContentPropertyDescriptor[] | undefined): readonly import('./block-definition.types').BlockStateDefinition[] {
+  if (!properties?.length) return base;
+  const merged = new Map(base.map((definition) => [definition.name, definition]));
+  for (const property of properties) {
+    const current = merged.get(property.name);
+    merged.set(property.name, { name: property.name, values: [...new Set([...(current?.values ?? []), ...property.values])].sort(), derived: property.derived || current?.derived === true ? true : undefined });
+  }
+  return [...merged.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
 function renderClassification(capability: Extract<BlockCapability, { kind: 'standard-json-render' | 'special-renderer' | 'intentionally-invisible' }> | undefined): BlockVisualClassification | undefined {

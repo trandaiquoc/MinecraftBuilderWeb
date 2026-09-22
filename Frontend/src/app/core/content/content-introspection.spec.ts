@@ -59,4 +59,33 @@ describe('content introspection', () => {
     expect(descriptor.diagnostics.some((diagnostic) => diagnostic.code === 'malformed-resource')).toBe(true);
     expect(descriptor.representativeVisualState).toEqual({});
   });
+
+  it('merges verified semantic supplements without losing static evidence', () => {
+    const provider = new Resources({});
+    const descriptor = new ContentIntrospectionEngine(provider).inspectBlock({
+      id: 'fixture:display', displayName: 'Display', defaultState: { mode: 'a' }, stateDefinitions: [{ name: 'mode', values: ['a', 'b'] }],
+      resources: { textures: [] }, support: 'partial', sourceId: 'fixture',
+      semanticSupplements: [{ id: 'fixture:display', sourceId: 'fixture', properties: [{ name: 'slot', values: ['0'], defaultValue: '0', effects: { itemDisplay: true }, provenance: 'trusted-data' }], capabilities: [{ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' }] }],
+    });
+    expect(descriptor.properties.map((property) => property.name)).toEqual(['mode', 'slot']);
+    expect(descriptor.properties.find((property) => property.name === 'slot')?.effects.itemDisplay).toBe(true);
+    expect(descriptor.capabilityProfile).toContainEqual({ kind: 'item-storage-display', slotCount: 1, evidence: 'verified' });
+    expect(descriptor.capabilities).toContain('item-storage-display');
+  });
+
+  it('retains a conflict diagnostic when supplement values disagree with static values', () => {
+    const descriptor = new ContentIntrospectionEngine(new Resources({})).inspectBlock({
+      id: 'fixture:conflict', displayName: 'Conflict', defaultState: { mode: 'a' }, stateDefinitions: [{ name: 'mode', values: ['a', 'b'] }], resources: { textures: [] }, support: 'partial', sourceId: 'fixture',
+      semanticSupplements: [{ id: 'fixture:conflict', properties: [{ name: 'mode', values: ['verified'] }] }],
+    });
+    expect(descriptor.properties.find((property) => property.name === 'mode')?.values).toEqual(['a', 'b', 'verified']);
+    expect(descriptor.diagnostics.some((diagnostic) => diagnostic.code === 'semantic-contract-mismatch')).toBe(true);
+  });
+
+  it('accepts supplements from an explicit source-independent evidence provider', () => {
+    const provider = new Resources({});
+    const evidenceProvider = { supplementsFor: (id: string) => id === 'fixture:provider' ? [{ id, properties: [{ name: 'runtime_mode', values: ['safe'], effects: { behavior: true } }] }] : [] };
+    const descriptor = new ContentIntrospectionEngine(provider, evidenceProvider).inspectBlock({ id: 'fixture:provider', displayName: 'Provider', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'partial', sourceId: 'fixture' });
+    expect(descriptor.properties.find((property) => property.name === 'runtime_mode')?.effects.behavior).toBe(true);
+  });
 });
