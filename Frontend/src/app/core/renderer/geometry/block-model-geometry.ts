@@ -31,6 +31,14 @@ export interface BlockVisualResult {
 }
 export interface BlockVisualWorldContext extends FluidWorldLookup {}
 
+export type ItemVisualKind = 'generated-layers' | 'block-model' | 'unsupported';
+export interface ResolvedItemVisual {
+  readonly kind: ItemVisualKind;
+  readonly layers: readonly string[];
+  readonly model?: string;
+  readonly diagnostics: readonly string[];
+}
+
 /**
  * Offscreen palette previews use a fixed camera. Entity-style skull models
  * expose their vanilla front on the opposite Z-facing side from that camera;
@@ -159,7 +167,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<string | undefined> {
     const key = `item-thumbnail-v2|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`).join(';')}`;
     const cached = this.thumbnailCache.get(key); if (cached) return cached;
-    const task = this.renderThumbnailBlocks(item.previewBlocks).then((url) => url ?? this.itemThumbnailResource(item.itemId)).catch(() => this.itemThumbnailResource(item.itemId) ?? this.thumbnailUrl(item.displayBlockId, item.defaultState));
+    const task = this.renderThumbnailBlocks(item.previewBlocks).then(async (url) => url ?? await this.renderItemVisualThumbnail(item.itemId) ?? this.itemThumbnailResource(item.itemId)).catch(() => this.itemThumbnailResource(item.itemId) ?? this.thumbnailUrl(item.displayBlockId, item.defaultState));
     this.thumbnailCache.set(key, task); return task;
   }
   setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void {
@@ -196,6 +204,20 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private itemThumbnailResource(itemId: string): string | undefined {
     const resource = itemVisualResource(this.assets, itemId);
     return resource ? this.assets.textureUrl?.(resource) : undefined;
+  }
+
+  private async renderItemVisualThumbnail(itemId: string): Promise<string | undefined> {
+    if (typeof document === 'undefined') return undefined;
+    const visual = resolveItemVisual(this.assets, itemId);
+    if (visual.kind !== 'generated-layers' || !visual.layers.length) return undefined;
+    const textures = await Promise.all(visual.layers.map((layer) => this.texture(layer)));
+    if (!textures.some(Boolean)) return undefined;
+    const renderer = this.thumbnailRenderer ??= new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(96, 96, false); renderer.setClearColor(0x000000, 0);
+    const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
+    const root = new THREE.Group();
+    textures.forEach((texture, index) => { if (!texture) return; const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }); const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), material); mesh.position.z = index * .002; root.add(mesh); });
+    scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return renderer.domElement.toDataURL('image/png');
   }
 
   private resolve(blockId: string, state: Readonly<Record<string, string>>): ResolvedBlockModel {
@@ -311,6 +333,32 @@ export function itemVisualResource(provider: Pick<RenderableAssetResourceProvide
     return undefined;
   };
   return model ? visit(model) : undefined;
+}
+
+/** Resolves the supported, data-driven inventory model contract without
+ * pretending that custom runtime selectors are renderable. */
+export function resolveItemVisual(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, itemId: string): ResolvedItemVisual {
+  const location = resolveResourceLocation(itemId); if (!location) return { kind: 'unsupported', layers: [], diagnostics: ['invalid item resource location'] };
+  const [namespace, name] = location.split(':', 2);
+  const root = provider.readJson(`assets/${namespace}/items/${name}.json`) ?? provider.readJson(`assets/${namespace}/models/item/${name}.json`);
+  const visited = new Set<string>();
+  const visit = (modelId: string): ResolvedItemVisual => {
+    const normalized = resolveResourceLocation(modelId, namespace) ?? modelId; const path = resourcePath(normalized, 'models') ?? `assets/${namespace}/models/${normalized.split(':').at(-1)}.json`;
+    if (visited.has(path)) return { kind: 'unsupported', layers: [], diagnostics: ['item model cycle'] }; visited.add(path);
+    const document = provider.readJson(path); if (!isRecord(document)) return { kind: 'unsupported', layers: [], diagnostics: [`missing item model: ${path}`] };
+    const textures = isRecord(document['textures']) ? document['textures'] : {};
+    const layers = Object.keys(textures).filter((key) => /^layer\d+$/.test(key)).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))).flatMap((key) => { const value = textures[key]; return typeof value === 'string' ? [resolveResourceLocation(value, normalized.split(':')[0]) ?? value] : []; });
+    if (layers.length) return { kind: 'generated-layers', layers, model: normalized, diagnostics: [] };
+    if (typeof document['parent'] === 'string') {
+      const parent = String(document['parent']);
+      if (/(?:^|:)block\//.test(parent) || parent.startsWith('block/')) return { kind: 'block-model', layers: [], model: resolveResourceLocation(parent, normalized.split(':')[0]) ?? parent, diagnostics: [] };
+      return visit(parent);
+    }
+    if (isRecord(document['model']) && typeof document['model']['type'] === 'string') return { kind: 'unsupported', layers: [], diagnostics: ['conditional item model requires runtime selection'] };
+    return { kind: 'unsupported', layers: [], diagnostics: ['item model has no supported static representation'] };
+  };
+  const model = modelReference(root) ?? `${namespace}:item/${name}`;
+  return visit(model);
 }
 
 function modelReference(value: unknown): string | undefined {

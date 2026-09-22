@@ -1,4 +1,4 @@
-@if (compact) {
+@if (compact()) {
   <button type="button" class="change-painting" (click)="toggle()">{{ i18n.t('changePainting') }}</button>
   @if (open()) {
     <div class="picker-panel">
@@ -11,7 +11,7 @@
       }
       <div class="painting-grid" role="listbox">
         @for (variant of filteredVariants(); track variant.id) {
-          <button type="button" class="painting-card" [class.selected]="variant.id === selectedId" (click)="choose(variant.id)">
+          <button type="button" class="painting-card" [class.selected]="variant.id === selectedId()" (click)="choose(variant.id)">
             <span class="painting-image"><img [src]="imageUrl(variant)" [alt]="label(variant.id)" [style.width.px]="imageSize(variant, 'card').width" [style.height.px]="imageSize(variant, 'card').height" loading="lazy" /></span>
             <span class="painting-card-meta"><strong [attr.title]="label(variant.id)">{{ label(variant.id) }}</strong><small>{{ variant.width }} &times; {{ variant.height }}</small></span>
           </button>
@@ -29,7 +29,7 @@
   }
   <div class="painting-grid" role="listbox">
     @for (variant of filteredVariants(); track variant.id) {
-      <button type="button" class="painting-card" [class.selected]="variant.id === selectedId" (click)="choose(variant.id)">
+      <button type="button" class="painting-card" [class.selected]="variant.id === selectedId()" (click)="choose(variant.id)">
         <span class="painting-image"><img [src]="imageUrl(variant)" [alt]="label(variant.id)" [style.width.px]="imageSize(variant, 'card').width" [style.height.px]="imageSize(variant, 'card').height" loading="lazy" /></span>
         <span class="painting-card-meta"><strong [attr.title]="label(variant.id)">{{ label(variant.id) }}</strong><small>{{ variant.width }} &times; {{ variant.height }}</small></span>
       </button>

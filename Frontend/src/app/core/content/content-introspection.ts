@@ -21,6 +21,8 @@ export interface ContentSpecialVisualDescriptor {
   readonly contractId: string;
   readonly resources: Readonly<Record<string, string>>;
   readonly stateDependencies: readonly string[];
+  /** Variant is semantic evidence, not a registry-name convention. */
+  readonly variant?: 'standing' | 'wall' | 'hanging' | 'wall-hanging';
   readonly parameters?: Readonly<Record<string, unknown>>;
   readonly provenance: EvidenceProvenance;
 }
@@ -215,7 +217,7 @@ export class ContentIntrospectionEngine {
     const placementDefault = { ...record.defaultState };
     const base = this.resolver.resolve(record.id, placementDefault);
     const properties = definitions.map((definition) => this.inspectProperty(record.id, definition, placementDefault, base, record));
-    const representativeVisualState = representativeState(record.id, placementDefault, definitions, this.resolver);
+    const representativeVisualState = representativeState(record.id, placementDefault, properties, this.resolver);
     const resolved = this.resolver.resolve(record.id, representativeVisualState);
     const graph = buildResourceGraph(record.id, resources, resolved, this.provider, source);
     const diagnostics = [...graph.diagnostics, ...resolved.diagnostics.map((diagnostic) => mapResolverDiagnostic(diagnostic.code, diagnostic.message, diagnostic.resource, source.id)), ...this.semanticEvidenceProviders.flatMap((provider) => provider.diagnostics ?? [])];
@@ -325,11 +327,16 @@ function mergeDefinitions(definitions: readonly BlockStateDefinition[], predicat
   return [...values].sort(([left], [right]) => left.localeCompare(right)).map(([name, options]) => ({ name, values: [...options].sort(), ...(derived.has(name) ? { derived: true } : {}) }));
 }
 
-function representativeState(id: string, baseline: Readonly<Record<string, string>>, definitions: readonly BlockStateDefinition[], resolver: BlockModelResolver): Readonly<Record<string, string>> {
+function representativeState(id: string, baseline: Readonly<Record<string, string>>, properties: readonly ContentPropertyDescriptor[], resolver: BlockModelResolver): Readonly<Record<string, string>> {
   let best = { ...baseline }; let bestScore = score(resolver.resolve(id, best));
-  for (const definition of definitions.slice().sort((a, b) => a.name.localeCompare(b.name))) for (const value of definition.values.slice().sort()) {
-    const candidate = { ...baseline, [definition.name]: value }; const candidateScore = score(resolver.resolve(id, candidate));
-    if (candidateScore > bestScore || candidateScore === bestScore && JSON.stringify(candidate) < JSON.stringify(best)) { best = candidate; bestScore = candidateScore; }
+  for (const property of properties.slice().sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!property.effects.visual || property.derived || property.effects.placement || property.effects.attachment || property.effects.connection) continue;
+    for (const value of property.values.slice().sort()) {
+      if (value === baseline[property.name]) continue;
+      const candidate = { ...baseline, [property.name]: value }; const candidateScore = score(resolver.resolve(id, candidate));
+      // Strict improvement only: ties preserve the canonical placement state.
+      if (candidateScore > bestScore) { best = candidate; bestScore = candidateScore; }
+    }
   }
   return best;
 }
@@ -339,7 +346,7 @@ function behaviorEffects(record: AssetBlockRecord, property: string): { readonly
   const behavior = record.behavior;
   if (!behavior) return { known: false, behavior: false, placement: false, attachment: false, connection: false, evidence: ['no verified common semantic contract for this property'] };
   const derived = behavior.kind === 'horizontal-connect' || behavior.kind === 'stairs' ? (behavior.derivedProperties as readonly string[]).includes(property) : false;
-  const placement = behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign' || behavior.kind === 'wall-hanging-sign' || behavior.kind === 'head-placement' ? property === ('facing' in behavior ? behavior.facingProperty : 'rotation') : behavior.kind === 'paired-horizontal' ? property === behavior.partProperty || property === behavior.facingProperty : behavior.kind === 'double-height' ? property === behavior.halfProperty : false;
+  const placement = behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign' || behavior.kind === 'wall-hanging-sign' || behavior.kind === 'head-placement' ? property === ('facing' in behavior ? behavior.facingProperty : 'rotation') : behavior.kind === 'paired-horizontal' ? property === behavior.partProperty || property === behavior.facingProperty : behavior.kind === 'double-height' ? property === behavior.halfProperty : behavior.kind === 'stairs' ? property === 'facing' || property === 'half' : behavior.kind === 'vertical-chain' ? property === behavior.axisProperty : behavior.kind === 'lantern-placement' ? property === behavior.hangingProperty : behavior.kind === 'six-face-placement' ? property === behavior.facingProperty : behavior.kind === 'decorated-pot-placement' ? property === behavior.facingProperty : behavior.kind === 'conduit-placement' ? property === behavior.waterloggedProperty : behavior.kind === 'button' ? property === behavior.faceProperty || property === behavior.facingProperty : false;
   const attachment = behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign' || behavior.kind === 'wall-hanging-sign' || behavior.kind === 'torch-placement' || behavior.kind === 'lantern-placement' ? property === ('facingProperty' in behavior ? behavior.facingProperty : 'hanging') : false;
   const connection = behavior.kind === 'horizontal-connect' || behavior.kind === 'stairs' ? derived : false;
   return { known: true, behavior: derived || placement || attachment || connection, placement, attachment, connection, evidence: [`common semantic contract ${behavior.kind} observes ${property}`] };
@@ -393,7 +400,8 @@ function isSupportRequirement(value: unknown): value is PlacementSupportRequirem
 function parseSpecialVisual(value: unknown): ContentSpecialVisualDescriptor | undefined {
   if (!isRecord(value) || typeof value['contractId'] !== 'string' || !isRecord(value['resources']) || !Object.values(value['resources']).every((entry) => typeof entry === 'string')) return undefined;
   const stateDependencies = Array.isArray(value['stateDependencies']) ? value['stateDependencies'].filter((entry): entry is string => typeof entry === 'string') : [];
-  return { contractId: value['contractId'], resources: value['resources'] as Record<string, string>, stateDependencies, ...(isRecord(value['parameters']) ? { parameters: value['parameters'] } : {}), provenance: 'trusted-data' };
+  const variant = ['standing', 'wall', 'hanging', 'wall-hanging'].includes(String(value['variant'])) ? value['variant'] as ContentSpecialVisualDescriptor['variant'] : undefined;
+  return { contractId: value['contractId'], resources: value['resources'] as Record<string, string>, stateDependencies, ...(variant ? { variant } : {}), ...(isRecord(value['parameters']) ? { parameters: value['parameters'] } : {}), provenance: 'trusted-data' };
 }
 function parseItemHostVisual(value: unknown): ContentItemHostVisualDescriptor | undefined {
   if (!isRecord(value) || !Array.isArray(value['slots'])) return undefined;

@@ -60,10 +60,12 @@ export const PAINTING_VARIANTS: readonly PaintingVariant[] = [
   ...['earth', 'wind', 'water', 'fire'].map((id) => ({ id, width: 2, height: 2, placeable: false })),
 ].map((variant) => ({ ...variant, assetPath: paintingTextureResource(variant.id) }));
 
-const externalPaintingVariants = new Map<string, PaintingVariant>();
-export function registerPaintingVariants(entries: readonly PaintingVariant[]): void { for (const entry of entries) externalPaintingVariants.set(entry.id, entry); }
-export function unregisterPaintingVariants(sourceId: string): void { for (const [id, entry] of externalPaintingVariants) if (entry.sourceId === sourceId) externalPaintingVariants.delete(id); }
-export function allPaintingVariants(): readonly PaintingVariant[] { return [...PAINTING_VARIANTS, ...externalPaintingVariants.values()]; }
+let activePaintingVariants: readonly PaintingVariant[] = PAINTING_VARIANTS;
+
+/** The catalog service owns this source-aware snapshot. Core placement helpers
+ * read it without maintaining a second external registry. */
+export function setActivePaintingVariants(entries: readonly PaintingVariant[]): void { activePaintingVariants = entries.map((entry) => ({ ...entry })); }
+export function allPaintingVariants(): readonly PaintingVariant[] { return activePaintingVariants; }
 
 export function paintingVariant(id: string | undefined): PaintingVariant | undefined {
   return allPaintingVariants().find((entry) => entry.id === id || `minecraft:${entry.id}` === id);

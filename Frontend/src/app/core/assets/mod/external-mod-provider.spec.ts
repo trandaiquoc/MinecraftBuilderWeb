@@ -93,6 +93,24 @@ describe('ExternalModProvider', () => {
     expect(lookalike.behavior).toBeUndefined();
   });
 
+  it('derives external sign variants from standard tags and unambiguous entity textures', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'sign-evidence', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/example/blockstates/maple_sign.json', { variants: { 'rotation=0': { model: 'example:block/maple_sign' } } }],
+        ['assets/example/blockstates/maple_wall_sign.json', { variants: { 'facing=north': { model: 'example:block/maple_wall_sign' } } }],
+        ['data/minecraft/tags/block/standing_signs.json', { values: ['example:maple_sign'] }],
+        ['data/minecraft/tags/block/wall_signs.json', { values: ['example:maple_wall_sign'] }],
+      ]),
+      resources: new Map([
+        ['assets/minecraft/textures/entity/signs/maple.png', new Uint8Array([1])],
+      ]),
+    });
+    const entries = provider.catalog().blocks;
+    expect(entries.find((entry) => entry.id === 'example:maple_sign')?.specialVisual).toMatchObject({ contractId: 'common-sign', variant: 'standing', resources: { default: 'minecraft:entity/signs/maple' } });
+    expect(entries.find((entry) => entry.id === 'example:maple_wall_sign')?.specialVisual).toMatchObject({ contractId: 'common-sign', variant: 'wall' });
+  });
+
   it('discovers data-driven painting variants and placeable tag state', () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'paintings', version: '1.0.0', depends: { minecraft: '1.21.1' } },

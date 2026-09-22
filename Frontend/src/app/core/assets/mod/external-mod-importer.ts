@@ -2,7 +2,7 @@ import { ZipArchive } from '../archive/zip-archive';
 import { ExternalModProvider, isModConflictDiagnostic, ModImportDiagnostic, ModImportReport, SupportedModLoader } from './external-mod-provider';
 import { detectLoader, NormalizedModMetadata } from './mod-loader';
 
-const RETAINED_RESOURCE_PATH = /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$/;
+const RETAINED_RESOURCE_PATH = /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;
 const MAX_RETAINED_BYTES = 256 * 1024 * 1024;
 const BATCH_SIZE = 32;
 

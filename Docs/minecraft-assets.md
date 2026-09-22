@@ -737,3 +737,10 @@ not renderable. Painting `asset_id` values are normalized to the canonical
 Verified item-host display transforms can be carried as
 `itemHostVisual.slots` (`index`, optional `position`, `rotation`, and `scale`);
 storage capability metadata without this contract remains visually partial.
+
+The corrective F2 pass keeps representative preview state separate from
+placement defaults, admits external Sign variants only from standard tag and
+static texture evidence, and retains class-file bytes only for the read-only
+fail-closed JVM evidence boundary. Class files are never loaded or executed;
+unsupported runtime Item selectors and unproven display transforms remain
+partial.

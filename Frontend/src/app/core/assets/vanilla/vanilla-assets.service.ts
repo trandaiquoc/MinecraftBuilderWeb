@@ -203,9 +203,10 @@ export class VanillaAssetsService {
   prepareItemThumbnail(item: PlaceableItemDefinition): void {
     const visual = this.visualProvider(); if (!visual) return;
     const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, item.previewState ?? item.defaultState) };
-    const key = thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', item.itemId, item.defaultState, item.previewRecipe);
+    const previewState = item.previewState ?? item.defaultState;
+    const key = thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', item.itemId, previewState, item.previewRecipe);
     if (this.thumbnailUrls().has(key)) return;
-    const fallback = visual.thumbnailUrl(item.displayBlockId, item.defaultState);
+    const fallback = visual.thumbnailUrl(item.displayBlockId, previewState);
     if (fallback) this.thumbnailUrls.set(new Map(this.thumbnailUrls()).set(key, fallback));
     if (visual.perspectiveItemThumbnail) void visual.perspectiveItemThumbnail(previewItem).then((url) => { if (!url) return; const current = new Map(this.thumbnailUrls()); current.set(key, url); this.thumbnailUrls.set(current); });
   }

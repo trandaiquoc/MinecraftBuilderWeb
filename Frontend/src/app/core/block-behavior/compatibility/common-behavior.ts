@@ -48,6 +48,16 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (bed.complete && hasFamilyEvidence(record, 'beds')) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
   if (bed.partial && hasFamilyEvidence(record, 'beds') && canFillCommon(record, definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues }) && (record.behaviorEvidenceRequired === true || looksLikeBed(record))) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
 
+  // Standard sign tags are sufficient evidence for wall variants whose
+  // attachment state is self-contained. Standing/hanging variants additionally
+  // need a verified paired wall block and therefore remain source-specific.
+  if (record.trustedBehaviorFamilies?.includes('wall-sign') === true && definitions.some((definition) => definition.name === 'facing')) {
+    return complete(record, definitions, 'wall-sign', { kind: 'wall-sign', facingProperty: 'facing' }, mergeValidDefaults(definitions, { facing: 'north', waterlogged: 'false' }), 'compatible-common');
+  }
+  if (record.trustedBehaviorFamilies?.includes('wall-hanging-sign') === true && definitions.some((definition) => definition.name === 'facing')) {
+    return complete(record, definitions, 'wall-hanging-sign', { kind: 'wall-hanging-sign', facingProperty: 'facing' }, mergeValidDefaults(definitions, { facing: 'north', waterlogged: 'false' }), 'compatible-common');
+  }
+
   const candle = contract(definitions, { candles: ['1', '2', '3', '4'], lit: booleanValues, waterlogged: booleanValues });
   // The state contract is the evidence. Do not classify a mod block by an
   // ID suffix (which would also misclassify candle-cake variants).

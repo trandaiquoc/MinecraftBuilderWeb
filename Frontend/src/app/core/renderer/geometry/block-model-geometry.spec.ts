@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../../blocks/resolver';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
-import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, itemVisualResource, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
+import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, itemVisualResource, resolveItemVisual, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from '../engine/three-viewport-engine';
 import { viewportThemePalette } from '../engine/viewport-theme';
 
@@ -57,6 +57,21 @@ describe('block model geometry', () => {
     };
     expect(itemVisualResource({ readJson: (path) => resources[path as keyof typeof resources] }, 'example:hammer')).toBe('example:item/hammer');
     expect(itemVisualResource({ readJson: (path) => resources[path as keyof typeof resources] }, 'example:gem')).toBe('example:item/gem');
+  });
+  it('resolves generated inventory layers as a real item visual contract', () => {
+    const resources: Record<string, unknown> = {
+      'assets/example/items/berry.json': { model: 'example:item/berry' },
+      'assets/example/models/item/berry.json': { parent: 'minecraft:item/generated', textures: { layer0: 'example:item/berry', layer1: 'example:item/shine' } },
+    };
+    expect(resolveItemVisual({ readJson: (path) => resources[path] }, 'example:berry')).toMatchObject({ kind: 'generated-layers', layers: ['example:item/berry', 'example:item/shine'] });
+  });
+  it('fails closed for conditional item models', () => {
+    const resources: Record<string, unknown> = { 'assets/example/items/widget.json': { model: { type: 'minecraft:condition', property: 'minecraft:using_item' } } };
+    expect(resolveItemVisual({ readJson: (path) => resources[path] }, 'example:widget').kind).toBe('unsupported');
+  });
+  it('retains block-parent item models as a shared model contract', () => {
+    const resources: Record<string, unknown> = { 'assets/example/models/item/brick.json': { parent: 'example:block/brick' } };
+    expect(resolveItemVisual({ readJson: (path) => resources[path] }, 'example:brick')).toMatchObject({ kind: 'block-model', model: 'example:block/brick' });
   });
   it('preserves out-of-range element coordinates and reversed UV ordering', () => {
     const element: ResolvedElement = { from: [-2, 0, 0], to: [20, 8, 16], faces: { north: face } };

@@ -51,11 +51,13 @@ export class SpecialBlockVisualRegistry {
       matches: (block) => block.id === descriptor.contentId && descriptor.stateDependencies.every((property) => block.state[property] !== undefined),
       textureResource: () => texture,
       create: (block, context) => {
-        const wall = block.state['facing'] !== undefined && block.state['rotation'] === undefined;
-        const model = normalSignModel(!wall);
+        const variant = descriptor.variant ?? (block.state['facing'] !== undefined && block.state['rotation'] === undefined ? 'wall' : 'standing');
+        const wall = variant === 'wall' || variant === 'wall-hanging';
+        const model = variant === 'hanging' || variant === 'wall-hanging' ? hangingSignModel(variant, block.state['attached'] === 'true') : normalSignModel(!wall);
         const root = createSpecialModel(model, context?.texture);
         const placement = new THREE.Group(); while (root.children.length) placement.add(root.children[0]); root.add(placement);
-        if (wall) applyNormalSignTransform(root, placement, placement, block, true); else applyNormalSignTransform(root, placement, placement, block, false);
+        if (variant === 'hanging' || variant === 'wall-hanging') applyHangingSignTransform(root, placement, block);
+        else applyNormalSignTransform(root, placement, placement, block, wall);
         root.userData['providerId'] = 'minecraftbuilder:common-sign-descriptor';
         return root;
       },

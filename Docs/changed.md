@@ -1679,3 +1679,22 @@ asset-cache schema; F2 owns any UI exposure.
   unsupported runtime Item renderers remain unresolved.
 - Block Browser thumbnail preparation follows the currently visible source and
   search result set rather than the entire catalog.
+
+## Prompt 13B-F2 corrective pass
+
+- Representative previews keep canonical placement/connection/orientation
+  values (stairs straight, isolated connections, vertical chains); only a
+  non-derived visual progression may replace the baseline when it is strictly
+  more informative. Placement continues to use the canonical default state.
+- Painting picker source inputs are reactive and the active painting catalog is
+  maintained by one source-aware snapshot; switching sources cannot retain
+  stale Vanilla entries.
+- External sign semantics are admitted from standard block tags and an
+  unambiguous static entity-sign texture. Normalized sign descriptors retain
+  standing, wall, hanging, and wall-hanging variants. Name-only lookalikes
+  remain unresolved.
+- Generated item layers have a real inventory thumbnail path. Conditional or
+  runtime item selectors remain partial rather than receiving fabricated
+  visuals.
+- A read-only JVM class-file evidence boundary is present and fail-closed;
+  unsupported or ambiguous bytecode emits diagnostics and never executes code.

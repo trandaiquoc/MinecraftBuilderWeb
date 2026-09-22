@@ -1,4 +1,4 @@
-import { Component, computed, inject, Input, Output, EventEmitter, signal } from '@angular/core';
+import { Component, computed, inject, input, Output, EventEmitter, signal } from '@angular/core';
 import { PaintingVariant } from '../../../../core/decorations/decoration.types';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
@@ -10,24 +10,24 @@ import { I18nService } from '../../../../core/ui/localization/i18n.service';
   styleUrl: './painting-picker.component.scss',
 })
 export class PaintingPickerComponent {
-  @Input() selectedId = '';
-  @Input() compact = false;
-  @Input() sourceId = '__minecraftbuilder_all__';
+  readonly selectedId = input('');
+  readonly compact = input(false);
+  readonly sourceId = input('__minecraftbuilder_all__');
   @Output() readonly selectionChange = new EventEmitter<string>();
   protected readonly i18n = inject(I18nService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly catalog = inject(PaintingVariantCatalogService);
   protected readonly query = signal('');
   protected readonly open = signal(false);
-  protected variants(): readonly PaintingVariant[] { return this.catalog.placeable(this.sourceId); }
+  protected variants(): readonly PaintingVariant[] { return this.catalog.placeable(this.sourceId()); }
   protected readonly filteredVariants = computed(() => {
     const query = normalize(this.query());
     const variants = this.variants();
     return query ? variants.filter((entry) => normalize(`${humanize(entry.id)} ${entry.id} ${entry.sourceName ?? entry.sourceId ?? ''} ${entry.width}x${entry.height}`).includes(query)) : variants;
   });
   protected selectedVariant(): PaintingVariant | undefined {
-    const selected = this.catalog.get(this.selectedId);
-    return selected && (this.sourceId === '__minecraftbuilder_all__' || (selected.sourceId ?? 'vanilla') === this.sourceId) ? selected : undefined;
+    const selected = this.catalog.get(this.selectedId());
+    return selected && (this.sourceId() === '__minecraftbuilder_all__' || (selected.sourceId ?? 'vanilla') === this.sourceId()) ? selected : undefined;
   }
   protected imageSize(variant: PaintingVariant, stage: 'card' | 'selected'): { readonly width: number; readonly height: number } {
     const sourceWidth = variant.width * 16;
@@ -38,7 +38,7 @@ export class PaintingPickerComponent {
   }
   protected label(id: string): string { return humanize(id); }
   protected imageUrl(variant: PaintingVariant): string | undefined { this.assets.generation(); return this.assets.sources.resources.textureUrl(variant.assetPath); }
-  protected choose(id: string): void { this.selectionChange.emit(id); if (this.compact) this.open.set(false); }
+  protected choose(id: string): void { this.selectionChange.emit(id); if (this.compact()) this.open.set(false); }
   protected toggle(): void { this.open.update((value) => !value); }
   protected updateQuery(event: Event): void { this.query.set((event.target as HTMLInputElement).value); }
 }

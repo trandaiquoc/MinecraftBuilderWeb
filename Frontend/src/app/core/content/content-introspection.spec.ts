@@ -31,6 +31,27 @@ describe('content introspection', () => {
     expect(descriptor.representativeVisualState).not.toEqual(descriptor.placementDefault);
   });
 
+  it('keeps verified placement and connection states canonical in previews', () => {
+    const provider = new Resources({
+      'assets/fixture/blockstates/stairs.json': { variants: { 'facing=north,half=bottom,shape=straight': { model: 'fixture:block/straight' }, 'facing=north,half=bottom,shape=inner_left': { model: 'fixture:block/inner' } } },
+      'assets/fixture/blockstates/fence.json': { multipart: [{ when: { north: 'false' }, apply: { model: 'fixture:block/isolated' } }, { when: { north: 'true' }, apply: { model: 'fixture:block/connected' } }] },
+      'assets/fixture/blockstates/chain.json': { variants: { 'axis=y': { model: 'fixture:block/vertical' }, 'axis=x': { model: 'fixture:block/horizontal' } } },
+      'assets/fixture/models/block/straight.json': { elements: [{ from: [0, 0, 0], to: [16, 8, 16], faces: {} }] },
+      'assets/fixture/models/block/inner.json': { elements: [{ from: [0, 0, 0], to: [16, 8, 16], faces: {} }, { from: [2, 2, 2], to: [14, 14, 14], faces: {} }] },
+      'assets/fixture/models/block/isolated.json': { elements: [{ from: [0, 0, 0], to: [8, 8, 8], faces: {} }] },
+      'assets/fixture/models/block/connected.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: {} }] },
+      'assets/fixture/models/block/vertical.json': { elements: [{ from: [0, 0, 0], to: [2, 16, 2], faces: {} }] },
+      'assets/fixture/models/block/horizontal.json': { elements: [{ from: [0, 0, 0], to: [16, 2, 2], faces: {} }] },
+    });
+    const engine = new ContentIntrospectionEngine(provider);
+    const stairs = engine.inspectBlock({ id: 'fixture:stairs', displayName: 'Stairs', defaultState: { facing: 'north', half: 'bottom', shape: 'straight' }, stateDefinitions: [{ name: 'facing', values: ['north'] }, { name: 'half', values: ['bottom'] }, { name: 'shape', values: ['straight', 'inner_left'], derived: true }], resources: { blockstate: 'assets/fixture/blockstates/stairs.json', textures: [] }, behavior: { kind: 'stairs', derivedProperties: ['shape'] }, support: 'partial', sourceId: 'fixture' });
+    const fence = engine.inspectBlock({ id: 'fixture:fence', displayName: 'Fence', defaultState: { north: 'false' }, stateDefinitions: [{ name: 'north', values: ['false', 'true'], derived: true }], resources: { blockstate: 'assets/fixture/blockstates/fence.json', textures: [] }, behavior: { kind: 'horizontal-connect', family: 'fence', connectionGroup: 'wood', compatibleGroups: ['wood'], connectsToSolid: true, derivedProperties: ['north'] }, support: 'partial', sourceId: 'fixture' });
+    const chain = engine.inspectBlock({ id: 'fixture:chain', displayName: 'Chain', defaultState: { axis: 'y' }, stateDefinitions: [{ name: 'axis', values: ['x', 'y'] }], resources: { blockstate: 'assets/fixture/blockstates/chain.json', textures: [] }, behavior: { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' }, support: 'partial', sourceId: 'fixture' });
+    expect(stairs.representativeVisualState).toMatchObject({ facing: 'north', half: 'bottom', shape: 'straight' });
+    expect(fence.representativeVisualState).toEqual({ north: 'false' });
+    expect(chain.representativeVisualState).toEqual({ axis: 'y' });
+  });
+
   it('keeps item and supported decoration roles independent from block role', () => {
     const engine = new ContentIntrospectionEngine(new Resources({}));
     expect(engine.inspectItem({ itemId: 'fixture:gem', referencedModels: ['fixture:item/gem'], referencedResources: [], sourceFormat: 'modern-item-definition' }).roles).toEqual(['item']);
