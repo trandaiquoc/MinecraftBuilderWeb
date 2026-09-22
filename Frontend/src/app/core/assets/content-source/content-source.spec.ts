@@ -16,6 +16,7 @@ class FakeSource implements ContentSourceProvider {
   }
   readonly blocks: readonly AssetBlockRecord[];
   readJson(path: string): unknown | undefined { return this.json[path]; }
+  paths(): readonly string[] { return Object.keys(this.json); }
   readBinary(path: string): Uint8Array | undefined { return this.binary.get(path); }
   textureUrl(): string | undefined { return undefined; }
   catalog() { return { minecraftVersion: '1.21.1' as const, sourceId: this.source.id, sourceName: this.source.displayName, blocks: this.blocks, targetItems: this.items, itemEvidenceAvailable: this.items.length > 0 }; }
@@ -44,11 +45,27 @@ describe('ContentSourceRegistry', () => {
     const catalog = registry.catalog(); expect(catalog.get('minecraft:stone')?.sourceId).toBe('vanilla'); expect(catalog.get('examplemod:test')?.sourceId).toBe('example');
   });
 
-  it('rejects duplicate namespace ownership and disposes only removed source', () => {
+  it('allows additive namespace contributions and disposes only removed source', () => {
     const registry = new ContentSourceRegistry();
     const first = new FakeSource('first', ['examplemod'], {}); const second = new FakeSource('second', ['examplemod'], {});
-    registry.register(first); expect(() => registry.register(second)).toThrow(/already owned/);
+    registry.register(first); registry.register(second); expect(registry.resources.providersForNamespace('examplemod')).toHaveLength(2);
     expect(registry.remove('first')).toBe(true); expect(first.disposed).toBe(true); expect(second.disposed).toBe(false);
+  });
+
+  it('accepts additive foreign-namespace paths but rejects exact collisions', () => {
+    const registry = new ContentSourceRegistry();
+    registry.register(new FakeSource('vanilla', ['minecraft'], { 'assets/minecraft/textures/block/stone.png': {} }));
+    registry.register(new FakeSource('mod', ['minecraft'], { 'assets/minecraft/textures/entity/signs/example.png': {} }));
+    expect(registry.resources.readJson('assets/minecraft/textures/entity/signs/example.png')).toEqual({});
+    expect(() => registry.register(new FakeSource('other', ['minecraft'], { 'assets/minecraft/textures/block/stone.png': {} }))).toThrow(/Resource collision/);
+  });
+
+  it('merges additive tag values and blocks replace=true', () => {
+    const registry = new ContentSourceRegistry();
+    registry.register(new FakeSource('vanilla', ['minecraft'], { 'data/minecraft/tags/block/fences.json': { replace: false, values: ['minecraft:oak_fence'] } }));
+    registry.register(new FakeSource('mod', ['example'], { 'data/minecraft/tags/block/fences.json': { replace: false, values: ['example:maple_fence'] } }));
+    expect(registry.resources.readJson('data/minecraft/tags/block/fences.json')).toEqual({ replace: false, values: ['minecraft:oak_fence', 'example:maple_fence'] });
+    expect(() => registry.register(new FakeSource('replace', ['other'], { 'data/minecraft/tags/block/fences.json': { replace: true, values: [] } }))).toThrow(/Tag replacement/);
   });
 
   it('rejects sources targeting an incompatible Minecraft version', () => {

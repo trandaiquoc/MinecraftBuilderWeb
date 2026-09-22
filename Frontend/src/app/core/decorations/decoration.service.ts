@@ -6,6 +6,7 @@ import { SelectionService } from '../editor/selection/selection.service';
 import { WorkspaceStateService } from '../workspace/workspace-state.service';
 import { planDecorationPlacement, DecorationPlacementPlan } from './placement/decoration-placement';
 import { DecorationFacing, DecorationKind, DecorationItemStack, PlacedDecoration, paintingVariant } from './decoration.types';
+import { PaintingVariantCatalogService } from './catalog/painting-variant-catalog.service';
 
 export interface ActiveDecoration {
   readonly kind: DecorationKind;
@@ -20,6 +21,7 @@ export class DecorationService {
   private readonly history = inject(HistoryService);
   private readonly selection = inject(SelectionService);
   private readonly activeBlock = inject(ActiveBlockService);
+  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   readonly active = signal<ActiveDecoration | undefined>(undefined);
   readonly selectedId = signal<string | undefined>(undefined);
   readonly selected = computed(() => {
@@ -28,7 +30,7 @@ export class DecorationService {
   });
   private lastPaintingVariant = 'kebab';
 
-  selectPainting(variantId = this.lastPaintingVariant): void { if (paintingVariant(variantId)) { this.lastPaintingVariant = variantId; this.active.set({ kind: 'painting', variantId }); } this.activeBlock.active.set(undefined); }
+  selectPainting(variantId = this.lastPaintingVariant): void { if (this.paintingCatalog.get(variantId)) { this.lastPaintingVariant = variantId; this.active.set({ kind: 'painting', variantId }); } this.activeBlock.active.set(undefined); }
   selectRandomPainting(): void { this.active.set({ kind: 'painting' }); this.activeBlock.active.set(undefined); }
   selectFrame(glow = false, fixed = false): void { this.active.set({ kind: glow ? 'glow-item-frame' : 'item-frame', fixed }); this.activeBlock.active.set(undefined); }
   selectItem(item: DecorationItemStack): void { const current = this.active(); if (current?.kind !== 'item-frame' && current?.kind !== 'glow-item-frame') return; if (!item.id) { const { item: _item, ...withoutItem } = current; this.active.set(withoutItem); return; } this.active.set({ ...current, item: { ...item, count: 1 } }); }
@@ -84,7 +86,7 @@ export class DecorationService {
   setFrameFixed(id: string, fixed: boolean): boolean { return this.updateSelectedFrame(id, (entry) => ({ ...entry, fixed })); }
   setFrameItemDropChance(id: string, chance: number): boolean { if (!Number.isFinite(chance)) return false; return this.updateSelectedFrame(id, (entry) => ({ ...entry, itemDropChance: Math.max(0, Math.min(1, chance)) })); }
   setPaintingVariant(id: string, variantId: string): boolean {
-    const project = this.workspace.project(); const current = project?.decorations?.find((entry) => entry.instanceId === id); const variant = paintingVariant(variantId);
+    const project = this.workspace.project(); const current = project?.decorations?.find((entry) => entry.instanceId === id); const variant = this.paintingCatalog.get(variantId);
     if (!project || !current || current.kind !== 'painting' || !variant) return false;
     const support = { x: current.anchor.x - (current.facing === 'east' ? 1 : current.facing === 'west' ? -1 : 0), y: current.anchor.y - (current.facing === 'up' ? 1 : current.facing === 'down' ? -1 : 0), z: current.anchor.z - (current.facing === 'south' ? 1 : current.facing === 'north' ? -1 : 0) };
     const plan = planDecorationPlacement({ ...project, decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id) }, { kind: 'painting', variantId }, support, current.facing);

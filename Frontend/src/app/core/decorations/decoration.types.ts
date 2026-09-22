@@ -36,6 +36,8 @@ export interface PaintingVariant {
   readonly height: number;
   readonly assetPath: string;
   readonly placeable?: boolean;
+  readonly sourceId?: string;
+  readonly sourceName?: string;
 }
 
 export const PAINTING_VARIANTS: readonly PaintingVariant[] = [
@@ -51,12 +53,17 @@ export const PAINTING_VARIANTS: readonly PaintingVariant[] = [
   ...['earth', 'wind', 'water', 'fire'].map((id) => ({ id, width: 2, height: 2, placeable: false })),
 ].map((variant) => ({ ...variant, assetPath: `minecraft:painting/${variant.id}` }));
 
+const externalPaintingVariants = new Map<string, PaintingVariant>();
+export function registerPaintingVariants(entries: readonly PaintingVariant[]): void { for (const entry of entries) externalPaintingVariants.set(entry.id, entry); }
+export function unregisterPaintingVariants(sourceId: string): void { for (const [id, entry] of externalPaintingVariants) if (entry.sourceId === sourceId) externalPaintingVariants.delete(id); }
+export function allPaintingVariants(): readonly PaintingVariant[] { return [...PAINTING_VARIANTS, ...externalPaintingVariants.values()]; }
+
 export function paintingVariant(id: string | undefined): PaintingVariant | undefined {
-  return PAINTING_VARIANTS.find((entry) => entry.id === id);
+  return allPaintingVariants().find((entry) => entry.id === id || `minecraft:${entry.id}` === id);
 }
 
 export function placeablePaintingVariants(): readonly PaintingVariant[] {
-  return PAINTING_VARIANTS.filter((entry) => entry.placeable !== false);
+  return allPaintingVariants().filter((entry) => entry.placeable !== false);
 }
 
 export function chooseRandomPaintingVariant(width: number, height: number, random = Math.random): PaintingVariant | undefined {

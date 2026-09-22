@@ -11,6 +11,7 @@ export interface BlockCatalogSource {
   readonly targetItems?: readonly CatalogItemEvidence[];
   /** True when the source format has an item domain that was inspected, even if it is empty. */
   readonly itemEvidenceAvailable?: boolean;
+  readonly paintingVariants?: readonly import('../../decorations/decoration.types').PaintingVariant[];
 }
 
 interface CatalogContribution { readonly definitions: readonly NormalizedBlockDefinition[]; readonly targetItems: readonly CatalogItemEvidence[]; readonly itemEvidenceAvailable: boolean; }

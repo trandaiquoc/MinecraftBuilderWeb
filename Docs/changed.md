@@ -1617,3 +1617,16 @@ renderer fallback. `minecraft:heavy_core` therefore resolves its real
 - The verified 26.3 Vanilla Shelf family uses the common three-slot `item-storage-display` capability. Name-only mod lookalikes do not receive it.
 - `StructureEditorService.setBlockItemSlot()` provides immutable, history-aware, lock-aware slot edits while preserving unknown block-entity fields and item components.
 - This change does not bump the project schema version; the new item-container data is additive and existing Item Frame data remains compatible.
+
+## Prompt 13B: extensible Fabric Mod resource engine
+
+- Mod metadata now passes through a loader adapter boundary. Fabric is supported; Forge, NeoForge, Quilt, and unknown archives are detected and reported as unsupported without executing code.
+- Fabric metadata is normalized independently from `fabric.mod.json`; `depends.minecraft` supports exact, wildcard, comparison, range, tilde, caret, string-array OR, and whitespace AND predicates. Missing or unevaluable Minecraft requirements remain `unknown` and blocked by default.
+- Mod inspection is side-effect free. `inspectModJar()` returns a disposable prepared import; activation/cache writes happen only through commit APIs. Progress is coarse-grained and no JAR code, mixin, entrypoint, nested library, or custom loader is executed.
+- Retained resources include modern/legacy item evidence, block/model/texture/lang resources, supported atlases, block/item/painting tags, and data-driven painting variants. Malformed optional JSON is skipped with structured diagnostics.
+- External sources contribute Blocks, Items, and Painting variants independently. Item-only resources flow through the shared ItemCatalog and do not enter the Block Browser.
+- Common Java behavior is reusable for external blocks only with trusted family tags plus a compatible state/resource contract. Mod names and suffixes do not grant Vanilla behavior or display capabilities.
+- Composite resources are exact-path based. Additive `minecraft:` paths are allowed; ordinary exact collisions block activation; additive tags merge deterministically; `replace:true` tags are reported as unsupported conflicts.
+- External cache schema is now version-independent from the active project version. Cached normalized content is reevaluated against the current Minecraft requirement when a project version changes.
+- Source removal removes Block/Item/Painting/resource contributions while preserving existing project IDs as unresolved data.
+- No Prompt 13C Asset Manager redesign, Forge implementation, runtime code execution, backend, or automatic Internet lookup was added.

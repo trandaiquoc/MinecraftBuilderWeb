@@ -7,7 +7,7 @@ describe('ExternalModProvider', () => {
   it('keeps Fabric compatibility conservative across project versions', () => {
     expect(assessFabricCompatibility('1.21.x', '1.21.1')).toBe('compatible');
     expect(assessFabricCompatibility('1.20.6', '1.21.1')).toBe('incompatible');
-    expect(assessFabricCompatibility('[1.20,1.22)', '1.21.1')).toBe('unknown');
+    expect(assessFabricCompatibility('[1.20,1.22)', '1.21.1')).toBe('compatible');
   });
   it('parses Fabric metadata and keeps source identity separate from namespaces', () => {
     const provider = ExternalModProvider.create({
@@ -21,7 +21,7 @@ describe('ExternalModProvider', () => {
     });
     expect(provider.source.id).toBe('mod:example');
     expect(provider.source.namespaces).toEqual(['example', 'example_compat']);
-    expect(provider.catalog().blocks).toMatchObject([{ id: 'example:widget', displayName: 'Widget', behaviorSupport: 'unknown', defaultStateSource: 'unknown' }]);
+    expect(provider.catalog().blocks).toMatchObject([{ id: 'example:widget', displayName: 'Widget', behaviorSupport: 'unknown', defaultStateSource: 'resource-derived' }]);
     expect(provider.catalog().blocks[0]?.stateDefinitions).toEqual([{ name: 'powered', values: ['false', 'true'] }]);
   });
 
@@ -56,5 +56,61 @@ describe('ExternalModProvider', () => {
     expect(restored.source.id).toBe(provider.source.id);
     expect(restored.readJson('assets/roundtrip/blockstates/a.json')).toEqual({ variants: {} });
     expect([...restored.readBinary('assets/roundtrip/textures/block/a.png')!]).toEqual([1, 2, 3]);
+  });
+
+  it('discovers modern and legacy Items independently from Blocks', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'content', version: '1.0.0', depends: { minecraft: '>=1.20 <1.22' } },
+      json: new Map([
+        ['assets/content/blockstates/marble.json', { variants: { '': { model: 'content:block/marble' } } }],
+        ['assets/content/items/marble.json', { model: 'content:item/marble' }],
+        ['assets/content/models/item/gem.json', { parent: 'minecraft:item/generated' }],
+      ]),
+      resources: new Map(),
+    });
+    const source = provider.catalog();
+    expect(source.blocks.map((entry) => entry.id)).toEqual(['content:marble']);
+    expect(source.targetItems?.map((entry) => [entry.itemId, entry.sourceFormat])).toEqual([
+      ['content:gem', 'legacy-item-model'],
+      ['content:marble', 'modern-item-definition'],
+    ]);
+    expect(source.targetItems?.find((entry) => entry.itemId === 'content:gem')?.explicitBlockPlacement).toBeUndefined();
+    expect(source.targetItems?.find((entry) => entry.itemId === 'content:marble')?.explicitBlockPlacement).toEqual({ blockId: 'content:marble' });
+  });
+
+  it('uses trusted additive tags for common behavior and fails closed for lookalikes', () => {
+    const make = (id: string, tagged: boolean) => ExternalModProvider.create({
+      metadata: { id: tagged ? 'tagged' : 'lookalike', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        [`assets/${id.split(':')[0]}/blockstates/${id.split(':')[1]}.json`, { multipart: [{ when: { north: 'true' }, apply: { model: `${id.split(':')[0]}:block/${id.split(':')[1]}` } }], variants: { 'north=false,east=false,south=false,west=false': { model: `${id.split(':')[0]}:block/${id.split(':')[1]}` } } }],
+        ...(tagged ? [['data/minecraft/tags/block/fences.json', { replace: false, values: [id] }] as const] : []),
+      ]),
+      resources: new Map(),
+    });
+    const tagged = make('example:maple_fence', true).catalog().blocks[0]!;
+    const lookalike = make('example:fake_fence', false).catalog().blocks[0]!;
+    expect(tagged.behavior?.kind).toBe('horizontal-connect');
+    expect(lookalike.behavior).toBeUndefined();
+  });
+
+  it('discovers data-driven painting variants and placeable tag state', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'paintings', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['data/example/painting_variant/poster.json', { width: 2, height: 1, asset_id: 'example:poster' }],
+        ['data/minecraft/tags/painting_variant/placeable.json', { replace: false, values: ['example:poster'] }],
+      ]),
+      resources: new Map(),
+    });
+    expect(provider.catalog().paintingVariants).toEqual([{ id: 'example:poster', width: 2, height: 1, assetPath: 'example:poster', placeable: true, sourceId: 'mod:paintings', sourceName: 'paintings' }]);
+  });
+
+  it('reevaluates a normalized cache entry for a different project version', () => {
+    const provider = ExternalModProvider.create({ metadata: { id: 'range', version: '1.0.0', depends: { minecraft: '>=1.20 <1.22' } }, json: new Map([['assets/range/blockstates/a.json', { variants: {} }]]), resources: new Map(), minecraftVersion: '1.21.1' });
+    const restored = ExternalModProvider.deserialize(provider.serialize(), '1.20.6');
+    expect(restored.report.compatibility?.status).toBe('compatible');
+    expect(restored.source.minecraftVersion).toBe('1.20.6');
+    expect('minecraftVersion' in restored.serialize()).toBe(false);
+    expect('projectMinecraftVersion' in restored.serialize().report).toBe(false);
   });
 });

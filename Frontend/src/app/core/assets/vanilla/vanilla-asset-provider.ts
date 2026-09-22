@@ -12,6 +12,7 @@ import { deriveResourceDefaultState, evaluateCommonBehavior } from '../../block-
 import type { TargetItemEvidence } from './format/item-evidence';
 import { classifyContent, isDecorationEntityId } from '../../content/content-classifier';
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
+import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -168,6 +169,8 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
       return { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
     });
+    const paintingCatalog = new PaintingVariantCatalog();
+    paintingCatalog.load(this, this.source.id, this.source.displayName);
     return {
       minecraftVersion: this.minecraftVersion,
       sourceId: this.source.id,
@@ -178,6 +181,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       // target resource format contains no usable item definitions. Keep an
       // empty/unknown catalog conservative rather than exposing every block.
       itemEvidenceAvailable: true,
+      paintingVariants: paintingCatalog.all(),
     };
   }
 }

@@ -8,8 +8,8 @@ import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CA
 import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import { JarImportSource, providerFromBundle } from '../bundle/asset-bundle';
 import { ContentSourceRegistry } from '../content-source/content-source-registry';
-import { ExternalModProvider, ModImportReport } from '../mod/external-mod-provider';
-import { importFabricModJar } from '../mod/external-mod-importer';
+import { ExternalModProvider, ModImportDiagnostic, ModImportReport } from '../mod/external-mod-provider';
+import { commitModImport, inspectModJar, ModImportProgress, PreparedModImport } from '../mod/external-mod-importer';
 import { MojangVanillaAssetSource, VanillaDownloadProgress } from './mojang-vanilla-asset-source';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { DEFAULT_MINECRAFT_VERSION } from '../../domain/project.types';
@@ -18,6 +18,7 @@ import { VanillaResourceFormatProfile } from './vanilla-resource-format';
 import { CompatibilityReport } from './compatibility/compatibility.types';
 import { evaluateCompatibility } from './compatibility/compatibility-evaluator';
 import { downloadCompatibilityReport } from './compatibility/compatibility-report';
+import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -28,6 +29,7 @@ export class VanillaAssetsService {
   private readonly library = inject(BlockLibraryService);
   private readonly cache = new IndexedDbAssetCache();
   private readonly workspace = inject(WorkspaceStateService);
+  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly official = new MojangVanillaAssetSource();
   readonly activity = inject(AssetActivityService);
   private readonly thumbnailUrls = signal<ReadonlyMap<string, string>>(new Map());
@@ -76,12 +78,17 @@ export class VanillaAssetsService {
     const protection = this.activity.protect(`Importing ${file.name}`);
     this.activity.begin('mod-import', `Reading ${file.name}`, 'mod');
     try {
-      const provider = await importFabricModJar(file, this.activeVersion());
-      this.assertExternalSourceAvailable(provider);
-      await this.cache.saveExternalMod(provider.serialize());
-      this.activateExternal(provider);
-      this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
-      return provider.report;
+      const prepared = await this.inspectModJar(file);
+      try {
+        const provider = commitModImport(prepared, (progress) => this.reportModProgress(progress));
+        this.assertExternalSourceAvailable(provider);
+        this.reportModProgress({ phase: 'saving-cache' });
+        await this.cache.saveExternalMod(provider.serialize());
+        this.reportModProgress({ phase: 'activating' });
+        this.activateExternal(provider);
+        this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
+        return provider.report;
+      } finally { prepared.dispose(); }
     } catch (error) {
       this.activity.fail('mod-import', error instanceof Error ? error.message : 'Mod import failed', 'mod');
       throw error;
@@ -90,14 +97,86 @@ export class VanillaAssetsService {
     }
   }
 
+  async inspectModJar(file: File, onProgress?: (progress: ModImportProgress) => void): Promise<PreparedModImport> {
+    const prepared = await inspectModJar(file, this.activeVersion(), (progress) => {
+      onProgress?.(progress);
+      this.activity.update(progress.processed === undefined ? undefined : { loaded: progress.processed, ...(progress.total === undefined ? {} : { total: progress.total }) }, progress.phase);
+    });
+    if (!prepared.report || !prepared.loaderSupported || !prepared.metadata) return prepared;
+    let preview: ExternalModProvider | undefined;
+    let preservePreview = false;
+    try {
+      preview = ExternalModProvider.create({
+        metadata: prepared.metadata,
+        json: prepared.json,
+        resources: prepared.resources,
+        diagnostics: prepared.diagnostics,
+        minecraftVersion: prepared.minecraftVersion,
+        fingerprint: prepared.fingerprint,
+      });
+      const resourceConflicts = this.sources.resources.inspectProvider(preview);
+      const catalogConflicts = this.sources.inspectCatalogContribution(preview.catalog());
+      const conflictDiagnostics: ModImportDiagnostic[] = [
+        ...resourceConflicts.map((conflict) => ({
+          severity: 'error' as const,
+          category: 'blocking' as const,
+          code: conflict.kind === 'tag-replacement' ? 'tag-replacement-unsupported' : 'resource-conflict',
+          message: conflict.kind === 'tag-replacement' ? 'A tag replacement conflicts with an active content source.' : 'A retained resource path conflicts with an active content source.',
+          path: conflict.path,
+        })),
+        ...catalogConflicts.map((conflict) => ({
+          severity: 'error' as const,
+          category: 'blocking' as const,
+          code: `${conflict.kind}-conflict`,
+          message: `A ${conflict.kind} is already provided by an active content source: ${conflict.id}.`,
+        })),
+      ];
+      if (!conflictDiagnostics.length) return prepared;
+      const diagnostics = [...prepared.diagnostics, ...conflictDiagnostics];
+      preservePreview = true;
+      return {
+        ...prepared,
+        diagnostics,
+        report: {
+          ...prepared.report,
+          conflicts: [...prepared.report.conflicts, ...conflictDiagnostics],
+          diagnostics,
+          canActivate: false,
+        },
+        canActivate: false,
+        dispose: () => { preview?.dispose(); prepared.dispose(); },
+      };
+    } catch {
+      return prepared;
+    } finally {
+      if (!preservePreview) preview?.dispose();
+    }
+  }
+
+  async commitPreparedModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void): Promise<ModImportReport> {
+    const reportProgress = (progress: ModImportProgress): void => { onProgress?.(progress); this.reportModProgress(progress); };
+    const provider = commitModImport(prepared, reportProgress);
+    this.assertExternalSourceAvailable(provider);
+    reportProgress({ phase: 'saving-cache' });
+    await this.cache.saveExternalMod(provider.serialize());
+    reportProgress({ phase: 'activating' });
+    this.activateExternal(provider);
+    return provider.report;
+  }
+
   async removeMod(sourceId: string): Promise<void> {
     if (!this.sources.providerForSource(sourceId)) return;
     this.sources.remove(sourceId);
+    this.paintingCatalog.removeSource(sourceId);
     this.library.removeSource(sourceId);
     this.refreshVisualProvider();
     this.bumpGeneration();
     this.importedMods.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
     await this.cache.deleteExternalMod(sourceId);
+  }
+
+  private reportModProgress(progress: ModImportProgress): void {
+    this.activity.update(undefined, progress.phase);
   }
 
   async redownload(): Promise<void> { await this.ensureVersion(this.activeVersion(), true); }
@@ -211,7 +290,8 @@ export class VanillaAssetsService {
     this.provider.set(provider);
     if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
     this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
-    this.library.replaceSource(provider.catalog(registry)); this.thumbnailUrls.set(new Map());
+    const catalog = provider.catalog(registry);
+    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailUrls.set(new Map());
     const generation = this.generation() + 1;
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
@@ -235,7 +315,8 @@ export class VanillaAssetsService {
   private activateExternal(provider: ExternalModProvider): void {
     this.assertExternalSourceAvailable(provider);
     if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider); else this.sources.register(provider);
-    this.library.replaceSource(provider.catalog());
+    const catalog = provider.catalog();
+    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
     this.refreshVisualProvider();
     this.bumpGeneration();
     const summary = summarizeMod(provider);
@@ -246,23 +327,26 @@ export class VanillaAssetsService {
   private bumpGeneration(): void { this.generation.update((value) => value + 1); }
 
   private assertExternalSourceAvailable(provider: ExternalModProvider): void {
-    for (const namespace of provider.source.namespaces) {
-      if (namespace === 'minecraft') throw new Error('External mods cannot silently override the Vanilla namespace');
-      const owner = this.sources.resources.providerForNamespace(namespace);
-      if (owner && owner.source.id !== provider.source.id) throw new Error(`Content namespace is already owned: ${namespace}`);
-    }
+    const conflicts = this.sources.resources.inspectProvider(provider);
+    if (conflicts.length) throw new Error(`Mod resource conflict at ${conflicts[0].path} (${conflicts[0].sourceIds.join(', ')})`);
+    const contentConflicts = this.sources.inspectCatalogContribution(provider.catalog());
+    if (contentConflicts.length) throw new Error(`Mod ${contentConflicts[0].kind} conflict for ${contentConflicts[0].id} (${contentConflicts[0].sourceIds.join(', ')})`);
   }
 
   private clearActiveSources(): void {
-    for (const source of this.sources.sources()) { this.sources.remove(source.id); this.library.removeSource(source.id); }
+    for (const source of this.sources.sources()) { this.sources.remove(source.id); this.library.removeSource(source.id); this.paintingCatalog.removeSource(source.id); }
     this.importedMods.set([]); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
   }
 
   private async restoreExternalMods(version: string): Promise<void> {
     let stored: readonly import('../mod/external-mod-provider').SerializedExternalMod[] = [];
     try { stored = await this.cache.loadExternalMods(); } catch { return; }
-    for (const serialized of stored.filter((entry) => entry.minecraftVersion === version)) {
-      try { this.activateExternal(ExternalModProvider.deserialize(serialized)); }
+    for (const serialized of stored) {
+      try {
+        const provider = ExternalModProvider.deserialize(serialized, version);
+        if (provider.report.canActivate === false) continue;
+        this.activateExternal(provider);
+      }
       catch { /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
     }
   }

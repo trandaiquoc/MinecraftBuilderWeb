@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { PAINTING_VARIANTS } from '../../../../core/decorations/decoration.types';
+import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
 import { humanizeItemId } from '../../../../core/items/catalog/item-catalog';
@@ -15,10 +15,11 @@ export class DecorationInspectorComponent {
   protected readonly decorations = inject(DecorationService);
   protected readonly catalog = inject(ItemCatalogService);
   private readonly assets = inject(VanillaAssetsService);
-  protected paintingTexture(id: string | undefined): string | undefined { this.assets.generation(); return id ? this.assets.provider()?.textureUrl(`minecraft:painting/${id}`) : undefined; }
+  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
+  protected paintingTexture(id: string | undefined): string | undefined { this.assets.generation(); return id ? this.assets.sources.resources.textureUrl(`minecraft:painting/${id}`) : undefined; }
   protected paintingLabel(id: string | undefined): string { return id ? humanizeItemId(id) : ''; }
   protected facingLabel(value: string): string { return this.i18n.stateValue(value); }
-  protected paintingSize(id: string | undefined): string { const variant = PAINTING_VARIANTS.find((entry) => entry.id === id); return variant ? `${variant.width} × ${variant.height}` : ''; }
+  protected paintingSize(id: string | undefined): string { const variant = this.paintingCatalog.get(id); return variant ? `${variant.width} x ${variant.height}` : ''; }
   protected selectItem(stack: ItemStackData | undefined): void { const selected = this.decorations.selected(); if (selected) this.decorations.setFrameItem(selected.instanceId, stack); }
   protected selectVariant(id: string): void { const selected = this.decorations.selected(); if (selected) this.decorations.setPaintingVariant(selected.instanceId, id); }
   protected rotate(delta: number): void { const selected = this.decorations.selected(); if (!selected) return; this.decorations.setFrameRotation(selected.instanceId, (selected.rotation ?? 0) + delta); }

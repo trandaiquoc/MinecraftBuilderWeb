@@ -82,6 +82,10 @@ export interface BlockDefinition {
   /** Normalized, immutable routing metadata produced by BlockCatalog. Compatibility callers may omit it. */
   readonly capabilities?: BlockCapabilityProfile;
   readonly itemEvidence?: BlockItemEvidence;
+  /** Trusted family evidence (for example an additive standard Minecraft tag). */
+  readonly trustedBehaviorFamilies?: readonly string[];
+  /** External resource sources set this to require explicit family evidence. */
+  readonly behaviorEvidenceRequired?: boolean;
 }
 
 /** Catalog output always has a normalized profile; legacy hand-authored callers may use BlockDefinition. */
@@ -111,4 +115,6 @@ export interface AssetBlockRecord {
   /** Optional trusted hints; final profiles are derived centrally during catalog normalization. */
   readonly capabilities?: readonly BlockCapability[];
   readonly itemEvidence?: BlockItemEvidence;
+  readonly trustedBehaviorFamilies?: readonly string[];
+  readonly behaviorEvidenceRequired?: boolean;
 }

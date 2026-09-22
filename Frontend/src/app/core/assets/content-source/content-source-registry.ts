@@ -1,10 +1,12 @@
 import { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
+import type { PaintingVariant } from '../../decorations/decoration.types';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
 import { CompositeAssetResourceProvider } from './composite-asset-provider';
 
 export interface SourceRegistrationDiagnostic { readonly sourceId: string; readonly message: string; }
+export interface ContentContributionConflict { readonly kind: 'block-id' | 'item-id' | 'decoration-id'; readonly id: string; readonly sourceIds: readonly string[]; }
 export interface ItemEvidenceSource {
   readonly sourceId: string;
   readonly sourceName: string;
@@ -16,6 +18,7 @@ export interface ItemEvidenceSource {
 export class ContentSourceRegistry {
   readonly resources = new CompositeAssetResourceProvider();
   private readonly contributions = new Map<string, BlockCatalogSource>();
+  private readonly paintingContributions = new Map<string, readonly PaintingVariant[]>();
   private conflictsValue: SourceRegistrationDiagnostic[] = [];
   constructor(private activeVersion = '1.21.1') { this.resources.setActiveVersion(activeVersion); }
 
@@ -26,20 +29,30 @@ export class ContentSourceRegistry {
   register(provider: ContentSourceProvider): void {
     assertCompatibleSource(provider.source, this.activeVersion);
     this.resources.register(provider);
-    const catalog = provider.catalog?.();
-    if (catalog) this.contributions.set(provider.source.id, catalog);
+    try {
+      const catalog = provider.catalog?.();
+      if (catalog) { this.contributions.set(provider.source.id, catalog); this.paintingContributions.set(provider.source.id, catalog.paintingVariants ?? []); }
+    } catch (error) { this.resources.remove(provider.source.id); throw error; }
   }
   replace(provider: ContentSourceProvider): void {
     assertCompatibleSource(provider.source, this.activeVersion);
+    const previous = this.resources.providerForSource(provider.source.id);
     this.resources.replace(provider);
-    const catalog = provider.catalog?.();
-    if (catalog) this.contributions.set(provider.source.id, catalog); else this.contributions.delete(provider.source.id);
+    try {
+      const catalog = provider.catalog?.();
+      if (catalog) { this.contributions.set(provider.source.id, catalog); this.paintingContributions.set(provider.source.id, catalog.paintingVariants ?? []); } else { this.contributions.delete(provider.source.id); this.paintingContributions.delete(provider.source.id); }
+    } catch (error) {
+      this.resources.remove(provider.source.id);
+      if (previous) this.resources.register(previous);
+      throw error;
+    }
   }
-  remove(sourceId: string): boolean { const removed = this.resources.remove(sourceId); if (removed) this.contributions.delete(sourceId); return removed; }
+  remove(sourceId: string): boolean { const removed = this.resources.remove(sourceId); if (removed) { this.contributions.delete(sourceId); this.paintingContributions.delete(sourceId); } return removed; }
   get generation(): number { return this.resources.revision; }
   sources(): readonly ContentSourceDescriptor[] { return this.resources.sources(); }
   providerForSource(sourceId: string): ContentSourceProvider | undefined { return this.resources.providerForSource(sourceId); }
   decorationSources(): readonly ContentSourceDescriptor[] { return this.sources().filter((source) => source.decorationSupport === true); }
+  paintingVariants(): readonly PaintingVariant[] { return [...this.paintingContributions.values()].flat(); }
   itemEvidenceSources(): readonly ItemEvidenceSource[] {
     return [...this.contributions.entries()].map(([sourceId, source]) => ({
       sourceId,
@@ -50,6 +63,16 @@ export class ContentSourceRegistry {
   }
   conflicts(): readonly SourceRegistrationDiagnostic[] { return [...this.conflictsValue]; }
   catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog().conflicts(); }
+  inspectCatalogContribution(source: BlockCatalogSource): readonly ContentContributionConflict[] {
+    const conflicts: ContentContributionConflict[] = [];
+    const existingBlocks = new Map(this.catalog().all().map((entry) => [entry.id, entry.sourceId]));
+    for (const block of source.blocks) { const owner = existingBlocks.get(block.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'block-id', id: block.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); }
+    const existingItems = new Map(this.itemEvidenceSources().flatMap((entry) => entry.items.map((item) => [item.itemId, entry.sourceId] as const)));
+    for (const item of source.targetItems ?? []) { const owner = existingItems.get(item.itemId); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'item-id', id: item.itemId, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); }
+    const existingDecorations = new Map(this.paintingVariants().map((entry) => [entry.id, entry.sourceId ?? 'vanilla']));
+    for (const entry of source.paintingVariants ?? []) { const owner = existingDecorations.get(entry.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'decoration-id', id: entry.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); }
+    return conflicts;
+  }
 
   catalog(): BlockCatalog {
     this.conflictsValue = [];

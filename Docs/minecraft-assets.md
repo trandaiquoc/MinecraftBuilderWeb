@@ -695,3 +695,13 @@ The frontend keeps item evidence separate from the placeable Block catalog. Acti
 The 26.3 official resource set verifies the wood/bamboo/crimson/warped/pale-oak/poplar Shelf family as a three-slot `item-storage-display` host. This is an explicit Vanilla profile, not a `_shelf` suffix heuristic, and is activated only when the actual block exists in the selected source. Chest, Barrel, Hopper, and Furnace are classified as storage-only metadata and do not receive display pickers.
 
 Item-host block entity data is normalized as ordered slots while preserving unknown raw fields and ItemStack components. No new NBT serializer was added because the current structure pipeline does not yet export generic block-entity payloads; no unverified Shelf NBT field names are invented here.
+
+## Mod resource import foundation (Prompt 13B)
+
+The browser-local Mod engine treats a JAR as an untrusted static archive. A Fabric loader adapter normalizes `fabric.mod.json`, evaluates the declared Minecraft requirement, retains only supported resource/data paths, and never loads Java/Kotlin classes, mixins, entrypoints, nested libraries, scripts, or custom model loaders.
+
+Inspection and activation are separate. `inspectModJar()` produces a disposable normalized/preflight payload and coarse progress events without IndexedDB writes or source registration. Commit performs validation, cache write, and source activation. External cache entries store normalized metadata/resources and declared compatibility rather than the Minecraft version active at first import; cached entries are reevaluated on later project-version activation.
+
+Content discovery is independent: blockstate JSON is Block evidence, `assets/<namespace>/items/**/*.json` and legacy `models/item/**/*.json` are Item evidence, and `data/<namespace>/painting_variant/**/*.json` plus the standard placeable tag are Painting evidence. An item-only resource never becomes a placeable Block. External block behavior is only shared with Vanilla contracts when trusted standard tag evidence and state/resource shape agree; name suffixes are not behavior metadata.
+
+Composite resource routing is exact-path based rather than namespace-owned. Unique additive resources under `minecraft` are accepted, exact ordinary collisions are blocking, additive tags merge, and `replace:true` tag contributions remain unsupported without an explicit load-order policy. Missing external dependencies and unsupported custom loaders are surfaced as diagnostics while the usable static resource graph is preserved.
