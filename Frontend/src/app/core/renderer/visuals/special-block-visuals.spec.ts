@@ -26,6 +26,15 @@ describe('special block visuals', () => {
     expect(visual.userData['signVariant']).toBe('wall');
     expect(visual.getObjectByName('frontTextSide')).toBeDefined();
   });
+  it('replaces transient descriptors so hover variants do not accumulate', () => {
+    const transient = new SpecialBlockVisualRegistry();
+    const descriptor = (contentId: string) => ({ contentId, contractId: 'common-sign' as const, resources: { default: `${contentId}/sign` }, stateDependencies: ['facing'], provenance: 'trusted-data' as const });
+    transient.setDescriptors([descriptor('example:wall_sign')]);
+    expect(transient.resolve(block('example:wall_sign'))?.family).toBe('signs');
+    transient.setDescriptors([descriptor('example:wall_hanging_sign')]);
+    expect(transient.resolve(block('example:wall_sign'))).toBeUndefined();
+    expect(transient.resolve(block('example:wall_hanging_sign'))?.family).toBe('signs');
+  });
   it('uses verified sign defaults when an older project omitted orientation state', () => {
     registry.registerDescriptor({ contentId: 'example:legacy_sign', contractId: 'common-sign', variant: 'standing', resources: { default: 'example:entity/signs/legacy' }, stateDependencies: ['rotation'], provenance: 'trusted-data' });
     const target = { ...block('example:legacy_sign'), state: {} };

@@ -29,7 +29,7 @@ export class SpecialBlockVisualRegistry {
   private readonly beds: BedVisualProvider;
   private readonly signs: SignVisualProvider;
   private readonly adapters: SpecialBlockVisualAdapter[];
-  private readonly descriptorKeys = new Set<string>();
+  private readonly descriptorAdapters = new Map<string, SpecialBlockVisualAdapter>();
   private readonly gameVersion: string;
   private readonly resources?: SpecialVisualResourceProvider;
   constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
@@ -39,14 +39,18 @@ export class SpecialBlockVisualRegistry {
     this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
   }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
+  /** Replace transient content descriptors with the current authoritative set. */
+  setDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void {
+    this.descriptorAdapters.clear();
+    for (const descriptor of descriptors) this.registerDescriptor(descriptor);
+  }
   registerDescriptor(descriptor: NormalizedSpecialVisualDescriptor): void {
     if (descriptor.contractId !== 'common-sign') return;
     const texture = descriptor.resources['default'] ?? descriptor.resources['front'];
     if (!texture) return;
     const key = `${descriptor.contentId}|${descriptor.contractId}|${texture}`;
-    if (this.descriptorKeys.has(key)) return;
-    this.descriptorKeys.add(key);
-    this.adapters.unshift({
+    if (this.descriptorAdapters.has(key)) return;
+    this.descriptorAdapters.set(key, {
       family: 'signs',
       matches: (block) => block.id === descriptor.contentId && (descriptor.variant !== undefined || descriptor.stateDependencies.every((property) => block.state[property] !== undefined)),
       textureResource: () => texture,
@@ -70,6 +74,7 @@ export class SpecialBlockVisualRegistry {
       },
     });
   }
+  private candidates(): readonly SpecialBlockVisualAdapter[] { return [...this.descriptorAdapters.values(), ...this.adapters]; }
   resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
     return this.resolveCompatible(block) ?? this.resolveDiagnosticFallback(block);
   }
@@ -77,10 +82,10 @@ export class SpecialBlockVisualRegistry {
     return this.inspect(block).adapter;
   }
   resolveDiagnosticFallback(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
-    return this.adapters.find((candidate) => candidate.matches(block));
+    return this.candidates().find((candidate) => candidate.matches(block));
   }
   inspect(block: PlacedBlock): SpecialVisualCompatibility {
-    const adapter = this.adapters.find((candidate) => candidate.matches(block));
+    const adapter = this.candidates().find((candidate) => candidate.matches(block));
     if (!adapter) return { missingResources: [] };
     const missingResources = this.resourcesSupport(adapter, block);
     return { adapter: missingResources.length ? undefined : adapter, family: adapter.family, missingResources };

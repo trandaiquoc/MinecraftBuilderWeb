@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
-import { ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import { FaceNormal, resolveAttachmentPlacement, placementStatus, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
 import { blocksForLayers, YLayerVisibility } from '../../editor/viewport/y-layer';
 import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../../editor/camera/camera';
@@ -309,12 +309,12 @@ export class ThreeViewportEngine {
     this.providerGeneration += 1;
     this.structureSyncKey = '';
     this.ghostModelKey = '';
-    if (provider && this.specialVisualResolver) provider.setSpecialVisualDescriptors?.(this.collectSpecialVisualDescriptors());
+    if (provider) this.syncSpecialVisualDescriptors();
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined): void {
     this.specialVisualResolver = resolver;
-    this.visualProvider?.setSpecialVisualDescriptors?.(this.collectSpecialVisualDescriptors());
+    this.syncSpecialVisualDescriptors();
     this.structureSyncKey = '';
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
@@ -336,16 +336,19 @@ export class ThreeViewportEngine {
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
   setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined): void { this.definitionResolver = resolver; }
 
-  private collectSpecialVisualDescriptors(): readonly NormalizedSpecialVisualDescriptor[] {
-    const ids = new Set([...(this.project?.blocks ?? []).map((block) => block.id), ...(this.activeBlock ? [this.activeBlock.id] : [])]);
+  private collectSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): readonly NormalizedSpecialVisualDescriptor[] {
+    const ids = new Set([...(this.project?.blocks ?? []).map((block) => block.id), ...(this.activeBlock ? [this.activeBlock.id] : []), ...plannedBlocks.map((block) => block.id)]);
     return [...ids].flatMap((id) => { const descriptor = this.specialVisualResolver?.(id); return descriptor ? [{ ...descriptor, contentId: id }] : []; });
+  }
+  private syncSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): void {
+    this.visualProvider?.setSpecialVisualDescriptors?.(this.collectSpecialVisualDescriptors(plannedBlocks));
   }
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}): void {
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
-    this.visualProvider?.setSpecialVisualDescriptors?.(this.collectSpecialVisualDescriptors());
+    this.syncSpecialVisualDescriptors();
     const syncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}|${this.providerGeneration}` : 'empty';
     const persistentInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
     const full = syncKey !== this.structureSyncKey;
@@ -505,6 +508,7 @@ export class ThreeViewportEngine {
     const attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver) : undefined;
     const placementContext = faceNormal ? { faceNormal, hitPoint: hitPoint ? { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z } : undefined, facing: isHorizontalDirection(facing) ? facing : undefined, yaw: cameraYaw(this.camera), stateOverride: attachment?.stateOverride } : undefined;
     const plan = target && active && this.placementPlanProvider ? this.placementPlanProvider(project, active, target, placementContext) : undefined;
+    this.syncSpecialVisualDescriptors(plan?.blocks ?? []);
     const decorationPlan = this.renderOptions.activeDecoration && block && faceNormal ? planDecorationPlacement(project, this.renderOptions.activeDecoration, block, facingFromNormal(faceNormal) ?? 'up') : undefined;
     const status = decorationPlan?.status === 'invalid' ? 'invalid' : plan?.validation.status ?? placementStatus(target, project.size, active?.support ?? 'unknown');
     this.updateGhostModel(active, plan);

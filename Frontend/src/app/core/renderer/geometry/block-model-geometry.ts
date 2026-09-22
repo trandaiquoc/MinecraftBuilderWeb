@@ -170,9 +170,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const task = this.renderThumbnailBlocks(item.previewBlocks).then(async (url) => url ?? await this.renderItemVisualThumbnail(item.itemId) ?? this.itemThumbnailResource(item.itemId)).catch(() => this.itemThumbnailResource(item.itemId) ?? this.thumbnailUrl(item.displayBlockId, item.defaultState));
     this.thumbnailCache.set(key, task); return task;
   }
-  setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void {
-    for (const descriptor of descriptors) this.specialVisuals.registerDescriptor(descriptor);
-  }
+  setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); }
 
   dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
 

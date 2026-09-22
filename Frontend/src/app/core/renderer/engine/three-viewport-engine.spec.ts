@@ -4,6 +4,10 @@ import { ThreeViewportEngine, cameraMovementDelta, cameraMovementDirection, tran
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import type { BlockVisualProvider } from '../geometry/block-model-geometry';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
+import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
+import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
+import type { PlacedBlock } from '../../domain/project.types';
+import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 
 describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
@@ -100,5 +104,40 @@ describe('camera movement input contract', () => {
     const base = rendererBenchmarkProject('small'); const blocks = [base.blocks[0], { ...base.blocks[1], position: { x: 2, y: 0, z: 0 } }];
     const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update({ ...base, blocks }, undefined); await Promise.resolve();
     engine.update({ ...base, blocks: [blocks[1]] }, undefined); expect(dispose).not.toHaveBeenCalled(); engine.dispose(); expect(dispose).not.toHaveBeenCalled(); geometry.dispose();
+  });
+
+  it.each([
+    ['example:wall_sign', 'example:standing_sign'],
+    ['example:wall_hanging_sign', 'example:hanging_sign'],
+  ])('registers the planned concrete special visual before creating a ghost (%s)', async (concreteId, activeId) => {
+    const base = rendererBenchmarkProject('small');
+    const registeredIds: string[] = [];
+    const create = vi.fn(async (block: PlacedBlock) => ({
+      object: new THREE.Group(),
+      resolved: { diagnostics: [], support: 'full' as const },
+      mode: 'real' as const,
+      diagnostics: [],
+      trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true },
+    }));
+    const descriptor = (id: string): ContentSpecialVisualDescriptor | undefined => id === concreteId ? { contractId: 'common-sign', resources: { default: `${id}/sign` }, stateDependencies: ['facing'], variant: concreteId.includes('hanging') ? 'wall-hanging' : 'wall', provenance: 'trusted-data' } : undefined;
+    const provider = {
+      create,
+      thumbnailUrl: () => undefined,
+      setSpecialVisualDescriptors: (descriptors: readonly { contentId: string }[]) => { registeredIds.splice(0, registeredIds.length, ...descriptors.map((entry) => entry.contentId)); },
+    };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider as unknown as BlockVisualProvider);
+    engine.setSpecialVisualDescriptorResolver(descriptor);
+    engine.update({ ...base, blocks: [base.blocks[0]] }, undefined);
+    const active: ActiveBlock = { id: activeId, state: {}, support: 'full' };
+    const planned: PlacedBlock = { kind: 'resolved', id: concreteId, namespace: 'example', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north' } };
+    const plan: PlacementPlan = { request: planned, blocks: [planned], validation: { status: 'valid', reason: 'ok', affectedPositions: [] } };
+    const internal = engine as unknown as { syncSpecialVisualDescriptors: (blocks: readonly PlacedBlock[]) => void; updateGhostModel: (block: ActiveBlock, plan: PlacementPlan) => void };
+    internal.syncSpecialVisualDescriptors(plan.blocks);
+    internal.updateGhostModel(active, plan);
+    await Promise.resolve();
+    expect(registeredIds).toContain(concreteId);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ id: concreteId }), expect.anything());
+    engine.dispose();
   });
 });
