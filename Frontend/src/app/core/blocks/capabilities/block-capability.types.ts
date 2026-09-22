@@ -24,6 +24,9 @@ export type BlockCapability =
   | (CapabilityBase<'neighbor-dependent'> & { readonly family?: string })
   | (CapabilityBase<'multi-block'> & { readonly mode: BlockMultiBlockMode })
   | (CapabilityBase<'block-entity'> & { readonly entityKind: BlockEntityKind })
+  | (CapabilityBase<'inventory-storage'> & { readonly slotCount?: number })
+  | (CapabilityBase<'item-display'> & { readonly slotCount: number })
+  | (CapabilityBase<'item-storage-display'> & { readonly slotCount: number })
   | (CapabilityBase<'fluid'> & { readonly fluid: 'water' | 'lava' })
   | CapabilityBase<'waterloggable'>
   | CapabilityBase<'item-backed'>;

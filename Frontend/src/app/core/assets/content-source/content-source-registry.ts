@@ -1,9 +1,16 @@
 import { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
+import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
 import { CompositeAssetResourceProvider } from './composite-asset-provider';
 
 export interface SourceRegistrationDiagnostic { readonly sourceId: string; readonly message: string; }
+export interface ItemEvidenceSource {
+  readonly sourceId: string;
+  readonly sourceName: string;
+  readonly items: readonly CatalogItemEvidence[];
+  readonly provider?: ContentSourceProvider;
+}
 
 /** Pure coordinator for source lifecycle, namespace ownership and catalog composition. */
 export class ContentSourceRegistry {
@@ -33,6 +40,14 @@ export class ContentSourceRegistry {
   sources(): readonly ContentSourceDescriptor[] { return this.resources.sources(); }
   providerForSource(sourceId: string): ContentSourceProvider | undefined { return this.resources.providerForSource(sourceId); }
   decorationSources(): readonly ContentSourceDescriptor[] { return this.sources().filter((source) => source.decorationSupport === true); }
+  itemEvidenceSources(): readonly ItemEvidenceSource[] {
+    return [...this.contributions.entries()].map(([sourceId, source]) => ({
+      sourceId,
+      sourceName: source.sourceName ?? sourceId,
+      items: source.targetItems ?? [],
+      provider: this.providerForSource(sourceId),
+    }));
+  }
   conflicts(): readonly SourceRegistrationDiagnostic[] { return [...this.conflictsValue]; }
   catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog().conflicts(); }
 

@@ -1608,3 +1608,12 @@ Modern 26.3 block faces may reference a texture variable without the legacy
 bare keys through the existing texture map; it does not add an atlas or special
 renderer fallback. `minecraft:heavy_core` therefore resolves its real
 `minecraft:block/heavy_core` PNG and is no longer reported as missing texture.
+## Prompt 13A: shared Item/display foundation
+
+- `ItemStackData` is now shared by decorations and future item-host blocks; unknown components remain intact.
+- `ItemCatalog` aggregates normalized `targetItems` from active content sources independently from `BlockCatalog`. `DecorationItemCatalog` remains only as a compatibility facade.
+- Item Frame and Glow Item Frame use the shared `ItemStackPicker`; unavailable stored IDs remain visible without being erased.
+- Block capabilities now distinguish `inventory-storage`, `item-display`, and `item-storage-display`. Display capabilities require verified evidence and an explicit slot count.
+- The verified 26.3 Vanilla Shelf family uses the common three-slot `item-storage-display` capability. Name-only mod lookalikes do not receive it.
+- `StructureEditorService.setBlockItemSlot()` provides immutable, history-aware, lock-aware slot edits while preserving unknown block-entity fields and item components.
+- This change does not bump the project schema version; the new item-container data is additive and existing Item Frame data remains compatible.

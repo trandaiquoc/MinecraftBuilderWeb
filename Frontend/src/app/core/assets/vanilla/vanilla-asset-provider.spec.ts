@@ -90,6 +90,17 @@ describe('VanillaAssetProvider', () => {
     expect(catalog.get('minecraft:custom_visual')?.behavior).toBeUndefined();
   });
 
+  it('applies the verified three-slot Shelf host contract only to the known Vanilla family', () => {
+    const provider = new VanillaAssetProvider('26.3.jar', '26.3', {
+      'assets/minecraft/lang/en_us.json': { 'block.minecraft.oak_shelf': 'Oak Shelf', 'item.minecraft.oak_shelf': 'Oak Shelf' },
+      'assets/minecraft/blockstates/oak_shelf.json': { variants: { 'facing=north,powered=false': { model: 'minecraft:block/oak_shelf_unpowered' } } },
+      'assets/minecraft/items/oak_shelf.json': { model: { type: 'minecraft:model', model: 'minecraft:block/oak_shelf_inventory' } },
+    }, new Map());
+    const shelf = provider.catalog().blocks.find((entry) => entry.id === 'minecraft:oak_shelf');
+    expect(shelf?.capabilities).toContainEqual({ kind: 'item-storage-display', slotCount: 3, evidence: 'verified' });
+    expect(provider.catalog().targetItems?.map((item) => item.itemId)).toContain('minecraft:oak_shelf');
+  });
+
   it('round-trips its versioned normalized cache', () => {
     const original = new VanillaAssetProvider('fixture.jar', { 'assets/minecraft/lang/en_us.json': {} }, new Map([['assets/minecraft/textures/block/stone.png', new Uint8Array([4, 5])]]));
     const restored = VanillaAssetProvider.deserialize(original.serialize());

@@ -688,3 +688,10 @@ form. For example, a face using `"texture": "all"` resolves through the model
 texture map to `minecraft:block/heavy_core`; no fake texture or atlas fallback
 is introduced. The regenerated 26.3 audit has zero `TEXTURE_NOT_FOUND` entries
 and zero palette leaks.
+## Shared item catalog and display hosts
+
+The frontend keeps item evidence separate from the placeable Block catalog. Active content sources expose `BlockCatalogSource.targetItems`; the shared `ItemCatalog` aggregates those entries with source identity and language labels for Item Frame and future item-host inspectors.
+
+The 26.3 official resource set verifies the wood/bamboo/crimson/warped/pale-oak/poplar Shelf family as a three-slot `item-storage-display` host. This is an explicit Vanilla profile, not a `_shelf` suffix heuristic, and is activated only when the actual block exists in the selected source. Chest, Barrel, Hopper, and Furnace are classified as storage-only metadata and do not receive display pickers.
+
+Item-host block entity data is normalized as ordered slots while preserving unknown raw fields and ItemStack components. No new NBT serializer was added because the current structure pipeline does not yet export generic block-entity payloads; no unverified Shelf NBT field names are invented here.

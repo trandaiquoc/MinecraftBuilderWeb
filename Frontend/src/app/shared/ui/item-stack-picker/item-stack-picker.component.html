@@ -1,0 +1,9 @@
+<app-searchable-dropdown
+  [options]="options()"
+  [selectedId]="selectedStack?.id ?? ''"
+  [placeholder]="placeholder"
+  [emptyLabel]="emptyLabel"
+  [ariaLabel]="ariaLabel"
+  [closeLabel]="closeLabel"
+  [noResults]="noResults"
+  (selectionChange)="choose($event)" />

@@ -1,4 +1,5 @@
 import { VoxelCoordinate } from '../domain/project.types';
+import type { ItemStackData } from '../items/item-stack.types';
 
 export type DecorationKind = 'painting' | 'item-frame' | 'glow-item-frame';
 export type DecorationFacing = 'down' | 'up' | 'north' | 'south' | 'west' | 'east';
@@ -7,11 +8,8 @@ export type DecorationFacing = 'down' | 'up' | 'north' | 'south' | 'west' | 'eas
 export interface DecorationBrowserSource { readonly id: string; }
 export const DECORATION_BROWSER_SOURCES: readonly DecorationBrowserSource[] = [{ id: 'vanilla' }];
 
-export interface DecorationItemStack {
-  readonly id: string;
-  readonly count: number;
-  readonly components?: Readonly<Record<string, unknown>>;
-}
+/** @deprecated Item stacks are shared domain data; keep this alias for persisted/API compatibility. */
+export type DecorationItemStack = ItemStackData;
 
 export interface PlacedDecoration {
   readonly instanceId: string;

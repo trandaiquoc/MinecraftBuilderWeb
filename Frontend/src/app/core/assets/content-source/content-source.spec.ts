@@ -18,7 +18,8 @@ class FakeSource implements ContentSourceProvider {
   readJson(path: string): unknown | undefined { return this.json[path]; }
   readBinary(path: string): Uint8Array | undefined { return this.binary.get(path); }
   textureUrl(): string | undefined { return undefined; }
-  catalog() { return { minecraftVersion: '1.21.1' as const, sourceId: this.source.id, sourceName: this.source.displayName, blocks: this.blocks }; }
+  catalog() { return { minecraftVersion: '1.21.1' as const, sourceId: this.source.id, sourceName: this.source.displayName, blocks: this.blocks, targetItems: this.items, itemEvidenceAvailable: this.items.length > 0 }; }
+  items: readonly import('../../blocks/catalog/block-definition.types').CatalogItemEvidence[] = [];
   dispose(): void { this.disposed = true; }
 }
 
@@ -81,5 +82,13 @@ describe('ContentSourceRegistry', () => {
     expect(registry.catalogConflicts()).toEqual([{ id: 'shared:block', sourceIds: ['one', 'two'] }]);
     registry.remove('two');
     expect(registry.catalogConflicts()).toEqual([]);
+  });
+
+  it('exposes independent item evidence from every active content source', () => {
+    const registry = new ContentSourceRegistry();
+    const vanilla = new FakeSource('vanilla', ['minecraft'], {}); vanilla.items = [{ itemId: 'minecraft:stone', referencedModels: [], referencedResources: [], sourceFormat: 'authoritative-registry' }];
+    const external = new FakeSource('example', ['example'], {}); external.items = [{ itemId: 'example:gem', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' }];
+    registry.register(vanilla); registry.register(external);
+    expect(registry.itemEvidenceSources().flatMap((source) => source.items.map((item) => item.itemId))).toEqual(['minecraft:stone', 'example:gem']);
   });
 });

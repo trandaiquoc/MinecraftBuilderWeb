@@ -113,17 +113,23 @@ function capabilitySignature(capability: BlockCapability): string {
     case 'multi-block': return `${capability.kind}:${capability.mode}`;
     case 'block-entity': return `${capability.kind}:${capability.entityKind}`;
     case 'fluid': return `${capability.kind}:${capability.fluid}`;
+    case 'item-display': return `${capability.kind}:${capability.slotCount}`;
+    case 'item-storage-display': return `${capability.kind}:${capability.slotCount}`;
+    case 'inventory-storage': return `${capability.kind}:${capability.slotCount ?? ''}`;
     default: return capability.kind;
   }
 }
 
 function requiresVerifiedEvidence(capability: BlockCapability): boolean {
-  return capability.kind === 'attachment' || capability.kind === 'multi-block' || capability.kind === 'block-entity';
+  return capability.kind === 'attachment' || capability.kind === 'multi-block' || capability.kind === 'block-entity' || capability.kind === 'inventory-storage' || capability.kind === 'item-display' || capability.kind === 'item-storage-display';
 }
 
 export function validateCapabilityProfile(capabilities: BlockCapabilityProfile): void {
-  const verifiedOnly = capabilities.find((capability) => (capability.kind === 'attachment' || capability.kind === 'multi-block' || capability.kind === 'block-entity') && capability.evidence !== 'verified');
+  const verifiedOnly = capabilities.find((capability) => requiresVerifiedEvidence(capability) && capability.evidence !== 'verified');
   if (verifiedOnly) throw new Error(`Capability ${verifiedOnly.kind} requires verified evidence`);
+  const itemHosts = capabilities.filter((capability) => capability.kind === 'item-display' || capability.kind === 'item-storage-display');
+  if (itemHosts.some((capability) => !Number.isInteger(capability.slotCount) || capability.slotCount < 1)) throw new Error('Item display capabilities require a positive integer slotCount');
+  if (new Set(itemHosts.map((capability) => capability.kind)).size > 1) throw new Error('A block capability profile cannot contain both item-display and item-storage-display');
   const directional = capabilities.filter((capability) => capability.kind === 'directional');
   if (new Set(directional.map((capability) => capability.mode)).size > 1) throw new Error('A block capability profile cannot contain conflicting directional modes');
   const entities = capabilities.filter((capability) => capability.kind === 'block-entity');

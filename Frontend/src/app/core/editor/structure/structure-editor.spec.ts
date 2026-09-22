@@ -103,6 +103,41 @@ describe('StructureEditorService mutations', () => {
     expect(selection.logicalPositions()).toEqual([{ x: 1, y: 1, z: 1 }]);
     expect(history.canUndo()).toBe(false);
   });
+
+  it('edits verified item-storage-display slots atomically and preserves raw fields through history', () => {
+    const displayProject: ProjectDocument = { ...project, blocks: [{ kind: 'resolved', id: 'example:display_case', namespace: 'example', position: { x: 1, y: 1, z: 1 }, state: {}, blockEntityData: { legacy: { keep: true } } }] };
+    const { editor, workspace, history, library } = makeEditor(displayProject);
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{ id: 'example:display_case', displayName: 'Display Case', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'item-storage-display', slotCount: 2, evidence: 'verified' }] }] });
+    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 1, { id: 'example:gem', count: 2, components: { custom: true } })).toBe(true);
+    const data = workspace.project()!.blocks[0].blockEntityData as { slots: readonly { slot: number; stack?: { id: string; count: number; components?: unknown } }[]; raw?: unknown };
+    expect(data.slots[1]?.stack).toEqual({ id: 'example:gem', count: 2, components: { custom: true } });
+    expect(data.raw).toEqual({ legacy: { keep: true } });
+    expect(history.undo()).toBe(true);
+    expect(history.redo()).toBe(true);
+    expect((workspace.project()!.blocks[0].blockEntityData as typeof data).slots[1]?.stack?.id).toBe('example:gem');
+  });
+
+  it('initializes empty verified item-host slots when the block is placed', () => {
+    const displayProject: ProjectDocument = { ...project, blocks: [] };
+    const { editor, workspace, library, active } = makeEditor(displayProject);
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{ id: 'example:display_case', displayName: 'Display Case', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'item-storage-display', slotCount: 2, evidence: 'verified' }] }] });
+    active.select(library.get('example:display_case')!);
+    expect(editor.place({ x: 0, y: 0, z: 0 })).toBe(true);
+    const data = workspace.project()!.blocks[0].blockEntityData as { kind: string; hostKind: string; slots: readonly unknown[] };
+    expect(data).toMatchObject({ kind: 'item-container', hostKind: 'item-storage-display' });
+    expect(data.slots).toHaveLength(2);
+  });
+
+  it('rejects item-slot edits for storage-only and locked blocks', () => {
+    const displayProject: ProjectDocument = { ...project, groups: [{ id: 'locked', name: 'Locked', visible: true, locked: true }], blocks: [{ kind: 'resolved', id: 'example:wooden_shelf', namespace: 'example', position: { x: 1, y: 1, z: 1 }, state: {}, groupIds: ['locked'] }] };
+    const { editor, workspace, library } = makeEditor(displayProject);
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [
+      { id: 'example:wooden_shelf', displayName: 'Wooden Shelf', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' },
+      { id: 'example:chest', displayName: 'Chest', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'inventory-storage', evidence: 'verified' }] },
+    ] });
+    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 0, { id: 'minecraft:stone', count: 1 })).toBe(false);
+    expect(workspace.project()!.blocks[0].blockEntityData).toBeUndefined();
+  });
 });
 
 describe('sign text normalization', () => {

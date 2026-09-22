@@ -11,6 +11,7 @@ import { selectVanillaResourceFormatAdapter } from './format/resource-format-ada
 import { deriveResourceDefaultState, evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
 import type { TargetItemEvidence } from './format/item-evidence';
 import { classifyContent, isDecorationEntityId } from '../../content/content-classifier';
+import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -153,7 +154,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         support: 'partial',
         visualSupport: 'partial',
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : resourceDefault.source,
-        capabilities: known?.capabilities,
+        capabilities: [...(known?.capabilities ?? []), ...verifiedVanillaCapabilityProfile(id)],
         itemEvidence: itemByBlock.has(id) && !isDecorationEntityId(id) ? toBlockItemEvidence(itemByBlock.get(id)!, !!registryEntry) : undefined,
       };
       const registryEnriched = behaviorRegistry.enrich(generated);

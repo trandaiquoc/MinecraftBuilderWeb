@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveBlockCapabilities, blockCapability, hasBlockCapability, validateCapabilityProfile } from './block-capability-resolver';
+import { verifiedVanillaCapabilityProfile } from './vanilla-capability-profiles';
 
 describe('block capability resolver', () => {
   it('derives orthogonal verified capabilities from behavior', () => {
@@ -38,5 +39,12 @@ describe('block capability resolver', () => {
 
   it('does not infer multi-block from a half property', () => {
     expect(deriveBlockCapabilities({ stateDefinitions: [{ name: 'half', values: ['top', 'bottom'] }] })).toEqual([]);
+  });
+
+  it('requires verified evidence and preserves the distinction between storage and display hosts', () => {
+    expect(verifiedVanillaCapabilityProfile('minecraft:oak_shelf')).toEqual([{ kind: 'item-storage-display', slotCount: 3, evidence: 'verified' }]);
+    expect(verifiedVanillaCapabilityProfile('minecraft:chest')).toEqual([{ kind: 'inventory-storage', evidence: 'verified' }]);
+    expect(verifiedVanillaCapabilityProfile('example:wooden_shelf')).toEqual([]);
+    expect(deriveBlockCapabilities({ explicit: [{ kind: 'item-storage-display', slotCount: 2, evidence: 'inferred' }] })).toEqual([]);
   });
 });

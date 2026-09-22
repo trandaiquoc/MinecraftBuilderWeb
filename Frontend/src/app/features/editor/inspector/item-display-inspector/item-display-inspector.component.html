@@ -1,0 +1,17 @@
+<section class="item-display-inspector">
+  <h3>{{ i18n.t('itemSlots') }}</h3>
+  @for (slot of slots(); track slot.slot) {
+    <label class="item-slot">
+      <span>{{ i18n.t('itemSlot') }} {{ slot.slot + 1 }}</span>
+      <app-item-stack-picker
+        [entries]="catalog.all()"
+        [selectedStack]="slot.stack"
+        [placeholder]="i18n.t('searchItems')"
+        [emptyLabel]="i18n.t('emptySlot')"
+        [ariaLabel]="i18n.t('itemSlot') + ' ' + (slot.slot + 1)"
+        [closeLabel]="i18n.t('cancel')"
+        [noResults]="i18n.t('noMatches')"
+        (stackChange)="setSlot(slot.slot, $event)" />
+    </label>
+  }
+</section>

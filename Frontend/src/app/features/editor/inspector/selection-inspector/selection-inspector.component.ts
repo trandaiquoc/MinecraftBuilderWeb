@@ -10,8 +10,10 @@ import { coordinateKey } from '../../../../core/domain/coordinates';
 import { DecorationInspectorComponent } from '../decoration-inspector/decoration-inspector.component';
 import { SignInspectorComponent } from '../sign-inspector/sign-inspector.component';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
+import { ItemDisplayInspectorComponent } from '../item-display-inspector/item-display-inspector.component';
+import { blockCapability } from '../../../../core/blocks/capabilities/block-capability-resolver';
 
-@Component({ selector: 'app-selection-inspector', imports: [DecorationInspectorComponent, SignInspectorComponent, ThemedSelectComponent], templateUrl: './selection-inspector.component.html', styleUrl: './selection-inspector.component.scss' })
+@Component({ selector: 'app-selection-inspector', imports: [DecorationInspectorComponent, SignInspectorComponent, ThemedSelectComponent, ItemDisplayInspectorComponent], templateUrl: './selection-inspector.component.html', styleUrl: './selection-inspector.component.scss' })
 export class SelectionInspectorComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly workspace = inject(WorkspaceStateService);
@@ -25,6 +27,10 @@ export class SelectionInspectorComponent {
   protected readonly stateEntries = computed(() => Object.entries(this.selectedBlock()?.state ?? {}));
   protected readonly selectedDefinition = computed(() => { const block = this.selectedBlock(); return block ? this.library.get(block.id) : undefined; });
   protected readonly selectedBlockIsSign = computed(() => { const block = this.selectedBlock(); return !!block && (isSignDefinition(this.library.get(block.id)) || isSignId(block.id)); });
+  protected readonly selectedItemCapability = computed(() => {
+    const definition = this.selectedDefinition();
+    return blockCapability(definition, 'item-storage-display') ?? blockCapability(definition, 'item-display');
+  });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
   protected readonly selectedBlockCount = computed(() => { const project = this.workspace.project(); const box = this.selection.box(); return project && box ? project.blocks.filter((block) => block.position.x >= box.min.x && block.position.x <= box.max.x && block.position.y >= box.min.y && block.position.y <= box.max.y && block.position.z >= box.min.z && block.position.z <= box.max.z).length : 0; });
   constructor() {

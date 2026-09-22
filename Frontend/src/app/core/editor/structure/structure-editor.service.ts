@@ -18,6 +18,8 @@ import { decoratedPotData, defaultDecoratedPotData, normalizeDecoratedPotSherd }
 import { pruneInvalidDecorations } from '../../decorations/placement/decoration-placement';
 import { blockCapability } from '../../blocks/capabilities/block-capability-resolver';
 import type { BlockEntityKind } from '../../blocks/capabilities/block-capability.types';
+import { defaultItemContainerData, setItemContainerSlot } from '../../block-entities/item-display/item-container';
+import type { ItemStackData } from '../../items/item-stack.types';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -37,6 +39,8 @@ export class StructureEditorService {
         const entityKind = blockEntityKind(this.library.get(block.id));
         if (entityKind === 'sign' || isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
         if (entityKind === 'decorated-pot' || block.id === 'minecraft:decorated_pot') return { ...block, blockEntityData: defaultDecoratedPotData() };
+        const itemHost = itemHostCapability(this.library.get(block.id));
+        if (itemHost) return { ...block, blockEntityData: defaultItemContainerData(itemHost.kind, itemHost.slotCount) };
         return block;
       }) });
     });
@@ -187,6 +191,14 @@ export class StructureEditorService {
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
+  setBlockItemSlot(position: VoxelCoordinate, slot: number, stack: ItemStackData | undefined): boolean {
+    return this.history.execute('Item slot edit', (project) => {
+      const block = this.find(project, position); const capability = itemHostCapability(block ? this.library.get(block.id) : undefined);
+      if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups)) return undefined;
+      const data = setItemContainerSlot(block.blockEntityData, capability.kind, capability.slotCount, slot, stack);
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+    });
+  }
   validatePlacement(position: VoxelCoordinate, context?: PlacementContext): RuleValidation {
     const project = this.workspace.project(); const active = this.activeBlock.active();
     if (!project || !active) return { status: 'invalid', reason: 'out-of-bounds', affectedPositions: [position] };
@@ -207,6 +219,9 @@ export function isSignId(id: string): boolean {
 function isSignBlock(block: PlacedBlock, definition: ReturnType<BlockLibraryService['get']>): boolean { return isSignDefinition(definition) || isSignId(block.id); }
 function isBlockEntity(definition: ReturnType<BlockLibraryService['get']>, kind: BlockEntityKind): boolean { return blockCapability(definition, 'block-entity')?.entityKind === kind; }
 function blockEntityKind(definition: ReturnType<BlockLibraryService['get']>): BlockEntityKind | undefined { return blockCapability(definition, 'block-entity')?.entityKind; }
+function itemHostCapability(definition: ReturnType<BlockLibraryService['get']>): Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'item-display' | 'item-storage-display' }> | undefined {
+  return blockCapability(definition, 'item-storage-display') ?? blockCapability(definition, 'item-display');
+}
 export function isSignDefinition(definition: ReturnType<BlockLibraryService['get']>): boolean { return blockCapability(definition, 'block-entity')?.entityKind === 'sign'; }
 export function defaultSignData(): SignBlockEntityData { const side: SignSide = { lines: ['', '', '', ''], color: 'black', glowing: false }; return { kind: 'sign', front: side, back: { ...side, lines: [...side.lines] as SignSide['lines'] }, waxed: false }; }
 export function signData(value: unknown): SignBlockEntityData {
