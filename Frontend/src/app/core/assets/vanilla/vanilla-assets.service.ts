@@ -25,6 +25,8 @@ export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics
 export interface ImportedModSummary { readonly sourceId: string; readonly modId: string; readonly displayName: string; readonly version: string; readonly namespaces: readonly string[]; readonly candidateBlockCount: number; readonly report: ModImportReport; }
 export type ContentRestorePhase = 'vanilla' | 'restoring-mods' | 'ready' | 'partial' | 'error';
 export interface ContentRestoreState { readonly phase: ContentRestorePhase; readonly current: number; readonly total: number; readonly sourceName?: string; readonly failed: number; }
+export type AssetBootstrapStatusKind = 'loading-cache' | 'downloading' | 'preparing' | 'restoring-mods' | 'ready' | 'partial' | 'unavailable';
+export interface AssetBootstrapStatus { readonly kind: AssetBootstrapStatusKind; readonly percent?: number; readonly current?: number; readonly total?: number; readonly sourceName?: string; readonly warnings?: number; }
 
 @Injectable({ providedIn: 'root' })
 export class VanillaAssetsService {
@@ -360,6 +362,7 @@ export class VanillaAssetsService {
     const total = stored.length;
     this.contentRestore.set({ phase: total ? 'restoring-mods' : 'ready', current: 0, total, failed: 0 });
     if (!total) return;
+    await yieldToBrowser();
     let failed = 0; let current = 0;
     this.activity.begin('mod-restore', `Restoring imported Mods (0 / ${total})`, 'mod');
     for (const serialized of stored) {
@@ -373,6 +376,7 @@ export class VanillaAssetsService {
       current += 1;
       this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
       this.activity.update({ loaded: current, total }, sourceName ? `Restoring imported Mods (${current} / ${total}): ${sourceName}` : `Restoring imported Mods (${current} / ${total})`);
+      await yieldToBrowser();
     }
     this.contentRestore.set(contentRestoreAfterMods(total, failed));
     this.activity.finish('mod-restore', failed ? `Imported Mods restored with ${failed} warning${failed === 1 ? '' : 's'}` : 'Imported Mods restored', 'mod');
@@ -393,6 +397,22 @@ export function shouldStartVersionLoad(providerVersion: string | undefined, stat
 
 export function contentRestoreAfterMods(total: number, failed: number): ContentRestoreState {
   return { phase: failed > 0 ? 'partial' : 'ready', current: Math.max(0, total), total: Math.max(0, total), failed: Math.max(0, failed) };
+}
+
+export function deriveAssetBootstrapStatus(status: VanillaAssetStatus, restore: ContentRestoreState, progress?: VanillaDownloadProgress): AssetBootstrapStatus {
+  if (status === 'loading-cache') return { kind: 'loading-cache' };
+  if (status === 'downloading') return { kind: 'downloading', percent: progress?.total ? Math.min(100, Math.round(progress.loaded / progress.total * 100)) : undefined };
+  if (status === 'importing') return { kind: 'preparing' };
+  if (status !== 'ready' || restore.phase === 'error') return { kind: 'unavailable' };
+  if (restore.phase === 'restoring-mods') return { kind: 'restoring-mods', current: restore.current, total: restore.total, sourceName: restore.sourceName };
+  if (restore.phase === 'partial') return { kind: 'partial', warnings: restore.failed };
+  if (restore.phase === 'vanilla') return { kind: 'preparing' };
+  return { kind: 'ready' };
+}
+
+function yieldToBrowser(): Promise<void> {
+  if (typeof requestAnimationFrame === 'function') return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single', concreteBlockIds: readonly string[] = []): string {

@@ -37,24 +37,7 @@ export class BlockBrowserComponent {
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }
   protected retryAssets(): void { void this.assets.redownload(); }
-  protected assetLoading(): boolean { return ['loading-cache', 'downloading', 'importing'].includes(this.assets.status()) || this.assets.contentRestore().phase === 'restoring-mods'; }
-  protected assetStatusText(): string {
-    const status = this.assets.status();
-    if (status === 'loading-cache') return this.i18n.t('checkingAssetCache');
-    if (status === 'downloading') return this.i18n.t('downloadingAsset');
-    if (status === 'importing') return this.i18n.t('preparingAssets');
-    if (this.assets.contentRestore().phase === 'restoring-mods') { const progress = this.assets.contentRestore(); const label = this.i18n.t('restoringModsProgress').replace('{current}', String(progress.current)).replace('{total}', String(progress.total)); return progress.sourceName ? `${label} · ${progress.sourceName}` : label; }
-    if (this.assets.contentRestore().phase === 'partial') return this.i18n.t('assetsReadyWithWarnings');
-    return this.i18n.t('assetsReady');
-  }
-  protected progressPercent(): number | undefined {
-    const progress = this.assets.downloadProgress();
-    return progress?.total ? Math.min(100, Math.round(progress.loaded / progress.total * 100)) : undefined;
-  }
-  protected formatBytes(value: number): string {
-    if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
-    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-  }
+  protected assetsUnavailable(): boolean { return !['loading-cache', 'downloading', 'importing', 'ready'].includes(this.assets.status()); }
   protected selectSource(id: string): void { this.selectedSource.set(id); }
   protected select(block: PlaceableItemDefinition): void { this.decorations.clearActive(); this.library.select(block); }
   protected addToQuickBar(event: Event, block: PlaceableItemDefinition): void {

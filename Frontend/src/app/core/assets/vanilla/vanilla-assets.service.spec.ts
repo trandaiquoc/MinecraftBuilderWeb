@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contentRestoreAfterMods, shouldStartVersionLoad, thumbnailIdentityForItem, thumbnailKey } from './vanilla-assets.service';
+import { contentRestoreAfterMods, deriveAssetBootstrapStatus, shouldStartVersionLoad, thumbnailIdentityForItem, thumbnailKey } from './vanilla-assets.service';
 
 describe('thumbnail cache key', () => {
   it('is stable for canonical state order and changes for provider generation', () => {
@@ -28,5 +28,13 @@ describe('version load state', () => {
     expect(shouldStartVersionLoad(undefined, 'downloading', '1.21.1', '1.21.1')).toBe(false);
     expect(shouldStartVersionLoad('1.21.1', 'ready', '1.21.1', undefined)).toBe(false);
     expect(shouldStartVersionLoad('1.21.1', 'ready', '1.21.1', undefined, true)).toBe(true);
+  });
+  it('derives distinct vanilla, mod restore, ready, partial, and unavailable states', () => {
+    expect(deriveAssetBootstrapStatus('loading-cache', { phase: 'vanilla', current: 0, total: 0, failed: 0 }).kind).toBe('loading-cache');
+    expect(deriveAssetBootstrapStatus('downloading', { phase: 'vanilla', current: 0, total: 0, failed: 0 }, { phase: 'download', loaded: 42, total: 100 }).percent).toBe(42);
+    expect(deriveAssetBootstrapStatus('ready', { phase: 'restoring-mods', current: 1, total: 2, failed: 0, sourceName: 'Cobblemon' })).toMatchObject({ kind: 'restoring-mods', current: 1, total: 2, sourceName: 'Cobblemon' });
+    expect(deriveAssetBootstrapStatus('ready', { phase: 'ready', current: 0, total: 0, failed: 0 }).kind).toBe('ready');
+    expect(deriveAssetBootstrapStatus('ready', { phase: 'partial', current: 2, total: 2, failed: 1 })).toMatchObject({ kind: 'partial', warnings: 1 });
+    expect(deriveAssetBootstrapStatus('offline', { phase: 'error', current: 0, total: 0, failed: 1 }).kind).toBe('unavailable');
   });
 });
