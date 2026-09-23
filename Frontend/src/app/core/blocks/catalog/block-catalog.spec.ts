@@ -107,4 +107,13 @@ describe('BlockCatalog', () => {
     });
     expect(library.allItems().map((item) => item.itemId)).toEqual(['minecraft:lava_bucket', 'minecraft:water_bucket']);
   });
+
+  it('keeps the aggregate source out of concrete source summaries', () => {
+    const library = new BlockLibraryService(new ActiveBlockService());
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example Mod', blocks: [{ id: 'example:block', displayName: 'Block', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', sourceId: 'example', sourceName: 'Example Mod' }] });
+    const summaries = library.placeableSourceSummaries();
+    expect(summaries.filter((summary) => summary.id === 'vanilla')).toHaveLength(1);
+    expect(summaries.filter((summary) => summary.id === 'example')).toHaveLength(1);
+    expect(summaries.some((summary) => summary.id === '__minecraftbuilder_all__')).toBe(false);
+  });
 });

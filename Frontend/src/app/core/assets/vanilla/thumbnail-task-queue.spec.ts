@@ -53,4 +53,23 @@ describe('ThumbnailTaskQueue', () => {
     expect(visible).toHaveBeenCalledTimes(1);
     expect(prefetch).not.toHaveBeenCalled();
   });
+
+  it('promotes a queued preview above visible work when an item is selected', async () => {
+    const queue = new ThumbnailTaskQueue(1);
+    let release!: () => void;
+    const active = new Promise<void>((resolve) => { release = resolve; });
+    const visible = vi.fn(async () => undefined);
+    const order: string[] = [];
+    const selected = vi.fn(async () => { order.push('selected'); });
+    visible.mockImplementation(async () => { order.push('visible'); });
+    queue.enqueue('active', 'visible', () => active);
+    queue.enqueue('visible', 'visible', visible);
+    queue.enqueue('selected', 'prefetch', selected);
+    queue.enqueue('selected', 'selected', selected);
+    release();
+    for (let attempt = 0; attempt < 10 && !selected.mock.calls.length; attempt++) await wait();
+    expect(selected).toHaveBeenCalledTimes(1);
+    expect(order.indexOf('selected')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('visible')).toBeGreaterThan(order.indexOf('selected'));
+  });
 });

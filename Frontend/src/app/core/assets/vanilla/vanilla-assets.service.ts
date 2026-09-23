@@ -235,7 +235,7 @@ export class VanillaAssetsService {
     const previewState = item.previewState ?? item.defaultState;
     const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, previewState) };
     const key = this.itemThumbnailKey(item, previewState);
-    if (this.thumbnailUrls.has(key)) return;
+    if (this.thumbnailUrls.has(key) && !this.thumbnailQueue.has(key)) return;
     const fallback = visual.thumbnailUrl(item.displayBlockId, previewState);
     if (fallback) this.setThumbnailUrl(key, fallback);
     if (!visual.perspectiveItemThumbnail) return;
@@ -258,7 +258,7 @@ export class VanillaAssetsService {
     const visual = this.visualProvider(); if (!visual) return;
     const epoch = this.thumbnailEpoch();
     const key = thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', blockId, state);
-    if (this.thumbnailUrls.has(key)) return;
+    if (this.thumbnailUrls.has(key) && !this.thumbnailQueue.has(key)) return;
     const fallback = visual.thumbnailUrl(blockId, state);
     if (fallback) this.setThumbnailUrl(key, fallback);
     if (visual.perspectiveThumbnail) void visual.perspectiveThumbnail(blockId, state).then((url) => {

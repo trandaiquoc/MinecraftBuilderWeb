@@ -1,4 +1,4 @@
-export type ThumbnailTaskPriority = 'visible' | 'prefetch';
+export type ThumbnailTaskPriority = 'selected' | 'visible' | 'prefetch';
 
 interface ThumbnailTask {
   readonly key: string;
@@ -19,7 +19,7 @@ export class ThumbnailTaskQueue {
     if (this.running.has(key)) return;
     const existing = this.pending.get(key);
     if (existing) {
-      if (priority === 'visible' && existing.priority !== 'visible') this.pending.set(key, { ...existing, priority, run });
+      if (priorityRank(priority) > priorityRank(existing.priority)) this.pending.set(key, { ...existing, priority, run });
       return;
     }
     this.pending.set(key, { key, priority, order: this.sequence++, run });
@@ -28,12 +28,14 @@ export class ThumbnailTaskQueue {
 
   invalidate(): void { this.pending.clear(); }
 
+  has(key: string): boolean { return this.pending.has(key) || this.running.has(key); }
+
   activeCount(): number { return this.running.size; }
   pendingCount(): number { return this.pending.size; }
 
   private pump(): void {
     while (this.running.size < this.concurrency && this.pending.size) {
-      const task = [...this.pending.values()].sort((a, b) => Number(b.priority === 'visible') - Number(a.priority === 'visible') || a.order - b.order)[0];
+      const task = [...this.pending.values()].sort((a, b) => priorityRank(b.priority) - priorityRank(a.priority) || a.order - b.order)[0];
       if (!task) return;
       this.pending.delete(task.key);
       this.running.add(task.key);
@@ -44,3 +46,5 @@ export class ThumbnailTaskQueue {
     }
   }
 }
+
+function priorityRank(priority: ThumbnailTaskPriority): number { return priority === 'selected' ? 2 : priority === 'visible' ? 1 : 0; }

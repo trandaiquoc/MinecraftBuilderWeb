@@ -280,6 +280,16 @@
 .groups-tab-content {
   flex: 1 1 auto;
 }
+.blocks-tab-content {
+  display: flex;
+  overflow: hidden;
+}
+.blocks-tab-content app-block-browser {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
 .selection-details {
   display: grid;
   gap: 0.85rem;

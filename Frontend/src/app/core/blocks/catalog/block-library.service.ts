@@ -44,7 +44,9 @@ export class BlockLibraryService {
     return placementItemSearch(this.itemsBySource.get(source) ?? this.items, query);
   }
   placeableSourceSummaries(): readonly { readonly id: string; readonly label: string; readonly count: number }[] {
-    return [...this.itemsBySource.entries()].map(([id, items]) => ({ id, label: items[0]?.sourceName || items[0]?.modName || id, count: items.length }));
+    return [...this.itemsBySource.entries()]
+      .filter(([id]) => id !== ALL_CONTENT_SOURCE)
+      .map(([id, items]) => ({ id, label: items[0]?.sourceName || items[0]?.modName || id, count: items.length }));
   }
 
   private replaceItems(items: readonly PlaceableItemDefinition[]): void {

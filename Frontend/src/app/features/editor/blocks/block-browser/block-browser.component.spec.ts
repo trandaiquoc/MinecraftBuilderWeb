@@ -28,4 +28,18 @@ describe('BlockBrowserComponent bootstrap presentation', () => {
     expect(fixture.nativeElement.querySelector('.asset-empty-state')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('.asset-loading-state')).toBeNull();
   });
+
+  it('keeps All/Vanilla source identities unique and updates Active Block immediately', async () => {
+    await TestBed.configureTestingModule({ imports: [BlockBrowserComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(BlockBrowserComponent);
+    const component = fixture.componentInstance;
+    const sources = component['sources']();
+    expect(sources.filter((source) => source.id === '__minecraftbuilder_all__')).toHaveLength(1);
+    expect(sources.filter((source) => source.id === 'vanilla')).toHaveLength(1);
+    const item = component['library'].allItems()[0];
+    component['select'](item);
+    expect(component['library'].activeBlock.active()?.id).toBe(item.displayBlockId);
+    expect(component['activePreviewItem']()?.itemId).toBe(item.itemId);
+    expect(component['isActive'](item)).toBe(true);
+  });
 });
