@@ -32,10 +32,24 @@ export class SearchableDropdownComponent {
   protected readonly listId = `searchable-dropdown-${nextDropdownId++}`;
   protected readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
-  protected get selected(): SearchableDropdownOption | undefined { return this.options.find((option) => option.id === this.selectedId); }
+  private indexedOptions?: readonly SearchableDropdownOption[];
+  private readonly optionSearchIndex = new Map<string, string>();
+  private readonly optionById = new Map<string, SearchableDropdownOption>();
+
+  protected get selected(): SearchableDropdownOption | undefined {
+    this.ensureOptionIndex();
+    return this.optionById.get(this.selectedId);
+  }
   protected filteredOptions(): readonly SearchableDropdownOption[] {
     const query = normalize(this.query());
-    return query ? this.options.filter((option) => normalize(`${option.label} ${option.secondary ?? ''} ${option.id}`).includes(query)).slice(0, 100) : this.options.slice(0, 100);
+    this.ensureOptionIndex();
+    if (!query) return this.options.slice(0, 100);
+    const matches: SearchableDropdownOption[] = [];
+    for (const option of this.options) {
+      if (this.optionSearchIndex.get(option.id)?.includes(query)) matches.push(option);
+      if (matches.length === 100) break;
+    }
+    return matches;
   }
   protected toggle(): void {
     if (this.open()) this.close();
@@ -68,6 +82,16 @@ export class SearchableDropdownComponent {
   }
   protected close(): void { this.open.set(false); this.query.set(''); this.activeIndex.set(null); }
   protected onHostKeydown(event: KeyboardEvent): void { if (this.open() && event.key === 'Escape') { event.preventDefault(); this.close(); } }
+
+  private ensureOptionIndex(): void {
+    if (this.indexedOptions === this.options) return;
+    this.indexedOptions = this.options;
+    this.optionSearchIndex.clear(); this.optionById.clear();
+    for (const option of this.options) {
+      this.optionById.set(option.id, option);
+      this.optionSearchIndex.set(option.id, normalize(`${option.label} ${option.secondary ?? ''} ${option.id}`));
+    }
+  }
 }
 
 function normalize(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, ' '); }

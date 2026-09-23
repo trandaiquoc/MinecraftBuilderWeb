@@ -57,4 +57,13 @@ describe('SearchableDropdownComponent', () => {
     fixture.detectChanges();
     expect(document.body.querySelector('.dropdown-option.active-option')).toBeTruthy();
   });
+
+  it('caps prepared search results for large option sets', async () => {
+    await TestBed.configureTestingModule({ imports: [SearchableDropdownComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(SearchableDropdownComponent);
+    fixture.componentRef.setInput('options', Array.from({ length: 10000 }, (_, index) => ({ id: `example:${index}`, label: `Block ${index}`, secondary: 'Example Mod' })));
+    fixture.detectChanges();
+    fixture.componentInstance['setQuery']({ target: { value: 'example mod' } } as unknown as Event);
+    expect(fixture.componentInstance['filteredOptions']()).toHaveLength(100);
+  });
 });

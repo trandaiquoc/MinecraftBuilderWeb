@@ -17,6 +17,7 @@ export class ItemCatalog {
   private readonly contributions = new Map<string, readonly ItemCatalogEntry[]>();
   private readonly entries = new Map<string, ItemCatalogEntry>();
   private readonly searchIndex = new Map<string, string>();
+  private orderedEntries: readonly ItemCatalogEntry[] = [];
 
   replaceSource(sourceId: string, entries: readonly ItemCatalogEntry[]): void {
     this.contributions.set(sourceId, entries.map((entry) => ({ ...entry, referencedModels: [...entry.referencedModels], referencedResources: [...entry.referencedResources] })));
@@ -27,7 +28,7 @@ export class ItemCatalog {
   clear(): void { this.contributions.clear(); this.rebuild(); }
   sourceIds(): readonly string[] { return [...this.contributions.keys()]; }
   get(id: string): ItemCatalogEntry | undefined { return this.entries.get(id); }
-  all(): readonly ItemCatalogEntry[] { return [...this.entries.values()]; }
+  all(): readonly ItemCatalogEntry[] { return this.orderedEntries; }
 
   search(query: string): readonly ItemCatalogEntry[] {
     const normalized = normalizeItemSearch(query);
@@ -45,6 +46,7 @@ export class ItemCatalog {
       this.entries.set(entry.id, entry);
       this.searchIndex.set(entry.id, normalizeItemSearch(`${entry.displayName} ${entry.id} ${entry.namespace} ${entry.sourceName}`));
     }
+    this.orderedEntries = [...this.entries.values()];
   }
 }
 

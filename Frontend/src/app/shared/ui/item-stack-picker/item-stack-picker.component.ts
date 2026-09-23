@@ -20,12 +20,26 @@ export class ItemStackPickerComponent {
   @Input() sourceId?: string;
   @Output() readonly stackChange = new EventEmitter<ItemStackData | undefined>();
 
+  private optionsEntries?: readonly ItemCatalogEntry[];
+  private optionsSource?: string;
+  private optionsSelectedId?: string;
+  private optionsCache: readonly SearchableDropdownOption[] = [];
+
   protected options(): readonly SearchableDropdownOption[] {
-    const visible = this.sourceId ? this.entries.filter((entry) => entry.sourceId === this.sourceId) : this.entries;
-    const options = visible.map((entry) => ({ id: entry.id, label: entry.displayName, secondary: `${entry.sourceName} · ${entry.id}` }));
+    const selectedId = this.selectedStack?.id;
+    if (this.optionsEntries === this.entries && this.optionsSource === this.sourceId && this.optionsSelectedId === selectedId) return this.optionsCache;
+    this.optionsEntries = this.entries; this.optionsSource = this.sourceId; this.optionsSelectedId = selectedId;
+    const options: SearchableDropdownOption[] = [];
+    const availableIds = new Set<string>();
+    for (const entry of this.entries) {
+      if (this.sourceId && entry.sourceId !== this.sourceId) continue;
+      availableIds.add(entry.id);
+      options.push({ id: entry.id, label: entry.displayName, secondary: `${entry.sourceName} · ${entry.id}` });
+    }
     const selected = this.selectedStack;
-    if (selected && !options.some((option) => option.id === selected.id)) options.unshift({ id: selected.id, label: selected.id, secondary: 'Unavailable' });
-    return options;
+    if (selected && !availableIds.has(selected.id)) options.unshift({ id: selected.id, label: selected.id, secondary: 'Unavailable' });
+    this.optionsCache = options;
+    return this.optionsCache;
   }
 
   protected choose(id: string): void {

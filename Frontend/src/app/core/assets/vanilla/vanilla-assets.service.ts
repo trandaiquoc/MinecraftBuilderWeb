@@ -40,7 +40,8 @@ export class VanillaAssetsService {
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly official = new MojangVanillaAssetSource();
   readonly activity = inject(AssetActivityService);
-  private readonly thumbnailUrls = signal<ReadonlyMap<string, string>>(new Map());
+  private readonly thumbnailUrls = new Map<string, string>();
+  private readonly thumbnailVersion = signal(0);
   private readonly thumbnailQueue = new ThumbnailTaskQueue(4);
   readonly provider = signal<VanillaAssetProvider | undefined>(undefined);
   readonly visualProvider = signal<VanillaBlockVisualProvider | undefined>(undefined);
@@ -230,17 +231,18 @@ export class VanillaAssetsService {
 
   requestItemThumbnail(item: PlaceableItemDefinition, priority: ThumbnailTaskPriority = 'visible'): void {
     const visual = this.visualProvider(); if (!visual) return;
+    const epoch = this.thumbnailEpoch();
     const previewState = item.previewState ?? item.defaultState;
     const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, previewState) };
     const key = this.itemThumbnailKey(item, previewState);
-    if (this.thumbnailUrls().has(key)) return;
+    if (this.thumbnailUrls.has(key)) return;
     const fallback = visual.thumbnailUrl(item.displayBlockId, previewState);
-    if (fallback) this.thumbnailUrls.set(new Map(this.thumbnailUrls()).set(key, fallback));
+    if (fallback) this.setThumbnailUrl(key, fallback);
     if (!visual.perspectiveItemThumbnail) return;
     this.thumbnailQueue.enqueue(key, priority, async () => {
       const url = await visual.perspectiveItemThumbnail!(previewItem);
-      if (!url) return;
-      const current = new Map(this.thumbnailUrls()); current.set(key, url); this.thumbnailUrls.set(current);
+      if (!url || epoch !== this.thumbnailEpoch()) return;
+      this.setThumbnailUrl(key, url);
     });
   }
 
@@ -254,15 +256,15 @@ export class VanillaAssetsService {
     const item = this.library.getItem(blockId);
     if (item) { this.prepareItemThumbnail({ ...item, defaultState: { ...state }, previewState: { ...state } }); return; }
     const visual = this.visualProvider(); if (!visual) return;
+    const epoch = this.thumbnailEpoch();
     const key = thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', blockId, state);
-    if (this.thumbnailUrls().has(key)) return;
+    if (this.thumbnailUrls.has(key)) return;
     const fallback = visual.thumbnailUrl(blockId, state);
-    if (fallback) this.thumbnailUrls.set(new Map(this.thumbnailUrls()).set(key, fallback));
+    if (fallback) this.setThumbnailUrl(key, fallback);
     if (visual.perspectiveThumbnail) void visual.perspectiveThumbnail(blockId, state).then((url) => {
-      if (!url) return;
-      const current = new Map(this.thumbnailUrls());
-      if (current.get(key) === url) return;
-      current.set(key, url); this.thumbnailUrls.set(current);
+      if (!url || epoch !== this.thumbnailEpoch()) return;
+      if (this.thumbnailUrls.get(key) === url) return;
+      this.setThumbnailUrl(key, url);
     });
   }
 
@@ -270,12 +272,14 @@ export class VanillaAssetsService {
     const item = this.library.getItem(blockId);
     if (item) return this.thumbnailUrlForItem({ ...item, defaultState: { ...state }, previewState: { ...state } });
     const recipe = 'single';
-    return this.thumbnailUrls().get(thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', blockId, state, recipe));
+    this.thumbnailVersion();
+    return this.thumbnailUrls.get(thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', blockId, state, recipe));
   }
 
   thumbnailUrlForItem(item: PlaceableItemDefinition): string | undefined {
     const state = item.previewState ?? item.defaultState;
-    return this.thumbnailUrls().get(this.itemThumbnailKey(item, state));
+    this.thumbnailVersion();
+    return this.thumbnailUrls.get(this.itemThumbnailKey(item, state));
   }
 
   private itemThumbnailKey(item: PlaceableItemDefinition, state: Readonly<Record<string, string>>): string {
@@ -342,7 +346,7 @@ export class VanillaAssetsService {
     if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
     this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
     const catalog = provider.catalog(registry);
-    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map()); this.thumbnailEpoch.update((value) => value + 1);
+    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.clear(); this.thumbnailVersion.update((value) => value + 1); this.thumbnailEpoch.update((value) => value + 1);
     const generation = this.generation() + 1;
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
@@ -374,7 +378,13 @@ export class VanillaAssetsService {
     this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
   }
 
-  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailQueue.invalidate(); this.thumbnailUrls.set(new Map()); this.thumbnailEpoch.update((value) => value + 1); }
+  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailQueue.invalidate(); this.thumbnailUrls.clear(); this.thumbnailVersion.update((value) => value + 1); this.thumbnailEpoch.update((value) => value + 1); }
+
+  private setThumbnailUrl(key: string, url: string): void {
+    if (this.thumbnailUrls.get(key) === url) return;
+    this.thumbnailUrls.set(key, url);
+    this.thumbnailVersion.update((value) => value + 1);
+  }
   private bumpGeneration(): void { this.generation.update((value) => value + 1); }
 
   private assertExternalSourceAvailable(provider: ExternalModProvider): void {

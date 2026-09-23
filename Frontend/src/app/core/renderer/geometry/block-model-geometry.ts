@@ -71,6 +71,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly geometryCache = new Map<string, THREE.BufferGeometry>();
   private readonly stats = { resolvedModelCacheHits: 0, resolvedModelCacheMisses: 0, geometryCacheHits: 0, geometryCacheMisses: 0, textureCacheHits: 0, textureCacheMisses: 0 };
   private thumbnailRenderer?: THREE.WebGLRenderer;
+  private readonly thumbnailObjectUrls = new Set<string>();
   private grassTintCache?: Promise<number | undefined>;
 
   constructor(private readonly assets: RenderableAssetResourceProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets); }
@@ -172,7 +173,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
   setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); }
 
-  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
+  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url); this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
 
   cacheStats(): Readonly<VisualCacheStats> { return { ...this.stats }; }
   resourceCounts(): Readonly<VisualResourceCounts> { return { resolvedModels: this.resolvedCache.size, geometries: this.geometryCache.size, textures: this.textureCache.size, fluidTextures: this.fluidTextureCache.size, thumbnails: this.thumbnailCache.size }; }
@@ -196,7 +197,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const bounds = new THREE.Box3(); for (const object of visuals) bounds.expandByObject(object); if (!validBounds(bounds)) return undefined; const center = bounds.getCenter(new THREE.Vector3()); const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), .5);
     const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7)); camera.lookAt(center);
     renderer.render(scene, camera); for (const object of visuals) scene.remove(object);
-    return renderer.domElement.toDataURL('image/png');
+    return this.thumbnailUrlFromCanvas(renderer.domElement);
   }
 
   private itemThumbnailResource(itemId: string): string | undefined {
@@ -216,7 +217,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
     const root = new THREE.Group();
     textures.forEach((texture, index) => { if (!texture) return; const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }); const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), material); mesh.position.z = index * .002; root.add(mesh); });
-    scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return renderer.domElement.toDataURL('image/png');
+    scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return this.thumbnailUrlFromCanvas(renderer.domElement);
   }
 
   private async renderStandaloneModelThumbnail(itemId: string, modelId: string): Promise<string | undefined> {
@@ -230,7 +231,17 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3)); const key = new THREE.DirectionalLight(0xffffff, 1.45); key.position.set(4, 6, 5); scene.add(key); scene.add(root);
     const bounds = new THREE.Box3().setFromObject(root); if (!validBounds(bounds)) return undefined;
     const center = bounds.getCenter(new THREE.Vector3()); const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), .5);
-    const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7)); camera.lookAt(center); renderer.render(scene, camera); scene.remove(root); return renderer.domElement.toDataURL('image/png');
+    const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7)); camera.lookAt(center); renderer.render(scene, camera); scene.remove(root); return this.thumbnailUrlFromCanvas(renderer.domElement);
+  }
+
+  private thumbnailUrlFromCanvas(canvas: HTMLCanvasElement): Promise<string | undefined> {
+    if (typeof canvas.toBlob === 'function' && typeof URL.createObjectURL === 'function') {
+      return new Promise((resolve) => canvas.toBlob((blob) => {
+        if (!blob) { resolve(undefined); return; }
+        const url = URL.createObjectURL(blob); this.thumbnailObjectUrls.add(url); resolve(url);
+      }, 'image/png'));
+    }
+    try { return Promise.resolve(canvas.toDataURL('image/png')); } catch { return Promise.resolve(undefined); }
   }
 
   private resolve(blockId: string, state: Readonly<Record<string, string>>): ResolvedBlockModel {

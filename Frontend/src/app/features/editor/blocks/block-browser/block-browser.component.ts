@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, output, signal } from '@angular/core';
 import { BehaviorSupportLevel, VisualSupportLevel } from '../../../../core/blocks/catalog/block-definition.types';
-import { PlaceableItemDefinition, placementItemSearch } from '../../../../core/blocks/placement-palette/placeable-item';
+import { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
@@ -9,10 +9,11 @@ import { DecorationService } from '../../../../core/decorations/decoration.servi
 import { LucidePlus } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ContentSourceOption, ContentSourceSelectorComponent } from '../../../../shared/ui/content-source-selector/content-source-selector.component';
-import { ALL_CONTENT_SOURCE, filterByContentSource, sourceOptions } from '../../../../shared/ui/content-source-selector/content-source-filter';
+import { ALL_CONTENT_SOURCE, sourceOptions } from '../../../../shared/ui/content-source-selector/content-source-filter';
 import { ThumbnailVisibilityDirective } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 
-@Component({ selector: 'app-block-browser', imports: [LucidePlus, UiTooltipDirective, ContentSourceSelectorComponent, ThumbnailVisibilityDirective], templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
+@Component({ selector: 'app-block-browser', imports: [LucidePlus, UiTooltipDirective, ContentSourceSelectorComponent, ThumbnailVisibilityDirective, ScrollingModule], templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
 export class BlockBrowserComponent {
   readonly assetManagerRequested = output<void>();
   protected readonly i18n = inject(I18nService);
@@ -22,18 +23,12 @@ export class BlockBrowserComponent {
   private readonly decorations = inject(DecorationService);
   protected readonly selectedSource = signal<string>(ALL_CONTENT_SOURCE);
   protected readonly sources = computed<readonly ContentSourceOption[]>(() => {
-    const grouped = new Map<string, { readonly label: string; count: number }>();
-    for (const item of this.library.allPlaceableItems()) {
-      const id = item.sourceId ?? item.namespace;
-      const current = grouped.get(id);
-      grouped.set(id, { label: id === 'vanilla' ? this.i18n.t('vanillaSource') : item.sourceName || item.modName || id, count: (current?.count ?? 0) + 1 });
-    }
-    const options = [...grouped.entries()].map(([id, value]) => ({ id, label: value.label, count: value.count, tooltip: `${value.label} (${value.count})` }));
-    const count = new Set(this.library.allPlaceableItems().map((item) => item.itemId)).size;
+    const options = this.library.placeableSourceSummaries().map((source) => ({ id: source.id, label: source.id === 'vanilla' ? this.i18n.t('vanillaSource') : source.label, count: source.count, tooltip: `${source.label} (${source.count})` }));
+    const count = this.library.allPlaceableItems().length;
     return sourceOptions(options, count, this.i18n.t('allSources'), `${this.i18n.t('allSources')} (${count})`);
   });
   protected readonly activeSource = computed(() => this.sources().some((source) => source.id === this.selectedSource()) ? this.selectedSource() : ALL_CONTENT_SOURCE);
-  protected readonly results = computed(() => placementItemSearch(filterByContentSource(this.library.allPlaceableItems(), this.activeSource()), this.library.query()));
+  protected readonly results = computed(() => this.library.searchPlaceableItems(this.library.query(), this.activeSource()));
   private readonly thumbnailScope = effect(() => { this.assets.visualProvider(); this.results(); this.assets.invalidateQueuedThumbnails(); });
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }
@@ -52,6 +47,7 @@ export class BlockBrowserComponent {
     const entry = { id: block.displayBlockId, itemId: block.itemId, state: block.defaultState };
     return this.quick.has(entry) ? this.i18n.t('alreadyInQuickBar') : this.quick.isFull() ? this.i18n.t('quickBarFull') : this.i18n.t('addToQuickBar');
   }
+  protected trackBlock(_index: number, block: PlaceableItemDefinition): string { return block.itemId; }
   protected behaviorLabel(support: BehaviorSupportLevel): string { return this.i18n.behaviorSupport(support); }
   protected visualLabel(support: VisualSupportLevel): string { return this.i18n.visualSupport(support); }
 }

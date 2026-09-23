@@ -154,6 +154,14 @@ describe('block model geometry', () => {
   it('uses an asset-backed Stone thumbnail after the provider becomes ready', () => {
     expect(realLikeVisualProvider().thumbnailUrl('minecraft:stone', {})).toBe('blob:stone');
   });
+  it('releases blob thumbnail URLs with the visual provider lifecycle', () => {
+    const revoke = vi.fn();
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revoke });
+    const provider = realLikeVisualProvider();
+    (provider as unknown as { thumbnailObjectUrls: Set<string> }).thumbnailObjectUrls.add('blob:thumbnail');
+    provider.dispose();
+    expect(revoke).toHaveBeenCalledWith('blob:thumbnail');
+  });
 
   it('renders an exact vanilla chest special visual as real when its texture is available', async () => {
     const assets = new VanillaAssetProvider('1.21.1.jar', {}, new Map([

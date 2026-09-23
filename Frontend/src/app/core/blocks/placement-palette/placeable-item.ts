@@ -34,6 +34,11 @@ export interface PlaceableItemDefinition {
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
+// Search metadata is runtime-only and deliberately kept outside the catalog
+// contract. A WeakMap lets imported items stay plain data while avoiding
+// repeated Unicode normalization on every keystroke.
+const placementSearchIndex = new WeakMap<object, string>();
+
 export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: string; }
 
 interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; readonly placementVariants?: BlockPlacementVariants; }
@@ -120,7 +125,9 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[], tar
     if (hasTargetItemEvidence && !targetItemIds.has(definition.id)) continue;
     result.push(toItem(definition, { itemId: definition.id, concreteBlockIds: [definition.id], kind: 'direct', recipe: 'single' }, [definition.id]));
   }
-  return result.sort((left, right) => left.displayName.localeCompare(right.displayName));
+  const sorted = result.sort((left, right) => left.displayName.localeCompare(right.displayName));
+  for (const item of sorted) placementSearchIndex.set(item, placementSearchText(item));
+  return sorted;
 }
 
 function isTargetItemPlaceable(item: PlaceableItemEvidence, byId: ReadonlyMap<string, BlockDefinition>): boolean {
@@ -260,7 +267,16 @@ export function previewBlocksForItem(item: PlaceableItemDefinition, state: Block
 export function placementItemSearch(items: readonly PlaceableItemDefinition[], query: string): readonly PlaceableItemDefinition[] {
   const normalized = normalizeSearchText(query);
   if (!normalized) return items;
-  return items.filter((item) => [item.displayName, item.itemId, item.namespace, item.modName ?? ''].map(normalizeSearchText).join('\u0000').includes(normalized));
+  const matches: PlaceableItemDefinition[] = [];
+  for (const item of items) {
+    const indexed = placementSearchIndex.get(item) ?? placementSearchIndex.set(item, placementSearchText(item)).get(item)!;
+    if (indexed.includes(normalized)) matches.push(item);
+  }
+  return matches;
+}
+
+function placementSearchText(item: PlaceableItemDefinition): string {
+  return [item.displayName, item.itemId, item.namespace, item.modName ?? '', item.sourceName ?? ''].map(normalizeSearchText).join('\u0000');
 }
 
 function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }

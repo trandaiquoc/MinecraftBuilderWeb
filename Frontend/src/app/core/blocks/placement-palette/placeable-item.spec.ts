@@ -89,6 +89,17 @@ describe('vanilla placeable item layer', () => {
     expect(resolveItemBlock(water, water.defaultState, { x: 1, y: 2, z: 3 }, undefined, (id) => catalog.get(id))).toMatchObject({ id: 'minecraft:water', state: { level: '0' }, blockEntityData: undefined });
   });
 
+  it('keeps large-catalog search generic while using prepared normalized fields', () => {
+    const items = Array.from({ length: 7000 }, (_, index) => ({
+      itemId: `example:block_${index}`, displayBlockId: `example:block_${index}`, namespace: 'example', displayName: `Block ${index}`,
+      sourceId: 'example', sourceName: 'Example Mod', defaultState: {}, concreteBlockIds: [`example:block_${index}`],
+      placementKind: 'direct' as const, previewRecipe: 'single' as const, support: 'full' as const, visualSupport: 'real' as const,
+      capabilities: [], previewBlocks: [],
+    }));
+    expect(placementItemSearch(items, 'block_6999')).toHaveLength(1);
+    expect(placementItemSearch(items, 'example mod')).toHaveLength(7000);
+  });
+
   it('uses independent modern water/lava bucket evidence instead of same-ID block evidence', () => {
     const catalog = catalogWith('minecraft:water', 'minecraft:lava', 'minecraft:bedrock');
     const targetItems = [

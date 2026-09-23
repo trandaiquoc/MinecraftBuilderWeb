@@ -21,6 +21,7 @@ export class BlockCatalog {
   private readonly contributions = new Map<string, CatalogContribution>();
   private readonly entries = new Map<string, NormalizedBlockDefinition>();
   private readonly searchIndex = new Map<string, string>();
+  private orderedEntries: readonly NormalizedBlockDefinition[] = [];
 
   load(source: BlockCatalogSource): void {
     this.contributions.clear();
@@ -54,10 +55,11 @@ export class BlockCatalog {
       this.entries.set(definition.id, definition);
       this.searchIndex.set(definition.id, [definition.displayName, definition.id, definition.namespace, definition.modName ?? '', definition.sourceName].map(normalizeSearchText).join('\u0000'));
     }
+    this.orderedEntries = [...this.entries.values()];
   }
 
   get(id: string): NormalizedBlockDefinition | undefined { return this.entries.get(id); }
-  all(): readonly NormalizedBlockDefinition[] { return [...this.entries.values()]; }
+  all(): readonly NormalizedBlockDefinition[] { return this.orderedEntries; }
   targetItems(): readonly CatalogItemEvidence[] { return [...this.contributions.values()].flatMap((contribution) => contribution.targetItems); }
   hasTargetItemEvidence(): boolean { return [...this.contributions.values()].some((contribution) => contribution.itemEvidenceAvailable); }
 
