@@ -50,6 +50,24 @@
 .duplicate-count { color: var(--text-muted); }
 .duplicate-conflict > code { color: var(--text-muted); }
 .issue-group small { color: var(--text-muted); font: .68rem/1.3 var(--font-readable); }
+.import-apply-section { display: grid; gap: .6rem; margin-top: 1.1rem; padding-top: .8rem; border-top: 1px solid var(--border); }
+.import-apply-section h3 { margin: 0; }
+.import-mode-options { display: grid; gap: .35rem; }
+.import-mode-option { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; align-items: start; padding: .45rem .5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); cursor: pointer; }
+.import-mode-option.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised)); }
+.import-mode-option input { margin: .15rem 0 0; accent-color: var(--accent); }
+.import-mode-option span { display: grid; gap: .15rem; min-width: 0; }
+.import-mode-option strong { font: .72rem/1.25 var(--font-ui); }
+.import-mode-option small { color: var(--text-muted); font: .68rem/1.3 var(--font-readable); }
+.import-mode-summary { display: grid; gap: .25rem; margin: 0; }
+.import-mode-summary div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
+.import-mode-summary dt { color: var(--text-muted); font-size: .68rem; }
+.import-mode-summary dd { margin: 0; font: 700 .72rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.import-blockers { display: grid; gap: .25rem; padding: .5rem .55rem; border-left: 2px solid var(--danger); background: color-mix(in srgb, var(--danger) 9%, transparent); color: var(--danger); font: .68rem/1.3 var(--font-readable); }
+.import-blockers strong { font: 650 .7rem/1.2 var(--font-ui); }
+.import-blockers span { display: flex; justify-content: space-between; gap: .5rem; }
+.import-blockers code { font: .65rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.import-conflicts { margin-top: .1rem; }
 @media (max-width: 680px) {
   .structure-json-backdrop { padding: .5rem; }
   .structure-json-dialog { width: calc(100vw - 1rem); height: calc(100dvh - 1rem); }

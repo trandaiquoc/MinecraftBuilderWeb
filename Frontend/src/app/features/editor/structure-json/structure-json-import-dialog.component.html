@@ -21,6 +21,28 @@
             @if (issues(group.category).length) { <details class="issue-group" open><summary><span>{{ group.label }}</span><strong>{{ issueCount(group.category) }}</strong></summary><ul>@for (item of issues(group.category); track item.index + item.category) { <li><strong>#{{ item.index }} <code>{{ item.id }}</code></strong><span class="issue-field-label">{{ i18n.t('structureJsonPosition') }}</span><span class="coordinate-cells"><span>X <code>{{ item.position.x }}</code></span><span>Y <code>{{ item.position.y }}</code></span><span>Z <code>{{ item.position.z }}</code></span></span>@if (item.property) { <span class="issue-state"><span>{{ i18n.t('structureJsonProperty') }}</span> <code>{{ item.property }}</code><span>{{ i18n.t('structureJsonValue') }}</span> <code>{{ item.value }}</code></span> }<span class="issue-field-label">{{ i18n.t('structureJsonProblem') }}</span><span class="issue-reason">{{ reasonLabel(item) }}</span></li>}</ul>@if (moreIssueCount(group.category) > 0) { <small>{{ moreIssueLabel(group.category) }}</small> }</details> }
           }
           @if (duplicateConflicts().length) { <details class="issue-group" open><summary><span>{{ i18n.t('structureJsonDuplicateCoordinates') }}</span><strong>{{ issueCount('duplicate') }}</strong></summary>@for (conflict of duplicateConflicts(); track conflict.coordinate.x + ',' + conflict.coordinate.y + ',' + conflict.coordinate.z) { <div class="duplicate-conflict"><span class="issue-field-label">{{ i18n.t('structureJsonPosition') }}</span><span class="coordinate-cells"><span>X <code>{{ conflict.coordinate.x }}</code></span><span>Y <code>{{ conflict.coordinate.y }}</code></span><span>Z <code>{{ conflict.coordinate.z }}</code></span></span><span class="duplicate-count">{{ conflict.blockIndexes.length }} {{ i18n.t('structureJsonAffectedBlocksShort') }}</span>@for (index of conflict.blockIndexes; track index) { <code>#{{ index }} {{ conflict.blockIds[$index] }}</code> }</div> }@if (moreDuplicateCount() > 0) { <small>{{ i18n.t('structureJsonMoreIssues').replace('{count}', `${moreDuplicateCount()}`) }}</small> }</details> }
+          @if (importPlan(); as plan) {
+            <section class="import-apply-section" aria-labelledby="structure-json-import-mode-title">
+              <h3 id="structure-json-import-mode-title">{{ i18n.t('structureJsonImportMode') }}</h3>
+              <div class="import-mode-options" role="radiogroup" [attr.aria-label]="i18n.t('structureJsonImportMode')">
+                @for (mode of importModes; track mode) {
+                  <label class="import-mode-option" [class.selected]="importMode() === mode">
+                    <input type="radio" name="structure-json-import-mode" [value]="mode" [checked]="importMode() === mode" (change)="selectImportMode(mode)" />
+                    <span><strong>{{ modeLabel(mode) }}</strong><small>{{ modeDescription(mode) }}</small></span>
+                  </label>
+                }
+              </div>
+              <dl class="import-mode-summary">
+                @if (plan.mode === 'replace') { <div><dt>{{ i18n.t('structureJsonCurrentBlocks') }}</dt><dd>{{ project().blocks.length }}</dd></div> }
+                <div><dt>{{ i18n.t('structureJsonImportedBlocks') }}</dt><dd>{{ plan.importedBlockCount }}</dd></div>
+                @if (plan.missingBlockCount > 0) { <div><dt>{{ i18n.t('structureJsonMissingBlocks') }}</dt><dd>{{ plan.missingBlockCount }}</dd></div> }
+                @if (plan.mode === 'new-group' && plan.newGroup) { <div><dt>{{ i18n.t('structureJsonGroup') }}</dt><dd>{{ plan.newGroup.name }}</dd></div> }
+                @if (plan.mode !== 'replace') { <div><dt>{{ i18n.t('structureJsonExistingConflicts') }}</dt><dd>{{ plan.currentConflictCount }}</dd></div> }
+              </dl>
+              @if (plan.blockingIssues.length) { <div class="import-blockers" role="alert"><strong>{{ i18n.t('structureJsonImportBlocked') }}</strong>@for (blocker of plan.blockingIssues; track blocker.code) { <span>{{ blockerLabel(blocker) }} @if (blocker.count) { <code>{{ blocker.count }}</code> }</span> }</div> }
+              @if (plan.currentConflicts.length) { <details class="issue-group import-conflicts"><summary><span>{{ i18n.t('structureJsonExistingConflicts') }}</span><strong>{{ plan.currentConflictCount }}</strong></summary>@for (conflict of plan.currentConflicts.slice(0, 12); track conflict.coordinate.x + ',' + conflict.coordinate.y + ',' + conflict.coordinate.z) { <div class="duplicate-conflict"><span class="issue-field-label">{{ i18n.t('structureJsonPosition') }}</span><span class="coordinate-cells"><span>X <code>{{ conflict.coordinate.x }}</code></span><span>Y <code>{{ conflict.coordinate.y }}</code></span><span>Z <code>{{ conflict.coordinate.z }}</code></span></span>@for (id of conflict.existingBlockIds; track id) { <code>{{ id }}</code> }</div> }</details> }
+            </section>
+          }
         } @else { <p class="muted">{{ i18n.t('structureJsonValidatePrompt') }}</p> }
       </aside>
       <section class="structure-json-workspace">
@@ -30,6 +52,6 @@
         @if (progress() === 'complete') { <p class="progress-status complete" role="status">{{ i18n.t('structureJsonProgressComplete') }}</p> }
       </section>
     </div>
-    <footer class="structure-json-footer"><span class="muted">{{ i18n.t('structureJsonImportReadOnly') }}</span><button type="button" class="ui-button ui-button--ghost" (click)="close()">{{ i18n.t('cancel') }}</button></footer>
+    <footer class="structure-json-footer"><span class="muted">{{ i18n.t('structureJsonImportReadOnly') }}</span>@if (importPlan(); as plan) { <button type="button" class="ui-button ui-button--primary" [disabled]="!plan.applicable" (click)="applyImport()"><svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('structureJsonApplyImport') }}</button> }<button type="button" class="ui-button ui-button--ghost" (click)="close()">{{ i18n.t('cancel') }}</button></footer>
   </section>
 </div>

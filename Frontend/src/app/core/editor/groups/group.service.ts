@@ -6,6 +6,7 @@ import { SelectionService } from '../selection/selection.service';
 import { VoxelBox, voxelInBox } from '../selection/selection';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { addGroup, groupIdsOf, hasGroup, isBlockLocked, removeGroup } from './group-membership';
+import { nextGroupId, normalizeGroupName } from './group-naming';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { expandLogicalObjectClosure, normalizeLogicalObjectMemberships } from '../../block-behavior/logical-objects/logical-object';
 import { BlockRuleEngine } from '../../block-behavior/rules/block-rule-engine';
@@ -36,7 +37,7 @@ export class GroupService {
     let createdId: string | undefined;
     const changed = this.history.execute('Create group', (project) => {
       if (this.hasName(project, trimmed)) return undefined;
-      createdId = this.nextId(project);
+      createdId = nextGroupId(project.groups);
       const group: ProjectGroup = { id: createdId, name: trimmed, visible: true, locked: false };
       return this.withGroups(project, [...project.groups, group]);
     });
@@ -121,9 +122,8 @@ export class GroupService {
       return { ...normalized, blocks: normalized.blocks.map((block) => keys.has(coordinateKey(block.position)) ? map(block) : block), metadata: { ...normalized.metadata, updatedAt: new Date().toISOString() } };
     });
   }
-  private hasName(project: ProjectDocument, name: string, exceptId?: string): boolean { const normalized = normalizeName(name); return project.groups.some((group) => group.id !== exceptId && normalizeName(group.name) === normalized); }
+  private hasName(project: ProjectDocument, name: string, exceptId?: string): boolean { const normalized = normalizeGroupName(name); return project.groups.some((group) => group.id !== exceptId && normalizeGroupName(group.name) === normalized); }
   private withGroups(project: ProjectDocument, groups: readonly ProjectGroup[]): ProjectDocument { return { ...project, groups, metadata: { ...project.metadata, updatedAt: new Date().toISOString() } }; }
-  private nextId(project: ProjectDocument): string { let index = project.groups.length + 1; while (project.groups.some((group) => group.id === `group-${index}`)) index++; return `group-${index}`; }
   private normalize(project: ProjectDocument): ProjectDocument { return normalizeLogicalObjectMemberships(project, (id) => this.library.get(id)); }
   private movingBlocks(project: ProjectDocument, groupId: string): readonly PlacedBlock[] { const seeds = project.blocks.filter((block) => hasGroup(block, groupId)); return expandLogicalObjectClosure(project.blocks, seeds, (id) => this.library.get(id)); }
   private groupPositions(groupId: string | undefined): readonly VoxelCoordinate[] { const project = this.workspace.project(); if (!project || !groupId) return []; return this.movingBlocks(this.normalize(project), groupId).map((block) => block.position); }
@@ -141,6 +141,5 @@ export function validateGroupMove(project: ProjectDocument, groupId: string, off
   return moving.some((block) => occupied.has(coordinateKey(translated(block.position, offset)))) ? { groupId, offset, positions, valid: false, reason: 'collision' } : { groupId, offset, positions, valid: true };
 }
 
-function normalizeName(name: string): string { return name.trim().normalize('NFKC').toLocaleLowerCase(); }
 function translated(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }
 function inBounds(position: VoxelCoordinate, project: ProjectDocument): boolean { return position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < project.size.x && position.y < project.size.y && position.z < project.size.z; }

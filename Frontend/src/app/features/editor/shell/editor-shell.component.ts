@@ -347,7 +347,7 @@ export class EditorShellComponent implements OnDestroy {
     return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
-    if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen()) return;
+    if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen()) return;
     if (event.key === 'Escape') {
       if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
       this.closeMenus(); return;
