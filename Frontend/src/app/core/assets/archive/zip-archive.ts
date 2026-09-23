@@ -1,3 +1,5 @@
+import { yieldToBrowser } from '../cooperative-yield';
+
 export interface ZipEntry {
   readonly name: string;
   readonly compressedSize: number;
@@ -12,10 +14,10 @@ const MAX_ENTRY_SIZE = 32 * 1024 * 1024;
 
 export class ZipArchive {
   readonly entries: readonly ZipEntry[];
-  private constructor(_bytes: Uint8Array, entries: readonly ZipEntry[]) { this.entries = entries; }
+  private constructor(private readonly bytes: Uint8Array, entries: readonly ZipEntry[]) { this.entries = entries; }
 
-  static async open(file: Blob): Promise<ZipArchive> {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+  static async open(file: Blob, onProgress?: (loaded: number, total: number) => void): Promise<ZipArchive> {
+    const bytes = await readBlob(file, onProgress);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const eocd = findEndOfCentralDirectory(view);
     const entryCount = view.getUint16(eocd + 10, true);
@@ -36,9 +38,32 @@ export class ZipArchive {
       if (uncompressedSize > MAX_ENTRY_SIZE) throw new Error(`ZIP entry is too large: ${name}`);
       entries.push({ name, compressedSize, uncompressedSize, read: () => readEntry(bytes, view, localOffset, method, compressedSize, uncompressedSize, name) });
       cursor += 46 + nameLength + extraLength + commentLength;
+      if ((index + 1) % 256 === 0) await yieldToBrowser();
     }
     return new ZipArchive(bytes, entries);
   }
+
+  async fingerprint(): Promise<string | undefined> {
+    try {
+      if (!globalThis.crypto?.subtle) return undefined;
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', this.bytes.slice().buffer as ArrayBuffer);
+      return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
+    } catch { return undefined; }
+  }
+}
+
+async function readBlob(file: Blob, onProgress?: (loaded: number, total: number) => void): Promise<Uint8Array> {
+  const total = file.size;
+  if (!file.stream) { const bytes = new Uint8Array(await file.arrayBuffer()); onProgress?.(bytes.byteLength, total); return bytes; }
+  const reader = file.stream().getReader();
+  const bytes = new Uint8Array(total);
+  let loaded = 0;
+  while (true) {
+    const result = await reader.read();
+    if (result.done) break;
+    if (result.value) { bytes.set(result.value, loaded); loaded += result.value.byteLength; onProgress?.(loaded, total); }
+  }
+  return loaded === total ? bytes : bytes.slice(0, loaded);
 }
 
 function findEndOfCentralDirectory(view: DataView): number {

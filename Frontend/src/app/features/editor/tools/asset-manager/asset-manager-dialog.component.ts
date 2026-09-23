@@ -1,13 +1,13 @@
-import { Component, computed, inject, output, signal } from '@angular/core';
-import { LucideX } from '@lucide/angular';
+import { Component, computed, effect, inject, output, signal } from '@angular/core';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
+import { LucideArrowLeft, LucideTrash2, LucideX } from '@lucide/angular';
 import { VanillaAssetsService, ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
 import { ModSupportCatalog, ModSupportCertification } from '../../../../core/assets/mod/mod-support-catalog';
 import { SupportedModLoader } from '../../../../core/assets/mod/mod-loader';
-import { AssetActivityEntry } from '../../../../core/assets/asset-activity.service';
+import { AssetActivityEntry, AssetActivityProgress } from '../../../../core/assets/asset-activity.service';
 import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { trapDialogFocus } from '../../../../shared/ui/dialog/dialog-focus';
 
 type AssetManagerTab = 'vanilla' | 'mods';
 const phases: readonly ModImportProgress['phase'][] = ['opening-archive', 'reading-metadata', 'checking-compatibility', 'indexing-resources', 'extracting-resources', 'discovering-blocks', 'discovering-items', 'discovering-decorations', 'evaluating-behavior', 'checking-conflicts', 'saving-cache', 'activating'];
@@ -33,7 +33,7 @@ export function compactContentCount(imported: number, detected: number, label: s
   return imported === detected ? `${imported} ${label}` : `${imported} / ${detected} ${label}`;
 }
 
-@Component({ selector: 'app-asset-manager-dialog', imports: [LucideX], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()', '(document:pointerdown)': 'handleDocumentPointerdown($event)' } })
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideTrash2, LucideX, CdkTrapFocus], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()', '(document:pointerdown)': 'handleDocumentPointerdown($event)' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(VanillaAssetsService);
@@ -56,17 +56,23 @@ export class AssetManagerDialogComponent {
   protected readonly phaseOrder = phases;
   protected readonly stageOrder = importStages;
   private helpCloseTimer: number | undefined;
+  private detailsRestoreTarget: HTMLElement | undefined;
   protected readonly filteredMods = computed(() => { const query = this.modSearch().trim().toLocaleLowerCase(); return this.assets.importedMods().filter((mod) => !query || [mod.displayName, mod.modId, mod.version, mod.report.loader].some((value) => value.toLocaleLowerCase().includes(query))); });
   protected readonly vanillaActivity = computed(() => filterAssetActivity(this.assets.activity.entries(), 'vanilla'));
   protected readonly modActivity = computed(() => filterAssetActivity(this.assets.activity.entries(), 'mods'));
-  protected readonly currentVanillaActivity = computed(() => { const current = this.assets.activity.current(); return current && (current.category === 'vanilla' || current.category === 'cache') ? current : undefined; });
-  protected readonly currentModActivity = computed(() => { const current = this.assets.activity.current(); return current?.category === 'mod' ? current : undefined; });
+  protected readonly currentVanillaActivity = computed(() => { const current = this.assets.activity.current(); return current && (current.category === 'vanilla' || current.category === 'cache') ? this.withActivityProgress(current) : undefined; });
+  protected readonly currentModActivity = computed(() => { const current = this.assets.activity.current(); return current?.category === 'mod' ? this.withActivityProgress(current) : undefined; });
   protected readonly selectedDetails = computed(() => this.assets.importedMods().find((mod) => mod.sourceId === this.detailsSourceId()));
+  private readonly detailsFocusEffect = effect(() => {
+    const selected = this.selectedDetails();
+    if (selected && !this.detailsRestoreTarget && typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) this.detailsRestoreTarget = document.activeElement;
+    if (!selected && this.detailsRestoreTarget) { const target = this.detailsRestoreTarget; this.detailsRestoreTarget = undefined; queueMicrotask(() => target.focus()); }
+  });
 
-  protected closeFromEscape(): void { if (this.helpOpen()) { this.closeHelp(); return; } if (this.selectedDetails()) { this.detailsSourceId.set(undefined); return; } this.cancelPreflight(); this.closed.emit(); }
+  protected closeFromEscape(): void { if (this.helpOpen()) { this.closeHelp(); return; } if (this.selectedDetails()) { this.closeDetails(); return; } this.cancelPreflight(); this.closed.emit(); }
   protected handleDocumentPointerdown(event: PointerEvent): void { const target = event.target as HTMLElement | null; if (this.helpOpen() && !target?.closest('.help-popover, .help-button')) this.closeHelp(); }
   protected setTab(tab: AssetManagerTab): void { this.tab.set(tab); }
-  protected trapFocus(event: KeyboardEvent): void { trapDialogFocus(event, event.currentTarget as HTMLElement); }
+  protected closeDetails(): void { const target = this.detailsRestoreTarget; this.detailsRestoreTarget = undefined; this.detailsSourceId.set(undefined); queueMicrotask(() => target?.focus()); }
   protected openHelp(pinned: boolean): void { this.helpPinned.set(pinned || this.helpPinned()); this.helpOpen.set(true); }
   protected toggleHelp(): void { if (this.helpPinned()) this.closeHelp(); else this.openHelp(true); }
   protected closeHelp(): void { if (this.helpCloseTimer !== undefined) window.clearTimeout(this.helpCloseTimer); this.helpCloseTimer = undefined; this.helpOpen.set(false); this.helpPinned.set(false); }
@@ -77,11 +83,15 @@ export class AssetManagerDialogComponent {
   protected async inspectMod(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file || this.importing()) return; this.cancelPreflight(); this.importing.set(true); this.modError.set(''); this.preflightError.set(''); this.preflightProgress.set(undefined); try { const prepared = await this.assets.inspectModJar(file, (progress) => this.preflightProgress.set(progress)); this.preflight.set(prepared); this.preflightIconUrl.set(this.createPreflightIcon(prepared)); } catch (error) { this.preflightError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); } finally { this.importing.set(false); input.value = ''; } }
   protected async confirmModImport(): Promise<void> { const prepared = this.preflight(); if (!prepared || !prepared.canActivate || this.importing()) return; this.importing.set(true); this.modError.set(''); try { await this.assets.commitPreparedModImport(prepared, (progress) => this.preflightProgress.set(progress)); this.preflight.set(undefined); this.preflightProgress.set(undefined); this.modSearch.set(''); } catch (error) { this.modError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); } finally { prepared.dispose(); this.revokePreflightIcon(); this.importing.set(false); } }
   protected cancelPreflight(): void { const prepared = this.preflight(); if (prepared) prepared.dispose(); this.revokePreflightIcon(); this.preflight.set(undefined); this.preflightProgress.set(undefined); this.preflightError.set(''); }
-  protected async removeMod(mod: ImportedModSummary): Promise<void> { if (this.removing()) return; const confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerRemoveModTitle'), text: this.i18n.t('assetManagerRemoveModText').replace('{name}', mod.displayName), confirmButtonText: this.i18n.t('remove'), cancelButtonText: this.i18n.t('cancel') }); if (!confirmed) return; this.removing.set(mod.sourceId); try { await this.assets.removeMod(mod.sourceId); if (this.detailsSourceId() === mod.sourceId) this.detailsSourceId.set(undefined); } finally { this.removing.set(undefined); } }
+  protected async removeMod(mod: ImportedModSummary): Promise<void> { if (this.removing()) return; const confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerRemoveModTitle'), text: this.i18n.t('assetManagerRemoveModText').replace('{name}', mod.displayName), confirmButtonText: this.i18n.t('remove'), cancelButtonText: this.i18n.t('cancel') }); if (!confirmed) return; this.removing.set(mod.sourceId); try { await this.assets.removeMod(mod.sourceId); if (this.detailsSourceId() === mod.sourceId) this.closeDetails(); } finally { this.removing.set(undefined); } }
   protected async redownload(): Promise<void> { if (!this.importing()) { this.importing.set(true); try { await this.assets.redownload(); } finally { this.importing.set(false); } } }
   protected async removeCached(): Promise<void> { if (!this.importing()) { this.importing.set(true); try { await this.assets.removeCachedVersion(); } finally { this.importing.set(false); } } }
   protected exportCompatibilityReport(): void { this.assets.exportCompatibilityReport(); }
   protected formatBytes(value: number): string { return value < 1024 * 1024 ? `${Math.round(value / 1024)} KB` : `${(value / (1024 * 1024)).toFixed(1)} MB`; }
+  private withActivityProgress(entry: AssetActivityEntry): AssetActivityEntry { const phase = phases.includes(entry.message as ModImportProgress['phase']) ? this.phaseLabel(entry.message as ModImportProgress['phase']) : entry.message; return { ...entry, message: entry.progress ? `${phase} · ${this.activityProgressLabel(entry.progress, entry.message === 'opening-archive')}` : phase }; }
+  private activityProgressLabel(progress: AssetActivityProgress, bytes: boolean): string { const loaded = progress.total !== undefined && progress.total > 0 ? `${bytes ? this.formatBytes(progress.loaded) : progress.loaded} / ${bytes ? this.formatBytes(progress.total) : progress.total}` : `${progress.loaded}`; return progress.total !== undefined && progress.total > 0 ? `${loaded} (${Math.round(progress.loaded / progress.total * 100)}%)` : loaded; }
+  protected progressPercent(progress: ModImportProgress): number | undefined { return progress.total && progress.total > 0 && progress.processed !== undefined ? Math.min(100, Math.max(0, progress.processed / progress.total * 100)) : undefined; }
+  protected progressDetail(progress: ModImportProgress): string { return progress.processed !== undefined && progress.total !== undefined ? `${progress.phase === 'opening-archive' ? `${this.formatBytes(progress.processed)} / ${this.formatBytes(progress.total)}` : `${progress.processed} / ${progress.total}`} · ${this.progressPercent(progress)?.toFixed(0) ?? 0}%` : this.i18n.t('assetManagerWorking'); }
   protected formatTime(timestamp: number): string { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(timestamp); }
   protected statusLabel(): string { const status = this.assets.status(); return status === 'ready' ? this.i18n.t('assetsReady') : status === 'importing' || status === 'downloading' || status === 'loading-cache' ? this.i18n.t('loadingAssets') : status === 'offline' ? this.i18n.t('assetsOffline') : status === 'unsupported-format' ? this.i18n.t('assetsUnsupportedFormat') : status === 'no-assets' ? this.i18n.t('noAssets') : this.i18n.t('importRequired'); }
   protected phaseLabel(phase: ModImportProgress['phase']): string { return this.i18n.t(`assetPhase_${phase.replaceAll('-', '_')}`); }

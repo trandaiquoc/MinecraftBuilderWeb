@@ -1,6 +1,7 @@
 import { ZipArchive } from '../archive/zip-archive';
 import { ExternalModProvider, isModConflictDiagnostic, ModImportDiagnostic, ModImportReport, SupportedModLoader } from './external-mod-provider';
 import { detectLoader, NormalizedModMetadata } from './mod-loader';
+import { yieldToBrowser } from '../cooperative-yield';
 
 const RETAINED_RESOURCE_PATH = /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;
 const MAX_RETAINED_BYTES = 256 * 1024 * 1024;
@@ -32,12 +33,14 @@ export interface PreparedModImport {
   readonly fingerprint?: string;
   readonly report?: ModImportReport;
   readonly canActivate: boolean;
+  readonly provider?: ExternalModProvider;
+  consume(): ExternalModProvider | undefined;
   dispose(): void;
 }
 
 export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void): Promise<PreparedModImport> {
-  onProgress?.({ phase: 'opening-archive' });
-  const archive = await ZipArchive.open(file);
+  onProgress?.({ phase: 'opening-archive', processed: 0, total: file.size });
+  const archive = await ZipArchive.open(file, (processed, total) => onProgress?.({ phase: 'opening-archive', processed, total }));
   const diagnostics: ModImportDiagnostic[] = [];
   const suspicious = archive.entries.filter((entry) => !safeArchivePath(entry.name));
   for (const entry of suspicious) diagnostics.push({ severity: 'warning', category: 'warning', code: 'unsafe-archive-path', message: 'Skipped an archive path that is not safe to retain.', path: entry.name });
@@ -53,7 +56,7 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
     catch { throw new Error(`${metadataPath} is malformed`); }
   }
   const nestedJarCount = archive.entries.filter((entry) => entry.name.toLowerCase().endsWith('.jar')).length;
-  if (nestedJarCount) diagnostics.push({ severity: 'info', category: 'info', code: 'nested-jar-skipped', message: `Skipped ${nestedJarCount} nested JAR file(s); no embedded code is executed.` });
+  if (nestedJarCount) diagnostics.push({ severity: 'info', category: 'info', code: 'nested-jar-skipped', message: `Skipped ${nestedJarCount} nested JAR file(s); no embedded code is executed.`, parameters: { count: nestedJarCount } });
   if (loader !== 'fabric') {
     const code = loader === 'unknown' ? 'unsupported-loader' : 'unsupported-loader';
     diagnostics.push({ severity: 'error', category: 'blocking', code, message: loader === 'unknown' ? 'Could not detect a supported mod loader.' : `${capitalize(loader)} metadata was detected but this loader is not supported yet.` });
@@ -74,8 +77,9 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
       } else binary.set(entry.name, bytes);
     }
     onProgress?.({ phase: 'extracting-resources', processed: Math.min(offset + batch.length, entries.length), total: entries.length });
+    await yieldToBrowser();
   }
-  const fingerprint = await hashFile(file);
+  const fingerprint = await archive.fingerprint();
   onProgress?.({ phase: 'checking-compatibility' });
   let provider: ExternalModProvider;
   try { provider = ExternalModProvider.create({ metadata, json, resources: binary, diagnostics, minecraftVersion, fingerprint }); }
@@ -91,7 +95,7 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
   onProgress?.({ phase: 'discovering-decorations', decorationsDetected: provider.report.decorations.detected, decorationsImported: provider.report.decorations.imported });
   onProgress?.({ phase: 'evaluating-behavior', warnings: allDiagnostics.filter((diagnostic) => diagnostic.severity !== 'error').length });
   onProgress?.({ phase: 'checking-conflicts' });
-  return prepared({ loader, loaderSupported: true, minecraftVersion, metadata, normalizedMetadata: provider.normalizedMetadata, json, resources: binary, diagnostics: allDiagnostics, nestedJarCount, fingerprint, report: provider.report, canActivate: compatible && !allDiagnostics.some((diagnostic) => diagnostic.severity === 'error'), dispose: provider.dispose.bind(provider) });
+  return prepared({ loader, loaderSupported: true, minecraftVersion, metadata, normalizedMetadata: provider.normalizedMetadata, json, resources: binary, diagnostics: allDiagnostics, nestedJarCount, fingerprint, report: provider.report, canActivate: compatible && !allDiagnostics.some((diagnostic) => diagnostic.severity === 'error'), provider });
 }
 
 export function commitModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void): ExternalModProvider {
@@ -99,7 +103,7 @@ export function commitModImport(prepared: PreparedModImport, onProgress?: (progr
   if (!prepared.loaderSupported) throw new UnsupportedModLoaderError(prepared.loader);
   if (!prepared.metadata) throw new Error('Mod metadata is missing');
   if (!prepared.canActivate) throw new Error(prepared.report?.compatibility?.reason === 'missing-minecraft-dependency' ? 'Minecraft compatibility is unknown because depends.minecraft is missing.' : 'Mod preflight did not pass; resolve blocking diagnostics before activation.');
-  const provider = ExternalModProvider.create({ metadata: prepared.metadata, json: prepared.json, resources: prepared.resources, diagnostics: prepared.diagnostics, minecraftVersion: prepared.minecraftVersion, fingerprint: prepared.fingerprint });
+  const provider = prepared.consume() ?? ExternalModProvider.create({ metadata: prepared.metadata, json: prepared.json, resources: prepared.resources, diagnostics: prepared.diagnostics, minecraftVersion: prepared.minecraftVersion, fingerprint: prepared.fingerprint });
   return provider;
 }
 
@@ -114,7 +118,14 @@ export class UnsupportedModLoaderError extends Error {
 }
 
 export function detectModLoader(paths: readonly string[]): SupportedModLoader { return detectLoader(paths); }
-function prepared(value: Omit<PreparedModImport, 'dispose'> & Partial<Pick<PreparedModImport, 'dispose'>>): PreparedModImport { return { ...value, dispose: value.dispose ?? (() => undefined) }; }
+function prepared(value: Omit<PreparedModImport, 'dispose' | 'consume'> & Partial<Pick<PreparedModImport, 'dispose' | 'consume'>>): PreparedModImport {
+  let ownedProvider = value.provider;
+  const fallbackDispose = value.dispose ?? (() => undefined);
+  return {
+    ...value,
+    consume: () => { const result = ownedProvider; ownedProvider = undefined; return result; },
+    dispose: () => { if (ownedProvider) { ownedProvider.dispose(); ownedProvider = undefined; } else if (!value.provider) fallbackDispose(); },
+  };
+}
 function safeArchivePath(path: string): boolean { return !!path && !path.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(path) && !path.split('/').some((part) => part === '..' || part === '.'); }
 function capitalize(value: string): string { return value.length ? value[0].toUpperCase() + value.slice(1) : value; }
-async function hashFile(file: File): Promise<string | undefined> { try { if (!globalThis.crypto?.subtle) return undefined; const digest = await globalThis.crypto.subtle.digest('SHA-256', await file.arrayBuffer()); return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join(''); } catch { return undefined; } }

@@ -112,17 +112,8 @@ export class VanillaAssetsService {
       this.activity.update(progress.processed === undefined ? undefined : { loaded: progress.processed, ...(progress.total === undefined ? {} : { total: progress.total }) }, progress.phase);
     });
     if (!prepared.report || !prepared.loaderSupported || !prepared.metadata) return prepared;
-    let preview: ExternalModProvider | undefined;
-    let preservePreview = false;
     try {
-      preview = ExternalModProvider.create({
-        metadata: prepared.metadata,
-        json: prepared.json,
-        resources: prepared.resources,
-        diagnostics: prepared.diagnostics,
-        minecraftVersion: prepared.minecraftVersion,
-        fingerprint: prepared.fingerprint,
-      });
+      const preview = prepared.provider ?? ExternalModProvider.create({ metadata: prepared.metadata, json: prepared.json, resources: prepared.resources, diagnostics: prepared.diagnostics, minecraftVersion: prepared.minecraftVersion, fingerprint: prepared.fingerprint });
       const resourceConflicts = this.sources.resources.inspectProvider(preview);
       const catalogConflicts = this.sources.inspectCatalogContribution(preview.catalog());
       const conflictDiagnostics: ModImportDiagnostic[] = [
@@ -142,7 +133,6 @@ export class VanillaAssetsService {
       ];
       if (!conflictDiagnostics.length) return prepared;
       const diagnostics = [...prepared.diagnostics, ...conflictDiagnostics];
-      preservePreview = true;
       return {
         ...prepared,
         diagnostics,
@@ -153,12 +143,9 @@ export class VanillaAssetsService {
           canActivate: false,
         },
         canActivate: false,
-        dispose: () => { preview?.dispose(); prepared.dispose(); },
       };
     } catch {
       return prepared;
-    } finally {
-      if (!preservePreview) preview?.dispose();
     }
   }
 
@@ -185,7 +172,7 @@ export class VanillaAssetsService {
   }
 
   private reportModProgress(progress: ModImportProgress): void {
-    this.activity.update(undefined, progress.phase);
+    this.activity.update(progress.processed === undefined ? undefined : { loaded: progress.processed, ...(progress.total === undefined ? {} : { total: progress.total }) }, progress.phase);
   }
 
   async redownload(): Promise<void> { await this.ensureVersion(this.activeVersion(), true); }

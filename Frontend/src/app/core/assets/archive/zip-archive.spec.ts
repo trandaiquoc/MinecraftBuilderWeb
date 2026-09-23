@@ -8,6 +8,15 @@ describe('ZipArchive', () => {
     expect(new TextDecoder().decode(await archive.entries[0].read())).toBe('{"ok":true}');
   });
 
+  it('reports monotonic byte progress while reading the archive', async () => {
+    const values: number[] = [];
+    const blob = new Blob([storedZip('progress.txt', 'progress')]);
+    await ZipArchive.open(blob, (loaded, total) => { expect(total).toBe(blob.size); values.push(loaded); });
+    expect(values.length).toBeGreaterThan(0);
+    expect(values).toEqual([...values].sort((a, b) => a - b));
+    expect(values.at(-1)).toBe(blob.size);
+  });
+
   it('inflates a deflated entry without a third-party ZIP dependency', async () => {
     const archive = await ZipArchive.open(new Blob([singleEntryZip('hello.txt', new Uint8Array([203, 72, 205, 201, 201, 7, 0]), 5, 8)]));
     expect(new TextDecoder().decode(await archive.entries[0].read())).toBe('hello');

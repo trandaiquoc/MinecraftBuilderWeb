@@ -40,6 +40,7 @@ export interface ModImportDiagnostic {
   readonly message: string;
   readonly category?: 'blocking' | 'warning' | 'info';
   readonly path?: string;
+  readonly parameters?: Readonly<Record<string, string | number>>;
 }
 
 export interface ModImportCounts {
