@@ -6,7 +6,7 @@ import { ProjectDocument } from '../../../core/domain/project.types';
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
-import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonValidationPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
+import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonDecorationIssue, StructureJsonValidationPreview, validateParsedStructureJsonPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
 import { applyStructureJsonImportPlan, buildStructureJsonImportPlan, StructureJsonImportBlocker, StructureJsonImportMode, StructureJsonImportPlan } from '../../../core/persistence/structure-json/structure-json-import-plan';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
@@ -51,13 +51,13 @@ export class StructureJsonImportDialogComponent {
     this.checkingProgress.set({ completed: 0, total: 0 });
     const parsed = await parseStructureJsonWithWorker(this.draftJson());
     if (generation !== this.validationGeneration) return;
-    if (!parsed.valid || !parsed.value) { this.importPlan.set(undefined); this.preview.set({ structuralValid: false, structuralCode: parsed.code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0, issues: { missing: [], bounds: [], state: [], duplicate: [] } }); this.progress.set('complete'); return; }
+    if (!parsed.valid || !parsed.value) { this.importPlan.set(undefined); this.preview.set({ structuralValid: false, structuralCode: parsed.code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0, issues: { missing: [], bounds: [], state: [], duplicate: [] }, totalDecorations: 0, validDecorations: 0, missingDecorationAssets: 0, invalidDecorations: 0, decorationIssues: [] }); this.progress.set('complete'); return; }
     this.progress.set('checking');
     const result = await validateParsedStructureJsonPreviewAsync(parsed.value, this.project().size, (id) => this.library.get(id), (completed, total) => {
       if (generation === this.validationGeneration) this.checkingProgress.set({ completed, total });
-    }, { isCancelled: () => generation !== this.validationGeneration });
+    }, { isCancelled: () => generation !== this.validationGeneration }, this.project());
     if (generation !== this.validationGeneration || !result) return;
-    this.preview.set(result); this.importMode.set('replace'); this.refreshPlan(result, 'replace'); this.progress.set('complete');
+    const finalResult = this.previewForMode(result, 'replace'); this.preview.set(finalResult); this.importMode.set('replace'); this.refreshPlan(finalResult, 'replace'); this.progress.set('complete');
   }
   protected progressLabel(): string { return this.i18n.t(`structureJsonProgress${this.progress()[0].toUpperCase()}${this.progress().slice(1)}`); }
   protected issueGroups(): readonly { readonly category: 'missing' | 'bounds' | 'state'; readonly label: string }[] { return [{ category: 'missing', label: this.i18n.t('structureJsonMissingBlocks') }, { category: 'bounds', label: this.i18n.t('structureJsonOutOfBounds') }, { category: 'state', label: this.i18n.t('structureJsonInvalidStates') }]; }
@@ -66,18 +66,27 @@ export class StructureJsonImportDialogComponent {
   protected issueCount(category: 'missing' | 'bounds' | 'state' | 'duplicate'): number { return this.preview()?.issues[category].length ?? 0; }
   protected moreIssueCount(category: 'missing' | 'bounds' | 'state'): number { return Math.max(0, this.issueCount(category) - 12); }
   protected moreDuplicateCount(): number { return Math.max(0, this.issueCount('duplicate') - 12); }
+  protected decorationIssues(): readonly StructureJsonDecorationIssue[] { return (this.preview()?.decorationIssues ?? []).slice(0, 12); }
+  protected moreDecorationIssueCount(): number { return Math.max(0, (this.preview()?.decorationIssues.length ?? 0) - 12); }
+  protected decorationReasonLabel(issue: StructureJsonDecorationIssue): string {
+    const key = issue.reason === 'missing-painting-variant' ? 'structureJsonDecorationReasonMissingAsset' : issue.reason === 'out-of-bounds' ? 'structureJsonDecorationReasonOutOfBounds' : issue.reason === 'missing-support' || issue.reason === 'missing-painting-support' ? 'structureJsonDecorationReasonMissingSupport' : issue.reason === 'blocked-by-block' || issue.reason === 'overlap-decoration' ? 'structureJsonDecorationReasonConflict' : 'structureJsonDecorationReasonInvalid';
+    return this.i18n.t(key);
+  }
   protected moreIssueLabel(category: 'missing' | 'bounds' | 'state'): string { return this.i18n.t('structureJsonMoreIssues').replace('{count}', `${this.moreIssueCount(category)}`); }
   protected reasonLabel(issue: StructureJsonBlockIssue): string { const reason = issue.reason; const key = reason.code === 'missing-block' ? 'structureJsonReasonMissingBlock' : reason.code === 'out-of-bounds' ? 'structureJsonReasonOutOfBounds' : reason.code === 'unknown-state-property' ? 'structureJsonReasonUnknownStateProperty' : 'structureJsonReasonUnsupportedStateValue'; return this.i18n.t(key); }
-  protected selectImportMode(mode: StructureJsonImportMode): void { this.importMode.set(mode); this.refreshPlan(this.preview(), mode); }
+  protected selectImportMode(mode: StructureJsonImportMode): void { const result = this.previewForMode(this.preview(), mode); this.preview.set(result); this.importMode.set(mode); this.refreshPlan(result, mode); }
   protected modeDescription(mode: StructureJsonImportMode): string { return this.i18n.t(({ replace: 'structureJsonImportReplaceDescription', merge: 'structureJsonImportMergeDescription', 'new-group': 'structureJsonImportNewGroupDescription' } as const)[mode]); }
   protected modeLabel(mode: StructureJsonImportMode): string { return this.i18n.t(({ replace: 'structureJsonImportReplace', merge: 'structureJsonImportMerge', 'new-group': 'structureJsonImportNewGroup' } as const)[mode]); }
   protected blockerLabel(blocker: StructureJsonImportBlocker): string {
-    const key = blocker.code === 'locked-current-blocks' ? 'structureJsonImportBlockedLocked' : blocker.code === 'existing-coordinate-conflict' ? 'structureJsonImportBlockedConflicts' : blocker.code === 'empty-import' ? 'structureJsonImportBlockedEmpty' : 'structureJsonImportBlockedValidation';
+    const key = blocker.code === 'locked-current-blocks' || blocker.code === 'locked-current-decorations' ? 'structureJsonImportBlockedLocked' : blocker.code === 'existing-coordinate-conflict' || blocker.code === 'decoration-conflict' ? 'structureJsonImportBlockedConflicts' : blocker.code === 'empty-import' ? 'structureJsonImportBlockedEmpty' : 'structureJsonImportBlockedValidation';
     return this.i18n.t(key);
   }
   protected confirmationText(plan: StructureJsonImportPlan): string {
     const template = plan.mode === 'replace' ? 'structureJsonReplaceConfirm' : plan.mode === 'merge' ? 'structureJsonMergeConfirm' : 'structureJsonNewGroupConfirm';
     let text = this.i18n.t(template).replace('{current}', String(this.project().blocks.length)).replace('{imported}', String(plan.importedBlockCount)).replace('{name}', plan.newGroup?.name ?? '');
+    text += `\n${this.i18n.t('structureJsonCurrentDecorations')}: ${this.project().decorations?.length ?? 0} · ${this.i18n.t('structureJsonImportedDecorations')}: ${plan.importedDecorationCount}`;
+    if (plan.mode === 'replace' && plan.source.formatVersion === 1) text += `\n\n${this.i18n.t('structureJsonV1DecorationsPreserved')}`;
+    if (plan.mode === 'replace' && plan.source.formatVersion === 2) text += `\n\n${this.i18n.t('structureJsonV2ReplaceDecorationsNotice')}`;
     if (plan.missingBlockCount > 0) text += `\n\n${this.i18n.t('structureJsonMissingPlaceholderNotice').replace('{count}', String(plan.missingBlockCount))}`;
     return text;
   }
@@ -97,5 +106,12 @@ export class StructureJsonImportDialogComponent {
     const source = result?.parsed;
     const project = this.project();
     this.importPlan.set(source && result && project ? buildStructureJsonImportPlan(source, result, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback')) : undefined);
+  }
+  private previewForMode(result: StructureJsonValidationPreview | undefined, mode: StructureJsonImportMode): StructureJsonValidationPreview | undefined {
+    const source = result?.parsed; const project = this.project();
+    if (!source || !result || source.formatVersion === 1) return result;
+    const seed = buildStructureJsonImportPlan(source, result, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'));
+    const candidate = { ...project, blocks: mode === 'replace' ? seed.importedBlocks : [...project.blocks, ...seed.importedBlocks], decorations: mode === 'replace' ? [] : project.decorations };
+    return validateParsedStructureJsonPreview(source, project.size, (id) => this.library.get(id), undefined, candidate);
   }
 }

@@ -609,16 +609,16 @@
 .drawer-backdrop {
   display: none;
 }
-.menu-popover button.danger {
-  color: var(--button-danger-text);
-  background: var(--button-danger-bg);
+.menu-popover button.menu-danger-action {
+  color: var(--danger);
+  background: transparent;
 }
-.menu-popover button.danger:hover:not(:disabled),
-.menu-popover button.danger:focus-visible {
-  color: var(--button-danger-text);
-  background: var(--button-danger-hover);
+.menu-popover button.menu-danger-action:hover:not(:disabled),
+.menu-popover button.menu-danger-action:focus-visible {
+  color: var(--danger);
+  background: var(--surface-hover);
 }
-.menu-popover button.danger:disabled {
+.menu-popover button.menu-danger-action:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }

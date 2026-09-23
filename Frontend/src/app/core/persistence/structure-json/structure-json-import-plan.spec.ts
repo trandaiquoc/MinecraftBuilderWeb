@@ -3,8 +3,8 @@ import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { HistoryService } from '../../editor/history/history.service';
 import { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
-import { validateStructureJsonPreview } from './structure-json-import';
-import type { StructureJsonBlockV1, StructureJsonV1 } from './structure-json';
+import { validateParsedStructureJsonPreview, validateStructureJsonPreview } from './structure-json-import';
+import type { StructureJsonBlockV1, StructureJsonV1, StructureJsonV2 } from './structure-json';
 import { applyStructureJsonImportPlan, buildStructureJsonImportPlan } from './structure-json-import-plan';
 
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
@@ -83,7 +83,7 @@ describe('Structure JSON import plan', () => {
   });
 
   it('creates one uniquely named group and assigns every imported block', () => {
-    const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }, { id: stone.id, x: 1, y: 0, z: 0 }], 'Keep'), base, 'new-group');
+    const plan = planFor(source([{ id: stone.id, x: 1, y: 0, z: 0 }, { id: stone.id, x: 2, y: 0, z: 0 }], 'Keep'), base, 'new-group');
     expect(plan.newGroup).toEqual({ id: 'group-2', name: 'Keep (2)' });
     const result = applyStructureJsonImportPlan(base, plan, definitions);
     expect(result?.groups).toHaveLength(2);
@@ -97,6 +97,27 @@ describe('Structure JSON import plan', () => {
     expect(applyStructureJsonImportPlan(base, empty, definitions)?.blocks).toEqual([]);
     expect(planFor(source([]), base, 'merge').applicable).toBe(false);
     expect(planFor(source([]), base, 'new-group').applicable).toBe(false);
+  });
+
+  it('replaces v2 decorations and assigns them to a new group without leaking internal fields', () => {
+    const value: StructureJsonV2 = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', name: 'Decorated', blocks: [{ id: stone.id, x: 1, y: 1, z: 1 }], decorations: [{ kind: 'item-frame', anchor: { x: 3, y: 3, z: 2 }, facing: 'north', item: { id: 'minecraft:diamond', count: 1, components: { custom: true } }, rotation: 2, invisible: false, fixed: false, itemDropChance: 0.5 }] };
+    const validation = validateParsedStructureJsonPreview(value, base.size, definitions, undefined, base);
+    const plan = buildStructureJsonImportPlan(value, validation, base, definitions, 'new-group', 'Imported Structure');
+    expect(plan.applicable).toBe(true);
+    const result = applyStructureJsonImportPlan(base, plan, definitions);
+    expect(result?.decorations).toHaveLength(2);
+    expect(result?.decorations?.at(-1)).toMatchObject({ kind: 'item-frame', item: { id: 'minecraft:diamond', components: { custom: true } }, groupIds: ['group-2'] });
+    expect(result?.decorations?.at(-1)).toHaveProperty('entityTypeId', 'minecraft:item_frame');
+  });
+
+  it('blocks v2 decoration conflicts atomically in merge mode', () => {
+    const value: StructureJsonV2 = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [], decorations: [{ kind: 'painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] };
+    const decoratedBase = { ...base, blocks: [...base.blocks, { kind: 'resolved' as const, id: stone.id, namespace: stone.namespace, position: { x: 0, y: 0, z: 1 }, state: {} }] };
+    const validation = validateParsedStructureJsonPreview(value, decoratedBase.size, definitions, undefined, decoratedBase);
+    const plan = buildStructureJsonImportPlan(value, validation, decoratedBase, definitions, 'merge');
+    expect(plan.applicable).toBe(false);
+    expect(plan.blockingIssues).toContainEqual(expect.objectContaining({ code: 'decoration-conflict' }));
+    expect(applyStructureJsonImportPlan(decoratedBase, plan, definitions)).toBeUndefined();
   });
 
   it('restores the exact pre-import document with one history entry', () => {

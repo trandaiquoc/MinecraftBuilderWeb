@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../../domain/project.types';
 import { CURRENT_PROJECT_PACKAGE_VERSION, PROJECT_PACKAGE_FORMAT, serializeProjectPackage } from '../project-package/project-package';
-import { createStructureJsonExample, CURRENT_STRUCTURE_JSON_VERSION, serializeStructureJson, serializeStructureJsonValue, structureJsonFromProject, STRUCTURE_JSON_FORMAT, validateStructureJsonV1 } from './structure-json';
+import { createStructureJsonExample, CURRENT_STRUCTURE_JSON_VERSION, serializeStructureJson, serializeStructureJsonValue, structureJsonFromProject, STRUCTURE_JSON_FORMAT, validateStructureJson, validateStructureJsonV1 } from './structure-json';
 
 const baseProject: ProjectDocument = {
   schemaVersion: 3,
@@ -32,16 +32,18 @@ describe('Structure JSON v1 codec', () => {
     ]);
   });
 
-  it('does not leak project/editor/entity fields', () => {
+  it('does not leak project/editor/entity fields while exporting supported decorations', () => {
     const parsed = JSON.parse(serializeStructureJson(baseProject)) as Record<string, unknown>;
     expect(parsed).not.toHaveProperty('schemaVersion');
     expect(parsed).not.toHaveProperty('id');
     expect(parsed).not.toHaveProperty('groups');
-    expect(parsed).not.toHaveProperty('decorations');
+    expect(parsed).toHaveProperty('decorations');
     expect(parsed).not.toHaveProperty('editorSettings');
     expect(parsed).not.toHaveProperty('createdAt');
     expect(JSON.stringify(parsed)).not.toContain('blockEntityData');
     expect(JSON.stringify(parsed['blocks'])).not.toContain('groupIds');
+    expect(JSON.stringify(parsed['decorations'])).not.toContain('instanceId');
+    expect(JSON.stringify(parsed['decorations'])).not.toContain('entityTypeId');
   });
 
   it('serializes deterministic block and state ordering', () => {
@@ -52,12 +54,14 @@ describe('Structure JSON v1 codec', () => {
   it('keeps the canonical example inside the public contract', () => {
     const example = createStructureJsonExample();
     expect(example.blocks.length).toBeGreaterThanOrEqual(2);
-    expect(JSON.parse(serializeStructureJsonValue(example))).toMatchObject({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1 });
+    expect(JSON.parse(serializeStructureJsonValue(example))).toMatchObject({ format: STRUCTURE_JSON_FORMAT, formatVersion: CURRENT_STRUCTURE_JSON_VERSION, decorations: expect.any(Array) });
   });
 
-  it('validates the public v1 shape without applying project semantics', () => {
+  it('validates the public v1 and v2 shapes without applying project semantics', () => {
     const valid = serializeStructureJsonValue(createStructureJsonExample());
-    expect(validateStructureJsonV1(valid).valid).toBe(true);
+    expect(validateStructureJson(valid).valid).toBe(true);
+    const v1 = JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1, minecraftVersion: '1.21.1', blocks: [] });
+    expect(validateStructureJsonV1(v1).valid).toBe(true);
     expect(validateStructureJsonV1('{"format":"minecraftbuilder-structure"}').code).toBe('version');
     expect(validateStructureJsonV1('{')).toMatchObject({ valid: false, code: 'invalid-json' });
     expect(validateStructureJsonV1(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1, minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:stone', x: 0.5, y: 0, z: 0 }] })).code).toBe('block');

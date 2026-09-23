@@ -3,7 +3,7 @@ import { Component, computed, inject, input, output, signal } from '@angular/cor
 import { LucideCopy, LucideDownload, LucideSave, LucideX } from '@lucide/angular';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { sanitizeFilename } from '../../../core/persistence/file-name';
-import { createStructureJsonExample, serializeStructureJson, serializeStructureJsonValue, StructureJsonValidationCode, validateStructureJsonV1 } from '../../../core/persistence/structure-json/structure-json';
+import { createStructureJsonExample, serializeStructureJson, serializeStructureJsonValue, StructureJsonValidationCode, validateStructureJson } from '../../../core/persistence/structure-json/structure-json';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
@@ -44,6 +44,8 @@ export class StructureJsonExportDialogComponent {
   protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) this.close(); }
   protected projectName(): string { return this.project().metadata.name; }
   protected blockCount(): number { return this.project().blocks.length; }
+  protected decorationCount(): number { return this.project().decorations?.length ?? 0; }
+  protected hasRawDecorationMetadata(): boolean { return (this.project().decorations ?? []).some((decoration) => !!decoration.raw && Object.keys(decoration.raw).length > 0); }
   protected setTab(tab: StructureJsonTab): void { this.tab.set(tab); this.feedback.set(undefined); }
   protected handleTabKeydown(event: KeyboardEvent): void {
     const index = this.tabs.indexOf(this.tab());
@@ -52,7 +54,7 @@ export class StructureJsonExportDialogComponent {
   }
   protected setDraftJson(value: string): void { this.draftJson.set(value); this.validationError.set(undefined); this.feedback.set(undefined); }
   protected saveChanges(): boolean {
-    const result = validateStructureJsonV1(this.draftJson());
+    const result = validateStructureJson(this.draftJson());
     if (!result.valid) { this.validationError.set(this.validationMessage(result.code, result.path)); this.tab.set('structure'); return false; }
     this.savedJson.set(this.draftJson());
     this.validationError.set(undefined);
@@ -67,7 +69,7 @@ export class StructureJsonExportDialogComponent {
   protected saveAndDownload(): void { if (this.saveChanges()) { this.downloadGuardOpen.set(false); this.downloadText(this.savedJson()); } }
   protected tabLabel(tab: StructureJsonTab): string { return this.i18n.t(tab === 'structure' ? 'structureJsonTab' : tab === 'example' ? 'structureJsonExampleTab' : 'structureJsonAiTab'); }
   protected validationMessage(code: StructureJsonValidationCode | undefined, path?: string): string {
-    const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'minecraft-version' ? 'structureJsonValidationMinecraftVersion' : code === 'blocks' ? 'structureJsonValidationBlocks' : code === 'block' ? 'structureJsonValidationBlock' : 'structureJsonValidationShape';
+    const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'minecraft-version' ? 'structureJsonValidationMinecraftVersion' : code === 'blocks' ? 'structureJsonValidationBlocks' : code === 'block' ? 'structureJsonValidationBlock' : code === 'decorations' ? 'structureJsonValidationDecorations' : code === 'decoration' ? 'structureJsonValidationDecoration' : 'structureJsonValidationShape';
     return `${this.i18n.t(key)}${path ? ` (${path})` : ''}`;
   }
   private downloadText(value: string): void {

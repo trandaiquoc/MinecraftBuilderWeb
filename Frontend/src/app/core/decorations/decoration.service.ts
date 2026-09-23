@@ -7,6 +7,7 @@ import { WorkspaceStateService } from '../workspace/workspace-state.service';
 import { planDecorationPlacement, DecorationPlacementPlan } from './placement/decoration-placement';
 import { DecorationFacing, DecorationKind, DecorationItemStack, PlacedDecoration, paintingVariant } from './decoration.types';
 import { PaintingVariantCatalogService } from './catalog/painting-variant-catalog.service';
+import { isDecorationLocked } from '../editor/groups/decoration-membership';
 
 export interface ActiveDecoration {
   readonly kind: DecorationKind;
@@ -55,9 +56,10 @@ export class DecorationService {
 
   delete(id: string): boolean {
     return this.history.execute('Delete decoration', (project) => {
-      if (!project.decorations?.some((entry) => entry.instanceId === id)) return undefined;
+      const current = project.decorations?.find((entry) => entry.instanceId === id);
+      if (!current || isDecorationLocked(current, project.groups)) return undefined;
       this.selectedId.set(undefined);
-      return { ...project, decorations: project.decorations.filter((entry) => entry.instanceId !== id), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+      return { ...project, decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
 
@@ -87,7 +89,7 @@ export class DecorationService {
   setFrameItemDropChance(id: string, chance: number): boolean { if (!Number.isFinite(chance)) return false; return this.updateSelectedFrame(id, (entry) => ({ ...entry, itemDropChance: Math.max(0, Math.min(1, chance)) })); }
   setPaintingVariant(id: string, variantId: string): boolean {
     const project = this.workspace.project(); const current = project?.decorations?.find((entry) => entry.instanceId === id); const variant = this.paintingCatalog.get(variantId);
-    if (!project || !current || current.kind !== 'painting' || !variant) return false;
+    if (!project || !current || current.kind !== 'painting' || !variant || isDecorationLocked(current, project.groups)) return false;
     const support = { x: current.anchor.x - (current.facing === 'east' ? 1 : current.facing === 'west' ? -1 : 0), y: current.anchor.y - (current.facing === 'up' ? 1 : current.facing === 'down' ? -1 : 0), z: current.anchor.z - (current.facing === 'south' ? 1 : current.facing === 'north' ? -1 : 0) };
     const plan = planDecorationPlacement({ ...project, decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id) }, { kind: 'painting', variantId }, support, current.facing);
     if (plan.status !== 'valid') return false;
@@ -96,7 +98,7 @@ export class DecorationService {
   private updateSelectedFrame(id: string, change: (entry: PlacedDecoration) => PlacedDecoration): boolean {
     return this.history.execute('Edit decoration', (project) => {
       const current = project.decorations?.find((entry) => entry.instanceId === id);
-      if (!current || (current.kind !== 'item-frame' && current.kind !== 'glow-item-frame')) return undefined;
+      if (!current || isDecorationLocked(current, project.groups) || (current.kind !== 'item-frame' && current.kind !== 'glow-item-frame')) return undefined;
       return { ...project, decorations: project.decorations!.map((entry) => entry.instanceId === id ? change(entry) : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }

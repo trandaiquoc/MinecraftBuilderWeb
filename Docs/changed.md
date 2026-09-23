@@ -1717,3 +1717,11 @@ generation and lookup now share one item-preview identity based on
 `previewState`; `defaultState` remains placement-only. Static Item block-model
 references use the shared model resolver, while generated Item layers keep
 their existing path.
+
+Structure JSON v2 is now the default export and carries the supported painting,
+item-frame, and glow-item-frame decorations without exposing editor instance
+IDs, entity IDs, group membership, or raw metadata. V1 remains blocks-only;
+V1 Replace imports preserve decorations already in the project, while v2
+Replace/merge/new-group apply decoration validation and group membership
+atomically with blocks. Group visibility, lock, deletion, and move previews
+therefore include grouped decorations as well.

@@ -24,6 +24,7 @@ export interface PlacedDecoration {
   readonly invisible?: boolean;
   readonly fixed?: boolean;
   readonly itemDropChance?: number;
+  readonly groupIds?: readonly string[];
   readonly raw?: Readonly<Record<string, unknown>>;
 }
 

@@ -1,5 +1,7 @@
 # MinecraftBuilder Structure JSON v1
 
+> v1 is retained for backward compatibility. New exports use [Structure JSON v2](structure-json-v2.md), which adds supported decorations while keeping this blocks-only contract unchanged.
+
 Structure JSON is MinecraftBuilder's small, human-readable block-layout exchange format. It is separate from:
 
 - **Project Backup**, which stores the complete editor project and uses `minecraftbuilder-project`.
@@ -57,4 +59,4 @@ Copy the exported JSON together with these instructions:
 
 > You are editing a MinecraftBuilder Structure JSON document. Return only valid `minecraftbuilder-structure` formatVersion 1 JSON. Preserve `format` and `formatVersion`. Use Minecraft Java block IDs in `namespace:path` form. Keep `x`, `y`, and `z` as integer coordinates. Keep state values as strings. Follow the requested design while respecting this schema. Do not include prose outside the JSON.
 
-Importing Structure JSON is intentionally deferred to a later phase. The v1 export is read-only and does not provide semantics for block entities, decorations, groups, or editor metadata.
+V1 import remains supported. It is intentionally blocks-only: v1 does not provide semantics for block entities, decorations, groups, or editor metadata, and a v1 Replace import preserves decorations already present in the project.

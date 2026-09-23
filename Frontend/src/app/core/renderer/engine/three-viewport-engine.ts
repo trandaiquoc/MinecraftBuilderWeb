@@ -6,6 +6,7 @@ import { FaceNormal, resolveAttachmentPlacement, placementStatus, projectGridBou
 import { blocksForLayers, YLayerVisibility } from '../../editor/viewport/y-layer';
 import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../../editor/camera/camera';
 import { isBlockVisible } from '../../editor/groups/group-membership';
+import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
 import { GroupMovePreview } from '../../editor/groups/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import { BlockVisualProvider, VisualCacheStats } from '../geometry/block-model-geometry';
@@ -15,7 +16,7 @@ import type { BlockDefinition } from '../../blocks/catalog/block-definition.type
 import { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedDecoration } from '../../decorations/decoration.types';
-import { DecorationPlacementPlan, facingFromNormal, planDecorationPlacement } from '../../decorations/placement/decoration-placement';
+import { DecorationPlacementPlan, decorationAabb, facingFromNormal, planDecorationPlacement } from '../../decorations/placement/decoration-placement';
 import { createDecorationVisual, DecorationTextureCache } from '../visuals/decoration-visuals';
 import type { ActiveDecoration } from '../../decorations/decoration.service';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../../editor/input/keyboard-bindings';
@@ -449,7 +450,7 @@ export class ThreeViewportEngine {
   private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.structureSyncKey = ''; this.syncedProject = undefined; }
 
   private reconcileDecorations(project: ProjectDocument, options: ViewportRenderOptions, full: boolean): void {
-    const visible = (project.decorations ?? []).filter((decoration) => options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y));
+    const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (!options.isolatedGroupId || decorationHasGroup(decoration, options.isolatedGroupId)) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
     const map = new Map(visible.map((decoration) => [decoration.instanceId, decoration] as const));
     for (const [id, entry] of this.renderedDecorations) if (!map.has(id)) { this.removeDecorationEntry(id, entry); this.instrumentation.record('decorationRemovals'); }
     for (const [id, decoration] of map) {
@@ -715,6 +716,15 @@ export class ThreeViewportEngine {
       outline.renderOrder = 1000;
       this.scene.add(outline);
     }
+    for (const decoration of (project.decorations ?? []).filter((entry) => decorationHasGroup(entry, activeGroupId) && isDecorationVisible(entry, project.groups) && (!this.renderOptions.isolatedGroupId || decorationHasGroup(entry, this.renderOptions.isolatedGroupId)))) {
+      const bounds = decorationAabb(decoration);
+      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(.04, bounds.max.x - bounds.min.x + .08), Math.max(.04, bounds.max.y - bounds.min.y + .08), Math.max(.04, bounds.max.z - bounds.min.z + .08))), new THREE.LineBasicMaterial({ color }));
+      outline.position.set((bounds.min.x + bounds.max.x) / 2, (bounds.min.y + bounds.max.y) / 2, (bounds.min.z + bounds.max.z) / 2);
+      outline.userData['groupHighlight'] = true;
+      outline.userData['groupLocked'] = !!group?.locked;
+      outline.renderOrder = 1000;
+      this.scene.add(outline);
+    }
   }
 
   private updateMovePreview(project: ProjectDocument | undefined, preview: GroupMovePreview | undefined): void {
@@ -729,6 +739,27 @@ export class ThreeViewportEngine {
       mesh.renderOrder = 1002;
       mesh.userData['previewInvalid'] = !preview.valid;
       this.movePreviewGroup.add(mesh);
+    }
+    const movingDecorationIds = new Set(preview.decorationIds);
+    for (const decoration of (project.decorations ?? []).filter((entry) => movingDecorationIds.has(entry.instanceId))) {
+      const visual = createDecorationVisual(decoration, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource);
+      visual.position.set(preview.offset.x, preview.offset.y, preview.offset.z);
+      visual.renderOrder = 1002;
+      visual.traverse((object) => {
+        object.renderOrder = 1002;
+        if (object instanceof THREE.Mesh) {
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          for (const material of materials) {
+            material.transparent = true;
+            material.opacity = .42;
+            material.depthTest = false;
+            material.depthWrite = false;
+            if (material instanceof THREE.MeshBasicMaterial || material instanceof THREE.MeshLambertMaterial) material.color.set(color);
+          }
+        }
+      });
+      visual.userData['previewInvalid'] = !preview.valid;
+      this.movePreviewGroup.add(visual);
     }
   }
 
