@@ -19,6 +19,22 @@ describe('GroupService', () => {
     expect(groups.create(' roof ')).toBe(false);
   });
 
+  it('keeps active selection independent from each group lock state', () => {
+    const { groups, workspace } = setup();
+    groups.create('Unlocked');
+    const unlocked = groups.activeGroupId()!;
+    groups.create('Locked');
+    const locked = groups.activeGroupId()!;
+    groups.setLocked(locked, true);
+    groups.select(unlocked);
+    expect(groups.activeGroupId()).toBe(unlocked);
+    expect(workspace.project()!.groups.find((group) => group.id === unlocked)?.locked).toBe(false);
+    expect(workspace.project()!.groups.find((group) => group.id === locked)?.locked).toBe(true);
+    groups.select(locked);
+    expect(groups.activeGroupId()).toBe(locked);
+    expect(workspace.project()!.groups.find((group) => group.id === locked)?.locked).toBe(true);
+  });
+
   it('toggles the active group without changing selection, membership, or history', () => {
     const { groups, selection, workspace, history } = setup();
     selection.select({ x: 1, y: 1, z: 1 });

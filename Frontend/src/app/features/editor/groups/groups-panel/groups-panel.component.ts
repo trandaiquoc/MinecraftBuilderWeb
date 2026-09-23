@@ -4,11 +4,11 @@ import { SelectionService } from '../../../../core/editor/selection/selection.se
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { filterGroups } from '../../../../core/editor/groups/group-search';
-import { LucideX } from '@lucide/angular';
+import { LucideCheck, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 
-@Component({ selector: 'app-groups-panel', imports: [LucideX, UiTooltipDirective], templateUrl: './groups-panel.component.html', styleUrl: './groups-panel.component.scss' })
+@Component({ selector: 'app-groups-panel', imports: [LucideCheck, LucideX, UiTooltipDirective], templateUrl: './groups-panel.component.html', styleUrl: './groups-panel.component.scss' })
 export class GroupsPanelComponent {
   protected readonly groups = inject(GroupService);
   protected readonly workspace = inject(WorkspaceStateService);

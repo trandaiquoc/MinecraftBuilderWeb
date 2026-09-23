@@ -224,7 +224,7 @@
             </div>
             <p class="loader-summary">
               <strong>{{ i18n.t('assetManagerLoader') }}:</strong>
-              {{ i18n.t('assetManagerFabricSupported') }} Â·
+              {{ i18n.t('assetManagerFabricSupported') }} &middot;
               {{ i18n.t('assetManagerUnsupportedLoaders') }}
             </p>
             @if (preflightError()) {
@@ -289,14 +289,14 @@
                         prepared.normalizedMetadata?.modId ||
                           i18n.t('assetManagerMetadataUnavailable')
                       }}
-                      Â· {{ prepared.normalizedMetadata?.modVersion || 'â€”' }} Â·
+                      &middot; {{ prepared.normalizedMetadata?.modVersion || '—' }} &middot;
                       {{ loaderLabel(prepared.loader) }}
                     </p>
                   </div>
                 </div>
                 @if (prepared.report?.compatibility; as compatibility) {
                   <div class="primary-status" [class]="compatibilityClass(compatibility.status)">
-                    {{ compatibility.status === 'compatible' ? 'âœ“' : 'Ã—' }}
+                    @if (compatibility.status === 'compatible') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else { <svg lucideCircleX aria-hidden="true"></svg> }
                     {{ compatibilityStatus(compatibility.status) }} {{ assets.activeVersion()
                     }}<small>{{ compatibility.reason }}</small>
                   </div>
@@ -306,7 +306,7 @@
                     class="certified-badge"
                     [attr.title]="i18n.t('assetManagerTestedBadgeTitle')"
                   >
-                    âœ“ {{ i18n.t('assetManagerFullySupported') }}
+                    <svg lucideCheckCircle2 aria-hidden="true"></svg> {{ i18n.t('assetManagerFullySupported') }}
                   </div>
                 }
                 <div class="stat-tiles">
@@ -380,14 +380,8 @@
                 <ol class="stage-list">
                   @for (stage of stageOrder; track stage.id) {
                     <li [class]="'stage-' + stageState(stage.id)">
-                      <span>{{
-                        stageState(stage.id) === 'complete'
-                          ? 'âœ“'
-                          : stageState(stage.id) === 'active'
-                            ? 'â—'
-                            : 'â—‹'
-                      }}</span
-                      >{{ stageLabel(stage.id) }}
+                      @if (stageState(stage.id) === 'complete') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else if (stageState(stage.id) === 'active') { <span class="stage-dot" aria-hidden="true"></span> } @else { <span class="stage-pending" aria-hidden="true"></span> }
+                      <span>{{ stageLabel(stage.id) }}</span>
                     </li>
                   }
                 </ol>
@@ -400,7 +394,7 @@
                       [compact]="true"
                       [label]="i18n.t('assetManagerImporting')"
                     /><small
-                      >{{ phaseLabel(progress.phase) }} Â· {{ progressDetail(progress) }}</small
+                      >{{ phaseLabel(progress.phase) }} &middot; {{ progressDetail(progress) }}</small
                     >
                   </div>
                 }
@@ -426,14 +420,8 @@
                   <ol id="asset-technical-progress" class="phase-list">
                     @for (phase of phaseOrder; track phase) {
                       <li [class]="'phase-' + phaseState(phase)">
-                        <span>{{
-                          phaseState(phase) === 'complete'
-                            ? 'âœ“'
-                            : phaseState(phase) === 'active'
-                              ? 'â—'
-                              : 'â—‹'
-                        }}</span
-                        >{{ phaseLabel(phase) }}
+                        @if (phaseState(phase) === 'complete') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else if (phaseState(phase) === 'active') { <span class="stage-dot" aria-hidden="true"></span> } @else { <span class="stage-pending" aria-hidden="true"></span> }
+                        <span>{{ phaseLabel(phase) }}</span>
                       </li>
                     }
                   </ol>
@@ -497,7 +485,7 @@
                       <div class="mod-card-main">
                         <h4>{{ mod.displayName }}</h4>
                         <p>
-                          {{ mod.modId }} Â· {{ mod.version }} Â·
+                          {{ mod.modId }} &middot; {{ mod.version }} &middot;
                           {{ loaderLabel(mod.report.loader) }}
                         </p>
                         <p class="mod-card-status">
@@ -509,7 +497,7 @@
                           >
                           @if (importedCertification(mod); as certificate) {
                             <span class="certified-badge"
-                              >âœ“ {{ i18n.t('assetManagerFullySupported') }}</span
+                              ><svg lucideCheckCircle2 aria-hidden="true"></svg> {{ i18n.t('assetManagerFullySupported') }}</span
                             >
                           }
                         </p>
@@ -541,7 +529,7 @@
                               class="warning-badge"
                               (click)="openDiagnostics(mod.report, mod.displayName)"
                             >
-                              <span aria-hidden="true">âš </span> {{ warning }}
+                              <svg lucideTriangleAlert aria-hidden="true"></svg> {{ warning }}
                             </button>
                           }
                         </div>
@@ -677,15 +665,15 @@
           </div>
           <div>
             <h3>{{ mod.displayName }}</h3>
-            <p>{{ mod.modId }} Â· {{ mod.version }} Â· {{ loaderLabel(mod.report.loader) }}</p>
+            <p>{{ mod.modId }} &middot; {{ mod.version }} &middot; {{ loaderLabel(mod.report.loader) }}</p>
           </div>
         </div>
         <div class="detail-statuses">
-          <span class="status status-ok"
-            >âœ“ {{ compatibilityStatus(mod.report.compatibility?.status) }}</span
+          <span class="status" [class.status-ok]="mod.report.compatibility?.status === 'compatible'" [class.status-blocked]="mod.report.compatibility?.status !== 'compatible'"
+            >@if (mod.report.compatibility?.status === 'compatible') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else { <svg lucideCircleX aria-hidden="true"></svg> } {{ compatibilityStatus(mod.report.compatibility?.status) }}</span
           >
           @if (importedCertification(mod); as certificate) {
-            <span class="certified-badge">âœ“ {{ i18n.t('assetManagerFullySupported') }}</span>
+            <span class="certified-badge"><svg lucideCheckCircle2 aria-hidden="true"></svg> {{ i18n.t('assetManagerFullySupported') }}</span>
           }
         </div>
         <section>
@@ -847,7 +835,7 @@
       [attr.aria-label]="dialog.modName"
     >
       <header>
-        <h2>{{ dialog.modName }} Â· {{ i18n.t('assetManagerWarningDetails') }}</h2>
+        <h2>{{ dialog.modName }} &middot; {{ i18n.t('assetManagerWarningDetails') }}</h2>
         <button
           type="button"
           class="close-button ui-close-button"

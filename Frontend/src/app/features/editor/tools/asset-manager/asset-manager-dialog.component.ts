@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, output, signal } from '@angular/core';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
-import { LucideArrowLeft, LucideChevronDown, LucideChevronUp, LucideTrash2, LucideX } from '@lucide/angular';
+import { LucideArrowLeft, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX } from '@lucide/angular';
 import { VanillaAssetsService, ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
 import type { ModImportDiagnostic, ModImportReport } from '../../../../core/assets/mod/external-mod-provider';
@@ -53,7 +53,7 @@ export function diagnosticPresentation(report: Pick<ModImportReport, 'diagnostic
   return report.diagnostics.some((diagnostic) => diagnostic.severity === 'info' || diagnostic.category === 'info') ? 'technical' : 'none';
 }
 
-@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideChevronDown, LucideChevronUp, LucideTrash2, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin, UiProgressComponent], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin, UiProgressComponent], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(VanillaAssetsService);

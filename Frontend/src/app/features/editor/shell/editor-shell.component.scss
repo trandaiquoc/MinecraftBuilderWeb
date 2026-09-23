@@ -396,19 +396,6 @@
   color: var(--text);
   font-size: 0.72rem;
 }
-.groups-panel button {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.3rem 0.4rem;
-  background: var(--surface-raised);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.65rem;
-}
-.groups-panel button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
 .group-item {
   display: grid;
   gap: 0.2rem;
@@ -449,9 +436,6 @@
 .destructive-actions {
   padding-top: 0.35rem;
   border-top: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-}
-.destructive-actions button {
-  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-strong));
 }
 .muted,
 .viewport-placeholder small {
@@ -659,9 +643,6 @@
   background: var(--surface-muted);
   box-shadow: inset 0 0 0 1px var(--border);
 }
-.destructive-actions button {
-  color: var(--danger);
-}
 .group-move-toolbar {
   border-color: var(--accent);
 }
@@ -791,13 +772,13 @@
   display: none;
 }
 .menu-popover button.danger {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--button-danger-text);
+  background: var(--button-danger-bg);
 }
 .menu-popover button.danger:hover:not(:disabled),
 .menu-popover button.danger:focus-visible {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 22%, var(--surface));
+  color: var(--button-danger-text);
+  background: var(--button-danger-hover);
 }
 .menu-popover button.danger:disabled {
   cursor: not-allowed;

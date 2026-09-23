@@ -302,6 +302,16 @@
   font-size: 0.95rem;
   font-weight: 700;
 }
+.primary-status svg,
+.certified-badge svg,
+.warning-badge svg,
+.stage-list svg,
+.phase-list svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
 .primary-status small {
   color: var(--text-muted);
   font-size: 0.7rem;
@@ -421,6 +431,16 @@
 .phase-list .phase-complete {
   color: var(--success, var(--accent));
 }
+.stage-dot,
+.stage-pending {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+.stage-dot { background: var(--accent); }
+.stage-pending { background: var(--text-disabled); opacity: 0.7; }
 .phase-list {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

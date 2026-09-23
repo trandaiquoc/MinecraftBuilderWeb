@@ -45,20 +45,6 @@
   font-size: 0.72rem;
   box-shadow: inset 0 0 0 1px var(--border);
 }
-.groups-panel button {
-  border: 0;
-  border-radius: 4px;
-  padding: 0.3rem 0.4rem;
-  background: var(--surface-raised);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.65rem;
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.18);
-}
-.groups-panel button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
 .group-item {
   display: grid;
   gap: 0.2rem;
@@ -68,6 +54,27 @@
   border-radius: 4px;
   text-align: left;
 }
+.group-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.group-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font: 0.68rem/1.2 var(--font-ui);
+}
+.group-item-meta svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+}
+.group-lock-state.is-locked {
+  color: var(--warning);
+}
 .group-item:hover {
   background: var(--surface-hover);
 }
@@ -76,9 +83,8 @@
   color: var(--control-selected-text);
   box-shadow: 0 4px 10px rgb(0 0 0 / 0.24);
 }
-.group-item.active small {
-  color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
-}
+.group-item.active .group-item-meta { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
+.group-item.active .group-lock-state.is-locked { color: var(--warning); }
 .group-item.isolated {
   box-shadow:
     inset 0 0 0 2px var(--warning),
@@ -132,7 +138,4 @@
   margin-top: 0.1rem;
   padding-top: 0.35rem;
   border-top: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-}
-.destructive-actions button {
-  color: var(--danger);
 }
