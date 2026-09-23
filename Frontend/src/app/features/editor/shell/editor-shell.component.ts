@@ -41,8 +41,9 @@ import { ProjectImportStatusComponent } from '../project-import/project-import-s
 import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-assets.service';
 import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
+import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -81,6 +82,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly assetManagerOpen = signal(false);
   protected readonly diagnosticsOpen = signal(false);
   protected readonly structureJsonExportOpen = signal(false);
+  protected readonly structureJsonImportOpen = signal(false);
   protected readonly leftDrawerOpen = signal(false);
   protected readonly rightDrawerOpen = signal(false);
   private drawerOpener?: HTMLElement;
@@ -229,6 +231,8 @@ export class EditorShellComponent implements OnDestroy {
     }
   }
   protected triggerProjectImport(input: HTMLInputElement): void { if (this.importState().stage !== 'idle' && this.importState().stage !== 'success' && this.importState().stage !== 'error') return; this.closeMenus(); input.value = ''; input.click(); }
+  protected openStructureJsonImport(): void { this.closeMenus(); this.structureJsonImportOpen.set(true); }
+  protected closeStructureJsonImport(): void { this.structureJsonImportOpen.set(false); }
   protected async importProjectPackage(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];

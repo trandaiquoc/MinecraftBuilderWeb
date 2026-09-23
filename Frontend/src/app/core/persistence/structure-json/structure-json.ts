@@ -8,7 +8,7 @@ export interface StructureJsonBlockV1 {
   readonly x: number;
   readonly y: number;
   readonly z: number;
-  readonly state: Readonly<Record<string, string>>;
+  readonly state?: Readonly<Record<string, string>>;
 }
 
 export interface StructureJsonV1 {
@@ -27,12 +27,20 @@ export interface StructureJsonValidationResult {
   readonly path?: string;
 }
 
+export interface ParsedStructureJsonV1Result extends StructureJsonValidationResult {
+  readonly value?: StructureJsonV1;
+}
+
 const topLevelKeys = new Set(['format', 'formatVersion', 'minecraftVersion', 'name', 'blocks']);
 const blockKeys = new Set(['id', 'x', 'y', 'z', 'state']);
 const namespacedId = /^[a-z0-9_.-]+:[a-z0-9/._-]+$/;
 const stateKey = /^[a-z0-9_.-]+$/;
 
 export function validateStructureJsonV1(serialized: string): StructureJsonValidationResult {
+  return parseStructureJsonV1(serialized);
+}
+
+export function parseStructureJsonV1(serialized: string): ParsedStructureJsonV1Result {
   let value: unknown;
   try { value = JSON.parse(serialized) as unknown; } catch { return { valid: false, code: 'invalid-json' }; }
   if (!isRecord(value) || Array.isArray(value)) return { valid: false, code: 'shape' };
@@ -42,6 +50,7 @@ export function validateStructureJsonV1(serialized: string): StructureJsonValida
   if (typeof value['minecraftVersion'] !== 'string' || value['minecraftVersion'].length === 0) return { valid: false, code: 'minecraft-version' };
   if (value['name'] !== undefined && typeof value['name'] !== 'string') return { valid: false, code: 'shape' };
   if (!Array.isArray(value['blocks'])) return { valid: false, code: 'blocks' };
+  const blocks: StructureJsonBlockV1[] = [];
   for (let index = 0; index < value['blocks'].length; index += 1) {
     const block = value['blocks'][index];
     if (!isRecord(block) || Array.isArray(block) || !hasOnlyKeys(block, blockKeys) || typeof block['id'] !== 'string' || !namespacedId.test(block['id']) || !Number.isInteger(block['x']) || !Number.isInteger(block['y']) || !Number.isInteger(block['z'])) {
@@ -50,8 +59,9 @@ export function validateStructureJsonV1(serialized: string): StructureJsonValida
     if (block['state'] !== undefined) {
       if (!isRecord(block['state']) || Array.isArray(block['state']) || Object.entries(block['state']).some(([key, stateValue]) => !stateKey.test(key) || typeof stateValue !== 'string')) return { valid: false, code: 'block', path: `blocks[${index}].state` };
     }
+    blocks.push({ id: block['id'] as string, x: block['x'] as number, y: block['y'] as number, z: block['z'] as number, ...(block['state'] === undefined ? {} : { state: block['state'] as Readonly<Record<string, string>> }) });
   }
-  return { valid: true };
+  return { valid: true, value: { format: STRUCTURE_JSON_FORMAT, formatVersion: CURRENT_STRUCTURE_JSON_VERSION, minecraftVersion: value['minecraftVersion'] as string, ...(value['name'] === undefined ? {} : { name: value['name'] as string }), blocks } };
 }
 
 export function structureJsonFromProject(project: ProjectDocument): StructureJsonV1 {

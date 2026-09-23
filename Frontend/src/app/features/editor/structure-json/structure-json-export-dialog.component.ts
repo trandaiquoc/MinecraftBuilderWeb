@@ -30,6 +30,7 @@ export class StructureJsonExportDialogComponent {
   protected readonly dirty = computed(() => this.savedJson() !== this.draftJson());
   protected readonly exampleJson = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
   protected readonly aiInstructions = computed(() => this.i18n.t('structureJsonAiInstructions'));
+  protected readonly aiWorkflow = computed(() => this.i18n.t('structureJsonAiWorkflow'));
   protected readonly tabs: readonly StructureJsonTab[] = ['structure', 'example', 'ai'];
 
   ngOnInit(): void {

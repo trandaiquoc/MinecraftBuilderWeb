@@ -1,0 +1,30 @@
+<div class="structure-json-backdrop" role="presentation" (click)="onBackdropClick($event)">
+  <section class="structure-json-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('importStructureJson')" tabindex="-1" autofocus>
+    <header class="structure-json-header"><div><p class="eyebrow">MinecraftBuilder</p><h2>{{ i18n.t('importStructureJson') }}</h2><p>{{ i18n.t('structureJsonImportDescription') }}</p></div><button type="button" class="ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button></header>
+    <div class="structure-json-layout">
+      <aside class="structure-json-info">
+        <h3>{{ i18n.t('structureJsonValidationPreview') }}</h3>
+        @if (preview(); as result) {
+          @if (!result.structuralValid) { <p class="status-error" role="alert">{{ structuralMessage() }}</p> }
+          <dl>
+            <div><dt>{{ i18n.t('structureJsonStructure') }}</dt><dd>{{ result.parsed?.name || i18n.t('untitledStructure') }}</dd></div>
+            <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ result.parsed?.minecraftVersion || '—' }}</dd></div>
+            <div><dt>{{ i18n.t('structureJsonTotalBlocks') }}</dt><dd>{{ result.totalBlocks }}</dd></div>
+            <div><dt>{{ i18n.t('structureJsonValidBlocks') }}</dt><dd class="status-success">{{ result.validBlocks }}</dd></div>
+            @for (group of issueGroups(); track group.category) { <div><dt>{{ group.label }}</dt><dd [class.status-warning]="group.category === 'missing'" [class.status-error]="group.category !== 'missing'">{{ result.issues[group.category].length }}</dd></div> }
+          </dl>
+          @for (group of issueGroups(); track group.category) {
+            @if (issues(group.category).length) { <section class="issue-group"><h4>{{ group.label }}</h4><ul>@for (item of issues(group.category); track item.index + item.category) { <li><code>#{{ item.index }} {{ item.id }}</code><span>{{ item.position.x }}, {{ item.position.y }}, {{ item.position.z }} · {{ item.reason }}</span></li>}</ul>@if (moreIssueCount(group.category) > 0) { <small>{{ moreIssueLabel(group.category) }}</small> }</section> }
+          }
+        } @else { <p class="muted">{{ i18n.t('structureJsonValidatePrompt') }}</p> }
+      </aside>
+      <section class="structure-json-workspace">
+        <div class="import-toolbar"><strong>{{ i18n.t('structureJsonSource') }}</strong><div><input #jsonFile type="file" accept="application/json,.json" hidden (change)="loadFile($event)" /><button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="jsonFile.click()"><svg lucideUpload aria-hidden="true"></svg>{{ i18n.t('chooseJsonFile') }}</button><button type="button" class="ui-button ui-button--primary ui-button--sm" (click)="validate()"><svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('validateStructureJson') }}</button></div></div>
+        <textarea class="structure-json-editor" [value]="draftJson()" (input)="setDraft($any($event.target).value)" [attr.aria-label]="i18n.t('structureJsonSource')" spellcheck="false"></textarea>
+        @if (progress() !== 'idle' && progress() !== 'complete') { <p class="progress-status" role="status">{{ progressLabel() }}</p> }
+        @if (progress() === 'complete') { <p class="progress-status complete" role="status">{{ i18n.t('structureJsonProgressComplete') }}</p> }
+      </section>
+    </div>
+    <footer class="structure-json-footer"><span class="muted">{{ i18n.t('structureJsonImportReadOnly') }}</span><button type="button" class="ui-button ui-button--ghost" (click)="close()">{{ i18n.t('cancel') }}</button></footer>
+  </section>
+</div>
