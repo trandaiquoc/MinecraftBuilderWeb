@@ -1,7 +1,27 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
-import { BlockBrowserComponent } from './block-browser.component';
+import { BlockBrowserComponent, blockGridColumnCount, groupBlockItemsIntoRows } from './block-browser.component';
+
+describe('BlockBrowser grid sizing', () => {
+  it('returns a bounded responsive column count', () => {
+    expect(blockGridColumnCount(0)).toBe(1);
+    expect(blockGridColumnCount(Number.NaN)).toBe(1);
+    expect(blockGridColumnCount(240)).toBe(2);
+    expect(blockGridColumnCount(500)).toBe(4);
+    expect(blockGridColumnCount(650)).toBe(5);
+    expect(blockGridColumnCount(800)).toBe(6);
+    expect(blockGridColumnCount(800)).toBeGreaterThan(blockGridColumnCount(500));
+  });
+
+  it('groups items into deterministic virtual rows', () => {
+    expect(groupBlockItemsIntoRows(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 4)).toEqual([
+      ['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h'], ['i', 'j'],
+    ]);
+    expect(groupBlockItemsIntoRows(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 2)).toHaveLength(5);
+    expect(groupBlockItemsIntoRows(['a', 'b'], 0)).toEqual([['a'], ['b']]);
+  });
+});
 
 describe('BlockBrowserComponent bootstrap presentation', () => {
   it('keeps the block catalog visible while Mods restore and has no loading panel', async () => {

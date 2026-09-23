@@ -11,8 +11,23 @@ import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.dir
 import { ContentSourceOption, ContentSourceSelectorComponent } from '../../../../shared/ui/content-source-selector/content-source-selector.component';
 import { ALL_CONTENT_SOURCE, sourceOptions } from '../../../../shared/ui/content-source-selector/content-source-filter';
 import { ThumbnailVisibilityDirective } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
-import { ScrollingModule } from '@angular/cdk/scrolling';
+import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
 import type { ThumbnailTaskPriority } from '../../../../core/assets/vanilla/thumbnail-task-queue';
+
+const BLOCK_GRID_TILE_WIDTH = 112;
+const BLOCK_GRID_GAP = 7;
+
+export function blockGridColumnCount(width: number): number {
+  if (!Number.isFinite(width) || width <= 0) return 1;
+  return Math.max(1, Math.floor((width + BLOCK_GRID_GAP) / (BLOCK_GRID_TILE_WIDTH + BLOCK_GRID_GAP)));
+}
+
+export function groupBlockItemsIntoRows<T>(items: readonly T[], columns: number): readonly (readonly T[])[] {
+  const safeColumns = Math.max(1, Math.floor(Number.isFinite(columns) ? columns : 1));
+  const rows: T[][] = [];
+  for (let index = 0; index < items.length; index += safeColumns) rows.push(items.slice(index, index + safeColumns) as T[]);
+  return rows;
+}
 
 @Component({ selector: 'app-block-browser', imports: [LucidePlus, UiTooltipDirective, ContentSourceSelectorComponent, ThumbnailVisibilityDirective, ScrollingModule], templateUrl: './block-browser.component.html', styleUrl: './block-browser.component.scss' })
 export class BlockBrowserComponent {
@@ -32,31 +47,29 @@ export class BlockBrowserComponent {
   protected readonly results = computed(() => this.library.searchPlaceableItems(this.library.query(), this.activeSource()));
   protected readonly columnCount = signal(1);
   protected readonly rows = computed<readonly (readonly PlaceableItemDefinition[])[]>(() => {
-    const columns = this.columnCount();
-    const items = this.results();
-    const grouped: PlaceableItemDefinition[][] = [];
-    for (let index = 0; index < items.length; index += columns) grouped.push(items.slice(index, index + columns) as PlaceableItemDefinition[]);
-    return grouped;
+    return groupBlockItemsIntoRows(this.results(), this.columnCount());
   });
   protected readonly activePreviewItem = computed(() => {
     const active = this.library.activeBlock.active();
     const item = active ? this.library.getItem(active.itemId || active.id) : undefined;
     return active && item ? { ...item, defaultState: { ...active.state }, previewState: { ...active.state } } : undefined;
   });
-  private readonly catalogViewport = viewChild<ElementRef<HTMLElement>>('catalogViewport');
+  private readonly catalogGridHost = viewChild<ElementRef<HTMLElement>>('catalogGridHost');
+  private readonly catalogViewport = viewChild<CdkVirtualScrollViewport>('catalogViewport');
   private readonly thumbnailScope = effect(() => { this.assets.visualProvider(); this.results(); this.assets.invalidateQueuedThumbnails(); });
   private readonly viewportSizing = effect((onCleanup) => {
-    const viewport = this.catalogViewport()?.nativeElement;
-    if (!viewport) return;
+    const host = this.catalogGridHost()?.nativeElement;
+    if (!host) return;
     const update = (): void => {
-      const width = viewport.clientWidth;
-      const next = Math.max(1, Math.floor((width + 7) / 120));
-      if (next !== this.columnCount()) this.columnCount.set(next);
+      const next = blockGridColumnCount(host.clientWidth);
+      if (next === this.columnCount()) return;
+      this.columnCount.set(next);
+      queueMicrotask(() => this.catalogViewport()?.checkViewportSize());
     };
     update();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(update);
-    observer.observe(viewport);
+    observer.observe(host);
     onCleanup(() => observer.disconnect());
   });
   private readonly activePreviewScope = effect(() => {
