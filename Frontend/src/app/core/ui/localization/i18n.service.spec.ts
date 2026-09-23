@@ -18,6 +18,15 @@ describe('translation dictionaries', () => {
     expect(supplementalTranslations.vi.assetManagerShowTechnicalProgress).toBe('Hiện tiến trình kỹ thuật');
   });
 
+  it('keeps Structure JSON diagnostic labels and reasons localized in both locales', () => {
+    expect(supplementalTranslations.en.structureJsonPosition).toBe('Position');
+    expect(supplementalTranslations.en.structureJsonReasonMissingBlock).toContain('Block');
+    expect(supplementalTranslations.vi.structureJsonPosition).toBe('Vị trí');
+    expect(supplementalTranslations.vi.structureJsonProperty).toBe('Thuộc tính');
+    expect(supplementalTranslations.vi.structureJsonReasonOutOfBounds).toContain('Tọa độ');
+    expect(supplementalTranslations.vi.structureJsonReasonUnsupportedStateValue).toContain('Giá trị');
+  });
+
   it('uses project backup terminology consistently in both locales', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('en');

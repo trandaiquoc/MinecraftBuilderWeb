@@ -5,13 +5,18 @@ import { parseStructureJsonV1, StructureJsonBlockV1, StructureJsonValidationCode
 import type { ParsedStructureJsonV1Result } from './structure-json';
 
 export type StructureJsonIssueCategory = 'missing' | 'bounds' | 'state' | 'duplicate';
+export type StructureJsonIssueReason =
+  | { readonly code: 'missing-block' }
+  | { readonly code: 'out-of-bounds' }
+  | { readonly code: 'unknown-state-property'; readonly property: string }
+  | { readonly code: 'unsupported-state-value'; readonly property: string; readonly value: string };
 
 export interface StructureJsonBlockIssue {
   readonly category: StructureJsonIssueCategory;
   readonly index: number;
   readonly id: string;
   readonly position: VoxelCoordinate;
-  readonly reason: string;
+  readonly reason: StructureJsonIssueReason;
   readonly property?: string;
   readonly value?: string;
 }
@@ -87,26 +92,26 @@ function validateParsedStructureJsonPreviewBase(value: StructureJsonV1, size: Pr
   let validBlocks = 0;
   for (let index = 0; index < value.blocks.length; index += 1) {
     const block = value.blocks[index]; const position = { x: block.x, y: block.y, z: block.z };
-    if (!isWithinBounds(position, size)) issues.bounds.push(issue('bounds', index, block, 'Coordinate is outside the current project bounds.'));
+    if (!isWithinBounds(position, size)) issues.bounds.push(issue('bounds', index, block, { code: 'out-of-bounds' }));
     const definition = getDefinition(block.id);
-    if (!definition) issues.missing.push(issue('missing', index, block, 'Block is not available in the current Block Library.'));
+    if (!definition) issues.missing.push(issue('missing', index, block, { code: 'missing-block' }));
     else { const invalid = findInvalidState(block, definition); if (invalid) issues.state.push({ ...issue('state', index, block, invalid.reason), property: invalid.property, value: invalid.value }); else if (isWithinBounds(position, size) && !duplicateIndexes.has(index)) validBlocks += 1; }
     onProgress?.(index + 1, value.blocks.length);
   }
   return { structuralValid: true, parsed: value, totalBlocks: value.blocks.length, validBlocks, missingBlocks: issues.missing.length, outOfBounds: issues.bounds.length, invalidStates: issues.state.length, duplicateCoordinates: issues.duplicate.length, affectedDuplicateBlocks: issues.duplicate.reduce((count, conflict) => count + conflict.blockIndexes.length, 0), issues };
 }
 
-function findInvalidState(block: StructureJsonBlockV1, definition: BlockDefinition): { readonly property: string; readonly value: string; readonly reason: string } | undefined {
+function findInvalidState(block: StructureJsonBlockV1, definition: BlockDefinition): { readonly property: string; readonly value: string; readonly reason: StructureJsonIssueReason } | undefined {
   const state = { ...definition.defaultState, ...(block.state ?? {}) };
   for (const property of Object.keys(block.state ?? {})) {
     const stateDefinition = definition.stateDefinitions.find((entry) => entry.name === property);
-    if (!stateDefinition) return { property, value: block.state?.[property] ?? '', reason: `Unknown state property '${property}'.` };
-    if (!stateDefinition.values.includes(state[property])) return { property, value: state[property], reason: `Unsupported value '${state[property]}' for '${property}'.` };
+    if (!stateDefinition) return { property, value: block.state?.[property] ?? '', reason: { code: 'unknown-state-property', property } };
+    if (!stateDefinition.values.includes(state[property])) return { property, value: state[property], reason: { code: 'unsupported-state-value', property, value: state[property] } };
   }
-  for (const definitionEntry of definition.stateDefinitions) if (state[definitionEntry.name] !== undefined && !definitionEntry.values.includes(state[definitionEntry.name])) return { property: definitionEntry.name, value: state[definitionEntry.name], reason: `Unsupported value '${state[definitionEntry.name]}' for '${definitionEntry.name}'.` };
+  for (const definitionEntry of definition.stateDefinitions) if (state[definitionEntry.name] !== undefined && !definitionEntry.values.includes(state[definitionEntry.name])) return { property: definitionEntry.name, value: state[definitionEntry.name], reason: { code: 'unsupported-state-value', property: definitionEntry.name, value: state[definitionEntry.name] } };
   return undefined;
 }
 
-function issue(category: StructureJsonIssueCategory, index: number, block: StructureJsonBlockV1, reason: string): StructureJsonBlockIssue { return { category, index, id: block.id, position: { x: block.x, y: block.y, z: block.z }, reason }; }
+function issue(category: StructureJsonIssueCategory, index: number, block: StructureJsonBlockV1, reason: StructureJsonIssueReason): StructureJsonBlockIssue { return { category, index, id: block.id, position: { x: block.x, y: block.y, z: block.z }, reason }; }
 function emptyPreview(code?: StructureJsonValidationCode): StructureJsonValidationPreview { return { structuralValid: false, structuralCode: code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0, issues: emptyIssues() }; }
 function yieldToBrowser(): Promise<void> { return new Promise((resolve) => setTimeout(resolve, 0)); }

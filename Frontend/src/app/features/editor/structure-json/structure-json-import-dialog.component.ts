@@ -1,6 +1,6 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, inject, input, output, signal } from '@angular/core';
-import { LucideCheck, LucideUpload, LucideX } from '@lucide/angular';
+import { LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideTriangleAlert, LucideUpload, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonValidationPreview, validateParsedStructureJsonPreview } from '../../../core/persistence/structure-json/structure-json-import';
@@ -9,7 +9,7 @@ import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.direct
 
 @Component({
   selector: 'app-structure-json-import-dialog',
-  imports: [CdkTrapFocus, LucideCheck, LucideUpload, LucideX, UiTooltipDirective],
+  imports: [CdkTrapFocus, LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideTriangleAlert, LucideUpload, LucideX, UiTooltipDirective],
   templateUrl: './structure-json-import-dialog.component.html',
   styleUrl: './structure-json-import-dialog.component.scss',
   host: { '(document:keydown.escape)': 'close()' },
@@ -55,5 +55,6 @@ export class StructureJsonImportDialogComponent {
   protected moreIssueCount(category: 'missing' | 'bounds' | 'state'): number { return Math.max(0, this.issueCount(category) - 12); }
   protected moreDuplicateCount(): number { return Math.max(0, this.issueCount('duplicate') - 12); }
   protected moreIssueLabel(category: 'missing' | 'bounds' | 'state'): string { return this.i18n.t('structureJsonMoreIssues').replace('{count}', `${this.moreIssueCount(category)}`); }
+  protected reasonLabel(issue: StructureJsonBlockIssue): string { const reason = issue.reason; const key = reason.code === 'missing-block' ? 'structureJsonReasonMissingBlock' : reason.code === 'out-of-bounds' ? 'structureJsonReasonOutOfBounds' : reason.code === 'unknown-state-property' ? 'structureJsonReasonUnknownStateProperty' : 'structureJsonReasonUnsupportedStateValue'; return this.i18n.t(key); }
   protected structuralMessage(): string { const code = this.preview()?.structuralCode; const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'block' ? 'structureJsonValidationBlock' : 'structureJsonValidationShape'; return this.i18n.t(key); }
 }

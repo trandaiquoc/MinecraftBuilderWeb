@@ -16,6 +16,8 @@ describe('Structure JSON import validation preview', () => {
     expect(result.duplicateCoordinates).toBe(1);
     expect(result.affectedDuplicateBlocks).toBe(2);
     expect(result.outOfBounds).toBe(1);
+    expect(result.issues.missing[0].reason).toEqual({ code: 'missing-block' });
+    expect(result.issues.bounds[0].reason).toEqual({ code: 'out-of-bounds' });
   });
 
   it('excludes every block in a duplicate coordinate group from valid blocks', () => {
@@ -38,6 +40,16 @@ describe('Structure JSON import validation preview', () => {
     expect(result.invalidStates).toBe(1);
     expect(result.missingBlocks).toBe(1);
     expect(result.issues.missing[0].id).toBe('mod:missing');
+    expect(result.issues.state[0].reason).toEqual({ code: 'unsupported-state-value', property: 'facing', value: 'west' });
+    expect(result.issues.state[0].property).toBe('facing');
+    expect(result.issues.state[0].value).toBe('west');
+  });
+
+  it('returns structured data for unknown state properties without localized prose', () => {
+    const result = validateStructureJsonPreview(json([{ id: 'minecraft:oak_stairs', x: 0, y: 0, z: 0, state: { custom: 'value' } }]), size, (id) => id === stairs.id ? stairs : undefined);
+    expect(result.invalidStates).toBe(1);
+    expect(result.issues.state[0].reason).toEqual({ code: 'unknown-state-property', property: 'custom' });
+    expect(result.issues.state[0].reason).not.toHaveProperty('message');
   });
 
   it('reports structural errors without consulting the catalog', () => {
