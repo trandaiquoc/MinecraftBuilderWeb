@@ -3,7 +3,7 @@ import { Component, inject, input, output, signal } from '@angular/core';
 import { LucideCheck, LucideUpload, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
-import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonValidationPreview, validateParsedStructureJsonPreview } from '../../../core/persistence/structure-json/structure-json-import';
+import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonValidationPreview, validateParsedStructureJsonPreview } from '../../../core/persistence/structure-json/structure-json-import';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
@@ -39,7 +39,7 @@ export class StructureJsonImportDialogComponent {
     this.progress.set('parsing');
     const parsed = await parseStructureJsonWithWorker(this.draftJson());
     if (generation !== this.validationGeneration) return;
-    if (!parsed.valid || !parsed.value) { this.preview.set({ structuralValid: false, structuralCode: parsed.code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, issues: { missing: [], bounds: [], state: [], duplicate: [] } }); this.progress.set('complete'); return; }
+    if (!parsed.valid || !parsed.value) { this.preview.set({ structuralValid: false, structuralCode: parsed.code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0, issues: { missing: [], bounds: [], state: [], duplicate: [] } }); this.progress.set('complete'); return; }
     this.progress.set('checking');
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     if (generation !== this.validationGeneration) return;
@@ -48,9 +48,12 @@ export class StructureJsonImportDialogComponent {
     this.preview.set(result); this.progress.set('complete');
   }
   protected progressLabel(): string { return this.i18n.t(`structureJsonProgress${this.progress()[0].toUpperCase()}${this.progress().slice(1)}`); }
-  protected issueGroups(): readonly { readonly category: keyof StructureJsonValidationPreview['issues']; readonly label: string }[] { return [{ category: 'missing', label: this.i18n.t('structureJsonMissingBlocks') }, { category: 'bounds', label: this.i18n.t('structureJsonOutOfBounds') }, { category: 'state', label: this.i18n.t('structureJsonInvalidStates') }, { category: 'duplicate', label: this.i18n.t('structureJsonDuplicateCoordinates') }]; }
-  protected issues(category: keyof StructureJsonValidationPreview['issues']): readonly StructureJsonBlockIssue[] { return (this.preview()?.issues[category] ?? []).slice(0, 12); }
-  protected moreIssueCount(category: keyof StructureJsonValidationPreview['issues']): number { return Math.max(0, (this.preview()?.issues[category].length ?? 0) - 12); }
-  protected moreIssueLabel(category: keyof StructureJsonValidationPreview['issues']): string { return this.i18n.t('structureJsonMoreIssues').replace('{count}', `${this.moreIssueCount(category)}`); }
+  protected issueGroups(): readonly { readonly category: 'missing' | 'bounds' | 'state'; readonly label: string }[] { return [{ category: 'missing', label: this.i18n.t('structureJsonMissingBlocks') }, { category: 'bounds', label: this.i18n.t('structureJsonOutOfBounds') }, { category: 'state', label: this.i18n.t('structureJsonInvalidStates') }]; }
+  protected issues(category: 'missing' | 'bounds' | 'state'): readonly StructureJsonBlockIssue[] { return (this.preview()?.issues[category] ?? []).slice(0, 12); }
+  protected duplicateConflicts(): readonly StructureJsonCoordinateConflict[] { return (this.preview()?.issues.duplicate ?? []).slice(0, 12); }
+  protected issueCount(category: 'missing' | 'bounds' | 'state' | 'duplicate'): number { return this.preview()?.issues[category].length ?? 0; }
+  protected moreIssueCount(category: 'missing' | 'bounds' | 'state'): number { return Math.max(0, this.issueCount(category) - 12); }
+  protected moreDuplicateCount(): number { return Math.max(0, this.issueCount('duplicate') - 12); }
+  protected moreIssueLabel(category: 'missing' | 'bounds' | 'state'): string { return this.i18n.t('structureJsonMoreIssues').replace('{count}', `${this.moreIssueCount(category)}`); }
   protected structuralMessage(): string { const code = this.preview()?.structuralCode; const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'block' ? 'structureJsonValidationBlock' : 'structureJsonValidationShape'; return this.i18n.t(key); }
 }

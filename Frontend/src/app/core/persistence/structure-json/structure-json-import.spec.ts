@@ -11,10 +11,26 @@ describe('Structure JSON import validation preview', () => {
   it('classifies valid, missing, duplicate and out-of-bounds blocks in one pass', () => {
     const result = validateStructureJsonPreview(json([{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }, { id: 'mod:missing', x: 1, y: 0, z: 0 }, { id: 'minecraft:stone', x: 0, y: 0, z: 0 }, { id: 'minecraft:stone', x: 2, y: 0, z: 0 }]), size, (id) => id === stone.id ? stone : undefined);
     expect(result.structuralValid).toBe(true);
-    expect(result.validBlocks).toBe(1);
+    expect(result.validBlocks).toBe(0);
     expect(result.missingBlocks).toBe(1);
     expect(result.duplicateCoordinates).toBe(1);
+    expect(result.affectedDuplicateBlocks).toBe(2);
     expect(result.outOfBounds).toBe(1);
+  });
+
+  it('excludes every block in a duplicate coordinate group from valid blocks', () => {
+    const result = validateStructureJsonPreview(json([{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }, { id: 'minecraft:stone', x: 0, y: 0, z: 0 }, { id: 'minecraft:stone', x: 0, y: 0, z: 0 }]), size, () => stone);
+    expect(result.validBlocks).toBe(0);
+    expect(result.duplicateCoordinates).toBe(1);
+    expect(result.affectedDuplicateBlocks).toBe(3);
+    expect(result.issues.duplicate[0].blockIndexes).toEqual([0, 1, 2]);
+  });
+
+  it('keeps two unique valid blocks fully valid', () => {
+    const result = validateStructureJsonPreview(json([{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }, { id: 'minecraft:stone', x: 1, y: 0, z: 0 }]), size, () => stone);
+    expect(result.totalBlocks).toBe(2);
+    expect(result.validBlocks).toBe(2);
+    expect(result.missingBlocks + result.outOfBounds + result.invalidStates + result.duplicateCoordinates).toBe(0);
   });
 
   it('validates known state overrides while preserving missing block state', () => {

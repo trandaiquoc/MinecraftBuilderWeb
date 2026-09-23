@@ -6,16 +6,21 @@
         <h3>{{ i18n.t('structureJsonValidationPreview') }}</h3>
         @if (preview(); as result) {
           @if (!result.structuralValid) { <p class="status-error" role="alert">{{ structuralMessage() }}</p> }
-          <dl>
+          <dl class="validation-summary">
             <div><dt>{{ i18n.t('structureJsonStructure') }}</dt><dd>{{ result.parsed?.name || i18n.t('untitledStructure') }}</dd></div>
-            <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ result.parsed?.minecraftVersion || '—' }}</dd></div>
+            <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ result.parsed?.minecraftVersion || 'n/a' }}</dd></div>
             <div><dt>{{ i18n.t('structureJsonTotalBlocks') }}</dt><dd>{{ result.totalBlocks }}</dd></div>
-            <div><dt>{{ i18n.t('structureJsonValidBlocks') }}</dt><dd class="status-success">{{ result.validBlocks }}</dd></div>
-            @for (group of issueGroups(); track group.category) { <div><dt>{{ group.label }}</dt><dd [class.status-warning]="group.category === 'missing'" [class.status-error]="group.category !== 'missing'">{{ result.issues[group.category].length }}</dd></div> }
+            <div class="status-row success"><dt><span class="status-marker">&#10003;</span>{{ i18n.t('structureJsonValidBlocks') }}</dt><dd>{{ result.validBlocks }}</dd></div>
+            <div class="status-row warning"><dt><span class="status-marker">?</span>{{ i18n.t('structureJsonMissingBlocks') }}</dt><dd>{{ result.missingBlocks }}</dd></div>
+            <div class="status-row danger"><dt><span class="status-marker">!</span>{{ i18n.t('structureJsonOutOfBounds') }}</dt><dd>{{ result.outOfBounds }}</dd></div>
+            <div class="status-row danger"><dt><span class="status-marker">!</span>{{ i18n.t('structureJsonInvalidStates') }}</dt><dd>{{ result.invalidStates }}</dd></div>
+            <div class="status-row danger"><dt><span class="status-marker">!</span>{{ i18n.t('structureJsonDuplicateCoordinates') }}</dt><dd>{{ result.duplicateCoordinates }}</dd></div>
+            @if (result.affectedDuplicateBlocks > 0) { <div class="status-row danger secondary-row"><dt>{{ i18n.t('structureJsonAffectedDuplicateBlocks') }}</dt><dd>{{ result.affectedDuplicateBlocks }}</dd></div> }
           </dl>
           @for (group of issueGroups(); track group.category) {
-            @if (issues(group.category).length) { <section class="issue-group"><h4>{{ group.label }}</h4><ul>@for (item of issues(group.category); track item.index + item.category) { <li><code>#{{ item.index }} {{ item.id }}</code><span>{{ item.position.x }}, {{ item.position.y }}, {{ item.position.z }} · {{ item.reason }}</span></li>}</ul>@if (moreIssueCount(group.category) > 0) { <small>{{ moreIssueLabel(group.category) }}</small> }</section> }
+            @if (issues(group.category).length) { <details class="issue-group" open><summary><span>{{ group.label }}</span><strong>{{ issueCount(group.category) }}</strong></summary><ul>@for (item of issues(group.category); track item.index + item.category) { <li><strong>#{{ item.index }} <code>{{ item.id }}</code></strong><span class="issue-coordinate">X {{ item.position.x }} - Y {{ item.position.y }} - Z {{ item.position.z }}</span>@if (item.property) { <span class="issue-state"><code>{{ item.property }}</code> = <code>{{ item.value }}</code></span> }<span class="issue-reason">{{ item.reason }}</span></li>}</ul>@if (moreIssueCount(group.category) > 0) { <small>{{ moreIssueLabel(group.category) }}</small> }</details> }
           }
+          @if (duplicateConflicts().length) { <details class="issue-group" open><summary><span>{{ i18n.t('structureJsonDuplicateCoordinates') }}</span><strong>{{ issueCount('duplicate') }}</strong></summary>@for (conflict of duplicateConflicts(); track conflict.coordinate.x + ',' + conflict.coordinate.y + ',' + conflict.coordinate.z) { <div class="duplicate-conflict"><strong>X {{ conflict.coordinate.x }} - Y {{ conflict.coordinate.y }} - Z {{ conflict.coordinate.z }}</strong><span>{{ conflict.blockIndexes.length }} {{ i18n.t('structureJsonAffectedBlocksShort') }}</span>@for (index of conflict.blockIndexes; track index) { <code>#{{ index }} {{ conflict.blockIds[$index] }}</code> }</div> }@if (moreDuplicateCount() > 0) { <small>{{ i18n.t('structureJsonMoreIssues').replace('{count}', `${moreDuplicateCount()}`) }}</small> }</details> }
         } @else { <p class="muted">{{ i18n.t('structureJsonValidatePrompt') }}</p> }
       </aside>
       <section class="structure-json-workspace">
