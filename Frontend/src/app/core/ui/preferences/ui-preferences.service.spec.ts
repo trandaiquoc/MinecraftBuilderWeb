@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { UiPreferencesService } from './ui-preferences.service';
+import { blockBrightnessStopPercent, UiPreferencesService } from './ui-preferences.service';
 
 const key = 'minecraft-builder.ui-preferences';
 const legacyKey = 'minecraft-builder.editor-layout';
@@ -35,6 +35,12 @@ describe('UiPreferencesService', () => {
     expect(new UiPreferencesService().preferences().accessibility.blockBrightness).toBe(10);
     localStorage.setItem(key, JSON.stringify({ accessibility: { blockBrightness: 'bright' } }));
     expect(new UiPreferencesService().preferences().accessibility.blockBrightness).toBe(3);
+  });
+
+  it('positions the default brightness marker from its numeric value', () => {
+    expect(blockBrightnessStopPercent(0)).toBe(0);
+    expect(blockBrightnessStopPercent(3)).toBe(30);
+    expect(blockBrightnessStopPercent(10)).toBe(100);
   });
 
   it('persists accessibility updates and restores its defaults independently', () => {

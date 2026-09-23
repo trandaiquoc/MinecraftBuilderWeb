@@ -97,7 +97,7 @@
             <label class="range-setting brightness-setting">
               <span><span>{{ i18n.t('blockBrightness') }}</span><output>{{ draft().accessibility.blockBrightness }}</output></span>
               <input type="range" min="0" max="10" step="1" [value]="draft().accessibility.blockBrightness" (input)="setBlockBrightness($any($event.target).value)" [attr.aria-label]="i18n.t('blockBrightness')" />
-              <span class="brightness-stops" aria-hidden="true"><span><strong>0</strong><small>{{ i18n.t('brightnessVanilla') }}</small></span><span><strong>3</strong><small>{{ i18n.t('brightnessDefault') }}</small></span><span><strong>10</strong><small>{{ i18n.t('brightnessMaximum') }}</small></span></span>
+              <span class="brightness-stops" [style.--default-stop]="brightnessDefaultStop()" aria-hidden="true"><span><strong>0</strong><small>{{ i18n.t('brightnessVanilla') }}</small></span><span><strong>{{ defaultBlockBrightness() }}</strong><small>{{ i18n.t('brightnessDefault') }}</small></span><span><strong>10</strong><small>{{ i18n.t('brightnessMaximum') }}</small></span></span>
               <small>{{ i18n.t('blockBrightnessHint') }}</small>
             </label>
             <button type="button" class="section-reset" (click)="restoreAccessibilityDefaults()">{{ i18n.t('restoreDefaults') }}</button>

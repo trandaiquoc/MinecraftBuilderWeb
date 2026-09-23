@@ -1,7 +1,7 @@
 import { Component, computed, inject, output, signal } from '@angular/core';
 import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, UiFontSize, BaseTheme } from '../../../../core/ui/preferences/ui-preferences.service';
+import { blockBrightnessStopPercent, UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, UiFontSize, BaseTheme } from '../../../../core/ui/preferences/ui-preferences.service';
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
@@ -71,6 +71,8 @@ export class SettingsDialogComponent {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) this.updateDraft({ accessibility: { blockBrightness: Math.min(10, Math.max(0, Math.round(numeric))) } });
   }
+  protected brightnessDefaultStop(): string { return `${blockBrightnessStopPercent(this.preferences.defaultPreferences().accessibility.blockBrightness)}%`; }
+  protected defaultBlockBrightness(): number { return this.preferences.defaultPreferences().accessibility.blockBrightness; }
   protected setControl(key: keyof UiPreferences['controls'], value: string): void {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return;

@@ -163,6 +163,11 @@ export function normalizeBlockBrightness(value: unknown): number {
   return Math.min(10, Math.max(0, Math.round(value)));
 }
 
+export function blockBrightnessStopPercent(value: number, max = 10): number {
+  if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return 0;
+  return Math.min(100, Math.max(0, (value / max) * 100));
+}
+
 function isLocale(value: unknown): value is UiLocale { return value === 'en' || value === 'vi'; }
 function isPreset(value: unknown): value is ThemePreset { return value === 'dark' || value === 'light' || value === 'craft' || value === 'custom'; }
 function isBase(value: unknown): value is BaseTheme { return value === 'dark' || value === 'light'; }
