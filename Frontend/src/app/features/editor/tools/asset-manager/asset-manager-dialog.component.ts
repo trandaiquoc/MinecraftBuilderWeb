@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, output, signal } from '@angular/core';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
-import { LucideArrowLeft, LucideTrash2, LucideX } from '@lucide/angular';
+import { LucideArrowLeft, LucideChevronDown, LucideChevronUp, LucideTrash2, LucideX } from '@lucide/angular';
 import { VanillaAssetsService, ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
 import type { ModImportDiagnostic, ModImportReport } from '../../../../core/assets/mod/external-mod-provider';
@@ -10,10 +10,11 @@ import { SupportedModLoader } from '../../../../core/assets/mod/mod-loader';
 import { AssetActivityEntry, AssetActivityProgress } from '../../../../core/assets/asset-activity.service';
 import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
+import { JarUploadValidationError, validateJarUpload } from '../../../../core/assets/mod/jar-upload-validation';
 
 type AssetManagerTab = 'vanilla' | 'mods';
 type DiagnosticDialogState = { readonly modName: string; readonly kind: 'warning' | 'blocking'; readonly diagnostics: readonly ModImportDiagnostic[] };
-const phases: readonly ModImportProgress['phase'][] = ['opening-archive', 'reading-metadata', 'checking-compatibility', 'indexing-resources', 'extracting-resources', 'discovering-blocks', 'discovering-items', 'discovering-decorations', 'evaluating-behavior', 'checking-conflicts', 'saving-cache', 'activating'];
+const phases: readonly ModImportProgress['phase'][] = ['opening-archive', 'reading-metadata', 'checking-compatibility', 'indexing-resources', 'extracting-resources', 'discovering-blocks', 'discovering-items', 'discovering-decorations', 'evaluating-behavior', 'checking-conflicts', 'saving-cache', 'finalizing-cache', 'activating'];
 export type ImportStage = 'reading' | 'compatibility' | 'resources' | 'content' | 'validation' | 'import';
 export const importStages: readonly { readonly id: ImportStage; readonly phases: readonly ModImportProgress['phase'][]; readonly label: string }[] = [
   { id: 'reading', phases: ['opening-archive', 'reading-metadata'], label: 'assetManagerReadingJar' },
@@ -21,7 +22,7 @@ export const importStages: readonly { readonly id: ImportStage; readonly phases:
   { id: 'resources', phases: ['indexing-resources', 'extracting-resources'], label: 'assetManagerResourcesStage' },
   { id: 'content', phases: ['discovering-blocks', 'discovering-items', 'discovering-decorations', 'evaluating-behavior'], label: 'assetManagerDiscoveringContent' },
   { id: 'validation', phases: ['checking-conflicts'], label: 'assetManagerValidationStage' },
-  { id: 'import', phases: ['saving-cache', 'activating'], label: 'assetManagerImportStage' },
+  { id: 'import', phases: ['saving-cache', 'finalizing-cache', 'activating'], label: 'assetManagerImportStage' },
 ];
 
 export function filterAssetActivity(entries: readonly AssetActivityEntry[], tab: 'vanilla' | 'mods'): readonly AssetActivityEntry[] {
@@ -36,7 +37,13 @@ export function compactContentCount(imported: number, detected: number, label: s
   return imported === detected ? `${imported} ${label}` : `${imported} / ${detected} ${label}`;
 }
 
-@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideTrash2, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
+export function progressPercentForProgress(progress: Pick<ModImportProgress, 'processed' | 'total'>): number | undefined {
+  return progress.total && progress.total > 0 && progress.processed !== undefined
+    ? Math.min(100, Math.max(0, progress.processed / progress.total * 100))
+    : undefined;
+}
+
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideChevronDown, LucideChevronUp, LucideTrash2, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(VanillaAssetsService);
@@ -85,8 +92,9 @@ export class AssetManagerDialogComponent {
   protected toggleHelp(): void { this.helpOpen.update((open) => !open); }
   protected closeHelp(): void { this.helpOpen.set(false); }
   protected openJarPicker(input: HTMLInputElement): void { if (this.importing() || this.assets.status() === 'importing') return; input.value = ''; const picker = input as HTMLInputElement & { showPicker?: () => void }; if (typeof picker.showPicker === 'function') { try { picker.showPicker(); return; } catch { /* native click fallback */ } } input.click(); }
-  protected async importJar(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; const confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerManualImportConfirmTitle'), text: this.i18n.t('assetManagerManualImportConfirmText').replace('{version}', this.assets.activeVersion()), confirmButtonText: this.i18n.t('assetManagerImport'), cancelButtonText: this.i18n.t('cancel') }); if (!confirmed) { input.value = ''; return; } this.importing.set(true); try { await this.assets.importJar(file); } finally { this.importing.set(false); input.value = ''; } }
-  protected async inspectMod(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file || this.importing()) return; this.cancelPreflight(); this.importing.set(true); this.modError.set(''); this.preflightError.set(''); this.preflightProgress.set(undefined); try { const prepared = await this.assets.inspectModJar(file, (progress) => this.preflightProgress.set(progress)); this.preflight.set(prepared); this.preflightIconUrl.set(this.createPreflightIcon(prepared)); } catch (error) { this.preflightError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); } finally { this.importing.set(false); input.value = ''; } }
+  protected async importJar(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; try { validateJarUpload(file); } catch (error) { this.modError.set(this.jarValidationMessage(error)); input.value = ''; return; } const confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerManualImportConfirmTitle'), text: this.i18n.t('assetManagerManualImportConfirmText').replace('{version}', this.assets.activeVersion()), confirmButtonText: this.i18n.t('assetManagerImport'), cancelButtonText: this.i18n.t('cancel') }); if (!confirmed) { input.value = ''; return; } this.importing.set(true); try { await this.assets.importJar(file); } finally { this.importing.set(false); input.value = ''; } }
+  protected async inspectMod(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file || this.importing()) return; try { validateJarUpload(file); } catch (error) { this.preflightError.set(this.jarValidationMessage(error)); input.value = ''; return; } this.cancelPreflight(); this.importing.set(true); this.modError.set(''); this.preflightError.set(''); this.preflightProgress.set(undefined); try { const prepared = await this.assets.inspectModJar(file, (progress) => this.preflightProgress.set(progress)); this.preflight.set(prepared); this.preflightIconUrl.set(this.createPreflightIcon(prepared)); } catch (error) { this.preflightError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); } finally { this.importing.set(false); input.value = ''; } }
+  private jarValidationMessage(error: unknown): string { if (error instanceof JarUploadValidationError) return this.i18n.t(error.code === 'jar-extension' ? 'assetManagerJarOnly' : 'assetManagerJarTooLarge'); return error instanceof Error ? error.message : this.i18n.t('assetManagerImportError'); }
   protected async confirmModImport(): Promise<void> { const prepared = this.preflight(); if (!prepared || !prepared.canActivate || this.importing()) return; this.importing.set(true); this.modError.set(''); try { await this.assets.commitPreparedModImport(prepared, (progress) => this.preflightProgress.set(progress)); this.preflight.set(undefined); this.preflightProgress.set(undefined); this.modSearch.set(''); } catch (error) { this.modError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); } finally { prepared.dispose(); this.revokePreflightIcon(); this.importing.set(false); } }
   protected cancelPreflight(): void { const prepared = this.preflight(); if (prepared) prepared.dispose(); this.revokePreflightIcon(); this.preflight.set(undefined); this.preflightProgress.set(undefined); this.preflightError.set(''); }
   protected async removeMod(mod: ImportedModSummary): Promise<void> { if (this.removing()) return; this.confirming.set(true); let confirmed = false; try { confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerRemoveModTitle'), text: this.i18n.t('assetManagerRemoveModText').replace('{name}', mod.displayName), confirmButtonText: this.i18n.t('remove'), cancelButtonText: this.i18n.t('cancel'), destructive: true }); } finally { this.confirming.set(false); } if (!confirmed) return; this.removing.set(mod.sourceId); try { await this.assets.removeMod(mod.sourceId); if (this.detailsSourceId() === mod.sourceId) this.closeDetails(); } finally { this.removing.set(undefined); } }
@@ -98,7 +106,7 @@ export class AssetManagerDialogComponent {
   protected formatBytes(value: number): string { return value < 1024 * 1024 ? `${Math.round(value / 1024)} KB` : `${(value / (1024 * 1024)).toFixed(1)} MB`; }
   private withActivityProgress(entry: AssetActivityEntry): AssetActivityEntry { const phase = phases.includes(entry.message as ModImportProgress['phase']) ? this.phaseLabel(entry.message as ModImportProgress['phase']) : entry.message; return { ...entry, message: entry.progress ? `${phase} · ${this.activityProgressLabel(entry.progress, entry.message === 'opening-archive')}` : phase }; }
   private activityProgressLabel(progress: AssetActivityProgress, bytes: boolean): string { const loaded = progress.total !== undefined && progress.total > 0 ? `${bytes ? this.formatBytes(progress.loaded) : progress.loaded} / ${bytes ? this.formatBytes(progress.total) : progress.total}` : `${progress.loaded}`; return progress.total !== undefined && progress.total > 0 ? `${loaded} (${Math.round(progress.loaded / progress.total * 100)}%)` : loaded; }
-  protected progressPercent(progress: ModImportProgress): number | undefined { return progress.total && progress.total > 0 && progress.processed !== undefined ? Math.min(100, Math.max(0, progress.processed / progress.total * 100)) : undefined; }
+  protected progressPercent(progress: ModImportProgress): number | undefined { return progressPercentForProgress(progress); }
   protected progressDetail(progress: ModImportProgress): string { return progress.processed !== undefined && progress.total !== undefined ? `${progress.phase === 'opening-archive' ? `${this.formatBytes(progress.processed)} / ${this.formatBytes(progress.total)}` : `${progress.processed} / ${progress.total}`} · ${this.progressPercent(progress)?.toFixed(0) ?? 0}%` : this.i18n.t('assetManagerWorking'); }
   protected formatTime(timestamp: number): string { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(timestamp); }
   protected statusLabel(): string { const status = this.assets.status(); return status === 'ready' ? this.i18n.t('assetsReady') : status === 'importing' || status === 'downloading' || status === 'loading-cache' ? this.i18n.t('loadingAssets') : status === 'offline' ? this.i18n.t('assetsOffline') : status === 'unsupported-format' ? this.i18n.t('assetsUnsupportedFormat') : status === 'no-assets' ? this.i18n.t('noAssets') : this.i18n.t('importRequired'); }

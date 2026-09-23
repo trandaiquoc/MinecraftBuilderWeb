@@ -2,7 +2,7 @@
   <section class="shortcuts-help-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('controlsShortcuts')" tabindex="-1" autofocus (keydown)="trapFocus($event)">
     <header>
       <h2>{{ i18n.t('controlsShortcuts') }}</h2>
-      <button type="button" class="help-close" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button>
+      <button type="button" class="help-close ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button>
     </header>
     <div class="shortcuts-help-body">
       <section class="help-section">

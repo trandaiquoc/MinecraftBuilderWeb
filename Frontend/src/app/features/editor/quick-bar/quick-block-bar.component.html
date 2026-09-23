@@ -7,7 +7,7 @@
       @for (entry of entries(); track entry.key; let index = $index) {
         <div class="slot" [class.active]="entry.active">
           <button type="button" class="slot-select" [attr.aria-pressed]="entry.active" (click)="quick.select(entry)" [attr.title]="entry.displayName + ' · ' + entry.id"><span>@if (entry.thumbnail) { <img [src]="entry.thumbnail" alt="" /> } @else { ◇ }</span><small>{{ index === 9 ? 0 : index + 1 }}</small></button>
-          <button type="button" class="slot-remove" uiTooltip="{{ i18n.t('removeFromQuickBar') }}" (click)="quick.remove(index)" [attr.aria-label]="i18n.t('removeFromQuickBar')"><svg lucideX aria-hidden="true"></svg></button>
+          <button type="button" class="slot-remove ui-close-button" uiTooltip="{{ i18n.t('removeFromQuickBar') }}" (click)="quick.remove(index)" [attr.aria-label]="i18n.t('removeFromQuickBar')"><svg lucideX aria-hidden="true"></svg></button>
         </div>
       } @empty { <small class="empty">{{ i18n.t('addActiveBlockHint') }}</small> }
     </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AssetActivityEntry } from '../../../../core/assets/asset-activity.service';
-import { compactContentCount, filterAssetActivity, importStageForPhase } from './asset-manager-dialog.component';
+import { compactContentCount, filterAssetActivity, importStageForPhase, progressPercentForProgress } from './asset-manager-dialog.component';
 
 const entry = (category: AssetActivityEntry['category'], id: number): AssetActivityEntry => ({ id, timestamp: id, category, level: 'info', operation: `op-${id}`, message: `message-${id}` });
 
@@ -16,11 +16,19 @@ describe('Asset Manager presentation logic', () => {
     expect(importStageForPhase('extracting-resources')).toBe('resources');
     expect(importStageForPhase('discovering-items')).toBe('content');
     expect(importStageForPhase('checking-conflicts')).toBe('validation');
+    expect(importStageForPhase('finalizing-cache')).toBe('import');
     expect(importStageForPhase('activating')).toBe('import');
   });
 
   it('compacts equal counts while preserving ratios for partial imports', () => {
     expect(compactContentCount(355, 355, 'Blocks')).toBe('355 Blocks');
     expect(compactContentCount(340, 355, 'Blocks')).toBe('340 / 355 Blocks');
+  });
+
+  it('reports determinate progress at 25, 50 and 100 percent', () => {
+    expect(progressPercentForProgress({ processed: 1, total: 4 })).toBe(25);
+    expect(progressPercentForProgress({ processed: 1, total: 2 })).toBe(50);
+    expect(progressPercentForProgress({ processed: 4, total: 4 })).toBe(100);
+    expect(progressPercentForProgress({ processed: undefined, total: undefined })).toBeUndefined();
   });
 });

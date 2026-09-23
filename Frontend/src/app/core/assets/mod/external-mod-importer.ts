@@ -2,13 +2,14 @@ import { ZipArchive } from '../archive/zip-archive';
 import { ExternalModProvider, isModConflictDiagnostic, ModImportDiagnostic, ModImportReport, SupportedModLoader } from './external-mod-provider';
 import { detectLoader, NormalizedModMetadata } from './mod-loader';
 import { yieldToBrowser } from '../cooperative-yield';
+import { validateJarUpload } from './jar-upload-validation';
 
 const RETAINED_RESOURCE_PATH = /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;
 const MAX_RETAINED_BYTES = 256 * 1024 * 1024;
 const BATCH_SIZE = 32;
 
 export interface ModImportProgress {
-  readonly phase: 'opening-archive' | 'reading-metadata' | 'checking-compatibility' | 'indexing-resources' | 'extracting-resources' | 'discovering-blocks' | 'discovering-items' | 'discovering-decorations' | 'evaluating-behavior' | 'checking-conflicts' | 'saving-cache' | 'activating';
+  readonly phase: 'opening-archive' | 'reading-metadata' | 'checking-compatibility' | 'indexing-resources' | 'extracting-resources' | 'discovering-blocks' | 'discovering-items' | 'discovering-decorations' | 'evaluating-behavior' | 'checking-conflicts' | 'saving-cache' | 'finalizing-cache' | 'activating';
   readonly processed?: number;
   readonly total?: number;
   readonly blocksDetected?: number;
@@ -39,6 +40,7 @@ export interface PreparedModImport {
 }
 
 export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void): Promise<PreparedModImport> {
+  validateJarUpload(file);
   onProgress?.({ phase: 'opening-archive', processed: 0, total: file.size });
   const archive = await ZipArchive.open(file, (processed, total) => onProgress?.({ phase: 'opening-archive', processed, total }));
   const diagnostics: ModImportDiagnostic[] = [];

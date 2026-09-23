@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CooperativeWorkBudget } from '../cooperative-yield';
 import { assessFabricCompatibility, ExternalModProvider, parseFabricModMetadata } from './external-mod-provider';
 
 const blockstate = { variants: { 'powered=false': { model: 'example:block/widget' }, 'powered=true': { model: 'example:block/widget' } } };
@@ -197,5 +198,17 @@ describe('ExternalModProvider', () => {
     expect(prepared).toBe(provider.catalog());
     expect(progress.at(-1)).toBe(2);
     expect(progress.every((value, index) => index === 0 || value >= progress[index - 1]!)).toBe(true);
+  });
+
+  it('cooperatively yields while preparing a large synthetic catalog', async () => {
+    const json = new Map<string, unknown>();
+    for (let index = 0; index < 65; index++) json.set(`assets/large/blockstates/block_${index}.json`, { variants: { '': { model: `large:block/block_${index}` } } });
+    const provider = ExternalModProvider.create({ metadata: { id: 'large', version: '1.0.0' }, json, resources: new Map() });
+    const progress: number[] = [];
+    await provider.prepareCatalog((value) => progress.push(value.processed));
+    expect(progress.at(-1)).toBe(65);
+    const budget = new CooperativeWorkBudget(10, 32);
+    expect(budget.shouldYield(31)).toBe(false);
+    expect(budget.shouldYield(32)).toBe(true);
   });
 });

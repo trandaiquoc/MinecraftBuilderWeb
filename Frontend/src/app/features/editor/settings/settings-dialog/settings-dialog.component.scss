@@ -4,8 +4,8 @@
 .settings-dialog-header, .settings-dialog-footer { display: flex; align-items: center; gap: .6rem; padding: .8rem 1rem; background: var(--surface-raised); }
 .settings-dialog-header { justify-content: space-between; border-bottom: 1px solid var(--border); }
 .settings-dialog-header h2 { margin: 0; font-size: 1rem; }
-.settings-close { width: 1.8rem; height: 1.8rem; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-size: 1.25rem; cursor: pointer; }
-.settings-close:hover { background: var(--surface-hover); color: var(--text); }
+.settings-close { width: 1.8rem; height: 1.8rem; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--danger); font-size: 1.25rem; cursor: pointer; }
+.settings-close:hover { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
 .settings-dialog-body { display: grid; grid-template-columns: 170px minmax(0, 1fr); min-height: 0; }
 .settings-nav { display: grid; align-content: start; gap: .25rem; padding: .75rem; border-right: 1px solid var(--border); background: var(--surface-muted); }
 .settings-nav button { border: 0; border-radius: var(--radius-sm); padding: .55rem .65rem; background: transparent; color: var(--text-muted); text-align: left; cursor: pointer; }

@@ -21,6 +21,7 @@ import { downloadCompatibilityReport } from './compatibility/compatibility-repor
 import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
 import { ThumbnailTaskPriority, ThumbnailTaskQueue } from './thumbnail-task-queue';
 import { yieldToBrowser } from '../cooperative-yield';
+import { validateJarUpload } from '../mod/jar-upload-validation';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -65,6 +66,7 @@ export class VanillaAssetsService {
   }
 
   async importJar(file: File): Promise<void> {
+    validateJarUpload(file);
     const request = ++this.loadRequest;
     const protection = this.activity.protect(`Importing ${file.name}`);
     this.status.set('importing'); this.message.set('');
@@ -93,7 +95,9 @@ export class VanillaAssetsService {
         const provider = commitModImport(prepared, (progress) => this.reportModProgress(progress));
         this.assertExternalSourceAvailable(provider);
         this.reportModProgress({ phase: 'saving-cache' });
-        await this.cache.saveExternalMod(await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total })));
+        const serialized = await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }));
+        this.reportModProgress({ phase: 'finalizing-cache' });
+        await this.cache.saveExternalMod(serialized);
         this.reportModProgress({ phase: 'activating' });
         this.activateExternal(provider);
         this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
@@ -157,7 +161,9 @@ export class VanillaAssetsService {
     const provider = commitModImport(prepared, reportProgress);
     this.assertExternalSourceAvailable(provider);
     reportProgress({ phase: 'saving-cache' });
-    await this.cache.saveExternalMod(await provider.serializeForCacheAsync((progress) => reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total })));
+    const serialized = await provider.serializeForCacheAsync((progress) => reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }));
+    reportProgress({ phase: 'finalizing-cache' });
+    await this.cache.saveExternalMod(serialized);
     reportProgress({ phase: 'activating' });
     this.activateExternal(provider);
     return provider.report;

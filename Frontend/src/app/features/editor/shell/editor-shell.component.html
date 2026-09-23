@@ -207,7 +207,7 @@
         >
           <header class="group-move-header" (pointerdown)="beginMovePanelDrag($event)">
             <strong>{{ i18n.t('moveGroup') }}: {{ active.name }}</strong>
-            <button type="button" class="group-move-close" uiTooltip="{{ i18n.t('hideMove') }}" [attr.aria-label]="i18n.t('hideMove')" (pointerdown)="$event.stopPropagation()" (click)="hideMovePanel()"><svg lucideX aria-hidden="true"></svg></button>
+            <button type="button" class="group-move-close ui-close-button" uiTooltip="{{ i18n.t('hideMove') }}" [attr.aria-label]="i18n.t('hideMove')" (pointerdown)="$event.stopPropagation()" (click)="hideMovePanel()"><svg lucideX aria-hidden="true"></svg></button>
           </header>
           <div class="move-offsets">
             <label
