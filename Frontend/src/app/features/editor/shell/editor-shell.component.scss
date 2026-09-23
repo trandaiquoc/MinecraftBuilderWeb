@@ -348,95 +348,6 @@
   color: var(--danger);
   font-size: 0.72rem;
 }
-.groups-panel {
-  display: grid;
-  gap: 0.55rem;
-}
-.group-create {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.35rem;
-}
-.group-search-field {
-  position: relative;
-}
-.group-search-field input {
-  padding-right: 1.8rem;
-}
-.group-search-field .group-search-clear {
-  position: absolute;
-  top: 50%;
-  right: 0.2rem;
-  width: 1.35rem;
-  height: 1.35rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  transform: translateY(-50%);
-  font-size: 0.95rem;
-  line-height: 1;
-}
-.group-empty-state {
-  margin: 0.25rem 0;
-  padding: 0.7rem 0.45rem;
-  border: 1px dashed var(--border);
-  border-radius: 4px;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  text-align: center;
-}
-.groups-panel input {
-  min-width: 0;
-  width: 100%;
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-  padding: 0.35rem;
-  background: var(--surface-raised);
-  color: var(--text);
-  font-size: 0.72rem;
-}
-.group-item {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  text-align: left;
-}
-.group-item.isolated {
-  border-color: var(--accent);
-}
-.group-item small {
-  color: var(--text-muted);
-}
-.active-group-controls {
-  display: grid;
-  gap: 0.45rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid var(--border);
-}
-.active-group-controls h3,
-.active-group-controls p {
-  margin: 0;
-}
-.active-group-controls h3 {
-  font-size: 0.8rem;
-}
-.active-group-controls p {
-  color: var(--text-muted);
-  font-size: 0.7rem;
-}
-.group-actions,
-.destructive-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-.destructive-actions {
-  padding-top: 0.35rem;
-  border-top: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-}
 .muted,
 .viewport-placeholder small {
   color: var(--text-muted);
@@ -584,65 +495,6 @@
 .brand {
   font-family: var(--font-ui);
 }
-.groups-panel {
-  gap: 0.7rem;
-  font-family: var(--font-ui);
-}
-.groups-panel .group-create input,
-.groups-panel .group-search-field input,
-.groups-panel .active-group-controls > input {
-  background: var(--surface-raised);
-  border: 0;
-  box-shadow: inset 0 0 0 1px var(--border);
-}
-.groups-panel .group-create > button,
-.groups-panel .group-actions button,
-.groups-panel .destructive-actions button {
-  border: 0;
-  background: var(--surface-raised);
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.18);
-}
-.groups-panel .group-create > button:hover:not(:disabled),
-.groups-panel .group-actions button:hover:not(:disabled) {
-  background: var(--surface-hover);
-}
-.group-item {
-  border: 0;
-  background: var(--surface-raised);
-  box-shadow: 0 2px 0 rgb(0 0 0 / 0.16);
-}
-.group-item:hover {
-  background: var(--surface-hover);
-}
-.group-item.active {
-  border: 0;
-  background: var(--control-selected);
-  color: var(--control-selected-text);
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.24);
-}
-.group-item.active small {
-  color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
-}
-.group-item.isolated {
-  box-shadow:
-    inset 0 0 0 2px var(--warning),
-    0 2px 0 rgb(0 0 0 / 0.16);
-}
-.group-item.active.isolated {
-  box-shadow:
-    inset 0 0 0 2px var(--warning),
-    0 4px 10px rgb(0 0 0 / 0.24);
-}
-.group-item:disabled {
-  opacity: 0.55;
-}
-.active-group-controls {
-  border-top: 0;
-  padding: 0.7rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
-  box-shadow: inset 0 0 0 1px var(--border);
-}
 .group-move-toolbar {
   border-color: var(--accent);
 }
@@ -723,29 +575,6 @@
 :host-context([data-theme='craft']) .tool-switch {
   border-right-color: var(--control-separator);
 }
-.groups-panel > .group-create {
-  padding-bottom: 0.35rem;
-  border-bottom: 1px solid var(--border);
-}
-.groups-panel > .group-search {
-  padding-bottom: 0.2rem;
-}
-.groups-panel .group-item {
-  min-height: 2.5rem;
-  align-content: center;
-}
-.groups-panel .group-item small {
-  font: 0.68rem/1.2 var(--font-ui);
-}
-.groups-panel .active-group-controls {
-  margin-top: 0.25rem;
-}
-.groups-panel .active-group-controls h3 {
-  font-family: var(--font-ui);
-}
-.groups-panel .destructive-actions {
-  margin-top: 0.1rem;
-}
 .group-move-toolbar {
   border-color: var(--accent);
   font-family: var(--font-ui);
@@ -760,7 +589,6 @@
   width: 0.9rem;
   height: 0.9rem;
 }
-.group-search-clear svg,
 .group-move-close svg {
   width: 0.85rem;
   height: 0.85rem;

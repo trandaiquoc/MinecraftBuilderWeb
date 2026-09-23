@@ -136,10 +136,16 @@
   overflow: auto;
   padding-right: 0.25rem;
 }
-.manager-pane p {
+.manager-description,
+.preflight-meta {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.4;
+}
+.manager-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.78rem;
 }
 .manager-activity {
   display: grid;
@@ -205,10 +211,6 @@
 }
 .fallback-card {
   border-left: 3px solid var(--text-muted);
-}
-.manager-error {
-  color: var(--danger);
-  font-size: 0.78rem;
 }
 .muted,
 .loader-summary,
@@ -521,6 +523,8 @@
   line-height: 1.35;
 }
 .preflight-ready span { font-size: 0.74rem; }
+.preflight-ready strong,
+.preflight-ready span { color: inherit; }
 .stage-dot,
 .stage-pending {
   display: inline-block;
@@ -676,7 +680,7 @@
   margin: 0;
   font-size: 0.82rem;
 }
-.details-body p {
+.details-secondary-copy {
   margin: 0.15rem 0 0;
   color: var(--text-muted);
   font-size: 0.74rem;

@@ -55,7 +55,7 @@
                 <h3>
                   {{ i18n.t('minecraftJavaVersion').replace('{version}', assets.activeVersion()) }}
                 </h3>
-                <p>{{ i18n.t('assetManagerVanilla') }}</p>
+                <p class="manager-description">{{ i18n.t('assetManagerVanilla') }}</p>
               </div>
             </div>
             <dl class="summary-grid">
@@ -145,7 +145,7 @@
             </div>
             <div class="fallback-card">
               <strong>{{ i18n.t('assetManagerManualFallback') }}</strong>
-              <p>
+              <p class="manager-description">
                 {{
                   i18n
                     .t('assetManagerManualImportConfirmText')
@@ -273,7 +273,7 @@
                         prepared.normalizedMetadata?.displayName || i18n.t('assetManagerUnknownMod')
                       }}
                     </h4>
-                    <p>
+                    <p class="preflight-meta">
                       {{
                         prepared.normalizedMetadata?.modId ||
                           i18n.t('assetManagerMetadataUnavailable')
@@ -676,7 +676,7 @@
           </div>
           <div>
             <h3>{{ mod.displayName }}</h3>
-            <p>{{ mod.modId }} &middot; {{ mod.version }} &middot; {{ loaderLabel(mod.report.loader) }}</p>
+            <p class="details-secondary-copy">{{ mod.modId }} &middot; {{ mod.version }} &middot; {{ loaderLabel(mod.report.loader) }}</p>
           </div>
         </div>
         <div class="detail-statuses">
