@@ -1,5 +1,6 @@
 import { SerializedVanillaAssets, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from '../vanilla/vanilla-asset-provider';
 import { SerializedExternalMod, EXTERNAL_MOD_CACHE_SCHEMA_VERSION } from '../mod/external-mod-provider';
+import { throwIfAborted, createAbortError } from '../mod/mod-import-cancellation';
 
 const DATABASE_NAME = 'minecraft-builder-assets';
 const STORE_NAME = 'asset-bundles';
@@ -29,9 +30,9 @@ export class IndexedDbAssetCache {
     return values.filter((value) => value.schemaVersion === EXTERNAL_MOD_CACHE_SCHEMA_VERSION);
   }
 
-  async saveExternalMod(mod: SerializedExternalMod): Promise<void> {
+  async saveExternalMod(mod: SerializedExternalMod, signal?: AbortSignal): Promise<void> {
     const database = await openDatabase();
-    await request(database, MOD_STORE_NAME, 'readwrite', (store) => store.put({ ...mod, id: mod.sourceId }));
+    await request(database, MOD_STORE_NAME, 'readwrite', (store) => store.put({ ...mod, id: mod.sourceId }), signal);
   }
 
   async deleteExternalMod(sourceId: string): Promise<void> {
@@ -59,9 +60,15 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-function request<T>(database: IDBDatabase, storeName: string, mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+function request<T>(database: IDBDatabase, storeName: string, mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<T>, signal?: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
+    try { throwIfAborted(signal); } catch (error) { reject(error); return; }
     const transaction = database.transaction(storeName, mode); const value = operation(transaction.objectStore(storeName));
-    value.onsuccess = () => resolve(value.result); value.onerror = () => reject(value.error ?? new Error('Vanilla asset cache request failed'));
+    const abort = (): void => { try { transaction.abort(); } catch { /* already complete */ } };
+    signal?.addEventListener('abort', abort, { once: true });
+    const cleanup = (): void => signal?.removeEventListener('abort', abort);
+    value.onsuccess = () => { cleanup(); try { throwIfAborted(signal); resolve(value.result); } catch (error) { reject(error); } };
+    value.onerror = () => { cleanup(); reject(value.error ?? new Error('Vanilla asset cache request failed')); };
+    transaction.onabort = () => { cleanup(); reject(signal?.aborted ? (signal.reason instanceof Error ? signal.reason : createAbortError()) : new Error('Vanilla asset cache transaction aborted')); };
   });
 }

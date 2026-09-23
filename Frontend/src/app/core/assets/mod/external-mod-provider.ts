@@ -15,6 +15,7 @@ import { StaticJvmSemanticEvidenceProvider } from '../../content/jvm-semantic-ev
 import { resolveResourceLocation } from '../../content/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
 import { CooperativeWorkBudget, yieldToBrowser } from '../cooperative-yield';
+import { throwIfAborted } from './mod-import-cancellation';
 
 export const EXTERNAL_MOD_CACHE_SCHEMA_VERSION = 2 as const;
 
@@ -195,18 +196,21 @@ export class ExternalModProvider implements ContentSourceProvider {
     return { schemaVersion: EXTERNAL_MOD_CACHE_SCHEMA_VERSION, sourceId: this.source.id, metadata: this.metadata, normalizedMetadata: this.normalizedMetadata, minecraftRequirement: this.normalizedMetadata.minecraftRequirement, ...(this.fingerprint ? { fingerprint: this.fingerprint } : {}), namespaces: this.source.namespaces, json: this.json, binary: [...this.binary].map(([path, data]) => ({ path, data: storageBuffer(data) })), report: versionIndependentReport };
   }
 
-  async serializeForCacheAsync(onProgress?: (progress: { readonly processed: number; readonly total: number }) => void): Promise<SerializedExternalMod> {
+  async serializeForCacheAsync(onProgress?: (progress: { readonly processed: number; readonly total: number }) => void, signal?: AbortSignal): Promise<SerializedExternalMod> {
+    throwIfAborted(signal);
     const entries = [...this.binary];
     const binary: { readonly path: string; readonly data: ArrayBuffer }[] = [];
     const budget = new CooperativeWorkBudget();
     let sliceItems = 0;
     for (let index = 0; index < entries.length; index++) {
+      throwIfAborted(signal);
       const [path, data] = entries[index];
       binary.push({ path, data: storageBuffer(data) });
       onProgress?.({ processed: index + 1, total: entries.length });
       sliceItems++;
-      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(); budget.reset(); sliceItems = 0; }
+      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(); throwIfAborted(signal); budget.reset(); sliceItems = 0; }
     }
+    throwIfAborted(signal);
     const { compatibility: _compatibility, projectMinecraftVersion: _projectMinecraftVersion, canActivate: _canActivate, ...versionIndependentReport } = this.report;
     return { schemaVersion: EXTERNAL_MOD_CACHE_SCHEMA_VERSION, sourceId: this.source.id, metadata: this.metadata, normalizedMetadata: this.normalizedMetadata, minecraftRequirement: this.normalizedMetadata.minecraftRequirement, ...(this.fingerprint ? { fingerprint: this.fingerprint } : {}), namespaces: this.source.namespaces, json: this.json, binary, report: versionIndependentReport };
   }
@@ -228,21 +232,26 @@ export class ExternalModProvider implements ContentSourceProvider {
 
   catalog(): BlockCatalogSource & { readonly paintingVariants: readonly PaintingVariant[] } { return this.catalogCache ?? (this.catalogCache = this.buildCatalog(this.createCatalogContext())); }
 
-  async prepareCatalog(onProgress?: (progress: ExternalCatalogProgress) => void): Promise<BlockCatalogSource & { readonly paintingVariants: readonly PaintingVariant[] }> {
+  async prepareCatalog(onProgress?: (progress: ExternalCatalogProgress) => void, signal?: AbortSignal): Promise<BlockCatalogSource & { readonly paintingVariants: readonly PaintingVariant[] }> {
+    throwIfAborted(signal);
     if (this.catalogCache) { onProgress?.({ processed: this.catalogCache.blocks.length, total: this.catalogCache.blocks.length }); return this.catalogCache; }
     const context = this.createCatalogContext();
     const records: AssetBlockRecord[] = [];
     const budget = new CooperativeWorkBudget();
     let sliceItems = 0;
     for (let index = 0; index < context.blockstatePaths.length; index++) {
+      throwIfAborted(signal);
       const record = this.buildBlockRecord(context.blockstatePaths[index], context);
       if (record) records.push(record);
       onProgress?.({ processed: index + 1, total: context.blockstatePaths.length });
       sliceItems++;
-      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(); budget.reset(); sliceItems = 0; }
+      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(); throwIfAborted(signal); budget.reset(); sliceItems = 0; }
     }
-    this.catalogCache = this.finishCatalog(records, context);
-    return this.catalogCache;
+    throwIfAborted(signal);
+    const catalog = this.finishCatalog(records, context);
+    throwIfAborted(signal);
+    this.catalogCache = catalog;
+    return catalog;
   }
 
   private buildCatalog(context: ExternalCatalogContext): BlockCatalogSource & { readonly paintingVariants: readonly PaintingVariant[] } {

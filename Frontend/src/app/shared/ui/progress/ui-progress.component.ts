@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
+export type UiProgressTone = 'default' | 'danger' | 'success';
+
 @Component({
   selector: 'app-ui-progress',
   template: `
-    <div class="ui-progress" [class.is-indeterminate]="indeterminate()" [class.is-complete]="complete()" [class.is-compact]="compact()" role="progressbar"
+    <div class="ui-progress" [class.is-indeterminate]="indeterminate()" [class.is-complete]="complete()" [class.is-compact]="compact()" [class.is-danger]="tone() === 'danger'" [class.is-success]="tone() === 'success'" role="progressbar"
       [attr.aria-label]="label() || null"
       [attr.aria-valuemin]="indeterminate() ? null : 0"
       [attr.aria-valuemax]="indeterminate() ? null : 100"
@@ -20,6 +22,7 @@ export class UiProgressComponent {
   readonly complete = input(false);
   readonly compact = input(false);
   readonly label = input('');
+  readonly tone = input<UiProgressTone>('default');
 
   protected normalizedValue(): number {
     const max = this.max();

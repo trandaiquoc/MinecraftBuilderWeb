@@ -3,6 +3,7 @@ import { ExternalModProvider, isModConflictDiagnostic, ModImportDiagnostic, ModI
 import { detectLoader, NormalizedModMetadata } from './mod-loader';
 import { yieldToBrowser } from '../cooperative-yield';
 import { validateJarUpload } from './jar-upload-validation';
+import { createPhaseWatchdog, throwIfAborted } from './mod-import-cancellation';
 
 const RETAINED_RESOURCE_PATH = /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;
 const MAX_RETAINED_BYTES = 256 * 1024 * 1024;
@@ -39,10 +40,15 @@ export interface PreparedModImport {
   dispose(): void;
 }
 
-export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void): Promise<PreparedModImport> {
+export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<PreparedModImport> {
   validateJarUpload(file);
+  throwIfAborted(signal);
   onProgress?.({ phase: 'opening-archive', processed: 0, total: file.size });
-  const archive = await ZipArchive.open(file, (processed, total) => onProgress?.({ phase: 'opening-archive', processed, total }));
+  const opening = createPhaseWatchdog('opening-archive', signal);
+  let archive: ZipArchive;
+  try { archive = await ZipArchive.open(file, (processed, total) => onProgress?.({ phase: 'opening-archive', processed, total }), opening.signal); }
+  finally { opening.stop(); }
+  throwIfAborted(signal);
   const diagnostics: ModImportDiagnostic[] = [];
   const suspicious = archive.entries.filter((entry) => !safeArchivePath(entry.name));
   for (const entry of suspicious) diagnostics.push({ severity: 'warning', category: 'warning', code: 'unsafe-archive-path', message: 'Skipped an archive path that is not safe to retain.', path: entry.name });
@@ -52,10 +58,12 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
   onProgress?.({ phase: 'reading-metadata', processed: 0, total: paths.length });
   let metadata: unknown;
   if (metadataPath) {
+    const metadataWatchdog = createPhaseWatchdog('reading-metadata', signal);
     const metadataEntry = archive.entries.find((entry) => entry.name === metadataPath);
     if (!metadataEntry) throw new Error(`${metadataPath} is missing`);
-    try { metadata = JSON.parse(new TextDecoder().decode(await metadataEntry.read())); }
-    catch { throw new Error(`${metadataPath} is malformed`); }
+    try { metadata = JSON.parse(new TextDecoder().decode(await metadataEntry.read(metadataWatchdog.signal))); }
+    catch (error) { throwIfAborted(metadataWatchdog.signal); throw new Error(`${metadataPath} is malformed`); }
+    finally { metadataWatchdog.stop(); }
   }
   const nestedJarCount = archive.entries.filter((entry) => entry.name.toLowerCase().endsWith('.jar')).length;
   if (nestedJarCount) diagnostics.push({ severity: 'info', category: 'info', code: 'nested-jar-skipped', message: `Skipped ${nestedJarCount} nested JAR file(s); no embedded code is executed.`, parameters: { count: nestedJarCount } });
@@ -69,9 +77,12 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
   if (totalSize > MAX_RETAINED_BYTES) throw new Error('The mod resource payload is too large to retain locally');
   onProgress?.({ phase: 'indexing-resources', processed: 0, total: entries.length });
   const json = new Map<string, unknown>(); const binary = new Map<string, Uint8Array>();
-  for (let offset = 0; offset < entries.length; offset += BATCH_SIZE) {
+  const extraction = createPhaseWatchdog('extracting-resources', signal);
+  try { for (let offset = 0; offset < entries.length; offset += BATCH_SIZE) {
+    throwIfAborted(extraction.signal);
     const batch = entries.slice(offset, offset + BATCH_SIZE);
-    const decoded = await Promise.all(batch.map(async (entry) => ({ entry, bytes: await entry.read() })));
+    const decoded = await Promise.all(batch.map(async (entry) => ({ entry, bytes: await entry.read(extraction.signal) })));
+    throwIfAborted(extraction.signal);
     for (const { entry, bytes } of decoded) {
       if (entry.name.endsWith('.json') || entry.name.endsWith('.png.mcmeta')) {
         try { json.set(entry.name, JSON.parse(new TextDecoder().decode(bytes))); }
@@ -79,9 +90,15 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
       } else binary.set(entry.name, bytes);
     }
     onProgress?.({ phase: 'extracting-resources', processed: Math.min(offset + batch.length, entries.length), total: entries.length });
+    extraction.progress();
     await yieldToBrowser();
-  }
-  const fingerprint = await archive.fingerprint();
+    throwIfAborted(extraction.signal);
+  } } finally { extraction.stop(); }
+  const fingerprintWatchdog = createPhaseWatchdog('checking-compatibility', signal);
+  let fingerprint: string | undefined;
+  try { fingerprint = await archive.fingerprint(fingerprintWatchdog.signal); }
+  finally { fingerprintWatchdog.stop(); }
+  throwIfAborted(signal);
   onProgress?.({ phase: 'checking-compatibility' });
   let provider: ExternalModProvider;
   try { provider = ExternalModProvider.create({ metadata, json, resources: binary, diagnostics, minecraftVersion, fingerprint }); }
@@ -92,7 +109,9 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
   }
   const compatible = provider.compatibility.status === 'compatible';
   const allDiagnostics = provider.report.diagnostics;
-  await provider.prepareCatalog((progress) => onProgress?.({ phase: 'discovering-blocks', processed: progress.processed, total: progress.total, blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported }));
+  const catalogWatchdog = createPhaseWatchdog('discovering-blocks', signal);
+  try { await provider.prepareCatalog((progress) => { catalogWatchdog.progress(); onProgress?.({ phase: 'discovering-blocks', processed: progress.processed, total: progress.total, blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported }); }, catalogWatchdog.signal); }
+  finally { catalogWatchdog.stop(); }
   onProgress?.({ phase: 'discovering-blocks', processed: provider.report.blocks.detected, total: provider.report.blocks.detected, blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported });
   onProgress?.({ phase: 'discovering-items', itemsDetected: provider.report.items.detected, itemsIndexed: provider.report.items.indexed });
   onProgress?.({ phase: 'discovering-decorations', decorationsDetected: provider.report.decorations.detected, decorationsImported: provider.report.decorations.imported });
@@ -101,7 +120,8 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
   return prepared({ loader, loaderSupported: true, minecraftVersion, metadata, normalizedMetadata: provider.normalizedMetadata, json, resources: binary, diagnostics: allDiagnostics, nestedJarCount, fingerprint, report: provider.report, canActivate: compatible && !allDiagnostics.some((diagnostic) => diagnostic.severity === 'error'), provider });
 }
 
-export function commitModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void): ExternalModProvider {
+export function commitModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): ExternalModProvider {
+  throwIfAborted(signal);
   onProgress?.({ phase: 'checking-conflicts' });
   if (!prepared.loaderSupported) throw new UnsupportedModLoaderError(prepared.loader);
   if (!prepared.metadata) throw new Error('Mod metadata is missing');
@@ -111,9 +131,9 @@ export function commitModImport(prepared: PreparedModImport, onProgress?: (progr
 }
 
 /** Compatibility wrapper retained for the current import button. */
-export async function importFabricModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void): Promise<ExternalModProvider> {
-  const prepared = await inspectModJar(file, minecraftVersion, onProgress);
-  try { return commitModImport(prepared, onProgress); } finally { prepared.dispose(); }
+export async function importFabricModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<ExternalModProvider> {
+  const prepared = await inspectModJar(file, minecraftVersion, onProgress, signal);
+  try { return commitModImport(prepared, onProgress, signal); } finally { prepared.dispose(); }
 }
 
 export class UnsupportedModLoaderError extends Error {

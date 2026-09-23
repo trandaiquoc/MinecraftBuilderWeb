@@ -211,4 +211,22 @@ describe('ExternalModProvider', () => {
     expect(budget.shouldYield(31)).toBe(false);
     expect(budget.shouldYield(32)).toBe(true);
   });
+
+  it('does not publish a partial catalog when preparation is aborted', async () => {
+    const json = new Map<string, unknown>();
+    for (let index = 0; index < 65; index++) json.set(`assets/abort/blockstates/block_${index}.json`, { variants: { '': { model: `abort:block/block_${index}` } } });
+    const provider = ExternalModProvider.create({ metadata: { id: 'abort', version: '1.0.0' }, json, resources: new Map() });
+    const controller = new AbortController();
+    await expect(provider.prepareCatalog((progress) => { if (progress.processed === 1) controller.abort(); }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    const catalog = await provider.prepareCatalog(undefined, new AbortController().signal);
+    expect(catalog.blocks).toHaveLength(65);
+  });
+
+  it('stops serialization before returning a partial cache payload', async () => {
+    const binary = new Map<string, Uint8Array>();
+    for (let index = 0; index < 65; index++) binary.set(`assets/abort/${index}.png`, new Uint8Array([index]));
+    const provider = ExternalModProvider.create({ metadata: { id: 'serialize-abort', version: '1.0.0' }, json: new Map(), resources: binary });
+    const controller = new AbortController();
+    await expect(provider.serializeForCacheAsync((progress) => { if (progress.processed === 1) controller.abort(); }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+  });
 });

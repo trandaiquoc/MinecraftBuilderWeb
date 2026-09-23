@@ -37,6 +37,9 @@ svg[class*='lucide'] { width: 1rem; height: 1rem; stroke-width: 2; vertical-alig
 .ui-progress__fill { display: block; width: 0; min-height: .35rem; border-radius: inherit; background: var(--accent); transition: width .16s ease; }
 .ui-progress.is-indeterminate .ui-progress__fill { width: 42%; animation: ui-progress-indeterminate 1.2s ease-in-out infinite; }
 .ui-progress.is-complete .ui-progress__fill { background: var(--success); }
+.ui-progress.is-danger .ui-progress__track { background: color-mix(in srgb, var(--danger) 18%, var(--surface)); }
+.ui-progress.is-danger .ui-progress__fill { background: var(--danger); }
+.ui-progress.is-success .ui-progress__fill { background: var(--success); }
 .ui-progress.is-compact .ui-progress__track, .ui-progress.is-compact .ui-progress__fill { min-height: .25rem; }
 @keyframes ui-progress-indeterminate { from { transform: translateX(-120%); } to { transform: translateX(260%); } }
 @media (prefers-reduced-motion: reduce) { .ui-button, .ui-progress__fill { transition: none; } .ui-progress.is-indeterminate .ui-progress__fill { animation: none; width: 100%; } }

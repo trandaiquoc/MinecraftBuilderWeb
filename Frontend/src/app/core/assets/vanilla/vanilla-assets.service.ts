@@ -22,6 +22,7 @@ import { PaintingVariantCatalogService } from '../../decorations/catalog/paintin
 import { ThumbnailTaskPriority, ThumbnailTaskQueue } from './thumbnail-task-queue';
 import { yieldToBrowser } from '../cooperative-yield';
 import { validateJarUpload } from '../mod/jar-upload-validation';
+import { createPhaseWatchdog, throwIfAborted } from '../mod/mod-import-cancellation';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -86,23 +87,26 @@ export class VanillaAssetsService {
     }
   }
 
-  async importModJar(file: File): Promise<ModImportReport> {
+  async importModJar(file: File, signal?: AbortSignal): Promise<ModImportReport> {
     const protection = this.activity.protect(`Importing ${file.name}`);
     this.activity.begin('mod-import', `Reading ${file.name}`, 'mod');
     try {
-      const prepared = await this.inspectModJar(file);
+      const prepared = await this.inspectModJar(file, undefined, signal);
+      let provider: ExternalModProvider | undefined;
+      let activated = false;
       try {
-        const provider = commitModImport(prepared, (progress) => this.reportModProgress(progress));
+        provider = commitModImport(prepared, (progress) => this.reportModProgress(progress), signal);
         this.assertExternalSourceAvailable(provider);
         this.reportModProgress({ phase: 'saving-cache' });
-        const serialized = await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }));
+        const serialized = await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }), signal);
         this.reportModProgress({ phase: 'finalizing-cache' });
-        await this.cache.saveExternalMod(serialized);
+        await this.cache.saveExternalMod(serialized, signal);
         this.reportModProgress({ phase: 'activating' });
         this.activateExternal(provider);
+        activated = true;
         this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
         return provider.report;
-      } finally { prepared.dispose(); }
+      } finally { prepared.dispose(); if (provider && !activated) provider.dispose(); }
     } catch (error) {
       this.activity.fail('mod-import', error instanceof Error ? error.message : 'Mod import failed', 'mod');
       throw error;
@@ -111,18 +115,24 @@ export class VanillaAssetsService {
     }
   }
 
-  async inspectModJar(file: File, onProgress?: (progress: ModImportProgress) => void): Promise<PreparedModImport> {
+  async inspectModJar(file: File, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<PreparedModImport> {
     const prepared = await inspectModJar(file, this.activeVersion(), (progress) => {
       onProgress?.(progress);
       this.activity.update(progress.processed === undefined ? undefined : { loaded: progress.processed, ...(progress.total === undefined ? {} : { total: progress.total }) }, progress.phase);
-    });
+    }, signal);
+    throwIfAborted(signal);
     if (!prepared.report || !prepared.loaderSupported || !prepared.metadata) return prepared;
     try {
       const preview = prepared.provider ?? ExternalModProvider.create({ metadata: prepared.metadata, json: prepared.json, resources: prepared.resources, diagnostics: prepared.diagnostics, minecraftVersion: prepared.minecraftVersion, fingerprint: prepared.fingerprint });
-      await preview.prepareCatalog((progress) => { const event = { phase: 'discovering-blocks' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); });
+      const catalogWatchdog = createPhaseWatchdog('discovering-blocks', signal);
+      try { await preview.prepareCatalog((progress) => { catalogWatchdog.progress(); const event = { phase: 'discovering-blocks' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); }, catalogWatchdog.signal); }
+      finally { catalogWatchdog.stop(); }
       const resourceConflicts = this.sources.resources.inspectProvider(preview);
       const catalog = preview.catalog();
-      const catalogConflicts = await this.sources.inspectCatalogContributionAsync(catalog, (progress) => { const event = { phase: 'checking-conflicts' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); });
+      const conflictWatchdog = createPhaseWatchdog('checking-conflicts', signal);
+      let catalogConflicts: readonly ReturnType<ContentSourceRegistry['inspectCatalogContribution']>[number][];
+      try { catalogConflicts = await this.sources.inspectCatalogContributionAsync(catalog, (progress) => { conflictWatchdog.progress(); const event = { phase: 'checking-conflicts' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); }, conflictWatchdog.signal); }
+      finally { conflictWatchdog.stop(); }
       const conflictDiagnostics: ModImportDiagnostic[] = [
         ...resourceConflicts.map((conflict) => ({
           severity: 'error' as const,
@@ -151,22 +161,35 @@ export class VanillaAssetsService {
         },
         canActivate: false,
       };
-    } catch {
-      return prepared;
+    } catch (error) {
+      throwIfAborted(signal);
+      throw error;
     }
   }
 
-  async commitPreparedModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void): Promise<ModImportReport> {
+  async commitPreparedModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<ModImportReport> {
+    throwIfAborted(signal);
     const reportProgress = (progress: ModImportProgress): void => { onProgress?.(progress); this.reportModProgress(progress); };
-    const provider = commitModImport(prepared, reportProgress);
-    this.assertExternalSourceAvailable(provider);
-    reportProgress({ phase: 'saving-cache' });
-    const serialized = await provider.serializeForCacheAsync((progress) => reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }));
-    reportProgress({ phase: 'finalizing-cache' });
-    await this.cache.saveExternalMod(serialized);
-    reportProgress({ phase: 'activating' });
-    this.activateExternal(provider);
-    return provider.report;
+    const provider = commitModImport(prepared, reportProgress, signal);
+    let activated = false;
+    try {
+      this.assertExternalSourceAvailable(provider);
+      reportProgress({ phase: 'saving-cache' });
+      const saveWatchdog = createPhaseWatchdog('saving-cache', signal);
+      let serialized;
+      try { serialized = await provider.serializeForCacheAsync((progress) => { saveWatchdog.progress(); reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }); }, saveWatchdog.signal); }
+      finally { saveWatchdog.stop(); }
+      reportProgress({ phase: 'finalizing-cache' });
+      const finalizeWatchdog = createPhaseWatchdog('finalizing-cache', signal);
+      try { await this.cache.saveExternalMod(serialized, finalizeWatchdog.signal); }
+      finally { finalizeWatchdog.stop(); }
+      throwIfAborted(signal);
+      const activationWatchdog = createPhaseWatchdog('activating', signal);
+      try { reportProgress({ phase: 'activating' }); throwIfAborted(activationWatchdog.signal); this.activateExternal(provider); }
+      finally { activationWatchdog.stop(); }
+      activated = true;
+      return provider.report;
+    } finally { if (!activated) provider.dispose(); }
   }
 
   async removeMod(sourceId: string): Promise<void> {

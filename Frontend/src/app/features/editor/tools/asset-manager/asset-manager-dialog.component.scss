@@ -172,7 +172,7 @@
 }
 .summary-grid dd {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   font-size: 0.78rem;
 }
 .manager-actions,
@@ -298,10 +298,14 @@
 }
 .primary-status {
   display: grid;
-  gap: 0.15rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.35rem;
   font-size: 0.95rem;
   font-weight: 700;
 }
+.primary-status-copy { display: grid; min-width: 0; gap: 0.15rem; }
+.primary-status-icon { display: inline-flex; padding-top: 0.1rem; }
 .primary-status svg,
 .certified-badge svg,
 .warning-badge svg,
@@ -368,27 +372,78 @@
   font-size: 0.66rem;
 }
 .stat-tiles strong {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   font-size: 1rem;
 }
 .secondary-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.7rem 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.55rem 1rem;
   margin: 0;
   color: var(--text-muted);
   font-size: 0.7rem;
 }
 .secondary-meta div {
-  display: flex;
-  gap: 0.3rem;
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
 }
 .secondary-meta dt {
   font-weight: 700;
 }
 .secondary-meta dd {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
+.active-task-panel {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.7rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-raised));
+  box-shadow: inset 3px 0 var(--danger), var(--shadow-control);
+}
+.active-task-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.active-task-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.4rem;
+  color: var(--text);
+  font: 0.78rem/1.3 var(--font-readable);
+}
+.active-task-indicator {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+.operation-cancel {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex: 0 0 auto;
+  border: 1px solid var(--danger);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  cursor: pointer;
+}
+.operation-cancel:hover:not(:disabled),
+.operation-cancel:focus-visible { background: var(--danger); color: var(--button-danger-text); }
+.operation-cancel:disabled { cursor: wait; opacity: 0.55; }
+.active-task-panel small { color: var(--text-muted); font: 0.72rem/1.3 var(--font-readable); }
 .import-progress {
   display: grid;
   gap: 0.4rem;
@@ -415,7 +470,7 @@
   font-size: 0.7rem;
 }
 .stage-list {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
 }
 .stage-list li,
 .phase-list li {
@@ -423,8 +478,9 @@
   align-items: center;
   gap: 0.3rem;
 }
-.stage-list .stage-active {
-  color: var(--accent);
+.stage-list .stage-active,
+.phase-list .phase-active {
+  color: var(--danger);
   font-weight: 700;
 }
 .stage-list .stage-complete,
@@ -439,10 +495,10 @@
   flex: 0 0 auto;
   border-radius: 50%;
 }
-.stage-dot { background: var(--accent); }
+.stage-dot { background: var(--danger); }
 .stage-pending { background: var(--text-disabled); opacity: 0.7; }
 .phase-list {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
 }
 .imported-section {
   display: grid;
@@ -466,7 +522,7 @@
 }
 .mod-card-main h4,
 .mod-card-main p {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .mod-card-status {
   display: flex;
@@ -507,7 +563,7 @@
   letter-spacing: 0.04em;
 }
 .activity-current strong {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   font-size: 0.76rem;
 }
 .activity-list {
@@ -528,7 +584,7 @@
   font-variant-numeric: tabular-nums;
 }
 .activity-entry span {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .activity-entry.level-error span {
   color: var(--danger);
@@ -661,6 +717,8 @@
   }
 }
 @media (max-width: 430px) {
+  .stage-list,
+  .phase-list { grid-template-columns: 1fr; }
   .mods-toolbar {
     align-items: stretch;
   }

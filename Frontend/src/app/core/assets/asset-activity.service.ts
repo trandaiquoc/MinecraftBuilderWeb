@@ -55,6 +55,16 @@ export class AssetActivityService {
     this.current.set(entry);
   }
 
+  cancel(operation: string, message: string, category: AssetActivityCategory = 'mod'): void {
+    this.event(operation, message, 'info', category);
+    this.current.set(undefined);
+  }
+
+  timeout(operation: string, message: string, category: AssetActivityCategory = 'mod'): void {
+    this.event(operation, message, 'warning', category);
+    this.current.set(undefined);
+  }
+
   clear(): void { this.entries.set([]); }
 
   protect(label: string): number {

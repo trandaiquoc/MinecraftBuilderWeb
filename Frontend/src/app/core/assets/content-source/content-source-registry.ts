@@ -6,6 +6,7 @@ import { ContentSourceDescriptor, ContentSourceProvider } from './content-source
 import { CompositeAssetResourceProvider } from './composite-asset-provider';
 import { TagIndex } from '../../content/tag-index';
 import { yieldToBrowser } from '../cooperative-yield';
+import { throwIfAborted } from '../mod/mod-import-cancellation';
 
 export interface SourceRegistrationDiagnostic { readonly sourceId: string; readonly message: string; }
 export interface ContentContributionConflict { readonly kind: 'block-id' | 'item-id' | 'decoration-id'; readonly id: string; readonly sourceIds: readonly string[]; }
@@ -90,15 +91,16 @@ export class ContentSourceRegistry {
     for (const entry of source.paintingVariants ?? []) { const owner = existingDecorations.get(entry.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'decoration-id', id: entry.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); }
     return conflicts;
   }
-  async inspectCatalogContributionAsync(source: BlockCatalogSource, onProgress?: (progress: CatalogConflictProgress) => void): Promise<readonly ContentContributionConflict[]> {
+  async inspectCatalogContributionAsync(source: BlockCatalogSource, onProgress?: (progress: CatalogConflictProgress) => void, signal?: AbortSignal): Promise<readonly ContentContributionConflict[]> {
+    throwIfAborted(signal);
     const conflicts: ContentContributionConflict[] = [];
     const existingBlocks = new Map(this.catalog().all().map((entry) => [entry.id, entry.sourceId]));
     const existingItems = new Map(this.itemEvidenceSources().flatMap((entry) => entry.items.map((item) => [item.itemId, entry.sourceId] as const)));
     const existingDecorations = new Map(this.paintingVariants().map((entry) => [entry.id, entry.sourceId ?? 'vanilla']));
     const total = source.blocks.length + (source.targetItems?.length ?? 0) + (source.paintingVariants?.length ?? 0); let processed = 0;
-    for (const block of source.blocks) { const owner = existingBlocks.get(block.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'block-id', id: block.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) await yieldToBrowser(); }
-    for (const item of source.targetItems ?? []) { const owner = existingItems.get(item.itemId); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'item-id', id: item.itemId, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) await yieldToBrowser(); }
-    for (const entry of source.paintingVariants ?? []) { const owner = existingDecorations.get(entry.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'decoration-id', id: entry.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) await yieldToBrowser(); }
+    for (const block of source.blocks) { throwIfAborted(signal); const owner = existingBlocks.get(block.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'block-id', id: block.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) { await yieldToBrowser(); throwIfAborted(signal); } }
+    for (const item of source.targetItems ?? []) { throwIfAborted(signal); const owner = existingItems.get(item.itemId); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'item-id', id: item.itemId, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) { await yieldToBrowser(); throwIfAborted(signal); } }
+    for (const entry of source.paintingVariants ?? []) { throwIfAborted(signal); const owner = existingDecorations.get(entry.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'decoration-id', id: entry.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) { await yieldToBrowser(); throwIfAborted(signal); } }
     return conflicts;
   }
 

@@ -17,6 +17,12 @@ describe('ZipArchive', () => {
     expect(values.at(-1)).toBe(blob.size);
   });
 
+  it('rejects before reading when the archive signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(ZipArchive.open(new Blob([storedZip('cancel.txt', 'cancel')]), undefined, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('inflates a deflated entry without a third-party ZIP dependency', async () => {
     const archive = await ZipArchive.open(new Blob([singleEntryZip('hello.txt', new Uint8Array([203, 72, 205, 201, 201, 7, 0]), 5, 8)]));
     expect(new TextDecoder().decode(await archive.entries[0].read())).toBe('hello');

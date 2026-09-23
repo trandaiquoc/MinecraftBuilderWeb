@@ -229,32 +229,21 @@
             </p>
             @if (preflightError()) {
               <p class="manager-error" role="alert">{{ preflightError() }}</p>
+              @if (operationStatus() === 'timed-out' && canRetryPreflight()) {
+                <button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="retryPreflight()">{{ i18n.t('assetManagerRetry') }}</button>
+              }
             }
             @if (modError()) {
               <p class="manager-error" role="alert">{{ modError() }}</p>
             }
-            @if (importing() && !preflight()) {
-              <section class="import-progress" aria-live="polite" aria-busy="true">
-                <div class="pane-heading">
-                  <strong>{{ i18n.t('assetManagerImporting') }}</strong
-                  ><span>{{
-                    preflightProgress()
-                      ? phaseLabel(preflightProgress()!.phase)
-                      : i18n.t('assetManagerReadingJar')
-                  }}</span>
+            @if (operationKind()) {
+              <section class="active-task-panel" aria-live="polite" aria-busy="true">
+                <div class="active-task-heading">
+                  <span class="active-task-label"><span class="active-task-indicator" aria-hidden="true"></span>{{ i18n.t('assetManagerCurrentTask') }}: {{ operationTaskLabel() }}</span>
+                  <button type="button" class="operation-cancel" [disabled]="operationStatus() === 'cancelling'" [attr.aria-label]="i18n.t('assetManagerCancelCurrentTask')" [attr.title]="i18n.t('assetManagerCancelCurrentTask')" (click)="cancelActiveOperation()"><svg lucideX aria-hidden="true"></svg></button>
                 </div>
-                <app-ui-progress
-                  [value]="preflightProgress() ? progressPercent(preflightProgress()!) : undefined"
-                  [indeterminate]="
-                    !preflightProgress() || progressPercent(preflightProgress()!) === undefined
-                  "
-                  [complete]="progressPercent(preflightProgress()!) === 100"
-                  [compact]="true"
-                  [label]="i18n.t('assetManagerImporting')"
-                />
-                @if (preflightProgress(); as progress) {
-                  <small>{{ progressDetail(progress) }}</small>
-                }
+                <app-ui-progress [value]="preflightProgress() ? progressPercent(preflightProgress()!) : undefined" [indeterminate]="!preflightProgress() || progressPercent(preflightProgress()!) === undefined" [compact]="true" tone="danger" [label]="i18n.t('assetManagerCurrentTask')" />
+                <small>{{ operationDetail() }}</small>
               </section>
             }
             @if (preflight(); as prepared) {
@@ -295,10 +284,9 @@
                   </div>
                 </div>
                 @if (prepared.report?.compatibility; as compatibility) {
-                  <div class="primary-status" [class]="compatibilityClass(compatibility.status)">
-                    @if (compatibility.status === 'compatible') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else { <svg lucideCircleX aria-hidden="true"></svg> }
-                    {{ compatibilityStatus(compatibility.status) }} {{ assets.activeVersion()
-                    }}<small>{{ compatibility.reason }}</small>
+                  <div class="primary-status" [class.status-ok]="compatibility.status === 'compatible'" [class.status-blocked]="compatibility.status !== 'compatible'">
+                    <span class="primary-status-icon">@if (compatibility.status === 'compatible') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else { <svg lucideCircleX aria-hidden="true"></svg> }</span>
+                    <span class="primary-status-copy"><span>{{ compatibilityStatus(compatibility.status) }} {{ assets.activeVersion() }}</span><small>{{ compatibility.reason }}</small></span>
                   </div>
                 }
                 @if (certification(prepared); as certificate) {
