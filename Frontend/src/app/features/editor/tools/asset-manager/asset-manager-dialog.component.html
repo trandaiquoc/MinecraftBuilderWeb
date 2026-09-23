@@ -368,21 +368,44 @@
                 <ol class="stage-list">
                   @for (stage of stageOrder; track stage.id) {
                     <li [class]="'stage-' + stageState(stage.id)">
-                      @if (stageState(stage.id) === 'complete') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else if (stageState(stage.id) === 'active') { <span class="stage-dot" aria-hidden="true"></span> } @else { <span class="stage-pending" aria-hidden="true"></span> }
-                      <span>{{ stageLabel(stage.id) }}</span>
+                      @if (stageState(stage.id) === 'complete') { <svg lucideCheckCircle2 aria-hidden="true"></svg> }
+                      @else if (stageState(stage.id) === 'active') { <span class="stage-dot" aria-hidden="true"></span> }
+                      @else if (stageState(stage.id) === 'awaiting-user') { <svg lucideArrowRight aria-hidden="true"></svg> }
+                      @else if (stageState(stage.id) === 'blocked') { <svg lucideCircleX aria-hidden="true"></svg> }
+                      @else { <span class="stage-pending" aria-hidden="true"></span> }
+                      <span class="stage-copy">
+                        @if (stageState(stage.id) === 'awaiting-user') {
+                          <strong>{{ i18n.t('assetManagerReadyToImport') }}</strong>
+                          <small>{{ stageLabel(stage.id) }}</small>
+                        } @else if (stageState(stage.id) === 'blocked' && stage.id === 'validation') {
+                          <strong>{{ i18n.t('assetManagerValidationFailed') }}</strong>
+                          <small>{{ stageLabel(stage.id) }}</small>
+                        } @else if (stageState(stage.id) === 'blocked') {
+                          <strong>{{ i18n.t('assetManagerImportBlocked') }}</strong>
+                          <small>{{ stageLabel(stage.id) }}</small>
+                        } @else {
+                          {{ stageLabel(stage.id) }}
+                        }
+                      </span>
                     </li>
                   }
                 </ol>
+                @if (preflightIsAwaitingImport()) {
+                  <p class="preflight-ready" role="status">
+                    <strong>{{ i18n.t('assetManagerPreflightComplete') }}</strong>
+                    <span>{{ preflightGuidance() }}</span>
+                  </p>
+                }
                 @if (preflightProgress(); as progress) {
-                  <div class="import-progress compact" aria-live="polite" aria-busy="true">
+                  <div class="import-progress compact" aria-live="polite" [attr.aria-busy]="operationKind() ? 'true' : null">
                     <app-ui-progress
                       [value]="progressPercent(progress)"
                       [indeterminate]="progressPercent(progress) === undefined"
-                      [complete]="progressPercent(progress) === 100"
+                      [complete]="!operationKind() || progressPercent(progress) === 100"
                       [compact]="true"
-                      [label]="i18n.t('assetManagerImporting')"
+                      [label]="operationKind() ? i18n.t('assetManagerImporting') : i18n.t('assetManagerPreflightComplete')"
                     /><small
-                      >{{ phaseLabel(progress.phase) }} &middot; {{ progressDetail(progress) }}</small
+                      >{{ operationKind() ? phaseLabel(progress.phase) + ' · ' + progressDetail(progress) : i18n.t('assetManagerPreflightComplete') }}</small
                     >
                   </div>
                 }

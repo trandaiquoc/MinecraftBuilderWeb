@@ -474,9 +474,12 @@
 }
 .stage-list li,
 .phase-list li {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.3rem;
+  min-width: 0;
+  line-height: 1.35;
 }
 .stage-list .stage-active,
 .phase-list .phase-active {
@@ -487,6 +490,37 @@
 .phase-list .phase-complete {
   color: var(--success, var(--accent));
 }
+.stage-list .stage-awaiting-user {
+  color: var(--control-selected-text);
+  font-weight: 700;
+}
+.stage-list .stage-blocked {
+  color: var(--danger);
+  font-weight: 700;
+}
+.stage-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.stage-copy small {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 500;
+}
+.preflight-ready {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--control-selected);
+  color: var(--control-selected-text);
+  line-height: 1.35;
+}
+.preflight-ready span { font-size: 0.74rem; }
 .stage-dot,
 .stage-pending {
   display: inline-block;
@@ -706,7 +740,7 @@
   }
   .stage-list,
   .phase-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
   }
   .imported-mod-card {
     grid-template-columns: auto minmax(0, 1fr);

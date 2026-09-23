@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, output, signal } from '@angular/core';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
-import { LucideArrowLeft, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX } from '@lucide/angular';
+import { LucideArrowLeft, LucideArrowRight, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX } from '@lucide/angular';
 import { VanillaAssetsService, ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
 import type { ModImportDiagnostic, ModImportReport } from '../../../../core/assets/mod/external-mod-provider';
@@ -18,6 +18,9 @@ type AssetManagerTab = 'vanilla' | 'mods';
 type DiagnosticDialogState = { readonly modName: string; readonly kind: 'warning' | 'blocking'; readonly diagnostics: readonly ModImportDiagnostic[] };
 const phases: readonly ModImportProgress['phase'][] = ['opening-archive', 'reading-metadata', 'checking-compatibility', 'indexing-resources', 'extracting-resources', 'discovering-blocks', 'discovering-items', 'discovering-decorations', 'evaluating-behavior', 'checking-conflicts', 'saving-cache', 'finalizing-cache', 'activating'];
 export type ImportStage = 'reading' | 'compatibility' | 'resources' | 'content' | 'validation' | 'import';
+export type ImportStageState = 'pending' | 'active' | 'complete' | 'awaiting-user' | 'blocked';
+export type ImportOperationKind = 'preflight' | 'commit' | undefined;
+export type ImportOperationStatus = 'running' | 'cancelling' | 'cancelled' | 'timed-out' | 'failed' | 'ready' | undefined;
 export const importStages: readonly { readonly id: ImportStage; readonly phases: readonly ModImportProgress['phase'][]; readonly label: string }[] = [
   { id: 'reading', phases: ['opening-archive', 'reading-metadata'], label: 'assetManagerReadingJar' },
   { id: 'compatibility', phases: ['checking-compatibility'], label: 'assetManagerCompatibility' },
@@ -43,6 +46,44 @@ export function progressPercentForProgress(progress: Pick<ModImportProgress, 'pr
   return progress.total && progress.total > 0 && progress.processed !== undefined
     ? Math.min(100, Math.max(0, progress.processed / progress.total * 100))
     : undefined;
+}
+
+export interface ImportStageStateContext {
+  readonly operationKind: ImportOperationKind;
+  readonly operationStatus: ImportOperationStatus;
+  readonly prepared: boolean;
+  readonly canActivate: boolean;
+  readonly progressPhase?: ModImportProgress['phase'];
+}
+
+/** Maps technical progress plus the user confirmation boundary to one UI state. */
+export function importStageState(stage: ImportStage, context: ImportStageStateContext): ImportStageState {
+  const stageIndex = importStages.findIndex((candidate) => candidate.id === stage);
+  const currentIndex = context.progressPhase ? importStages.findIndex((candidate) => candidate.phases.includes(context.progressPhase!)) : -1;
+
+  if (context.operationKind === 'commit') return stageIndex < importStages.length - 1 ? 'complete' : 'active';
+  if (context.operationKind === 'preflight') {
+    if (currentIndex < 0) return 'pending';
+    return stageIndex < currentIndex ? 'complete' : stageIndex === currentIndex ? 'active' : 'pending';
+  }
+  if (!context.prepared) return 'pending';
+  if (!context.canActivate) {
+    if (stage === 'validation' || stage === 'import') return 'blocked';
+    return stageIndex < importStages.length - 2 ? 'complete' : 'pending';
+  }
+  if (context.operationStatus === 'failed' || context.operationStatus === 'cancelled' || context.operationStatus === 'timed-out') {
+    return stage === 'import' ? 'blocked' : stageIndex < importStages.length - 1 ? 'complete' : 'pending';
+  }
+  if (context.operationStatus === 'ready' && stage === 'import') return 'awaiting-user';
+  return stageIndex < importStages.length - 1 ? 'complete' : 'pending';
+}
+
+export function importPhaseState(phase: ModImportProgress['phase'], context: ImportStageStateContext): 'pending' | 'active' | 'complete' {
+  const currentIndex = context.progressPhase ? phases.indexOf(context.progressPhase) : -1;
+  const phaseIndex = phases.indexOf(phase);
+  if (currentIndex < 0) return 'pending';
+  if (context.operationKind) return phaseIndex < currentIndex ? 'complete' : phaseIndex === currentIndex ? 'active' : 'pending';
+  return phaseIndex <= currentIndex ? 'complete' : 'pending';
 }
 
 export type DiagnosticPresentation = 'none' | 'technical' | 'prominent';
@@ -76,7 +117,7 @@ export class AssetManagerDialogComponent {
   protected readonly diagnosticDialog = signal<DiagnosticDialogState | undefined>(undefined);
   protected readonly confirming = signal(false);
   protected readonly operationKind = signal<'preflight' | 'commit' | undefined>(undefined);
-  protected readonly operationStatus = signal<'running' | 'cancelling' | 'cancelled' | 'timed-out' | undefined>(undefined);
+  protected readonly operationStatus = signal<ImportOperationStatus>(undefined);
   protected readonly phaseOrder = phases;
   protected readonly stageOrder = importStages;
   protected readonly centeredOverlayPositions = [{ originX: 'center' as const, originY: 'center' as const, overlayX: 'center' as const, overlayY: 'center' as const }];
@@ -120,11 +161,11 @@ export class AssetManagerDialogComponent {
     try {
       const prepared = await this.assets.inspectModJar(file, (progress) => { if (id === this.operationId) this.preflightProgress.set(progress); }, operation.signal);
       if (id !== this.operationId || operation.signal.aborted) { prepared.dispose(); return; }
-      this.preflight.set(prepared); this.preflightIconUrl.set(this.createPreflightIcon(prepared)); this.assets.activity.finish('mod-preflight', this.i18n.t('assetManagerImportReady'), 'mod');
+      this.preflight.set(prepared); this.preflightIconUrl.set(this.createPreflightIcon(prepared)); this.operationStatus.set(prepared.canActivate ? 'ready' : 'failed'); this.assets.activity.finish('mod-preflight', this.i18n.t('assetManagerImportReady'), 'mod');
     } catch (error) {
       if (id !== this.operationId) return;
       if (isAbortError(error)) { if (error instanceof ModImportTimeoutError) { this.operationStatus.set('timed-out'); this.preflightError.set(this.timeoutMessage(error)); this.assets.activity.timeout('mod-preflight', this.preflightError(), 'mod'); } else { this.operationStatus.set('cancelled'); this.assets.activity.cancel('mod-preflight', this.i18n.t('assetManagerTaskCancelled'), 'mod'); } }
-      else { this.preflightError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); this.assets.activity.fail('mod-preflight', this.preflightError(), 'mod'); }
+      else { this.operationStatus.set('failed'); this.preflightError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); this.assets.activity.fail('mod-preflight', this.preflightError(), 'mod'); }
     } finally { if (id === this.operationId) this.finishOperation(); input.value = ''; }
   }
   private jarValidationMessage(error: unknown): string { if (error instanceof JarUploadValidationError) return this.i18n.t(error.code === 'jar-extension' ? 'assetManagerJarOnly' : 'assetManagerJarTooLarge'); return error instanceof Error ? error.message : this.i18n.t('assetManagerImportError'); }
@@ -135,11 +176,12 @@ export class AssetManagerDialogComponent {
       await this.assets.commitPreparedModImport(prepared, (progress) => { if (id === this.operationId) this.preflightProgress.set(progress); }, operation.signal);
       if (id !== this.operationId) return;
       this.preflight.set(undefined); this.preflightProgress.set(undefined); this.modSearch.set('');
+      this.operationStatus.set(undefined);
       this.assets.activity.finish('mod-import', this.i18n.t('assetManagerImported'), 'mod');
     } catch (error) {
       if (id !== this.operationId) return;
       if (isAbortError(error)) { if (error instanceof ModImportTimeoutError) { this.operationStatus.set('timed-out'); this.modError.set(this.timeoutMessage(error)); this.assets.activity.timeout('mod-import', this.modError(), 'mod'); } else { this.operationStatus.set('cancelled'); this.assets.activity.cancel('mod-import', this.i18n.t('assetManagerTaskCancelled'), 'mod'); } }
-      else { this.modError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); this.assets.activity.fail('mod-import', this.modError(), 'mod'); }
+      else { this.operationStatus.set('failed'); this.modError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); this.assets.activity.fail('mod-import', this.modError(), 'mod'); }
     } finally { if (id === this.operationId) { prepared.dispose(); this.revokePreflightIcon(); this.finishOperation(); } }
   }
   protected cancelPreflight(): void {
@@ -167,9 +209,12 @@ export class AssetManagerDialogComponent {
   protected formatTime(timestamp: number): string { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(timestamp); }
   protected statusLabel(): string { const status = this.assets.status(); return status === 'ready' ? this.i18n.t('assetsReady') : status === 'importing' || status === 'downloading' || status === 'loading-cache' ? this.i18n.t('loadingAssets') : status === 'offline' ? this.i18n.t('assetsOffline') : status === 'unsupported-format' ? this.i18n.t('assetsUnsupportedFormat') : status === 'no-assets' ? this.i18n.t('noAssets') : this.i18n.t('importRequired'); }
   protected phaseLabel(phase: ModImportProgress['phase']): string { return this.i18n.t(`assetPhase_${phase.replaceAll('-', '_')}`); }
-  protected phaseState(phase: ModImportProgress['phase']): 'pending' | 'active' | 'complete' { const current = this.preflightProgress()?.phase; if (!current) return 'pending'; const currentIndex = phases.indexOf(current); const index = phases.indexOf(phase); return index < currentIndex ? 'complete' : index === currentIndex ? 'active' : 'pending'; }
+  protected phaseState(phase: ModImportProgress['phase']): 'pending' | 'active' | 'complete' { return importPhaseState(phase, this.stageStateContext()); }
   protected stageLabel(stage: ImportStage): string { const value = importStages.find((candidate) => candidate.id === stage)?.label ?? stage; return this.i18n.t(value); }
-  protected stageState(stage: ImportStage): 'pending' | 'active' | 'complete' { const current = this.preflightProgress()?.phase; if (!current) return 'pending'; const currentIndex = importStages.findIndex((candidate) => candidate.phases.includes(current)); const index = importStages.findIndex((candidate) => candidate.id === stage); return index < currentIndex ? 'complete' : index === currentIndex ? 'active' : 'pending'; }
+  protected stageState(stage: ImportStage): ImportStageState { return importStageState(stage, this.stageStateContext()); }
+  protected stageStateContext(): ImportStageStateContext { const prepared = this.preflight(); return { operationKind: this.operationKind(), operationStatus: this.operationStatus(), prepared: !!prepared, canActivate: prepared?.canActivate ?? false, progressPhase: this.preflightProgress()?.phase }; }
+  protected preflightIsAwaitingImport(): boolean { return !!this.preflight() && this.stageState('import') === 'awaiting-user'; }
+  protected preflightGuidance(): string { return this.i18n.t('assetManagerReadyToImportHint'); }
   protected loaderLabel(loader: SupportedModLoader): string { return loader === 'unknown' ? this.i18n.t('assetManagerUnknownLoader') : loader[0].toUpperCase() + loader.slice(1); }
   protected compatibilityStatus(status: string | undefined): string { return status === 'compatible' ? this.i18n.t('assetManagerCompatible') : status === 'incompatible' ? this.i18n.t('assetManagerIncompatible') : this.i18n.t('assetManagerCannotVerify'); }
   protected compatibilityClass(status: string | undefined): string { return status === 'compatible' ? 'status-ok' : 'status-blocked'; }
