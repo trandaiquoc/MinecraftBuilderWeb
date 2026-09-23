@@ -1,0 +1,34 @@
+<div class="structure-json-backdrop" role="presentation" (click)="onBackdropClick($event)">
+  <section class="structure-json-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('exportStructureJson')" tabindex="-1" autofocus>
+    <header class="structure-json-header">
+      <div>
+        <p class="eyebrow">MinecraftBuilder</p>
+        <h2>{{ i18n.t('exportStructureJson') }}</h2>
+      </div>
+      <button type="button" class="ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button>
+    </header>
+    <div class="structure-json-body">
+      <p class="structure-json-description">{{ i18n.t('exportStructureJsonDescription') }}</p>
+      <dl class="structure-json-summary">
+        <div><dt>{{ i18n.t('structureJsonProject') }}</dt><dd>{{ projectName() }}</dd></div>
+        <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ project().metadata.minecraftVersion }}</dd></div>
+        <div><dt>{{ i18n.t('structureJsonBlockCount') }}</dt><dd>{{ blockCount() }}</dd></div>
+      </dl>
+      <div class="structure-json-actions">
+        <button type="button" class="primary ui-button ui-button--primary" (click)="copyJson()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('copyJson') }}</button>
+        <button type="button" class="ui-button ui-button--secondary" (click)="download()"><svg lucideDownload aria-hidden="true"></svg>{{ i18n.t('downloadJson') }}</button>
+      </div>
+      <div class="structure-json-reference-actions">
+        <button type="button" class="ui-button ui-button--secondary" (click)="copyExample()">{{ i18n.t('copyExample') }}</button>
+        <button type="button" class="ui-button ui-button--secondary" (click)="copyInstructions()">{{ i18n.t('copyAiInstructions') }}</button>
+      </div>
+      @if (feedback() === 'success') { <p class="structure-json-feedback success" role="status">{{ i18n.t('structureJsonCopySuccess') }}</p> }
+      @if (feedback() === 'error') { <p class="structure-json-feedback error" role="alert">{{ i18n.t('structureJsonCopyFailed') }}</p> }
+      <p class="structure-json-limitations">{{ i18n.t('structureJsonLimitations') }}</p>
+      <details class="structure-json-preview">
+        <summary>{{ i18n.t('structureJsonPreview') }}</summary>
+        <pre>{{ preview() }}</pre>
+      </details>
+    </div>
+  </section>
+</div>

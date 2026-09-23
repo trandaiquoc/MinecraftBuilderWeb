@@ -39,8 +39,10 @@ import { EditorSessionService } from '../../../core/editor/state/editor-session.
 import { ProjectPackageImportService } from '../../../core/persistence/project-package/project-package-import.service';
 import { ProjectImportStatusComponent } from '../project-import/project-import-status.component';
 import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-assets.service';
+import { sanitizeFilename } from '../../../core/persistence/file-name';
+import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -78,6 +80,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly controlsHelpOpen = signal(false);
   protected readonly assetManagerOpen = signal(false);
   protected readonly diagnosticsOpen = signal(false);
+  protected readonly structureJsonExportOpen = signal(false);
   protected readonly leftDrawerOpen = signal(false);
   protected readonly rightDrawerOpen = signal(false);
   private drawerOpener?: HTMLElement;
@@ -253,6 +256,8 @@ export class EditorShellComponent implements OnDestroy {
   }
   protected showUnavailableFeature(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('featureUnavailable'), this.i18n.t('featureUnavailable')); }
   protected showStructureExportUnavailable(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('exportStructureNbt'), this.i18n.t('structureNbtUnavailable')); }
+  protected openStructureJsonExport(): void { this.closeMenus(); this.structureJsonExportOpen.set(true); }
+  protected closeStructureJsonExport(): void { this.structureJsonExportOpen.set(false); }
   protected showControlsHelp(): void { this.closeMenus(); this.controlsHelpOpen.set(true); }
   protected showAbout(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('about'), this.i18n.t('aboutText')); }
   protected clearSelection(): void { this.selection.clear(); this.closeMenus(); }
@@ -388,5 +393,3 @@ export class EditorShellComponent implements OnDestroy {
     return Math.round(Math.min(maximum, Math.max(minimum, width)));
   }
 }
-
-function sanitizeFilename(value: string): string { return value.trim().replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'minecraft-project'; }
