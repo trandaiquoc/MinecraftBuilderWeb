@@ -58,6 +58,14 @@ describe('ExternalModProvider', () => {
     expect([...restored.readBinary('assets/roundtrip/textures/block/a.png')!]).toEqual([1, 2, 3]);
   });
 
+  it('serializes retained binaries cooperatively for cache writes', async () => {
+    const provider = ExternalModProvider.create({ metadata: { id: 'async-cache', version: '1.0.0' }, json: new Map([['assets/async_cache/blockstates/a.json', { variants: {} }]]), resources: new Map([['assets/async_cache/textures/block/a.png', new Uint8Array([4, 5])]]) });
+    const progress: number[] = [];
+    const serialized = await provider.serializeForCacheAsync((value) => progress.push(value.processed));
+    expect(serialized.binary).toHaveLength(1);
+    expect(progress).toEqual([1]);
+  });
+
   it('discovers modern and legacy Items independently from Blocks', () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'content', version: '1.0.0', depends: { minecraft: '>=1.20 <1.22' } },
@@ -167,5 +175,27 @@ describe('ExternalModProvider', () => {
     expect(restored.source.minecraftVersion).toBe('1.20.6');
     expect('minecraftVersion' in restored.serialize()).toBe(false);
     expect('projectMinecraftVersion' in restored.serialize().report).toBe(false);
+  });
+
+  it('counts only warning-severity diagnostics and reuses an asynchronously prepared catalog', async () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'diagnostics', version: '1.0.0' },
+      json: new Map([
+        ['assets/diagnostics/blockstates/one.json', { variants: { '': { model: 'diagnostics:block/one' } } }],
+        ['assets/diagnostics/blockstates/two.json', { variants: { '': { model: 'diagnostics:block/two' } } }],
+      ]),
+      resources: new Map(),
+      diagnostics: [
+        { severity: 'info', category: 'info', code: 'nested-jar-skipped', message: 'Nested archive skipped.' },
+        { severity: 'warning', category: 'warning', code: 'custom-model-loader', message: 'Custom loader retained.' },
+      ],
+    });
+    expect(provider.report.warnings.map((diagnostic) => diagnostic.code)).toEqual(['custom-model-loader', 'missing-minecraft-dependency']);
+    expect(provider.report.warnings.some((diagnostic) => diagnostic.code === 'nested-jar-skipped')).toBe(false);
+    const progress: number[] = [];
+    const prepared = await provider.prepareCatalog((value) => progress.push(value.processed));
+    expect(prepared).toBe(provider.catalog());
+    expect(progress.at(-1)).toBe(2);
+    expect(progress.every((value, index) => index === 0 || value >= progress[index - 1]!)).toBe(true);
   });
 });

@@ -60,7 +60,7 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
   if (loader !== 'fabric') {
     const code = loader === 'unknown' ? 'unsupported-loader' : 'unsupported-loader';
     diagnostics.push({ severity: 'error', category: 'blocking', code, message: loader === 'unknown' ? 'Could not detect a supported mod loader.' : `${capitalize(loader)} metadata was detected but this loader is not supported yet.` });
-    return prepared({ loader, loaderSupported: false, minecraftVersion, json: new Map(), resources: new Map(), diagnostics, nestedJarCount, canActivate: false, report: { metadataFormat: loader, loader, loaderSupported: false, namespaces: [], retainedResourceCount: 0, candidateBlockCount: 0, blocks: { detected: 0, imported: 0, partial: 0, unsupported: 0 }, items: { detected: 0, indexed: 0, unsupportedVisuals: 0 }, decorations: { detected: 0, imported: 0, partial: 0, unsupported: 0 }, conflicts: diagnostics.filter(isModConflictDiagnostic), warnings: diagnostics.filter((diagnostic) => diagnostic.severity !== 'error'), diagnostics, runtimeDependencies: {}, nestedJarCount } });
+    return prepared({ loader, loaderSupported: false, minecraftVersion, json: new Map(), resources: new Map(), diagnostics, nestedJarCount, canActivate: false, report: { metadataFormat: loader, loader, loaderSupported: false, namespaces: [], retainedResourceCount: 0, candidateBlockCount: 0, blocks: { detected: 0, imported: 0, partial: 0, unsupported: 0 }, items: { detected: 0, indexed: 0, unsupportedVisuals: 0 }, decorations: { detected: 0, imported: 0, partial: 0, unsupported: 0 }, conflicts: diagnostics.filter(isModConflictDiagnostic), warnings: diagnostics.filter((diagnostic) => diagnostic.severity === 'warning'), diagnostics, runtimeDependencies: {}, nestedJarCount } });
   }
   const entries = archive.entries.filter((entry) => safeArchivePath(entry.name) && RETAINED_RESOURCE_PATH.test(entry.name));
   const totalSize = entries.reduce((total, entry) => total + entry.uncompressedSize, 0);
@@ -90,10 +90,11 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
   }
   const compatible = provider.compatibility.status === 'compatible';
   const allDiagnostics = provider.report.diagnostics;
-  onProgress?.({ phase: 'discovering-blocks', blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported });
+  await provider.prepareCatalog((progress) => onProgress?.({ phase: 'discovering-blocks', processed: progress.processed, total: progress.total, blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported }));
+  onProgress?.({ phase: 'discovering-blocks', processed: provider.report.blocks.detected, total: provider.report.blocks.detected, blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported });
   onProgress?.({ phase: 'discovering-items', itemsDetected: provider.report.items.detected, itemsIndexed: provider.report.items.indexed });
   onProgress?.({ phase: 'discovering-decorations', decorationsDetected: provider.report.decorations.detected, decorationsImported: provider.report.decorations.imported });
-  onProgress?.({ phase: 'evaluating-behavior', warnings: allDiagnostics.filter((diagnostic) => diagnostic.severity !== 'error').length });
+  onProgress?.({ phase: 'evaluating-behavior', warnings: allDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length });
   onProgress?.({ phase: 'checking-conflicts' });
   return prepared({ loader, loaderSupported: true, minecraftVersion, metadata, normalizedMetadata: provider.normalizedMetadata, json, resources: binary, diagnostics: allDiagnostics, nestedJarCount, fingerprint, report: provider.report, canActivate: compatible && !allDiagnostics.some((diagnostic) => diagnostic.severity === 'error'), provider });
 }

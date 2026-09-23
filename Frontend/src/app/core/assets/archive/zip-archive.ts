@@ -46,7 +46,7 @@ export class ZipArchive {
   async fingerprint(): Promise<string | undefined> {
     try {
       if (!globalThis.crypto?.subtle) return undefined;
-      const digest = await globalThis.crypto.subtle.digest('SHA-256', this.bytes.slice().buffer as ArrayBuffer);
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', this.bytes.byteOffset === 0 && this.bytes.byteLength === this.bytes.buffer.byteLength ? this.bytes.buffer as ArrayBuffer : this.bytes.slice().buffer as ArrayBuffer);
       return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
     } catch { return undefined; }
   }

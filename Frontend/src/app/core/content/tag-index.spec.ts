@@ -3,8 +3,9 @@ import { TagIndex } from './tag-index';
 import type { AssetResourceProvider } from '../blocks/resolver/resolver.types';
 
 class Tags implements AssetResourceProvider {
+  reads = 0;
   constructor(private readonly data: Readonly<Record<string, unknown>>) {}
-  readJson(path: string): unknown | undefined { return this.data[path]; }
+  readJson(path: string): unknown | undefined { this.reads += 1; return this.data[path]; }
   paths(): readonly string[] { return Object.keys(this.data); }
 }
 
@@ -40,5 +41,16 @@ describe('TagIndex', () => {
     const tag = index.get('item', 'example:tools');
     expect(tag.members.map((member) => member.id)).toEqual(['example:hammer', 'example:wrench']);
     expect(tag.contributions).toHaveLength(2);
+  });
+  it('reuses resolved tag data until a provider contribution is added', () => {
+    const provider = new Tags({
+      'data/example/tags/block/tools.json': { values: ['example:hammer'] },
+      'assets/example/blockstates/hammer.json': {},
+    });
+    const index = new TagIndex([provider]);
+    const first = index.get('block', 'example:tools');
+    const readsAfterFirst = provider.reads;
+    expect(index.get('block', 'example:tools')).toBe(first);
+    expect(provider.reads).toBe(readsAfterFirst);
   });
 });

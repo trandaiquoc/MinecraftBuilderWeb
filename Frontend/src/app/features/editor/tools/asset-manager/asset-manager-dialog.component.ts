@@ -1,8 +1,10 @@
 import { Component, computed, effect, inject, output, signal } from '@angular/core';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
+import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
 import { LucideArrowLeft, LucideTrash2, LucideX } from '@lucide/angular';
 import { VanillaAssetsService, ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
+import type { ModImportDiagnostic, ModImportReport } from '../../../../core/assets/mod/external-mod-provider';
 import { ModSupportCatalog, ModSupportCertification } from '../../../../core/assets/mod/mod-support-catalog';
 import { SupportedModLoader } from '../../../../core/assets/mod/mod-loader';
 import { AssetActivityEntry, AssetActivityProgress } from '../../../../core/assets/asset-activity.service';
@@ -10,6 +12,7 @@ import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 
 type AssetManagerTab = 'vanilla' | 'mods';
+type DiagnosticDialogState = { readonly modName: string; readonly kind: 'warning' | 'blocking'; readonly diagnostics: readonly ModImportDiagnostic[] };
 const phases: readonly ModImportProgress['phase'][] = ['opening-archive', 'reading-metadata', 'checking-compatibility', 'indexing-resources', 'extracting-resources', 'discovering-blocks', 'discovering-items', 'discovering-decorations', 'evaluating-behavior', 'checking-conflicts', 'saving-cache', 'activating'];
 export type ImportStage = 'reading' | 'compatibility' | 'resources' | 'content' | 'validation' | 'import';
 export const importStages: readonly { readonly id: ImportStage; readonly phases: readonly ModImportProgress['phase'][]; readonly label: string }[] = [
@@ -33,7 +36,7 @@ export function compactContentCount(imported: number, detected: number, label: s
   return imported === detected ? `${imported} ${label}` : `${imported} / ${detected} ${label}`;
 }
 
-@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideTrash2, LucideX, CdkTrapFocus], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()', '(document:pointerdown)': 'handleDocumentPointerdown($event)' } })
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideTrash2, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(VanillaAssetsService);
@@ -51,12 +54,13 @@ export class AssetManagerDialogComponent {
   protected readonly preflightProgress = signal<ModImportProgress | undefined>(undefined);
   protected readonly preflightError = signal('');
   protected readonly preflightIconUrl = signal<string | undefined>(undefined);
-  protected readonly helpPinned = signal(false);
   protected readonly technicalProgressOpen = signal(false);
+  protected readonly diagnosticDialog = signal<DiagnosticDialogState | undefined>(undefined);
+  protected readonly confirming = signal(false);
   protected readonly phaseOrder = phases;
   protected readonly stageOrder = importStages;
-  private helpCloseTimer: number | undefined;
   private detailsRestoreTarget: HTMLElement | undefined;
+  private diagnosticRestoreTarget: HTMLElement | undefined;
   protected readonly filteredMods = computed(() => { const query = this.modSearch().trim().toLocaleLowerCase(); return this.assets.importedMods().filter((mod) => !query || [mod.displayName, mod.modId, mod.version, mod.report.loader].some((value) => value.toLocaleLowerCase().includes(query))); });
   protected readonly vanillaActivity = computed(() => filterAssetActivity(this.assets.activity.entries(), 'vanilla'));
   protected readonly modActivity = computed(() => filterAssetActivity(this.assets.activity.entries(), 'mods'));
@@ -68,22 +72,26 @@ export class AssetManagerDialogComponent {
     if (selected && !this.detailsRestoreTarget && typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) this.detailsRestoreTarget = document.activeElement;
     if (!selected && this.detailsRestoreTarget) { const target = this.detailsRestoreTarget; this.detailsRestoreTarget = undefined; queueMicrotask(() => target.focus()); }
   });
+  private readonly diagnosticFocusEffect = effect(() => {
+    const dialog = this.diagnosticDialog();
+    if (dialog && !this.diagnosticRestoreTarget && typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) this.diagnosticRestoreTarget = document.activeElement;
+    if (!dialog && this.diagnosticRestoreTarget) { const target = this.diagnosticRestoreTarget; this.diagnosticRestoreTarget = undefined; queueMicrotask(() => target.focus()); }
+  });
 
-  protected closeFromEscape(): void { if (this.helpOpen()) { this.closeHelp(); return; } if (this.selectedDetails()) { this.closeDetails(); return; } this.cancelPreflight(); this.closed.emit(); }
-  protected handleDocumentPointerdown(event: PointerEvent): void { const target = event.target as HTMLElement | null; if (this.helpOpen() && !target?.closest('.help-popover, .help-button')) this.closeHelp(); }
+  protected closeFromEscape(): void { if (this.helpOpen()) { this.closeHelp(); return; } if (this.diagnosticDialog()) { this.closeDiagnostics(); return; } if (this.selectedDetails()) { this.closeDetails(); return; } this.cancelPreflight(); this.closed.emit(); }
   protected setTab(tab: AssetManagerTab): void { this.tab.set(tab); }
   protected closeDetails(): void { const target = this.detailsRestoreTarget; this.detailsRestoreTarget = undefined; this.detailsSourceId.set(undefined); queueMicrotask(() => target?.focus()); }
-  protected openHelp(pinned: boolean): void { this.helpPinned.set(pinned || this.helpPinned()); this.helpOpen.set(true); }
-  protected toggleHelp(): void { if (this.helpPinned()) this.closeHelp(); else this.openHelp(true); }
-  protected closeHelp(): void { if (this.helpCloseTimer !== undefined) window.clearTimeout(this.helpCloseTimer); this.helpCloseTimer = undefined; this.helpOpen.set(false); this.helpPinned.set(false); }
-  protected scheduleHelpClose(): void { if (this.helpPinned()) return; if (this.helpCloseTimer !== undefined) window.clearTimeout(this.helpCloseTimer); this.helpCloseTimer = window.setTimeout(() => { this.helpCloseTimer = undefined; if (!this.helpPinned()) this.helpOpen.set(false); }, 180); }
-  protected cancelHelpClose(): void { if (this.helpCloseTimer !== undefined) window.clearTimeout(this.helpCloseTimer); this.helpCloseTimer = undefined; }
+  protected openHelp(): void { this.helpOpen.set(true); }
+  protected toggleHelp(): void { this.helpOpen.update((open) => !open); }
+  protected closeHelp(): void { this.helpOpen.set(false); }
   protected openJarPicker(input: HTMLInputElement): void { if (this.importing() || this.assets.status() === 'importing') return; input.value = ''; const picker = input as HTMLInputElement & { showPicker?: () => void }; if (typeof picker.showPicker === 'function') { try { picker.showPicker(); return; } catch { /* native click fallback */ } } input.click(); }
   protected async importJar(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; const confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerManualImportConfirmTitle'), text: this.i18n.t('assetManagerManualImportConfirmText').replace('{version}', this.assets.activeVersion()), confirmButtonText: this.i18n.t('assetManagerImport'), cancelButtonText: this.i18n.t('cancel') }); if (!confirmed) { input.value = ''; return; } this.importing.set(true); try { await this.assets.importJar(file); } finally { this.importing.set(false); input.value = ''; } }
   protected async inspectMod(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file || this.importing()) return; this.cancelPreflight(); this.importing.set(true); this.modError.set(''); this.preflightError.set(''); this.preflightProgress.set(undefined); try { const prepared = await this.assets.inspectModJar(file, (progress) => this.preflightProgress.set(progress)); this.preflight.set(prepared); this.preflightIconUrl.set(this.createPreflightIcon(prepared)); } catch (error) { this.preflightError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); } finally { this.importing.set(false); input.value = ''; } }
   protected async confirmModImport(): Promise<void> { const prepared = this.preflight(); if (!prepared || !prepared.canActivate || this.importing()) return; this.importing.set(true); this.modError.set(''); try { await this.assets.commitPreparedModImport(prepared, (progress) => this.preflightProgress.set(progress)); this.preflight.set(undefined); this.preflightProgress.set(undefined); this.modSearch.set(''); } catch (error) { this.modError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); } finally { prepared.dispose(); this.revokePreflightIcon(); this.importing.set(false); } }
   protected cancelPreflight(): void { const prepared = this.preflight(); if (prepared) prepared.dispose(); this.revokePreflightIcon(); this.preflight.set(undefined); this.preflightProgress.set(undefined); this.preflightError.set(''); }
-  protected async removeMod(mod: ImportedModSummary): Promise<void> { if (this.removing()) return; const confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerRemoveModTitle'), text: this.i18n.t('assetManagerRemoveModText').replace('{name}', mod.displayName), confirmButtonText: this.i18n.t('remove'), cancelButtonText: this.i18n.t('cancel') }); if (!confirmed) return; this.removing.set(mod.sourceId); try { await this.assets.removeMod(mod.sourceId); if (this.detailsSourceId() === mod.sourceId) this.closeDetails(); } finally { this.removing.set(undefined); } }
+  protected async removeMod(mod: ImportedModSummary): Promise<void> { if (this.removing()) return; this.confirming.set(true); let confirmed = false; try { confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerRemoveModTitle'), text: this.i18n.t('assetManagerRemoveModText').replace('{name}', mod.displayName), confirmButtonText: this.i18n.t('remove'), cancelButtonText: this.i18n.t('cancel'), destructive: true }); } finally { this.confirming.set(false); } if (!confirmed) return; this.removing.set(mod.sourceId); try { await this.assets.removeMod(mod.sourceId); if (this.detailsSourceId() === mod.sourceId) this.closeDetails(); } finally { this.removing.set(undefined); } }
+  protected openDiagnostics(report: ModImportReport | undefined, modName: string, kind: 'warning' | 'blocking' = 'warning'): void { if (!report) return; const diagnostics = report.diagnostics.filter((diagnostic) => kind === 'warning' ? diagnostic.severity === 'warning' : diagnostic.severity === 'error' || diagnostic.category === 'blocking'); if (diagnostics.length) this.diagnosticDialog.set({ modName, kind, diagnostics }); }
+  protected closeDiagnostics(): void { this.diagnosticDialog.set(undefined); }
   protected async redownload(): Promise<void> { if (!this.importing()) { this.importing.set(true); try { await this.assets.redownload(); } finally { this.importing.set(false); } } }
   protected async removeCached(): Promise<void> { if (!this.importing()) { this.importing.set(true); try { await this.assets.removeCachedVersion(); } finally { this.importing.set(false); } } }
   protected exportCompatibilityReport(): void { this.assets.exportCompatibilityReport(); }
@@ -103,7 +111,7 @@ export class AssetManagerDialogComponent {
   protected compatibilityClass(status: string | undefined): string { return status === 'compatible' ? 'status-ok' : 'status-blocked'; }
   protected certification(value: ImportedModSummary | PreparedModImport): ModSupportCertification | undefined { const normalized = 'report' in value ? value.report?.normalizedMetadata : value.normalizedMetadata; if (!normalized) return undefined; return this.supportCatalog.certificationFor({ metadata: normalized, minecraftVersion: this.assets.activeVersion(), fingerprint: value.fingerprint }); }
   protected importedCertification(mod: ImportedModSummary): ModSupportCertification | undefined { return this.certification(mod); }
-  protected warningCount(report: PreparedModImport['report'] | ImportedModSummary['report'] | undefined): number { return report?.warnings.length ?? report?.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length ?? 0; }
+  protected warningCount(report: PreparedModImport['report'] | ImportedModSummary['report'] | undefined): number { return report?.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length ?? 0; }
   protected blockingCount(report: PreparedModImport['report'] | ImportedModSummary['report'] | undefined): number { return report?.diagnostics.filter((diagnostic) => diagnostic.severity === 'error' || diagnostic.category === 'blocking').length ?? 0; }
   protected compactCount(imported: number, detected: number, label: string): string { return compactContentCount(imported, detected, label); }
   protected warningLabel(report: ImportedModSummary['report']): string { const count = this.warningCount(report); return count ? `${count} ${this.i18n.t('assetManagerWarnings')}` : ''; }

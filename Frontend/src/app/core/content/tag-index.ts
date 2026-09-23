@@ -56,6 +56,7 @@ const TAG_PATH = /^data\/([^/]+)\/tags\/(block|item|painting_variant)\/(.+)\.jso
 export class TagIndex {
   private readonly contributionsByTag = new Map<string, TagContribution[]>();
   private readonly diagnosticsValue: TagDiagnostic[] = [];
+  private readonly resolvedCache = new Map<string, NormalizedTag>();
   private readonly knownMembers = new Map<TagDomain, Set<string>>([
     ['block', new Set<string>()], ['item', new Set<string>()], ['painting_variant', new Set<string>()],
   ]);
@@ -67,6 +68,7 @@ export class TagIndex {
   static fromProvider(provider: AssetResourceProvider): TagIndex { return new TagIndex([provider]); }
 
   addProvider(provider: AssetResourceProvider): void {
+    this.resolvedCache.clear();
     const source = sourceMetadata(provider);
     for (const path of provider.paths?.() ?? []) {
       recordKnownMember(path, this.knownMembers);
@@ -97,10 +99,14 @@ export class TagIndex {
 
   get(domain: TagDomain, id: string): NormalizedTag {
     const tagId = normalizeTagId(id);
+    const cached = this.resolvedCache.get(tagKey(domain, tagId));
+    if (cached) return cached;
     const contributions = this.contributionsByTag.get(tagKey(domain, tagId)) ?? [];
     const localDiagnostics: TagDiagnostic[] = [];
     const members = this.resolveMembers(domain, tagId, new Set(), localDiagnostics);
-    return { id: tagId, domain, contributions: [...contributions], members, diagnostics: localDiagnostics };
+    const normalized = { id: tagId, domain, contributions: [...contributions], members, diagnostics: localDiagnostics };
+    this.resolvedCache.set(tagKey(domain, tagId), normalized);
+    return normalized;
   }
 
   hasMember(domain: TagDomain, tagId: string, memberId: string): boolean {

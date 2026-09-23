@@ -20,6 +20,7 @@ import { evaluateCompatibility } from './compatibility/compatibility-evaluator';
 import { downloadCompatibilityReport } from './compatibility/compatibility-report';
 import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
 import { ThumbnailTaskPriority, ThumbnailTaskQueue } from './thumbnail-task-queue';
+import { yieldToBrowser } from '../cooperative-yield';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -92,7 +93,7 @@ export class VanillaAssetsService {
         const provider = commitModImport(prepared, (progress) => this.reportModProgress(progress));
         this.assertExternalSourceAvailable(provider);
         this.reportModProgress({ phase: 'saving-cache' });
-        await this.cache.saveExternalMod(provider.serialize());
+        await this.cache.saveExternalMod(await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total })));
         this.reportModProgress({ phase: 'activating' });
         this.activateExternal(provider);
         this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
@@ -114,8 +115,10 @@ export class VanillaAssetsService {
     if (!prepared.report || !prepared.loaderSupported || !prepared.metadata) return prepared;
     try {
       const preview = prepared.provider ?? ExternalModProvider.create({ metadata: prepared.metadata, json: prepared.json, resources: prepared.resources, diagnostics: prepared.diagnostics, minecraftVersion: prepared.minecraftVersion, fingerprint: prepared.fingerprint });
+      await preview.prepareCatalog((progress) => { const event = { phase: 'discovering-blocks' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); });
       const resourceConflicts = this.sources.resources.inspectProvider(preview);
-      const catalogConflicts = this.sources.inspectCatalogContribution(preview.catalog());
+      const catalog = preview.catalog();
+      const catalogConflicts = await this.sources.inspectCatalogContributionAsync(catalog, (progress) => { const event = { phase: 'checking-conflicts' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); });
       const conflictDiagnostics: ModImportDiagnostic[] = [
         ...resourceConflicts.map((conflict) => ({
           severity: 'error' as const,
@@ -154,7 +157,7 @@ export class VanillaAssetsService {
     const provider = commitModImport(prepared, reportProgress);
     this.assertExternalSourceAvailable(provider);
     reportProgress({ phase: 'saving-cache' });
-    await this.cache.saveExternalMod(provider.serialize());
+    await this.cache.saveExternalMod(await provider.serializeForCacheAsync((progress) => reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total })));
     reportProgress({ phase: 'activating' });
     this.activateExternal(provider);
     return provider.report;
@@ -373,7 +376,7 @@ export class VanillaAssetsService {
         const provider = ExternalModProvider.deserialize(serialized, version);
         sourceName = provider.metadata.displayName;
         if (provider.report.canActivate === false) failed += 1;
-        else this.activateExternal(provider);
+        else { await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`)); this.activateExternal(provider); }
       } catch { failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
       current += 1;
       this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
@@ -410,17 +413,6 @@ export function deriveAssetBootstrapStatus(status: VanillaAssetStatus, restore: 
   if (restore.phase === 'partial') return { kind: 'partial', warnings: restore.failed };
   if (restore.phase === 'vanilla') return { kind: 'preparing' };
   return { kind: 'ready' };
-}
-
-function yieldToBrowser(): Promise<void> {
-  if (typeof document === 'undefined' || document.visibilityState !== 'visible' || typeof requestAnimationFrame !== 'function') return new Promise((resolve) => setTimeout(resolve, 0));
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (): void => { if (settled) return; settled = true; document.removeEventListener('visibilitychange', onVisibilityChange); resolve(); };
-    const onVisibilityChange = (): void => { if (document.visibilityState !== 'visible') finish(); };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    requestAnimationFrame(finish);
-  });
 }
 
 export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single', concreteBlockIds: readonly string[] = []): string {
