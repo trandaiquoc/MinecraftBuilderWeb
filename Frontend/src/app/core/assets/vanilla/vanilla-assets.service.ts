@@ -23,7 +23,7 @@ import { ThumbnailTaskPriority, ThumbnailTaskQueue } from './thumbnail-task-queu
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
-export interface ImportedModSummary { readonly sourceId: string; readonly modId: string; readonly displayName: string; readonly version: string; readonly namespaces: readonly string[]; readonly candidateBlockCount: number; readonly report: ModImportReport; }
+export interface ImportedModSummary { readonly sourceId: string; readonly modId: string; readonly displayName: string; readonly version: string; readonly namespaces: readonly string[]; readonly candidateBlockCount: number; readonly fingerprint?: string; readonly iconUrl?: string; readonly report: ModImportReport; }
 export type ContentRestorePhase = 'vanilla' | 'restoring-mods' | 'ready' | 'partial' | 'error';
 export interface ContentRestoreState { readonly phase: ContentRestorePhase; readonly current: number; readonly total: number; readonly sourceName?: string; readonly failed: number; }
 export type AssetBootstrapStatusKind = 'loading-cache' | 'downloading' | 'preparing' | 'restoring-mods' | 'ready' | 'partial' | 'unavailable';
@@ -401,7 +401,7 @@ export class VanillaAssetsService {
 }
 
 function summarizeMod(provider: ExternalModProvider): ImportedModSummary {
-  return { sourceId: provider.source.id, modId: provider.metadata.id, displayName: provider.metadata.displayName, version: provider.metadata.version, namespaces: provider.source.namespaces, candidateBlockCount: provider.report.candidateBlockCount, report: provider.report };
+  return { sourceId: provider.source.id, modId: provider.metadata.id, displayName: provider.metadata.displayName, version: provider.metadata.version, namespaces: provider.source.namespaces, candidateBlockCount: provider.report.candidateBlockCount, ...(provider.fingerprint ? { fingerprint: provider.fingerprint } : {}), ...(provider.iconUrl() ? { iconUrl: provider.iconUrl() } : {}), report: provider.report };
 }
 
 export function shouldStartVersionLoad(providerVersion: string | undefined, status: VanillaAssetStatus, requestedVersion: string, inFlightVersion: string | undefined, force = false): boolean {

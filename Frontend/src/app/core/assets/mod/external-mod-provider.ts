@@ -185,6 +185,12 @@ export class ExternalModProvider implements ContentSourceProvider {
     const existing = this.objectUrls.get(path); if (existing) return existing;
     const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'image/png' })); this.objectUrls.set(path, url); return url;
   }
+  iconUrl(): string | undefined {
+    const icon = this.normalizedMetadata.icon; if (!icon) return undefined;
+    const bytes = this.binary.get(icon); if (!bytes) return undefined;
+    const existing = this.objectUrls.get(icon); if (existing) return existing;
+    const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'image/png' })); this.objectUrls.set(icon, url); return url;
+  }
 
   catalog(): BlockCatalogSource & { readonly paintingVariants: readonly PaintingVariant[] } {
     const records: AssetBlockRecord[] = [];

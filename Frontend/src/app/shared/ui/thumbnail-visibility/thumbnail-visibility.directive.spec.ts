@@ -37,12 +37,15 @@ describe('ThumbnailVisibilityDirective', () => {
         { target: host, isIntersecting: true, boundingClientRect: { top: 20, left: 0, right: 10, bottom: 40 } } as unknown as IntersectionObserverEntry,
         { target: secondHost, isIntersecting: true, boundingClientRect: { top: 140, left: 0, right: 10, bottom: 160 } } as unknown as IntersectionObserverEntry,
       ], {} as IntersectionObserver);
+      const countAfterIntersect = priorities.length;
+      callback?.([{ target: host, isIntersecting: false, boundingClientRect: { top: 300, left: 0, right: 10, bottom: 320 } } as unknown as IntersectionObserverEntry], {} as IntersectionObserver);
       directive.thumbnailVisibilityEpoch = 1;
       second.thumbnailVisibilityEpoch = 1;
       expect(options?.root).toBe(root);
       expect(options?.rootMargin).toBe('160px 0px');
       expect(observerCount).toBe(1);
-      expect(priorities).toEqual(['visible', 'prefetch', 'visible', 'prefetch']);
+      expect(priorities).toEqual(['visible', 'prefetch', 'prefetch']);
+      expect(countAfterIntersect).toBe(2);
       directive.ngOnDestroy();
       second.ngOnDestroy();
     } finally {

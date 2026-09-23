@@ -47,7 +47,7 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
   }
 
   private handleEntry(entry: IntersectionObserverEntry): void {
-    if (!entry.isIntersecting) return;
+    if (!entry.isIntersecting) { this.currentPriority = undefined; return; }
     const rootRect = this.root?.getBoundingClientRect();
     const rect = entry.boundingClientRect;
     const visible = !rootRect || (rect.bottom > rootRect.top && rect.top < rootRect.bottom && rect.right > rootRect.left && rect.left < rootRect.right);
