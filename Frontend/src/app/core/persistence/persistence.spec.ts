@@ -3,7 +3,7 @@ import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
 import { DirtyState } from './autosave/dirty-state';
 import { AutosaveController } from './autosave/autosave-controller';
-import { parseProjectPackage, ProjectPackageError, serializeProjectPackage } from './project-package/project-package';
+import { CURRENT_PROJECT_PACKAGE_VERSION, parseProjectPackage, PROJECT_PACKAGE_FORMAT, ProjectPackageError, serializeProjectPackage } from './project-package/project-package';
 import { ProjectPersistenceService } from './project-persistence.service';
 import { ProjectStore, ProjectSummary } from './project-store/project-store.port';
 import { projectSummaryFromStoredRecord } from './project-store/indexeddb-project-store';
@@ -17,6 +17,12 @@ const project: ProjectDocument = {
 };
 
 describe('local persistence helpers', () => {
+  it('keeps the project backup format and version stable', () => {
+    expect(PROJECT_PACKAGE_FORMAT).toBe('minecraftbuilder-project');
+    expect(CURRENT_PROJECT_PACKAGE_VERSION).toBe(1);
+    expect(JSON.parse(serializeProjectPackage(project))).toMatchObject({ format: 'minecraftbuilder-project', formatVersion: 1 });
+  });
+
   it('round-trips a versioned project package', () => {
     expect(parseProjectPackage(serializeProjectPackage(project))).toEqual(migrateProject(project));
   });

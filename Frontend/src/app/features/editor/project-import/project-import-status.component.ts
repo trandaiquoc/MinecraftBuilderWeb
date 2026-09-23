@@ -15,11 +15,11 @@ export class ProjectImportStatusComponent {
   readonly closed = output<void>();
   protected readonly busy = computed(() => !['idle', 'success', 'error'].includes(this.state().stage));
   protected stageLabel(stage: ProjectPackageImportState['stage']): string {
-    const key = ({ 'saving-current': 'importSavingCurrent', 'reading-file': 'importReadingFile', parsing: 'importParsing', validating: 'importValidating', 'checking-destination': 'importCheckingDestination', storing: 'importSavingProject', activating: 'importOpeningProject' } as Record<string, string>)[stage] ?? 'importParsing';
+    const key = ({ 'saving-current': 'importSavingCurrent', 'reading-file': 'projectBackupReadingFile', parsing: 'projectBackupParsing', validating: 'projectBackupValidating', 'checking-destination': 'projectBackupCheckingDestination', storing: 'projectBackupSavingRestored', activating: 'projectBackupOpeningRestored' } as Record<string, string>)[stage] ?? 'projectBackupParsing';
     return this.i18n.t(key as Parameters<I18nService['t']>[0]);
   }
   protected errorLabel(category: ProjectPackageImportState['errorCategory']): string {
-    const key = ({ 'read-failed': 'importReadFailed', 'invalid-json': 'importInvalidJson', 'not-project-package': 'importNotProjectPackage', 'unsupported-package-version': 'importUnsupportedPackage', 'unsupported-project-schema': 'importUnsupportedSchema', 'invalid-project-data': 'importInvalidData', 'storage-failed': 'importStorageFailed' } as Record<string, string>)[category ?? 'unexpected'] ?? 'importError';
+    const key = ({ 'read-failed': 'projectBackupReadFailed', 'invalid-json': 'projectBackupInvalidJson', 'not-project-package': 'projectBackupNotRecognized', 'unsupported-package-version': 'projectBackupUnsupportedVersion', 'unsupported-project-schema': 'importUnsupportedSchema', 'invalid-project-data': 'importInvalidData', 'storage-failed': 'importStorageFailed' } as Record<string, string>)[category ?? 'unexpected'] ?? 'projectBackupImportFailed';
     return this.i18n.t(key as Parameters<I18nService['t']>[0]);
   }
 }

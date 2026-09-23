@@ -18,6 +18,19 @@ describe('translation dictionaries', () => {
     expect(supplementalTranslations.vi.assetManagerShowTechnicalProgress).toBe('Hiện tiến trình kỹ thuật');
   });
 
+  it('uses project backup terminology consistently in both locales', () => {
+    const service = TestBed.inject(I18nService);
+    service.setLocale('en');
+    expect(service.t('importProjectPackage')).toBe('Import Project Backup…');
+    expect(service.t('exportProjectPackage')).toBe('Export Project Backup…');
+    expect(service.t('exportStructureNbt')).toBe('Export Minecraft Structure (NBT)…');
+    service.setLocale('vi');
+    expect(service.t('importProjectPackage')).toBe('Nhập bản sao lưu dự án…');
+    expect(service.t('exportProjectPackage')).toBe('Xuất bản sao lưu dự án…');
+    expect(service.t('exportStructureNbt')).toBe('Xuất cấu trúc Minecraft (NBT)…');
+    service.setLocale('en');
+  });
+
   it('localizes known diagnostics and preserves unknown fallback text', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('vi');
