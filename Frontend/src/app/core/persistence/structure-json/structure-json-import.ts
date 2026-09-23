@@ -44,6 +44,12 @@ export interface StructureJsonValidationPreview {
 
 const emptyIssues = (): { missing: StructureJsonBlockIssue[]; bounds: StructureJsonBlockIssue[]; state: StructureJsonBlockIssue[]; duplicate: StructureJsonCoordinateConflict[] } => ({ missing: [], bounds: [], state: [], duplicate: [] });
 const WORKER_THRESHOLD = 256 * 1024;
+export const STRUCTURE_JSON_VALIDATION_CHUNK_SIZE = 256;
+
+export interface StructureJsonValidationCancellation {
+  readonly signal?: AbortSignal;
+  readonly isCancelled?: () => boolean;
+}
 
 export interface StructureJsonWorkerRequest { readonly text: string; }
 export interface StructureJsonWorkerResponse { readonly ok: boolean; readonly result: ParsedStructureJsonV1Result; }
@@ -69,9 +75,47 @@ export function validateParsedStructureJsonPreview(parsed: StructureJsonV1, size
   return validateParsedStructureJsonPreviewBase(parsed, size, getDefinition, onProgress);
 }
 
-export async function validateStructureJsonPreviewAsync(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void): Promise<StructureJsonValidationPreview> {
-  await yieldToBrowser();
-  return validateStructureJsonPreview(serialized, size, getDefinition, onProgress);
+export async function validateStructureJsonPreviewAsync(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation): Promise<StructureJsonValidationPreview | undefined> {
+  if (isCancelled(cancellation)) return undefined;
+  const parsed = parseStructureJsonV1(serialized);
+  if (!parsed.valid || !parsed.value) return emptyPreview(parsed.code);
+  return validateParsedStructureJsonPreviewAsync(parsed.value, size, getDefinition, onProgress, cancellation);
+}
+
+export async function validateParsedStructureJsonPreviewAsync(parsed: StructureJsonV1, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation): Promise<StructureJsonValidationPreview | undefined> {
+  if (isCancelled(cancellation)) return undefined;
+  const issues = emptyIssues();
+  const coordinates = new Map<string, { readonly position: VoxelCoordinate; readonly indexes: number[]; readonly ids: string[] }>();
+  for (let start = 0; start < parsed.blocks.length; start += STRUCTURE_JSON_VALIDATION_CHUNK_SIZE) {
+    const end = Math.min(start + STRUCTURE_JSON_VALIDATION_CHUNK_SIZE, parsed.blocks.length);
+    for (let index = start; index < end; index += 1) {
+      const block = parsed.blocks[index]; const position = { x: block.x, y: block.y, z: block.z }; const key = coordinateKey(position); const group = coordinates.get(key) ?? { position, indexes: [], ids: [] };
+      group.indexes.push(index); group.ids.push(block.id); coordinates.set(key, group);
+    }
+    if (end < parsed.blocks.length) { await yieldToBrowser(); if (isCancelled(cancellation)) return undefined; }
+  }
+  const duplicateIndexes = new Set<number>();
+  let groupsProcessed = 0;
+  for (const group of coordinates.values()) {
+    if (group.indexes.length > 1) { group.indexes.forEach((index) => duplicateIndexes.add(index)); issues.duplicate.push({ category: 'duplicate', coordinate: group.position, blockIndexes: group.indexes, blockIds: group.ids }); }
+    groupsProcessed += 1;
+    if (groupsProcessed % STRUCTURE_JSON_VALIDATION_CHUNK_SIZE === 0) { await yieldToBrowser(); if (isCancelled(cancellation)) return undefined; }
+  }
+  let validBlocks = 0;
+  if (parsed.blocks.length === 0) onProgress?.(0, 0);
+  for (let start = 0; start < parsed.blocks.length; start += STRUCTURE_JSON_VALIDATION_CHUNK_SIZE) {
+    const end = Math.min(start + STRUCTURE_JSON_VALIDATION_CHUNK_SIZE, parsed.blocks.length);
+    for (let index = start; index < end; index += 1) {
+      const block = parsed.blocks[index]; const position = { x: block.x, y: block.y, z: block.z };
+      if (!isWithinBounds(position, size)) issues.bounds.push(issue('bounds', index, block, { code: 'out-of-bounds' }));
+      const definition = getDefinition(block.id);
+      if (!definition) issues.missing.push(issue('missing', index, block, { code: 'missing-block' }));
+      else { const invalid = findInvalidState(block, definition); if (invalid) issues.state.push({ ...issue('state', index, block, invalid.reason), property: invalid.property, value: invalid.value }); else if (isWithinBounds(position, size) && !duplicateIndexes.has(index)) validBlocks += 1; }
+    }
+    onProgress?.(end, parsed.blocks.length);
+    if (end < parsed.blocks.length) { await yieldToBrowser(); if (isCancelled(cancellation)) return undefined; }
+  }
+  return { structuralValid: true, parsed, totalBlocks: parsed.blocks.length, validBlocks, missingBlocks: issues.missing.length, outOfBounds: issues.bounds.length, invalidStates: issues.state.length, duplicateCoordinates: issues.duplicate.length, affectedDuplicateBlocks: issues.duplicate.reduce((count, conflict) => count + conflict.blockIndexes.length, 0), issues };
 }
 
 function validateStructureJsonPreviewBase(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void): StructureJsonValidationPreview {
@@ -114,4 +158,5 @@ function findInvalidState(block: StructureJsonBlockV1, definition: BlockDefiniti
 
 function issue(category: StructureJsonIssueCategory, index: number, block: StructureJsonBlockV1, reason: StructureJsonIssueReason): StructureJsonBlockIssue { return { category, index, id: block.id, position: { x: block.x, y: block.y, z: block.z }, reason }; }
 function emptyPreview(code?: StructureJsonValidationCode): StructureJsonValidationPreview { return { structuralValid: false, structuralCode: code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0, issues: emptyIssues() }; }
+function isCancelled(cancellation?: StructureJsonValidationCancellation): boolean { return Boolean(cancellation?.signal?.aborted || cancellation?.isCancelled?.()); }
 function yieldToBrowser(): Promise<void> { return new Promise((resolve) => setTimeout(resolve, 0)); }

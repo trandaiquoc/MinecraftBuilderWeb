@@ -3,7 +3,7 @@ import { Component, inject, input, output, signal } from '@angular/core';
 import { LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideTriangleAlert, LucideUpload, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
-import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonValidationPreview, validateParsedStructureJsonPreview } from '../../../core/persistence/structure-json/structure-json-import';
+import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonValidationPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
@@ -22,29 +22,31 @@ export class StructureJsonImportDialogComponent {
   protected readonly draftJson = signal('');
   protected readonly preview = signal<StructureJsonValidationPreview | undefined>(undefined);
   protected readonly progress = signal<'idle' | 'reading' | 'parsing' | 'checking' | 'complete'>('idle');
+  protected readonly checkingProgress = signal({ completed: 0, total: 0 });
   protected readonly fileInput = signal<HTMLInputElement | undefined>(undefined);
   private validationGeneration = 0;
 
   protected close(): void { this.validationGeneration += 1; this.closed.emit(); }
   protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) this.close(); }
-  protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.progress.set('idle'); this.validationGeneration += 1; }
+  protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.progress.set('idle'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1; }
   protected async loadFile(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = '';
     if (!file) return;
-    this.progress.set('reading'); this.preview.set(undefined); this.validationGeneration += 1;
+    this.progress.set('reading'); this.preview.set(undefined); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1;
     try { this.draftJson.set(await file.text()); this.progress.set('idle'); } catch { this.progress.set('idle'); }
   }
   protected async validate(): Promise<void> {
     const generation = ++this.validationGeneration;
     this.progress.set('parsing');
+    this.checkingProgress.set({ completed: 0, total: 0 });
     const parsed = await parseStructureJsonWithWorker(this.draftJson());
     if (generation !== this.validationGeneration) return;
     if (!parsed.valid || !parsed.value) { this.preview.set({ structuralValid: false, structuralCode: parsed.code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0, issues: { missing: [], bounds: [], state: [], duplicate: [] } }); this.progress.set('complete'); return; }
     this.progress.set('checking');
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    if (generation !== this.validationGeneration) return;
-    const result = validateParsedStructureJsonPreview(parsed.value, this.project().size, (id) => this.library.get(id));
-    if (generation !== this.validationGeneration) return;
+    const result = await validateParsedStructureJsonPreviewAsync(parsed.value, this.project().size, (id) => this.library.get(id), (completed, total) => {
+      if (generation === this.validationGeneration) this.checkingProgress.set({ completed, total });
+    }, { isCancelled: () => generation !== this.validationGeneration });
+    if (generation !== this.validationGeneration || !result) return;
     this.preview.set(result); this.progress.set('complete');
   }
   protected progressLabel(): string { return this.i18n.t(`structureJsonProgress${this.progress()[0].toUpperCase()}${this.progress().slice(1)}`); }

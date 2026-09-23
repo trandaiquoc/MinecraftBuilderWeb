@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { validateStructureJsonPreview } from './structure-json-import';
+import { validateParsedStructureJsonPreviewAsync, validateStructureJsonPreview, STRUCTURE_JSON_VALIDATION_CHUNK_SIZE } from './structure-json-import';
 
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
 const stairs: BlockDefinition = { ...stone, id: 'minecraft:oak_stairs', displayName: 'Oak Stairs', defaultState: { facing: 'north', half: 'bottom' }, stateDefinitions: [{ name: 'facing', values: ['north', 'south'] }, { name: 'half', values: ['top', 'bottom'] }] };
@@ -57,5 +57,43 @@ describe('Structure JSON import validation preview', () => {
     const result = validateStructureJsonPreview('{', size, () => { lookups += 1; return stone; });
     expect(result.structuralValid).toBe(false);
     expect(lookups).toBe(0);
+  });
+
+  it('keeps async validation equivalent to the synchronous validator', async () => {
+    const parsed = { format: 'minecraftbuilder-structure', formatVersion: 1, minecraftVersion: '1.21.1', blocks: [
+      { id: 'minecraft:stone', x: 0, y: 0, z: 0 },
+      { id: 'mod:missing', x: 1, y: 0, z: 0 },
+      { id: 'minecraft:stone', x: 0, y: 0, z: 0 },
+      { id: 'minecraft:stone', x: 9, y: 0, z: 0 },
+    ], } as const;
+    const sync = validateStructureJsonPreview(JSON.stringify(parsed), size, (id) => id === stone.id ? stone : undefined);
+    const asyncResult = await validateParsedStructureJsonPreviewAsync(parsed, size, (id) => id === stone.id ? stone : undefined);
+    expect(asyncResult).toEqual(sync);
+  });
+
+  it('reports semantic progress at chunk boundaries instead of once per block', async () => {
+    const blocks = Array.from({ length: STRUCTURE_JSON_VALIDATION_CHUNK_SIZE * 3 + 5 }, (_, index) => ({ id: 'minecraft:stone', x: index % size.x, y: Math.floor(index / size.x) % size.y, z: Math.floor(index / (size.x * size.y)) }));
+    const progress: number[] = [];
+    const result = await validateParsedStructureJsonPreviewAsync({ format: 'minecraftbuilder-structure', formatVersion: 1, minecraftVersion: '1.21.1', blocks }, size, () => stone, (completed) => progress.push(completed));
+    expect(result?.totalBlocks).toBe(blocks.length);
+    expect(progress.at(-1)).toBe(blocks.length);
+    expect(progress.length).toBe(Math.ceil(blocks.length / STRUCTURE_JSON_VALIDATION_CHUNK_SIZE));
+    expect(progress.length).toBeLessThan(blocks.length);
+  });
+
+  it('cancels a large semantic validation between chunks', async () => {
+    const blocks = Array.from({ length: STRUCTURE_JSON_VALIDATION_CHUNK_SIZE * 8 }, (_, index) => ({ id: 'minecraft:stone', x: index % size.x, y: 0, z: 0 }));
+    let cancelled = false;
+    let progressCalls = 0;
+    const result = await validateParsedStructureJsonPreviewAsync({ format: 'minecraftbuilder-structure', formatVersion: 1, minecraftVersion: '1.21.1', blocks }, size, () => stone, () => { progressCalls += 1; cancelled = true; }, { isCancelled: () => cancelled });
+    expect(result).toBeUndefined();
+    expect(progressCalls).toBe(1);
+  });
+
+  it('completes a small async validation without an artificial yield', async () => {
+    let progressCalls = 0;
+    const result = await validateParsedStructureJsonPreviewAsync({ format: 'minecraftbuilder-structure', formatVersion: 1, minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }] }, size, () => stone, () => { progressCalls += 1; });
+    expect(result?.validBlocks).toBe(1);
+    expect(progressCalls).toBe(1);
   });
 });

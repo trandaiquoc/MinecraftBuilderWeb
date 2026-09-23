@@ -26,7 +26,7 @@
       <section class="structure-json-workspace">
         <div class="import-toolbar"><strong>{{ i18n.t('structureJsonSource') }}</strong><div><input #jsonFile type="file" accept="application/json,.json" hidden (change)="loadFile($event)" /><button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="jsonFile.click()"><svg lucideUpload aria-hidden="true"></svg>{{ i18n.t('chooseJsonFile') }}</button><button type="button" class="ui-button ui-button--primary ui-button--sm" (click)="validate()"><svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('validateStructureJson') }}</button></div></div>
         <textarea class="structure-json-editor" [value]="draftJson()" (input)="setDraft($any($event.target).value)" [attr.aria-label]="i18n.t('structureJsonSource')" spellcheck="false"></textarea>
-        @if (progress() !== 'idle' && progress() !== 'complete') { <p class="progress-status" role="status">{{ progressLabel() }}</p> }
+        @if (progress() !== 'idle' && progress() !== 'complete') { <p class="progress-status" role="status">{{ progressLabel() }} @if (progress() === 'checking' && checkingProgress().total > 0) { <span>({{ checkingProgress().completed }}/{{ checkingProgress().total }})</span> }</p> }
         @if (progress() === 'complete') { <p class="progress-status complete" role="status">{{ i18n.t('structureJsonProgressComplete') }}</p> }
       </section>
     </div>
