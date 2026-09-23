@@ -11,6 +11,7 @@ import { AssetActivityEntry, AssetActivityProgress } from '../../../../core/asse
 import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { JarUploadValidationError, validateJarUpload } from '../../../../core/assets/mod/jar-upload-validation';
+import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.component';
 
 type AssetManagerTab = 'vanilla' | 'mods';
 type DiagnosticDialogState = { readonly modName: string; readonly kind: 'warning' | 'blocking'; readonly diagnostics: readonly ModImportDiagnostic[] };
@@ -43,7 +44,16 @@ export function progressPercentForProgress(progress: Pick<ModImportProgress, 'pr
     : undefined;
 }
 
-@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideChevronDown, LucideChevronUp, LucideTrash2, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
+export type DiagnosticPresentation = 'none' | 'technical' | 'prominent';
+
+export function diagnosticPresentation(report: Pick<ModImportReport, 'diagnostics'>): DiagnosticPresentation {
+  const hasBlocking = report.diagnostics.some((diagnostic) => diagnostic.severity === 'error' || diagnostic.category === 'blocking');
+  const hasWarning = report.diagnostics.some((diagnostic) => diagnostic.severity === 'warning' || diagnostic.category === 'warning');
+  if (hasBlocking || hasWarning) return 'prominent';
+  return report.diagnostics.some((diagnostic) => diagnostic.severity === 'info' || diagnostic.category === 'info') ? 'technical' : 'none';
+}
+
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideChevronDown, LucideChevronUp, LucideTrash2, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin, UiProgressComponent], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(VanillaAssetsService);
@@ -66,6 +76,7 @@ export class AssetManagerDialogComponent {
   protected readonly confirming = signal(false);
   protected readonly phaseOrder = phases;
   protected readonly stageOrder = importStages;
+  protected readonly centeredOverlayPositions = [{ originX: 'center' as const, originY: 'center' as const, overlayX: 'center' as const, overlayY: 'center' as const }];
   private detailsRestoreTarget: HTMLElement | undefined;
   private diagnosticRestoreTarget: HTMLElement | undefined;
   protected readonly filteredMods = computed(() => { const query = this.modSearch().trim().toLocaleLowerCase(); return this.assets.importedMods().filter((mod) => !query || [mod.displayName, mod.modId, mod.version, mod.report.loader].some((value) => value.toLocaleLowerCase().includes(query))); });
@@ -124,6 +135,8 @@ export class AssetManagerDialogComponent {
   protected compactCount(imported: number, detected: number, label: string): string { return compactContentCount(imported, detected, label); }
   protected warningLabel(report: ImportedModSummary['report']): string { const count = this.warningCount(report); return count ? `${count} ${this.i18n.t('assetManagerWarnings')}` : ''; }
   protected hasDiagnostics(report: ImportedModSummary['report'], kind: 'blocking' | 'warning' | 'info'): boolean { return report.diagnostics.some((diagnostic) => diagnostic.category === kind || (kind === 'warning' && diagnostic.severity === 'warning') || (kind === 'info' && diagnostic.severity === 'info')); }
+  protected diagnosticCount(report: ImportedModSummary['report'], kind: 'blocking' | 'warning' | 'info'): number { return report.diagnostics.filter((diagnostic) => diagnostic.category === kind || (kind === 'warning' && diagnostic.severity === 'warning') || (kind === 'blocking' && (diagnostic.severity === 'error' || diagnostic.category === 'blocking')) || (kind === 'info' && diagnostic.severity === 'info')).length; }
+  protected hasProminentDiagnostics(report: ImportedModSummary['report']): boolean { return diagnosticPresentation(report) === 'prominent'; }
   protected detailsMetadata(mod: ImportedModSummary): NonNullable<PreparedModImport['normalizedMetadata']> | undefined { return mod.report.normalizedMetadata; }
   private createPreflightIcon(prepared: PreparedModImport): string | undefined { const path = prepared.normalizedMetadata?.icon; const bytes = path ? prepared.resources.get(path) : undefined; if (!bytes || typeof URL === 'undefined') return undefined; return URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'image/png' })); }
   private revokePreflightIcon(): void { const url = this.preflightIconUrl(); if (url && typeof URL !== 'undefined') URL.revokeObjectURL(url); this.preflightIconUrl.set(undefined); }

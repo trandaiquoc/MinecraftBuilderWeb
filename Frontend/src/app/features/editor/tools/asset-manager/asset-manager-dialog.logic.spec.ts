@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AssetActivityEntry } from '../../../../core/assets/asset-activity.service';
-import { compactContentCount, filterAssetActivity, importStageForPhase, progressPercentForProgress } from './asset-manager-dialog.component';
+import { compactContentCount, diagnosticPresentation, filterAssetActivity, importStageForPhase, progressPercentForProgress } from './asset-manager-dialog.component';
 
 const entry = (category: AssetActivityEntry['category'], id: number): AssetActivityEntry => ({ id, timestamp: id, category, level: 'info', operation: `op-${id}`, message: `message-${id}` });
 
@@ -30,5 +30,15 @@ describe('Asset Manager presentation logic', () => {
     expect(progressPercentForProgress({ processed: 1, total: 2 })).toBe(50);
     expect(progressPercentForProgress({ processed: 4, total: 4 })).toBe(100);
     expect(progressPercentForProgress({ processed: undefined, total: undefined })).toBeUndefined();
+  });
+
+  it('keeps info-only diagnostics in a collapsed technical presentation', () => {
+    expect(diagnosticPresentation({ diagnostics: [{ code: 'nested-jar-skipped', severity: 'info', category: 'info', message: 'informational' }] })).toBe('technical');
+    expect(diagnosticPresentation({ diagnostics: [] })).toBe('none');
+  });
+
+  it('keeps warnings and blocking diagnostics prominent', () => {
+    expect(diagnosticPresentation({ diagnostics: [{ code: 'warning', severity: 'warning', category: 'warning', message: 'warning' }] })).toBe('prominent');
+    expect(diagnosticPresentation({ diagnostics: [{ code: 'blocked', severity: 'error', category: 'blocking', message: 'blocked' }] })).toBe('prominent');
   });
 });

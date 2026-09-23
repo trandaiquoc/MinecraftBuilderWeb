@@ -33,7 +33,7 @@
 :host-context([data-font='minecraft-style']) .painting-summary small,
 :host-context([data-font='minecraft-style']) .frame-control small { font-size: .74rem; line-height: 1.15; }
 .advanced-fields { display: grid; gap: .3rem; margin-top: .55rem; min-width: 0; }
-.check { display: flex !important; align-items: center; gap: .35rem; color: var(--text); }
+.decoration-inspector .check { display: flex; align-items: center; gap: .35rem; color: var(--text); }
 .percent-input { display: flex; align-items: center; gap: .25rem; color: var(--text); }
 .percent-input input { width: 4.2rem; box-sizing: border-box; }
 .danger { justify-self: start; border: 0; border-radius: 4px; padding: .45rem .7rem; color: #fff; background: var(--danger); box-shadow: 0 2px 0 rgb(0 0 0 / .2); cursor: pointer; }

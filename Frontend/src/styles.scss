@@ -38,16 +38,9 @@ svg[class*='lucide'] { width: 1rem; height: 1rem; stroke-width: 2; vertical-alig
 @media (prefers-reduced-motion: reduce) { .ui-button, .ui-progress__fill { transition: none; } .ui-progress.is-indeterminate .ui-progress__fill { animation: none; width: 100%; } }
 .editor-body > app-quick-block-bar .quick-block-bar { pointer-events: auto; }
 
-.minecraft-dialog-popup { border: 0 !important; border-radius: var(--radius-md) !important; background: var(--surface-raised) !important; color: var(--text) !important; box-shadow: var(--shadow-dialog) !important; font-family: var(--font-readable) !important; }
-.minecraft-dialog-title { color: var(--text) !important; font-family: var(--font-ui) !important; }
-.minecraft-dialog-body { color: var(--text-muted) !important; }
-.minecraft-dialog-confirm, .minecraft-dialog-cancel { border: 0 !important; border-radius: var(--radius-sm) !important; padding: .55rem .85rem !important; font: inherit !important; cursor: pointer !important; }
-.minecraft-dialog-confirm { background: var(--accent) !important; color: var(--accent-contrast) !important; }
-.minecraft-dialog-cancel { background: var(--control-normal) !important; color: var(--text) !important; }
-.minecraft-dialog-danger { background: var(--danger) !important; color: #fff !important; }
-.minecraft-dialog-craft { background: var(--surface-raised) !important; }
-.minecraft-dialog-craft .minecraft-dialog-confirm { background: var(--accent) !important; color: #f4f8ef !important; }
-.minecraft-dialog-pixel .minecraft-dialog-title, .minecraft-dialog-pixel .minecraft-dialog-confirm, .minecraft-dialog-pixel .minecraft-dialog-cancel { font-family: var(--font-ui) !important; }
+.cdk-overlay-container { z-index: var(--z-dialog); }
+.ui-dialog-backdrop { background: rgb(0 0 0 / .48); }
+.ui-dialog-overlay-pane { pointer-events: auto; }
 
 /* Craft is a charcoal editor with grass-green interaction accents. */
 :root[data-theme='craft'] body {
@@ -57,12 +50,10 @@ svg[class*='lucide'] { width: 1rem; height: 1rem; stroke-width: 2; vertical-alig
 }
 :root[data-theme='craft'] .editor-shell,
 :root[data-theme='craft'] .project-screen { background: var(--app-bg); }
-:root[data-theme='craft'] .shell-header,
 :root[data-theme='craft'] .panel,
 :root[data-theme='craft'] .left-panel,
 :root[data-theme='craft'] .right-panel,
 :root[data-theme='craft'] .status-bar { background: var(--surface); border-color: transparent; box-shadow: 0 2px 0 rgb(0 0 0 / .18); }
-:root[data-theme='craft'] .editor-toolbar-row { background: var(--surface); border-color: transparent; box-shadow: 0 3px 10px rgb(0 0 0 / .18); }
 :root[data-theme='craft'] .sidebar-tabs { border-color: transparent; }
 :root[data-theme='craft'] .menu-popover,
 :root[data-theme='craft'] .camera-popover,

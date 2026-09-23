@@ -1,5 +1,5 @@
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
-import { Component, ElementRef, EventEmitter, HostListener, Input, Output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, Output, signal, viewChild } from '@angular/core';
 import { LucideChevronDown } from '@lucide/angular';
 
 export interface SearchableDropdownOption {
@@ -15,6 +15,7 @@ let nextDropdownId = 0;
   imports: [LucideChevronDown, CdkConnectedOverlay, CdkOverlayOrigin],
   templateUrl: './searchable-dropdown.component.html',
   styleUrl: './searchable-dropdown.component.scss',
+  host: { '(keydown)': 'onHostKeydown($event)' },
 })
 export class SearchableDropdownComponent {
   @Input() options: readonly SearchableDropdownOption[] = [];
@@ -66,11 +67,7 @@ export class SearchableDropdownComponent {
     }
   }
   protected close(): void { this.open.set(false); this.query.set(''); this.activeIndex.set(null); }
-
-  @HostListener('document:keydown', ['$event'])
-  protected documentKeydown(event: KeyboardEvent): void {
-    if (this.open() && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); this.close(); }
-  }
+  protected onHostKeydown(event: KeyboardEvent): void { if (this.open() && event.key === 'Escape') { event.preventDefault(); this.close(); } }
 }
 
 function normalize(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, ' '); }

@@ -61,7 +61,7 @@
 .shortcut-clear:disabled { cursor: not-allowed; opacity: .35; }
 .shortcut-clear svg { width: .9rem; height: .9rem; }
 .shortcut-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
-.shortcut-clear-all { color: var(--danger) !important; }
+.shortcut-actions .shortcut-clear-all { color: var(--danger); }
 .shortcut-conflict { margin: 0; color: var(--danger); font-size: .75rem; line-height: 1.35; }
 .settings-dialog-footer button:disabled { cursor: not-allowed; opacity: .45; }
 @media (max-width: 560px) { .settings-dialog-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }.settings-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }.settings-nav button { white-space: nowrap; }.settings-dialog-footer { flex-wrap: wrap; }.settings-footer-spacer { display: none; } }

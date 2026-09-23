@@ -1,5 +1,5 @@
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
-import { Component, HostListener, Input, Output, EventEmitter, signal } from '@angular/core';
+import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
 import { LucideCheck, LucideChevronDown } from '@lucide/angular';
 
 export interface ThemedSelectOption { readonly id: string; readonly label: string; }
@@ -9,7 +9,6 @@ export interface ThemedSelectOption { readonly id: string; readonly label: strin
   imports: [LucideCheck, LucideChevronDown, CdkConnectedOverlay, CdkOverlayOrigin],
   templateUrl: './themed-select.component.html',
   styleUrl: './themed-select.component.scss',
-  host: { '(document:keydown)': 'documentKeydown($event)' },
 })
 export class ThemedSelectComponent {
   @Input() options: readonly ThemedSelectOption[] = [];
@@ -26,11 +25,6 @@ export class ThemedSelectComponent {
   protected onTriggerKeydown(event: KeyboardEvent): void {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); this.open.set(true); this.activeIndex.update((index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + this.options.length) % Math.max(1, this.options.length)); return; }
     if (event.key === 'Escape') { event.preventDefault(); this.open.set(false); }
-  }
-  protected documentKeydown(event: KeyboardEvent): void {
-    if (!this.open()) return;
-    if (event.key === 'Escape') { event.preventDefault(); this.open.set(false); }
-    else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); this.activeIndex.update((index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + this.options.length) % Math.max(1, this.options.length)); }
-    else if (event.key === 'Enter') { event.preventDefault(); const option = this.options[this.activeIndex()]; if (option) this.choose(option.id); }
+    if (event.key === 'Enter' && this.open()) { event.preventDefault(); const option = this.options[this.activeIndex()]; if (option) this.choose(option.id); }
   }
 }

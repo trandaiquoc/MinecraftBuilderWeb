@@ -1,52 +1,53 @@
 import { Injectable, inject } from '@angular/core';
-import type { SweetAlertIcon, SweetAlertOptions } from 'sweetalert2';
-import { ThemeService } from '../theme/theme.service';
+import { Overlay } from '@angular/cdk/overlay';
+import { ComponentPortal } from '@angular/cdk/portal';
+import { UiAlertDialogComponent, UiAlertKind, UiAlertModel } from '../../../shared/ui/dialog/ui-alert-dialog.component';
 
 export interface DialogConfirmOptions {
   readonly title: string;
   readonly text?: string;
   readonly confirmButtonText?: string;
   readonly cancelButtonText?: string;
-  readonly icon?: SweetAlertIcon;
+  readonly icon?: 'warning' | 'error' | 'success' | 'info' | 'question';
   readonly destructive?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
 export class DialogService {
-  private readonly theme = inject(ThemeService);
+  private readonly overlay = inject(Overlay);
 
-  private async fire(options: SweetAlertOptions, destructive = false): Promise<Awaited<ReturnType<(typeof import('sweetalert2'))['default']['fire']>>> {
-    const module = await import('sweetalert2');
-    const craft = this.theme.preset() === 'craft';
-    return module.default.fire({
-      ...options,
-      buttonsStyling: false,
-      customClass: {
-        popup: `minecraft-dialog-popup${craft ? ' minecraft-dialog-craft' : ''}${this.theme.font() === 'minecraft-style' ? ' minecraft-dialog-pixel' : ''}`,
-        title: 'minecraft-dialog-title',
-        htmlContainer: 'minecraft-dialog-body',
-        confirmButton: `minecraft-dialog-confirm${options.icon === 'error' || destructive ? ' minecraft-dialog-danger' : ''}`,
-        cancelButton: 'minecraft-dialog-cancel',
-      },
+  confirm(options: DialogConfirmOptions): Promise<boolean> {
+    return this.open({ kind: options.icon === 'error' ? 'error' : 'confirm', title: options.title, text: options.text, confirmButtonText: options.confirmButtonText ?? 'Confirm', cancelButtonText: options.cancelButtonText ?? 'Cancel', destructive: options.destructive === true, showCancel: true });
+  }
+  success(title: string, text?: string): Promise<boolean> { return this.open(this.notice('success', title, text)); }
+  warning(title: string, text?: string): Promise<boolean> { return this.open(this.notice('warning', title, text)); }
+  error(title: string, text?: string): Promise<boolean> { return this.open(this.notice('error', title, text)); }
+  info(title: string, text?: string): Promise<boolean> { return this.open(this.notice('info', title, text)); }
+
+  private notice(kind: UiAlertKind, title: string, text?: string): UiAlertModel { return { kind, title, text, confirmButtonText: 'OK', cancelButtonText: 'Cancel', destructive: kind === 'error', showCancel: false }; }
+  private open(model: UiAlertModel): Promise<boolean> {
+    const previous = typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    const ref = this.overlay.create({
+      hasBackdrop: true,
+      backdropClass: 'ui-dialog-backdrop',
+      panelClass: 'ui-dialog-overlay-pane',
+      scrollStrategy: this.overlay.scrollStrategies.block(),
+      positionStrategy: this.overlay.position().global().centerHorizontally().centerVertically(),
+    });
+    const component = ref.attach(new ComponentPortal(UiAlertDialogComponent));
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (confirmed: boolean): void => {
+        if (settled) return;
+        settled = true;
+        ref.dispose();
+        queueMicrotask(() => previous?.focus());
+        resolve(confirmed);
+      };
+      component.instance.configure(model, finish);
+      component.changeDetectorRef.detectChanges();
+      ref.backdropClick().subscribe(() => finish(false));
+      ref.keydownEvents().subscribe((event) => { if (event.key === 'Escape') { event.preventDefault(); finish(false); } });
     });
   }
-
-  async confirm(options: DialogConfirmOptions): Promise<boolean> {
-    const result = await this.fire({
-      title: options.title,
-      text: options.text,
-      icon: options.icon ?? 'warning',
-      showCancelButton: true,
-      confirmButtonText: options.confirmButtonText ?? 'Confirm',
-      cancelButtonText: options.cancelButtonText ?? 'Cancel',
-      reverseButtons: true,
-      theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light',
-    }, options.destructive === true);
-    return result.isConfirmed;
-  }
-
-  success(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'success', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
-  warning(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'warning', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
-  error(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'error', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
-  info(title: string, text?: string): Promise<unknown> { return this.fire({ title, text, icon: 'info', theme: this.theme.effectiveBase() === 'dark' ? 'dark' : 'light' }); }
 }

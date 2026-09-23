@@ -1,4 +1,4 @@
-<div class="searchable-dropdown" [class.open]="open()">
+<div class="searchable-dropdown" [class.open]="open()" (keydown)="onHostKeydown($event)">
   <button type="button" cdkOverlayOrigin #dropdownOrigin="cdkOverlayOrigin" class="dropdown-trigger" role="combobox" [attr.aria-label]="ariaLabel || placeholder" [attr.aria-expanded]="open()" [attr.aria-controls]="listId" (click)="toggle()">
     <span class="selected-value">
       @if (selected; as current) {
