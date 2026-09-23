@@ -1,10 +1,11 @@
 import { Component, input, output, inject, computed } from '@angular/core';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ProjectPackageImportState } from '../../../core/persistence/project-package/project-package-import.types';
+import { UiProgressComponent } from '../../../shared/ui/progress/ui-progress.component';
 
 @Component({
   selector: 'app-project-import-status',
-  imports: [],
+  imports: [UiProgressComponent],
   templateUrl: './project-import-status.component.html',
   styleUrl: './project-import-status.component.scss',
 })

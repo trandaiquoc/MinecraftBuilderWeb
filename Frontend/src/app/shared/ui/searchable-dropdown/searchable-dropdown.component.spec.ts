@@ -16,17 +16,18 @@ describe('SearchableDropdownComponent', () => {
     expect(host.querySelector('.dropdown-popover')).toBeNull();
     (host.querySelector('.dropdown-trigger') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(host.querySelector('.dropdown-popover')).toBeTruthy();
-    const input = host.querySelector('.dropdown-search') as HTMLInputElement;
+    const overlay = () => document.body.querySelector('.dropdown-popover');
+    expect(overlay()).toBeTruthy();
+    const input = document.body.querySelector('.dropdown-search') as HTMLInputElement;
     input.value = 'oak'; input.dispatchEvent(new Event('input')); fixture.detectChanges();
-    expect(host.textContent).toContain('Oak Log');
-    expect(host.textContent).not.toContain('Diamond');
-    (host.querySelector('.dropdown-option:not(.active-option)') as HTMLButtonElement).click();
+    expect(document.body.textContent).toContain('Oak Log');
+    expect(document.body.textContent).not.toContain('Diamond');
+    (document.body.querySelector('.dropdown-option:not(.active-option)') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(host.querySelector('.dropdown-popover')).toBeNull();
+    expect(overlay()).toBeNull();
     (host.querySelector('.dropdown-trigger') as HTMLButtonElement).click(); fixture.detectChanges();
     host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
-    expect(host.querySelector('.dropdown-popover')).toBeNull();
+    expect(overlay()).toBeNull();
   });
 
   it('keeps the selected row separate from keyboard focus on open', async () => {
@@ -43,17 +44,17 @@ describe('SearchableDropdownComponent', () => {
     const host = fixture.nativeElement as HTMLElement;
     (host.querySelector('.dropdown-trigger') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(host.querySelector('.dropdown-option.selected')?.textContent).toContain('Oak Log');
-    expect(host.querySelector('.dropdown-option.active-option')).toBeNull();
+    expect(document.body.querySelector('.dropdown-option.selected')?.textContent).toContain('Oak Log');
+    expect(document.body.querySelector('.dropdown-option.active-option')).toBeNull();
 
-    const input = host.querySelector('.dropdown-search') as HTMLInputElement;
+    const input = document.body.querySelector('.dropdown-search') as HTMLInputElement;
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     fixture.detectChanges();
     expect(selected).toBe('');
-    expect(host.querySelector('.dropdown-popover')).toBeTruthy();
+    expect(document.body.querySelector('.dropdown-popover')).toBeTruthy();
 
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     fixture.detectChanges();
-    expect(host.querySelector('.dropdown-option.active-option')).toBeTruthy();
+    expect(document.body.querySelector('.dropdown-option.active-option')).toBeTruthy();
   });
 });

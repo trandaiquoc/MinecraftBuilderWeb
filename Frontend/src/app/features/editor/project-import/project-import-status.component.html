@@ -1,17 +1,17 @@
 <section class="project-import-status" role="status" aria-live="polite" [attr.data-stage]="state().stage">
   @if (busy()) {
-    <div class="import-progress" aria-hidden="true"><span></span></div>
+    <app-ui-progress class="import-progress" [indeterminate]="true" [label]="i18n.t('assetManagerWorking')" />
     <p class="import-stage">{{ stageLabel(state().stage) }}</p>
     @if (state().filename) { <p class="import-file">{{ state().filename }}</p> }
     @if (state().projectName) { <p class="import-summary">{{ state().projectName }} · {{ state().blockCount }} {{ i18n.t('blockCount') }}</p> }
   } @else if (state().stage === 'success') {
     <p class="import-stage">{{ i18n.t('importSuccess') }}</p>
     <p class="import-summary">{{ state().projectName }} · {{ state().blockCount }} {{ i18n.t('blockCount') }}</p>
-    <button type="button" (click)="closed.emit()">{{ i18n.t('importClose') }}</button>
+    <button type="button" class="ui-button ui-button--secondary" (click)="closed.emit()">{{ i18n.t('importClose') }}</button>
   } @else if (state().stage === 'error') {
     <p class="import-stage" role="alert">{{ i18n.t('importError') }}</p>
     <p class="import-summary">{{ errorLabel(state().errorCategory) }}</p>
     @if (state().errorMessage) { <details><summary>{{ i18n.t('importTechnicalDetails') }}</summary><p>{{ state().errorMessage }}</p>@if (state().errorDetails?.length) { <ul>@for (detail of state().errorDetails; track detail) { <li>{{ detail }}</li> }</ul> }</details> }
-    <button type="button" (click)="closed.emit()">{{ i18n.t('importClose') }}</button>
+    <button type="button" class="ui-button ui-button--secondary" (click)="closed.emit()">{{ i18n.t('importClose') }}</button>
   }
 </section>

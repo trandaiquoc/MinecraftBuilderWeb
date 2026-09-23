@@ -158,7 +158,7 @@
     }
     @if (layout.preferences().leftSidebarVisible) {
       <aside class="panel left-panel" [class.drawer-open]="leftDrawerOpen()">
-        <button type="button" class="drawer-close" (click)="closeDrawers()" [attr.aria-label]="i18n.t('closePanel')">{{ i18n.t('closePanel') }}</button>
+        <button type="button" class="drawer-close ui-close-button" uiTooltip="{{ i18n.t('closePanel') }}" (click)="closeDrawers()" [attr.aria-label]="i18n.t('closePanel')"><svg lucideX aria-hidden="true"></svg></button>
         <div class="sidebar-tabs" role="tablist" [attr.aria-label]="i18n.t('sidebarTabs')">
           <button id="sidebar-tab-blocks" type="button" role="tab" [attr.aria-selected]="leftSidebarTab() === 'blocks'" [attr.aria-controls]="'sidebar-panel-blocks'" [class.active]="leftSidebarTab() === 'blocks'" (keydown)="handleSidebarTabKeydown($event, 0)" (click)="leftSidebarTab.set('blocks')">{{ i18n.t('blocksPanel') }}</button>
           <button id="sidebar-tab-decorations" type="button" role="tab" [attr.aria-selected]="leftSidebarTab() === 'decorations'" [attr.aria-controls]="'sidebar-panel-decorations'" [class.active]="leftSidebarTab() === 'decorations'" (keydown)="handleSidebarTabKeydown($event, 1)" (click)="leftSidebarTab.set('decorations')">{{ i18n.t('decorationsPanel') }}</button>
@@ -318,7 +318,7 @@
     </main>
     @if (layout.preferences().rightSidebarVisible) {
       <aside class="panel right-panel" [class.drawer-open]="rightDrawerOpen()">
-        <button type="button" class="drawer-close" (click)="closeDrawers()" [attr.aria-label]="i18n.t('closePanel')">{{ i18n.t('closePanel') }}</button>
+        <button type="button" class="drawer-close ui-close-button" uiTooltip="{{ i18n.t('closePanel') }}" (click)="closeDrawers()" [attr.aria-label]="i18n.t('closePanel')"><svg lucideX aria-hidden="true"></svg></button>
         <h2>{{ i18n.t('selection') }}</h2>
         <app-selection-inspector></app-selection-inspector>
       </aside>

@@ -1,5 +1,5 @@
 <div class="shortcuts-help-backdrop" role="presentation" (click)="onBackdropClick($event)">
-  <section class="shortcuts-help-dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('controlsShortcuts')" tabindex="-1" autofocus (keydown)="trapFocus($event)">
+  <section class="shortcuts-help-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('controlsShortcuts')" tabindex="-1" autofocus>
     <header>
       <h2>{{ i18n.t('controlsShortcuts') }}</h2>
       <button type="button" class="help-close ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button>

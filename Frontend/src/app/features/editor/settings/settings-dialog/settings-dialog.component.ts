@@ -7,14 +7,14 @@ import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.dir
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
 import { KEYBOARD_ACTIONS, KeyboardAction, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding } from '../../../../core/editor/input/keyboard-bindings';
 import { MOUSE_ACTIONS, MouseAction, findMouseBindingConflicts, mouseBindingFromEvent } from '../../../../core/editor/input/mouse-bindings';
-import { trapDialogFocus } from '../../../../shared/ui/dialog/dialog-focus';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
 type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance']; readonly accessibility: UiPreferences['accessibility']; readonly controls: UiPreferences['controls']; readonly shortcuts: UiPreferences['shortcuts']; readonly mouseBindings: UiPreferences['mouseBindings'] };
 
 @Component({
   selector: 'app-settings-dialog',
-  imports: [LucideX, UiTooltipDirective, ThemedSelectComponent],
+  imports: [LucideX, UiTooltipDirective, ThemedSelectComponent, CdkTrapFocus],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss',
   host: { '(document:keydown.escape)': 'requestClose()', '(document:keydown)': 'handleShortcutKeydown($event)', '(document:pointerdown)': 'handleShortcutPointerdown($event)', '(document:wheel)': 'handleShortcutWheel($event)' },
@@ -56,7 +56,6 @@ export class SettingsDialogComponent {
   protected readonly mouseBindingConflicts = computed(() => findMouseBindingConflicts(this.draft().mouseBindings));
 
   protected setSection(section: SettingsSection): void { this.section.set(section); }
-  protected trapFocus(event: KeyboardEvent): void { trapDialogFocus(event, event.currentTarget as HTMLElement); }
   protected setLocale(locale: UiLocale): void { this.updateDraft({ locale }); }
   protected setPreset(preset: ThemePreset): void {
     const base: BaseTheme = preset === 'light' ? 'light' : 'dark';

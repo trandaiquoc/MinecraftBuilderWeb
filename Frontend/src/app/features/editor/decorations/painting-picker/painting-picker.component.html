@@ -1,5 +1,5 @@
 @if (compact()) {
-  <button type="button" class="change-painting" (click)="toggle()">{{ i18n.t('changePainting') }}</button>
+  <button type="button" class="change-painting ui-button ui-button--secondary ui-button--sm" (click)="toggle()">{{ i18n.t('changePainting') }}</button>
   @if (open()) {
     <div class="picker-panel">
       <div class="picker-search"><input type="search" [value]="query()" [placeholder]="i18n.t('searchPaintings')" (input)="updateQuery($event)" /></div>

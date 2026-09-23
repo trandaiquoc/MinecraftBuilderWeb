@@ -1,5 +1,5 @@
 <div class="searchable-dropdown" [class.open]="open()">
-  <button type="button" class="dropdown-trigger" role="combobox" [attr.aria-label]="ariaLabel || placeholder" [attr.aria-expanded]="open()" [attr.aria-controls]="listId" (click)="toggle()">
+  <button type="button" cdkOverlayOrigin #dropdownOrigin="cdkOverlayOrigin" class="dropdown-trigger" role="combobox" [attr.aria-label]="ariaLabel || placeholder" [attr.aria-expanded]="open()" [attr.aria-controls]="listId" (click)="toggle()">
     <span class="selected-value">
       @if (selected; as current) {
         <strong>{{ current.label }}</strong>
@@ -9,7 +9,7 @@
     <span class="caret" aria-hidden="true"><svg lucideChevronDown></svg></span>
   </button>
   @if (open()) {
-    <button type="button" class="dropdown-backdrop" [attr.aria-label]="closeLabel || null" (pointerdown)="$event.preventDefault(); $event.stopPropagation(); close()"></button>
+    <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="dropdownOrigin" [cdkConnectedOverlayOpen]="open()" [cdkConnectedOverlayHasBackdrop]="true" cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop" (backdropClick)="close()" (detach)="close()">
     <div class="dropdown-popover" [id]="listId" role="listbox" (click)="$event.stopPropagation()">
       <input #searchInput type="search" class="dropdown-search" [value]="query()" [placeholder]="placeholder" [attr.aria-label]="placeholder" (input)="setQuery($event)" (keydown)="onKeydown($event)" />
       <div class="dropdown-options">
@@ -23,5 +23,6 @@
         @if (!filteredOptions().length) { <p class="no-results">{{ noResults }}</p> }
       </div>
     </div>
+    </ng-template>
   }
 </div>

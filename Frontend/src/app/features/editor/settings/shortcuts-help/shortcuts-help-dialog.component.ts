@@ -5,11 +5,11 @@ import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-b
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
-import { trapDialogFocus } from '../../../../shared/ui/dialog/dialog-focus';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 
 @Component({
   selector: 'app-shortcuts-help-dialog',
-  imports: [LucideX, UiTooltipDirective],
+  imports: [LucideX, UiTooltipDirective, CdkTrapFocus],
   templateUrl: './shortcuts-help-dialog.component.html',
   styleUrl: './shortcuts-help-dialog.component.scss',
   host: { '(document:keydown.escape)': 'close()' },
@@ -18,7 +18,6 @@ export class ShortcutsHelpDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly bindings = inject(KeyboardBindingService);
   readonly closed = output<void>();
-  protected trapFocus(event: KeyboardEvent): void { trapDialogFocus(event, event.currentTarget as HTMLElement); }
   protected readonly keyboardGroups = computed(() => {
     const groups = ['movement', 'tools-view', 'editing', 'quickBar'] as const;
     return groups.map((group) => ({ group, entries: KEYBOARD_ACTIONS.filter((entry) => entry.group === group) }));

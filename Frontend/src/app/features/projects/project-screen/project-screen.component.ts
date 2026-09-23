@@ -11,7 +11,7 @@ import { WorkspaceStateService } from '../../../core/workspace/workspace-state.s
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
-import { LucideX } from '@lucide/angular';
+import { LucideTrash2 } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { SearchableDropdownComponent, SearchableDropdownOption } from '../../../shared/ui/searchable-dropdown/searchable-dropdown.component';
 import { MojangRelease, MojangVersionService } from '../../../core/assets/vanilla/mojang-vanilla-asset-source';
@@ -19,7 +19,7 @@ import { DEFAULT_MINECRAFT_VERSION } from '../../../core/domain/project.types';
 
 @Component({
   selector: 'app-project-screen',
-  imports: [DatePipe, LucideX, UiTooltipDirective, SearchableDropdownComponent],
+  imports: [DatePipe, LucideTrash2, UiTooltipDirective, SearchableDropdownComponent],
   templateUrl: './project-screen.component.html',
   styleUrl: './project-screen.component.scss',
 })

@@ -1,4 +1,5 @@
-import { Component, ElementRef, EventEmitter, HostListener, Input, Output, inject, signal, viewChild } from '@angular/core';
+import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
+import { Component, ElementRef, EventEmitter, HostListener, Input, Output, signal, viewChild } from '@angular/core';
 import { LucideChevronDown } from '@lucide/angular';
 
 export interface SearchableDropdownOption {
@@ -11,7 +12,7 @@ let nextDropdownId = 0;
 
 @Component({
   selector: 'app-searchable-dropdown',
-  imports: [LucideChevronDown],
+  imports: [LucideChevronDown, CdkConnectedOverlay, CdkOverlayOrigin],
   templateUrl: './searchable-dropdown.component.html',
   styleUrl: './searchable-dropdown.component.scss',
 })
@@ -29,7 +30,6 @@ export class SearchableDropdownComponent {
   protected readonly activeIndex = signal<number | null>(null);
   protected readonly listId = `searchable-dropdown-${nextDropdownId++}`;
   protected readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
-  private readonly host = inject(ElementRef<HTMLElement>);
 
   protected get selected(): SearchableDropdownOption | undefined { return this.options.find((option) => option.id === this.selectedId); }
   protected filteredOptions(): readonly SearchableDropdownOption[] {
@@ -66,11 +66,6 @@ export class SearchableDropdownComponent {
     }
   }
   protected close(): void { this.open.set(false); this.query.set(''); this.activeIndex.set(null); }
-
-  @HostListener('document:pointerdown', ['$event'])
-  protected outsidePointer(event: PointerEvent): void {
-    if (this.open() && !this.host.nativeElement.contains(event.target as Node)) this.close();
-  }
 
   @HostListener('document:keydown', ['$event'])
   protected documentKeydown(event: KeyboardEvent): void {
