@@ -37,6 +37,24 @@ describe('ContentSourceSelectorComponent navigation', () => {
     expect(horizontalScrollTarget(0, 100, 300, 'left')).toBe(0);
   });
 
+  it('keeps both arrow controls visible in the DOM while toggling disabled state', async () => {
+    await TestBed.configureTestingModule({ imports: [ContentSourceSelectorComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(ContentSourceSelectorComponent);
+    const component = fixture.componentInstance;
+    fixture.componentRef.setInput('sources', [{ id: 'all', label: 'All' }]);
+    fixture.detectChanges();
+    const arrows = fixture.nativeElement.querySelectorAll('.source-scroll');
+    expect(arrows).toHaveLength(2);
+    expect(arrows[0].disabled).toBe(true);
+    expect(arrows[1].disabled).toBe(true);
+    const strip = fixture.nativeElement.querySelector('.source-options') as HTMLElement;
+    Object.defineProperties(strip, { clientWidth: { configurable: true, value: 100 }, scrollWidth: { configurable: true, value: 300 } });
+    component['updateScrollState']();
+    fixture.detectChanges();
+    expect(arrows[0].disabled).toBe(true);
+    expect(arrows[1].disabled).toBe(false);
+  });
+
   it('reveals the selected source without changing selection semantics', async () => {
     await TestBed.configureTestingModule({ imports: [ContentSourceSelectorComponent] }).compileComponents();
     const fixture = TestBed.createComponent(ContentSourceSelectorComponent);

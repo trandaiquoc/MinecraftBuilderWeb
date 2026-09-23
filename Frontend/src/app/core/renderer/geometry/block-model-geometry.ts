@@ -39,6 +39,14 @@ export interface ResolvedItemVisual {
   readonly diagnostics: readonly string[];
 }
 
+export type PerspectiveThumbnailQuality = 'fallback' | 'enhanced';
+export interface PerspectiveThumbnailResult {
+  readonly url?: string;
+  readonly quality: PerspectiveThumbnailQuality;
+  /** A failed render may be retried by an explicit user selection. */
+  readonly retryable?: boolean;
+}
+
 /**
  * Offscreen palette previews use a fixed camera. Entity-style skull models
  * expose their vanilla front on the opposite Z-facing side from that camera;
@@ -52,7 +60,7 @@ export interface BlockVisualProvider {
   create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult>;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
-  perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<string | undefined>;
+  perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult>;
   setSpecialVisualDescriptors?(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void;
   cacheStats?(): Readonly<VisualCacheStats>;
   resourceCounts?(): Readonly<VisualResourceCounts>;
@@ -68,6 +76,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly fluidTextureCache = new Map<string, THREE.Texture>();
   private readonly specialVisuals: SpecialBlockVisualRegistry;
   private readonly thumbnailCache = new Map<string, Promise<string | undefined>>();
+  private readonly itemThumbnailCache = new Map<string, Promise<PerspectiveThumbnailResult>>();
   private readonly geometryCache = new Map<string, THREE.BufferGeometry>();
   private readonly stats = { resolvedModelCacheHits: 0, resolvedModelCacheMisses: 0, geometryCacheHits: 0, geometryCacheMisses: 0, textureCacheHits: 0, textureCacheMisses: 0 };
   private thumbnailRenderer?: THREE.WebGLRenderer;
@@ -165,18 +174,23 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     this.thumbnailCache.set(key, task); return task;
   }
 
-  perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<string | undefined> {
+  perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult> {
     const key = `item-thumbnail-v2|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`).join(';')}`;
-    const cached = this.thumbnailCache.get(key); if (cached) return cached;
-    const task = this.renderThumbnailBlocks(item.previewBlocks).then(async (url) => url ?? await this.renderItemVisualThumbnail(item.itemId) ?? this.itemThumbnailResource(item.itemId)).catch(() => this.itemThumbnailResource(item.itemId) ?? this.thumbnailUrl(item.displayBlockId, item.defaultState));
-    this.thumbnailCache.set(key, task); return task;
+    const cached = this.itemThumbnailCache.get(key); if (cached) return cached;
+    const task = this.renderThumbnailBlocks(item.previewBlocks).then(async (url): Promise<PerspectiveThumbnailResult> => {
+      if (url) return { url, quality: 'enhanced' };
+      const itemVisual = await this.renderItemVisualThumbnail(item.itemId);
+      return itemVisual.quality === 'enhanced' ? itemVisual : { url: itemVisual.url ?? this.itemThumbnailResource(item.itemId), quality: 'fallback' };
+    }).catch((): PerspectiveThumbnailResult => ({ url: this.itemThumbnailResource(item.itemId) ?? this.thumbnailUrl(item.displayBlockId, item.defaultState), quality: 'fallback', retryable: true }));
+    const tracked = task.then((result) => { if (result.quality === 'fallback' && result.retryable) this.itemThumbnailCache.delete(key); return result; });
+    this.itemThumbnailCache.set(key, tracked); return tracked;
   }
   setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); }
 
-  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url); this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
+  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url); this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
 
   cacheStats(): Readonly<VisualCacheStats> { return { ...this.stats }; }
-  resourceCounts(): Readonly<VisualResourceCounts> { return { resolvedModels: this.resolvedCache.size, geometries: this.geometryCache.size, textures: this.textureCache.size, fluidTextures: this.fluidTextureCache.size, thumbnails: this.thumbnailCache.size }; }
+  resourceCounts(): Readonly<VisualResourceCounts> { return { resolvedModels: this.resolvedCache.size, geometries: this.geometryCache.size, textures: this.textureCache.size, fluidTextures: this.fluidTextureCache.size, thumbnails: this.thumbnailCache.size + this.itemThumbnailCache.size }; }
 
   private async renderThumbnail(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined> {
     return this.renderThumbnailBlocks([{ kind: 'resolved', id: blockId, namespace: blockId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state }]);
@@ -205,19 +219,22 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     return resource ? this.assets.textureUrl?.(resource) : undefined;
   }
 
-  private async renderItemVisualThumbnail(itemId: string): Promise<string | undefined> {
-    if (typeof document === 'undefined') return undefined;
+  private async renderItemVisualThumbnail(itemId: string): Promise<PerspectiveThumbnailResult> {
+    if (typeof document === 'undefined') return { quality: 'fallback' };
     const visual = resolveItemVisual(this.assets, itemId);
-    if (visual.kind === 'block-model' && visual.model) return this.renderStandaloneModelThumbnail(itemId, visual.model);
-    if (visual.kind !== 'generated-layers' || !visual.layers.length) return undefined;
+    if (visual.kind === 'block-model' && visual.model) {
+      const url = await this.renderStandaloneModelThumbnail(itemId, visual.model);
+      return url ? { url, quality: 'enhanced' } : { quality: 'fallback' };
+    }
+    if (visual.kind !== 'generated-layers' || !visual.layers.length) return { quality: 'fallback' };
     const textures = await Promise.all(visual.layers.map((layer) => this.texture(layer)));
-    if (!textures.some(Boolean)) return undefined;
+    if (!textures.some(Boolean)) return { quality: 'fallback' };
     const renderer = this.thumbnailRenderer ??= new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(96, 96, false); renderer.setClearColor(0x000000, 0);
     const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
     const root = new THREE.Group();
     textures.forEach((texture, index) => { if (!texture) return; const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }); const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), material); mesh.position.z = index * .002; root.add(mesh); });
-    scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return this.thumbnailUrlFromCanvas(renderer.domElement);
+    scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return { url: await this.thumbnailUrlFromCanvas(renderer.domElement), quality: 'fallback' };
   }
 
   private async renderStandaloneModelThumbnail(itemId: string, modelId: string): Promise<string | undefined> {

@@ -1,40 +1,59 @@
-import { describe, expect, it } from 'vitest';
-import { contentRestoreAfterMods, deriveAssetBootstrapStatus, shouldStartVersionLoad, thumbnailIdentityForItem, thumbnailKey } from './vanilla-assets.service';
+import { TestBed } from '@angular/core/testing';
+import { describe, expect, it, vi } from 'vitest';
+import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
+import type { VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-geometry';
+import { VanillaAssetsService } from './vanilla-assets.service';
 
-describe('thumbnail cache key', () => {
-  it('is stable for canonical state order and changes for provider generation', () => {
-    const first = thumbnailKey(2, '1.21.1', 'minecraft:oak_stairs', { half: 'top', facing: 'north' });
-    expect(first).toBe(thumbnailKey(2, '1.21.1', 'minecraft:oak_stairs', { facing: 'north', half: 'top' }));
-    expect(first).not.toBe(thumbnailKey(3, '1.21.1', 'minecraft:oak_stairs', { facing: 'north', half: 'top' }));
-    expect(first).not.toBe(thumbnailKey(2, '1.22', 'minecraft:oak_stairs', { facing: 'north', half: 'top' }));
-  });
-  it('uses the same preview identity for thumbnail preparation and lookup', () => {
-    const item = { itemId: 'example:plant', previewRecipe: 'single' as const, concreteBlockIds: ['example:plant'] as const };
-    const preview = thumbnailIdentityForItem(4, '1.21.1', item, { phase: '1' });
-    expect(preview).toBe(thumbnailIdentityForItem(4, '1.21.1', item, { phase: '1' }));
-    expect(preview).not.toBe(thumbnailIdentityForItem(4, '1.21.1', item, { phase: '0' }));
-  });
-});
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-describe('version load state', () => {
-  it('keeps final content readiness partial when one cached mod fails', () => {
-    expect(contentRestoreAfterMods(2, 1)).toEqual({ phase: 'partial', current: 2, total: 2, failed: 1 });
-    expect(contentRestoreAfterMods(2, 0).phase).toBe('ready');
+describe('VanillaAssetsService thumbnail quality', () => {
+  it('keeps a flat preview visible while selected work upgrades it once', async () => {
+    const service = TestBed.inject(VanillaAssetsService);
+    const item = TestBed.inject(BlockLibraryService).allItems()[0];
+    const render = vi.fn(async () => ({ url: 'blob:enhanced', quality: 'enhanced' as const }));
+    service.visualProvider.set({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render } as unknown as VanillaBlockVisualProvider);
+
+    service.requestItemThumbnail(item, 'visible');
+    expect(service.thumbnailUrlForItem(item)).toBe('resource:flat');
+    expect(service.thumbnailStateForItem(item).quality).toBe('fallback');
+    service.requestItemThumbnail(item, 'selected');
+    await settle();
+
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(service.thumbnailUrlForItem(item)).toBe('blob:enhanced');
+    expect(service.thumbnailStateForItem(item)).toEqual({ quality: 'enhanced', enhancement: 'complete' });
   });
-  it('starts the first request even when the initial status is loading-cache', () => {
-    expect(shouldStartVersionLoad(undefined, 'loading-cache', '1.21.1', undefined)).toBe(true);
+
+  it('does not duplicate a running render and reuses a confirmed enhanced result', async () => {
+    const service = TestBed.inject(VanillaAssetsService);
+    const item = TestBed.inject(BlockLibraryService).allItems()[0];
+    let release!: (value: { readonly url: string; readonly quality: 'enhanced' }) => void;
+    const render = vi.fn(() => new Promise<{ readonly url: string; readonly quality: 'enhanced' }>((resolve) => { release = resolve; }));
+    service.visualProvider.set({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render } as unknown as VanillaBlockVisualProvider);
+
+    service.requestItemThumbnail(item, 'visible');
+    service.requestItemThumbnail(item, 'selected');
+    expect(render).toHaveBeenCalledTimes(1);
+    release({ url: 'blob:enhanced', quality: 'enhanced' });
+    await settle();
+    service.requestItemThumbnail(item, 'selected');
+    expect(render).toHaveBeenCalledTimes(1);
   });
-  it('deduplicates in-flight work while allowing ready providers and forced refreshes', () => {
-    expect(shouldStartVersionLoad(undefined, 'downloading', '1.21.1', '1.21.1')).toBe(false);
-    expect(shouldStartVersionLoad('1.21.1', 'ready', '1.21.1', undefined)).toBe(false);
-    expect(shouldStartVersionLoad('1.21.1', 'ready', '1.21.1', undefined, true)).toBe(true);
-  });
-  it('derives distinct vanilla, mod restore, ready, partial, and unavailable states', () => {
-    expect(deriveAssetBootstrapStatus('loading-cache', { phase: 'vanilla', current: 0, total: 0, failed: 0 }).kind).toBe('loading-cache');
-    expect(deriveAssetBootstrapStatus('downloading', { phase: 'vanilla', current: 0, total: 0, failed: 0 }, { phase: 'download', loaded: 42, total: 100 }).percent).toBe(42);
-    expect(deriveAssetBootstrapStatus('ready', { phase: 'restoring-mods', current: 1, total: 2, failed: 0, sourceName: 'Cobblemon' })).toMatchObject({ kind: 'restoring-mods', current: 1, total: 2, sourceName: 'Cobblemon' });
-    expect(deriveAssetBootstrapStatus('ready', { phase: 'ready', current: 0, total: 0, failed: 0 }).kind).toBe('ready');
-    expect(deriveAssetBootstrapStatus('ready', { phase: 'partial', current: 2, total: 2, failed: 1 })).toMatchObject({ kind: 'partial', warnings: 1 });
-    expect(deriveAssetBootstrapStatus('offline', { phase: 'error', current: 0, total: 0, failed: 1 }).kind).toBe('unavailable');
+
+  it('allows an explicit selected retry after a failed enhancement without background retry loops', async () => {
+    const service = TestBed.inject(VanillaAssetsService);
+    const item = TestBed.inject(BlockLibraryService).allItems()[0];
+    const render = vi.fn(async () => { throw new Error('renderer unavailable'); });
+    service.visualProvider.set({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render } as unknown as VanillaBlockVisualProvider);
+
+    service.requestItemThumbnail(item, 'visible');
+    await settle();
+    expect(service.thumbnailStateForItem(item)).toMatchObject({ quality: 'fallback', enhancement: 'failed' });
+    service.requestItemThumbnail(item, 'visible');
+    expect(render).toHaveBeenCalledTimes(1);
+    service.requestItemThumbnail(item, 'selected');
+    await settle();
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(service.thumbnailUrlForItem(item)).toBe('resource:flat');
   });
 });

@@ -5,6 +5,9 @@ import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provide
 import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, itemVisualResource, resolveItemVisual, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from '../engine/three-viewport-engine';
 import { viewportThemePalette } from '../engine/viewport-theme';
+import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
+import { BlockCatalog } from '../../blocks/catalog/block-catalog';
+import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
 
 const face: ResolvedFace = { texture: 'minecraft:block/stone', uv: [16, 13, 0, 16] };
 
@@ -14,6 +17,20 @@ describe('block model geometry', () => {
     const head = new THREE.Group(); head.userData['specialVisualFamily'] = 'heads-skulls';
     expect(thumbnailPreviewRotationY(head)).toBe(Math.PI);
     expect(thumbnailPreviewRotationY(new THREE.Group())).toBe(0);
+  });
+  it('does not cache a retryable flat item fallback as enhanced output', async () => {
+    const assets = { readJson: () => undefined, readBinary: () => undefined, textureUrl: (resource: string) => `resource:${resource}` } as any;
+    const provider = new VanillaBlockVisualProvider(assets);
+    const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
+    const item = buildPlaceableItems(catalog.all())[0];
+    const internals = provider as any;
+    const render = vi.fn().mockRejectedValueOnce(new Error('temporary renderer failure')).mockResolvedValueOnce('blob:enhanced');
+    internals.renderThumbnailBlocks = render;
+    internals.itemThumbnailResource = () => 'resource:flat';
+
+    await expect(provider.perspectiveItemThumbnail!(item)).resolves.toMatchObject({ quality: 'fallback', retryable: true });
+    await expect(provider.perspectiveItemThumbnail!(item)).resolves.toMatchObject({ quality: 'enhanced', url: 'blob:enhanced' });
+    expect(render).toHaveBeenCalledTimes(2);
   });
   it('applies grass tint only to tintindexed vanilla grass faces', () => {
     const grass = 0x79c05a;

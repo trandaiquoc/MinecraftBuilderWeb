@@ -26,6 +26,11 @@ export class ThumbnailTaskQueue {
     this.pump();
   }
 
+  promote(key: string, priority: ThumbnailTaskPriority): void {
+    const existing = this.pending.get(key);
+    if (existing && priorityRank(priority) > priorityRank(existing.priority)) this.pending.set(key, { ...existing, priority });
+  }
+
   invalidate(): void { this.pending.clear(); }
 
   has(key: string): boolean { return this.pending.has(key) || this.running.has(key); }

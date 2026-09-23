@@ -2,7 +2,7 @@ import { computed, effect, Injectable, inject, signal } from '@angular/core';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { PlaceableItemDefinition, previewBlocksForItem } from '../../blocks/placement-palette/placeable-item';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
-import { VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-geometry';
+import { PerspectiveThumbnailResult, VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-geometry';
 import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
 import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
 import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
@@ -31,6 +31,9 @@ export type ContentRestorePhase = 'vanilla' | 'restoring-mods' | 'ready' | 'part
 export interface ContentRestoreState { readonly phase: ContentRestorePhase; readonly current: number; readonly total: number; readonly sourceName?: string; readonly failed: number; }
 export type AssetBootstrapStatusKind = 'loading-cache' | 'downloading' | 'preparing' | 'restoring-mods' | 'ready' | 'partial' | 'unavailable';
 export interface AssetBootstrapStatus { readonly kind: AssetBootstrapStatusKind; readonly percent?: number; readonly current?: number; readonly total?: number; readonly sourceName?: string; readonly warnings?: number; }
+export type ThumbnailPreviewQuality = 'none' | 'fallback' | 'enhanced';
+export type ThumbnailEnhancementStatus = 'idle' | 'queued' | 'running' | 'complete' | 'failed' | 'unavailable';
+export interface ThumbnailPreviewState { readonly quality: ThumbnailPreviewQuality; readonly enhancement: ThumbnailEnhancementStatus; }
 
 @Injectable({ providedIn: 'root' })
 export class VanillaAssetsService {
@@ -41,6 +44,7 @@ export class VanillaAssetsService {
   private readonly official = new MojangVanillaAssetSource();
   readonly activity = inject(AssetActivityService);
   private readonly thumbnailUrls = new Map<string, string>();
+  private readonly thumbnailStates = new Map<string, ThumbnailPreviewState>();
   private readonly thumbnailVersion = signal(0);
   private readonly thumbnailQueue = new ThumbnailTaskQueue(4);
   readonly provider = signal<VanillaAssetProvider | undefined>(undefined);
@@ -235,14 +239,26 @@ export class VanillaAssetsService {
     const previewState = item.previewState ?? item.defaultState;
     const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, previewState) };
     const key = this.itemThumbnailKey(item, previewState);
-    if (this.thumbnailUrls.has(key) && !this.thumbnailQueue.has(key)) return;
+    const current = this.thumbnailStates.get(key);
+    if (current?.quality === 'enhanced' || current?.enhancement === 'unavailable') return;
+    if (current?.enhancement === 'failed' && priority !== 'selected') return;
+    if (this.thumbnailQueue.has(key)) {
+      if (priority === 'selected') this.thumbnailQueue.promote(key, priority);
+      return;
+    }
     const fallback = visual.thumbnailUrl(item.displayBlockId, previewState);
-    if (fallback) this.setThumbnailUrl(key, fallback);
-    if (!visual.perspectiveItemThumbnail) return;
+    if (fallback) this.setThumbnailPreview(key, fallback, 'fallback');
+    if (!visual.perspectiveItemThumbnail) { this.setThumbnailState(key, { quality: fallback ? 'fallback' : 'none', enhancement: 'unavailable' }); return; }
+    this.setThumbnailState(key, { quality: fallback ? 'fallback' : 'none', enhancement: 'queued' });
     this.thumbnailQueue.enqueue(key, priority, async () => {
-      const url = await visual.perspectiveItemThumbnail!(previewItem);
-      if (!url || epoch !== this.thumbnailEpoch()) return;
-      this.setThumbnailUrl(key, url);
+      this.setThumbnailState(key, { quality: this.thumbnailStates.get(key)?.quality ?? 'none', enhancement: 'running' });
+      try {
+        const result = await visual.perspectiveItemThumbnail!(previewItem);
+        if (epoch !== this.thumbnailEpoch()) return;
+        this.applyPerspectiveResult(key, result);
+      } catch {
+        this.setThumbnailState(key, { quality: this.thumbnailStates.get(key)?.quality ?? 'none', enhancement: 'failed' });
+      }
     });
   }
 
@@ -346,7 +362,7 @@ export class VanillaAssetsService {
     if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
     this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
     const catalog = provider.catalog(registry);
-    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.clear(); this.thumbnailVersion.update((value) => value + 1); this.thumbnailEpoch.update((value) => value + 1);
+    this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.clear(); this.thumbnailStates.clear(); this.thumbnailVersion.update((value) => value + 1); this.thumbnailEpoch.update((value) => value + 1);
     const generation = this.generation() + 1;
     this.generation.set(generation);
     this.diagnostics.set({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: true, generation, providerReady: true, ...provider.diagnostics() });
@@ -378,12 +394,35 @@ export class VanillaAssetsService {
     this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
   }
 
-  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailQueue.invalidate(); this.thumbnailUrls.clear(); this.thumbnailVersion.update((value) => value + 1); this.thumbnailEpoch.update((value) => value + 1); }
+  private refreshVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); this.thumbnailQueue.invalidate(); this.thumbnailUrls.clear(); this.thumbnailStates.clear(); this.thumbnailVersion.update((value) => value + 1); this.thumbnailEpoch.update((value) => value + 1); }
 
   private setThumbnailUrl(key: string, url: string): void {
     if (this.thumbnailUrls.get(key) === url) return;
     this.thumbnailUrls.set(key, url);
     this.thumbnailVersion.update((value) => value + 1);
+  }
+  thumbnailStateForItem(item: PlaceableItemDefinition): ThumbnailPreviewState {
+    const state = item.previewState ?? item.defaultState;
+    this.thumbnailVersion();
+    return this.thumbnailStates.get(this.itemThumbnailKey(item, state)) ?? { quality: 'none', enhancement: 'idle' };
+  }
+  private setThumbnailPreview(key: string, url: string, quality: ThumbnailPreviewQuality): void {
+    this.setThumbnailUrl(key, url);
+    const current = this.thumbnailStates.get(key);
+    this.setThumbnailState(key, { quality, enhancement: current?.enhancement ?? 'idle' });
+  }
+  private setThumbnailState(key: string, state: ThumbnailPreviewState): void {
+    const previous = this.thumbnailStates.get(key);
+    if (previous?.quality === state.quality && previous.enhancement === state.enhancement) return;
+    this.thumbnailStates.set(key, state);
+    this.thumbnailVersion.update((value) => value + 1);
+  }
+  private applyPerspectiveResult(key: string, result: PerspectiveThumbnailResult): void {
+    const current = this.thumbnailStates.get(key);
+    if (result.url && result.quality === 'enhanced') this.setThumbnailPreview(key, result.url, 'enhanced');
+    else if (result.url && current?.quality !== 'enhanced') this.setThumbnailPreview(key, result.url, 'fallback');
+    const quality = result.quality === 'enhanced' && result.url ? 'enhanced' : current?.quality ?? 'none';
+    this.setThumbnailState(key, { quality, enhancement: result.quality === 'enhanced' && result.url ? 'complete' : result.retryable ? 'failed' : 'unavailable' });
   }
   private bumpGeneration(): void { this.generation.update((value) => value + 1); }
 
@@ -396,6 +435,10 @@ export class VanillaAssetsService {
 
   private clearActiveSources(): void {
     this.thumbnailQueue.invalidate();
+    this.thumbnailUrls.clear();
+    this.thumbnailStates.clear();
+    this.thumbnailVersion.update((value) => value + 1);
+    this.thumbnailEpoch.update((value) => value + 1);
     for (const source of this.sources.sources()) { this.sources.remove(source.id); this.library.removeSource(source.id); this.paintingCatalog.removeSource(source.id); }
     this.importedMods.set([]); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
   }

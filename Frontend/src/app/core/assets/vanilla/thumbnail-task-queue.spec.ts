@@ -72,4 +72,17 @@ describe('ThumbnailTaskQueue', () => {
     expect(order.indexOf('selected')).toBeGreaterThanOrEqual(0);
     expect(order.indexOf('visible')).toBeGreaterThan(order.indexOf('selected'));
   });
+
+  it('promotes a pending task without replacing its render callback', async () => {
+    const queue = new ThumbnailTaskQueue(1);
+    let release!: () => void;
+    const active = new Promise<void>((resolve) => { release = resolve; });
+    const render = vi.fn(async () => undefined);
+    queue.enqueue('active', 'visible', () => active);
+    queue.enqueue('item', 'prefetch', render);
+    queue.promote('item', 'selected');
+    release();
+    for (let attempt = 0; attempt < 10 && !render.mock.calls.length; attempt++) await wait();
+    expect(render).toHaveBeenCalledTimes(1);
+  });
 });
