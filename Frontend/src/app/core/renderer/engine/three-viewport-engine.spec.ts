@@ -50,6 +50,35 @@ describe('camera movement input contract', () => {
     expect(JSON.stringify(project)).toBe(before);
   });
 
+  it('moves the camera without translating OrbitControls focus or rendered membership', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    engine.update(project, undefined);
+    await settleHydration();
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void }; renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<string>, delta: number) => void };
+    internal.camera.position.set(8, 6, 8);
+    internal.controls = { target: new THREE.Vector3(0, 0, 0), minDistance: 1, maxDistance: 100, update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    const projectBlockCount = project.blocks.length;
+    for (const options of [
+      { selectionKind: 'none', selectionCount: 0 },
+      { selectionKind: 'explicit', selectionCount: 1, selectedPositions: [project.blocks[0].position] },
+      { selectionKind: 'all', selectionCount: project.blocks.length, selectionBounds: { min: project.blocks[0].position, max: project.blocks.at(-1)!.position } },
+    ]) {
+      engine.update(project, undefined, options);
+      const targetBefore = internal.controls.target.clone();
+      const renderedBefore = internal.renderedBlocks.size;
+      const placeholdersBefore = internal.placeholderIndices.size;
+      internal.camera.position.set(8, 6, 8);
+      for (let frame = 0; frame < 8; frame += 1) internal.moveCamera(new Set(['move-right']), .05);
+      expect(internal.controls.target).toEqual(targetBefore);
+      expect(project.blocks).toHaveLength(projectBlockCount);
+      expect(internal.renderedBlocks.size).toBe(renderedBefore);
+      expect(internal.placeholderIndices.size).toBe(placeholdersBefore);
+      expect(internal.camera.position.distanceTo(targetBefore)).toBeGreaterThan(.1);
+    }
+    engine.dispose();
+  });
+
   it('resolves every instanced hit from the authoritative instance voxel table', () => {
     const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 3);
     const voxels = [{ x: 2, y: 0, z: 0 }, { x: 7, y: 1, z: 0 }, { x: 9, y: 2, z: 3 }];
@@ -231,6 +260,31 @@ describe('camera movement input contract', () => {
     expect(expandedInstance.boundingBox!.max.z).toBeCloseTo(16);
     expect(expandedInstance.boundingSphere!.radius).toBeGreaterThan(0);
     engine.dispose(); sharedGeometry.dispose();
+  });
+
+  it('shows complete coarse occupancy before exact hydration and clears it on cancellation', async () => {
+    const pending: Array<(value: unknown) => void> = [];
+    const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const project = rendererBenchmarkProject('stress');
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined);
+    const internal = engine as unknown as { placeholderIndices: Map<string, unknown>; placeholderBatches: Map<string, { mesh: THREE.InstancedMesh }>; renderedBlocks: Map<string, unknown> };
+    expect(internal.placeholderIndices.size + internal.renderedBlocks.size).toBe(project.blocks.length);
+    expect(internal.placeholderBatches.size).toBeLessThan(project.blocks.length);
+    expect([...internal.placeholderBatches.values()].every((batch) => batch.mesh.count > 0)).toBe(true);
+    engine.update(undefined, undefined);
+    expect(internal.placeholderIndices.size).toBe(0);
+    expect(internal.placeholderBatches.size).toBe(0);
+    engine.dispose();
+  });
+
+  it('removes every coarse placeholder when hydration reaches completion', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const project = rendererBenchmarkProject('small'); const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined); await settleHydration();
+    const internal = engine as unknown as { placeholderIndices: Map<string, unknown>; placeholderBatches: Map<string, unknown> };
+    expect(engine.hydrationProgress().status).toBe('complete');
+    expect(internal.placeholderIndices.size).toBe(0);
+    expect(internal.placeholderBatches.size).toBe(0);
+    engine.dispose();
   });
 
   it('does not rebuild structure visuals when only selection options change', async () => {

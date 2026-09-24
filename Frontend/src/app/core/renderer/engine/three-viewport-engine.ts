@@ -123,6 +123,15 @@ interface InstanceBatch {
   boundsDirty: boolean;
 }
 
+interface PlaceholderBatch {
+  readonly key: string;
+  readonly capacity: number;
+  readonly mesh: THREE.InstancedMesh;
+  readonly keys: string[];
+  readonly positions: VoxelCoordinate[];
+  boundsDirty: boolean;
+}
+
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
   object.position.set(object.position.x + position.x, object.position.y + position.y, object.position.z + position.z);
@@ -161,6 +170,12 @@ export class ThreeViewportEngine {
     normal: Object.assign(new THREE.MeshLambertMaterial({ color: 0x8a94a6 }), { userData: { sharedFallbackMaterial: true } }),
     reference: Object.assign(new THREE.MeshLambertMaterial({ color: 0x9aa5b5, transparent: true }), { userData: { sharedFallbackMaterial: true } }),
     missing: Object.assign(new THREE.MeshLambertMaterial({ color: 0xff5a67 }), { userData: { sharedFallbackMaterial: true } }),
+  };
+  private readonly placeholderGeometry = Object.assign(new THREE.BoxGeometry(1, 1, 1), { userData: { sharedPlaceholderGeometry: true } });
+  private readonly placeholderMaterials = {
+    normal: Object.assign(new THREE.MeshLambertMaterial({ color: 0x65717e, transparent: true, opacity: .62 }), { userData: { sharedPlaceholderMaterial: true } }),
+    reference: Object.assign(new THREE.MeshLambertMaterial({ color: 0x65717e, transparent: true, opacity: .24, depthWrite: false }), { userData: { sharedPlaceholderMaterial: true } }),
+    missing: Object.assign(new THREE.MeshLambertMaterial({ color: 0x9b5964, transparent: true, opacity: .58 }), { userData: { sharedPlaceholderMaterial: true } }),
   };
   private ghostModel?: THREE.Group;
   private ghostModelKey = '';
@@ -227,6 +242,8 @@ export class ThreeViewportEngine {
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
   private readonly instanceBatches = new Map<string, InstanceBatch>();
+  private readonly placeholderBatches = new Map<string, PlaceholderBatch>();
+  private readonly placeholderIndices = new Map<string, { readonly batchKey: string; readonly index: number }>();
   private readonly hydrationProgressListeners = new Set<(progress: ViewportHydrationProgress) => void>();
   private hydrationProgressState: ViewportHydrationProgress = { generation: 0, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 };
   private hydrationProgressHideTimer?: ReturnType<typeof setTimeout>;
@@ -318,6 +335,9 @@ export class ThreeViewportEngine {
     this.fallbackMaterials.normal.color.setHex(palette.block);
     this.fallbackMaterials.reference.color.setHex(palette.referenceBlock);
     this.fallbackMaterials.missing.color.setHex(palette.missingBlock);
+    this.placeholderMaterials.normal.color.setHex(palette.block);
+    this.placeholderMaterials.reference.color.setHex(palette.referenceBlock);
+    this.placeholderMaterials.missing.color.setHex(palette.missingBlock);
     this.logicalSelectionGroup.traverse((object) => { if (object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.selection); });
     this.scene.traverse((object) => { if (object.userData['groupHighlight'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(object.userData['groupLocked'] ? palette.lockedGroup : palette.group); });
     this.movePreviewGroup.traverse((object) => { if (object instanceof THREE.Mesh) (object.material as THREE.MeshBasicMaterial).color.setHex(object.userData['previewInvalid'] ? palette.invalid : palette.valid); });
@@ -517,6 +537,7 @@ export class ThreeViewportEngine {
     if (full) this.instrumentation.record('fullSceneRebuilds');
     const changed = new Set<string>();
     for (const [key, entry] of this.renderedBlocks) if (!visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.pendingHydrationSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
+    for (const key of this.placeholderIndices.keys()) if (!visibleMap.has(key)) this.removePlaceholderVisual(key);
     for (const key of this.pendingHydrationSignatures.keys()) if (!visibleMap.has(key)) this.pendingHydrationSignatures.delete(key);
     for (const [key, entry] of visibleMap) {
       const current = this.renderedBlocks.get(key);
@@ -525,6 +546,7 @@ export class ThreeViewportEngine {
         if (!current && pendingSignature === entry.signature) continue;
         changed.add(key);
       }
+      if (!changed.has(key) && current) this.removePlaceholderVisual(key);
     }
     if (!full) for (const key of [...changed]) {
       const position = visibleMap.get(key)?.block.position ?? this.renderedBlocks.get(key)?.block.position;
@@ -536,6 +558,7 @@ export class ThreeViewportEngine {
       const previous = this.renderedBlocks.get(key);
       if (previous) { this.removeBlockEntry(key, previous); this.instrumentation.record('blockUpdates'); }
       else if (this.pendingHydrationSignatures.get(key) === undefined) this.instrumentation.record('blockAdds');
+      this.ensurePlaceholderVisual(key, next.block, next.role);
       this.pendingHydrationSignatures.set(key, next.signature);
       this.instrumentation.record('blockVisualCreations');
       this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, role: next.role, worldContext, options, allowInstancing });
@@ -666,7 +689,74 @@ export class ThreeViewportEngine {
     this.renderTimer = setTimeout(() => { this.renderScheduled = false; this.renderTimer = undefined; this.render(); }, 0);
   }
 
+  private ensurePlaceholderVisual(key: string, block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role']): void {
+    if (this.placeholderIndices.has(key)) return;
+    const batchKey = `${role}|${chunkKey(block.position)}`;
+    let batch = this.placeholderBatches.get(batchKey);
+    if (!batch) {
+      const material = this.placeholderMaterials[role];
+      const mesh = new THREE.InstancedMesh(this.placeholderGeometry, material, VIEWPORT_INSTANCE_CHUNK_SIZE ** 3);
+      mesh.count = 0;
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.userData['instanceVoxels'] = [];
+      mesh.userData['instanceKeys'] = [];
+      mesh.userData['placeholder'] = true;
+      mesh.userData['instanceBatchKey'] = batchKey;
+      this.blocksGroup.add(mesh);
+      batch = { key: batchKey, capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3, mesh, keys: [], positions: [], boundsDirty: true };
+      this.placeholderBatches.set(batchKey, batch);
+    }
+    if (batch.keys.length >= batch.capacity) return;
+    const index = batch.keys.length;
+    const position = { ...block.position };
+    batch.keys.push(key); batch.positions.push(position);
+    batch.mesh.setMatrixAt(index, new THREE.Matrix4().makeTranslation(position.x + .5, position.y + .5, position.z + .5));
+    batch.mesh.count = index + 1;
+    (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
+    (batch.mesh.userData['instanceKeys'] as string[]).push(key);
+    batch.mesh.instanceMatrix.needsUpdate = true;
+    batch.boundsDirty = true;
+    this.placeholderIndices.set(key, { batchKey, index });
+  }
+
+  private removePlaceholderVisual(key: string): void {
+    const reference = this.placeholderIndices.get(key);
+    if (!reference) return;
+    const batch = this.placeholderBatches.get(reference.batchKey);
+    this.placeholderIndices.delete(key);
+    if (!batch) return;
+    const index = reference.index;
+    const last = batch.keys.length - 1;
+    if (index !== last) {
+      const movedKey = batch.keys[last];
+      const movedPosition = batch.positions[last];
+      batch.keys[index] = movedKey; batch.positions[index] = movedPosition;
+      const voxels = batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[];
+      const keys = batch.mesh.userData['instanceKeys'] as string[];
+      voxels[index] = movedPosition; keys[index] = movedKey;
+      batch.mesh.setMatrixAt(index, new THREE.Matrix4().makeTranslation(movedPosition.x + .5, movedPosition.y + .5, movedPosition.z + .5));
+      this.placeholderIndices.set(movedKey, { batchKey: batch.key, index });
+    }
+    batch.keys.pop(); batch.positions.pop();
+    (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
+    (batch.mesh.userData['instanceKeys'] as string[]).pop();
+    batch.mesh.count = batch.keys.length;
+    batch.mesh.instanceMatrix.needsUpdate = true;
+    batch.boundsDirty = true;
+    if (!batch.keys.length) {
+      this.blocksGroup.remove(batch.mesh);
+      this.placeholderBatches.delete(batch.key);
+    }
+  }
+
+  private clearPlaceholderVisuals(): void {
+    for (const batch of this.placeholderBatches.values()) this.blocksGroup.remove(batch.mesh);
+    this.placeholderBatches.clear();
+    this.placeholderIndices.clear();
+  }
+
   private createBlockEntry(block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, onComplete?: () => void): void {
+    this.removePlaceholderVisual(coordinateKey(block.position));
     if (!this.fallbackGeometryCounted) { this.instrumentation.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
     if (!this.fallbackMaterialRoles.has(role)) { this.instrumentation.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(role); }
     const isReference = role === 'reference';
@@ -771,7 +861,7 @@ export class ThreeViewportEngine {
     this.providerStats = stats;
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.pendingHydrationSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.syncedProject = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.pendingHydrationSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.syncedProject = undefined; }
 
   private reconcileDecorations(project: ProjectDocument, options: ViewportRenderOptions, full: boolean): void {
     const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (!options.isolatedGroupId || decorationHasGroup(decoration, options.isolatedGroupId)) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
@@ -930,6 +1020,9 @@ export class ThreeViewportEngine {
     if (this.ghostModel) disposeObject(this.ghostModel);
     this.fallbackGeometry.dispose();
     this.fallbackMaterials.normal.dispose(); this.fallbackMaterials.reference.dispose(); this.fallbackMaterials.missing.dispose();
+    this.clearPlaceholderVisuals();
+    this.placeholderGeometry.dispose();
+    this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
     this.renderer = undefined;
     this.container = undefined;
   }
@@ -1278,6 +1371,12 @@ export class ThreeViewportEngine {
       }
       batch.boundsDirty = false;
     }
+    for (const batch of this.placeholderBatches.values()) {
+      if (!batch.boundsDirty) continue;
+      batch.mesh.computeBoundingBox();
+      batch.mesh.computeBoundingSphere();
+      batch.boundsDirty = false;
+    }
   }
 
   private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedActions, delta); if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
@@ -1286,7 +1385,16 @@ export class ThreeViewportEngine {
     this.cameraInteractingUntil = performance.now() + 180;
     const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
     if (!direction.lengthSq()) return;
-    this.camera.position.add(direction); this.controls.target.add(direction); this.controls.update();
+    const target = this.controls.target;
+    const nextPosition = this.camera.position.clone().add(direction);
+    const offset = nextPosition.sub(target);
+    const currentOffset = this.camera.position.clone().sub(target);
+    const fallbackDirection = currentOffset.lengthSq() > 1e-8 ? currentOffset.normalize() : new THREE.Vector3(0, 0, 1);
+    const minDistance = Math.max(this.controls.minDistance, .1);
+    const maxDistance = Number.isFinite(this.controls.maxDistance) ? Math.max(minDistance, this.controls.maxDistance) : Infinity;
+    const distance = THREE.MathUtils.clamp(offset.length(), minDistance, maxDistance);
+    this.camera.position.copy(target).add((offset.lengthSq() > 1e-8 ? offset.normalize() : fallbackDirection).multiplyScalar(distance));
+    this.controls.update();
   }
 }
 
@@ -1385,7 +1493,7 @@ export function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate
   return (hit.object.userData['instanceVoxels'] as VoxelCoordinate[] | undefined)?.[instanceId];
 }
 function chunkKey(position: VoxelCoordinate): string { return `${Math.floor(position.x / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.y / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.z / VIEWPORT_INSTANCE_CHUNK_SIZE)}`; }
-function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
+function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry'] && !child.geometry.userData['sharedPlaceholderGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial'] || material.userData['sharedPlaceholderMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
 
 export function applyBlockTheme(root: THREE.Object3D, palette: ViewportThemePalette): void {
   root.traverse((object) => {
