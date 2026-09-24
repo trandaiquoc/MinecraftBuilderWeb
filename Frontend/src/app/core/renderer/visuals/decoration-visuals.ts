@@ -34,6 +34,7 @@ export function createDecorationVisual(
   paintingResource?: (variantId: string) => string | undefined,
   itemResources?: (itemId: string) => readonly string[],
   itemVisual?: (itemId: string) => ResolvedItemVisual | undefined,
+  loadItemTextureLayers = true,
 ): THREE.Group {
   const root = new THREE.Group();
   const localCache = cache ?? (textureUrl ? new DecorationTextureCache(textureUrl) : undefined);
@@ -53,7 +54,7 @@ export function createDecorationVisual(
     const itemId = decoration.item.id;
     const d = directionVector(decoration.facing);
     const resolvedVisual = itemVisual?.(itemId);
-    const resolvedResources = resolvedVisual?.layers?.length ? resolvedVisual.layers : itemResources?.(itemId);
+    const resolvedResources = loadItemTextureLayers && resolvedVisual?.layers?.length ? resolvedVisual.layers : loadItemTextureLayers ? itemResources?.(itemId) : undefined;
     const resources = resolvedResources?.length ? resolvedResources : [undefined];
     const frontOffset = Math.max(size.x * Math.abs(d.x), size.y * Math.abs(d.y), size.z * Math.abs(d.z)) / 2 + ITEM_FRAME_FRONT_EPSILON;
     const sprite = new THREE.Group();
@@ -81,6 +82,29 @@ export function createDecorationVisual(
     mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose();
   } else root.add(mesh);
   return root;
+}
+
+/** Replace the temporary layer planes with the normalized 2D preview produced
+ * by ItemVisualService. This keeps frame rendering flat while ensuring the
+ * picker and an already placed frame consume the same rasterized result. */
+export function applyDecorationItemPreview(sprite: THREE.Object3D, previewUrl: string, cache?: DecorationTextureCache): boolean {
+  const texture = cache?.getUrl(previewUrl);
+  if (!texture) return false;
+  for (const child of [...sprite.children]) {
+    if (child instanceof THREE.Mesh) {
+      child.geometry.dispose();
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) material.dispose();
+    }
+    sprite.remove(child);
+  }
+  const item = new THREE.Mesh(new THREE.PlaneGeometry(ITEM_FRAME_SPRITE_SIZE, ITEM_FRAME_SPRITE_SIZE), new THREE.MeshBasicMaterial({ color: 0xffffff, map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  item.userData['decorationInstanceId'] = sprite.userData['decorationInstanceId'];
+  item.userData['decorationItem'] = sprite.userData['decorationItem'];
+  item.userData['itemVisualPreview'] = previewUrl;
+  sprite.add(item);
+  sprite.userData['itemVisualPreview'] = previewUrl;
+  return true;
 }
 
 function orientItemSprite(sprite: THREE.Object3D, facing: PlacedDecoration['facing'], rotation: number): void {

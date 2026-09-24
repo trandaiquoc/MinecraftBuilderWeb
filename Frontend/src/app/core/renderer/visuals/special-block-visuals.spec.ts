@@ -208,6 +208,11 @@ describe('special block visuals', () => {
     expect(registry.resolve(block('minecraft:piglin_head'))?.family).toBe('heads-skulls');
     expect(registry.resolve(block('minecraft:piston_head'))).toBeUndefined();
   });
+  it('exposes heads as a static item capability while refusing profile-dependent player skins', () => {
+    expect(registry.resolveItemVisual('minecraft:skeleton_skull')?.family).toBe('heads-skulls');
+    expect(registry.resolveItemVisual('minecraft:piston_head')).toBeUndefined();
+    expect(registry.resolveItemVisual('minecraft:player_head', { 'minecraft:profile': { name: 'custom' } })).toBeUndefined();
+  });
   it('uses vanilla skull texture resources and standing/wall anchors', () => {
     const standing = registry.resolve(block('minecraft:skeleton_skull'))!;
     const wall = registry.resolve(block('minecraft:skeleton_wall_skull'))!;

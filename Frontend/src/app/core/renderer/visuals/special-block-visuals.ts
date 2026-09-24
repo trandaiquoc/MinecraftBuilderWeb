@@ -84,6 +84,16 @@ export class SpecialBlockVisualRegistry {
   resolveDiagnosticFallback(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
     return this.candidates().find((candidate) => candidate.matches(block));
   }
+  /** Resolve only verified static item-backed special visuals. This is a
+   * capability boundary, not a namespace/name heuristic for arbitrary items. */
+  resolveItemVisual(itemId: string, components?: Readonly<Record<string, unknown>>): SpecialBlockVisualAdapter | undefined {
+    const block: PlacedBlock = { kind: 'resolved', id: itemId, namespace: itemId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { rotation: '0' } };
+    return this.candidates().find((candidate) => {
+      if (candidate.family !== 'heads-skulls' || !candidate.matches(block)) return false;
+      const resource = candidate.textureResource?.(block) ?? '';
+      return !(resource.includes('/player/') && hasProfileComponent(components));
+    });
+  }
   inspect(block: PlacedBlock): SpecialVisualCompatibility {
     const adapter = this.candidates().find((candidate) => candidate.matches(block));
     if (!adapter) return { missingResources: [] };
@@ -249,6 +259,10 @@ const headIds = new Set([
   'minecraft:skeleton_skull', 'minecraft:skeleton_wall_skull', 'minecraft:wither_skeleton_skull', 'minecraft:wither_skeleton_wall_skull',
   'minecraft:zombie_head', 'minecraft:zombie_wall_head',
 ]);
+
+function hasProfileComponent(components: Readonly<Record<string, unknown>> | undefined): boolean {
+  return !!components && Object.keys(components).some((key) => key === 'minecraft:profile' || key.endsWith(':profile') || key === 'profile');
+}
 const headAdapter: SpecialBlockVisualAdapter = {
   family: 'heads-skulls',
   matches: (block) => headIds.has(block.id),

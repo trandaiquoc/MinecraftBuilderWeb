@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { createDecorationVisual, DecorationTextureCache } from './decoration-visuals';
+import { applyDecorationItemPreview, createDecorationVisual, DecorationTextureCache } from './decoration-visuals';
 import { directionVector } from '../../decorations/placement/decoration-placement';
 
 describe('decoration texture cache lifecycle', () => {
@@ -76,6 +76,19 @@ describe('decoration texture cache lifecycle', () => {
     expect((normalMesh.geometry as THREE.PlaneGeometry).parameters).toEqual((glowMesh.geometry as THREE.PlaneGeometry).parameters);
     expect(normalMesh.material).toMatchObject({ map: itemTexture });
     expect(glowMesh.material).toMatchObject({ map: itemTexture });
+  });
+
+  it('reuses one normalized 2D preview for a frame after its temporary layers resolve', () => {
+    const layerTexture = new THREE.Texture(); const previewTexture = new THREE.Texture();
+    const loader = { load: vi.fn((url: string) => url === 'blob:preview' ? previewTexture : layerTexture) } as unknown as THREE.TextureLoader;
+    const cache = new DecorationTextureCache((resource) => `blob:${resource}`, loader);
+    const visual = createDecorationVisual({ instanceId: 'preview', kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'south', rotation: 0, invisible: false, fixed: false, itemDropChance: 1, item: { id: 'example:gem', count: 1 } }, (resource) => `blob:${resource}`, cache, undefined, () => ['example:item/gem', 'example:item/gem_glow']);
+    const sprite = visual.children.find((child) => child.userData['decorationItem'])!;
+    expect(sprite.children).toHaveLength(2);
+    expect(applyDecorationItemPreview(sprite, 'blob:preview', cache)).toBe(true);
+    expect(sprite.children).toHaveLength(1);
+    expect((sprite.children[0] as THREE.Mesh).geometry).toBeInstanceOf(THREE.PlaneGeometry);
+    expect(((sprite.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).map).toBe(previewTexture);
   });
 
   it('presents static block-model items as centered flat sprites instead of 3D geometry', () => {

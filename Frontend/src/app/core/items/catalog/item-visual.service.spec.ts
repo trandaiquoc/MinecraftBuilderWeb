@@ -47,4 +47,20 @@ describe('ItemVisualService', () => {
     expect(info).toMatchObject({ kind: 'block-model', status: 'available', previewUrls: ['blob:stone-preview'] });
     expect(rasterize).toHaveBeenCalledWith('example:stone');
   });
+
+  it('keeps visual cache identity component-sensitive and does not resolve catalog rows implicitly', async () => {
+    const rasterize = vi.fn(async () => ({ url: 'blob:stack-preview', quality: 'enhanced' as const }));
+    const assets = {
+      generation: signal(1),
+      visualProvider: () => ({ perspectiveItemVisualThumbnail: rasterize }),
+      sources: { resources: { readJson: () => ({ textures: { layer0: 'example:item/gem' } }), readBinary: () => new Uint8Array([1]), textureUrl: () => 'blob:layer' }, itemEvidenceSources: () => [] },
+    };
+    TestBed.configureTestingModule({ providers: [{ provide: VanillaAssetsService, useValue: assets }, ItemVisualService] });
+    const visuals = TestBed.inject(ItemVisualService);
+    const first = { id: 'example:gem', count: 1, components: { 'minecraft:profile': { name: 'A' } } };
+    const second = { id: 'example:gem', count: 1, components: { 'minecraft:profile': { name: 'B' } } };
+    await visuals.request(first, 'high');
+    await visuals.request(second, 'high');
+    expect(rasterize).toHaveBeenCalledTimes(2);
+  });
 });

@@ -1,7 +1,7 @@
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 
 export type ItemVisualStatus = 'available' | 'unsupported' | 'missing-resource';
-export type ItemVisualKind = 'generated-layers' | 'block-model' | 'unsupported';
+export type ItemVisualKind = 'generated-layers' | 'block-model' | 'special-static' | 'unsupported';
 
 export interface ItemVisualInfo {
   readonly status: ItemVisualStatus;
@@ -9,6 +9,18 @@ export interface ItemVisualInfo {
   readonly resourcePaths: readonly string[];
   readonly previewUrls: readonly string[];
   readonly diagnostics: readonly string[];
+  /** Stable evidence for diagnostics and tests; it never becomes project data. */
+  readonly trace?: ItemVisualTrace;
+}
+
+export interface ItemVisualTrace {
+  readonly itemId: string;
+  readonly entryPoint?: string;
+  readonly modelChain: readonly string[];
+  readonly adapter: 'generated-layers' | 'static-model' | 'special-static' | 'runtime-unsupported';
+  readonly textures: readonly string[];
+  readonly previewStatus: ItemVisualStatus;
+  readonly fallbackReason?: string;
 }
 
 export interface ItemCatalogEntry {

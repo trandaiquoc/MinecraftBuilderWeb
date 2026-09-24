@@ -31,7 +31,7 @@ export interface BlockVisualResult {
 }
 export interface BlockVisualWorldContext extends FluidWorldLookup {}
 
-export type ItemVisualKind = 'generated-layers' | 'block-model' | 'unsupported';
+export type ItemVisualKind = 'generated-layers' | 'block-model' | 'special-static' | 'unsupported';
 export interface ResolvedItemVisual {
   readonly kind: ItemVisualKind;
   readonly layers: readonly string[];
@@ -39,6 +39,7 @@ export interface ResolvedItemVisual {
   readonly displayFixed?: Readonly<Record<string, unknown>>;
   readonly elements?: readonly unknown[];
   readonly textures?: Readonly<Record<string, string>>;
+  readonly modelChain?: readonly string[];
   readonly diagnostics: readonly string[];
 }
 
@@ -46,6 +47,7 @@ export type PerspectiveThumbnailQuality = 'fallback' | 'enhanced';
 export interface PerspectiveThumbnailResult {
   readonly url?: string;
   readonly quality: PerspectiveThumbnailQuality;
+  readonly adapter?: Exclude<ItemVisualKind, 'unsupported'>;
   /** A failed render may be retried by an explicit user selection. */
   readonly retryable?: boolean;
 }
@@ -64,7 +66,7 @@ export interface BlockVisualProvider {
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult>;
-  perspectiveItemVisualThumbnail?(itemId: string): Promise<PerspectiveThumbnailResult>;
+  perspectiveItemVisualThumbnail?(itemId: string, components?: Readonly<Record<string, unknown>>): Promise<PerspectiveThumbnailResult>;
   setSpecialVisualDescriptors?(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void;
   cacheStats?(): Readonly<VisualCacheStats>;
   resourceCounts?(): Readonly<VisualResourceCounts>;
@@ -81,6 +83,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly specialVisuals: SpecialBlockVisualRegistry;
   private readonly thumbnailCache = new Map<string, Promise<string | undefined>>();
   private readonly itemThumbnailCache = new Map<string, Promise<PerspectiveThumbnailResult>>();
+  private readonly itemVisualPreviewCache = new Map<string, Promise<PerspectiveThumbnailResult>>();
   private readonly geometryCache = new Map<string, THREE.BufferGeometry>();
   private readonly stats = { resolvedModelCacheHits: 0, resolvedModelCacheMisses: 0, geometryCacheHits: 0, geometryCacheMisses: 0, textureCacheHits: 0, textureCacheMisses: 0 };
   private thumbnailRenderer?: THREE.WebGLRenderer;
@@ -189,13 +192,18 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const tracked = task.then((result) => { if (result.quality === 'fallback' && result.retryable) this.itemThumbnailCache.delete(key); return result; });
     this.itemThumbnailCache.set(key, tracked); return tracked;
   }
-  perspectiveItemVisualThumbnail(itemId: string): Promise<PerspectiveThumbnailResult> { return this.renderItemVisualThumbnail(itemId); }
+  perspectiveItemVisualThumbnail(itemId: string, components?: Readonly<Record<string, unknown>>): Promise<PerspectiveThumbnailResult> {
+    const key = `item-visual-v1|${itemId}|${components ? stableVisualComponentKey(components) : ''}`;
+    const cached = this.itemVisualPreviewCache.get(key); if (cached) return cached;
+    const task = this.renderItemVisualThumbnail(itemId, components).then((result) => { if (result.quality === 'fallback' && result.retryable) this.itemVisualPreviewCache.delete(key); return result; });
+    this.itemVisualPreviewCache.set(key, task); return task;
+  }
   setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); }
 
-  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url); this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
+  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url); this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.itemVisualPreviewCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
 
   cacheStats(): Readonly<VisualCacheStats> { return { ...this.stats }; }
-  resourceCounts(): Readonly<VisualResourceCounts> { return { resolvedModels: this.resolvedCache.size, geometries: this.geometryCache.size, textures: this.textureCache.size, fluidTextures: this.fluidTextureCache.size, thumbnails: this.thumbnailCache.size + this.itemThumbnailCache.size }; }
+  resourceCounts(): Readonly<VisualResourceCounts> { return { resolvedModels: this.resolvedCache.size, geometries: this.geometryCache.size, textures: this.textureCache.size, fluidTextures: this.fluidTextureCache.size, thumbnails: this.thumbnailCache.size + this.itemThumbnailCache.size + this.itemVisualPreviewCache.size }; }
 
   private async renderThumbnail(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined> {
     return this.renderThumbnailBlocks([{ kind: 'resolved', id: blockId, namespace: blockId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state }]);
@@ -224,22 +232,47 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     return resource ? this.assets.textureUrl?.(resource) : undefined;
   }
 
-  private async renderItemVisualThumbnail(itemId: string): Promise<PerspectiveThumbnailResult> {
+  private async renderItemVisualThumbnail(itemId: string, components?: Readonly<Record<string, unknown>>): Promise<PerspectiveThumbnailResult> {
     if (typeof document === 'undefined') return { quality: 'fallback' };
     const visual = resolveItemVisual(this.assets, itemId);
+    if (visual.kind === 'unsupported') {
+      const special = this.specialVisuals.resolveItemVisual(itemId, components);
+      if (special) {
+        const fake: PlacedBlock = { kind: 'resolved', id: itemId, namespace: itemId.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { rotation: '0' } };
+        const resource = special.textureResource?.(fake);
+        const texture = resource ? await this.texture(resource) : undefined;
+        if (texture) {
+          const root = special.create(fake, { texture });
+          root.userData['specialVisualFamily'] = special.family;
+          root.rotation.y += thumbnailPreviewRotationY(root);
+          const url = await this.renderStandaloneObjectThumbnail(root);
+          if (url) return { url, quality: 'enhanced', adapter: 'special-static' };
+        }
+      }
+    }
     if (visual.kind === 'block-model' && visual.model) {
       const url = await this.renderStandaloneModelThumbnail(itemId, visual.model);
       return url ? { url, quality: 'enhanced' } : { quality: 'fallback' };
     }
     if (visual.kind !== 'generated-layers' || !visual.layers.length) return { quality: 'fallback' };
     const textures = await Promise.all(visual.layers.map((layer) => this.texture(layer)));
-    if (!textures.some(Boolean)) return { quality: 'fallback' };
+    if (!textures.length || textures.some((texture) => !texture)) return { quality: 'fallback', retryable: true };
     const renderer = this.thumbnailRenderer ??= new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(96, 96, false); renderer.setClearColor(0x000000, 0);
     const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
     const root = new THREE.Group();
     textures.forEach((texture, index) => { if (!texture) return; const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }); const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), material); mesh.position.z = index * .002; root.add(mesh); });
-    scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return { url: await this.thumbnailUrlFromCanvas(renderer.domElement), quality: 'fallback' };
+    scene.add(root); const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.set(0, 0, 3.2); camera.lookAt(0, 0, 0); renderer.render(scene, camera); scene.remove(root); return { url: await this.thumbnailUrlFromCanvas(renderer.domElement), quality: 'enhanced' };
+  }
+
+  private async renderStandaloneObjectThumbnail(root: THREE.Object3D): Promise<string | undefined> {
+    const renderer = this.thumbnailRenderer ??= new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(96, 96, false); renderer.setClearColor(0x000000, 0);
+    root.updateMatrixWorld(true);
+    const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3)); const key = new THREE.DirectionalLight(0xffffff, 1.45); key.position.set(4, 6, 5); scene.add(key); scene.add(root);
+    const bounds = new THREE.Box3().setFromObject(root); if (!validBounds(bounds)) return undefined;
+    const center = bounds.getCenter(new THREE.Vector3()); const size = Math.max(...bounds.getSize(new THREE.Vector3()).toArray(), .5);
+    const camera = new THREE.PerspectiveCamera(35, 1, .1, 20); camera.position.copy(center).add(new THREE.Vector3(size * 1.7, size * 1.35, size * 1.7)); camera.lookAt(center); renderer.render(scene, camera); scene.remove(root); return this.thumbnailUrlFromCanvas(renderer.domElement);
   }
 
   private async renderStandaloneModelThumbnail(itemId: string, modelId: string): Promise<string | undefined> {
@@ -348,6 +381,13 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 }
 
+function stableVisualComponentKey(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableVisualComponentKey).join(',')}]`;
+  const record = value as Readonly<Record<string, unknown>>;
+  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableVisualComponentKey(record[key])}`).join(',')}}`;
+}
+
 /** Resolves the first statically declared inventory texture for an Item. This
  * intentionally supports only data-driven item formats; runtime renderers are
  * left unresolved instead of being guessed. */
@@ -395,18 +435,18 @@ export function resolveItemVisual(provider: Pick<RenderableAssetResourceProvider
   if (isRecord(root) && isRecord(root['model']) && typeof root['model']['type'] === 'string' && typeof root['model']['model'] !== 'string') return { kind: 'unsupported', layers: [], diagnostics: ['conditional item model requires runtime selection'] };
   const model = modelReference(root) ?? `${namespace}:item/${name}`;
   const inherited = resolveInheritedItemModel(provider, model, new Set());
-  if (!inherited.document) return { kind: 'unsupported', layers: [], diagnostics: inherited.diagnostics };
-  if (inherited.diagnostics.some((diagnostic) => diagnostic.includes('item model cycle'))) return { kind: 'unsupported', layers: [], diagnostics: inherited.diagnostics };
+  if (!inherited.document) return { kind: 'unsupported', layers: [], modelChain: inherited.modelChain, diagnostics: inherited.diagnostics };
+  if (inherited.diagnostics.some((diagnostic) => diagnostic.includes('item model cycle'))) return { kind: 'unsupported', layers: [], modelChain: inherited.modelChain, diagnostics: inherited.diagnostics };
   const document = inherited.document;
   const textures = resolveTextureVariables(document['textures'], inherited.diagnostics);
   const layers = Object.keys(textures).filter((key) => /^layer\d+$/.test(key)).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))).flatMap((key) => textures[key] ? [textures[key]] : []);
   if (layers.length) {
     if (isRecord(root) && Array.isArray(root['overrides'])) inherited.diagnostics.push('item overrides require static ItemStack predicates');
-    return { kind: 'generated-layers', layers, model: inherited.model, displayFixed: fixedDisplay(document['display']), textures, diagnostics: inherited.diagnostics };
+    return { kind: 'generated-layers', layers, model: inherited.model, modelChain: inherited.modelChain, displayFixed: fixedDisplay(document['display']), textures, diagnostics: inherited.diagnostics };
   }
   const parent = typeof document['parent'] === 'string' ? document['parent'] : undefined;
   const blockParent = parent && (/(?:^|:)block\//.test(parent) || parent.startsWith('block/')) ? resolveResourceLocation(parent, namespace) ?? parent : undefined;
-  if (blockParent || Array.isArray(document['elements'])) return { kind: 'block-model', layers: [], model: blockParent ?? inherited.model, displayFixed: fixedDisplay(document['display']), elements: Array.isArray(document['elements']) ? document['elements'] : undefined, textures, diagnostics: inherited.diagnostics };
+  if (blockParent || Array.isArray(document['elements'])) return { kind: 'block-model', layers: [], model: blockParent ?? inherited.model, modelChain: inherited.modelChain, displayFixed: fixedDisplay(document['display']), elements: Array.isArray(document['elements']) ? document['elements'] : undefined, textures, diagnostics: inherited.diagnostics };
   if (isRecord(root) && Array.isArray(root['overrides'])) inherited.diagnostics.push('item overrides require static ItemStack predicates');
   return { kind: 'unsupported', layers: [], diagnostics: [...inherited.diagnostics, 'item model has no supported static representation'] };
 }
@@ -431,22 +471,22 @@ function readItemEntry(provider: Pick<RenderableAssetResourceProvider, 'readJson
   return provider.readJson(preferred) ?? provider.readJson(fallback);
 }
 
-function resolveInheritedItemModel(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, modelId: string, visited: Set<string>): { document?: JsonDocument; model?: string; diagnostics: string[] } {
+function resolveInheritedItemModel(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, modelId: string, visited: Set<string>): { document?: JsonDocument; model?: string; modelChain: string[]; diagnostics: string[] } {
   const normalized = resolveResourceLocation(modelId) ?? modelId;
   const path = resourcePath(normalized, 'models') ?? `assets/${normalized.split(':')[0]}/models/${normalized.split(':').at(-1)}.json`;
-  if (visited.has(path)) return { diagnostics: ['item model cycle'] };
+  if (visited.has(path)) return { modelChain: [normalized], diagnostics: ['item model cycle'] };
   visited.add(path);
   const document = provider.readJson(path);
-  if (!isRecord(document)) return { diagnostics: [`missing item model: ${path}`] };
+  if (!isRecord(document)) return { modelChain: [normalized], diagnostics: [`missing item model: ${path}`] };
   const parent = typeof document['parent'] === 'string' ? document['parent'] : undefined;
-  const parentResult = parent ? resolveInheritedItemModel(provider, parent, visited) : { document: {}, model: undefined, diagnostics: [] };
+  const parentResult = parent ? resolveInheritedItemModel(provider, parent, visited) : { document: {}, model: undefined, modelChain: [] as string[], diagnostics: [] as string[] };
   const merged: JsonDocument = { ...(parentResult.document ?? {}), ...document };
   if (isRecord(parentResult.document?.['textures']) || isRecord(document['textures'])) merged['textures'] = { ...(isRecord(parentResult.document?.['textures']) ? parentResult.document!['textures'] as JsonDocument : {}), ...(isRecord(document['textures']) ? document['textures'] : {}) };
   if (isRecord(parentResult.document?.['display']) || isRecord(document['display'])) merged['display'] = { ...(isRecord(parentResult.document?.['display']) ? parentResult.document!['display'] as JsonDocument : {}), ...(isRecord(document['display']) ? document['display'] : {}) };
   // A child with complete local textures/elements remains statically useful even
   // when an optional parent resource is unavailable; retain the diagnostic rather
   // than turning an otherwise renderable item into an empty fallback.
-  return { document: merged, model: normalized, diagnostics: [...parentResult.diagnostics] };
+  return { document: merged, model: normalized, modelChain: [normalized, ...parentResult.modelChain], diagnostics: [...parentResult.diagnostics] };
 }
 
 function resolveTextureVariables(raw: unknown, diagnostics: string[]): Record<string, string> {

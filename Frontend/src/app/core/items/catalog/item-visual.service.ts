@@ -12,7 +12,7 @@ export interface ItemVisualState {
   readonly generation: number;
 }
 
-interface WorkItem { readonly key: string; readonly itemId: string; readonly generation: number; readonly priority: 'high' | 'normal'; readonly resolve: (info: ItemVisualInfo) => void; readonly reject: (error: unknown) => void; }
+interface WorkItem { readonly key: string; readonly itemId: string; readonly components?: Readonly<Record<string, unknown>>; readonly generation: number; readonly priority: 'high' | 'normal'; readonly resolve: (info: ItemVisualInfo) => void; readonly reject: (error: unknown) => void; }
 
 /** Demand-driven static Item visual cache. The identity catalog never calls this service. */
 @Injectable({ providedIn: 'root' })
@@ -43,7 +43,8 @@ export class ItemVisualService {
     if (existing) return existing;
     this.setState(key, { status: 'queued', diagnostics: [], generation: this.generation });
     const promise = new Promise<ItemVisualInfo>((resolve, reject) => {
-      this.queue.push({ key, itemId, generation: this.generation, priority, resolve, reject });
+      const components = typeof item === 'string' || !('components' in item) ? undefined : item.components;
+      this.queue.push({ key, itemId, components, generation: this.generation, priority, resolve, reject });
       this.queue.sort((left, right) => (left.priority === right.priority ? 0 : left.priority === 'high' ? -1 : 1));
       this.pump();
     });
@@ -74,12 +75,22 @@ export class ItemVisualService {
       this.setState(work.key, { status: 'loading', diagnostics: [], generation: work.generation });
       Promise.resolve().then(async () => {
         const info = resolveCatalogItemVisual(this.assets.sources.resources, work.itemId);
-        if (info.kind !== 'block-model') return info;
         const visualProvider = this.assets.visualProvider();
         const rasterizer = visualProvider?.perspectiveItemVisualThumbnail;
         if (!rasterizer) return info;
-        const preview = await rasterizer.call(visualProvider, work.itemId);
-        return preview.url ? { ...info, status: 'available' as const, previewUrls: [preview.url] } : info;
+        const preview = work.components === undefined
+          ? await rasterizer.call(visualProvider, work.itemId)
+          : await rasterizer.call(visualProvider, work.itemId, work.components);
+        if (!preview.url || (info.kind === 'unsupported' && !preview.adapter)) return info;
+        const kind = preview.adapter ?? info.kind;
+        const adapter: NonNullable<NonNullable<ItemVisualInfo['trace']>['adapter']> = kind === 'special-static' ? 'special-static' : kind === 'generated-layers' ? 'generated-layers' : kind === 'block-model' ? 'static-model' : 'runtime-unsupported';
+        return {
+          ...info,
+          kind,
+          status: 'available' as const,
+          previewUrls: [preview.url],
+          trace: info.trace ? { ...info.trace, adapter, previewStatus: 'available' as const } : info.trace,
+        };
       }).then((info) => {
         if (work.generation !== this.generation) { work.reject(new Error('stale item visual request')); return; }
         this.cache.set(work.key, info);
@@ -95,10 +106,22 @@ export class ItemVisualService {
 
   private key(item: string | ItemStackData | ItemCatalogEntry): string {
     if (typeof item === 'string') return `${this.generation}|${item}`;
-    // Current static model resolution does not inspect stack components. Keep a
-    // single visual cache entry per item until a component-driven resolver exists.
+    if ('components' in item && item.components) return `${this.generation}|${item.id}|${stableVisualComponents(item.components)}`;
     return `${this.generation}|${item.id}`;
   }
 
   private setState(key: string, state: ItemVisualState): void { this.states.set(key, state); this.revision.update((value) => value + 1); }
+}
+
+/** Stable component identity for visual caches. Unknown components are retained
+ * deliberately: a future adapter may make any component visual-significant. */
+export function stableVisualComponents(components: Readonly<Record<string, unknown>>): string {
+  return stableVisualValue(components);
+}
+
+function stableVisualValue(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableVisualValue).join(',')}]`;
+  const record = value as Readonly<Record<string, unknown>>;
+  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableVisualValue(record[key])}`).join(',')}}`;
 }

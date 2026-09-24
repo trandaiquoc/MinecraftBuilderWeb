@@ -22,11 +22,12 @@ export class ItemStackPickerComponent implements OnChanges {
   @Input() visualAvailableLabel = 'Renderable';
   @Input() visualUnsupportedLabel = 'Visual unavailable';
   @Input() visualMissingLabel = 'Missing visual resource';
+  @Input() visualLoadingLabel = 'Loading visual';
   @Input() sourceId?: string;
   @Output() readonly stackChange = new EventEmitter<ItemStackData | undefined>();
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['selectedStack'] && this.selectedStack) { void this.visuals.request(this.selectedStack, 'high').catch(() => undefined); void this.visuals.request(this.selectedStack.id, 'high').catch(() => undefined); }
+    if (changes['selectedStack'] && this.selectedStack) void this.visuals.request(this.selectedStack, 'high').catch(() => undefined);
   }
 
   protected readonly sourceFilter = signal<string>(ALL_CONTENT_SOURCE);
@@ -50,21 +51,21 @@ export class ItemStackPickerComponent implements OnChanges {
     return this.sourceOptionsCache;
   }
 
-  protected selectSource(id: string): void { this.sourceFilter.set(id); this.optionsEntries = undefined; queueMicrotask(() => this.loadVisible(this.options().slice(0, 24).map((option) => option.id))); }
+  protected selectSource(id: string): void { this.sourceFilter.set(id); this.optionsEntries = undefined; }
 
   protected options(): readonly SearchableDropdownOption[] {
     this.visuals.revision();
     const selectedId = this.selectedStack?.id; const filter = this.sourceId ?? this.sourceFilter();
-    const labelsKey = `${this.unavailableLabel}|${this.visualAvailableLabel}|${this.visualUnsupportedLabel}|${this.visualMissingLabel}`;
+    const labelsKey = `${this.unavailableLabel}|${this.visualAvailableLabel}|${this.visualUnsupportedLabel}|${this.visualMissingLabel}|${this.visualLoadingLabel}`;
     if (this.optionsEntries === this.entries && this.optionsSource === this.sourceId && this.optionsSelectedId === selectedId && this.optionsFilter === filter && this.optionsLabelsKey === labelsKey) return this.optionsCache;
     this.optionsEntries = this.entries; this.optionsSource = this.sourceId; this.optionsSelectedId = selectedId; this.optionsFilter = filter; this.optionsLabelsKey = labelsKey;
     const options: SearchableDropdownOption[] = []; const availableIds = new Set<string>();
     for (const entry of this.entries) {
       if (filter !== ALL_CONTENT_SOURCE && entry.sourceId !== filter) continue;
       availableIds.add(entry.id);
-      const state = this.visuals.state(entry);
+      const state = this.selectedStack?.id === entry.id ? this.visuals.state(this.selectedStack) : this.visuals.state(entry);
       const visual = entry.visual ?? state.info;
-      const status = entry.visual?.status === 'available' || state.status === 'available' ? this.visualAvailableLabel : entry.visual?.status === 'missing-resource' || state.status === 'missing-resource' ? this.visualMissingLabel : entry.visual?.status === 'unsupported' || state.status === 'unsupported' ? this.visualUnsupportedLabel : undefined;
+      const status = entry.visual?.status === 'available' || state.status === 'available' ? this.visualAvailableLabel : entry.visual?.status === 'missing-resource' || state.status === 'missing-resource' ? this.visualMissingLabel : entry.visual?.status === 'unsupported' || state.status === 'unsupported' ? this.visualUnsupportedLabel : state.status === 'queued' || state.status === 'loading' ? this.visualLoadingLabel : undefined;
       options.push({ id: entry.id, label: entry.displayName, secondary: `${entry.sourceName} - ${entry.id}`, ...(status ? { status } : {}), thumbnail: { urls: visual?.previewUrls ?? [], alt: entry.displayName, fallback: !visual || !visual.previewUrls.length } });
     }
     const selected = this.selectedStack;
@@ -72,16 +73,12 @@ export class ItemStackPickerComponent implements OnChanges {
     this.optionsCache = options; return this.optionsCache;
   }
 
-  protected loadVisible(ids: readonly string[]): void {
-    const selected = this.selectedStack;
-    if (selected) { void this.visuals.request(selected, 'high').catch(() => undefined); void this.visuals.request(selected.id, 'high').catch(() => undefined); }
-    for (const id of ids) void this.visuals.request(id, selected?.id === id ? 'high' : 'normal').catch(() => undefined);
-  }
-
   protected choose(id: string): void {
     const selected = this.selectedStack;
     if (!id) { this.stackChange.emit(undefined); return; }
     if (selected?.id === id) { this.stackChange.emit(selected); return; }
-    this.stackChange.emit({ id, count: 1 });
+    const next = { id, count: 1 } satisfies ItemStackData;
+    void this.visuals.request(next, 'high').catch(() => undefined);
+    this.stackChange.emit(next);
   }
 }
