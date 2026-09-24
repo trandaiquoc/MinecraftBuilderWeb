@@ -78,9 +78,9 @@ export class StructureEditorService {
   deleteSelection(): boolean {
     const project = this.workspace.project();
     if (!project) return false;
-    const positions = this.selection.logicalPositions();
-    if (!positions.length) return false;
-    const changed = this.deletePositions(positions, 'Delete selection');
+    const selected = this.selection.selectedBlocks(project);
+    if (!selected.length) return false;
+    const changed = this.deletePositions(selected.map((block) => block.position), 'Delete selection');
     if (changed) this.selection.clear();
     return changed;
   }
@@ -89,7 +89,12 @@ export class StructureEditorService {
     return this.history.execute(label, (project) => {
       const requested = new Set(positions.map(coordinateKey));
       const seeds = project.blocks.filter((block) => requested.has(coordinateKey(block.position)));
-      const expanded = expandLogicalObjectClosure(project.blocks, seeds, (id) => this.library.get(id));
+      // A complete selection already contains every logical part. Avoid
+      // resolving each pair with a full-array lookup for large select-all
+      // deletes; the rule engine still enforces closure for partial deletes.
+      const expanded = seeds.length === project.blocks.length
+        ? [...project.blocks]
+        : expandLogicalObjectClosure(project.blocks, seeds, (id) => this.library.get(id));
       if (!expanded.length || expanded.some((block) => hasLockedMembership(block, project.groups))) return undefined;
       const result = this.rules().deleteMany(project, expanded.map((block) => block.position));
       this.lastValidation = result.validation;

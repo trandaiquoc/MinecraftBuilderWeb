@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://minecraftbuilder.app/schemas/minecraftbuilder-structure.schema.json",
+  "title": "MinecraftBuilder Structure JSON",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "formatVersion", "minecraftVersion", "blocks", "decorations"],
+  "properties": {
+    "format": { "const": "minecraftbuilder-structure" },
+    "formatVersion": { "const": 2 },
+    "minecraftVersion": { "type": "string", "minLength": 1 },
+    "name": { "type": "string" },
+    "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+    "decorations": { "type": "array", "items": { "oneOf": [{ "$ref": "#/$defs/painting" }, { "$ref": "#/$defs/frame" }] } }
+  },
+  "$defs": {
+    "coordinate": { "type": "object", "additionalProperties": false, "required": ["x", "y", "z"], "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "z": { "type": "integer" } } },
+    "block": { "type": "object", "additionalProperties": false, "required": ["id", "x", "y", "z"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9/._-]+$" }, "x": { "type": "integer" }, "y": { "type": "integer" }, "z": { "type": "integer" }, "state": { "type": "object", "additionalProperties": { "type": "string" } } } },
+    "item": { "type": "object", "additionalProperties": false, "required": ["id"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9/._-]+$" }, "count": { "type": "integer", "minimum": 1 }, "components": { "type": "object" } } },
+    "painting": { "type": "object", "additionalProperties": false, "required": ["kind", "anchor", "facing", "variantId"], "properties": { "kind": { "const": "painting" }, "anchor": { "$ref": "#/$defs/coordinate" }, "facing": { "enum": ["north", "south", "east", "west"] }, "variantId": { "type": "string", "minLength": 1 } } },
+    "frame": { "type": "object", "additionalProperties": false, "required": ["kind", "anchor", "facing"], "properties": { "kind": { "enum": ["item-frame", "glow-item-frame"] }, "anchor": { "$ref": "#/$defs/coordinate" }, "facing": { "enum": ["down", "up", "north", "south", "west", "east"] }, "item": { "$ref": "#/$defs/item" }, "rotation": { "type": "integer", "minimum": 0, "maximum": 7 }, "invisible": { "type": "boolean" }, "fixed": { "type": "boolean" }, "itemDropChance": { "type": "number", "minimum": 0, "maximum": 1 } } }
+  }
+}

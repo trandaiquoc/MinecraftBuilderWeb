@@ -113,12 +113,9 @@ export class GroupService {
   }
 
   selectedBlocks(project: ProjectDocument): readonly PlacedBlock[] {
-    const logicalKeys = new Set(this.selection.logicalPositions().map(coordinateKey));
-    if (logicalKeys.size) return expandLogicalObjectClosure(project.blocks, project.blocks.filter((block) => logicalKeys.has(coordinateKey(block.position))), (id) => this.library.get(id));
-    const single = this.selection.single(); const box = this.selection.box();
-    if (single) return project.blocks.filter((block) => coordinateKey(block.position) === coordinateKey(single));
-    if (box) return project.blocks.filter((block) => voxelInBox(block.position, box));
-    return [];
+    const selected = this.selection.selectedBlocks(project);
+    if (!selected.length) return [];
+    return this.selection.kind() === 'all' ? selected : expandLogicalObjectClosure(project.blocks, selected, (id) => this.library.get(id));
   }
 
   private mutateSelected(label: string, groupId: string, map: (block: PlacedBlock) => PlacedBlock): boolean {

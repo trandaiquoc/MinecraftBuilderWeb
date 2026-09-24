@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../../domain/project.types';
 import { CURRENT_PROJECT_PACKAGE_VERSION, PROJECT_PACKAGE_FORMAT, serializeProjectPackage } from '../project-package/project-package';
-import { createStructureJsonExample, CURRENT_STRUCTURE_JSON_VERSION, parseStructureJson, serializeStructureJson, serializeStructureJsonValue, structureJsonFromProject, STRUCTURE_JSON_FORMAT, validateStructureJson, validateStructureJsonV1 } from './structure-json';
+import { createStructureJsonExample, CURRENT_STRUCTURE_JSON_VERSION, parseStructureJson, serializeStructureJson, serializeStructureJsonValue, structureJsonFromProject, STRUCTURE_JSON_FORMAT, validateStructureJson } from './structure-json';
 
 const baseProject: ProjectDocument = {
   schemaVersion: 3,
@@ -15,7 +15,7 @@ const baseProject: ProjectDocument = {
   ],
 };
 
-describe('Structure JSON v1 codec', () => {
+describe('Structure JSON codec', () => {
   it('uses a distinct public format identity and version', () => {
     const value = structureJsonFromProject(baseProject);
     expect(value.format).toBe(STRUCTURE_JSON_FORMAT);
@@ -73,14 +73,15 @@ describe('Structure JSON v1 codec', () => {
     ]);
   });
 
-  it('validates the public v1 and v2 shapes without applying project semantics', () => {
+  it('validates the current public shape without applying project semantics', () => {
     const valid = serializeStructureJsonValue(createStructureJsonExample());
     expect(validateStructureJson(valid).valid).toBe(true);
-    const v1 = JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1, minecraftVersion: '1.21.1', blocks: [] });
-    expect(validateStructureJsonV1(v1).valid).toBe(true);
-    expect(validateStructureJsonV1('{"format":"minecraftbuilder-structure"}').code).toBe('version');
-    expect(validateStructureJsonV1('{')).toMatchObject({ valid: false, code: 'invalid-json' });
-    expect(validateStructureJsonV1(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1, minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:stone', x: 0.5, y: 0, z: 0 }] })).code).toBe('block');
-    expect(validateStructureJsonV1(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1, minecraftVersion: '1.21.1', blocks: [{ id: 'example:block', x: 0, y: 0, z: 0, state: { facing: 'north' } }] })).valid).toBe(true);
+    const current = JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: CURRENT_STRUCTURE_JSON_VERSION, minecraftVersion: '1.21.1', blocks: [], decorations: [] });
+    expect(validateStructureJson(current).valid).toBe(true);
+    expect(validateStructureJson('{"format":"minecraftbuilder-structure"}').code).toBe('version');
+    expect(validateStructureJson('{')).toMatchObject({ valid: false, code: 'invalid-json' });
+    expect(validateStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: CURRENT_STRUCTURE_JSON_VERSION, minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:stone', x: 0.5, y: 0, z: 0 }], decorations: [] })).code).toBe('block');
+    expect(validateStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: CURRENT_STRUCTURE_JSON_VERSION, minecraftVersion: '1.21.1', blocks: [{ id: 'example:block', x: 0, y: 0, z: 0, state: { facing: 'north' } }], decorations: [] })).valid).toBe(true);
+    expect(validateStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1, minecraftVersion: '1.21.1', blocks: [], decorations: [] })).code).toBe('version');
   });
 });

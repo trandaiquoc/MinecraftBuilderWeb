@@ -2,7 +2,7 @@ import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { coordinateKey, isWithinBounds } from '../../domain/coordinates';
 import { ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
-import { StructureJsonDecorationV2, StructureJsonDocument, parseStructureJson, StructureJsonBlockV1, StructureJsonValidationCode } from './structure-json';
+import { StructureJsonDecoration, StructureJson, parseStructureJson, StructureJsonBlock, StructureJsonValidationCode } from './structure-json';
 import type { ParsedStructureJsonResult } from './structure-json';
 import { decorationAabb, decorationInBounds, paintingSupportFootprint, supportsDecoration } from '../../decorations/placement/decoration-placement';
 import { allPaintingVariants, paintingVariant } from '../../decorations/decoration.types';
@@ -34,12 +34,12 @@ export interface StructureJsonCoordinateConflict {
 }
 
 export type StructureJsonDecorationIssueCategory = 'missing-asset' | 'bounds' | 'invalid' | 'conflict';
-export interface StructureJsonDecorationIssue { readonly category: StructureJsonDecorationIssueCategory; readonly index: number; readonly kind: StructureJsonDecorationV2['kind']; readonly anchor: VoxelCoordinate; readonly reason: string; }
+export interface StructureJsonDecorationIssue { readonly category: StructureJsonDecorationIssueCategory; readonly index: number; readonly kind: StructureJsonDecoration['kind']; readonly anchor: VoxelCoordinate; readonly reason: string; }
 
 export interface StructureJsonValidationPreview {
   readonly structuralValid: boolean;
   readonly structuralCode?: StructureJsonValidationCode;
-  readonly parsed?: StructureJsonDocument;
+  readonly parsed?: StructureJson;
   readonly totalBlocks: number;
   readonly validBlocks: number;
   readonly missingBlocks: number;
@@ -84,7 +84,7 @@ export function validateStructureJsonPreview(serialized: string, size: ProjectSi
   return validateStructureJsonPreviewBase(serialized, size, getDefinition, onProgress, project);
 }
 
-export function validateParsedStructureJsonPreview(parsed: StructureJsonDocument, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
+export function validateParsedStructureJsonPreview(parsed: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
   return validateParsedStructureJsonPreviewBase(parsed, size, getDefinition, onProgress, project);
 }
 
@@ -95,7 +95,7 @@ export async function validateStructureJsonPreviewAsync(serialized: string, size
   return validateParsedStructureJsonPreviewAsync(parsed.value, size, getDefinition, onProgress, cancellation);
 }
 
-export async function validateParsedStructureJsonPreviewAsync(parsed: StructureJsonDocument, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation, project?: ProjectDocument): Promise<StructureJsonValidationPreview | undefined> {
+export async function validateParsedStructureJsonPreviewAsync(parsed: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation, project?: ProjectDocument): Promise<StructureJsonValidationPreview | undefined> {
   if (isCancelled(cancellation)) return undefined;
   const issues = emptyIssues();
   const coordinates = new Map<string, { readonly position: VoxelCoordinate; readonly indexes: number[]; readonly ids: string[] }>();
@@ -138,7 +138,7 @@ function validateStructureJsonPreviewBase(serialized: string, size: ProjectSize,
   return validateParsedStructureJsonPreviewBase(parsed.value, size, getDefinition, onProgress, project);
 }
 
-function validateParsedStructureJsonPreviewBase(value: StructureJsonDocument, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
+function validateParsedStructureJsonPreviewBase(value: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
   const issues = emptyIssues();
   const coordinates = new Map<string, { readonly position: VoxelCoordinate; readonly indexes: number[]; readonly ids: string[] }>();
   for (let index = 0; index < value.blocks.length; index += 1) {
@@ -160,15 +160,14 @@ function validateParsedStructureJsonPreviewBase(value: StructureJsonDocument, si
   return { structuralValid: true, parsed: value, totalBlocks: value.blocks.length, validBlocks, missingBlocks: issues.missing.length, outOfBounds: issues.bounds.length, invalidStates: issues.state.length, duplicateCoordinates: issues.duplicate.length, affectedDuplicateBlocks: issues.duplicate.reduce((count, conflict) => count + conflict.blockIndexes.length, 0), issues, ...decorationResult };
 }
 
-function findInvalidState(block: StructureJsonBlockV1, definition: BlockDefinition): { readonly property: string; readonly value: string; readonly reason: StructureJsonIssueReason } | undefined {
+function findInvalidState(block: StructureJsonBlock, definition: BlockDefinition): { readonly property: string; readonly value: string; readonly reason: StructureJsonIssueReason } | undefined {
   const result = materializeBlockState(definition, block.state);
   if (result.valid) return undefined;
   return { property: result.issue.property, value: result.issue.value, reason: result.issue.code === 'unknown-state-property' ? { code: result.issue.code, property: result.issue.property } : { code: result.issue.code, property: result.issue.property, value: result.issue.value } };
 }
 
-function issue(category: StructureJsonIssueCategory, index: number, block: StructureJsonBlockV1, reason: StructureJsonIssueReason): StructureJsonBlockIssue { return { category, index, id: block.id, position: { x: block.x, y: block.y, z: block.z }, reason }; }
-function validateDecorations(document: StructureJsonDocument, project: ProjectDocument): Pick<StructureJsonValidationPreview, 'totalDecorations' | 'validDecorations' | 'missingDecorationAssets' | 'invalidDecorations' | 'decorationIssues'> {
-  if (document.formatVersion === 1) return { totalDecorations: 0, validDecorations: 0, missingDecorationAssets: 0, invalidDecorations: 0, decorationIssues: [] };
+function issue(category: StructureJsonIssueCategory, index: number, block: StructureJsonBlock, reason: StructureJsonIssueReason): StructureJsonBlockIssue { return { category, index, id: block.id, position: { x: block.x, y: block.y, z: block.z }, reason }; }
+function validateDecorations(document: StructureJson, project: ProjectDocument): Pick<StructureJsonValidationPreview, 'totalDecorations' | 'validDecorations' | 'missingDecorationAssets' | 'invalidDecorations' | 'decorationIssues'> {
   const decorations = document.decorations; const issues: StructureJsonDecorationIssue[] = []; const variants = new Map(allPaintingVariants().map((entry) => [entry.id, entry]));
   const spatial = buildStructureImportSpatialContext(project.blocks, project.decorations ?? []);
   const candidateSpatial = buildDecorationSpatialIndex([]);

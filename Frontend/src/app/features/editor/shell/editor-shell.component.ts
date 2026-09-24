@@ -75,9 +75,9 @@ export class EditorShellComponent implements OnDestroy {
   private readonly yLayerViewport = viewChild(YLayerComponent);
   protected readonly selectedDecoration = this.decorations.selected;
   protected readonly presets: readonly CameraPreset[] = ['perspective', 'top', 'front', 'back', 'left', 'right'];
-  protected readonly logicalSelectionCount = computed(() => this.selection.logicalPositions().length);
-  protected readonly hasEditorSelection = computed(() => hasEditorSelectionState(!!this.selectedDecoration(), this.logicalSelectionCount(), !!this.selection.box()));
-  protected readonly focusSelectionAvailable = computed(() => !!this.selectedDecoration() || !!this.selection.single() || !!this.selection.box() || this.logicalSelectionCount() > 0);
+  protected readonly logicalSelectionCount = computed(() => this.selection.count(this.workspace.project()));
+  protected readonly hasEditorSelection = computed(() => hasEditorSelectionState(!!this.selectedDecoration(), this.logicalSelectionCount(), !!this.selection.box() || this.selection.kind() === 'all'));
+  protected readonly focusSelectionAvailable = computed(() => !!this.selectedDecoration() || this.selection.hasAny(this.workspace.project()));
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
   protected readonly activeMenu = signal<'file' | 'edit' | 'view' | 'tools' | 'settings' | 'help' | undefined>(undefined);
   protected readonly cameraMenuOpen = signal(false);

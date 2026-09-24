@@ -6,13 +6,17 @@ import { groupIdsOf, isBlockLocked } from '../../editor/groups/group-membership'
 export type LogicalBlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 
 export function resolveLogicalObjectParts(blocks: readonly PlacedBlock[], position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
-  const block = find(blocks, position);
+  return resolveLogicalObjectPartsWithLookup(position, definition, (candidate) => find(blocks, candidate));
+}
+
+function resolveLogicalObjectPartsWithLookup(position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup, lookup: (position: VoxelCoordinate) => PlacedBlock | undefined): readonly PlacedBlock[] {
+  const block = lookup(position);
   const behavior = block && definition(block.id)?.behavior;
   if (!block || !behavior || behavior.kind !== 'double-height' && behavior.kind !== 'paired-horizontal') return block ? [block] : [];
   const pairedPosition = behavior.kind === 'double-height'
     ? { x: position.x, y: position.y + (block.state[behavior.halfProperty] === 'upper' ? -1 : 1), z: position.z }
     : add(position, directionOffset(block.state[behavior.facingProperty] ?? 'north'), block.state[behavior.partProperty] === behavior.secondPart ? -1 : 1);
-  const paired = find(blocks, pairedPosition);
+  const paired = lookup(pairedPosition);
   const isPair = paired?.id === block.id && (behavior.kind === 'double-height'
     ? paired.state[behavior.halfProperty] !== block.state[behavior.halfProperty]
     : paired.state[behavior.partProperty] !== block.state[behavior.partProperty] && paired.state[behavior.facingProperty] === block.state[behavior.facingProperty]);
@@ -20,15 +24,18 @@ export function resolveLogicalObjectParts(blocks: readonly PlacedBlock[], positi
 }
 
 export function expandLogicalObjectClosure(blocks: readonly PlacedBlock[], seeds: readonly PlacedBlock[], definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
+  if (seeds.length === blocks.length) return blocks;
+  const index = new Map(blocks.map((block) => [coordinateKey(block.position), block] as const));
   const closure = new Map<string, PlacedBlock>();
-  for (const seed of seeds) for (const part of resolveLogicalObjectParts(blocks, seed.position, definition)) closure.set(coordinateKey(part.position), part);
+  for (const seed of seeds) for (const part of resolveLogicalObjectPartsWithLookup(seed.position, definition, (position) => index.get(coordinateKey(position)))) closure.set(coordinateKey(part.position), part);
   return [...closure.values()];
 }
 
 export function normalizeLogicalObjectMemberships(project: ProjectDocument, definition: LogicalBlockDefinitionLookup): ProjectDocument {
+  const index = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
   const memberships = new Map<string, readonly string[]>();
   for (const block of project.blocks) {
-    const parts = resolveLogicalObjectParts(project.blocks, block.position, definition);
+    const parts = resolveLogicalObjectPartsWithLookup(block.position, definition, (position) => index.get(coordinateKey(position)));
     const union = [...new Set(parts.flatMap((part) => groupIdsOf(part)))].sort((a, b) => groupOrder(project, a) - groupOrder(project, b) || a.localeCompare(b));
     for (const part of parts) memberships.set(coordinateKey(part.position), union);
   }

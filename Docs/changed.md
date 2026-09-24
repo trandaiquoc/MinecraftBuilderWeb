@@ -1718,13 +1718,11 @@ generation and lookup now share one item-preview identity based on
 references use the shared model resolver, while generated Item layers keep
 their existing path.
 
-Structure JSON v2 is now the default export and carries the supported painting,
-item-frame, and glow-item-frame decorations without exposing editor instance
-IDs, entity IDs, group membership, or raw metadata. V1 remains blocks-only;
-V1 Replace imports preserve decorations already in the project, while v2
-Replace/merge/new-group apply decoration validation and group membership
-atomically with blocks. Group visibility, lock, deletion, and move previews
-therefore include grouped decorations as well.
+Structure JSON carries the supported painting, item-frame, and glow-item-frame
+decorations without exposing editor instance IDs, entity IDs, group membership,
+or raw metadata. Replace/merge/new-group apply decoration validation and group
+membership atomically with blocks. Group visibility, lock, deletion, and move
+previews therefore include grouped decorations as well.
 
 ## Prompt 14F Missing Block reconciliation
 
@@ -1741,3 +1739,8 @@ therefore include grouped decorations as well.
   results when the active project or catalog changes. Painting catalog reads are
   reactive so newly available variants refresh existing decoration visuals without
   rewriting the project document.
+## Structure JSON and large selection cleanup
+
+Structure JSON now has one current decoration-aware contract (`StructureJson`) for export, examples, validation, and import planning. Replace imports always replace both blocks and decorations; Project Backup versioning remains independent. A legacy blocks-only payload is normalized at the import boundary only, and does not create a second editor semantic.
+
+Selection `all` is represented semantically instead of as a cloned coordinate array. Large selections use aggregate bounds visualization, while small selections reuse shared outline geometry/material. Bulk consumers query selection membership through `SelectionService` so Ctrl+A remains complete without allocating one Three.js resource per block.

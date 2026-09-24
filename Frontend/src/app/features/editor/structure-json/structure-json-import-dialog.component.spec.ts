@@ -29,7 +29,7 @@ describe('StructureJsonImportDialogComponent', () => {
     instance.setDraft('{');
     await instance.validate();
     expect(instance.preview()).toMatchObject({ structuralValid: false });
-    instance.setDraft('{"format":"minecraftbuilder-structure","formatVersion":1,"minecraftVersion":"1.21.1","blocks":[]}');
+    instance.setDraft('{"format":"minecraftbuilder-structure","formatVersion":2,"minecraftVersion":"1.21.1","blocks":[],"decorations":[]}');
     expect(instance.preview()).toBeUndefined();
     await instance.validate();
     expect(instance.preview()).toMatchObject({ structuralValid: true, totalBlocks: 0 });
@@ -85,7 +85,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', initial); fixture.detectChanges();
     const instance = fixture.componentInstance as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void>; importPlan: () => { readonly applicable: boolean } | undefined };
-    instance.setDraft(JSON.stringify({ format: 'minecraftbuilder-structure', formatVersion: 1, minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }] }));
+    instance.setDraft(JSON.stringify({ format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }], decorations: [] }));
     await instance.validate();
     expect(instance.importPlan()?.applicable).toBe(true);
     await instance.applyImport();

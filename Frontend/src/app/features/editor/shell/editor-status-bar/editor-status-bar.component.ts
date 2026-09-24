@@ -18,7 +18,7 @@ export class EditorStatusBarComponent {
   protected readonly workspace = inject(WorkspaceStateService);
   protected readonly assets = inject(VanillaAssetsService);
   protected readonly hydration = inject(ViewportHydrationStatusService);
-  protected readonly selectionCount = computed(() => { const box = this.selection.box(); return box ? (box.max.x - box.min.x + 1) * (box.max.y - box.min.y + 1) * (box.max.z - box.min.z + 1) : this.selection.logicalPositions().length; });
+  protected readonly selectionCount = computed(() => this.selection.count(this.workspace.project()));
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionCount())); }
   protected assetStatus(): ReturnType<typeof deriveAssetBootstrapStatus> { return deriveAssetBootstrapStatus(this.assets.status(), this.assets.contentRestore(), this.assets.downloadProgress()); }

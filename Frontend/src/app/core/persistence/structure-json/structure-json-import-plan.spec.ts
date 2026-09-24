@@ -4,7 +4,7 @@ import { HistoryService } from '../../editor/history/history.service';
 import { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { validateParsedStructureJsonPreview, validateStructureJsonPreview } from './structure-json-import';
-import type { StructureJsonBlockV1, StructureJsonV1, StructureJsonV2 } from './structure-json';
+import type { StructureJsonBlock, StructureJson } from './structure-json';
 import { applyStructureJsonImportPlan, buildStructureJsonImportPlan } from './structure-json-import-plan';
 
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
@@ -22,7 +22,7 @@ const base: ProjectDocument = {
   decorations: [{ instanceId: 'painting-1', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'kebab' }],
 };
 
-function source(blocks: readonly StructureJsonBlockV1[], name?: string): StructureJsonV1 { return { format: 'minecraftbuilder-structure', formatVersion: 1, minecraftVersion: '1.21.1', ...(name ? { name } : {}), blocks }; }
+function source(blocks: readonly StructureJsonBlock[], name?: string): StructureJson { return { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', ...(name ? { name } : {}), blocks, decorations: [] }; }
 function planFor(value: ReturnType<typeof source>, project: ProjectDocument, mode: Parameters<typeof buildStructureJsonImportPlan>[4]) { const validation = validateStructureJsonPreview(JSON.stringify(value), project.size, definitions); return buildStructureJsonImportPlan(value, validation, project, definitions, mode); }
 
 describe('Structure JSON import plan', () => {
@@ -51,12 +51,12 @@ describe('Structure JSON import plan', () => {
     expect(plan.importedBlocks.at(-1)).toMatchObject({ kind: 'missing', id: 'mod:marble' });
   });
 
-  it('replaces only blocks while preserving project metadata, groups and decorations', () => {
+  it('replaces blocks and decorations while preserving project metadata and groups', () => {
     const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }]), base, 'replace');
     const result = applyStructureJsonImportPlan(base, plan, definitions);
     expect(result?.blocks).toHaveLength(1);
     expect(result?.groups).toEqual(base.groups);
-    expect(result?.decorations).toEqual(base.decorations);
+    expect(result?.decorations).toEqual([]);
     expect(result?.metadata.name).toBe(base.metadata.name);
     expect(result?.size).toEqual(base.size);
     expect(result?.editorSettings).toEqual(base.editorSettings);
@@ -99,8 +99,8 @@ describe('Structure JSON import plan', () => {
     expect(planFor(source([]), base, 'new-group').applicable).toBe(false);
   });
 
-  it('replaces v2 decorations and assigns them to a new group without leaking internal fields', () => {
-    const value: StructureJsonV2 = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', name: 'Decorated', blocks: [{ id: stone.id, x: 1, y: 1, z: 1 }], decorations: [{ kind: 'item-frame', anchor: { x: 3, y: 3, z: 2 }, facing: 'north', item: { id: 'minecraft:diamond', count: 1, components: { custom: true } }, rotation: 2, invisible: false, fixed: false, itemDropChance: 0.5 }] };
+  it('replaces decorations and assigns them to a new group without leaking internal fields', () => {
+    const value: StructureJson = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', name: 'Decorated', blocks: [{ id: stone.id, x: 1, y: 1, z: 1 }], decorations: [{ kind: 'item-frame', anchor: { x: 3, y: 3, z: 2 }, facing: 'north', item: { id: 'minecraft:diamond', count: 1, components: { custom: true } }, rotation: 2, invisible: false, fixed: false, itemDropChance: 0.5 }] };
     const validation = validateParsedStructureJsonPreview(value, base.size, definitions, undefined, base);
     const plan = buildStructureJsonImportPlan(value, validation, base, definitions, 'new-group', 'Imported Structure');
     expect(plan.applicable).toBe(true);
@@ -111,15 +111,15 @@ describe('Structure JSON import plan', () => {
   });
 
   it('applies glow item-frame payloads without dropping the displayed item', () => {
-    const value: StructureJsonV2 = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', name: 'Glow', blocks: [], decorations: [{ kind: 'glow-item-frame', anchor: { x: 1, y: 1, z: 1 }, facing: 'south', item: { id: 'minecraft:stone', count: 2, components: { custom_model_data: 9 } }, rotation: 4, invisible: false, fixed: true, itemDropChance: 1 }] };
+    const value: StructureJson = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', name: 'Glow', blocks: [], decorations: [{ kind: 'glow-item-frame', anchor: { x: 1, y: 1, z: 1 }, facing: 'south', item: { id: 'minecraft:stone', count: 2, components: { custom_model_data: 9 } }, rotation: 4, invisible: false, fixed: true, itemDropChance: 1 }] };
     const validation = validateParsedStructureJsonPreview(value, base.size, definitions, undefined, base);
     const plan = buildStructureJsonImportPlan(value, validation, base, definitions, 'new-group', 'Glow');
     const result = applyStructureJsonImportPlan(base, plan, definitions);
     expect(result?.decorations?.at(-1)).toMatchObject({ kind: 'glow-item-frame', entityTypeId: 'minecraft:glow_item_frame', item: { id: 'minecraft:stone', count: 2, components: { custom_model_data: 9 } }, groupIds: ['group-2'] });
   });
 
-  it('blocks v2 decoration conflicts atomically in merge mode', () => {
-    const value: StructureJsonV2 = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [], decorations: [{ kind: 'painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] };
+  it('blocks decoration conflicts atomically in merge mode', () => {
+    const value: StructureJson = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [], decorations: [{ kind: 'painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] };
     const decoratedBase = { ...base, blocks: [...base.blocks, { kind: 'resolved' as const, id: stone.id, namespace: stone.namespace, position: { x: 0, y: 0, z: 1 }, state: {} }] };
     const validation = validateParsedStructureJsonPreview(value, decoratedBase.size, definitions, undefined, decoratedBase);
     const plan = buildStructureJsonImportPlan(value, validation, decoratedBase, definitions, 'merge');

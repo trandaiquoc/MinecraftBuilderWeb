@@ -12,7 +12,7 @@
           <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ project().metadata.minecraftVersion }}</dd></div>
           <div><dt>{{ i18n.t('structureJsonBlockCount') }}</dt><dd>{{ blockCount() }}</dd></div>
           <div><dt>{{ i18n.t('structureJsonDecorationCount') }}</dt><dd>{{ decorationCount() }}</dd></div>
-          <div><dt>{{ i18n.t('structureJsonFormat') }}</dt><dd>{{ i18n.t('structureJsonFormatV2') }}</dd></div>
+          <div><dt>{{ i18n.t('structureJsonFormat') }}</dt><dd>{{ i18n.t('structureJsonCurrentFormat') }}</dd></div>
         </dl>
         <p class="structure-json-limitations">{{ i18n.t('structureJsonLimitations') }}</p>
         @if (hasRawDecorationMetadata()) { <p class="structure-json-validation" role="status">{{ i18n.t('structureJsonRawMetadataWarning') }}</p> }

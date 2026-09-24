@@ -87,8 +87,6 @@ export class StructureJsonImportDialogComponent {
     const template = plan.mode === 'replace' ? 'structureJsonReplaceConfirm' : plan.mode === 'merge' ? 'structureJsonMergeConfirm' : 'structureJsonNewGroupConfirm';
     let text = this.i18n.t(template).replace('{current}', String(this.project().blocks.length)).replace('{imported}', String(plan.importedBlockCount)).replace('{name}', plan.newGroup?.name ?? '');
     text += `\n${this.i18n.t('structureJsonCurrentDecorations')}: ${this.project().decorations?.length ?? 0} · ${this.i18n.t('structureJsonImportedDecorations')}: ${plan.importedDecorationCount}`;
-    if (plan.mode === 'replace' && plan.source.formatVersion === 1) text += `\n\n${this.i18n.t('structureJsonV1DecorationsPreserved')}`;
-    if (plan.mode === 'replace' && plan.source.formatVersion === 2) text += `\n\n${this.i18n.t('structureJsonV2ReplaceDecorationsNotice')}`;
     if (plan.missingBlockCount > 0) text += `\n\n${this.i18n.t('structureJsonMissingPlaceholderNotice').replace('{count}', String(plan.missingBlockCount))}`;
     return text;
   }
@@ -114,7 +112,7 @@ export class StructureJsonImportDialogComponent {
   }
   private previewForMode(result: StructureJsonValidationPreview | undefined, mode: StructureJsonImportMode): StructureJsonValidationPreview | undefined {
     const source = result?.parsed; const project = this.project();
-    if (!source || !result || source.formatVersion === 1) return result;
+    if (!source || !result) return result;
     const seed = buildStructureJsonImportPlan(source, result, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'));
     const candidate = { ...project, blocks: mode === 'replace' ? seed.importedBlocks : [...project.blocks, ...seed.importedBlocks], decorations: mode === 'replace' ? [] : project.decorations };
     return validateParsedStructureJsonPreview(source, project.size, (id) => this.library.get(id), undefined, candidate);

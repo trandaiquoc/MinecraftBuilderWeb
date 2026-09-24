@@ -63,9 +63,20 @@ export class BlockRuleEngine {
     const requested = new Set(positions.map(coordinateKey));
     const seeds = project.blocks.filter((block) => requested.has(coordinateKey(block.position)));
     if (!seeds.length) return invalid('occupied', positions);
-    const removing = [...expandLogicalObjectClosure(project.blocks, seeds, this.definition)];
+    // Select All already contains every block, so resolving pair closure for each
+    // seed would only add work and allocations without changing the result.
+    const removing = seeds.length === project.blocks.length ? [...project.blocks] : [...expandLogicalObjectClosure(project.blocks, seeds, this.definition)];
     if (removing.some((entry) => isBlockLocked(entry, project.groups))) return invalid('locked-affected-block', removing.map((entry) => entry.position));
     const keys = new Set(removing.map((entry) => coordinateKey(entry.position)));
+    // Removing the complete structure cannot leave a dependent neighbor to
+    // refresh. Keep this as one atomic mutation instead of queueing every
+    // deleted voxel (which would trip the stability guard for large projects).
+    if (removing.length === project.blocks.length) {
+      return {
+        validation: { status: 'valid', reason: 'ok', affectedPositions: removing.map((entry) => entry.position) },
+        project: touch({ ...project, blocks: [] }),
+      };
+    }
     const refreshed = this.refresh({ ...project, blocks: project.blocks.filter((entry) => !keys.has(coordinateKey(entry.position))) }, removing.map((entry) => entry.position));
     return refreshed.project ? { validation: refreshed.validation, project: touch(refreshed.project) } : refreshed;
   }

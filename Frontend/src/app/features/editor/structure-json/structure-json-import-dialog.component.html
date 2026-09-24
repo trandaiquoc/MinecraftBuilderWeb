@@ -16,12 +16,10 @@
             <div class="status-row danger"><dt><svg lucideCircleX aria-hidden="true"></svg>{{ i18n.t('structureJsonInvalidStates') }}</dt><dd>{{ result.invalidStates }}</dd></div>
             <div class="status-row danger"><dt><svg lucideTriangleAlert aria-hidden="true"></svg>{{ i18n.t('structureJsonDuplicateCoordinates') }}</dt><dd>{{ result.duplicateCoordinates }}</dd></div>
             @if (result.affectedDuplicateBlocks > 0) { <div class="status-row danger secondary-row"><dt>{{ i18n.t('structureJsonAffectedDuplicateBlocks') }}</dt><dd>{{ result.affectedDuplicateBlocks }}</dd></div> }
-            @if (result.parsed?.formatVersion === 2) {
-              <div class="status-row"><dt>{{ i18n.t('structureJsonTotalDecorations') }}</dt><dd>{{ result.totalDecorations }}</dd></div>
-              <div class="status-row success"><dt>{{ i18n.t('structureJsonValidDecorations') }}</dt><dd>{{ result.validDecorations }}</dd></div>
-              <div class="status-row warning"><dt>{{ i18n.t('structureJsonMissingDecorationAssets') }}</dt><dd>{{ result.missingDecorationAssets }}</dd></div>
-              <div class="status-row danger"><dt>{{ i18n.t('structureJsonInvalidDecorations') }}</dt><dd>{{ result.invalidDecorations }}</dd></div>
-            }
+            <div class="status-row"><dt>{{ i18n.t('structureJsonTotalDecorations') }}</dt><dd>{{ result.totalDecorations }}</dd></div>
+            <div class="status-row success"><dt>{{ i18n.t('structureJsonValidDecorations') }}</dt><dd>{{ result.validDecorations }}</dd></div>
+            <div class="status-row warning"><dt>{{ i18n.t('structureJsonMissingDecorationAssets') }}</dt><dd>{{ result.missingDecorationAssets }}</dd></div>
+            <div class="status-row danger"><dt>{{ i18n.t('structureJsonInvalidDecorations') }}</dt><dd>{{ result.invalidDecorations }}</dd></div>
           </dl>
           @for (group of issueGroups(); track group.category) {
             @if (issues(group.category).length) { <details class="issue-group" open><summary><span>{{ group.label }}</span><strong>{{ issueCount(group.category) }}</strong></summary><ul>@for (item of issues(group.category); track item.index + item.category) { <li><strong>#{{ item.index }} <code>{{ item.id }}</code></strong><span class="issue-field-label">{{ i18n.t('structureJsonPosition') }}</span><span class="coordinate-cells"><span>X <code>{{ item.position.x }}</code></span><span>Y <code>{{ item.position.y }}</code></span><span>Z <code>{{ item.position.z }}</code></span></span>@if (item.property) { <span class="issue-state"><span>{{ i18n.t('structureJsonProperty') }}</span> <code>{{ item.property }}</code><span>{{ i18n.t('structureJsonValue') }}</span> <code>{{ item.value }}</code></span> }<span class="issue-field-label">{{ i18n.t('structureJsonProblem') }}</span><span class="issue-reason">{{ reasonLabel(item) }}</span></li>}</ul>@if (moreIssueCount(group.category) > 0) { <small>{{ moreIssueLabel(group.category) }}</small> }</details> }

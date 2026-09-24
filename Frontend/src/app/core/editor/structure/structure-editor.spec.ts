@@ -6,6 +6,7 @@ import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
 import { isSignId, signLines, StructureEditorService } from './structure-editor.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
+import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
 
 function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService } {
   const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const history = new HistoryService(workspace); const library = new BlockLibraryService(active);
@@ -115,6 +116,21 @@ describe('StructureEditorService mutations', () => {
     expect(selection.logicalPositions()).toEqual([{ x: 1, y: 1, z: 1 }]);
     expect(history.canUndo()).toBe(false);
   });
+
+  it('deletes and restores the 20k select-all fixture as one bulk history operation', () => {
+    const stress = rendererBenchmarkProject('stress');
+    const { editor, workspace, history, selection } = makeEditor(stress);
+    selection.selectAll(stress, () => undefined);
+    expect(selection.count(stress)).toBe(20_000);
+    expect(editor.deleteSelection()).toBe(true);
+    expect(workspace.project()!.blocks).toHaveLength(0);
+    expect(history.undo()).toBe(true);
+    expect(workspace.project()!.blocks).toHaveLength(20_000);
+    expect(history.canUndo()).toBe(false);
+    expect(history.redo()).toBe(true);
+    expect(workspace.project()!.blocks).toHaveLength(0);
+    expect(history.canRedo()).toBe(false);
+  }, 30_000);
 
   it('edits verified item-storage-display slots atomically and preserves raw fields through history', () => {
     const displayProject: ProjectDocument = { ...project, blocks: [{ kind: 'resolved', id: 'example:display_case', namespace: 'example', position: { x: 1, y: 1, z: 1 }, state: {}, blockEntityData: { legacy: { keep: true } } }] };

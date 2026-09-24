@@ -20,7 +20,7 @@ export class GroupsPanelComponent {
   protected readonly newGroupName = signal('');
   protected readonly groupSearch = signal('');
   protected readonly filteredGroups = computed(() => filterGroups(this.workspace.project()?.groups ?? [], this.groupSearch(), { locked: this.i18n.t('locked'), unlocked: this.i18n.t('unlocked') }));
-  protected readonly hasSelection = computed(() => this.selection.logicalPositions().length > 0 || !!this.selection.single() || !!this.selection.box());
+  protected readonly hasSelection = computed(() => { const service = this.selection as SelectionService & { hasAny?: (project?: import('../../../../core/domain/project.types').ProjectDocument) => boolean }; return service.hasAny ? service.hasAny(this.workspace.project()) : this.selection.logicalPositions().length > 0 || !!this.selection.single() || !!this.selection.box(); });
   protected createGroup(): void { if (this.groups.create(this.newGroupName().trim())) this.newGroupName.set(''); }
   protected clearGroupSearch(): void { this.groupSearch.set(''); }
   protected renameGroup(event: Event): void { this.groups.renameActive((event.target as HTMLInputElement).value); }

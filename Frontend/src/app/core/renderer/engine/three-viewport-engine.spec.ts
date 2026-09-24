@@ -241,6 +241,45 @@ describe('camera movement input contract', () => {
   });
 });
 
+describe('selection visualization scalability', () => {
+  it('uses one aggregate bounds helper for the existing 20k fixture', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('stress');
+    engine.update(project, undefined, { selectionKind: 'all', selectionCount: project.blocks.length, selectionBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 63, y: 4, z: 63 } } });
+    const internals = engine as unknown as { logicalSelectionGroup: THREE.Group; selectionBox: THREE.Box3Helper };
+    expect(internals.logicalSelectionGroup.children).toHaveLength(0);
+    expect(internals.selectionBox.visible).toBe(true);
+    engine.dispose();
+  });
+
+  it('keeps repeated select-all and clear bounded to the shared aggregate resources', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('stress');
+    const bounds = { min: { x: 0, y: 0, z: 0 }, max: { x: 63, y: 4, z: 63 } };
+    for (let index = 0; index < 8; index += 1) {
+      engine.update(project, undefined, { selectionKind: 'all', selectionCount: project.blocks.length, selectionBounds: bounds });
+      engine.update(project, undefined, { selectionKind: 'none', selectionCount: 0 });
+    }
+    const internals = engine as unknown as { logicalSelectionGroup: THREE.Group; selectionBox: THREE.Box3Helper; logicalSelectionGeometry: THREE.BufferGeometry; logicalSelectionMaterial: THREE.Material };
+    expect(internals.logicalSelectionGroup.children).toHaveLength(0);
+    expect(internals.selectionBox.visible).toBe(false);
+    expect(internals.logicalSelectionGeometry).toBeDefined();
+    expect(internals.logicalSelectionMaterial).toBeDefined();
+    engine.dispose();
+  });
+
+  it('keeps detailed small selection outlines on shared geometry/material', () => {
+    const engine = new ThreeViewportEngine();
+    const positions = Array.from({ length: 50 }, (_, index) => ({ x: index, y: 0, z: 0 }));
+    engine.update(undefined, undefined, { selectionKind: 'explicit', selectionCount: positions.length, selectedPositions: positions });
+    const internals = engine as unknown as { logicalSelectionGroup: THREE.Group };
+    expect(internals.logicalSelectionGroup.children).toHaveLength(50);
+    const geometries = internals.logicalSelectionGroup.children.map((child) => (child as THREE.LineSegments).geometry);
+    expect(geometries.every((geometry) => geometry === geometries[0])).toBe(true);
+    engine.dispose();
+  });
+});
+
 async function settleHydration(): Promise<void> {
   for (let index = 0; index < 20; index += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));
