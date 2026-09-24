@@ -40,12 +40,13 @@ describe('decoration texture cache lifecycle', () => {
         anchor: { x: 1, y: 1, z: 1 }, facing, rotation: 3, invisible: false, fixed: false, itemDropChance: 1,
         item: { id: 'minecraft:emerald', count: 1, components: { custom: true } },
       }, (resource) => `blob:${resource}`, cache, undefined, () => ['minecraft:item/emerald', 'minecraft:item/emerald_glint']);
-      const itemMeshes = visual.children.filter((child) => child.userData['decorationItem']) as THREE.Mesh[];
+      const sprite = visual.children.find((child) => child.userData['decorationItem'])!;
+      const itemMeshes = sprite.children as THREE.Mesh[];
       expect(itemMeshes).toHaveLength(2);
-      const frameCenter = visual.children.find((child) => !child.userData['decorationItem'])!.position;
+      const frameCenter = visual.children.find((child) => child.userData['decoration'] && !child.userData['decorationItem'])!.position;
       const direction = directionVector(facing);
       for (const itemMesh of itemMeshes) {
-        const vector = itemMesh.position.clone().sub(frameCenter);
+        const vector = sprite.position.clone().sub(frameCenter);
         expect(vector.dot(new THREE.Vector3(direction.x, direction.y, direction.z))).toBeGreaterThan(0);
         expect(vector.length()).toBeLessThan(.08);
         expect((itemMesh.material as THREE.MeshLambertMaterial).map).toBe(itemTexture);
@@ -58,6 +59,58 @@ describe('decoration texture cache lifecycle', () => {
     const loader = { load: vi.fn(() => texture) } as unknown as THREE.TextureLoader;
     const cache = new DecorationTextureCache((resource) => `blob:${resource}`, loader);
     const visual = createDecorationVisual({ instanceId: 'invisible', kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 1, y: 1, z: 1 }, facing: 'north', rotation: 0, invisible: true, fixed: false, itemDropChance: 1, item: { id: 'minecraft:diamond', count: 1 } }, (resource) => `blob:${resource}`, cache, undefined, () => ['minecraft:item/diamond']);
-    expect(visual.children.some((child) => child.userData['decorationItem'])).toBe(true);
+    expect(visual.children.some((child) => child.userData['decorationItem'] && child.children.length > 0)).toBe(true);
+  });
+
+  it('uses the same flat sprite presentation for normal and glow frames', () => {
+    const itemTexture = new THREE.Texture();
+    const loader = { load: vi.fn(() => itemTexture) } as unknown as THREE.TextureLoader;
+    const cache = new DecorationTextureCache((resource) => `blob:${resource}`, loader);
+    const make = (kind: 'item-frame' | 'glow-item-frame') => createDecorationVisual({ instanceId: kind, kind, entityTypeId: kind === 'item-frame' ? 'minecraft:item_frame' : 'minecraft:glow_item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'south', rotation: 0, invisible: false, fixed: false, itemDropChance: 1, item: { id: 'example:gem', count: 1 } }, (resource) => `blob:${resource}`, cache, undefined, () => ['example:item/gem']);
+    const normal = make('item-frame').children.find((child) => child.userData['decorationItem']) as THREE.Group;
+    const glow = make('glow-item-frame').children.find((child) => child.userData['decorationItem']) as THREE.Group;
+    const normalMesh = normal.children[0] as THREE.Mesh;
+    const glowMesh = glow.children[0] as THREE.Mesh;
+    expect(normalMesh.geometry).toBeInstanceOf(THREE.PlaneGeometry);
+    expect(glowMesh.geometry).toBeInstanceOf(THREE.PlaneGeometry);
+    expect((normalMesh.geometry as THREE.PlaneGeometry).parameters).toEqual((glowMesh.geometry as THREE.PlaneGeometry).parameters);
+    expect(normalMesh.material).toMatchObject({ map: itemTexture });
+    expect(glowMesh.material).toMatchObject({ map: itemTexture });
+  });
+
+  it('presents static block-model items as centered flat sprites instead of 3D geometry', () => {
+    const frameTexture = new THREE.Texture();
+    const loader = { load: vi.fn(() => frameTexture) } as unknown as THREE.TextureLoader;
+    const cache = new DecorationTextureCache((resource) => `blob:${resource}`, loader);
+    const visual = createDecorationVisual({
+      instanceId: 'static-model', kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 1, y: 1, z: 1 }, facing: 'south', rotation: 0, invisible: false, fixed: false, itemDropChance: 1,
+      item: { id: 'minecraft:stone', count: 1 },
+    }, (resource) => `blob:${resource}`, cache, undefined, undefined, () => ({ kind: 'block-model', layers: [], model: 'minecraft:block/stone', elements: [{ from: [0, 0, 0], to: [16, 16, 16] }], diagnostics: [] }));
+    const sprite = visual.children.find((child) => child.userData['decorationItem']) as THREE.Group;
+    expect(sprite).toBeDefined();
+    expect(sprite.children).toHaveLength(1);
+    expect(sprite.children[0]).toBeInstanceOf(THREE.Mesh);
+    expect((sprite.children[0] as THREE.Mesh).geometry).toBeInstanceOf(THREE.PlaneGeometry);
+    expect(sprite.children[0].userData['decorationItemLayer']).toBe(0);
+  });
+
+  it('keeps item sprites centered while applying frame-facing and eight-step rotation', () => {
+    const cache = new DecorationTextureCache(() => undefined, { load: vi.fn(() => new THREE.Texture()) } as unknown as THREE.TextureLoader);
+    for (const facing of ['north', 'south', 'east', 'west', 'up', 'down'] as const) {
+      const visual = createDecorationVisual({ instanceId: `rotation-${facing}`, kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing, rotation: 7, invisible: false, fixed: false, itemDropChance: 1, item: { id: 'minecraft:stone', count: 1 } }, undefined, cache, undefined, undefined, () => ({ kind: 'generated-layers', layers: ['minecraft:item/stone'], diagnostics: [] }));
+      const sprite = visual.children.find((child) => child.userData['decorationItem'])!;
+      const baseVisual = createDecorationVisual({ instanceId: `base-${facing}`, kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing, rotation: 0, invisible: false, fixed: false, itemDropChance: 1, item: { id: 'minecraft:stone', count: 1 } }, undefined, cache, undefined, undefined, () => ({ kind: 'generated-layers', layers: ['minecraft:item/stone'], diagnostics: [] }));
+      const baseSprite = baseVisual.children.find((child) => child.userData['decorationItem'])!;
+      const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(sprite.quaternion);
+      const direction = directionVector(facing);
+      expect(normal.dot(new THREE.Vector3(direction.x, direction.y, direction.z))).toBeGreaterThan(.99);
+      expect(Math.abs(sprite.quaternion.dot(baseSprite.quaternion))).toBeLessThan(.99);
+      expect(sprite.position.x).toBeGreaterThanOrEqual(-0.51);
+      expect(sprite.position.x).toBeLessThanOrEqual(1.51);
+      expect(sprite.position.y).toBeGreaterThanOrEqual(-0.51);
+      expect(sprite.position.y).toBeLessThanOrEqual(1.51);
+      expect(sprite.position.z).toBeGreaterThanOrEqual(-0.51);
+      expect(sprite.position.z).toBeLessThanOrEqual(1.51);
+    }
   });
 });

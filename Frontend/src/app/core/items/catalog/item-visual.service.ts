@@ -72,7 +72,15 @@ export class ItemVisualService {
       if (work.generation !== this.generation) { work.reject(new Error('stale item visual request')); continue; }
       this.running += 1;
       this.setState(work.key, { status: 'loading', diagnostics: [], generation: work.generation });
-      Promise.resolve().then(() => resolveCatalogItemVisual(this.assets.sources.resources, work.itemId)).then((info) => {
+      Promise.resolve().then(async () => {
+        const info = resolveCatalogItemVisual(this.assets.sources.resources, work.itemId);
+        if (info.kind !== 'block-model') return info;
+        const visualProvider = this.assets.visualProvider();
+        const rasterizer = visualProvider?.perspectiveItemVisualThumbnail;
+        if (!rasterizer) return info;
+        const preview = await rasterizer.call(visualProvider, work.itemId);
+        return preview.url ? { ...info, status: 'available' as const, previewUrls: [preview.url] } : info;
+      }).then((info) => {
         if (work.generation !== this.generation) { work.reject(new Error('stale item visual request')); return; }
         this.cache.set(work.key, info);
         const status: ItemVisualLoadState = info.status === 'available' ? 'available' : info.status === 'unsupported' ? 'unsupported' : 'missing-resource';

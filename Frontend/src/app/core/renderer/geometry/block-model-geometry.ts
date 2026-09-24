@@ -64,6 +64,7 @@ export interface BlockVisualProvider {
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult>;
+  perspectiveItemVisualThumbnail?(itemId: string): Promise<PerspectiveThumbnailResult>;
   setSpecialVisualDescriptors?(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void;
   cacheStats?(): Readonly<VisualCacheStats>;
   resourceCounts?(): Readonly<VisualResourceCounts>;
@@ -188,6 +189,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const tracked = task.then((result) => { if (result.quality === 'fallback' && result.retryable) this.itemThumbnailCache.delete(key); return result; });
     this.itemThumbnailCache.set(key, tracked); return tracked;
   }
+  perspectiveItemVisualThumbnail(itemId: string): Promise<PerspectiveThumbnailResult> { return this.renderItemVisualThumbnail(itemId); }
   setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); }
 
   dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url); this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
@@ -379,8 +381,9 @@ export function itemVisualResource(provider: Pick<RenderableAssetResourceProvide
 export function itemVisualTextureResources(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, itemId: string): readonly string[] {
   const visual = resolveItemVisual(provider, itemId);
   if (visual.kind === 'generated-layers' && visual.layers.length) return visual.layers;
-  const fallback = itemVisualResource(provider, itemId);
-  return fallback ? [fallback] : [];
+  // Static block-model items are rasterized by the shared visual provider for
+  // 2D contexts; do not flatten them to an arbitrary first texture here.
+  return [];
 }
 
 /** Resolves the supported, data-driven inventory model contract without
