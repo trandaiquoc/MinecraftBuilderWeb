@@ -115,7 +115,7 @@
   display: grid;
   min-width: 170px;
   max-width: min(260px, calc(100vw - 1rem));
-  gap: 0.15rem;
+  gap: 0;
   padding: 0.35rem;
   border: 1px solid var(--border-strong);
   border-radius: 5px;
@@ -135,17 +135,19 @@
   background: color-mix(in srgb, var(--accent) 15%, var(--surface));
 }
 .menu-popover hr {
-  width: 100%;
+  width: auto;
   height: 1px;
-  margin: 0.25rem 0;
+  margin: 0.35rem 0.5rem;
   border: 0;
   background: var(--border);
 }
 .settings-popover strong {
   padding: 0.3rem 0.5rem;
+  margin-top: 0.25rem;
   color: var(--text-muted);
   font-size: 0.7rem;
 }
+.settings-popover strong:first-of-type { margin-top: 0; }
 .camera-actions {
   position: relative;
 }

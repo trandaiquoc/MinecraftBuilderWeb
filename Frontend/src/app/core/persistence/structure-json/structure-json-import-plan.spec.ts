@@ -110,6 +110,14 @@ describe('Structure JSON import plan', () => {
     expect(result?.decorations?.at(-1)).toHaveProperty('entityTypeId', 'minecraft:item_frame');
   });
 
+  it('applies glow item-frame payloads without dropping the displayed item', () => {
+    const value: StructureJsonV2 = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', name: 'Glow', blocks: [], decorations: [{ kind: 'glow-item-frame', anchor: { x: 1, y: 1, z: 1 }, facing: 'south', item: { id: 'minecraft:stone', count: 2, components: { custom_model_data: 9 } }, rotation: 4, invisible: false, fixed: true, itemDropChance: 1 }] };
+    const validation = validateParsedStructureJsonPreview(value, base.size, definitions, undefined, base);
+    const plan = buildStructureJsonImportPlan(value, validation, base, definitions, 'new-group', 'Glow');
+    const result = applyStructureJsonImportPlan(base, plan, definitions);
+    expect(result?.decorations?.at(-1)).toMatchObject({ kind: 'glow-item-frame', entityTypeId: 'minecraft:glow_item_frame', item: { id: 'minecraft:stone', count: 2, components: { custom_model_data: 9 } }, groupIds: ['group-2'] });
+  });
+
   it('blocks v2 decoration conflicts atomically in merge mode', () => {
     const value: StructureJsonV2 = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [], decorations: [{ kind: 'painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] };
     const decoratedBase = { ...base, blocks: [...base.blocks, { kind: 'resolved' as const, id: stone.id, namespace: stone.namespace, position: { x: 0, y: 0, z: 1 }, state: {} }] };

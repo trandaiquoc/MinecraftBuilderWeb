@@ -5,20 +5,30 @@ import { decorationAabb, directionVector } from '../../decorations/placement/dec
 
 export class DecorationTextureCache {
   private readonly textures = new Map<string, THREE.Texture>();
-  constructor(private readonly loadUrl: (resource: string) => string | undefined, private readonly loader = new THREE.TextureLoader()) {}
+  constructor(
+    private readonly loadUrl: (resource: string) => string | undefined,
+    private readonly loader = new THREE.TextureLoader(),
+    private readonly onTextureReady: () => void = () => undefined,
+  ) {}
   get(resource: string): THREE.Texture | undefined {
     return this.getUrl(this.loadUrl(resource));
   }
   getUrl(url: string | undefined): THREE.Texture | undefined {
     if (!url) return undefined;
     const cached = this.textures.get(url); if (cached) return cached;
-    const texture = this.loader.load(url); texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter; texture.generateMipmaps = false;
+    const texture = this.loader.load(url, () => this.onTextureReady()); texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter; texture.generateMipmaps = false;
     this.textures.set(url, texture); return texture;
   }
   dispose(): void { for (const texture of this.textures.values()) texture.dispose(); this.textures.clear(); }
 }
 
-export function createDecorationVisual(decoration: PlacedDecoration, textureUrl?: (resource: string) => string | undefined, cache?: DecorationTextureCache, paintingResource?: (variantId: string) => string | undefined): THREE.Group {
+export function createDecorationVisual(
+  decoration: PlacedDecoration,
+  textureUrl?: (resource: string) => string | undefined,
+  cache?: DecorationTextureCache,
+  paintingResource?: (variantId: string) => string | undefined,
+  itemResource?: (itemId: string) => string | undefined,
+): THREE.Group {
   const root = new THREE.Group();
   const localCache = cache ?? (textureUrl ? new DecorationTextureCache(textureUrl) : undefined);
   if (localCache && !cache) root.userData['ownedDecorationTextureCache'] = localCache;
@@ -34,16 +44,27 @@ export function createDecorationVisual(decoration: PlacedDecoration, textureUrl?
   mesh.userData['decorationInstanceId'] = decoration.instanceId;
   mesh.userData['decoration'] = decoration;
   if (decoration.kind !== 'painting' && decoration.item) {
-    const itemUrl = decoration.item && textureUrl ? (textureUrl(`${decoration.item.id.split(':')[0]}:item/${decoration.item.id.split(':').slice(1).join(':')}`) ?? textureUrl(`${decoration.item.id.split(':')[0]}:block/${decoration.item.id.split(':').slice(1).join(':')}`)) : undefined;
+    const itemId = decoration.item.id;
+    const [namespace, ...pathParts] = itemId.split(':');
+    const itemPath = pathParts.join(':');
+    const itemResourceId = itemResource?.(itemId) ?? `${namespace}:item/${itemPath}`;
+    const itemUrl = textureUrl
+      ? (textureUrl(itemResourceId) ?? textureUrl(`${namespace}:block/${itemPath}`))
+      : undefined;
     const itemTexture = localCache?.getUrl(itemUrl);
     const item = new THREE.Mesh(new THREE.PlaneGeometry(.42, .42), new THREE.MeshLambertMaterial({ color: itemTexture ? 0xffffff : 0x8e8e8e, map: itemTexture, transparent: true, side: THREE.DoubleSide }));
     const d = directionVector(decoration.facing);
-    item.position.set(mesh.position.x - d.x * (decoration.invisible ? .5 : .4375), mesh.position.y - d.y * (decoration.invisible ? .5 : .4375), mesh.position.z - d.z * (decoration.invisible ? .5 : .4375));
+    // Keep the displayed item on the front surface of the frame. The previous
+    // half-block offset put it well outside the frame and made imported items
+    // appear absent from the decoration.
+    const normalOffset = decoration.invisible ? .02 : .04;
+    item.position.set(mesh.position.x - d.x * normalOffset, mesh.position.y - d.y * normalOffset, mesh.position.z - d.z * normalOffset);
     if (decoration.facing === 'east' || decoration.facing === 'west') item.rotation.y = Math.PI / 2;
     else if (decoration.facing === 'up') item.rotation.x = Math.PI / 2;
     else if (decoration.facing === 'down') item.rotation.x = -Math.PI / 2;
     item.rotation.z = (decoration.rotation ?? 0) * Math.PI / 4;
     item.userData['decorationInstanceId'] = decoration.instanceId;
+    item.userData['decorationItem'] = decoration.item;
     root.add(item);
   }
   if (decoration.invisible) {

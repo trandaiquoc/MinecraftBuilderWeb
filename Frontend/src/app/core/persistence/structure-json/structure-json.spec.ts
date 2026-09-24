@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../../domain/project.types';
 import { CURRENT_PROJECT_PACKAGE_VERSION, PROJECT_PACKAGE_FORMAT, serializeProjectPackage } from '../project-package/project-package';
-import { createStructureJsonExample, CURRENT_STRUCTURE_JSON_VERSION, serializeStructureJson, serializeStructureJsonValue, structureJsonFromProject, STRUCTURE_JSON_FORMAT, validateStructureJson, validateStructureJsonV1 } from './structure-json';
+import { createStructureJsonExample, CURRENT_STRUCTURE_JSON_VERSION, parseStructureJson, serializeStructureJson, serializeStructureJsonValue, structureJsonFromProject, STRUCTURE_JSON_FORMAT, validateStructureJson, validateStructureJsonV1 } from './structure-json';
 
 const baseProject: ProjectDocument = {
   schemaVersion: 3,
@@ -55,6 +55,22 @@ describe('Structure JSON v1 codec', () => {
     const example = createStructureJsonExample();
     expect(example.blocks.length).toBeGreaterThanOrEqual(2);
     expect(JSON.parse(serializeStructureJsonValue(example))).toMatchObject({ format: STRUCTURE_JSON_FORMAT, formatVersion: CURRENT_STRUCTURE_JSON_VERSION, decorations: expect.any(Array) });
+  });
+
+  it('round-trips normal and glow frame item payloads without dropping components', () => {
+    const project: ProjectDocument = {
+      ...baseProject,
+      decorations: [
+        { kind: 'item-frame', instanceId: 'frame-1', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', item: { id: 'minecraft:diamond', count: 2, components: { custom_name: 'Gem' } }, rotation: 3, invisible: false, fixed: false, itemDropChance: 1 },
+        { kind: 'glow-item-frame', instanceId: 'frame-2', entityTypeId: 'minecraft:glow_item_frame', anchor: { x: 1, y: 0, z: 0 }, facing: 'south', item: { id: 'minecraft:stone', count: 1, components: { custom_model_data: 7 } }, rotation: 6, invisible: false, fixed: true, itemDropChance: .5 },
+      ],
+    };
+    const parsed = parseStructureJson(serializeStructureJson(project));
+    expect(parsed.valid).toBe(true);
+    expect(parsed.value && 'decorations' in parsed.value ? parsed.value.decorations : []).toEqual([
+      expect.objectContaining({ kind: 'item-frame', item: { id: 'minecraft:diamond', count: 2, components: { custom_name: 'Gem' } } }),
+      expect.objectContaining({ kind: 'glow-item-frame', item: { id: 'minecraft:stone', count: 1, components: { custom_model_data: 7 } } }),
+    ]);
   });
 
   it('validates the public v1 and v2 shapes without applying project semantics', () => {
