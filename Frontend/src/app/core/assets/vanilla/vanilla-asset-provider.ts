@@ -16,6 +16,7 @@ import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catal
 import { resolveResourceLocation } from '../../content/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
 import { ContentIntrospectionEngine, SemanticManifestEvidenceProvider } from '../../content/content-introspection';
+import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -132,9 +133,10 @@ export class VanillaAssetProvider implements ContentSourceProvider {
 
   dispose(): void { for (const url of this.objectUrls.values()) URL.revokeObjectURL(url); this.objectUrls.clear(); }
 
-  catalog(registry?: VanillaBlockRegistry): BlockCatalogSource {
+  catalog(registry?: VanillaBlockRegistry, itemRegistry?: VanillaItemRegistry): BlockCatalogSource {
     const format = selectVanillaResourceFormatAdapter(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION);
-    const itemEvidence = format.itemEvidence(this.json);
+    const discoveredItemEvidence = format.itemEvidence(this.json);
+    const itemEvidence = itemRegistry ? discoveredItemEvidence.filter((entry) => !!itemRegistry.get(entry.itemId)) : discoveredItemEvidence;
     const itemByBlock = new Map(itemEvidence.map((entry) => [entry.itemId, entry]));
     const language = record(this.json['assets/minecraft/lang/en_us.json'] ?? this.json[format.languagePath(this.json) ?? '']);
     const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);

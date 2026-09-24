@@ -6,6 +6,7 @@ import { PerspectiveThumbnailResult, VanillaBlockVisualProvider } from '../../re
 import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
 import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
 import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
+import { loadVanillaItemRegistry, VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 import { JarImportSource, providerFromBundle } from '../bundle/asset-bundle';
 import { ContentSourceRegistry } from '../content-source/content-source-registry';
 import { ExternalModProvider, ModImportDiagnostic, ModImportReport } from '../mod/external-mod-provider';
@@ -355,13 +356,17 @@ export class VanillaAssetsService {
     provider.assertUsable();
     const version = provider.minecraftVersion;
     const registry = version === VANILLA_ASSET_VERSION ? await loadVanillaBlockRegistry() : undefined;
+    let itemRegistry: VanillaItemRegistry | undefined;
+    if (version === VANILLA_ASSET_VERSION) {
+      try { itemRegistry = await loadVanillaItemRegistry(); } catch { itemRegistry = undefined; }
+    }
     this.clearActiveSources();
     this.sources.setActiveVersion(version);
     this.visualProvider()?.dispose();
     this.provider.set(provider);
     if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
     this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
-    const catalog = provider.catalog(registry);
+    const catalog = provider.catalog(registry, itemRegistry);
     this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []); this.thumbnailQueue.invalidate(); this.thumbnailUrls.clear(); this.thumbnailStates.clear(); this.thumbnailVersion.update((value) => value + 1); this.thumbnailEpoch.update((value) => value + 1);
     const generation = this.generation() + 1;
     this.generation.set(generation);

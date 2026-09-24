@@ -4,7 +4,7 @@ import type { ItemStackData } from '../../../core/items/item-stack.types';
 import { SearchableDropdownComponent, SearchableDropdownOption } from '../searchable-dropdown/searchable-dropdown.component';
 import { ALL_CONTENT_SOURCE, sourceOptions } from '../content-source-selector/content-source-filter';
 import { ContentSourceOption, ContentSourceSelectorComponent } from '../content-source-selector/content-source-selector.component';
-import { ItemVisualService } from '../../../core/items/catalog/item-visual.service';
+import { ItemVisualService, stableVisualComponents } from '../../../core/items/catalog/item-visual.service';
 
 @Component({ selector: 'app-item-stack-picker', imports: [SearchableDropdownComponent, ContentSourceSelectorComponent], templateUrl: './item-stack-picker.component.html', styleUrl: './item-stack-picker.component.scss' })
 export class ItemStackPickerComponent implements OnChanges {
@@ -27,15 +27,18 @@ export class ItemStackPickerComponent implements OnChanges {
   @Output() readonly stackChange = new EventEmitter<ItemStackData | undefined>();
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['selectedStack'] && this.selectedStack) void this.visuals.request(this.selectedStack, 'high').catch(() => undefined);
+    const selectedRestored = changes['entries'] && this.selectedStack && this.entries.some((entry) => entry.id === this.selectedStack!.id);
+    if ((changes['selectedStack'] || selectedRestored) && this.selectedStack) void this.visuals.request(this.selectedStack, 'high').catch(() => undefined);
   }
 
   protected readonly sourceFilter = signal<string>(ALL_CONTENT_SOURCE);
   private optionsEntries?: readonly ItemCatalogEntry[];
   private optionsSource?: string;
   private optionsSelectedId?: string;
+  private optionsSelectedKey?: string;
   private optionsFilter?: string;
   private optionsLabelsKey?: string;
+  private optionsVisualRevision?: number;
   private optionsCache: readonly SearchableDropdownOption[] = [];
   private sourceOptionsEntries?: readonly ItemCatalogEntry[];
   private sourceOptionsLabel?: string;
@@ -54,11 +57,11 @@ export class ItemStackPickerComponent implements OnChanges {
   protected selectSource(id: string): void { this.sourceFilter.set(id); this.optionsEntries = undefined; }
 
   protected options(): readonly SearchableDropdownOption[] {
-    this.visuals.revision();
-    const selectedId = this.selectedStack?.id; const filter = this.sourceId ?? this.sourceFilter();
+    const visualRevision = this.visuals.revision();
+    const selectedId = this.selectedStack?.id; const selectedKey = selectedId ? `${selectedId}|${this.selectedStack?.components ? stableVisualComponents(this.selectedStack.components) : ''}` : undefined; const filter = this.sourceId ?? this.sourceFilter();
     const labelsKey = `${this.unavailableLabel}|${this.visualAvailableLabel}|${this.visualUnsupportedLabel}|${this.visualMissingLabel}|${this.visualLoadingLabel}`;
-    if (this.optionsEntries === this.entries && this.optionsSource === this.sourceId && this.optionsSelectedId === selectedId && this.optionsFilter === filter && this.optionsLabelsKey === labelsKey) return this.optionsCache;
-    this.optionsEntries = this.entries; this.optionsSource = this.sourceId; this.optionsSelectedId = selectedId; this.optionsFilter = filter; this.optionsLabelsKey = labelsKey;
+    if (this.optionsEntries === this.entries && this.optionsSource === this.sourceId && this.optionsSelectedId === selectedId && this.optionsSelectedKey === selectedKey && this.optionsFilter === filter && this.optionsLabelsKey === labelsKey && this.optionsVisualRevision === visualRevision) return this.optionsCache;
+    this.optionsEntries = this.entries; this.optionsSource = this.sourceId; this.optionsSelectedId = selectedId; this.optionsSelectedKey = selectedKey; this.optionsFilter = filter; this.optionsLabelsKey = labelsKey; this.optionsVisualRevision = visualRevision;
     const options: SearchableDropdownOption[] = []; const availableIds = new Set<string>();
     for (const entry of this.entries) {
       if (filter !== ALL_CONTENT_SOURCE && entry.sourceId !== filter) continue;

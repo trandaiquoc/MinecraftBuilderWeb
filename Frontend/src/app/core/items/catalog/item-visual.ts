@@ -2,6 +2,7 @@ import { itemVisualTextureResources, resolveItemVisual } from '../../renderer/ge
 import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
 import type { ItemVisualInfo, ItemVisualTrace } from './item-catalog';
+import { itemIdentityEvidenceFromProvider } from '../../assets/vanilla/format/item-evidence';
 
 /** Resolves the same static item visual contract used by the world frame renderer.
  * It deliberately reports unsupported runtime selectors instead of guessing a texture. */
@@ -9,6 +10,7 @@ export function resolveCatalogItemVisual(provider: RenderableAssetResourceProvid
   const resolved = resolveItemVisual(provider, itemId);
   const trace = (status: ItemVisualInfo['status'], resources: readonly string[], fallbackReason?: string): ItemVisualTrace => ({
     itemId,
+    identityEvidence: itemIdentityEvidenceFromProvider(provider, itemId),
     entryPoint: resolved.model,
     modelChain: resolved.modelChain ?? (resolved.model ? [resolved.model] : []),
     adapter: resolved.kind === 'generated-layers' ? 'generated-layers' : resolved.kind === 'block-model' ? 'static-model' : 'runtime-unsupported',

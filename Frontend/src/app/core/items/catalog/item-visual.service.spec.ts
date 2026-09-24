@@ -63,4 +63,22 @@ describe('ItemVisualService', () => {
     await visuals.request(second, 'high');
     expect(rasterize).toHaveBeenCalledTimes(2);
   });
+
+  it('invalidates visuals when an asset source generation changes without changing the ItemStack', async () => {
+    let generation = 1;
+    const rasterize = vi.fn(async () => ({ url: `blob:gem-${generation}`, quality: 'enhanced' as const }));
+    const json: Record<string, unknown> = { 'assets/example/models/item/gem.json': { parent: 'minecraft:item/generated', textures: { layer0: 'example:item/gem' } } };
+    const assets = {
+      generation: () => generation,
+      visualProvider: () => ({ perspectiveItemVisualThumbnail: rasterize }),
+      sources: { resources: { readJson: (path: string) => json[path], readBinary: () => new Uint8Array([1]), textureUrl: () => 'blob:layer' }, itemEvidenceSources: () => [] },
+    };
+    TestBed.configureTestingModule({ providers: [{ provide: VanillaAssetsService, useValue: assets }, ItemVisualService] });
+    const visuals = TestBed.inject(ItemVisualService);
+    expect((await visuals.request('example:gem')).previewUrls).toEqual(['blob:gem-1']);
+    generation = 2;
+    expect(visuals.state('example:gem').status).toBe('idle');
+    expect((await visuals.request('example:gem')).previewUrls).toEqual(['blob:gem-2']);
+    expect(rasterize).toHaveBeenCalledTimes(2);
+  });
 });

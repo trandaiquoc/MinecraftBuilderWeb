@@ -3,7 +3,7 @@ import type { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { ContentSourceProvider } from '../content-source/content-source.types';
 import { CONTENT_SOURCE_MINECRAFT_VERSION } from '../content-source/content-source.types';
 import { texturePath } from '../vanilla/vanilla-asset-provider';
-import { itemEvidenceFromResources } from '../vanilla/format/item-evidence';
+import { itemEvidenceFromResources, itemIdentityIndexFromResources } from '../vanilla/format/item-evidence';
 import { evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
 import { evaluateMinecraftRequirement } from './minecraft-version-predicate';
 import { normalizeFabricMetadata, NormalizedModMetadata, ModCompatibilityResult, SupportedModLoader } from './mod-loader';
@@ -387,8 +387,9 @@ function humanize(value: string): string { return value.split('/').at(-1)!.split
 function storageBuffer(data: Uint8Array): ArrayBuffer { return data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data.buffer as ArrayBuffer : data.slice().buffer as ArrayBuffer; }
 function externalItemEvidence(json: Readonly<Record<string, unknown>>): readonly ReturnType<typeof itemEvidenceFromResources>[number][] {
   const paths = Object.keys(json);
-  const modern = itemEvidenceFromResources(json, paths.filter((path) => /^assets\/[^/]+\/items\/.+\.json$/.test(path)), 'modern-item-definition');
-  const legacy = itemEvidenceFromResources(json, paths.filter((path) => /^assets\/[^/]+\/models\/item\/.+\.json$/.test(path)), 'legacy-item-model');
+  const identity = itemIdentityIndexFromResources(json);
+  const modern = itemEvidenceFromResources(json, paths.filter((path) => /^assets\/[^/]+\/items\/.+\.json$/.test(path)), 'modern-item-definition', identity);
+  const legacy = itemEvidenceFromResources(json, paths.filter((path) => /^assets\/[^/]+\/models\/item\/.+\.json$/.test(path)), 'legacy-item-model', identity);
   const byId = new Map<string, ReturnType<typeof itemEvidenceFromResources>[number]>();
   for (const entry of [...legacy, ...modern]) byId.set(entry.itemId, entry);
   return [...byId.values()];

@@ -1,5 +1,5 @@
 import { detectVanillaResourceFormat, VanillaResourceFormatProfile } from '../vanilla-resource-format';
-import { itemEvidenceFromResources, TargetItemEvidence } from './item-evidence';
+import { itemEvidenceFromResources, itemIdentityIndexFromResources, TargetItemEvidence } from './item-evidence';
 
 export interface VanillaResourceFormatAdapter {
   readonly id: 'modern-json' | 'legacy' | 'unsupported';
@@ -23,7 +23,8 @@ class ModernJsonResourceAdapter implements VanillaResourceFormatAdapter {
   };
   readonly itemEvidence = (json: Readonly<Record<string, unknown>>) => {
     const modern = itemDefinitionResourcePaths(json);
-    return modern.length ? itemEvidenceFromResources(json, modern, 'modern-item-definition') : itemEvidenceFromResources(json, legacyItemModelResourcePaths(json), 'legacy-item-model');
+    const identity = itemIdentityIndexFromResources(json);
+    return modern.length ? itemEvidenceFromResources(json, modern, 'modern-item-definition', identity) : itemEvidenceFromResources(json, legacyItemModelResourcePaths(json), 'legacy-item-model', identity);
   };
   readonly languagePath = languageResourcePath;
   constructor(readonly profile: VanillaResourceFormatProfile) {}
@@ -35,7 +36,7 @@ class LegacyResourcePackAdapter implements VanillaResourceFormatAdapter {
   readonly canExposeLanguage = true;
   readonly blockstatePaths = blockstateResourcePaths;
   readonly itemDefinitionPaths = legacyItemModelResourcePaths;
-  readonly itemEvidence = (json: Readonly<Record<string, unknown>>) => itemEvidenceFromResources(json, this.itemDefinitionPaths(json), 'legacy-item-model');
+  readonly itemEvidence = (json: Readonly<Record<string, unknown>>) => itemEvidenceFromResources(json, this.itemDefinitionPaths(json), 'legacy-item-model', itemIdentityIndexFromResources(json));
   readonly languagePath = languageResourcePath;
   constructor(readonly profile: VanillaResourceFormatProfile) {}
 }

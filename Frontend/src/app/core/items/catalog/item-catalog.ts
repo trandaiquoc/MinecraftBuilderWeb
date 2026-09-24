@@ -15,6 +15,7 @@ export interface ItemVisualInfo {
 
 export interface ItemVisualTrace {
   readonly itemId: string;
+  readonly identityEvidence?: readonly string[];
   readonly entryPoint?: string;
   readonly modelChain: readonly string[];
   readonly adapter: 'generated-layers' | 'static-model' | 'special-static' | 'runtime-unsupported';

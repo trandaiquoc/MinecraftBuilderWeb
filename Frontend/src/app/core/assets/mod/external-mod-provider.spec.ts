@@ -85,6 +85,7 @@ describe('ExternalModProvider', () => {
     ]);
     expect(source.targetItems?.find((entry) => entry.itemId === 'content:gem')?.explicitBlockPlacement).toBeUndefined();
     expect(source.targetItems?.find((entry) => entry.itemId === 'content:marble')?.explicitBlockPlacement).toEqual({ blockId: 'content:marble' });
+    expect(provider.readJson('assets/content/models/item/gem.json')).toEqual({ parent: 'minecraft:item/generated' });
   });
 
   it('uses trusted additive tags for common behavior and fails closed for lookalikes', () => {
