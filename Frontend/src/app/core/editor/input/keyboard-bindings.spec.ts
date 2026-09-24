@@ -19,6 +19,13 @@ describe('keyboard binding model', () => {
     expect(keyboardActionForEvent({ key: 's', ctrlKey: false, altKey: false, shiftKey: false, metaKey: true, target: null }, DEFAULT_KEYBINDINGS)).toBe('save-project');
   });
 
+  it('keeps D mapped to camera move-right rather than a structure mutation', () => {
+    for (const [key, action] of [['w', 'move-forward'], ['a', 'move-left'], ['s', 'move-backward'], ['d', 'move-right']] as const) {
+      expect(keyboardActionForEvent({ key, code: `Key${key.toUpperCase()}`, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe(action);
+    }
+    expect(keyboardActionForEvent({ key: 'Delete', code: 'Delete', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
+  });
+
   it('normalizes missing bindings to defaults and detects conflicts', () => {
     const bindings = normalizeBindings({ 'quick-slot-1': 'Ctrl+K', 'quick-slot-2': 'Ctrl+K' });
     expect(bindings['move-forward']).toBe('W');

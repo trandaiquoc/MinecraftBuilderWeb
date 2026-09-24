@@ -9,7 +9,7 @@ import { EditorToolService } from '../../../../core/editor/state/tool.service';
 import { CameraStateService } from '../../../../core/editor/camera/camera-state.service';
 import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
-import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/selection/selection';
+import { clampVoxelBox, faceLockedSelectionPlane, normalizeVoxelBox, voxelOnFaceLockedPlane } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -20,6 +20,7 @@ import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
+import { isBlockVisible } from '../../../../core/editor/groups/group-membership';
 import { isSignDefinition, isSignId } from '../../../../core/editor/structure/structure-editor.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
@@ -60,6 +61,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
   private boxCornerStart?: import('../../../../core/domain/project.types').VoxelCoordinate;
+  private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
   private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setKeyboardBindings(preferences.shortcuts); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); });
@@ -89,7 +91,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.gestureAction = action;
     this.boxCornerStart = undefined;
-    if (action === 'primary-action' && this.tool.active() === 'select') { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false); this.boxCornerStart = hit.block ?? hit.target; }
+    if (action === 'primary-action' && this.tool.active() === 'select') {
+      const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false);
+      this.boxCornerStart = hit.block ?? hit.target;
+      const plane = hit.block && hit.faceNormal ? faceLockedSelectionPlane(hit.block, hit.faceNormal) : undefined;
+      this.faceDragStart = plane && hit.block && hit.faceNormal ? { block: hit.block, normal: hit.faceNormal, hitPoint: hit.placementContext?.hitPoint, plane } : undefined;
+    }
   }
   protected pointerUp(event: PointerEvent): void {
     const start = this.pointerStart;
@@ -98,11 +105,21 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.gestureAction = undefined;
     const cornerStart = this.boxCornerStart;
     this.boxCornerStart = undefined;
+    const faceDragStart = this.faceDragStart;
+    this.faceDragStart = undefined;
     const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
     if (!gestureAction) return;
-    if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart) {
-      const project = this.workspace.project(); const hit = this.engine.hit(event, project, this.active.active(), undefined, false); const cornerEnd = hit.block ?? hit.target;
-      if (project && cornerEnd) { const box = clampVoxelBox(normalizeVoxelBox(cornerStart, cornerEnd), project.size); if (box) this.selection.selectBoxLogical(box, project, (id) => this.library.get(id)); }
+    if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart && faceDragStart) {
+      const project = this.workspace.project();
+      const projected = this.engine.projectPointerToPlane(event, faceDragStart.plane);
+      const cornerEnd = projected ? voxelOnFaceLockedPlane(projected, faceDragStart.plane) : undefined;
+      if (project && cornerEnd) {
+        const box = clampVoxelBox(normalizeVoxelBox(faceDragStart.block, cornerEnd), project.size);
+        if (box) {
+          const isolated = new Set(this.groups.isolatedGroupPositions().map((position) => coordinateKey(position)));
+          this.selection.selectSurfaceBoxLogical(box, faceDragStart.normal, project, (id) => this.library.get(id), (block) => isBlockVisible(block, project.groups) && (!this.groups.isolatedGroupId() || isolated.has(coordinateKey(block.position))));
+        }
+      }
       return;
     }
     if (!click) return;
@@ -133,8 +150,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
   }
   protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }
-  protected pointerLeave(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set(''); }
-  protected cancelPointer(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.engine.clearInput(); }
+  protected pointerLeave(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set(''); }
+  protected cancelPointer(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearInput(); }
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
 }
 

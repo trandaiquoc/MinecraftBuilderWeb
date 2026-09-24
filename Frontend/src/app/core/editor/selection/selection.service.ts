@@ -2,8 +2,8 @@ import { Injectable, signal } from '@angular/core';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../../block-behavior/logical-objects/logical-object';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { VoxelBox } from './selection';
-import { voxelInBox } from './selection';
+import { VoxelBox, exposedSurfaceSelectionSeeds, voxelInBox } from './selection';
+import type { FaceNormal } from '../placement/placement';
 
 export type SelectionKind = 'none' | 'single' | 'explicit' | 'box' | 'all';
 export interface SelectionRenderState {
@@ -24,6 +24,14 @@ export class SelectionService {
   selectLogical(position: VoxelCoordinate, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined): void { this.single.set({ ...position }); this.box.set(undefined); this.logicalPositions.set(resolveLogicalObjectParts(project.blocks, position, definition).map((block) => ({ ...block.position }))); this.kind.set('explicit'); this.allBounds.set(undefined); }
   selectBox(box: VoxelBox): void { this.single.set(undefined); this.box.set({ min: { ...box.min }, max: { ...box.max } }); this.logicalPositions.set([]); this.kind.set('box'); this.allBounds.set(undefined); }
   selectBoxLogical(box: VoxelBox, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined): void { const seeds = project.blocks.filter((block) => voxelInBox(block.position, box)); this.single.set(undefined); this.box.set({ min: { ...box.min }, max: { ...box.max } }); this.logicalPositions.set(expandLogicalObjectClosure(project.blocks, seeds, definition).map((block) => ({ ...block.position }))); this.kind.set('box'); this.allBounds.set(undefined); }
+  selectSurfaceBoxLogical(box: VoxelBox, normal: FaceNormal, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined, isVisible: (block: PlacedBlock) => boolean = () => true): void {
+    const seeds = exposedSurfaceSelectionSeeds(project.blocks, box, normal, isVisible);
+    this.single.set(undefined);
+    this.box.set({ min: { ...box.min }, max: { ...box.max } });
+    this.logicalPositions.set(expandLogicalObjectClosure(project.blocks, seeds, definition).map((block) => ({ ...block.position })));
+    this.kind.set('box');
+    this.allBounds.set(undefined);
+  }
   selectAll(project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined): void {
     this.single.set(undefined);
     this.box.set(undefined);

@@ -25,6 +25,7 @@ import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
+import type { FaceLockedSelectionPlane } from '../../editor/selection/selection';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
@@ -119,6 +120,7 @@ interface InstanceBatch {
   readonly parts: readonly THREE.InstancedMesh[];
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
+  boundsDirty: boolean;
 }
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
@@ -711,7 +713,7 @@ export class ThreeViewportEngine {
         const material = template.material.clone(); material.transparent = false; material.depthWrite = true;
         const mesh = new THREE.InstancedMesh(template.geometry, material, capacity); mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.userData['instanceVoxels'] = []; mesh.userData['instanceKeys'] = []; mesh.userData['realModel'] = true; mesh.userData['instanceBatchKey'] = batchKey; this.blocksGroup.add(mesh); return mesh;
       });
-      batch = { key: batchKey, capacity, templates, parts, keys: [], positions: [] };
+      batch = { key: batchKey, capacity, templates, parts, keys: [], positions: [], boundsDirty: true };
       this.instanceBatches.set(batchKey, batch);
       this.instrumentation.record('instancedBatchCreations'); this.instrumentation.record('instancedMeshCount', parts.length);
     }
@@ -719,6 +721,7 @@ export class ThreeViewportEngine {
     const index = batch.keys.length; batch.keys.push(key); batch.positions.push({ ...block.position });
     const translation = new THREE.Matrix4().makeTranslation(block.position.x, block.position.y, block.position.z);
     batch.parts.forEach((part, partIndex) => { part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix)); part.count = index + 1; (part.userData['instanceVoxels'] as VoxelCoordinate[]).push({ ...block.position }); (part.userData['instanceKeys'] as string[]).push(key); part.instanceMatrix.needsUpdate = true; });
+    batch.boundsDirty = true;
     this.instrumentation.record('instancedBlockAdds'); this.instrumentation.record('instancedMembers');
     return { batchKey, index };
   }
@@ -753,6 +756,7 @@ export class ThreeViewportEngine {
       batch.parts.forEach((part, partIndex) => { part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix)); const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[]; const keys = part.userData['instanceKeys'] as string[]; voxels[index] = { ...movedPosition }; keys[index] = movedKey; part.instanceMatrix.needsUpdate = true; });
     }
     batch.keys.pop(); batch.positions.pop(); batch.parts.forEach((part) => { (part.userData['instanceVoxels'] as VoxelCoordinate[]).pop(); (part.userData['instanceKeys'] as string[]).pop(); part.count = batch.keys.length; part.instanceMatrix.needsUpdate = true; });
+    batch.boundsDirty = true;
     this.instrumentation.record('instancedBlockRemovals'); this.instrumentation.record('instancedMembers', -1);
     if (!batch.keys.length) { for (const part of batch.parts) { this.blocksGroup.remove(part); (part.material as THREE.Material).dispose(); } this.instanceBatches.delete(batchKey); this.instrumentation.record('instancedMeshCount', -batch.parts.length); }
     void removedKey;
@@ -814,6 +818,7 @@ export class ThreeViewportEngine {
 
   hit(event: PointerEvent, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
     if (!this.renderer || !this.container || !project) return { status: 'invalid' };
+    this.flushInstanceBatchBounds();
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
@@ -857,6 +862,22 @@ export class ThreeViewportEngine {
     if (showGhost && this.renderOptions.activeDecoration && decorationPlan?.decoration) this.updateDecorationGhost(decorationPlan.decoration, decorationPlan.status);
     this.render();
     return { target, block, status, faceNormal, placementContext, decoration, decorationPlan, decorationDistance: decorationHit?.distance, blockDistance: blockHit?.distance };
+  }
+
+  /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
+  projectPointerToPlane(event: PointerEvent, plane: FaceLockedSelectionPlane): { readonly x: number; readonly y: number; readonly z: number } | undefined {
+    if (!this.renderer || !this.container) return undefined;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const origin = this.raycaster.ray.origin;
+    const direction = this.raycaster.ray.direction;
+    const component = direction[plane.axis];
+    if (Math.abs(component) < 1e-8) return undefined;
+    const distance = (plane.coordinate - origin[plane.axis]) / component;
+    if (distance < 0) return undefined;
+    const point = this.raycaster.ray.at(distance, new THREE.Vector3());
+    return { x: point.x, y: point.y, z: point.z };
   }
 
   dispose(): void {
@@ -1239,12 +1260,24 @@ export class ThreeViewportEngine {
   }
 
   private render(): void {
+    this.flushInstanceBatchBounds();
     if (!this.renderer) return;
     const now = performance.now();
     if (this.lastRenderTimestamp > 0) this.frameDurationMs = this.frameDurationMs === 0 ? now - this.lastRenderTimestamp : this.frameDurationMs * .8 + (now - this.lastRenderTimestamp) * .2;
     this.lastRenderTimestamp = now;
     this.renderer.render(this.scene, this.camera);
     this.renderCount++;
+  }
+
+  private flushInstanceBatchBounds(): void {
+    for (const batch of this.instanceBatches.values()) {
+      if (!batch.boundsDirty) continue;
+      for (const part of batch.parts) {
+        part.computeBoundingBox();
+        part.computeBoundingSphere();
+      }
+      batch.boundsDirty = false;
+    }
   }
 
   private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedActions, delta); if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
@@ -1344,7 +1377,7 @@ export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Cam
 }
 function isTextInput(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT' || element.isContentEditable); }
 function isDialogTarget(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.matches('[role="dialog"]') || element.closest('[role="dialog"]') !== null); }
-function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
+export function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
   const direct = hit.object.userData['voxel'] as VoxelCoordinate | undefined;
   if (direct) return direct;
   const instanceId = hit.instanceId;

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, cameraMovementDelta, cameraMovementDirection, translateVisualToVoxel } from './three-viewport-engine';
+import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, translateVisualToVoxel } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import type { BlockVisualProvider } from '../geometry/block-model-geometry';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
@@ -41,6 +41,18 @@ describe('camera movement input contract', () => {
     expect(vertical.y).toBe(3);
     expect(combined.y).toBe(3);
     expect(combined.z).toBeCloseTo(horizontal.z);
+  });
+
+  it('resolves every instanced hit from the authoritative instance voxel table', () => {
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 3);
+    const voxels = [{ x: 2, y: 0, z: 0 }, { x: 7, y: 1, z: 0 }, { x: 9, y: 2, z: 3 }];
+    mesh.userData['instanceVoxels'] = voxels;
+    expect(blockCoordinateFromHit({ object: mesh, instanceId: 0 } as unknown as THREE.Intersection)).toEqual(voxels[0]);
+    expect(blockCoordinateFromHit({ object: mesh, instanceId: 1 } as unknown as THREE.Intersection)).toEqual(voxels[1]);
+    expect(blockCoordinateFromHit({ object: mesh, instanceId: 2 } as unknown as THREE.Intersection)).toEqual(voxels[2]);
+    voxels[1] = voxels[2];
+    expect(blockCoordinateFromHit({ object: mesh, instanceId: 1 } as unknown as THREE.Intersection)).toEqual({ x: 9, y: 2, z: 3 });
+    mesh.geometry.dispose(); mesh.material.dispose();
   });
 
   it('adds voxel translation without replacing a special visual local transform', () => {
@@ -173,11 +185,20 @@ describe('camera movement input contract', () => {
     const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
     const instances = blocksGroup.children.filter((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh);
     expect(instances.reduce((total, instance) => total + (instance.userData['instanceVoxels'] as VoxelCoordinate[]).length, 0)).toBe(blocks.length);
-    const edited = { ...project, blocks: blocks.slice(0, -1) };
+    expect(instances.every((instance) => instance.boundingBox !== null && instance.boundingSphere !== null)).toBe(true);
+    const edited = { ...project, blocks: blocks.filter((_, index) => index !== 1) };
     engine.update(edited, undefined);
     await settleHydration();
     expect(engine.rendererCounters().instancedMembers).toBe(blocks.length - 1);
     expect(engine.rendererCounters().instancedBlockRemovals).toBeGreaterThan(0);
+    const remainingInstances = blocksGroup.children.filter((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh);
+    for (const instance of remainingInstances) {
+      const voxels = instance.userData['instanceVoxels'] as VoxelCoordinate[];
+      const keys = instance.userData['instanceKeys'] as string[];
+      expect(voxels).toHaveLength(keys.length);
+      expect(instance.boundingBox).not.toBeNull();
+      expect(instance.boundingSphere).not.toBeNull();
+    }
     engine.dispose();
     sharedGeometry.dispose();
   });
