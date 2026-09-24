@@ -747,7 +747,7 @@
             <div class="details-item-list">
               @for (item of selectedDetailsItems(); track item.id) {
                 <div class="details-item-row">
-                  <span class="details-item-thumb" [class.fallback]="!item.visual?.previewUrls?.length">@for (url of item.visual?.previewUrls ?? []; track url) { <img [src]="url" alt="" /> }</span>
+                  <span class="details-item-thumb" [class.fallback]="!itemVisualPreviewUrls(item).length">@for (url of itemVisualPreviewUrls(item); track url) { <img [src]="url" alt="" /> }</span>
                   <span class="details-item-copy"><strong>{{ item.displayName }}</strong><code>{{ item.id }}</code></span>
                   <small>{{ itemVisualStatus(item) }}</small>
                 </div>

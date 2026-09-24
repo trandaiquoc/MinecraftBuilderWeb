@@ -9,6 +9,7 @@ export function resolveCatalogItemVisual(provider: RenderableAssetResourceProvid
   const resolved = resolveItemVisual(provider, itemId);
   if (resolved.kind === 'unsupported') return { status: 'unsupported', kind: resolved.kind, resourcePaths: [], previewUrls: [], diagnostics: resolved.diagnostics };
   const resources = itemVisualTextureResources(provider, itemId);
+  if (!resources.length && resolved.kind === 'block-model' && !resolved.elements?.length) return { status: 'missing-resource', kind: resolved.kind, resourcePaths: [], previewUrls: [], diagnostics: [...resolved.diagnostics, 'static item model has no texture resources'] };
   const missing = resources.filter((resource) => !provider.readBinary(texturePath(resource)));
   const previewUrls = resources.flatMap((resource) => { const url = provider.textureUrl(resource); return url ? [url] : []; });
   const status = missing.length || (resources.length > 0 && previewUrls.length !== resources.length) ? 'missing-resource' : 'available';

@@ -3,8 +3,6 @@ import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.servic
 import type { ContentSourceProvider } from '../../assets/content-source/content-source.types';
 import { ItemCatalog, ItemCatalogEntry, humanizeItemId, itemNamespace } from './item-catalog';
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
-import { resolveCatalogItemVisual } from './item-visual';
-import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 
 @Injectable({ providedIn: 'root' })
 export class ItemCatalogService {
@@ -37,13 +35,13 @@ export class ItemCatalogService {
   private rebuildFromActiveSources(): void {
     this.catalog.clear();
     for (const source of this.assets.sources.itemEvidenceSources()) {
-      this.catalog.replaceSource(source.sourceId, source.items.map((item) => toCatalogEntry(item, source.sourceId, source.sourceName, source.provider, this.assets.sources.resources)));
+      this.catalog.replaceSource(source.sourceId, source.items.map((item) => toCatalogEntry(item, source.sourceId, source.sourceName, source.provider)));
     }
     this.generation.update((value) => value + 1);
   }
 }
 
-function toCatalogEntry(item: CatalogItemEvidence, sourceId: string, sourceName: string, provider: ContentSourceProvider | undefined, resources: RenderableAssetResourceProvider): ItemCatalogEntry {
+function toCatalogEntry(item: CatalogItemEvidence, sourceId: string, sourceName: string, provider: ContentSourceProvider | undefined): ItemCatalogEntry {
   const namespace = itemNamespace(item.itemId);
   const path = item.itemId.slice(namespace ? namespace.length + 1 : 0);
   const language = provider ? readLanguage(provider, namespace) : {};
@@ -59,7 +57,6 @@ function toCatalogEntry(item: CatalogItemEvidence, sourceId: string, sourceName:
     sourceFormat: item.sourceFormat,
     referencedModels: item.referencedModels,
     referencedResources: item.referencedResources,
-    visual: resolveCatalogItemVisual(resources, item.itemId),
     ...(item.explicitBlockPlacement ? { explicitBlockPlacement: item.explicitBlockPlacement } : {}),
   };
 }

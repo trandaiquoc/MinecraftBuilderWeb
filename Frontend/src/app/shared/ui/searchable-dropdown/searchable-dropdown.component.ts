@@ -28,6 +28,7 @@ export class SearchableDropdownComponent {
   @Input() closeLabel = '';
   @Input() noResults = 'No matches';
   @Output() readonly selectionChange = new EventEmitter<string>();
+  @Output() readonly visibleOptionIds = new EventEmitter<readonly string[]>();
   protected readonly open = signal(false);
   protected readonly query = signal('');
   protected readonly activeIndex = signal<number | null>(null);
@@ -58,10 +59,10 @@ export class SearchableDropdownComponent {
     else {
       this.open.set(true);
       this.activeIndex.set(null);
-      queueMicrotask(() => this.searchInput()?.nativeElement.focus());
+      queueMicrotask(() => { this.searchInput()?.nativeElement.focus(); this.announceVisibleOptions(); });
     }
   }
-  protected setQuery(event: Event): void { this.query.set((event.target as HTMLInputElement).value); this.activeIndex.set(null); }
+  protected setQuery(event: Event): void { this.query.set((event.target as HTMLInputElement).value); this.activeIndex.set(null); queueMicrotask(() => this.announceVisibleOptions()); }
   protected select(id: string): void { this.selectionChange.emit(id); this.close(); }
   protected onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); this.close(); return; }
@@ -84,6 +85,7 @@ export class SearchableDropdownComponent {
   }
   protected close(): void { this.open.set(false); this.query.set(''); this.activeIndex.set(null); }
   protected onHostKeydown(event: KeyboardEvent): void { if (this.open() && event.key === 'Escape') { event.preventDefault(); this.close(); } }
+  private announceVisibleOptions(): void { if (this.open()) this.visibleOptionIds.emit(this.filteredOptions().slice(0, 24).map((option) => option.id)); }
 
   private ensureOptionIndex(): void {
     if (this.indexedOptions === this.options) return;

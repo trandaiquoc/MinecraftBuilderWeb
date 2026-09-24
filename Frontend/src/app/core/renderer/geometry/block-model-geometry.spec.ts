@@ -91,6 +91,21 @@ describe('block model geometry', () => {
     const resources: Record<string, unknown> = { 'assets/example/models/item/brick.json': { parent: 'example:block/brick' } };
     expect(resolveItemVisual({ readJson: (path) => resources[path] }, 'example:brick')).toMatchObject({ kind: 'block-model', model: 'example:block/brick' });
   });
+  it('uses the 1.21.1 models/item entry before an unrelated client-item definition', () => {
+    const resources: Record<string, unknown> = {
+      'assets/example/models/item/gem.json': { parent: 'item/generated', textures: { layer0: 'example:item/legacy' } },
+      'assets/example/items/gem.json': { model: { type: 'minecraft:model', model: 'example:item/modern' } },
+    };
+    const provider = { gameVersion: '1.21.1', readJson: (path: string) => resources[path] };
+    expect(resolveItemVisual(provider, 'example:gem')).toMatchObject({ kind: 'generated-layers', layers: ['example:item/legacy'] });
+  });
+  it('inherits parent textures, chained variables, layers and fixed display', () => {
+    const resources: Record<string, unknown> = {
+      'assets/example/models/item/gem.json': { parent: 'example:item/base', textures: { icon: '#gem' } },
+      'assets/example/models/item/base.json': { parent: 'minecraft:item/generated', textures: { gem: '#asset', asset: 'example:item/gem', layer0: '#icon', layer1: 'example:item/overlay' }, display: { fixed: { rotation: [10, 20, 30], translation: [1, 2, 3], scale: [0.5, 0.5, 0.5] } } },
+    };
+    expect(resolveItemVisual({ readJson: (path) => resources[path] }, 'example:gem')).toMatchObject({ kind: 'generated-layers', layers: ['example:item/gem', 'example:item/overlay'], displayFixed: { rotation: [10, 20, 30] } });
+  });
   it('preserves out-of-range element coordinates and reversed UV ordering', () => {
     const element: ResolvedElement = { from: [-2, 0, 0], to: [20, 8, 16], faces: { north: face } };
     const geometry = faceGeometry(element, 'north', face);

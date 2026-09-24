@@ -36,6 +36,9 @@ export interface ResolvedItemVisual {
   readonly kind: ItemVisualKind;
   readonly layers: readonly string[];
   readonly model?: string;
+  readonly displayFixed?: Readonly<Record<string, unknown>>;
+  readonly elements?: readonly unknown[];
+  readonly textures?: Readonly<Record<string, string>>;
   readonly diagnostics: readonly string[];
 }
 
@@ -346,17 +349,11 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
 /** Resolves the first statically declared inventory texture for an Item. This
  * intentionally supports only data-driven item formats; runtime renderers are
  * left unresolved instead of being guessed. */
-export function itemVisualResource(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, itemId: string): string | undefined {
+export function itemVisualResource(provider: Pick<RenderableAssetResourceProvider, 'readJson'> & Partial<Pick<RenderableAssetResourceProvider, 'gameVersion'>>, itemId: string): string | undefined {
   const location = resolveResourceLocation(itemId);
   if (!location) return undefined;
   const [namespace, name] = location.split(':', 2);
-  const modernPath = `assets/${namespace}/items/${name}.json`;
-  const legacyPath = `assets/${namespace}/models/item/${name}.json`;
-  const raw = provider.readJson(modernPath) ?? provider.readJson(legacyPath);
-  const directTextures = isRecord(raw) && isRecord(raw['textures']) ? raw['textures'] : undefined;
-  if (directTextures) for (const key of Object.keys(directTextures).filter((key) => /^layer\d+$/.test(key)).sort()) {
-    const value = directTextures[key]; if (typeof value === 'string') return resolveResourceLocation(value, namespace) ?? value;
-  }
+  const raw = readItemEntry(provider, namespace, name);
   const model = modelReference(raw) ?? `${namespace}:item/${name}`;
   const visited = new Set<string>();
   const visit = (modelId: string): string | undefined => {
@@ -388,28 +385,83 @@ export function itemVisualTextureResources(provider: Pick<RenderableAssetResourc
 
 /** Resolves the supported, data-driven inventory model contract without
  * pretending that custom runtime selectors are renderable. */
-export function resolveItemVisual(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, itemId: string): ResolvedItemVisual {
+export function resolveItemVisual(provider: Pick<RenderableAssetResourceProvider, 'readJson'> & Partial<Pick<RenderableAssetResourceProvider, 'gameVersion'>>, itemId: string): ResolvedItemVisual {
   const location = resolveResourceLocation(itemId); if (!location) return { kind: 'unsupported', layers: [], diagnostics: ['invalid item resource location'] };
   const [namespace, name] = location.split(':', 2);
-  const root = provider.readJson(`assets/${namespace}/items/${name}.json`) ?? provider.readJson(`assets/${namespace}/models/item/${name}.json`);
-  const visited = new Set<string>();
-  const visit = (modelId: string): ResolvedItemVisual => {
-    const normalized = resolveResourceLocation(modelId, namespace) ?? modelId; const path = resourcePath(normalized, 'models') ?? `assets/${namespace}/models/${normalized.split(':').at(-1)}.json`;
-    if (visited.has(path)) return { kind: 'unsupported', layers: [], diagnostics: ['item model cycle'] }; visited.add(path);
-    const document = provider.readJson(path); if (!isRecord(document)) return { kind: 'unsupported', layers: [], diagnostics: [`missing item model: ${path}`] };
-    const textures = isRecord(document['textures']) ? document['textures'] : {};
-    const layers = Object.keys(textures).filter((key) => /^layer\d+$/.test(key)).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))).flatMap((key) => { const value = textures[key]; return typeof value === 'string' ? [resolveResourceLocation(value, normalized.split(':')[0]) ?? value] : []; });
-    if (layers.length) return { kind: 'generated-layers', layers, model: normalized, diagnostics: [] };
-    if (typeof document['parent'] === 'string') {
-      const parent = String(document['parent']);
-      if (/(?:^|:)block\//.test(parent) || parent.startsWith('block/')) return { kind: 'block-model', layers: [], model: resolveResourceLocation(parent, normalized.split(':')[0]) ?? parent, diagnostics: [] };
-      return visit(parent);
-    }
-    if (isRecord(document['model']) && typeof document['model']['type'] === 'string') return { kind: 'unsupported', layers: [], diagnostics: ['conditional item model requires runtime selection'] };
-    return { kind: 'unsupported', layers: [], diagnostics: ['item model has no supported static representation'] };
-  };
+  const root = readItemEntry(provider, namespace, name);
+  if (isRecord(root) && isRecord(root['model']) && typeof root['model']['type'] === 'string' && typeof root['model']['model'] !== 'string') return { kind: 'unsupported', layers: [], diagnostics: ['conditional item model requires runtime selection'] };
   const model = modelReference(root) ?? `${namespace}:item/${name}`;
-  return visit(model);
+  const inherited = resolveInheritedItemModel(provider, model, new Set());
+  if (!inherited.document) return { kind: 'unsupported', layers: [], diagnostics: inherited.diagnostics };
+  if (inherited.diagnostics.some((diagnostic) => diagnostic.includes('item model cycle'))) return { kind: 'unsupported', layers: [], diagnostics: inherited.diagnostics };
+  const document = inherited.document;
+  const textures = resolveTextureVariables(document['textures'], inherited.diagnostics);
+  const layers = Object.keys(textures).filter((key) => /^layer\d+$/.test(key)).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))).flatMap((key) => textures[key] ? [textures[key]] : []);
+  if (layers.length) {
+    if (isRecord(root) && Array.isArray(root['overrides'])) inherited.diagnostics.push('item overrides require static ItemStack predicates');
+    return { kind: 'generated-layers', layers, model: inherited.model, displayFixed: fixedDisplay(document['display']), textures, diagnostics: inherited.diagnostics };
+  }
+  const parent = typeof document['parent'] === 'string' ? document['parent'] : undefined;
+  const blockParent = parent && (/(?:^|:)block\//.test(parent) || parent.startsWith('block/')) ? resolveResourceLocation(parent, namespace) ?? parent : undefined;
+  if (blockParent || Array.isArray(document['elements'])) return { kind: 'block-model', layers: [], model: blockParent ?? inherited.model, displayFixed: fixedDisplay(document['display']), elements: Array.isArray(document['elements']) ? document['elements'] : undefined, textures, diagnostics: inherited.diagnostics };
+  if (isRecord(root) && Array.isArray(root['overrides'])) inherited.diagnostics.push('item overrides require static ItemStack predicates');
+  return { kind: 'unsupported', layers: [], diagnostics: [...inherited.diagnostics, 'item model has no supported static representation'] };
+}
+
+type JsonDocument = Record<string, unknown>;
+
+function itemModelEntryPath(provider: Pick<RenderableAssetResourceProvider, 'readJson'> & Partial<Pick<RenderableAssetResourceProvider, 'gameVersion'>>, namespace: string, name: string): string {
+  const version = provider.gameVersion ?? '1.21.1';
+  return isLegacyItemModelVersion(version) ? `assets/${namespace}/models/item/${name}.json` : `assets/${namespace}/items/${name}.json`;
+}
+
+function isLegacyItemModelVersion(version: string): boolean {
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(version);
+  if (!match) return true;
+  const minor = Number(match[2]); const patch = Number(match[3] ?? 0);
+  return Number(match[1]) < 1 || (Number(match[1]) === 1 && (minor < 21 || (minor === 21 && patch <= 3)));
+}
+
+function readItemEntry(provider: Pick<RenderableAssetResourceProvider, 'readJson'> & Partial<Pick<RenderableAssetResourceProvider, 'gameVersion'>>, namespace: string, name: string): unknown {
+  const preferred = itemModelEntryPath(provider, namespace, name);
+  const fallback = preferred.includes('/models/item/') ? `assets/${namespace}/items/${name}.json` : `assets/${namespace}/models/item/${name}.json`;
+  return provider.readJson(preferred) ?? provider.readJson(fallback);
+}
+
+function resolveInheritedItemModel(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, modelId: string, visited: Set<string>): { document?: JsonDocument; model?: string; diagnostics: string[] } {
+  const normalized = resolveResourceLocation(modelId) ?? modelId;
+  const path = resourcePath(normalized, 'models') ?? `assets/${normalized.split(':')[0]}/models/${normalized.split(':').at(-1)}.json`;
+  if (visited.has(path)) return { diagnostics: ['item model cycle'] };
+  visited.add(path);
+  const document = provider.readJson(path);
+  if (!isRecord(document)) return { diagnostics: [`missing item model: ${path}`] };
+  const parent = typeof document['parent'] === 'string' ? document['parent'] : undefined;
+  const parentResult = parent ? resolveInheritedItemModel(provider, parent, visited) : { document: {}, model: undefined, diagnostics: [] };
+  const merged: JsonDocument = { ...(parentResult.document ?? {}), ...document };
+  if (isRecord(parentResult.document?.['textures']) || isRecord(document['textures'])) merged['textures'] = { ...(isRecord(parentResult.document?.['textures']) ? parentResult.document!['textures'] as JsonDocument : {}), ...(isRecord(document['textures']) ? document['textures'] : {}) };
+  if (isRecord(parentResult.document?.['display']) || isRecord(document['display'])) merged['display'] = { ...(isRecord(parentResult.document?.['display']) ? parentResult.document!['display'] as JsonDocument : {}), ...(isRecord(document['display']) ? document['display'] : {}) };
+  // A child with complete local textures/elements remains statically useful even
+  // when an optional parent resource is unavailable; retain the diagnostic rather
+  // than turning an otherwise renderable item into an empty fallback.
+  return { document: merged, model: normalized, diagnostics: [...parentResult.diagnostics] };
+}
+
+function resolveTextureVariables(raw: unknown, diagnostics: string[]): Record<string, string> {
+  if (!isRecord(raw)) return {};
+  const values = new Map(Object.entries(raw).filter(([, value]) => typeof value === 'string') as [string, string][]);
+  const result: Record<string, string> = {};
+  const visit = (key: string, chain: Set<string>): string | undefined => {
+    const value = values.get(key); if (!value) return undefined;
+    if (!value.startsWith('#')) return resolveResourceLocation(value) ?? value;
+    const target = value.slice(1); if (chain.has(target)) { diagnostics.push(`texture variable cycle: ${target}`); return undefined; }
+    return visit(target, new Set([...chain, target]));
+  };
+  for (const key of values.keys()) { const value = visit(key, new Set([key])); if (value) result[key] = value; }
+  return result;
+}
+
+function fixedDisplay(raw: unknown): Readonly<Record<string, unknown>> | undefined {
+  return isRecord(raw) && isRecord(raw['fixed']) ? raw['fixed'] : undefined;
 }
 
 function modelReference(value: unknown): string | undefined {

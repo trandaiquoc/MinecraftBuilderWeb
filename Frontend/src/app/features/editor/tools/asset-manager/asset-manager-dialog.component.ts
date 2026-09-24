@@ -15,6 +15,7 @@ import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.
 import { ModImportTimeoutError } from '../../../../core/assets/mod/mod-import-cancellation';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
 import { normalizeItemSearch } from '../../../../core/items/catalog/item-catalog';
+import { ItemVisualService, ItemVisualState } from '../../../../core/items/catalog/item-visual.service';
 
 type AssetManagerTab = 'vanilla' | 'mods';
 type DiagnosticDialogState = { readonly modName: string; readonly kind: 'warning' | 'blocking'; readonly diagnostics: readonly ModImportDiagnostic[] };
@@ -104,6 +105,8 @@ export class AssetManagerDialogComponent {
   private readonly dialog = inject(DialogService);
   private readonly supportCatalog = inject(ModSupportCatalog);
   private readonly itemCatalog = inject(ItemCatalogService);
+  private readonly itemVisuals = inject(ItemVisualService);
+  private readonly requestedItemVisuals = new Set<string>();
   readonly closed = output<void>();
   protected readonly tab = signal<AssetManagerTab>('vanilla');
   protected readonly importing = signal(false);
@@ -148,7 +151,12 @@ export class AssetManagerDialogComponent {
   });
   protected readonly selectedDetailsItemCounts = computed(() => {
     const items = this.selectedDetailsItemEntries();
-    return { available: items.filter((item) => item.visual?.status === 'available').length, unsupported: items.filter((item) => item.visual?.status === 'unsupported').length, missing: items.filter((item) => item.visual?.status === 'missing-resource').length };
+    return { indexed: items.length, available: 0, unsupported: 0, missing: 0 };
+  });
+  private readonly itemVisualRequestEffect = effect(() => {
+    const items = this.selectedDetailsItems();
+    this.itemVisuals.revision();
+    for (const item of items) { const state = this.itemVisuals.state(item.id); if (!this.requestedItemVisuals.has(item.id) || state.status === 'idle') { this.requestedItemVisuals.add(item.id); void this.itemVisuals.request(item.id).catch(() => undefined); } }
   });
   private readonly detailsFocusEffect = effect(() => {
     const selected = this.selectedDetails();
@@ -167,8 +175,16 @@ export class AssetManagerDialogComponent {
   protected closeDetails(): void { const target = this.detailsRestoreTarget; this.detailsRestoreTarget = undefined; this.detailsSourceId.set(undefined); queueMicrotask(() => target?.focus()); }
   protected openDetails(sourceId: string): void { this.detailsItemSearch.set(''); this.detailsSourceId.set(sourceId); }
   protected setDetailsItemSearch(event: Event): void { this.detailsItemSearch.set((event.target as HTMLInputElement).value); }
-  protected itemVisualStatus(entry: { readonly visual?: { readonly status: string } }): string { return entry.visual?.status === 'available' ? this.i18n.t('itemVisualRenderable') : entry.visual?.status === 'missing-resource' ? this.i18n.t('itemVisualMissing') : this.i18n.t('itemVisualUnsupported'); }
-  protected itemVisualSummary(): string { const counts = this.selectedDetailsItemCounts(); return `${this.i18n.t('itemVisualRenderable')}: ${counts.available} · ${this.i18n.t('itemVisualUnsupported')}: ${counts.unsupported} · ${this.i18n.t('itemVisualMissing')}: ${counts.missing}`; }
+  protected itemVisualState(entry: { readonly id: string }): ItemVisualState {
+    this.itemVisuals.revision();
+    return this.itemVisuals.state(entry.id);
+  }
+  protected itemVisualStatus(entry: { readonly id: string }): string {
+    const state = this.itemVisualState(entry);
+    return state.status === 'available' ? this.i18n.t('itemVisualRenderable') : state.status === 'missing-resource' ? this.i18n.t('itemVisualMissing') : state.status === 'loading' || state.status === 'queued' ? this.i18n.t('itemVisualLoading') : state.status === 'unsupported' ? this.i18n.t('itemVisualUnsupported') : this.i18n.t('itemVisualWaiting');
+  }
+  protected itemVisualPreviewUrls(entry: { readonly id: string }): readonly string[] { return this.itemVisualState(entry).info?.previewUrls ?? []; }
+  protected itemVisualSummary(): string { const counts = this.selectedDetailsItemCounts(); return `${this.i18n.t('assetManagerIndexed')}: ${counts.indexed}`; }
   protected openHelp(): void { this.helpOpen.set(true); }
   protected toggleHelp(): void { this.helpOpen.update((open) => !open); }
   protected closeHelp(): void { this.helpOpen.set(false); }
