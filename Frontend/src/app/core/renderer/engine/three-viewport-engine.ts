@@ -28,6 +28,34 @@ import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighti
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
+export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
+export interface ViewportHydrationProgress {
+  readonly generation: number;
+  readonly status: ViewportHydrationStatus;
+  readonly completed: number;
+  readonly total: number;
+  readonly blocksCompleted: number;
+  readonly blocksTotal: number;
+  readonly decorationsCompleted: number;
+  readonly decorationsTotal: number;
+  readonly percent: number;
+}
+export interface ViewportPerformanceEvidence {
+  readonly renderCalls: number;
+  readonly triangles: number;
+  readonly geometries: number;
+  readonly textures: number;
+  readonly renderedBlocks: number;
+  readonly renderedDecorations: number;
+  readonly object3dCount: number;
+  readonly meshCount: number;
+  readonly instanceMeshCount: number;
+  readonly instanceMembers: number;
+  readonly hydrationQueue: number;
+  readonly hydrationRunning: number;
+  readonly frameDurationMs: number;
+  readonly approximateFps: number;
+}
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 
 export interface ViewportControlConfiguration {
@@ -46,6 +74,8 @@ interface RenderedBlockEntry {
   readonly fallback: THREE.Mesh;
   revision: number;
   object: THREE.Object3D;
+  instanceBatchKey?: string;
+  instanceIndex?: number;
 }
 
 interface RenderedDecorationEntry {
@@ -62,6 +92,7 @@ interface BlockHydrationJob {
   readonly role: RenderedBlockEntry['role'];
   readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
   readonly options: ViewportRenderOptions;
+  readonly allowInstancing: boolean;
 }
 interface DecorationHydrationJob {
   readonly token: number;
@@ -73,6 +104,21 @@ interface DecorationHydrationJob {
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
 export const VIEWPORT_VISUAL_CONCURRENCY = 6;
+export const VIEWPORT_INSTANCE_CHUNK_SIZE = 16;
+export const VIEWPORT_INSTANCE_THRESHOLD = 256;
+export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
+export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
+export const VIEWPORT_HYDRATION_COMPLETE_DISPLAY_MS = 800;
+
+interface InstancePartTemplate { readonly geometry: THREE.BufferGeometry; readonly material: THREE.Material; readonly matrix: THREE.Matrix4; }
+interface InstanceBatch {
+  readonly key: string;
+  readonly capacity: number;
+  readonly templates: readonly InstancePartTemplate[];
+  readonly parts: readonly THREE.InstancedMesh[];
+  readonly keys: string[];
+  readonly positions: VoxelCoordinate[];
+}
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
@@ -120,7 +166,7 @@ export class ThreeViewportEngine {
   private activeBlock?: ActiveBlock;
   private renderOptions: ViewportRenderOptions = {};
   private hasCameraFrame = false;
-  private readonly renderOnControlChange = () => this.render();
+  private readonly renderOnControlChange = () => { this.cameraInteractingUntil = performance.now() + 180; this.render(); };
   private cameraMoveFrame?: number;
   private readonly pressedActions = new Set<KeyboardAction>();
   private keyboardBindings: Readonly<Record<KeyboardAction, string>> = DEFAULT_KEYBINDINGS;
@@ -167,6 +213,10 @@ export class ThreeViewportEngine {
   private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9 };
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
+  private readonly instanceBatches = new Map<string, InstanceBatch>();
+  private readonly hydrationProgressListeners = new Set<(progress: ViewportHydrationProgress) => void>();
+  private hydrationProgressState: ViewportHydrationProgress = { generation: 0, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 };
+  private hydrationProgressHideTimer?: ReturnType<typeof setTimeout>;
   private hemisphereLight?: THREE.HemisphereLight;
   private keyLight?: THREE.DirectionalLight;
   private blockBrightness = 3;
@@ -183,6 +233,9 @@ export class ThreeViewportEngine {
   private hydrationBatchBudget = 0;
   private hydrationTimer?: ReturnType<typeof setTimeout>;
   private hydrationScheduled = false;
+  private cameraInteractingUntil = 0;
+  private lastRenderTimestamp = 0;
+  private frameDurationMs = 0;
   private renderScheduled = false;
   private renderTimer?: ReturnType<typeof setTimeout>;
   private fallbackGeometryCounted = false;
@@ -442,6 +495,7 @@ export class ThreeViewportEngine {
     const worldBlocks = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
     const worldContext = { getBlock: (position: VoxelCoordinate) => worldBlocks.get(coordinateKey(position)) };
     const visible = this.visibleBlocks(project, options);
+    const allowInstancing = visible.length >= VIEWPORT_INSTANCE_THRESHOLD;
     const visibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     if (full) this.instrumentation.record('fullSceneRebuilds');
     const changed = new Set<string>();
@@ -467,13 +521,13 @@ export class ThreeViewportEngine {
       else if (this.pendingHydrationSignatures.get(key) === undefined) this.instrumentation.record('blockAdds');
       this.pendingHydrationSignatures.set(key, next.signature);
       this.instrumentation.record('blockVisualCreations');
-      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, role: next.role, worldContext, options });
+      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, role: next.role, worldContext, options, allowInstancing });
     }
     this.hydrationQueue.sort((left, right) => (left.role === right.role ? 0 : left.role === 'normal' ? -1 : 1));
     const previousMax = this.instrumentation.snapshot().maxPendingVisualJobs;
     if (this.hydrationQueue.length > previousMax) this.instrumentation.record('maxPendingVisualJobs', this.hydrationQueue.length - previousMax);
-    this.scheduleHydrationPump();
     this.reconcileDecorations(project, options, full);
+    this.beginHydrationProgress(this.hydrationQueue.length, this.decorationHydrationQueue.length);
   }
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions): readonly { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string }[] {
@@ -485,17 +539,53 @@ export class ThreeViewportEngine {
     });
   }
 
-  private scheduleHydrationPump(delay = false): void {
+  private beginHydrationProgress(blocksTotal: number, decorationsTotal: number): void {
+    if (this.hydrationProgressHideTimer !== undefined) { clearTimeout(this.hydrationProgressHideTimer); this.hydrationProgressHideTimer = undefined; }
+    const total = blocksTotal + decorationsTotal;
+    if (!total) { this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 }); return; }
+    this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'hydrating', completed: 0, total, blocksCompleted: 0, blocksTotal, decorationsCompleted: 0, decorationsTotal, percent: 0 });
+  }
+
+  private completeHydrationPart(token: number, kind: 'block' | 'decoration'): void {
+    const current = this.hydrationProgressState;
+    if (current.status !== 'hydrating' || current.generation !== token) return;
+    const blocksCompleted = current.blocksCompleted + (kind === 'block' ? 1 : 0);
+    const decorationsCompleted = current.decorationsCompleted + (kind === 'decoration' ? 1 : 0);
+    const completed = blocksCompleted + decorationsCompleted;
+    const percent = current.total > 0 ? completed / current.total * 100 : 100;
+    if (completed >= current.total) {
+      this.publishHydrationProgress({ ...current, status: 'complete', completed: current.total, blocksCompleted: current.blocksTotal, decorationsCompleted: current.decorationsTotal, percent: 100 });
+      this.hydrationProgressHideTimer = setTimeout(() => {
+        if (this.hydrationProgressState.generation === token && this.hydrationProgressState.status === 'complete') this.publishHydrationProgress({ generation: token, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 });
+        this.hydrationProgressHideTimer = undefined;
+      }, VIEWPORT_HYDRATION_COMPLETE_DISPLAY_MS);
+      return;
+    }
+    this.publishHydrationProgress({ ...current, completed, blocksCompleted, decorationsCompleted, percent });
+  }
+
+  private publishHydrationProgress(progress: ViewportHydrationProgress): void {
+    this.hydrationProgressState = progress;
+    for (const listener of this.hydrationProgressListeners) listener(progress);
+  }
+
+  private resetHydrationProgress(): void {
+    if (this.hydrationProgressHideTimer !== undefined) { clearTimeout(this.hydrationProgressHideTimer); this.hydrationProgressHideTimer = undefined; }
+    this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 });
+  }
+
+  private scheduleHydrationPump(delay: boolean | number = false): void {
     if (this.hydrationScheduled || this.disposed) return;
     this.hydrationScheduled = true;
-    const run = () => { this.hydrationScheduled = false; this.processHydrationBatch(); };
-    if (delay) this.hydrationTimer = setTimeout(run, 0);
+    const run = () => { this.hydrationScheduled = false; this.hydrationTimer = undefined; this.processHydrationBatch(); };
+    if (delay) this.hydrationTimer = setTimeout(run, typeof delay === 'number' ? delay : 0);
     else queueMicrotask(run);
   }
 
   private processHydrationBatch(): void {
     const token = this.hydrationGeneration;
-    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = VIEWPORT_HYDRATION_BATCH_SIZE;
+    if (performance.now() < this.cameraInteractingUntil) { this.scheduleHydrationPump(80); return; }
+    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = this.adaptiveHydrationBudget();
     this.instrumentation.record('hydrationBatches');
     while (this.hydrationRunning < VIEWPORT_VISUAL_CONCURRENCY && this.hydrationQueue.length && this.hydrationBatchBudget > 0) {
       const job = this.hydrationQueue.shift()!;
@@ -503,14 +593,21 @@ export class ThreeViewportEngine {
       this.pendingHydrationSignatures.delete(job.key);
       this.hydrationBatchBudget -= 1;
       this.hydrationRunning += 1;
-      this.createBlockEntry(job.block, job.role, job.worldContext, job.options, () => {
+      this.createBlockEntry(job.block, job.role, job.worldContext, job.options, job.allowInstancing, () => {
         this.hydrationRunning = Math.max(0, this.hydrationRunning - 1);
+        this.completeHydrationPart(job.token, 'block');
         this.scheduleHydrationPump(this.hydrationBatchBudget <= 0);
       });
     }
     this.processDecorationBatch(token);
     if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = 0;
     if ((this.hydrationQueue.length && this.hydrationRunning === 0) || this.decorationHydrationQueue.length) this.scheduleHydrationPump(true);
+  }
+
+  private adaptiveHydrationBudget(): number {
+    if (this.frameDurationMs >= 28) return 24;
+    if (this.frameDurationMs >= 18) return 48;
+    return VIEWPORT_HYDRATION_BATCH_SIZE;
   }
 
   private processDecorationBatch(token: number): void {
@@ -527,6 +624,7 @@ export class ThreeViewportEngine {
       const entry = { id: job.id, decoration: job.decoration, signature: job.signature, object: visual };
       this.renderedDecorations.set(job.id, entry);
       this.hydrateDecorationItemPreview(entry);
+      this.completeHydrationPart(job.token, 'decoration');
       processed += 1;
     }
     if (processed > 0) this.scheduleRender();
@@ -540,6 +638,8 @@ export class ThreeViewportEngine {
     this.decorationHydrationQueue = [];
     this.hydrationBatchBudget = 0;
     if (this.hydrationTimer !== undefined) { clearTimeout(this.hydrationTimer); this.hydrationTimer = undefined; }
+    this.hydrationScheduled = false;
+    this.resetHydrationProgress();
   }
 
   private scheduleRender(): void {
@@ -549,7 +649,7 @@ export class ThreeViewportEngine {
     this.renderTimer = setTimeout(() => { this.renderScheduled = false; this.renderTimer = undefined; this.render(); }, 0);
   }
 
-  private createBlockEntry(block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, onComplete?: () => void): void {
+  private createBlockEntry(block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, onComplete?: () => void): void {
     if (!this.fallbackGeometryCounted) { this.instrumentation.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
     if (!this.fallbackMaterialRoles.has(role)) { this.instrumentation.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(role); }
     const isReference = role === 'reference';
@@ -573,13 +673,77 @@ export class ThreeViewportEngine {
         if (!visual.object) return;
         const object = visual.object; object.userData['realModel'] = true; applyBlockTheme(object, this.palette); translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
-        object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = isReference ? options.referenceOpacity ?? .28 : 1; } } });
-        this.blocksGroup.remove(fallback); this.blocksGroup.add(object); entry.object = object; this.recordProviderCacheStats(); this.scheduleRender();
+        object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh && isReference) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = options.referenceOpacity ?? .28; } } });
+        const instance = allowInstancing && role === 'normal' ? this.addInstanceVisual(object, block, entry.key) : undefined;
+        this.blocksGroup.remove(fallback);
+        if (instance) { entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0]; disposeObject(object); }
+        else { this.blocksGroup.add(object); entry.object = object; }
+        this.recordProviderCacheStats(); this.scheduleRender();
       }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
     } else onComplete?.();
   }
 
-  private removeBlockEntry(key: string, entry: RenderedBlockEntry): void { entry.revision += 1; if (entry.object.parent === this.blocksGroup) this.blocksGroup.remove(entry.object); if (entry.object !== entry.fallback) disposeObject(entry.object); else disposeObject(entry.fallback); this.renderedBlocks.delete(key); }
+  private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string): { readonly batchKey: string; readonly index: number } | undefined {
+    const templates = this.instanceTemplates(object);
+    if (!templates) return undefined;
+    const signature = templates.map((template) => { const material = template.material as THREE.Material & { map?: THREE.Texture; color?: THREE.Color; alphaTest?: number; side?: number; vertexColors?: boolean }; return `${template.geometry.uuid}|${material.type}|${material.map?.uuid ?? ''}|${material.color?.getHexString() ?? ''}|${material.alphaTest ?? 0}|${material.side ?? 0}|${material.vertexColors ? 1 : 0}|${template.matrix.elements.map((value) => value.toFixed(4)).join(',')}`; }).join(';');
+    const chunk = chunkKey(block.position);
+    const batchKey = `${chunk}|${signature}`;
+    let batch = this.instanceBatches.get(batchKey);
+    if (!batch) {
+      const capacity = VIEWPORT_INSTANCE_CHUNK_SIZE ** 3;
+      const parts = templates.map((template) => {
+        const material = template.material.clone(); material.transparent = false; material.depthWrite = true;
+        const mesh = new THREE.InstancedMesh(template.geometry, material, capacity); mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.userData['instanceVoxels'] = []; mesh.userData['instanceKeys'] = []; mesh.userData['realModel'] = true; mesh.userData['instanceBatchKey'] = batchKey; this.blocksGroup.add(mesh); return mesh;
+      });
+      batch = { key: batchKey, capacity, templates, parts, keys: [], positions: [] };
+      this.instanceBatches.set(batchKey, batch);
+      this.instrumentation.record('instancedBatchCreations'); this.instrumentation.record('instancedMeshCount', parts.length);
+    }
+    if (batch.keys.length >= batch.capacity) return undefined;
+    const index = batch.keys.length; batch.keys.push(key); batch.positions.push({ ...block.position });
+    const translation = new THREE.Matrix4().makeTranslation(block.position.x, block.position.y, block.position.z);
+    batch.parts.forEach((part, partIndex) => { part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix)); part.count = index + 1; (part.userData['instanceVoxels'] as VoxelCoordinate[]).push({ ...block.position }); (part.userData['instanceKeys'] as string[]).push(key); part.instanceMatrix.needsUpdate = true; });
+    this.instrumentation.record('instancedBlockAdds'); this.instrumentation.record('instancedMembers');
+    return { batchKey, index };
+  }
+
+  private instanceTemplates(object: THREE.Object3D): readonly InstancePartTemplate[] | undefined {
+    if (object.userData['specialVisualFamily'] || object.userData['fluidKind'] || object.userData['fluidRenderLayer']) return undefined;
+    object.updateMatrixWorld(true);
+    const rootInverse = object.matrixWorld.clone().invert();
+    const bounds = new THREE.Box3().setFromObject(object); const size = bounds.getSize(new THREE.Vector3());
+    if (Math.abs(size.x - 1) > .02 || Math.abs(size.y - 1) > .02 || Math.abs(size.z - 1) > .02) return undefined;
+    const templates: InstancePartTemplate[] = [];
+    let compatible = true;
+    object.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !compatible) return;
+      if (child.userData['specialVisualFamily'] || child.userData['fluidKind'] || child.userData['fluidRenderLayer']) { compatible = false; return; }
+      const material = Array.isArray(child.material) ? undefined : child.material;
+      if (!material || material.transparent || material.depthWrite === false || child.morphTargetInfluences || child.type === 'SkinnedMesh') { compatible = false; return; }
+      templates.push({ geometry: child.geometry, material, matrix: rootInverse.clone().multiply(child.matrixWorld) });
+    });
+    return compatible && templates.length > 0 ? templates : undefined;
+  }
+
+  private removeInstanceVisual(key: string, entry: RenderedBlockEntry): void {
+    const batchKey = entry.instanceBatchKey; const index = entry.instanceIndex;
+    if (!batchKey || index === undefined) return;
+    const batch = this.instanceBatches.get(batchKey); if (!batch) return;
+    const last = batch.keys.length - 1; const removedKey = batch.keys[index];
+    if (index !== last) {
+      const movedKey = batch.keys[last]; batch.keys[index] = movedKey; batch.positions[index] = batch.positions[last];
+      const movedEntry = this.renderedBlocks.get(movedKey); if (movedEntry) movedEntry.instanceIndex = index;
+      const movedPosition = batch.positions[index]; const translation = new THREE.Matrix4().makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
+      batch.parts.forEach((part, partIndex) => { part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix)); const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[]; const keys = part.userData['instanceKeys'] as string[]; voxels[index] = { ...movedPosition }; keys[index] = movedKey; part.instanceMatrix.needsUpdate = true; });
+    }
+    batch.keys.pop(); batch.positions.pop(); batch.parts.forEach((part) => { (part.userData['instanceVoxels'] as VoxelCoordinate[]).pop(); (part.userData['instanceKeys'] as string[]).pop(); part.count = batch.keys.length; part.instanceMatrix.needsUpdate = true; });
+    this.instrumentation.record('instancedBlockRemovals'); this.instrumentation.record('instancedMembers', -1);
+    if (!batch.keys.length) { for (const part of batch.parts) { this.blocksGroup.remove(part); (part.material as THREE.Material).dispose(); } this.instanceBatches.delete(batchKey); this.instrumentation.record('instancedMeshCount', -batch.parts.length); }
+    void removedKey;
+  }
+
+  private removeBlockEntry(key: string, entry: RenderedBlockEntry): void { entry.revision += 1; if (entry.instanceBatchKey) this.removeInstanceVisual(key, entry); else { if (entry.object.parent === this.blocksGroup) this.blocksGroup.remove(entry.object); if (entry.object !== entry.fallback) disposeObject(entry.object); else disposeObject(entry.fallback); } this.renderedBlocks.delete(key); }
 
   private recordProviderCacheStats(): void {
     const stats = this.visualProvider?.cacheStats?.(); if (!stats) return;
@@ -654,21 +818,23 @@ export class ThreeViewportEngine {
     if (planeY !== undefined && this.editingPlane) {
       const planeHit = this.raycaster.intersectObject(this.editingPlane, false)[0];
       if (planeHit) { target = targetFromEditingPlaneHit(planeHit.point, planeY, project.size); faceNormal = { x: 0, y: 1, z: 0 }; hitPoint = planeHit.point; }
-    } else if (blockHit?.object.userData['voxel']) {
-      block = blockHit.object.userData['voxel'] as VoxelCoordinate;
-      const normal = (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
-      faceNormal = { x: normal.x, y: normal.y, z: normal.z };
-      hitPoint = blockHit.point;
-      const attachment = resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver);
-      target = attachment?.target ?? targetFromBlockFace(block, normal as FaceNormal);
-      if (attachment) faceNormal = { x: 0, y: attachment.snapType === 'chain-extension' ? 1 : -1, z: 0 };
+    } else if (blockHit) {
+      block = blockCoordinateFromHit(blockHit);
+      if (block) {
+        const normal = (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
+        faceNormal = { x: normal.x, y: normal.y, z: normal.z };
+        hitPoint = blockHit.point;
+        const attachment = resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver);
+        target = attachment?.target ?? targetFromBlockFace(block, normal as FaceNormal);
+        if (attachment) faceNormal = { x: 0, y: attachment.snapType === 'chain-extension' ? 1 : -1, z: 0 };
+      }
     } else if (this.ground) {
       const groundHit = this.raycaster.intersectObject(this.ground, false)[0];
       if (groundHit) { target = targetFromGridHit(groundHit.point); faceNormal = { x: 0, y: 1, z: 0 }; hitPoint = groundHit.point; }
     }
-    if (blockHit?.object.userData['voxel']) {
-      const hitVoxel = blockHit.object.userData['voxel'] as VoxelCoordinate;
-      if (planeY === undefined || hitVoxel.y === planeY) block = hitVoxel;
+    if (blockHit) {
+      const hitVoxel = blockCoordinateFromHit(blockHit);
+      if (hitVoxel && (planeY === undefined || hitVoxel.y === planeY)) block = hitVoxel;
     }
     const facing = active?.state['facing'];
     const attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver) : undefined;
@@ -704,6 +870,7 @@ export class ThreeViewportEngine {
     this.renderer?.domElement.remove();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
+    this.instanceBatches.clear();
     for (const child of this.decorationsGroup.children) disposeObject(child);
     this.decorationsGroup.clear();
     for (const child of [...this.logicalSelectionGroup.children]) { child.traverse((object) => { if (object instanceof THREE.LineSegments) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.logicalSelectionGroup.remove(child); }
@@ -739,6 +906,38 @@ export class ThreeViewportEngine {
 
   rendererCounters(): RendererCounters {
     return this.instrumentation.snapshot();
+  }
+
+  performanceEvidence(): ViewportPerformanceEvidence {
+    let object3dCount = 0;
+    let meshCount = 0;
+    this.scene.traverse((object) => { object3dCount += 1; if (object instanceof THREE.Mesh) meshCount += 1; });
+    const info = this.renderer?.info;
+    const counters = this.instrumentation.snapshot();
+    return {
+      renderCalls: info?.render.calls ?? 0,
+      triangles: info?.render.triangles ?? 0,
+      geometries: info?.memory.geometries ?? 0,
+      textures: info?.memory.textures ?? 0,
+      renderedBlocks: this.renderedBlocks.size,
+      renderedDecorations: this.renderedDecorations.size,
+      object3dCount,
+      meshCount,
+      instanceMeshCount: counters.instancedMeshCount,
+      instanceMembers: counters.instancedMembers,
+      hydrationQueue: this.hydrationQueue.length + this.decorationHydrationQueue.length,
+      hydrationRunning: this.hydrationRunning,
+      frameDurationMs: this.frameDurationMs,
+      approximateFps: this.frameDurationMs > 0 ? 1000 / this.frameDurationMs : 0,
+    };
+  }
+
+  hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
+
+  onHydrationProgress(listener: (progress: ViewportHydrationProgress) => void): () => void {
+    this.hydrationProgressListeners.add(listener);
+    listener(this.hydrationProgressState);
+    return () => this.hydrationProgressListeners.delete(listener);
   }
 
   private setEditingPlane(y: number | undefined, project: ProjectDocument | undefined): void {
@@ -1000,11 +1199,19 @@ export class ThreeViewportEngine {
     this.render();
   }
 
-  private render(): void { if (this.renderer) { this.renderer.render(this.scene, this.camera); this.renderCount++; } }
+  private render(): void {
+    if (!this.renderer) return;
+    const now = performance.now();
+    if (this.lastRenderTimestamp > 0) this.frameDurationMs = this.frameDurationMs === 0 ? now - this.lastRenderTimestamp : this.frameDurationMs * .8 + (now - this.lastRenderTimestamp) * .2;
+    this.lastRenderTimestamp = now;
+    this.renderer.render(this.scene, this.camera);
+    this.renderCount++;
+  }
 
   private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedActions, delta); if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
   private moveCamera(keys: ReadonlySet<KeyboardAction>, delta: number): void {
     if (!this.controls || !keys.size) return;
+    this.cameraInteractingUntil = performance.now() + 180;
     const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
     if (!direction.lengthSq()) return;
     this.camera.position.add(direction); this.controls.target.add(direction); this.controls.update();
@@ -1089,6 +1296,14 @@ export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Cam
 }
 function isTextInput(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT' || element.isContentEditable); }
 function isDialogTarget(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.matches('[role="dialog"]') || element.closest('[role="dialog"]') !== null); }
+function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
+  const direct = hit.object.userData['voxel'] as VoxelCoordinate | undefined;
+  if (direct) return direct;
+  const instanceId = hit.instanceId;
+  if (instanceId === undefined) return undefined;
+  return (hit.object.userData['instanceVoxels'] as VoxelCoordinate[] | undefined)?.[instanceId];
+}
+function chunkKey(position: VoxelCoordinate): string { return `${Math.floor(position.x / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.y / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.z / VIEWPORT_INSTANCE_CHUNK_SIZE)}`; }
 function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
 
 export function applyBlockTheme(root: THREE.Object3D, palette: ViewportThemePalette): void {

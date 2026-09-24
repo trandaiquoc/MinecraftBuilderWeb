@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { ThreeViewportEngine, VIEWPORT_VISUAL_CONCURRENCY, cameraMovementDelta, cameraMovementDirection, translateVisualToVoxel } from './three-viewport-engine';
+import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, cameraMovementDelta, cameraMovementDirection, translateVisualToVoxel } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import type { BlockVisualProvider } from '../geometry/block-model-geometry';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 
 describe('camera movement input contract', () => {
@@ -119,6 +119,69 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('reports actual hydration completion and does not let an old generation update it', async () => {
+    const pending: Array<(value: unknown) => void> = [];
+    const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 20) };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await Promise.resolve();
+    const firstGeneration = engine.hydrationProgress().generation;
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'hydrating', total: 21, blocksTotal: 20, decorationsTotal: 1 });
+    const replacement = { ...project, blocks: project.blocks.slice(0, 1) };
+    engine.update(replacement, undefined);
+    const secondGeneration = engine.hydrationProgress().generation;
+    expect(secondGeneration).toBeGreaterThan(firstGeneration);
+    for (const resolve of pending) resolve({ object: undefined, resolved: { diagnostics: [], support: 'fallback' }, mode: 'fallback', diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } });
+    await settleHydration();
+    expect(engine.hydrationProgress().generation).toBe(secondGeneration);
+    expect(engine.hydrationProgress().blocksCompleted).toBeLessThanOrEqual(1);
+    engine.dispose();
+  });
+
+  it('reaches exactly 100 percent when every fallback visual is finalized', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update({ ...base, blocks: base.blocks.slice(0, 20), decorations: [] }, undefined);
+    await settleHydration();
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', completed: 20, total: 20, blocksCompleted: 20, percent: 100 });
+    engine.dispose();
+  });
+
+  it('collapses repeated opaque full cubes into a chunked instance group', async () => {
+    const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
+    sharedGeometry.userData['providerOwnedGeometry'] = true;
+    const provider = {
+      create: vi.fn(async () => { const object = new THREE.Group(); object.add(new THREE.Mesh(sharedGeometry, new THREE.MeshLambertMaterial({ color: 0x8a94a6 }))); return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }),
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const blocks = Array.from({ length: VIEWPORT_INSTANCE_THRESHOLD + 44 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 20, y: Math.floor(index / 20), z: 0 } }));
+    const project = { ...base, size: { x: 20, y: 20, z: 1 }, blocks };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await settleHydration();
+    const counters = engine.rendererCounters();
+    expect(counters.instancedBatchCreations).toBeGreaterThan(0);
+    expect(counters.instancedMembers).toBe(blocks.length);
+    expect(counters.instancedMeshCount).toBeLessThanOrEqual(2);
+    const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
+    const instances = blocksGroup.children.filter((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh);
+    expect(instances.reduce((total, instance) => total + (instance.userData['instanceVoxels'] as VoxelCoordinate[]).length, 0)).toBe(blocks.length);
+    const edited = { ...project, blocks: blocks.slice(0, -1) };
+    engine.update(edited, undefined);
+    await settleHydration();
+    expect(engine.rendererCounters().instancedMembers).toBe(blocks.length - 1);
+    expect(engine.rendererCounters().instancedBlockRemovals).toBeGreaterThan(0);
+    engine.dispose();
+    sharedGeometry.dispose();
+  });
+
   it('replaces a missing-block fallback when the project block resolves', async () => {
     const provider = { create: vi.fn(async () => ({ object: new THREE.Group(), resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const base = rendererBenchmarkProject('small');
@@ -177,3 +240,10 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 });
+
+async function settleHydration(): Promise<void> {
+  for (let index = 0; index < 20; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+  }
+}

@@ -27,6 +27,13 @@ describe('translation dictionaries', () => {
     expect(supplementalTranslations.vi.structureJsonReasonUnsupportedStateValue).toContain('Giá trị');
   });
 
+  it('provides localized viewport hydration labels', () => {
+    expect(supplementalTranslations.en.viewportHydrationBuilding).toBe('Building JSON structure');
+    expect(supplementalTranslations.en.viewportHydrationReady).toBe('Structure ready');
+    expect(supplementalTranslations.vi.viewportHydrationBuilding).toBe('Đang dựng cấu trúc JSON');
+    expect(supplementalTranslations.vi.viewportHydrationReady).toBe('Cấu trúc đã sẵn sàng');
+  });
+
   it('uses project backup terminology consistently in both locales', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('en');

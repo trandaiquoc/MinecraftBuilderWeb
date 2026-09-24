@@ -22,6 +22,11 @@ export interface RendererCounters {
   readonly hydrationBatches: number;
   readonly maxPendingVisualJobs: number;
   readonly coalescedRenderRequests: number;
+  readonly instancedBatchCreations: number;
+  readonly instancedBlockAdds: number;
+  readonly instancedBlockRemovals: number;
+  readonly instancedMeshCount: number;
+  readonly instancedMembers: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -48,6 +53,11 @@ const EMPTY_COUNTERS: RendererCounters = {
   hydrationBatches: 0,
   maxPendingVisualJobs: 0,
   coalescedRenderRequests: 0,
+  instancedBatchCreations: 0,
+  instancedBlockAdds: 0,
+  instancedBlockRemovals: 0,
+  instancedMeshCount: 0,
+  instancedMembers: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

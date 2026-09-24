@@ -10,7 +10,7 @@ import { CameraStateService } from '../../../../core/editor/camera/camera-state.
 import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/selection/selection';
-import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
+import { ThreeViewportEngine, ViewportHydrationProgress } from '../../../../core/renderer/engine/three-viewport-engine';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -28,8 +28,9 @@ import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-b
 import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
+import { ViewportHydrationHudComponent } from '../../../../shared/ui/viewport-hydration-hud/viewport-hydration-hud.component';
 
-@Component({ selector: 'app-viewport', templateUrl: './viewport.component.html', styleUrl: './viewport.component.scss' })
+@Component({ selector: 'app-viewport', imports: [ViewportHydrationHudComponent], templateUrl: './viewport.component.html', styleUrl: './viewport.component.scss' })
 export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly workspace = inject(WorkspaceStateService);
@@ -53,6 +54,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
+  protected readonly hydrationProgress = signal<ViewportHydrationProgress>(this.engine.hydrationProgress());
+  private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationProgress.set(progress));
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
   private boxCornerStart?: import('../../../../core/domain/project.types').VoxelCoordinate;
@@ -63,7 +66,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); this.engine.mount(this.host().nativeElement); this.engine.restoreCamera(this.cameraState.get('3d')); this.engine.update(this.workspace.project(), this.active.active(), { selected: this.selection.single(), selectedPositions: this.selection.logicalPositions(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state); this.hydrationProgressUnsubscribe(); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   focusSelection(): void {

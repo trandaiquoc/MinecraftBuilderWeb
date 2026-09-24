@@ -4,18 +4,20 @@ import * as THREE from 'three';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { VanillaBlockVisualProvider } from '../geometry/block-model-geometry';
 
-export type RendererBenchmarkSize = 'small' | 'medium' | 'large';
+export type RendererBenchmarkSize = 'small' | 'medium' | 'large' | 'stress';
 
 const SIZES: Readonly<Record<RendererBenchmarkSize, ProjectSize>> = {
   small: { x: 16, y: 16, z: 16 },
   medium: { x: 32, y: 16, z: 32 },
   large: { x: 64, y: 16, z: 64 },
+  stress: { x: 64, y: 5, z: 64 },
 };
 
 const COUNTS: Readonly<Record<RendererBenchmarkSize, number>> = {
   small: 256,
   medium: 2048,
   large: 8192,
+  stress: 20000,
 };
 
 export function rendererBenchmarkProject(size: RendererBenchmarkSize): ProjectDocument {
@@ -56,6 +58,9 @@ export function benchmarkBlock(index: number, position: VoxelCoordinate): Placed
 export function rendererBenchmarkVisualProvider(): VanillaBlockVisualProvider {
   const json = {
     'assets/minecraft/blockstates/stone.json': { variants: { '': { model: 'minecraft:block/stone' } } },
+    'assets/minecraft/blockstates/oak_stairs.json': { variants: { '': { model: 'minecraft:block/stone' } } },
+    'assets/minecraft/blockstates/oak_fence.json': { variants: { '': { model: 'minecraft:block/stone' } } },
+    'assets/minecraft/blockstates/glass.json': { variants: { '': { model: 'minecraft:block/stone' } } },
     'assets/minecraft/models/block/stone.json': { parent: 'minecraft:block/cube_all', textures: { all: 'minecraft:block/stone' } },
     'assets/minecraft/models/block/cube_all.json': { parent: 'block/cube', textures: { down: '#all', up: '#all', north: '#all', south: '#all', west: '#all', east: '#all' } },
     'assets/minecraft/models/block/cube.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: `#${direction}` }])) }] },

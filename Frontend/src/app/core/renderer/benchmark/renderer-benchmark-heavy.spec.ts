@@ -41,6 +41,27 @@ describe('explicit renderer benchmark', () => {
       engine.dispose();
     }
   });
+
+  it('records steady-state evidence for the 20k fixture when explicitly requested', { timeout: 15000 }, async () => {
+    const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['RENDERER_BENCHMARK'] === '1';
+    if (!benchmarkEnabled) return;
+    const project = rendererBenchmarkProject('stress');
+    const diagnostics = new RendererDiagnostics();
+    const engine = new ThreeViewportEngine(diagnostics);
+    const provider = rendererBenchmarkVisualProvider();
+    engine.setVisualProvider(provider);
+    const started = Date.now();
+    engine.update(project, undefined);
+    await settleRendererPromises(300);
+    const evidence = engine.performanceEvidence();
+    const counters = diagnostics.snapshot();
+    expect(evidence.renderedBlocks).toBe(project.blocks.length);
+    expect(counters.instancedMembers).toBeGreaterThan(0);
+    expect(evidence.meshCount).toBeLessThan(project.blocks.length / 100);
+    console.info(`[renderer benchmark] stress blocks=${evidence.renderedBlocks} calls=${evidence.renderCalls} triangles=${evidence.triangles} geometries=${evidence.geometries} textures=${evidence.textures} object3d=${evidence.object3dCount} meshes=${evidence.meshCount} instances=${evidence.instanceMembers} instanceMeshes=${evidence.instanceMeshCount} queue=${evidence.hydrationQueue} running=${evidence.hydrationRunning} frameMs=${evidence.frameDurationMs.toFixed(2)} fps=${evidence.approximateFps.toFixed(1)} elapsedMs=${Date.now() - started}`);
+    provider.dispose();
+    engine.dispose();
+  });
 });
 
-async function settleRendererPromises(): Promise<void> { await new Promise((resolve) => setTimeout(resolve, 0)); await Promise.resolve(); }
+async function settleRendererPromises(rounds = 1): Promise<void> { for (let index = 0; index < rounds; index += 1) { await new Promise((resolve) => setTimeout(resolve, 0)); await Promise.resolve(); } }
