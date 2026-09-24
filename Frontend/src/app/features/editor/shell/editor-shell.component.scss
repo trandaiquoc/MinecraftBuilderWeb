@@ -113,8 +113,10 @@
   left: 0;
   z-index: 20;
   display: grid;
+  width: max-content;
   min-width: 170px;
-  max-width: min(260px, calc(100vw - 1rem));
+  max-width: min(42rem, calc(100vw - 1rem));
+  box-sizing: border-box;
   gap: 0;
   padding: 0.35rem;
   border: 1px solid var(--border-strong);
@@ -128,6 +130,9 @@
   right: 0;
 }
 .menu-popover button {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   text-align: left;
   white-space: nowrap;
 }
@@ -148,6 +153,10 @@
   font-size: 0.7rem;
 }
 .settings-popover strong:first-of-type { margin-top: 0; }
+@media (max-width: 520px) {
+  .menu-popover { width: min(max-content, calc(100vw - 1rem)); }
+  .menu-popover button { white-space: normal; overflow-wrap: anywhere; }
+}
 .camera-actions {
   position: relative;
 }

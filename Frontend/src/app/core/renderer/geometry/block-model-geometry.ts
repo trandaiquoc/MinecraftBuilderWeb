@@ -376,6 +376,16 @@ export function itemVisualResource(provider: Pick<RenderableAssetResourceProvide
   return model ? visit(model) : undefined;
 }
 
+/** Returns the ordered texture layers supported by the shared item resolver.
+ * Block-model items intentionally return the existing single-texture fallback;
+ * runtime-only item models remain unresolved instead of being guessed. */
+export function itemVisualTextureResources(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, itemId: string): readonly string[] {
+  const visual = resolveItemVisual(provider, itemId);
+  if (visual.kind === 'generated-layers' && visual.layers.length) return visual.layers;
+  const fallback = itemVisualResource(provider, itemId);
+  return fallback ? [fallback] : [];
+}
+
 /** Resolves the supported, data-driven inventory model contract without
  * pretending that custom runtime selectors are renderable. */
 export function resolveItemVisual(provider: Pick<RenderableAssetResourceProvider, 'readJson'>, itemId: string): ResolvedItemVisual {

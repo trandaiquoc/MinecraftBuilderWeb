@@ -27,7 +27,7 @@ export function createDecorationVisual(
   textureUrl?: (resource: string) => string | undefined,
   cache?: DecorationTextureCache,
   paintingResource?: (variantId: string) => string | undefined,
-  itemResource?: (itemId: string) => string | undefined,
+  itemResources?: (itemId: string) => readonly string[],
 ): THREE.Group {
   const root = new THREE.Group();
   const localCache = cache ?? (textureUrl ? new DecorationTextureCache(textureUrl) : undefined);
@@ -47,25 +47,25 @@ export function createDecorationVisual(
     const itemId = decoration.item.id;
     const [namespace, ...pathParts] = itemId.split(':');
     const itemPath = pathParts.join(':');
-    const itemResourceId = itemResource?.(itemId) ?? `${namespace}:item/${itemPath}`;
-    const itemUrl = textureUrl
-      ? (textureUrl(itemResourceId) ?? textureUrl(`${namespace}:block/${itemPath}`))
-      : undefined;
-    const itemTexture = localCache?.getUrl(itemUrl);
-    const item = new THREE.Mesh(new THREE.PlaneGeometry(.42, .42), new THREE.MeshLambertMaterial({ color: itemTexture ? 0xffffff : 0x8e8e8e, map: itemTexture, transparent: true, side: THREE.DoubleSide }));
     const d = directionVector(decoration.facing);
-    // Keep the displayed item on the front surface of the frame. The previous
-    // half-block offset put it well outside the frame and made imported items
-    // appear absent from the decoration.
-    const normalOffset = decoration.invisible ? .02 : .04;
-    item.position.set(mesh.position.x - d.x * normalOffset, mesh.position.y - d.y * normalOffset, mesh.position.z - d.z * normalOffset);
-    if (decoration.facing === 'east' || decoration.facing === 'west') item.rotation.y = Math.PI / 2;
-    else if (decoration.facing === 'up') item.rotation.x = Math.PI / 2;
-    else if (decoration.facing === 'down') item.rotation.x = -Math.PI / 2;
-    item.rotation.z = (decoration.rotation ?? 0) * Math.PI / 4;
-    item.userData['decorationInstanceId'] = decoration.instanceId;
-    item.userData['decorationItem'] = decoration.item;
-    root.add(item);
+    const resolvedResources = itemResources?.(itemId);
+    const resources = resolvedResources?.length ? resolvedResources : [`${namespace}:item/${itemPath}`];
+    const frontOffset = Math.max(size.x * Math.abs(d.x), size.y * Math.abs(d.y), size.z * Math.abs(d.z)) / 2 + .008;
+    resources.forEach((resource, layerIndex) => {
+      const itemUrl = textureUrl?.(resource);
+      const itemTexture = localCache?.getUrl(itemUrl);
+      const item = new THREE.Mesh(new THREE.PlaneGeometry(.42, .42), new THREE.MeshLambertMaterial({ color: itemTexture ? 0xffffff : 0x8e8e8e, map: itemTexture, transparent: true, side: THREE.DoubleSide }));
+      const layerOffset = frontOffset + layerIndex * .001;
+      item.position.set(mesh.position.x + d.x * layerOffset, mesh.position.y + d.y * layerOffset, mesh.position.z + d.z * layerOffset);
+      if (decoration.facing === 'east' || decoration.facing === 'west') item.rotation.y = Math.PI / 2;
+      else if (decoration.facing === 'up') item.rotation.x = Math.PI / 2;
+      else if (decoration.facing === 'down') item.rotation.x = -Math.PI / 2;
+      item.rotation.z = (decoration.rotation ?? 0) * Math.PI / 4;
+      item.userData['decorationInstanceId'] = decoration.instanceId;
+      item.userData['decorationItem'] = decoration.item;
+      item.userData['decorationItemLayer'] = layerIndex;
+      root.add(item);
+    });
   }
   if (decoration.invisible) {
     const proxy = new THREE.Mesh(mesh.geometry.clone(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));

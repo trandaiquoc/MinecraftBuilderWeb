@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../../blocks/resolver';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
-import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, itemVisualResource, resolveItemVisual, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
+import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, itemVisualResource, itemVisualTextureResources, resolveItemVisual, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
 import { applyBlockTheme } from '../engine/three-viewport-engine';
 import { viewportThemePalette } from '../engine/viewport-theme';
 import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
@@ -81,6 +81,7 @@ describe('block model geometry', () => {
       'assets/example/models/item/berry.json': { parent: 'minecraft:item/generated', textures: { layer0: 'example:item/berry', layer1: 'example:item/shine' } },
     };
     expect(resolveItemVisual({ readJson: (path) => resources[path] }, 'example:berry')).toMatchObject({ kind: 'generated-layers', layers: ['example:item/berry', 'example:item/shine'] });
+    expect(itemVisualTextureResources({ readJson: (path) => resources[path] }, 'example:berry')).toEqual(['example:item/berry', 'example:item/shine']);
   });
   it('fails closed for conditional item models', () => {
     const resources: Record<string, unknown> = { 'assets/example/items/widget.json': { model: { type: 'minecraft:condition', property: 'minecraft:using_item' } } };
