@@ -43,6 +43,10 @@ import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
 
+export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
+  return decorationSelected || logicalCount > 0 || boxSelected;
+}
+
 @Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
@@ -72,6 +76,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly selectedDecoration = this.decorations.selected;
   protected readonly presets: readonly CameraPreset[] = ['perspective', 'top', 'front', 'back', 'left', 'right'];
   protected readonly logicalSelectionCount = computed(() => this.selection.logicalPositions().length);
+  protected readonly hasEditorSelection = computed(() => hasEditorSelectionState(!!this.selectedDecoration(), this.logicalSelectionCount(), !!this.selection.box()));
   protected readonly focusSelectionAvailable = computed(() => !!this.selectedDecoration() || !!this.selection.single() || !!this.selection.box() || this.logicalSelectionCount() > 0);
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
   protected readonly activeMenu = signal<'file' | 'edit' | 'view' | 'tools' | 'settings' | 'help' | undefined>(undefined);
@@ -264,11 +269,16 @@ export class EditorShellComponent implements OnDestroy {
   protected closeStructureJsonExport(): void { this.structureJsonExportOpen.set(false); }
   protected showControlsHelp(): void { this.closeMenus(); this.controlsHelpOpen.set(true); }
   protected showAbout(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('about'), this.i18n.t('aboutText')); }
-  protected clearSelection(): void { this.selection.clear(); this.closeMenus(); }
+  protected clearSelection(): void { this.selection.clear(); this.decorations.clearSelection(); this.closeMenus(); }
   protected selectAll(): void { const project = this.workspace.project(); if (project) this.selection.selectAll(project, (id) => this.library.get(id)); this.closeMenus(); }
   protected undoEdit(): void { this.history.undo(); this.closeMenus(); }
   protected redoEdit(): void { this.history.redo(); this.closeMenus(); }
-  protected deleteSelection(): void { this.editor.deleteSelection(); this.closeMenus(); }
+  protected deleteSelection(): boolean {
+    const decoration = this.selectedDecoration();
+    const handled = decoration ? (this.decorations.delete(decoration.instanceId), true) : this.editor.deleteSelection();
+    this.closeMenus();
+    return handled;
+  }
   protected effectiveSidebarWidth(side: 'left' | 'right'): number { return side === 'left' ? this.leftDragWidth() ?? this.layout.preferences().leftSidebarWidth : this.rightDragWidth() ?? this.layout.preferences().rightSidebarWidth; }
   protected beginSidebarResize(side: 'left' | 'right', event: PointerEvent): void {
     if (event.button !== 0) return;
@@ -361,8 +371,12 @@ export class EditorShellComponent implements OnDestroy {
     if (action === 'undo') return this.history.undo();
     if (action === 'redo') return this.history.redo();
     if (action === 'select-all') { const project = this.workspace.project(); if (!project) return false; this.selection.selectAll(project, (id) => this.library.get(id)); return true; }
-    if (action === 'clear-selection') { this.selection.clear(); return true; }
-    if (action === 'delete-selection') return this.editor.deleteSelection();
+    if (action === 'clear-selection') { this.selection.clear(); this.decorations.clearSelection(); return true; }
+    if (action === 'delete-selection') {
+      const decoration = this.selectedDecoration();
+      if (decoration) { this.decorations.delete(decoration.instanceId); return true; }
+      return this.editor.deleteSelection();
+    }
     if (action === 'tool-place') { this.tool.active.set('place'); return true; }
     if (action === 'tool-select') { this.tool.active.set('select'); return true; }
     if (action === 'mode-3d') { this.mode.setMode('3d'); return true; }

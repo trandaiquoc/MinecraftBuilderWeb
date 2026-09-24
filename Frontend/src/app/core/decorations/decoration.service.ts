@@ -16,6 +16,11 @@ export interface ActiveDecoration {
   readonly fixed?: boolean;
 }
 
+export function nextFrameSelection(current: ActiveDecoration | undefined, glow: boolean, fixed: boolean): ActiveDecoration {
+  const item = current?.kind === 'item-frame' || current?.kind === 'glow-item-frame' ? current.item : undefined;
+  return { kind: glow ? 'glow-item-frame' : 'item-frame', fixed, ...(item ? { item } : {}) };
+}
+
 @Injectable({ providedIn: 'root' })
 export class DecorationService {
   private readonly workspace = inject(WorkspaceStateService);
@@ -33,8 +38,15 @@ export class DecorationService {
 
   selectPainting(variantId = this.lastPaintingVariant): void { if (this.paintingCatalog.get(variantId)) { this.lastPaintingVariant = variantId; this.active.set({ kind: 'painting', variantId }); } this.activeBlock.active.set(undefined); }
   selectRandomPainting(): void { this.active.set({ kind: 'painting' }); this.activeBlock.active.set(undefined); }
-  selectFrame(glow = false, fixed = false): void { this.active.set({ kind: glow ? 'glow-item-frame' : 'item-frame', fixed }); this.activeBlock.active.set(undefined); }
-  selectItem(item: DecorationItemStack): void { const current = this.active(); if (current?.kind !== 'item-frame' && current?.kind !== 'glow-item-frame') return; if (!item.id) { const { item: _item, ...withoutItem } = current; this.active.set(withoutItem); return; } this.active.set({ ...current, item: { ...item, count: 1 } }); }
+  selectFrame(glow = false, fixed = false): void {
+    this.active.set(nextFrameSelection(this.active(), glow, fixed));
+    this.activeBlock.active.set(undefined);
+  }
+  selectItem(item: DecorationItemStack | undefined): void {
+    const current = this.active(); if (current?.kind !== 'item-frame' && current?.kind !== 'glow-item-frame') return;
+    if (!item?.id) { const { item: _item, ...withoutItem } = current; this.active.set(withoutItem); return; }
+    this.active.set({ ...current, item: { ...item, count: 1 } });
+  }
   clearActive(): void { this.active.set(undefined); this.selectedId.set(undefined); }
   planFromSupport(support: VoxelCoordinate, facing: DecorationFacing): DecorationPlacementPlan {
     const project = this.workspace.project(); const active = this.active();

@@ -2,8 +2,11 @@
   <button type="button" cdkOverlayOrigin #dropdownOrigin="cdkOverlayOrigin" class="dropdown-trigger" role="combobox" [attr.aria-label]="ariaLabel || placeholder" [attr.aria-expanded]="open()" [attr.aria-controls]="listId" (click)="toggle()">
     <span class="selected-value">
       @if (selected; as current) {
+        @if (current.thumbnail) { <span class="dropdown-thumbnail" [class.fallback]="!current.thumbnail.urls.length || current.thumbnail.fallback" aria-hidden="true">@for (url of current.thumbnail.urls; track url) { <img [src]="url" alt="" /> }</span> }
+        <span class="selected-copy">
         <strong>{{ current.label }}</strong>
         @if (current.secondary) { <small>{{ current.secondary }}</small> }
+        </span>
       } @else { <span class="placeholder">{{ emptyLabel || placeholder }}</span> }
     </span>
     <span class="caret" aria-hidden="true"><svg lucideChevronDown></svg></span>
@@ -16,8 +19,8 @@
         @if (emptyLabel) { <button type="button" role="option" class="dropdown-option" [class.selected]="!selectedId" [attr.aria-selected]="!selectedId" (click)="select('')">{{ emptyLabel }}</button> }
         @for (option of filteredOptions(); track option.id) {
           <button type="button" role="option" class="dropdown-option" [class.selected]="option.id === selectedId" [class.active-option]="$index === activeIndex()" [attr.aria-selected]="option.id === selectedId" (click)="select(option.id)">
-            <strong>{{ option.label }}</strong>
-            @if (option.secondary) { <small>{{ option.secondary }}</small> }
+            @if (option.thumbnail) { <span class="dropdown-thumbnail" [class.fallback]="!option.thumbnail.urls.length || option.thumbnail.fallback" aria-hidden="true">@for (url of option.thumbnail.urls; track url) { <img [src]="url" alt="" /> }</span> }
+            <span class="dropdown-option-copy"><strong>{{ option.label }}</strong>@if (option.secondary) { <small>{{ option.secondary }}</small> }@if (option.status) { <small class="option-status">{{ option.status }}</small> }</span>
           </button>
         }
         @if (!filteredOptions().length) { <p class="no-results">{{ noResults }}</p> }

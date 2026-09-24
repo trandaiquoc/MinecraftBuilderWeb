@@ -7,14 +7,18 @@ import { PaintingPickerComponent } from '../painting-picker/painting-picker.comp
 import { ContentSourceOption, ContentSourceSelectorComponent } from '../../../../shared/ui/content-source-selector/content-source-selector.component';
 import { ALL_CONTENT_SOURCE, sourceOptions } from '../../../../shared/ui/content-source-selector/content-source-filter';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
+import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
+import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
 
-@Component({ selector: 'app-decoration-browser', imports: [PaintingPickerComponent, ContentSourceSelectorComponent], templateUrl: './decoration-browser.component.html', styleUrl: './decoration-browser.component.scss' })
+@Component({ selector: 'app-decoration-browser', imports: [PaintingPickerComponent, ContentSourceSelectorComponent, ItemStackPickerComponent], templateUrl: './decoration-browser.component.html', styleUrl: './decoration-browser.component.scss' })
 export class DecorationBrowserComponent {
   readonly assetManagerRequested = output<void>();
   protected readonly i18n = inject(I18nService);
   protected readonly decorations = inject(DecorationService);
   private readonly assets = inject(VanillaAssetsService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
+  private readonly itemCatalog = inject(ItemCatalogService);
+  protected readonly itemEntries = computed(() => { this.itemCatalog.generation(); return this.itemCatalog.all(); });
   protected readonly selectedSource = signal<string>(ALL_CONTENT_SOURCE);
   protected readonly sources = computed<readonly ContentSourceOption[]>(() => {
     this.assets.generation();

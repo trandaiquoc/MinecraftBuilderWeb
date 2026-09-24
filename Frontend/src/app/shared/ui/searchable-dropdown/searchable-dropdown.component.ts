@@ -6,6 +6,8 @@ export interface SearchableDropdownOption {
   readonly id: string;
   readonly label: string;
   readonly secondary?: string;
+  readonly thumbnail?: { readonly urls: readonly string[]; readonly alt: string; readonly fallback?: boolean };
+  readonly status?: string;
 }
 
 let nextDropdownId = 0;
@@ -89,7 +91,7 @@ export class SearchableDropdownComponent {
     this.optionSearchIndex.clear(); this.optionById.clear();
     for (const option of this.options) {
       this.optionById.set(option.id, option);
-      this.optionSearchIndex.set(option.id, normalize(`${option.label} ${option.secondary ?? ''} ${option.id}`));
+      this.optionSearchIndex.set(option.id, normalize(`${option.label} ${option.secondary ?? ''} ${option.status ?? ''} ${option.id}`));
     }
   }
 }

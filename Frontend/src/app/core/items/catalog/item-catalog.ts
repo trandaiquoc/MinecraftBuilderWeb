@@ -1,5 +1,16 @@
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 
+export type ItemVisualStatus = 'available' | 'unsupported' | 'missing-resource';
+export type ItemVisualKind = 'generated-layers' | 'block-model' | 'unsupported';
+
+export interface ItemVisualInfo {
+  readonly status: ItemVisualStatus;
+  readonly kind: ItemVisualKind;
+  readonly resourcePaths: readonly string[];
+  readonly previewUrls: readonly string[];
+  readonly diagnostics: readonly string[];
+}
+
 export interface ItemCatalogEntry {
   readonly id: string;
   readonly displayName: string;
@@ -9,6 +20,7 @@ export interface ItemCatalogEntry {
   readonly sourceFormat: CatalogItemEvidence['sourceFormat'];
   readonly referencedModels: readonly string[];
   readonly referencedResources: readonly string[];
+  readonly visual?: ItemVisualInfo;
   readonly explicitBlockPlacement?: { readonly blockId: string };
 }
 
@@ -20,7 +32,7 @@ export class ItemCatalog {
   private orderedEntries: readonly ItemCatalogEntry[] = [];
 
   replaceSource(sourceId: string, entries: readonly ItemCatalogEntry[]): void {
-    this.contributions.set(sourceId, entries.map((entry) => ({ ...entry, referencedModels: [...entry.referencedModels], referencedResources: [...entry.referencedResources] })));
+    this.contributions.set(sourceId, entries.map((entry) => ({ ...entry, referencedModels: [...entry.referencedModels], referencedResources: [...entry.referencedResources], ...(entry.visual ? { visual: { ...entry.visual, resourcePaths: [...entry.visual.resourcePaths], previewUrls: [...entry.visual.previewUrls], diagnostics: [...entry.visual.diagnostics] } } : {}) })));
     this.rebuild();
   }
 

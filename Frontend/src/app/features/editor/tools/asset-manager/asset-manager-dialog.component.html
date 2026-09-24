@@ -549,7 +549,7 @@
                         <button
                           type="button"
                           class="secondary ui-button ui-button--secondary ui-button--sm"
-                          (click)="detailsSourceId.set(mod.sourceId)"
+                          (click)="openDetails(mod.sourceId)"
                         >
                           {{ i18n.t('assetManagerDetails') }}</button
                         ><button
@@ -726,7 +726,7 @@
               <span>{{ i18n.t('assetManagerItems') }}</span
               ><strong>{{
                 compactCount(mod.report.items.indexed, mod.report.items.detected, '')
-              }}</strong>
+              }}</strong><small>{{ itemVisualSummary() }}</small>
             </div>
             <div>
               <span>{{ i18n.t('assetManagerDecorations') }}</span
@@ -740,6 +740,21 @@
             </div>
           </div>
         </section>
+        @if (selectedDetailsItems().length || mod.report.items.indexed > 0) {
+          <section class="details-items">
+            <h3>{{ i18n.t('assetManagerItems') }}</h3>
+            <input type="search" [value]="detailsItemSearch()" [placeholder]="i18n.t('searchItems')" [attr.aria-label]="i18n.t('searchItems')" (input)="setDetailsItemSearch($event)" />
+            <div class="details-item-list">
+              @for (item of selectedDetailsItems(); track item.id) {
+                <div class="details-item-row">
+                  <span class="details-item-thumb" [class.fallback]="!item.visual?.previewUrls?.length">@for (url of item.visual?.previewUrls ?? []; track url) { <img [src]="url" alt="" /> }</span>
+                  <span class="details-item-copy"><strong>{{ item.displayName }}</strong><code>{{ item.id }}</code></span>
+                  <small>{{ itemVisualStatus(item) }}</small>
+                </div>
+              } @empty { <p class="manager-empty">{{ i18n.t('noItemMatches') }}</p> }
+            </div>
+          </section>
+        }
         <section>
           @if (hasProminentDiagnostics(mod.report)) {
             <h3>{{ i18n.t('assetManagerDiagnostics') }}</h3>

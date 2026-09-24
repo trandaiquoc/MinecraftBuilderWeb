@@ -14,6 +14,8 @@
 .decoration-card-copy strong { font-size: .76rem; }
 .decoration-card-copy small { color: var(--text-muted); font-size: .66rem; }
 .decoration-card.active small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
+.frame-item-picker { display: grid; gap: .3rem; min-width: 0; padding-top: .15rem; }
+.frame-item-picker > span { color: var(--text-muted); font-size: .7rem; }
 
 :host-context([data-font='minecraft-style']) .decoration-card-copy strong { font-size: .88rem; line-height: 1.05; font-weight: 400; }
 :host-context([data-font='minecraft-style']) .decoration-card-copy small { font-size: .74rem; line-height: 1.05; }

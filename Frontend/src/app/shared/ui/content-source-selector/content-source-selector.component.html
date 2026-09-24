@@ -8,5 +8,5 @@
     }
   </div>
   <button type="button" class="source-scroll source-scroll--right" [disabled]="!canScrollRight()" [attr.aria-label]="i18n.t('nextSource')" (click)="scrollSources('right')"><svg lucideChevronRight aria-hidden="true"></svg></button>
-  <button type="button" class="source-manage" uiTooltip="{{ manageLabel() }}" [attr.aria-label]="manageLabel()" (click)="manageRequested.emit()"><svg lucidePlus aria-hidden="true"></svg></button>
+  @if (manageLabel()) { <button type="button" class="source-manage" uiTooltip="{{ manageLabel() }}" [attr.aria-label]="manageLabel()" (click)="manageRequested.emit()"><svg lucidePlus aria-hidden="true"></svg></button> }
 </div>

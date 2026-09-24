@@ -20,6 +20,19 @@ describe('ItemStackPickerComponent', () => {
     const fixture = TestBed.createComponent(ItemStackPickerComponent);
     fixture.componentRef.setInput('selectedStack', { id: 'example:gem', count: 2, components: { custom: true } });
     fixture.detectChanges();
-    expect(fixture.componentInstance['options']()).toContainEqual({ id: 'example:gem', label: 'example:gem', secondary: 'Unavailable' });
+    expect(fixture.componentInstance['options']()).toContainEqual({ id: 'example:gem', label: 'example:gem', secondary: 'Unavailable', status: 'Visual unavailable', thumbnail: { urls: [], alt: 'example:gem', fallback: true } });
+  });
+
+  it('exposes thumbnails, visual status and source filtering for item entries', async () => {
+    await TestBed.configureTestingModule({ imports: [ItemStackPickerComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(ItemStackPickerComponent);
+    fixture.componentRef.setInput('entries', [
+      { id: 'minecraft:stone', displayName: 'Stone', namespace: 'minecraft', sourceId: 'vanilla', sourceName: 'Minecraft', sourceFormat: 'authoritative-registry', referencedModels: [], referencedResources: [], visual: { status: 'available', kind: 'generated-layers', resourcePaths: ['minecraft:item/stone'], previewUrls: ['stone.png'], diagnostics: [] } },
+      { id: 'example:gem', displayName: 'Gem', namespace: 'example', sourceId: 'example', sourceName: 'Example Mod', sourceFormat: 'modern-item-definition', referencedModels: [], referencedResources: [], visual: { status: 'unsupported', kind: 'unsupported', resourcePaths: [], previewUrls: [], diagnostics: ['runtime'] } },
+    ]);
+    fixture.detectChanges();
+    expect(fixture.componentInstance['options']()[0]?.thumbnail?.urls).toEqual(['stone.png']);
+    fixture.componentInstance['selectSource']('example');
+    expect(fixture.componentInstance['options']().map((option) => option.id)).toEqual(['example:gem']);
   });
 });

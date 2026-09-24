@@ -1,3 +1,4 @@
+@if (sourceOptions().length) { <app-content-source-selector [sources]="sourceOptions()" [selectedId]="sourceFilter()" [label]="sourceLabel" [manageLabel]="''" (selectionChange)="selectSource($event)" /> }
 <app-searchable-dropdown
   [options]="options()"
   [selectedId]="selectedStack?.id ?? ''"

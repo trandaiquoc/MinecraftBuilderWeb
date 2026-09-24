@@ -11,6 +11,11 @@
         [ariaLabel]="i18n.t('itemSlot') + ' ' + (slot.slot + 1)"
         [closeLabel]="i18n.t('cancel')"
         [noResults]="i18n.t('noMatches')"
+        [sourceLabel]="i18n.t('contentSource')"
+        [allSourcesLabel]="i18n.t('allSources')"
+        [visualAvailableLabel]="i18n.t('itemVisualRenderable')"
+        [visualUnsupportedLabel]="i18n.t('itemVisualUnsupported')"
+        [visualMissingLabel]="i18n.t('itemVisualMissing')"
         (stackChange)="setSlot(slot.slot, $event)" />
     </label>
   }
