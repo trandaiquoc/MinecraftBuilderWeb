@@ -1,3 +1,4 @@
+import { computed } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 import { PaintingVariantCatalogService } from './painting-variant-catalog.service';
 import { PaintingVariantCatalog } from './painting-catalog';
@@ -21,5 +22,13 @@ describe('PaintingVariantCatalogService', () => {
       readJson: () => ({ width: 1, height: 1, asset_id: 'example:gallery/poster' }),
     }, 'example-source', 'Example');
     expect(catalog.get('example:gallery')).toMatchObject({ assetPath: 'example:painting/gallery/poster' });
+  });
+
+  it('makes painting lookups reactive for renderer refreshes', () => {
+    const catalog = new PaintingVariantCatalogService();
+    const assetPath = computed(() => catalog.get('example:poster')?.assetPath);
+    expect(assetPath()).toBeUndefined();
+    catalog.replaceSource('example-paintings', [{ id: 'example:poster', width: 1, height: 1, assetPath: 'example:painting/poster', sourceId: 'example-paintings' }]);
+    expect(assetPath()).toBe('example:painting/poster');
   });
 });

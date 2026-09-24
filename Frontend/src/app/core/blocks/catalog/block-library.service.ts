@@ -17,6 +17,7 @@ export class BlockLibraryService {
   private readonly itemByBlockId = new Map<string, PlaceableItemDefinition>();
   private readonly itemsBySource = new Map<string, readonly PlaceableItemDefinition[]>();
   private readonly revision = signal(0);
+  readonly catalogRevision = this.revision.asReadonly();
   readonly query = signal('');
   readonly results = computed<readonly PlaceableItemDefinition[]>(() => { this.revision(); return placementItemSearch(this.items, this.query()); });
   readonly allPlaceableItems = computed<readonly PlaceableItemDefinition[]>(() => { this.revision(); return this.items; });

@@ -6,6 +6,7 @@ import { StructureJsonDecorationV2, StructureJsonDocument, parseStructureJson, S
 import type { ParsedStructureJsonResult } from './structure-json';
 import { decorationAabb, decorationInBounds, decorationOverlaps, paintingSupportFootprint, supportsDecoration } from '../../decorations/placement/decoration-placement';
 import { allPaintingVariants, paintingVariant } from '../../decorations/decoration.types';
+import { materializeBlockState } from '../../blocks/catalog/block-state-compatibility';
 
 export type StructureJsonIssueCategory = 'missing' | 'bounds' | 'state' | 'duplicate';
 export type StructureJsonIssueReason =
@@ -159,14 +160,9 @@ function validateParsedStructureJsonPreviewBase(value: StructureJsonDocument, si
 }
 
 function findInvalidState(block: StructureJsonBlockV1, definition: BlockDefinition): { readonly property: string; readonly value: string; readonly reason: StructureJsonIssueReason } | undefined {
-  const state = { ...definition.defaultState, ...(block.state ?? {}) };
-  for (const property of Object.keys(block.state ?? {})) {
-    const stateDefinition = definition.stateDefinitions.find((entry) => entry.name === property);
-    if (!stateDefinition) return { property, value: block.state?.[property] ?? '', reason: { code: 'unknown-state-property', property } };
-    if (!stateDefinition.values.includes(state[property])) return { property, value: state[property], reason: { code: 'unsupported-state-value', property, value: state[property] } };
-  }
-  for (const definitionEntry of definition.stateDefinitions) if (state[definitionEntry.name] !== undefined && !definitionEntry.values.includes(state[definitionEntry.name])) return { property: definitionEntry.name, value: state[definitionEntry.name], reason: { code: 'unsupported-state-value', property: definitionEntry.name, value: state[definitionEntry.name] } };
-  return undefined;
+  const result = materializeBlockState(definition, block.state);
+  if (result.valid) return undefined;
+  return { property: result.issue.property, value: result.issue.value, reason: result.issue.code === 'unknown-state-property' ? { code: result.issue.code, property: result.issue.property } : { code: result.issue.code, property: result.issue.property, value: result.issue.value } };
 }
 
 function issue(category: StructureJsonIssueCategory, index: number, block: StructureJsonBlockV1, reason: StructureJsonIssueReason): StructureJsonBlockIssue { return { category, index, id: block.id, position: { x: block.x, y: block.y, z: block.z }, reason }; }

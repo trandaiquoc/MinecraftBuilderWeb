@@ -1725,3 +1725,19 @@ V1 Replace imports preserve decorations already in the project, while v2
 Replace/merge/new-group apply decoration validation and group membership
 atomically with blocks. Group visibility, lock, deletion, and move previews
 therefore include grouped decorations as well.
+
+## Prompt 14F Missing Block reconciliation
+
+- `BlockLibraryService.catalogRevision` is a read-only signal that advances when
+  an active content source is replaced or removed.
+- Missing project blocks are reconciled automatically when a matching definition
+  becomes available or when a project is activated. Reconciliation materializes
+  only compatible stored state, preserves block identity/metadata, and does not
+  create a user history entry or change `metadata.updatedAt`.
+- Structure JSON validation and reconciliation share one pure BlockState
+  compatibility/materialization helper. Incompatible Missing blocks remain
+  unchanged; resolved blocks are never downgraded when a source is removed.
+- Reconciliation is cooperative for large Missing-block lists and discards stale
+  results when the active project or catalog changes. Painting catalog reads are
+  reactive so newly available variants refresh existing decoration visuals without
+  rewriting the project document.

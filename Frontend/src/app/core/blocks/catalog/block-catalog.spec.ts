@@ -92,6 +92,15 @@ describe('BlockCatalog', () => {
     expect(active.active()).toBeUndefined();
   });
 
+  it('exposes a read-only revision for source availability changes', () => {
+    const library = new BlockLibraryService(new ActiveBlockService());
+    const initial = library.catalogRevision();
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'revision-source', sourceName: 'Revision Source', blocks: [{ id: 'revision:block', displayName: 'Block', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', sourceId: 'revision-source' }] });
+    expect(library.catalogRevision()).toBe(initial + 1);
+    library.removeSource('revision-source');
+    expect(library.catalogRevision()).toBe(initial + 2);
+  });
+
   it('passes independent target item evidence into the placeable library', () => {
     const library = new BlockLibraryService(new ActiveBlockService());
     library.replaceSource({
