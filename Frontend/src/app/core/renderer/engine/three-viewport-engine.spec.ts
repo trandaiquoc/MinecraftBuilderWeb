@@ -43,6 +43,13 @@ describe('camera movement input contract', () => {
     expect(combined.z).toBeCloseTo(horizontal.z);
   });
 
+  it('keeps camera movement pure with respect to the project document', () => {
+    const project = rendererBenchmarkProject('small');
+    const before = JSON.stringify(project);
+    for (const key of ['KeyW', 'KeyA', 'KeyS', 'KeyD']) cameraMovementDelta(new Set([key]), camera, 9, 9, 1);
+    expect(JSON.stringify(project)).toBe(before);
+  });
+
   it('resolves every instanced hit from the authoritative instance voxel table', () => {
     const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 3);
     const voxels = [{ x: 2, y: 0, z: 0 }, { x: 7, y: 1, z: 0 }, { x: 9, y: 2, z: 3 }];
@@ -201,6 +208,41 @@ describe('camera movement input contract', () => {
     }
     engine.dispose();
     sharedGeometry.dispose();
+  });
+
+  it('flushes expanded bounds when progressive hydration adds an instance outside the initial bounds', async () => {
+    const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
+    sharedGeometry.userData['providerOwnedGeometry'] = true;
+    const provider = {
+      create: vi.fn(async () => { const object = new THREE.Group(); const mesh = new THREE.Mesh(sharedGeometry, new THREE.MeshLambertMaterial({ color: 0x8a94a6 })); mesh.position.set(.5, .5, .5); object.add(mesh); return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }),
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const initialBlocks = Array.from({ length: VIEWPORT_INSTANCE_THRESHOLD + 1 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 16, y: Math.floor(index / 16), z: 0 } }));
+    const initial = { ...base, size: { x: 16, y: 32, z: 16 }, blocks: initialBlocks };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(initial, undefined); await settleHydration();
+    const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
+    const first = blocksGroup.children.find((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)!;
+    const initialMaxZ = first.boundingBox!.max.z;
+    const expanded = { ...initial, blocks: [...initialBlocks, { ...base.blocks[0], position: { x: 0, y: 0, z: 15 } }] };
+    engine.update(expanded, undefined); await settleHydration();
+    const expandedInstance = blocksGroup.children.find((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)!;
+    expect(initialMaxZ).toBeCloseTo(1);
+    expect(expandedInstance.boundingBox!.max.z).toBeCloseTo(16);
+    expect(expandedInstance.boundingSphere!.radius).toBeGreaterThan(0);
+    engine.dispose(); sharedGeometry.dispose();
+  });
+
+  it('does not rebuild structure visuals when only selection options change', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const project = rendererBenchmarkProject('small'); const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider);
+    engine.update(project, undefined, { selectionKind: 'none', selectionCount: 0 }); await settleHydration();
+    const before = engine.rendererCounters();
+    engine.update(project, undefined, { selectionKind: 'all', selectionCount: project.blocks.length, selectionBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 3, y: 1, z: 3 } } }); await settleHydration();
+    const after = engine.rendererCounters();
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.blockVisualCreations).toBe(before.blockVisualCreations);
+    engine.dispose();
   });
 
   it('replaces a missing-block fallback when the project block resolves', async () => {
