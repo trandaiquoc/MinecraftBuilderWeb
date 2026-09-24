@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { ThreeViewportEngine, cameraMovementDelta, cameraMovementDirection, translateVisualToVoxel } from './three-viewport-engine';
+import { ThreeViewportEngine, VIEWPORT_VISUAL_CONCURRENCY, cameraMovementDelta, cameraMovementDirection, translateVisualToVoxel } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import type { BlockVisualProvider } from '../geometry/block-model-geometry';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
@@ -88,6 +88,7 @@ describe('camera movement input contract', () => {
     const base = rendererBenchmarkProject('small');
     const project = { ...base, blocks: [base.blocks[0]] };
     engine.update(project, undefined);
+    await Promise.resolve();
     const replacement = { ...project, blocks: [{ ...project.blocks[0], id: 'minecraft:dirt' }] };
     engine.update(replacement, undefined);
     const stale = new THREE.Group(); stale.userData['stale'] = true;
@@ -95,6 +96,26 @@ describe('camera movement input contract', () => {
     await Promise.resolve();
     const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
     expect(blocksGroup.children.some((child) => child.userData['stale'])).toBe(false);
+    engine.dispose();
+  });
+
+  it('hydrates real visuals with bounded concurrency and shared fallback resources', async () => {
+    const pending: Array<(value: unknown) => void> = [];
+    const create = vi.fn(() => new Promise((resolve) => pending.push(resolve)));
+    const provider = {
+      create,
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(base, undefined);
+    await Promise.resolve();
+    expect(create).toHaveBeenCalledTimes(VIEWPORT_VISUAL_CONCURRENCY);
+    expect(create.mock.calls.length).toBeLessThanOrEqual(VIEWPORT_VISUAL_CONCURRENCY);
+    expect(engine.rendererCounters().fallbackGeometryConstructions).toBe(1);
+    expect(engine.rendererCounters().maxPendingVisualJobs).toBeGreaterThan(0);
+    for (const resolve of pending) resolve({ object: undefined, resolved: { diagnostics: [], support: 'fallback' }, mode: 'fallback', diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } });
     engine.dispose();
   });
 

@@ -7,7 +7,7 @@ import { HistoryService } from '../../../core/editor/history/history.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonDecorationIssue, StructureJsonValidationPreview, validateParsedStructureJsonPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
-import { applyStructureJsonImportPlan, buildStructureJsonImportPlan, StructureJsonImportBlocker, StructureJsonImportMode, StructureJsonImportPlan } from '../../../core/persistence/structure-json/structure-json-import-plan';
+import { buildStructureJsonImportPlan, prepareStructureJsonImportPlan, StructureJsonImportBlocker, StructureJsonImportMode, StructureJsonImportPlan } from '../../../core/persistence/structure-json/structure-json-import-plan';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
@@ -96,7 +96,9 @@ export class StructureJsonImportDialogComponent {
     const confirmed = await this.dialogs.confirm({ title: this.i18n.t('structureJsonApplyImportTitle'), text: this.confirmationText(plan), confirmButtonText: this.i18n.t('structureJsonApplyImport'), cancelButtonText: this.i18n.t('cancel'), icon: plan.mode === 'replace' ? 'warning' : 'question', destructive: plan.mode === 'replace' });
     if (!confirmed) return;
     if (plan.mode === 'replace' && plan.importedBlockCount === 0 && this.project().blocks.length === 0) { this.selection.clear(); this.closed.emit(); return; }
-    const changed = this.history.execute('Import Structure JSON', (current) => applyStructureJsonImportPlan(current, plan, (id) => this.library.get(id), this.i18n.t('structureJsonImportedGroupFallback')));
+    const prepared = prepareStructureJsonImportPlan(this.project(), plan, this.i18n.t('structureJsonImportedGroupFallback'));
+    if (!prepared) { await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
+    const changed = this.history.execute('Import Structure JSON', (current) => current === plan.baseProject ? prepared : undefined);
     if (!changed) { await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
     this.selection.clear();
     this.closed.emit();

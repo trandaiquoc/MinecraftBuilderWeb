@@ -55,7 +55,24 @@ interface RenderedDecorationEntry {
   readonly object: THREE.Object3D;
 }
 
+interface BlockHydrationJob {
+  readonly token: number;
+  readonly key: string;
+  readonly block: ProjectDocument['blocks'][number];
+  readonly role: RenderedBlockEntry['role'];
+  readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
+  readonly options: ViewportRenderOptions;
+}
+interface DecorationHydrationJob {
+  readonly token: number;
+  readonly id: string;
+  readonly decoration: PlacedDecoration;
+  readonly signature: string;
+}
+
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
+export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
+export const VIEWPORT_VISUAL_CONCURRENCY = 6;
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
@@ -80,6 +97,12 @@ export class ThreeViewportEngine {
   private readonly decorationGhostGroup = new THREE.Group();
   private readonly decorationSelectionGroup = new THREE.Group();
   private readonly logicalSelectionGroup = new THREE.Group();
+  private readonly fallbackGeometry = Object.assign(new THREE.BoxGeometry(1, 1, 1), { userData: { sharedFallbackGeometry: true } });
+  private readonly fallbackMaterials = {
+    normal: Object.assign(new THREE.MeshLambertMaterial({ color: 0x8a94a6 }), { userData: { sharedFallbackMaterial: true } }),
+    reference: Object.assign(new THREE.MeshLambertMaterial({ color: 0x9aa5b5, transparent: true }), { userData: { sharedFallbackMaterial: true } }),
+    missing: Object.assign(new THREE.MeshLambertMaterial({ color: 0xff5a67 }), { userData: { sharedFallbackMaterial: true } }),
+  };
   private ghostModel?: THREE.Group;
   private ghostModelKey = '';
   private ghostTarget?: VoxelCoordinate;
@@ -151,6 +174,19 @@ export class ThreeViewportEngine {
   private syncedProject?: ProjectDocument;
   private providerGeneration = 0;
   private providerStats?: VisualCacheStats;
+  private hydrationGeneration = 0;
+  private hydrationQueue: BlockHydrationJob[] = [];
+  private readonly pendingHydrationSignatures = new Map<string, string>();
+  private decorationHydrationQueue: DecorationHydrationJob[] = [];
+  private readonly pendingDecorationSignatures = new Map<string, string>();
+  private hydrationRunning = 0;
+  private hydrationBatchBudget = 0;
+  private hydrationTimer?: ReturnType<typeof setTimeout>;
+  private hydrationScheduled = false;
+  private renderScheduled = false;
+  private renderTimer?: ReturnType<typeof setTimeout>;
+  private fallbackGeometryCounted = false;
+  private readonly fallbackMaterialRoles = new Set<string>();
 
   constructor(readonly instrumentation = new RendererDiagnostics()) {}
 
@@ -213,6 +249,9 @@ export class ThreeViewportEngine {
     applyBlockTheme(this.blocksGroup, palette);
     (this.selectionOutline.material as THREE.LineBasicMaterial).color.setHex(palette.selection);
     (this.selectionBox.material as THREE.LineBasicMaterial).color.setHex(palette.selection);
+    this.fallbackMaterials.normal.color.setHex(palette.block);
+    this.fallbackMaterials.reference.color.setHex(palette.referenceBlock);
+    this.fallbackMaterials.missing.color.setHex(palette.missingBlock);
     this.logicalSelectionGroup.traverse((object) => { if (object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.selection); });
     this.scene.traverse((object) => { if (object.userData['groupHighlight'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(object.userData['groupLocked'] ? palette.lockedGroup : palette.group); });
     this.movePreviewGroup.traverse((object) => { if (object instanceof THREE.Mesh) (object.material as THREE.MeshBasicMaterial).color.setHex(object.userData['previewInvalid'] ? palette.invalid : palette.valid); });
@@ -376,6 +415,7 @@ export class ThreeViewportEngine {
     const persistentInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
     const full = syncKey !== this.structureSyncKey;
     if (persistentInputChanged) {
+      this.cancelHydration();
       this.structureSyncKey = syncKey;
       this.syncedProject = project;
       this.reconcileStructure(project, options, full);
@@ -405,10 +445,15 @@ export class ThreeViewportEngine {
     const visibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     if (full) this.instrumentation.record('fullSceneRebuilds');
     const changed = new Set<string>();
-    for (const [key, entry] of this.renderedBlocks) if (!visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.instrumentation.record('blockRemovals'); }
+    for (const [key, entry] of this.renderedBlocks) if (!visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.pendingHydrationSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
+    for (const key of this.pendingHydrationSignatures.keys()) if (!visibleMap.has(key)) this.pendingHydrationSignatures.delete(key);
     for (const [key, entry] of visibleMap) {
       const current = this.renderedBlocks.get(key);
-      if (full || !current || current.signature !== entry.signature || current.role !== entry.role) changed.add(key);
+      const pendingSignature = this.pendingHydrationSignatures.get(key);
+      if (full || !current || current.signature !== entry.signature || current.role !== entry.role) {
+        if (!current && pendingSignature === entry.signature) continue;
+        changed.add(key);
+      }
     }
     if (!full) for (const key of [...changed]) {
       const position = visibleMap.get(key)?.block.position ?? this.renderedBlocks.get(key)?.block.position;
@@ -419,9 +464,15 @@ export class ThreeViewportEngine {
       const next = visibleMap.get(key); if (!next) continue;
       const previous = this.renderedBlocks.get(key);
       if (previous) { this.removeBlockEntry(key, previous); this.instrumentation.record('blockUpdates'); }
-      else this.instrumentation.record('blockAdds');
-      this.createBlockEntry(next.block, next.role, worldContext, options);
+      else if (this.pendingHydrationSignatures.get(key) === undefined) this.instrumentation.record('blockAdds');
+      this.pendingHydrationSignatures.set(key, next.signature);
+      this.instrumentation.record('blockVisualCreations');
+      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, role: next.role, worldContext, options });
     }
+    this.hydrationQueue.sort((left, right) => (left.role === right.role ? 0 : left.role === 'normal' ? -1 : 1));
+    const previousMax = this.instrumentation.snapshot().maxPendingVisualJobs;
+    if (this.hydrationQueue.length > previousMax) this.instrumentation.record('maxPendingVisualJobs', this.hydrationQueue.length - previousMax);
+    this.scheduleHydrationPump();
     this.reconcileDecorations(project, options, full);
   }
 
@@ -434,13 +485,78 @@ export class ThreeViewportEngine {
     });
   }
 
-  private createBlockEntry(block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions): void {
-    this.instrumentation.record('blockVisualCreations');
-    this.instrumentation.record('fallbackGeometryConstructions');
-    this.instrumentation.record('fallbackMaterialCreations');
+  private scheduleHydrationPump(delay = false): void {
+    if (this.hydrationScheduled || this.disposed) return;
+    this.hydrationScheduled = true;
+    const run = () => { this.hydrationScheduled = false; this.processHydrationBatch(); };
+    if (delay) this.hydrationTimer = setTimeout(run, 0);
+    else queueMicrotask(run);
+  }
+
+  private processHydrationBatch(): void {
+    const token = this.hydrationGeneration;
+    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = VIEWPORT_HYDRATION_BATCH_SIZE;
+    this.instrumentation.record('hydrationBatches');
+    while (this.hydrationRunning < VIEWPORT_VISUAL_CONCURRENCY && this.hydrationQueue.length && this.hydrationBatchBudget > 0) {
+      const job = this.hydrationQueue.shift()!;
+      if (job.token !== token || token !== this.hydrationGeneration) continue;
+      this.pendingHydrationSignatures.delete(job.key);
+      this.hydrationBatchBudget -= 1;
+      this.hydrationRunning += 1;
+      this.createBlockEntry(job.block, job.role, job.worldContext, job.options, () => {
+        this.hydrationRunning = Math.max(0, this.hydrationRunning - 1);
+        this.scheduleHydrationPump(this.hydrationBatchBudget <= 0);
+      });
+    }
+    this.processDecorationBatch(token);
+    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = 0;
+    if ((this.hydrationQueue.length && this.hydrationRunning === 0) || this.decorationHydrationQueue.length) this.scheduleHydrationPump(true);
+  }
+
+  private processDecorationBatch(token: number): void {
+    let processed = 0;
+    while (processed < VIEWPORT_HYDRATION_BATCH_SIZE && this.decorationHydrationQueue.length) {
+      const job = this.decorationHydrationQueue.shift()!;
+      if (job.token !== token || token !== this.hydrationGeneration) continue;
+      this.pendingDecorationSignatures.delete(job.id);
+      this.instrumentation.record('decorationVisualCreations');
+      const visual = createDecorationVisual(job.decoration, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource, this.decorationItemResources, this.decorationItemVisual);
+      visual.userData['decorationInstanceId'] = job.id; visual.userData['decoration'] = job.decoration;
+      visual.traverse((child) => { child.userData['decorationInstanceId'] = job.id; child.userData['decoration'] = job.decoration; });
+      this.decorationsGroup.add(visual);
+      const entry = { id: job.id, decoration: job.decoration, signature: job.signature, object: visual };
+      this.renderedDecorations.set(job.id, entry);
+      this.hydrateDecorationItemPreview(entry);
+      processed += 1;
+    }
+    if (processed > 0) this.scheduleRender();
+  }
+
+  private cancelHydration(): void {
+    this.hydrationGeneration += 1;
+    this.instrumentation.record('hydrationGenerations');
+    if (this.hydrationQueue.length || this.hydrationRunning) this.instrumentation.record('cancelledHydrations');
+    this.hydrationQueue = [];
+    this.decorationHydrationQueue = [];
+    this.hydrationBatchBudget = 0;
+    if (this.hydrationTimer !== undefined) { clearTimeout(this.hydrationTimer); this.hydrationTimer = undefined; }
+  }
+
+  private scheduleRender(): void {
+    if (this.renderScheduled || this.disposed) return;
+    this.renderScheduled = true;
+    this.instrumentation.record('coalescedRenderRequests');
+    this.renderTimer = setTimeout(() => { this.renderScheduled = false; this.renderTimer = undefined; this.render(); }, 0);
+  }
+
+  private createBlockEntry(block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, onComplete?: () => void): void {
+    if (!this.fallbackGeometryCounted) { this.instrumentation.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
+    if (!this.fallbackMaterialRoles.has(role)) { this.instrumentation.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(role); }
     const isReference = role === 'reference';
-    const material = new THREE.MeshLambertMaterial({ color: role === 'missing' ? this.palette.missingBlock : isReference ? this.palette.referenceBlock : this.palette.block, transparent: isReference, opacity: isReference ? options.referenceOpacity ?? .28 : 1 });
-    const fallback = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
+    const material = role === 'missing' ? this.fallbackMaterials.missing : isReference ? this.fallbackMaterials.reference : this.fallbackMaterials.normal;
+    material.transparent = isReference;
+    material.opacity = isReference ? options.referenceOpacity ?? .28 : 1;
+    const fallback = new THREE.Mesh(this.fallbackGeometry, material);
     fallback.position.set(block.position.x + .5, block.position.y + .5, block.position.z + .5);
     fallback.userData['voxel'] = block.position; fallback.userData['renderRole'] = role;
     const entry: RenderedBlockEntry = { key: coordinateKey(block.position), block, signature: `${stableValue(block)}|${role}|${options.referenceOpacity ?? .28}`, role, fallback, revision: 0, object: fallback };
@@ -448,16 +564,19 @@ export class ThreeViewportEngine {
     if (this.visualProvider && block.kind !== 'missing') {
       const generation = this.providerGeneration; const revision = ++entry.revision;
       this.instrumentation.record('modelResolutions');
-      void this.visualProvider.create(block, worldContext).then((visual) => {
+      const provider = this.visualProvider!;
+      let visualPromise: ReturnType<BlockVisualProvider['create']>;
+      try { visualPromise = provider.create(block, worldContext); } catch (error) { visualPromise = Promise.reject(error); }
+      void Promise.resolve(visualPromise).then((visual) => {
         if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
         fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
         if (!visual.object) return;
-        const object = visual.object; translateVisualToVoxel(object, block.position);
+        const object = visual.object; object.userData['realModel'] = true; applyBlockTheme(object, this.palette); translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
         object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = isReference ? options.referenceOpacity ?? .28 : 1; } } });
-        this.blocksGroup.remove(fallback); fallback.geometry.dispose(); (fallback.material as THREE.Material).dispose(); this.blocksGroup.add(object); entry.object = object; this.recordProviderCacheStats(); this.render();
-      }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.render(); });
-    }
+        this.blocksGroup.remove(fallback); this.blocksGroup.add(object); entry.object = object; this.recordProviderCacheStats(); this.scheduleRender();
+      }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
+    } else onComplete?.();
   }
 
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void { entry.revision += 1; if (entry.object.parent === this.blocksGroup) this.blocksGroup.remove(entry.object); if (entry.object !== entry.fallback) disposeObject(entry.object); else disposeObject(entry.fallback); this.renderedBlocks.delete(key); }
@@ -469,20 +588,24 @@ export class ThreeViewportEngine {
     this.providerStats = stats;
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.structureSyncKey = ''; this.syncedProject = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.pendingHydrationSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.syncedProject = undefined; }
 
   private reconcileDecorations(project: ProjectDocument, options: ViewportRenderOptions, full: boolean): void {
     const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (!options.isolatedGroupId || decorationHasGroup(decoration, options.isolatedGroupId)) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
     const map = new Map(visible.map((decoration) => [decoration.instanceId, decoration] as const));
-    for (const [id, entry] of this.renderedDecorations) if (!map.has(id)) { this.removeDecorationEntry(id, entry); this.instrumentation.record('decorationRemovals'); }
+    for (const [id, entry] of this.renderedDecorations) if (!map.has(id)) { this.removeDecorationEntry(id, entry); this.pendingDecorationSignatures.delete(id); this.instrumentation.record('decorationRemovals'); }
+    for (const id of this.pendingDecorationSignatures.keys()) if (!map.has(id)) this.pendingDecorationSignatures.delete(id);
     for (const [id, decoration] of map) {
       const signature = stableValue(decoration); const current = this.renderedDecorations.get(id);
-      if (!full && current?.signature === signature) continue;
-      if (current) { this.removeDecorationEntry(id, current); this.instrumentation.record('decorationUpdates'); } else this.instrumentation.record('decorationAdds');
-      this.instrumentation.record('decorationVisualCreations');
-      const visual = createDecorationVisual(decoration, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource, this.decorationItemResources, this.decorationItemVisual); visual.userData['decorationInstanceId'] = id; visual.userData['decoration'] = decoration; visual.traverse((child) => { child.userData['decorationInstanceId'] = id; child.userData['decoration'] = decoration; });
-      this.decorationsGroup.add(visual); const entry = { id, decoration, signature, object: visual }; this.renderedDecorations.set(id, entry); this.hydrateDecorationItemPreview(entry);
+      const pendingSignature = this.pendingDecorationSignatures.get(id);
+      if ((!full && current?.signature === signature) || (!current && pendingSignature === signature)) continue;
+      if (current) { this.removeDecorationEntry(id, current); this.instrumentation.record('decorationUpdates'); }
+      else if (pendingSignature === undefined) this.instrumentation.record('decorationAdds');
+      else this.instrumentation.record('decorationUpdates');
+      this.pendingDecorationSignatures.set(id, signature);
+      this.decorationHydrationQueue.push({ token: this.hydrationGeneration, id, decoration, signature });
     }
+    this.scheduleHydrationPump();
   }
 
   private removeDecorationEntry(id: string, entry: RenderedDecorationEntry): void { if (entry.object.parent === this.decorationsGroup) this.decorationsGroup.remove(entry.object); disposeObject(entry.object); this.renderedDecorations.delete(id); }
@@ -575,6 +698,8 @@ export class ThreeViewportEngine {
     if (typeof document !== 'undefined') { document.removeEventListener('keydown', this.onCameraKeyDown); document.removeEventListener('keyup', this.onCameraKeyUp); document.removeEventListener('focusin', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); }
     if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
     this.clearInput();
+    this.cancelHydration();
+    if (this.renderTimer !== undefined) { clearTimeout(this.renderTimer); this.renderTimer = undefined; this.renderScheduled = false; }
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
     for (const child of this.blocksGroup.children) disposeObject(child);
@@ -602,6 +727,8 @@ export class ThreeViewportEngine {
     this.selectionBox.geometry.dispose();
     (this.selectionBox.material as THREE.Material).dispose();
     if (this.ghostModel) disposeObject(this.ghostModel);
+    this.fallbackGeometry.dispose();
+    this.fallbackMaterials.normal.dispose(); this.fallbackMaterials.reference.dispose(); this.fallbackMaterials.missing.dispose();
     this.renderer = undefined;
     this.container = undefined;
   }
@@ -962,7 +1089,7 @@ export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Cam
 }
 function isTextInput(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT' || element.isContentEditable); }
 function isDialogTarget(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.matches('[role="dialog"]') || element.closest('[role="dialog"]') !== null); }
-function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
+function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
 
 export function applyBlockTheme(root: THREE.Object3D, palette: ViewportThemePalette): void {
   root.traverse((object) => {

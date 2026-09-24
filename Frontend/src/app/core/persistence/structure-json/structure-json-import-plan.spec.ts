@@ -139,4 +139,10 @@ describe('Structure JSON import plan', () => {
     expect(history.redo()).toBe(true);
     expect(workspace.project()).toEqual(imported);
   });
+
+  it('rejects a plan whose immutable base project has become stale without revalidating', () => {
+    const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }]), base, 'replace');
+    const stale = { ...base, metadata: { ...base.metadata, updatedAt: 'changed' } };
+    expect(applyStructureJsonImportPlan(stale, plan, definitions)).toBeUndefined();
+  });
 });

@@ -17,6 +17,11 @@ export interface RendererCounters {
   readonly geometryCacheMisses: number;
   readonly textureCacheHits: number;
   readonly textureCacheMisses: number;
+  readonly hydrationGenerations: number;
+  readonly cancelledHydrations: number;
+  readonly hydrationBatches: number;
+  readonly maxPendingVisualJobs: number;
+  readonly coalescedRenderRequests: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -38,6 +43,11 @@ const EMPTY_COUNTERS: RendererCounters = {
   geometryCacheMisses: 0,
   textureCacheHits: 0,
   textureCacheMisses: 0,
+  hydrationGenerations: 0,
+  cancelledHydrations: 0,
+  hydrationBatches: 0,
+  maxPendingVisualJobs: 0,
+  coalescedRenderRequests: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

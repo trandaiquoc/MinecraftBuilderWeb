@@ -3,10 +3,11 @@ import { isBlockLocked } from '../../editor/groups/group-membership';
 import { nextGroupId, uniqueGroupName } from '../../editor/groups/group-naming';
 import { coordinateKey } from '../../domain/coordinates';
 import type { ProjectDocument, PlacedBlock, ProjectGroup, VoxelCoordinate } from '../../domain/project.types';
-import { decorationAabb, decorationOverlaps, directionVector } from '../../decorations/placement/decoration-placement';
+import { decorationAabb } from '../../decorations/placement/decoration-placement';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { StructureJsonBlockV1, StructureJsonDecorationV2, StructureJsonDocument } from './structure-json';
-import { validateParsedStructureJsonPreview, type StructureJsonValidationPreview } from './structure-json-import';
+import type { StructureJsonValidationPreview } from './structure-json-import';
+import { addDecorationToSpatialIndex, blocksIntersectingAabb, buildDecorationSpatialIndex, buildStructureImportSpatialContext, queryDecorationSpatialIndex } from './structure-json-spatial';
 
 export type StructureJsonImportMode = 'replace' | 'merge' | 'new-group';
 export type StructureJsonImportBlockerCode = 'structural-invalid' | 'out-of-bounds' | 'invalid-state' | 'duplicate-coordinate' | 'locked-current-blocks' | 'locked-current-decorations' | 'existing-coordinate-conflict' | 'decoration-conflict' | 'invalid-decoration' | 'empty-import';
@@ -33,11 +34,14 @@ export interface StructureJsonImportPlan {
   readonly newGroup?: StructureJsonImportGroupPreview;
   readonly applicable: boolean;
   readonly emptyImport: boolean;
+  /** Ephemeral freshness anchor; never serialized into project data. */
+  readonly baseProject: ProjectDocument;
 }
 
 export function buildStructureJsonImportPlan(source: StructureJsonDocument, validation: StructureJsonValidationPreview, project: ProjectDocument, getDefinition: (id: string) => BlockDefinition | undefined, mode: StructureJsonImportMode, fallbackGroupName = 'Imported Structure'): StructureJsonImportPlan {
   const importedBlocks = source.blocks.map((block) => toPlacedBlock(block, getDefinition(block.id)));
-  const importedDecorations = source.formatVersion === 2 ? source.decorations.map((decoration, index) => toPlacedDecoration(decoration, index, project.decorations ?? [])) : [];
+  const usedDecorationIds = new Set((project.decorations ?? []).map((entry) => entry.instanceId));
+  const importedDecorations = source.formatVersion === 2 ? source.decorations.map((decoration, index) => toPlacedDecoration(decoration, index, usedDecorationIds)) : [];
   const blockers: StructureJsonImportBlocker[] = [];
   if (!validation.structuralValid) blockers.push({ code: 'structural-invalid' });
   if (validation.outOfBounds > 0) blockers.push({ code: 'out-of-bounds', count: validation.outOfBounds });
@@ -56,40 +60,54 @@ export function buildStructureJsonImportPlan(source: StructureJsonDocument, vali
   }
   if (source.blocks.length === 0 && importedDecorations.length === 0 && mode !== 'replace') blockers.push({ code: 'empty-import' });
   const newGroup = mode === 'new-group' ? { id: nextGroupId(project.groups), name: uniqueGroupName(source.name ?? '', project.groups, fallbackGroupName) } : undefined;
-  return { mode, source, importedBlocks, importedDecorations, importedBlockCount: importedBlocks.length, resolvedBlockCount: importedBlocks.filter((block) => block.kind === 'resolved').length, missingBlockCount: importedBlocks.filter((block) => block.kind === 'missing').length, importedDecorationCount: importedDecorations.length, missingDecorationAssetCount: validation.missingDecorationAssets, currentConflictCount: currentConflicts.length, currentConflicts, decorationConflictCount: decorationConflicts.length, decorationConflicts, blockingIssues: blockers, newGroup, applicable: blockers.length === 0, emptyImport: source.blocks.length === 0 && importedDecorations.length === 0 };
+  return { mode, source, importedBlocks, importedDecorations, importedBlockCount: importedBlocks.length, resolvedBlockCount: importedBlocks.filter((block) => block.kind === 'resolved').length, missingBlockCount: importedBlocks.filter((block) => block.kind === 'missing').length, importedDecorationCount: importedDecorations.length, missingDecorationAssetCount: validation.missingDecorationAssets, currentConflictCount: currentConflicts.length, currentConflicts, decorationConflictCount: decorationConflicts.length, decorationConflicts, blockingIssues: blockers, newGroup, applicable: blockers.length === 0, emptyImport: source.blocks.length === 0 && importedDecorations.length === 0, baseProject: project };
 }
 
 export function applyStructureJsonImportPlan(current: ProjectDocument, plan: StructureJsonImportPlan, getDefinition: (id: string) => BlockDefinition | undefined, fallbackGroupName = 'Imported Structure'): ProjectDocument | undefined {
-  // Validate decorations against the layout they will actually occupy. This keeps
-  // imported paintings/frames from being rejected simply because their support
-  // block is part of the same import operation.
-  const seedValidation = validateParsedStructureJsonPreview(plan.source, current.size, getDefinition, undefined, current);
-  const seedPlan = buildStructureJsonImportPlan(plan.source, seedValidation, current, getDefinition, plan.mode, fallbackGroupName);
-  const candidateBlocks = plan.mode === 'replace' ? seedPlan.importedBlocks : [...current.blocks, ...seedPlan.importedBlocks];
-  const candidateDecorations = plan.mode === 'replace' ? [] : (current.decorations ?? []);
-  const validation = validateParsedStructureJsonPreview(plan.source, current.size, getDefinition, undefined, { ...current, blocks: candidateBlocks, decorations: candidateDecorations });
-  const freshPlan = buildStructureJsonImportPlan(plan.source, validation, current, getDefinition, plan.mode, fallbackGroupName);
-  if (!freshPlan.applicable || freshPlan.mode !== plan.mode) return undefined;
-  if (freshPlan.emptyImport && freshPlan.mode !== 'replace') return undefined;
-  if (freshPlan.emptyImport && freshPlan.mode === 'replace' && current.blocks.length === 0 && (current.decorations ?? []).length === 0) return undefined;
+  if (current !== plan.baseProject || !plan.applicable) return undefined;
+  return prepareStructureJsonImportPlan(current, plan, fallbackGroupName);
+}
+
+export function prepareStructureJsonImportPlan(current: ProjectDocument, plan: StructureJsonImportPlan, fallbackGroupName = 'Imported Structure'): ProjectDocument | undefined {
+  if (current !== plan.baseProject || !plan.applicable) return undefined;
+  if (plan.emptyImport && plan.mode !== 'replace') return undefined;
+  if (plan.emptyImport && plan.mode === 'replace' && current.blocks.length === 0 && (current.decorations ?? []).length === 0) return undefined;
   const updatedAt = new Date().toISOString();
-  if (freshPlan.mode === 'replace') return { ...current, blocks: freshPlan.importedBlocks, decorations: freshPlan.source.formatVersion === 2 ? freshPlan.importedDecorations : current.decorations, metadata: { ...current.metadata, updatedAt } };
-  if (freshPlan.mode === 'merge') return { ...current, blocks: [...current.blocks, ...freshPlan.importedBlocks], decorations: [...(current.decorations ?? []), ...freshPlan.importedDecorations], metadata: { ...current.metadata, updatedAt } };
-  if (!freshPlan.newGroup) return undefined;
-  const group: ProjectGroup = { id: freshPlan.newGroup.id, name: freshPlan.newGroup.name, visible: true, locked: false };
-  const blocks = freshPlan.importedBlocks.map((block) => ({ ...block, groupIds: [group.id] }));
-  const decorations = freshPlan.importedDecorations.map((decoration) => ({ ...decoration, groupIds: [group.id] }));
+  if (plan.mode === 'replace') return { ...current, blocks: plan.importedBlocks, decorations: plan.source.formatVersion === 2 ? plan.importedDecorations : current.decorations, metadata: { ...current.metadata, updatedAt } };
+  if (plan.mode === 'merge') return { ...current, blocks: [...current.blocks, ...plan.importedBlocks], decorations: [...(current.decorations ?? []), ...plan.importedDecorations], metadata: { ...current.metadata, updatedAt } };
+  if (!plan.newGroup) return undefined;
+  const group: ProjectGroup = { id: plan.newGroup.id, name: plan.newGroup.name, visible: true, locked: false };
+  const blocks = plan.importedBlocks.map((block) => ({ ...block, groupIds: [group.id] }));
+  const decorations = plan.importedDecorations.map((decoration) => ({ ...decoration, groupIds: [group.id] }));
   return { ...current, blocks: [...current.blocks, ...blocks], decorations: [...(current.decorations ?? []), ...decorations], groups: [...current.groups, group], metadata: { ...current.metadata, updatedAt } };
 }
 
 function toPlacedBlock(block: StructureJsonBlockV1, definition: BlockDefinition | undefined): PlacedBlock { const position = { x: block.x, y: block.y, z: block.z }; return definition ? { kind: 'resolved', id: block.id, namespace: definition.namespace, position, state: { ...definition.defaultState, ...(block.state ?? {}) } } : { kind: 'missing', id: block.id, namespace: namespaceOf(block.id), position, state: { ...(block.state ?? {}) } }; }
-function toPlacedDecoration(decoration: StructureJsonDecorationV2, index: number, existing: readonly PlacedDecoration[]): PlacedDecoration {
-  const instanceId = nextDecorationId(index, existing);
+function toPlacedDecoration(decoration: StructureJsonDecorationV2, index: number, usedIds: Set<string>): PlacedDecoration {
+  const instanceId = nextDecorationId(index, usedIds);
+  usedIds.add(instanceId);
   if (decoration.kind === 'painting') return { instanceId, kind: 'painting', entityTypeId: 'minecraft:painting', anchor: decoration.anchor, facing: decoration.facing, variantId: decoration.variantId };
   return { instanceId, kind: decoration.kind, entityTypeId: decoration.kind === 'item-frame' ? 'minecraft:item_frame' : 'minecraft:glow_item_frame', anchor: decoration.anchor, facing: decoration.facing, ...(decoration.item ? { item: { id: decoration.item.id, count: decoration.item.count ?? 1, ...(decoration.item.components === undefined ? {} : { components: decoration.item.components }) } } : {}), ...(decoration.rotation === undefined ? {} : { rotation: decoration.rotation as PlacedDecoration['rotation'] }), ...(decoration.invisible === undefined ? {} : { invisible: decoration.invisible }), ...(decoration.fixed === undefined ? {} : { fixed: decoration.fixed }), ...(decoration.itemDropChance === undefined ? {} : { itemDropChance: decoration.itemDropChance }) };
 }
-function nextDecorationId(index: number, existing: readonly PlacedDecoration[]): string { const used = new Set(existing.map((entry) => entry.instanceId)); let id = `imported-decoration-${index + 1}`; let suffix = 2; while (used.has(id)) id = `imported-decoration-${index + 1}-${suffix++}`; return id; }
+function nextDecorationId(index: number, used: ReadonlySet<string>): string { let id = `imported-decoration-${index + 1}`; let suffix = 2; while (used.has(id)) id = `imported-decoration-${index + 1}-${suffix++}`; return id; }
 function findCurrentConflicts(imported: readonly StructureJsonBlockV1[], project: ProjectDocument): readonly StructureJsonProjectConflict[] { const existing = new Map<string, string[]>(); for (const block of project.blocks) { const key = coordinateKey(block.position); existing.set(key, [...(existing.get(key) ?? []), block.id]); } const importedAt = new Map<string, { readonly coordinate: VoxelCoordinate; readonly indexes: number[] }>(); for (let index = 0; index < imported.length; index += 1) { const block = imported[index]; const coordinate = { x: block.x, y: block.y, z: block.z }; const key = coordinateKey(coordinate); const entry = importedAt.get(key) ?? { coordinate, indexes: [] }; entry.indexes.push(index); importedAt.set(key, entry); } const conflicts: StructureJsonProjectConflict[] = []; for (const [key, entry] of importedAt) { const existingIds = existing.get(key); if (existingIds) conflicts.push({ coordinate: entry.coordinate, importedIndexes: entry.indexes, existingBlockIds: existingIds }); } return conflicts; }
-function findDecorationConflicts(importedBlocks: readonly PlacedBlock[], importedDecorations: readonly PlacedDecoration[], project: ProjectDocument): readonly StructureJsonDecorationConflict[] { const conflicts: StructureJsonDecorationConflict[] = []; const currentDecorations = project.decorations ?? []; for (let index = 0; index < importedDecorations.length; index += 1) { const decoration = importedDecorations[index]; const box = decorationAabb(decoration); if (project.blocks.some((block) => intersectsBlock(box, block.position))) conflicts.push({ importedIndex: index, kind: decoration.kind, anchor: decoration.anchor, reason: 'block' }); const existing = currentDecorations.find((other) => decorationOverlaps(box, decorationAabb(other))); if (existing) conflicts.push({ importedIndex: index, kind: decoration.kind, anchor: decoration.anchor, reason: 'decoration', existingId: existing.instanceId }); } for (const block of importedBlocks) { if (currentDecorations.some((decoration) => intersectsBlock(decorationAabb(decoration), block.position))) conflicts.push({ importedIndex: -1, kind: 'item-frame', anchor: block.position, reason: 'block' }); } for (let left = 0; left < importedDecorations.length; left += 1) for (let right = left + 1; right < importedDecorations.length; right += 1) if (decorationOverlaps(decorationAabb(importedDecorations[left]), decorationAabb(importedDecorations[right]))) conflicts.push({ importedIndex: right, kind: importedDecorations[right].kind, anchor: importedDecorations[right].anchor, reason: 'decoration', existingId: importedDecorations[left].instanceId }); return conflicts; }
-function intersectsBlock(box: ReturnType<typeof decorationAabb>, position: VoxelCoordinate): boolean { return box.min.x < position.x + 1 && box.max.x > position.x && box.min.y < position.y + 1 && box.max.y > position.y && box.min.z < position.z + 1 && box.max.z > position.z; }
+function findDecorationConflicts(importedBlocks: readonly PlacedBlock[], importedDecorations: readonly PlacedDecoration[], project: ProjectDocument): readonly StructureJsonDecorationConflict[] {
+  const conflicts: StructureJsonDecorationConflict[] = [];
+  const context = buildStructureImportSpatialContext(project.blocks, project.decorations ?? []);
+  const importedIndex = buildDecorationSpatialIndex([]);
+  for (let index = 0; index < importedDecorations.length; index += 1) {
+    const decoration = importedDecorations[index]; const box = decorationAabb(decoration);
+    if (blocksIntersectingAabb(box, context).length > 0) conflicts.push({ importedIndex: index, kind: decoration.kind, anchor: decoration.anchor, reason: 'block' });
+    const existing = queryDecorationSpatialIndex(context.decorations, box)[0];
+    if (existing) conflicts.push({ importedIndex: index, kind: decoration.kind, anchor: decoration.anchor, reason: 'decoration', existingId: existing.decoration.instanceId });
+    const importedExisting = queryDecorationSpatialIndex(importedIndex, box)[0];
+    if (importedExisting) conflicts.push({ importedIndex: index, kind: decoration.kind, anchor: decoration.anchor, reason: 'decoration', existingId: importedExisting.decoration.instanceId });
+    addDecorationToSpatialIndex(importedIndex, decoration);
+  }
+  for (const block of importedBlocks) {
+    const collisions = queryDecorationSpatialIndex(context.decorations, { min: block.position, max: { x: block.position.x + 1, y: block.position.y + 1, z: block.position.z + 1 } });
+    for (const decoration of collisions) conflicts.push({ importedIndex: -1, kind: 'item-frame', anchor: block.position, reason: 'block', existingId: decoration.decoration.instanceId });
+  }
+  return conflicts;
+}
 function namespaceOf(id: string): string { const separator = id.indexOf(':'); return separator > 0 ? id.slice(0, separator) : 'unknown'; }
