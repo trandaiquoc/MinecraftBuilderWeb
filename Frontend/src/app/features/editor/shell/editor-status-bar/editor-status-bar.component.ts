@@ -6,6 +6,7 @@ import { ProjectAutosaveService } from '../../../../core/persistence/autosave/pr
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { deriveAssetBootstrapStatus, VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ViewportHydrationStatusService, ViewportHydrationStatusSnapshot } from '../../../../core/editor/state/viewport-hydration-status.service';
 
 @Component({ selector: 'app-editor-status-bar', templateUrl: './editor-status-bar.component.html', styleUrl: './editor-status-bar.component.scss' })
 export class EditorStatusBarComponent {
@@ -16,6 +17,7 @@ export class EditorStatusBarComponent {
   protected readonly autosave = inject(ProjectAutosaveService);
   protected readonly workspace = inject(WorkspaceStateService);
   protected readonly assets = inject(VanillaAssetsService);
+  protected readonly hydration = inject(ViewportHydrationStatusService);
   protected readonly selectionCount = computed(() => { const box = this.selection.box(); return box ? (box.max.x - box.min.x + 1) * (box.max.y - box.min.y + 1) * (box.max.z - box.min.z + 1) : this.selection.logicalPositions().length; });
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionCount())); }
@@ -36,4 +38,16 @@ export class EditorStatusBarComponent {
     if (status.kind === 'unavailable') return this.i18n.t('assetsUnavailableForBrowser');
     return this.i18n.t('assetsReady');
   }
+  protected hydrationStatus(): ViewportHydrationStatusSnapshot | undefined { return this.hydration.status(); }
+  protected hydrationStatusLabel(snapshot: ViewportHydrationStatusSnapshot): string {
+    const label = this.i18n.t(snapshot.activity === 'import' ? 'importingStructure' : 'buildingStructure');
+    return `${label} · ${this.formatPercent(snapshot.progress.percent)}%`;
+  }
+  protected hydrationCount(snapshot: ViewportHydrationStatusSnapshot): string {
+    const progress = snapshot.progress;
+    const totalLabel = progress.decorationsTotal > 0 ? this.i18n.t('viewportHydrationItems') : this.i18n.t('viewportHydrationBlocks');
+    return `${this.formatCount(progress.completed)} / ${this.formatCount(progress.total)} ${totalLabel}`;
+  }
+  private formatPercent(value: number): string { return value.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 1 }); }
+  private formatCount(value: number): string { return value.toLocaleString(this.i18n.locale()); }
 }

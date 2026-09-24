@@ -1,8 +1,0 @@
-@if (visible()) {
-  <section class="hydration-hud" [class.is-complete]="progress().status === 'complete'" aria-live="polite">
-    <div class="hydration-heading"><span>{{ i18n.t(progress().status === 'complete' ? 'viewportHydrationReady' : 'viewportHydrationBuilding') }}</span><strong>{{ percentLabel(progress()) }}</strong></div>
-    <app-ui-progress [value]="progress().percent" [label]="i18n.t(progress().status === 'complete' ? 'viewportHydrationReady' : 'viewportHydrationBuilding')" [compact]="true" [complete]="progress().status === 'complete'" />
-    <div class="hydration-count">{{ blocksLabel(progress()) }}</div>
-    @if (progress().decorationsTotal > 0) { <div class="hydration-count">{{ decorationsLabel(progress()) }}</div> }
-  </section>
-}

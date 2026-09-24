@@ -28,10 +28,10 @@ describe('translation dictionaries', () => {
   });
 
   it('provides localized viewport hydration labels', () => {
-    expect(supplementalTranslations.en.viewportHydrationBuilding).toBe('Building JSON structure');
-    expect(supplementalTranslations.en.viewportHydrationReady).toBe('Structure ready');
-    expect(supplementalTranslations.vi.viewportHydrationBuilding).toBe('Đang dựng cấu trúc JSON');
-    expect(supplementalTranslations.vi.viewportHydrationReady).toBe('Cấu trúc đã sẵn sàng');
+    expect(supplementalTranslations.en.importingStructure).toBe('Importing structure');
+    expect(supplementalTranslations.en.buildingStructure).toBe('Building structure');
+    expect(supplementalTranslations.vi.importingStructure).toBe('Đang nhập cấu trúc');
+    expect(supplementalTranslations.vi.buildingStructure).toBe('Đang dựng cấu trúc');
   });
 
   it('uses project backup terminology consistently in both locales', () => {

@@ -2,5 +2,4 @@
   @if (target() || reasonLabel() || status() !== 'invalid') {
     <div class="viewport-status" [attr.data-status]="status()">{{ statusLabel() }} @if (reasonLabel()) { <span>&middot; {{ reasonLabel() }}</span> } @if (target()) { <span>{{ target() }}</span> }</div>
   }
-  <app-viewport-hydration-hud [progress]="hydrationProgress()" />
 </div>

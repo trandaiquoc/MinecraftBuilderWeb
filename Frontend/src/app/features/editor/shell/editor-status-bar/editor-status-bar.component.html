@@ -1,1 +1,26 @@
-<footer class="status-bar"><div class="status-left"><span>{{ mode.mode() === '3d' ? i18n.t('mode3d') : i18n.t('modeYLayer') }}</span><span>{{ tool.active() === 'place' ? i18n.t('toolPlace') : i18n.t('toolSelect') }}</span><span [attr.data-status]="autosave.status() === 'error' ? 'invalid' : autosave.status() === 'saved' ? 'valid' : 'warning'" [attr.title]="autosave.error()">{{ saveStatusLabel() }}</span>@if (mode.mode() === 'y-layer') { <span>{{ i18n.t('currentLayer') }}: {{ workspace.project()?.editorSettings?.currentY ?? 0 }}</span> }@if (selectionCount() > 1) { <span>{{ selectionSummaryLabel() }}</span> }</div>@if (assetStatus(); as asset) { <span class="asset-status" [attr.data-status]="asset.kind === 'unavailable' ? 'invalid' : asset.kind === 'partial' ? 'warning' : asset.kind === 'ready' ? 'valid' : 'unknown'" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true"><span class="asset-status-copy">{{ assetStatusLabel() }}</span>@if (assetLoading(asset)) { <span class="asset-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="assetProgressPercent(asset)" [attr.aria-label]="assetStatusLabel()"><span class="asset-progress-fill" [class.indeterminate]="assetProgressPercent(asset) === null" [style.width.%]="assetProgressPercent(asset)"></span></span> }</span> }</footer>
+<footer class="status-bar">
+  <div class="status-left">
+    <span>{{ mode.mode() === '3d' ? i18n.t('mode3d') : i18n.t('modeYLayer') }}</span>
+    <span>{{ tool.active() === 'place' ? i18n.t('toolPlace') : i18n.t('toolSelect') }}</span>
+    <span [attr.data-status]="autosave.status() === 'error' ? 'invalid' : autosave.status() === 'saved' ? 'valid' : 'warning'" [attr.title]="autosave.error()">{{ saveStatusLabel() }}</span>
+    @if (mode.mode() === 'y-layer') { <span>{{ i18n.t('currentLayer') }}: {{ workspace.project()?.editorSettings?.currentY ?? 0 }}</span> }
+    @if (selectionCount() > 1) { <span>{{ selectionSummaryLabel() }}</span> }
+  </div>
+  <div class="status-right">
+    @if (assetStatus(); as asset) {
+      <span class="asset-status" [attr.data-status]="asset.kind === 'unavailable' ? 'invalid' : asset.kind === 'partial' ? 'warning' : asset.kind === 'ready' ? 'valid' : 'unknown'" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true">
+        <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
+        @if (assetLoading(asset)) {
+          <span class="asset-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="assetProgressPercent(asset)" [attr.aria-label]="assetStatusLabel()"><span class="asset-progress-fill" [class.indeterminate]="assetProgressPercent(asset) === null" [style.width.%]="assetProgressPercent(asset)"></span></span>
+        }
+      </span>
+    }
+    @if (hydrationStatus(); as hydration) {
+      <span class="hydration-status" data-status="hydrating" aria-live="polite" aria-atomic="true">
+        <span class="hydration-status-copy">{{ hydrationStatusLabel(hydration) }}</span>
+        <span class="hydration-status-count">{{ hydrationCount(hydration) }}</span>
+        <span class="hydration-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="hydration.progress.percent" [attr.aria-label]="hydrationStatusLabel(hydration)"><span class="hydration-progress-fill" [style.width.%]="hydration.progress.percent"></span></span>
+      </span>
+    }
+  </div>
+</footer>

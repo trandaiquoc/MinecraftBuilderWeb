@@ -10,6 +10,7 @@ import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoo
 import { buildStructureJsonImportPlan, prepareStructureJsonImportPlan, StructureJsonImportBlocker, StructureJsonImportMode, StructureJsonImportPlan } from '../../../core/persistence/structure-json/structure-json-import-plan';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
+import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
@@ -24,6 +25,7 @@ export class StructureJsonImportDialogComponent {
   private readonly history = inject(HistoryService);
   private readonly selection = inject(SelectionService);
   private readonly dialogs = inject(DialogService);
+  private readonly hydrationStatus = inject(ViewportHydrationStatusService);
   readonly project = input.required<ProjectDocument>();
   readonly closed = output<void>();
   protected readonly draftJson = signal('');
@@ -98,8 +100,9 @@ export class StructureJsonImportDialogComponent {
     if (plan.mode === 'replace' && plan.importedBlockCount === 0 && this.project().blocks.length === 0) { this.selection.clear(); this.closed.emit(); return; }
     const prepared = prepareStructureJsonImportPlan(this.project(), plan, this.i18n.t('structureJsonImportedGroupFallback'));
     if (!prepared) { await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
+    this.hydrationStatus.markNextActivity('import');
     const changed = this.history.execute('Import Structure JSON', (current) => current === plan.baseProject ? prepared : undefined);
-    if (!changed) { await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
+    if (!changed) { this.hydrationStatus.markNextActivity('build'); await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
     this.selection.clear();
     this.closed.emit();
   }

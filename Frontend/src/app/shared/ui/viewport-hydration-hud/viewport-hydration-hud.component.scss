@@ -1,6 +1,0 @@
-:host { position: absolute; right: .75rem; bottom: .75rem; z-index: 3; pointer-events: none; }
-.hydration-hud { width: min(19rem, calc(100vw - 2rem)); padding: .6rem .7rem; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--surface-raised); box-shadow: var(--shadow-md, 0 8px 24px rgb(0 0 0 / .22)); color: var(--text); font: .72rem/1.25 var(--font-ui); }
-.hydration-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; margin-bottom: .42rem; }
-.hydration-heading strong { font-variant-numeric: tabular-nums; color: var(--accent); }
-.hydration-count { margin-top: .28rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.hydration-hud.is-complete .hydration-heading strong { color: var(--status-valid); }
