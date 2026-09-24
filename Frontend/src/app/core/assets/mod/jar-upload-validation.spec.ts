@@ -14,7 +14,7 @@ describe('JAR upload validation', () => {
     expect(() => validateJarUpload(file(name, 1))).toThrow('Only JAR files');
   });
 
-  it('rejects only files above 100 MB', () => {
-    expect(() => validateJarUpload(file('large.jar', MAX_JAR_UPLOAD_BYTES + 1))).toThrow('100 MB');
+  it('rejects only files above 200 MB', () => {
+    expect(() => validateJarUpload(file('large.jar', MAX_JAR_UPLOAD_BYTES + 1))).toThrow('200 MB');
   });
 });

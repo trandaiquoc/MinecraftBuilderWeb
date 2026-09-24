@@ -1,10 +1,10 @@
-export const MAX_JAR_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const MAX_JAR_UPLOAD_BYTES = 200 * 1024 * 1024;
 
 export type JarValidationCode = 'jar-extension' | 'jar-too-large';
 
 export class JarUploadValidationError extends Error {
   constructor(readonly code: JarValidationCode, readonly maxBytes = MAX_JAR_UPLOAD_BYTES) {
-    super(code === 'jar-extension' ? 'Only JAR files (.jar) are supported.' : 'JAR files must not exceed 100 MB.');
+    super(code === 'jar-extension' ? 'Only JAR files (.jar) are supported.' : 'JAR files must not exceed 200 MB.');
     this.name = 'JarUploadValidationError';
   }
 }
