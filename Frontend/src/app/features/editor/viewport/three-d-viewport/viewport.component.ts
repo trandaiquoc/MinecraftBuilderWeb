@@ -9,7 +9,7 @@ import { EditorToolService } from '../../../../core/editor/state/tool.service';
 import { CameraStateService } from '../../../../core/editor/camera/camera-state.service';
 import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
-import { clampVoxelBox, faceLockedSelectionPlane, normalizeVoxelBox, voxelOnFaceLockedPlane } from '../../../../core/editor/selection/selection';
+import { clampVoxelBox, faceLockedSelectionPlane, freeSpaceSelectionBox, normalizeVoxelBox, voxelOnFaceLockedPlane } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
@@ -69,8 +69,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
   private pickConsumed = false;
-  private boxCornerStart?: import('../../../../core/domain/project.types').VoxelCoordinate;
   private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
+  private freeSpaceDragStart?: { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane };
   private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); });
@@ -102,17 +102,20 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.gestureAction = action;
     this.pickConsumed = false;
-    this.boxCornerStart = undefined;
+    this.faceDragStart = undefined;
+    this.freeSpaceDragStart = undefined;
     if (action === 'pick-block') {
       const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false);
       if (blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!, picked.faceNormal))) this.pickConsumed = true;
       return;
     }
     if (action === 'primary-action' && this.tool.active() === 'select') {
-      const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false);
-      this.boxCornerStart = hit.block ?? hit.target;
-      const plane = hit.block && hit.faceNormal ? faceLockedSelectionPlane(hit.block, hit.faceNormal) : undefined;
-      this.faceDragStart = plane && hit.block && hit.faceNormal ? { block: hit.block, normal: hit.faceNormal, hitPoint: hit.placementContext?.hitPoint, plane } : undefined;
+      const project = this.workspace.project();
+      const hit = this.engine.hit(event, project, this.active.active(), undefined, false);
+      const blockStart = blockHitWinsOverDecoration(hit) ? hit.block : undefined;
+      const plane = blockStart && hit.faceNormal ? faceLockedSelectionPlane(blockStart, hit.faceNormal) : undefined;
+      this.faceDragStart = plane && blockStart && hit.faceNormal ? { block: blockStart, normal: hit.faceNormal, hitPoint: hit.placementContext?.hitPoint, plane } : undefined;
+      if (!hit.block && !hit.decoration && project) this.freeSpaceDragStart = this.engine.projectPointerToFreeSpace(event, project);
     }
   }
   protected pointerUp(event: PointerEvent): void {
@@ -122,17 +125,17 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.gestureAction = undefined;
     const pickConsumed = this.pickConsumed;
     this.pickConsumed = false;
-    const cornerStart = this.boxCornerStart;
-    this.boxCornerStart = undefined;
     const faceDragStart = this.faceDragStart;
     this.faceDragStart = undefined;
+    const freeSpaceDragStart = this.freeSpaceDragStart;
+    this.freeSpaceDragStart = undefined;
     if (gestureAction) event.preventDefault();
     this.engine.endEditorPointerGesture();
     this.releasePointer(event);
     if (pickConsumed) return;
     const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
     if (!gestureAction) return;
-    if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart && faceDragStart) {
+    if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && faceDragStart) {
       const project = this.workspace.project();
       const projected = this.engine.projectPointerToPlane(event, faceDragStart.plane);
       const cornerEnd = projected ? voxelOnFaceLockedPlane(projected, faceDragStart.plane) : undefined;
@@ -141,6 +144,18 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
         if (box) {
           const visibleKeys = new Set(visibleBlockEntries(project, { isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions() }).map((block) => coordinateKey(block.position)));
           this.selection.selectSurfaceBoxLogical(box, faceDragStart.normal, project, (id) => this.library.get(id), (block) => visibleKeys.has(coordinateKey(block.position)));
+        }
+      }
+      return;
+    }
+    if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && freeSpaceDragStart) {
+      const project = this.workspace.project();
+      const projected = project ? this.engine.projectPointerToFreeSpace(event, project, freeSpaceDragStart.plane) : undefined;
+      if (project && projected) {
+        const box = freeSpaceSelectionBox(freeSpaceDragStart.point, projected.point, freeSpaceDragStart.plane, project.size);
+        if (box) {
+          const visibleKeys = new Set(visibleBlockEntries(project, { isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions() }).map((block) => coordinateKey(block.position)));
+          this.selection.selectBoxLogical(box, project, (id) => this.library.get(id), (block) => visibleKeys.has(coordinateKey(block.position)));
         }
       }
       return;
@@ -184,13 +199,13 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected pointerLeave(event: PointerEvent): void {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
-    this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined; this.faceDragStart = undefined;
+    this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined;
     this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
     if (event) this.releasePointer(event);
     this.engine.endEditorPointerGesture();
-    this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearInput();
+    this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined; this.engine.clearInput();
   }
   private capturePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.setPointerCapture && !target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId); }
   private releasePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.releasePointerCapture && target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId); }

@@ -11,6 +11,13 @@ export interface FaceLockedSelectionPlane {
   readonly normal: FaceNormal;
 }
 
+export interface FreeSpaceSelectionPlane {
+  /** The world axis used as the depth axis for a 2D empty-space gesture. */
+  readonly axis: FaceLockedPlaneAxis;
+  /** A deterministic reference plane inside the project bounds. */
+  readonly coordinate: number;
+}
+
 /** Returns the voxel face plane that was touched when a selection drag began. */
 export function faceLockedSelectionPlane(start: VoxelCoordinate, normal: FaceNormal): FaceLockedSelectionPlane | undefined {
   const axis = Math.abs(normal.x) >= .5 ? 'x' : Math.abs(normal.y) >= .5 ? 'y' : Math.abs(normal.z) >= .5 ? 'z' : undefined;
@@ -25,6 +32,23 @@ export function voxelOnFaceLockedPlane(point: { readonly x: number; readonly y: 
   const position = { x: Math.floor(point.x), y: Math.floor(point.y), z: Math.floor(point.z) };
   position[plane.axis] = Math.floor(plane.coordinate - (plane.normal[plane.axis] > 0 ? 1 : 0));
   return position;
+}
+
+/** Chooses the world axis most aligned with the camera ray for free-space selection. */
+export function freeSpaceSelectionPlane(size: ProjectSize, cameraDirection: { readonly x: number; readonly y: number; readonly z: number }): FreeSpaceSelectionPlane {
+  const axis = Math.abs(cameraDirection.x) >= Math.abs(cameraDirection.y) && Math.abs(cameraDirection.x) >= Math.abs(cameraDirection.z)
+    ? 'x'
+    : Math.abs(cameraDirection.y) >= Math.abs(cameraDirection.z) ? 'y' : 'z';
+  return { axis, coordinate: size[axis] / 2 };
+}
+
+/** Maps two projected pointer points to a clamped voxel volume, extruded through project depth. */
+export function freeSpaceSelectionBox(start: { readonly x: number; readonly y: number; readonly z: number }, end: { readonly x: number; readonly y: number; readonly z: number }, plane: FreeSpaceSelectionPlane, size: ProjectSize): VoxelBox | undefined {
+  const first = { x: Math.floor(start.x), y: Math.floor(start.y), z: Math.floor(start.z) };
+  const second = { x: Math.floor(end.x), y: Math.floor(end.y), z: Math.floor(end.z) };
+  first[plane.axis] = 0;
+  second[plane.axis] = size[plane.axis] - 1;
+  return clampVoxelBox(normalizeVoxelBox(first, second), size);
 }
 
 /** Returns visible, exposed blocks inside a face-locked rectangle. Hidden blocks never become drag seeds. */

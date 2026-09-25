@@ -26,7 +26,7 @@ import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
-import type { FaceLockedSelectionPlane } from '../../editor/selection/selection';
+import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
@@ -1118,6 +1118,29 @@ export class ThreeViewportEngine {
     const component = direction[plane.axis];
     if (Math.abs(component) < 1e-8) return undefined;
     const distance = (plane.coordinate - origin[plane.axis]) / component;
+    if (distance < 0) return undefined;
+    const point = this.raycaster.ray.at(distance, new THREE.Vector3());
+    return { x: point.x, y: point.y, z: point.z };
+  }
+
+  /** Projects an empty-space selection gesture onto a camera-facing world plane. */
+  projectPointerToFreeSpace(event: PointerEvent, project: ProjectDocument, plane?: FreeSpaceSelectionPlane): { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: FreeSpaceSelectionPlane } | undefined {
+    if (!this.renderer || !this.container) return undefined;
+    const resolvedPlane = plane ?? freeSpaceSelectionPlane(project.size, this.camera.getWorldDirection(new THREE.Vector3()));
+    const point = this.projectPointerToAxisPlane(event, resolvedPlane.axis, resolvedPlane.coordinate);
+    return point ? { point, plane: resolvedPlane } : undefined;
+  }
+
+  private projectPointerToAxisPlane(event: PointerEvent, axis: 'x' | 'y' | 'z', coordinate: number): { readonly x: number; readonly y: number; readonly z: number } | undefined {
+    if (!this.renderer || !this.container) return undefined;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const origin = this.raycaster.ray.origin;
+    const direction = this.raycaster.ray.direction;
+    const component = direction[axis];
+    if (Math.abs(component) < 1e-8) return undefined;
+    const distance = (coordinate - origin[axis]) / component;
     if (distance < 0) return undefined;
     const point = this.raycaster.ray.at(distance, new THREE.Vector3());
     return { x: point.x, y: point.y, z: point.z };
