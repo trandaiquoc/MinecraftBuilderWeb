@@ -520,6 +520,79 @@ describe('camera movement input contract', () => {
   });
 });
 
+describe('provider handoff hydration ownership', () => {
+  const resolvedVisual = () => ({
+    object: new THREE.Group(),
+    resolved: { diagnostics: [], support: 'full' as const },
+    mode: 'real' as const,
+    diagnostics: [],
+    trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true },
+  });
+
+  it('promotes restored placeholder-only blocks when a provider becomes available', async () => {
+    const project = { ...rendererBenchmarkProject('small'), blocks: rendererBenchmarkProject('small').blocks.slice(0, 1), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, undefined);
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ renderedVoxelCount: 0, placeholderVoxelCount: 1, pendingVoxelCount: 0 });
+
+    const create = vi.fn(async () => resolvedVisual());
+    engine.setVisualProvider({ create, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider);
+    await settleHydration();
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ renderedVoxelCount: 1, placeholderVoxelCount: 0, pendingVoxelCount: 0, representedVoxelKeys: [expect.any(String)] });
+    expect(engine.ownershipDiagnostics()).toEqual([expect.objectContaining({ renderedEntry: true, placeholderEntry: false, queuedJob: false })]);
+    engine.dispose();
+  });
+
+  it('hydrates every restored block after provider handoff without duplicate work', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 3), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, undefined);
+    const create = vi.fn(async () => resolvedVisual());
+    engine.setVisualProvider({ create, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider);
+    await settleHydration();
+    expect(create).toHaveBeenCalledTimes(3);
+    const callsAfterHandoff = create.mock.calls.length;
+
+    engine.update({ ...project, blocks: project.blocks.map((block) => ({ ...block })) }, undefined);
+    await settleHydration();
+    expect(create).toHaveBeenCalledTimes(callsAfterHandoff);
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ renderedVoxelCount: 3, placeholderVoxelCount: 0, pendingVoxelCount: 0 });
+    engine.dispose();
+  });
+
+  it('re-hydrates stale representations when the provider generation changes', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 1), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    const firstCreate = vi.fn(async () => resolvedVisual());
+    engine.setVisualProvider({ create: firstCreate, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider);
+    engine.update(project, undefined);
+    await settleHydration();
+    const secondCreate = vi.fn(async () => resolvedVisual());
+    engine.setVisualProvider({ create: secondCreate, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider);
+    await settleHydration();
+    expect(firstCreate).toHaveBeenCalledTimes(1);
+    expect(secondCreate).toHaveBeenCalledTimes(1);
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ renderedVoxelCount: 1, placeholderVoxelCount: 0, pendingVoxelCount: 0 });
+    engine.dispose();
+  });
+
+  it('keeps placeholders stable without a provider and does not create a runaway queue', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 2), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, undefined);
+    engine.update({ ...project, blocks: project.blocks.map((block) => ({ ...block })) }, undefined);
+    await settleHydration();
+    expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, running: 0 });
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ renderedVoxelCount: 0, placeholderVoxelCount: 2, pendingVoxelCount: 0 });
+    engine.dispose();
+  });
+});
+
 describe('selection visualization scalability', () => {
   it('kicks a small block hydration queue without decoration or pointer work', async () => {
     const pending: Array<(value: unknown) => void> = [];

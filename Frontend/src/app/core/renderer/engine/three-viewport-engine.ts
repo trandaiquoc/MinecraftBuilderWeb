@@ -608,9 +608,14 @@ export class ThreeViewportEngine {
     for (const key of this.runningHydrationKeys.keys()) if (!visibleMap.has(key)) this.runningHydrationKeys.delete(key);
     for (const [key, entry] of visibleMap) {
       const current = this.renderedBlocks.get(key);
-      const pendingSignature = this.pendingHydrationSignatures.get(key) ?? this.placeholderSignatures.get(key);
+      const pendingSignature = this.pendingHydrationSignatures.get(key);
+      const placeholderSignature = this.placeholderSignatures.get(key);
       if (full || !current || current.signature !== entry.signature || current.role !== entry.role) {
         if (!current && pendingSignature === entry.signature) continue;
+        // A placeholder is only an existing representation. It is not proof
+        // that real hydration is queued. Once a provider becomes available,
+        // placeholder-only entries must be promoted to hydration work.
+        if (!current && !this.visualProvider && placeholderSignature === entry.signature) continue;
         changed.add(key);
       }
       if (!changed.has(key) && current) this.removePlaceholderVisual(key);
