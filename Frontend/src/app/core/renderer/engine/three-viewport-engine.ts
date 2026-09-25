@@ -196,7 +196,18 @@ export interface ViewportGhostSceneSnapshot {
   readonly suspiciousVisualCount: number;
   readonly suspiciousVisuals: readonly ViewportSuspiciousVisualDiagnostic[];
   readonly directSceneChildren: ViewportOwnershipDiagnostics['directSceneChildren'];
+  readonly instanceOwnershipTrace: readonly ViewportInstanceOwnershipEvent[];
   readonly previewState: ViewportOwnershipDiagnostics['previewState'];
+}
+
+export interface ViewportInstanceOwnershipEvent {
+  readonly phase: 'before-insert' | 'after-insert' | 'before-remove' | 'after-remove' | 'after-remove-entry' | 'after-reconcile';
+  readonly key?: string;
+  readonly source?: 'cached-template' | 'provider-async' | 'rollback' | 'reconcile';
+  readonly generation: number;
+  readonly previousEntry?: { readonly batchKey?: string; readonly index?: number };
+  readonly physicalMemberships: readonly { readonly batchKey: string; readonly index: number }[];
+  readonly violations: readonly string[];
 }
 
 export interface ViewportEmptyTransitionDiagnostics {
@@ -399,6 +410,8 @@ export class ThreeViewportEngine {
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
   private readonly instanceBatches = new Map<string, InstanceBatch>();
+  /** Derived lookup index; batch.keys remains the physical source of truth. */
+  private readonly instanceOwnershipIndex = new Map<string, { readonly batchKey: string; readonly index: number }>();
   private readonly reusableInstanceTemplates = new Map<string, readonly InstancePartTemplate[]>();
   private readonly placeholderBatches = new Map<string, PlaceholderBatch>();
   private readonly placeholderIndices = new Map<string, { readonly batchKey: string; readonly index: number }>();
@@ -440,6 +453,7 @@ export class ThreeViewportEngine {
   private runtimeDiagnosticsEnabled = false;
   private runtimeObservedProjectBlockCount = 0;
   private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
+  private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
 
   constructor(readonly instrumentation = new RendererDiagnostics()) {
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
@@ -737,6 +751,7 @@ export class ThreeViewportEngine {
     this.runtimeDiagnosticsEnabled = enabled;
     this.runtimeObservedProjectBlockCount = this.project?.blocks.length ?? 0;
     this.emptyTransitionSnapshots.length = 0;
+    this.instanceOwnershipTrace.length = 0;
   }
 
   runtimeGhostDiagnostics(): ViewportRuntimeDiagnostics {
@@ -750,6 +765,7 @@ export class ThreeViewportEngine {
   private reconcileStructure(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
       this.clearPersistentVisuals();
+      this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
       return;
     }
     const worldBlocks = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
@@ -811,6 +827,8 @@ export class ThreeViewportEngine {
     if (this.hydrationQueue.length > previousMax) this.instrumentation.record('maxPendingVisualJobs', this.hydrationQueue.length - previousMax);
     this.beginHydrationProgress(this.hydrationQueue.length + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.decorationHydrationQueue.length);
     if (this.hydrationQueue.length) this.scheduleHydrationPump();
+    this.reconcileInstanceOwnership();
+    this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
   }
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions): readonly { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string }[] {
@@ -937,16 +955,7 @@ export class ThreeViewportEngine {
   }
 
   private rollbackPartialInstanceVisual(key: string): void {
-    for (const [batchKey, batch] of this.instanceBatches) {
-      const index = batch.keys.indexOf(key);
-      if (index < 0) continue;
-      const entry = this.renderedBlocks.get(key);
-      if (entry) {
-        entry.instanceBatchKey = batchKey;
-        entry.instanceIndex = index;
-        this.removeInstanceVisual(key, entry);
-      }
-    }
+    this.removeOrphanedInstanceMemberships(key, 'rollback');
   }
 
   private adaptiveHydrationBudget(cameraInteracting = false): number {
@@ -1073,7 +1082,11 @@ export class ThreeViewportEngine {
   }
 
   private createBlockEntry(block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, onComplete?: () => void): void {
-    this.removePlaceholderVisual(coordinateKey(block.position));
+    const key = coordinateKey(block.position);
+    const existing = this.renderedBlocks.get(key);
+    if (existing) this.removeBlockEntry(key, existing);
+    else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
+    this.removePlaceholderVisual(key);
     if (!this.fallbackGeometryCounted) { this.instrumentation.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
     if (!this.fallbackMaterialRoles.has(role)) { this.instrumentation.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(role); }
     const isReference = role === 'reference';
@@ -1083,7 +1096,7 @@ export class ThreeViewportEngine {
     const fallback = new THREE.Mesh(this.fallbackGeometry, material);
     fallback.position.set(block.position.x + .5, block.position.y + .5, block.position.z + .5);
     fallback.userData['voxel'] = block.position; fallback.userData['renderRole'] = role;
-    const entry: RenderedBlockEntry = { key: coordinateKey(block.position), block, signature: `${stableValue(block)}|${role}|${options.referenceOpacity ?? .28}`, role, fallback, revision: 0, object: fallback };
+    const entry: RenderedBlockEntry = { key, block, signature: `${stableValue(block)}|${role}|${options.referenceOpacity ?? .28}`, role, fallback, revision: 0, object: fallback };
     this.renderedBlocks.set(entry.key, entry); this.blocksGroup.add(fallback);
     if (this.visualProvider && block.kind !== 'missing') {
       const generation = this.providerGeneration; const revision = ++entry.revision;
@@ -1092,7 +1105,7 @@ export class ThreeViewportEngine {
       const reusableKey = allowInstancing && role === 'normal' ? provider.reusableVisualKey?.(block, worldContext) : undefined;
       const cachedTemplates = reusableKey ? this.reusableInstanceTemplates.get(reusableKey) : undefined;
       if (cachedTemplates) {
-        const instance = this.addInstanceVisualFromTemplates(cachedTemplates, block, entry.key);
+        const instance = this.addInstanceVisualFromTemplates(cachedTemplates, block, entry.key, 'cached-template');
         if (instance) {
           this.instrumentation.record('reusableTemplateCacheHits');
           this.blocksGroup.remove(fallback);
@@ -1110,7 +1123,7 @@ export class ThreeViewportEngine {
         const object = visual.object; object.userData['realModel'] = true; applyBlockTheme(object, this.palette); translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
         object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh && isReference) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = options.referenceOpacity ?? .28; } } });
-        const instance = allowInstancing && role === 'normal' ? this.addInstanceVisual(object, block, entry.key, reusableKey) : undefined;
+        const instance = allowInstancing && role === 'normal' ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async') : undefined;
         this.blocksGroup.remove(fallback);
         if (instance) { entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0]; disposeObject(object); }
         else { this.blocksGroup.add(object); entry.object = object; }
@@ -1119,15 +1132,19 @@ export class ThreeViewportEngine {
     } else onComplete?.();
   }
 
-  private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string): { readonly batchKey: string; readonly index: number } | undefined {
+  private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
     const templates = this.instanceTemplates(object);
     if (!templates) return undefined;
     const retainedTemplates = reusableKey && !this.reusableInstanceTemplates.has(reusableKey) ? cloneInstanceTemplates(templates) : undefined;
     if (retainedTemplates && reusableKey) { this.reusableInstanceTemplates.set(reusableKey, retainedTemplates); this.instrumentation.record('reusableTemplateCreations'); }
-    return this.addInstanceVisualFromTemplates(retainedTemplates ?? templates, block, key);
+    return this.addInstanceVisualFromTemplates(retainedTemplates ?? templates, block, key, source);
   }
 
-  private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string): { readonly batchKey: string; readonly index: number } | undefined {
+  private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
+    const existingEntry = this.renderedBlocks.get(key);
+    this.traceInstanceOwnership('before-insert', key, source, existingEntry);
+    if (existingEntry?.instanceBatchKey) this.removeInstanceVisual(key, existingEntry);
+    else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
     const signature = templates.map((template) => { const material = template.material as THREE.Material & { map?: THREE.Texture; color?: THREE.Color; alphaTest?: number; side?: number; vertexColors?: boolean }; return `${template.geometry.uuid}|${material.type}|${material.map?.uuid ?? ''}|${material.color?.getHexString() ?? ''}|${material.alphaTest ?? 0}|${material.side ?? 0}|${material.vertexColors ? 1 : 0}|${template.matrix.elements.map((value) => value.toFixed(4)).join(',')}`; }).join(';');
     const chunk = chunkKey(block.position);
     const batchKey = `${chunk}|${signature}`;
@@ -1151,6 +1168,10 @@ export class ThreeViewportEngine {
     const translation = new THREE.Matrix4().makeTranslation(block.position.x, block.position.y, block.position.z);
     batch.parts.forEach((part, partIndex) => { part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix)); part.count = index + 1; (part.userData['instanceVoxels'] as VoxelCoordinate[]).push({ ...block.position }); (part.userData['instanceKeys'] as string[]).push(key); part.instanceMatrix.needsUpdate = true; });
     this.instrumentation.record('instancedBlockAdds'); this.instrumentation.record('instancedMembers');
+    this.instanceOwnershipIndex.set(key, { batchKey, index });
+    const ownerEntry = this.renderedBlocks.get(key);
+    if (ownerEntry) { ownerEntry.instanceBatchKey = batchKey; ownerEntry.instanceIndex = index; ownerEntry.object = batch.parts[0]; }
+    this.traceInstanceOwnership('after-insert', key, source);
     return { batchKey, index };
   }
 
@@ -1173,23 +1194,119 @@ export class ThreeViewportEngine {
   }
 
   private removeInstanceVisual(key: string, entry: RenderedBlockEntry): void {
-    const batchKey = entry.instanceBatchKey; const index = entry.instanceIndex;
-    if (!batchKey || index === undefined) return;
-    const batch = this.instanceBatches.get(batchKey); if (!batch) return;
-    const last = batch.keys.length - 1; const removedKey = batch.keys[index];
-    if (index !== last) {
-      const movedKey = batch.keys[last]; batch.keys[index] = movedKey; batch.positions[index] = batch.positions[last];
-      const movedEntry = this.renderedBlocks.get(movedKey); if (movedEntry) movedEntry.instanceIndex = index;
-      const movedPosition = batch.positions[index]; const translation = new THREE.Matrix4().makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
-      batch.parts.forEach((part, partIndex) => { part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix)); const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[]; const keys = part.userData['instanceKeys'] as string[]; voxels[index] = { ...movedPosition }; keys[index] = movedKey; part.instanceMatrix.needsUpdate = true; });
-    }
-    batch.keys.pop(); batch.positions.pop(); batch.parts.forEach((part) => { (part.userData['instanceVoxels'] as VoxelCoordinate[]).pop(); (part.userData['instanceKeys'] as string[]).pop(); part.count = batch.keys.length; part.instanceMatrix.needsUpdate = true; });
-    this.instrumentation.record('instancedBlockRemovals'); this.instrumentation.record('instancedMembers', -1);
-    if (!batch.keys.length) { for (const part of batch.parts) { this.blocksGroup.remove(part); (part.material as THREE.Material).dispose(); } this.instanceBatches.delete(batchKey); this.instrumentation.record('instancedMeshCount', -batch.parts.length); }
-    void removedKey;
+    this.traceInstanceOwnership('before-remove', key, 'reconcile', entry);
+    this.removeOrphanedInstanceMemberships(key, 'reconcile', entry);
+    entry.instanceBatchKey = undefined;
+    entry.instanceIndex = undefined;
+    this.traceInstanceOwnership('after-remove', key, 'reconcile');
   }
 
-  private removeBlockEntry(key: string, entry: RenderedBlockEntry): void { entry.revision += 1; if (entry.instanceBatchKey) this.removeInstanceVisual(key, entry); else { if (entry.object.parent === this.blocksGroup) this.blocksGroup.remove(entry.object); if (entry.object !== entry.fallback) disposeObject(entry.object); else disposeObject(entry.fallback); } this.renderedBlocks.delete(key); }
+  /** Returns every physical logical-key membership, including stale ownership. */
+  private instanceMemberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] {
+    if (!scanAll) {
+      const indexed = this.instanceOwnershipIndex.get(key);
+      return indexed ? [{ ...indexed }] : [];
+    }
+    const memberships: { batchKey: string; index: number }[] = [];
+    for (const [batchKey, batch] of this.instanceBatches) for (const [index, memberKey] of batch.keys.entries()) if (memberKey === key) memberships.push({ batchKey, index });
+    return memberships;
+  }
+
+  private removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry = this.renderedBlocks.get(key)): void {
+    const indexed = this.instanceOwnershipIndex.get(key);
+    const knownBatchKey = entry?.instanceBatchKey ?? indexed?.batchKey;
+    const knownIndex = entry?.instanceIndex ?? indexed?.index;
+    const knownRemoved = knownBatchKey && knownIndex !== undefined ? this.removeInstanceMembership(knownBatchKey, knownIndex, key) : false;
+    let memberships = this.runtimeDiagnosticsEnabled || !knownBatchKey || !knownRemoved ? this.instanceMemberships(key, true) : [];
+    while (memberships.length) {
+      for (const membership of memberships.slice().sort((left, right) => right.index - left.index)) this.removeInstanceMembership(membership.batchKey, membership.index, key);
+      const next = this.instanceMemberships(key, true);
+      if (next.length >= memberships.length) break;
+      memberships = next;
+    }
+    this.instanceOwnershipIndex.delete(key);
+    if (entry) { entry.instanceBatchKey = undefined; entry.instanceIndex = undefined; }
+    if (source === 'rollback') this.traceInstanceOwnership('after-remove-entry', key, source, entry);
+  }
+
+  private removeInstanceMembership(batchKey: string, requestedIndex: number, expectedKey: string): boolean {
+    const batch = this.instanceBatches.get(batchKey);
+    if (!batch) return false;
+    const index = requestedIndex >= 0 && requestedIndex < batch.keys.length && batch.keys[requestedIndex] === expectedKey ? requestedIndex : batch.keys.indexOf(expectedKey);
+    if (index < 0) return false;
+    this.traceInstanceOwnership('before-remove', expectedKey, 'reconcile');
+    const last = batch.keys.length - 1;
+    if (index !== last) {
+      const movedKey = batch.keys[last];
+      const movedPosition = batch.positions[last];
+      batch.keys[index] = movedKey;
+      batch.positions[index] = movedPosition;
+      const movedEntry = this.renderedBlocks.get(movedKey);
+      if (movedEntry?.instanceBatchKey === batchKey) movedEntry.instanceIndex = index;
+      this.instanceOwnershipIndex.set(movedKey, { batchKey, index });
+      const translation = new THREE.Matrix4().makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
+      batch.parts.forEach((part, partIndex) => {
+        part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix));
+        const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[];
+        const keys = part.userData['instanceKeys'] as string[];
+        voxels[index] = { ...movedPosition };
+        keys[index] = movedKey;
+        part.instanceMatrix.needsUpdate = true;
+      });
+    }
+    batch.keys.pop();
+    batch.positions.pop();
+    this.instanceOwnershipIndex.delete(expectedKey);
+    batch.parts.forEach((part) => {
+      (part.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
+      (part.userData['instanceKeys'] as string[]).pop();
+      part.count = batch.keys.length;
+      part.instanceMatrix.needsUpdate = true;
+    });
+    this.instrumentation.record('instancedBlockRemovals');
+    this.instrumentation.record('instancedMembers', -1);
+    if (!batch.keys.length) {
+      for (const part of batch.parts) { this.blocksGroup.remove(part); (part.material as THREE.Material).dispose(); }
+      this.instanceBatches.delete(batchKey);
+      this.instrumentation.record('instancedMeshCount', -batch.parts.length);
+    }
+    return true;
+  }
+
+  /** Repairs only stale/duplicate memberships; it never rebuilds valid batches. */
+  private reconcileInstanceOwnership(): void {
+    const memberships = new Map<string, { batchKey: string; index: number }[]>();
+    for (const [batchKey, batch] of this.instanceBatches) for (const [index, key] of batch.keys.entries()) {
+      const list = memberships.get(key) ?? [];
+      list.push({ batchKey, index });
+      memberships.set(key, list);
+    }
+    for (const [key, list] of memberships) {
+      const entry = this.renderedBlocks.get(key);
+      const preferred = entry?.instanceBatchKey && entry.instanceIndex !== undefined ? list.find((membership) => membership.batchKey === entry.instanceBatchKey && membership.index === entry.instanceIndex) ?? list[0] : list[0];
+      const extras = (entry ? list.filter((membership) => membership !== preferred) : list).sort((left, right) => right.index - left.index);
+      for (const membership of extras) this.removeInstanceMembership(membership.batchKey, membership.index, key);
+    }
+    this.instanceOwnershipIndex.clear();
+    for (const [batchKey, batch] of this.instanceBatches) for (const [index, key] of batch.keys.entries()) {
+      if (this.instanceOwnershipIndex.has(key)) continue;
+      this.instanceOwnershipIndex.set(key, { batchKey, index });
+      const entry = this.renderedBlocks.get(key);
+      if (entry) { entry.instanceBatchKey = batchKey; entry.instanceIndex = index; entry.object = batch.parts[0]; }
+    }
+    for (const [key, entry] of this.renderedBlocks) if (entry.instanceBatchKey && !this.instanceOwnershipIndex.has(key)) { entry.instanceBatchKey = undefined; entry.instanceIndex = undefined; }
+  }
+
+  private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
+    entry.revision += 1;
+    if (entry.instanceBatchKey || this.instanceOwnershipIndex.has(key) || this.runtimeDiagnosticsEnabled && this.instanceMemberships(key, true).length) this.removeInstanceVisual(key, entry);
+    else {
+      if (entry.object.parent === this.blocksGroup) this.blocksGroup.remove(entry.object);
+      if (entry.object !== entry.fallback) disposeObject(entry.object); else disposeObject(entry.fallback);
+    }
+    if (this.renderedBlocks.get(key) === entry) this.renderedBlocks.delete(key);
+    this.traceInstanceOwnership('after-remove-entry', key, 'reconcile', entry);
+  }
 
   private recordProviderCacheStats(): void {
     const stats = this.visualProvider?.cacheStats?.(); if (!stats) return;
@@ -1203,7 +1320,7 @@ export class ThreeViewportEngine {
     this.reusableInstanceTemplates.clear();
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -1362,7 +1479,7 @@ export class ThreeViewportEngine {
     this.renderer?.domElement.remove();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
-    this.instanceBatches.clear();
+    this.instanceBatches.clear(); this.instanceOwnershipIndex.clear();
     this.clearReusableInstanceTemplates();
     for (const child of this.decorationsGroup.children) disposeObject(child);
     this.decorationsGroup.clear();
@@ -1442,6 +1559,73 @@ export class ThreeViewportEngine {
     }));
   }
 
+  private instanceOwnershipViolations(): readonly string[] {
+    const violations: string[] = [];
+    const memberships = new Map<string, { batchKey: string; index: number }[]>();
+    for (const [batchKey, batch] of this.instanceBatches) {
+      if (batch.keys.length !== batch.positions.length) violations.push(`${batchKey}: keys/positions length mismatch`);
+      for (const [index, key] of batch.keys.entries()) {
+        const list = memberships.get(key) ?? [];
+        list.push({ batchKey, index });
+        memberships.set(key, list);
+        const position = batch.positions[index];
+        if (this.runtimeDiagnosticsEnabled && (!position || coordinateKey(position) !== key)) violations.push(`${batchKey}: position mismatch at ${index} (${key})`);
+        const entry = this.renderedBlocks.get(key);
+        if (!entry || entry.instanceBatchKey !== batchKey || entry.instanceIndex !== index) violations.push(`${batchKey}: ownership mismatch at ${index} (${key})`);
+      }
+      for (const [partIndex, part] of batch.parts.entries()) {
+        const keys = part.userData['instanceKeys'] as unknown;
+        const voxels = part.userData['instanceVoxels'] as unknown;
+        if (!Array.isArray(keys) || keys.length !== batch.keys.length) violations.push(`${batchKey}: part ${partIndex} keys length mismatch`);
+        if (!Array.isArray(voxels) || voxels.length !== batch.keys.length) violations.push(`${batchKey}: part ${partIndex} voxels length mismatch`);
+        if (part.count !== batch.keys.length) violations.push(`${batchKey}: part ${partIndex} count mismatch`);
+        if (this.runtimeDiagnosticsEnabled && Array.isArray(keys)) for (let index = 0; index < batch.keys.length; index += 1) if (keys[index] !== batch.keys[index]) violations.push(`${batchKey}: part ${partIndex} key mismatch at ${index}`);
+        if (this.runtimeDiagnosticsEnabled && Array.isArray(voxels)) for (let index = 0; index < batch.positions.length; index += 1) {
+          const voxel = voxels[index] as VoxelCoordinate | undefined;
+          if (!voxel || coordinateKey(voxel) !== coordinateKey(batch.positions[index])) violations.push(`${batchKey}: part ${partIndex} voxel mismatch at ${index}`);
+        }
+      }
+    }
+    for (const [key, list] of memberships) {
+      if (list.length !== 1) violations.push(`${key}: physical membership count ${list.length}`);
+      const indexed = this.instanceOwnershipIndex.get(key);
+      if (!indexed || indexed.batchKey !== list[0].batchKey || indexed.index !== list[0].index) violations.push(`${key}: ownership index does not match physical membership`);
+    }
+    for (const [key, indexed] of this.instanceOwnershipIndex) {
+      const list = memberships.get(key) ?? [];
+      if (list.length !== 1 || list[0].batchKey !== indexed.batchKey || list[0].index !== indexed.index) violations.push(`${key}: indexed membership is stale`);
+    }
+    for (const [key, entry] of this.renderedBlocks) {
+      if (!entry.instanceBatchKey) continue;
+      const list = memberships.get(key) ?? [];
+      if (list.length !== 1 || list[0].batchKey !== entry.instanceBatchKey || list[0].index !== entry.instanceIndex) violations.push(`${key}: rendered entry does not resolve to exactly one physical membership`);
+    }
+    return [...new Set(violations)];
+  }
+
+  private traceInstanceOwnership(phase: ViewportInstanceOwnershipEvent['phase'], key?: string, source?: ViewportInstanceOwnershipEvent['source'], entry?: RenderedBlockEntry): void {
+    if (!this.runtimeDiagnosticsEnabled) return;
+    const physicalMemberships = key ? this.instanceMemberships(key) : [];
+    const previousEntry = entry && (entry.instanceBatchKey !== undefined || entry.instanceIndex !== undefined) ? { ...(entry.instanceBatchKey !== undefined ? { batchKey: entry.instanceBatchKey } : {}), ...(entry.instanceIndex !== undefined ? { index: entry.instanceIndex } : {}) } : undefined;
+    const violations = key ? this.instanceOwnershipViolationsForKey(key) : this.instanceOwnershipViolations();
+    this.instanceOwnershipTrace.push({ phase, ...(key ? { key } : {}), ...(source ? { source } : {}), generation: this.hydrationGeneration, ...(previousEntry ? { previousEntry } : {}), physicalMemberships, violations });
+    if (this.instanceOwnershipTrace.length > 256) this.instanceOwnershipTrace.shift();
+  }
+
+  private instanceOwnershipViolationsForKey(key: string): readonly string[] {
+    const violations: string[] = [];
+    const indexed = this.instanceOwnershipIndex.get(key);
+    const entry = this.renderedBlocks.get(key);
+    if (!indexed) {
+      if (entry?.instanceBatchKey !== undefined || entry?.instanceIndex !== undefined) violations.push(`${key}: rendered entry has no indexed physical membership`);
+      return violations;
+    }
+    const batch = this.instanceBatches.get(indexed.batchKey);
+    if (!batch || batch.keys[indexed.index] !== key) violations.push(`${key}: index does not point to requested physical member`);
+    if (!entry || entry.instanceBatchKey !== indexed.batchKey || entry.instanceIndex !== indexed.index) violations.push(`${key}: rendered entry does not match indexed physical membership`);
+    return violations;
+  }
+
   rendererOwnershipDiagnostics(): ViewportOwnershipDiagnostics {
     const expected = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
     const expectedKeys = new Set(expected.map((entry) => coordinateKey(entry.block.position)));
@@ -1454,25 +1638,14 @@ export class ThreeViewportEngine {
     for (const job of this.hydrationQueue) addStale(job.key);
     for (const key of this.runningHydrationKeys.keys()) addStale(key);
 
-    const batchInvariantViolations: string[] = [];
+    const batchInvariantViolations: string[] = [...this.instanceOwnershipViolations()];
     let instanceMemberCount = 0;
     for (const [batchKey, batch] of this.instanceBatches) {
       instanceMemberCount += batch.keys.length;
-      if (batch.keys.length !== batch.positions.length) batchInvariantViolations.push(`${batchKey}: keys/positions length mismatch`);
-      for (const [partIndex, part] of batch.parts.entries()) {
-        const keys = part.userData['instanceKeys'] as unknown;
+      for (const key of batch.keys) addStale(key);
+      for (const part of batch.parts) {
         const voxels = part.userData['instanceVoxels'] as unknown;
-        if (!Array.isArray(keys) || keys.length !== batch.keys.length) batchInvariantViolations.push(`${batchKey}: part ${partIndex} keys length mismatch`);
-        if (!Array.isArray(voxels) || voxels.length !== batch.keys.length) batchInvariantViolations.push(`${batchKey}: part ${partIndex} voxels length mismatch`);
-        if (part.count !== batch.keys.length) batchInvariantViolations.push(`${batchKey}: part ${partIndex} count mismatch`);
-        if (Array.isArray(keys)) for (const key of keys) addStale(key);
-        if (Array.isArray(voxels)) for (const voxel of voxels) {
-          if (voxel && typeof voxel === 'object' && typeof (voxel as VoxelCoordinate).x === 'number') addStale(coordinateKey(voxel as VoxelCoordinate));
-        }
-      }
-      for (const [index, key] of batch.keys.entries()) {
-        const entry = this.renderedBlocks.get(key);
-        if (!entry || entry.instanceBatchKey !== batchKey || entry.instanceIndex !== index) batchInvariantViolations.push(`${batchKey}: ownership mismatch at ${index} (${key})`);
+        if (Array.isArray(voxels)) for (const voxel of voxels) if (voxel && typeof voxel === 'object' && typeof (voxel as VoxelCoordinate).x === 'number') addStale(coordinateKey(voxel as VoxelCoordinate));
       }
     }
 
@@ -1699,6 +1872,7 @@ export class ThreeViewportEngine {
       suspiciousVisualCount: diagnostics.suspiciousVisualCount,
       suspiciousVisuals: [...diagnostics.suspiciousVisuals],
       directSceneChildren: diagnostics.directSceneChildren.map((child) => ({ ...child })),
+      instanceOwnershipTrace: this.instanceOwnershipTrace.map((event) => ({ ...event, physicalMemberships: event.physicalMemberships.map((membership) => ({ ...membership })), violations: [...event.violations], ...(event.previousEntry ? { previousEntry: { ...event.previousEntry } } : {}) })),
       previewState: { ...diagnostics.previewState },
     };
   }

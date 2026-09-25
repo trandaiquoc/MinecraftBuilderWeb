@@ -718,6 +718,109 @@ describe('camera movement input contract', () => {
     sharedGeometry.dispose();
   });
 
+  it('keeps one physical instance per key across boundary-heavy randomized removals', async () => {
+    const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const provider = {
+      create: vi.fn(async () => {
+        const object = new THREE.Group(); object.add(new THREE.Mesh(sharedGeometry, new THREE.MeshLambertMaterial({ color: 0x8a94a6 })));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      reusableVisualKey: () => 'boundary-cube',
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const blocks = Array.from({ length: 700 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 64, y: Math.floor(index / 64) % 2, z: Math.floor(index / 128) } }));
+    const populated = { ...base, size: { x: 64, y: 2, z: 8 }, blocks, decorations: [] };
+    const empty = { ...populated, blocks: [] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(populated, undefined); await settleHydration(200, engine);
+    const assertOwnership = () => expect(engine.rendererOwnershipDiagnostics().batchInvariantViolations).toEqual([]);
+    assertOwnership();
+    let current = populated;
+    const order = Array.from({ length: blocks.length }, (_, index) => (index * 397) % blocks.length);
+    for (const index of order) {
+      const removedKey = coordinateKey(blocks[index].position);
+      current = { ...current, blocks: current.blocks.filter((block) => coordinateKey(block.position) !== removedKey) };
+      engine.update(current, undefined);
+      assertOwnership();
+    }
+    expect(engine.rendererOwnershipDiagnostics()).toMatchObject({ instanceBatchCount: 0, instanceMemberCount: 0, renderedBlockCount: 0 });
+    for (let cycle = 0; cycle < 3; cycle += 1) { engine.update(populated, undefined); await settleHydration(200, engine); assertOwnership(); engine.update(empty, undefined); expect(engine.rendererOwnershipDiagnostics()).toMatchObject({ instanceBatchCount: 0, instanceMemberCount: 0, renderedBlockCount: 0, blocksGroupChildCount: 0 }); }
+    engine.dispose(); sharedGeometry.dispose();
+  }, 30_000);
+
+  it('tears down every part of a multi-part instanced visual as one membership', async () => {
+    const provider = {
+      create: vi.fn(async () => {
+        const object = new THREE.Group();
+        const left = new THREE.Mesh(new THREE.BoxGeometry(.5, 1, 1), new THREE.MeshLambertMaterial({ color: 0x8a94a6 })); left.position.x = -.25;
+        const right = new THREE.Mesh(new THREE.BoxGeometry(.5, 1, 1), new THREE.MeshLambertMaterial({ color: 0x6f7f90 })); right.position.x = .25;
+        object.add(left, right);
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      reusableVisualKey: () => 'multi-part-cube',
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const blocks = Array.from({ length: VIEWPORT_INSTANCE_THRESHOLD + 4 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 20, y: Math.floor(index / 20), z: 0 } }));
+    const populated = { ...base, size: { x: 20, y: 20, z: 1 }, blocks, decorations: [] };
+    const empty = { ...populated, blocks: [] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(populated, undefined); await settleHydration(200, engine);
+    const internal = engine as unknown as { instanceBatches: Map<string, { keys: string[]; parts: THREE.InstancedMesh[] }> };
+    expect([...internal.instanceBatches.values()].every((batch) => batch.parts.length === 2)).toBe(true);
+    expect(engine.rendererOwnershipDiagnostics()).toMatchObject({ instanceMemberCount: blocks.length, batchInvariantViolations: [] });
+    engine.update(empty, undefined);
+    expect(engine.rendererOwnershipDiagnostics()).toMatchObject({ instanceBatchCount: 0, instanceMemberCount: 0, blocksGroupChildCount: 0, batchInvariantViolations: [] });
+    engine.dispose();
+  }, 20_000);
+
+  it('repairs stale entry indexes and rejects duplicate physical insertion', async () => {
+    const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const provider = {
+      create: vi.fn(async () => { const object = new THREE.Group(); object.add(new THREE.Mesh(sharedGeometry, new THREE.MeshLambertMaterial({ color: 0x8a94a6 }))); return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }),
+      reusableVisualKey: () => 'duplicate-cube',
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const blocks = Array.from({ length: VIEWPORT_INSTANCE_THRESHOLD + 2 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 32, y: Math.floor(index / 32), z: 0 } }));
+    const project = { ...base, size: { x: 32, y: 16, z: 1 }, blocks, decorations: [] };
+    const engine = new ThreeViewportEngine(); engine.setRuntimeDiagnosticsEnabled(true); engine.setVisualProvider(provider); engine.update(project, undefined); await settleHydration(200, engine);
+    const internal = engine as unknown as { renderedBlocks: Map<string, { instanceBatchKey?: string; instanceIndex?: number }>; instanceBatches: Map<string, { templates: readonly { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] }>; removeBlockEntry: (key: string, entry: { instanceBatchKey?: string; instanceIndex?: number }) => void; addInstanceVisualFromTemplates: (templates: readonly { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[], block: PlacedBlock, key: string, source: 'cached-template') => { batchKey: string; index: number } | undefined };
+    const first = blocks[0]; const firstKey = coordinateKey(first.position); const entry = internal.renderedBlocks.get(firstKey)!; const oldIndex = entry.instanceIndex!;
+    const batch = internal.instanceBatches.get(entry.instanceBatchKey!)!;
+    entry.instanceIndex = oldIndex + 1;
+    internal.removeBlockEntry(firstKey, entry);
+    expect(engine.rendererOwnershipDiagnostics().batchInvariantViolations).toEqual([]);
+    expect(engine.rendererOwnershipDiagnostics().renderedBlockCount).toBe(blocks.length - 1);
+    const replacementEntry = internal.renderedBlocks.get(coordinateKey(blocks[1].position))!;
+    const inserted = internal.addInstanceVisualFromTemplates(batch.templates, blocks[1], coordinateKey(blocks[1].position), 'cached-template');
+    expect(inserted).toBeDefined();
+    replacementEntry.instanceBatchKey = inserted!.batchKey; replacementEntry.instanceIndex = inserted!.index;
+    expect(engine.rendererOwnershipDiagnostics().batchInvariantViolations).toEqual([]);
+    expect(engine.rendererOwnershipDiagnostics().instanceMemberCount).toBe(blocks.length - 1);
+    expect(engine.runtimeGhostDiagnostics().current.instanceOwnershipTrace.some((event) => event.phase === 'before-insert' && event.source === 'cached-template')).toBe(true);
+    engine.dispose(); sharedGeometry.dispose();
+  }, 20_000);
+
+  it('removes a physical member whose authoritative entry disappeared before reconcile', async () => {
+    const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const provider = {
+      create: vi.fn(async () => { const object = new THREE.Group(); object.add(new THREE.Mesh(sharedGeometry, new THREE.MeshLambertMaterial())); return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }),
+      reusableVisualKey: () => 'orphan-cube',
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const blocks = Array.from({ length: VIEWPORT_INSTANCE_THRESHOLD + 1 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 32, y: Math.floor(index / 32), z: 0 } }));
+    const populated = { ...base, size: { x: 32, y: 16, z: 1 }, blocks, decorations: [] };
+    const empty = { ...populated, blocks: [] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(populated, undefined); await settleHydration(200, engine);
+    const internal = engine as unknown as { renderedBlocks: Map<string, unknown>; instanceBatches: Map<string, unknown> };
+    internal.renderedBlocks.delete(coordinateKey(blocks[0].position));
+    engine.update(empty, undefined);
+    expect(internal.instanceBatches.size).toBe(0);
+    expect(engine.rendererOwnershipDiagnostics().batchInvariantViolations).toEqual([]);
+    engine.dispose(); sharedGeometry.dispose();
+  }, 20_000);
+
   it('keeps conservative chunk bounds stable when progressive hydration adds an instance outside the initial members', async () => {
     const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
     sharedGeometry.userData['providerOwnedGeometry'] = true;
