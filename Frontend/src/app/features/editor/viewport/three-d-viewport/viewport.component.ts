@@ -10,7 +10,7 @@ import { CameraStateService } from '../../../../core/editor/camera/camera-state.
 import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, faceLockedSelectionPlane, freeSpaceSelectionBox, normalizeVoxelBox, voxelOnFaceLockedPlane } from '../../../../core/editor/selection/selection';
-import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
+import { ThreeViewportEngine, ViewportOwnershipDiagnostics } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -81,6 +81,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
+  rendererDiagnostics(): ViewportOwnershipDiagnostics { return this.engine.rendererOwnershipDiagnostics(); }
   focusSelection(): void {
     const decoration = this.decorations.selected();
     if (decoration) { const bounds = decorationAabb(decoration); this.engine.focusBounds(bounds); return; }

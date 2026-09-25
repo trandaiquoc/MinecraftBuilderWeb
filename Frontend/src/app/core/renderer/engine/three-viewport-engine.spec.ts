@@ -6,7 +6,7 @@ import type { BlockVisualProvider } from '../geometry/block-model-geometry';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
-import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
+import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 import { coordinateKey } from '../../domain/coordinates';
 
@@ -332,25 +332,140 @@ describe('camera movement input contract', () => {
       expect(internals.renderedBlocks.size).toBe(0);
       expect(internals.placeholderIndices.size).toBe(0);
       expect(internals.instanceBatches.size).toBe(0);
-      expect(engine.rendererOwnershipDiagnostics()).toMatchObject({
+      const emptyDiagnostics = engine.rendererOwnershipDiagnostics();
+      expect(emptyDiagnostics).toMatchObject({
+        authoritativeProjectBlockCount: 0,
         authoritativeVisibleBlockCount: 0,
         renderedBlockCount: 0,
         placeholderVisualCount: 0,
+        placeholderBatchCount: 0,
+        placeholderIndexCount: 0,
         instanceBatchCount: 0,
         instanceMemberCount: 0,
         blocksGroupChildCount: 0,
         blockLikeSceneObjectsOutsideBlocksGroup: 0,
+        visibleMeshesOutsideBlocksGroup: 0,
+        visibleMeshCount: 0,
         staleVoxelKeys: [],
         batchInvariantViolations: [],
+        hydrationState: { queued: 0, running: 0, pendingSignatureCount: 0, placeholderSignatureCount: 0, runningOwnershipCount: 0 },
+        previewState: { ghostVisible: false, ghostModelVisible: false, movePreviewChildren: 0, decorationGhostChildren: 0 },
       });
+      expect(emptyDiagnostics.visibleMeshSample).toEqual([]);
       engine.update(project, undefined);
       await settleHydration();
       expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
       expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, running: 0, orphanedHydrationCount: 0, expectedVisibleBlockCount: 700 });
     }
+    engine.update(previousProject, undefined);
+    const finalEmptyDiagnostics = engine.rendererOwnershipDiagnostics();
+    expect(finalEmptyDiagnostics).toMatchObject({ authoritativeProjectBlockCount: 0, authoritativeVisibleBlockCount: 0, renderedBlockCount: 0, placeholderVisualCount: 0, instanceBatchCount: 0, instanceMemberCount: 0, blocksGroupChildCount: 0, visibleMeshesOutsideBlocksGroup: 0, visibleMeshCount: 0, staleVoxelKeys: [], batchInvariantViolations: [] });
+    expect(finalEmptyDiagnostics.visibleMeshSample).toEqual([]);
     expect(engine.rendererCounters().reusableTemplateCacheHits).toBeGreaterThan(100);
-    expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toHaveLength(700);
+    expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toHaveLength(0);
     engine.dispose();
+  });
+
+  it('reports markerless textured ghost meshes by their actual scene owner', async () => {
+    const texture = new THREE.Texture({ src: 'fixture:cobblestone.png' });
+    const geometry = new THREE.BoxGeometry();
+    const ghostMesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
+    const provider = {
+      create: vi.fn(async () => ({ object: ghostMesh, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: ['minecraft:block/cobblestone'], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } })),
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const project = rendererBenchmarkProject('small');
+    const emptyProject = { ...project, blocks: [], decorations: [] };
+    const active: ActiveBlock = { id: 'minecraft:cobblestone', state: {}, support: 'full' };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(emptyProject, active);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const internal = engine as unknown as {
+      updateGhost: (target: VoxelCoordinate | undefined, project: ProjectDocument | undefined, active: ActiveBlock | undefined) => void;
+    };
+    internal.updateGhost({ x: 4, y: 2, z: 7 }, emptyProject, active);
+
+    const diagnostics = engine.rendererOwnershipDiagnostics();
+    const ghostDiagnostic = diagnostics.visibleMeshSample.find((mesh) => mesh.owner === 'ghostModel');
+    expect(ghostDiagnostic).toMatchObject({
+      owner: 'ghostModel',
+      objectType: 'Mesh',
+      localPosition: { x: 0, y: 0, z: 0 },
+      worldPosition: { x: 4, y: 2, z: 7 },
+      parentPath: [
+        expect.objectContaining({ type: 'Scene' }),
+        expect.objectContaining({ type: 'Group' }),
+        expect.objectContaining({ type: 'Mesh' }),
+      ],
+      materials: [expect.objectContaining({ type: 'MeshBasicMaterial', texture: expect.objectContaining({ sourceIdentity: 'fixture:cobblestone.png' }) })],
+      userData: {},
+    });
+    expect(diagnostics.visibleMeshesOutsideBlocksGroupSample).toContainEqual(ghostDiagnostic);
+    expect(diagnostics.visibleMeshesOutsideBlocksGroup).toBeGreaterThanOrEqual(1);
+    expect(diagnostics.previewState).toMatchObject({ ghostVisible: true, ghostModelPresent: true, ghostModelVisible: true, ghostTarget: { x: 4, y: 2, z: 7 } });
+    engine.dispose();
+    geometry.dispose();
+    texture.dispose();
+  });
+
+  it('keeps a second asynchronous mixed-visual build from restoring visuals after removal', async () => {
+    const pending: Array<(value: Awaited<ReturnType<BlockVisualProvider['create']>>) => void> = [];
+    const textures = new Map(['minecraft:stone', 'minecraft:oak_planks', 'minecraft:glass'].map((id) => [id, new THREE.Texture({ src: `fixture:${id}.png` })]));
+    let delayGlass = false;
+    const createVisual = (block: PlacedBlock) => {
+      const geometry = new THREE.BoxGeometry();
+      const material = new THREE.MeshBasicMaterial({ map: textures.get(block.id) });
+      const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, material));
+      return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [block.id], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } } as unknown as Awaited<ReturnType<BlockVisualProvider['create']>>;
+    };
+    const provider = {
+      create: vi.fn((block: PlacedBlock) => delayGlass && block.id === 'minecraft:glass'
+        ? new Promise<Awaited<ReturnType<BlockVisualProvider['create']>>>((resolve) => pending.push(resolve))
+        : Promise.resolve(createVisual(block))),
+      reusableVisualKey: (block: PlacedBlock) => block.id === 'minecraft:glass' ? undefined : block.id,
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const blocks = Array.from({ length: 512 }, (_, index) => ({
+      ...base.blocks[0],
+      id: index % 3 === 0 ? 'minecraft:glass' : index % 2 === 0 ? 'minecraft:stone' : 'minecraft:oak_planks',
+      position: { x: index % 32, y: 0, z: Math.floor(index / 32) },
+    }));
+    const populated = { ...base, size: { x: 32, y: 1, z: 16 }, blocks, decorations: [] };
+    const empty = { ...populated, blocks: [] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider);
+
+    engine.update(populated, undefined);
+    await settleHydration(100, engine);
+    expect(engine.hydrationProgress().status).toBe('complete');
+    engine.update(empty, undefined);
+    expect(engine.rendererOwnershipDiagnostics()).toMatchObject({ authoritativeVisibleBlockCount: 0, visibleMeshesOutsideBlocksGroup: 0 });
+
+    delayGlass = true;
+    engine.update(populated, undefined);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(engine.rendererCounters().reusableTemplateCacheHits).toBeGreaterThan(0);
+    expect(pending.length).toBeGreaterThan(0);
+
+    engine.update(empty, undefined);
+    expect(engine.rendererOwnershipDiagnostics()).toMatchObject({
+      authoritativeProjectBlockCount: 0,
+      authoritativeVisibleBlockCount: 0,
+      renderedBlockCount: 0,
+      placeholderVisualCount: 0,
+      placeholderBatchCount: 0,
+      placeholderIndexCount: 0,
+      instanceMemberCount: 0,
+      visibleMeshesOutsideBlocksGroup: 0,
+      visibleMeshCount: 0,
+    });
+    for (const resolve of pending) resolve(createVisual(blocks.find((block) => block.id === 'minecraft:glass')!));
+    await settleHydration(100, engine);
+    expect(engine.rendererOwnershipDiagnostics()).toMatchObject({ authoritativeVisibleBlockCount: 0, renderedBlockCount: 0, instanceMemberCount: 0, visibleMeshesOutsideBlocksGroup: 0, visibleMeshCount: 0, staleVoxelKeys: [] });
+    expect(engine.rendererOwnershipDiagnostics().visibleMeshSample).toEqual([]);
+    engine.dispose();
+    for (const texture of textures.values()) texture.dispose();
   });
 
   it('drains every instance batch when a populated project becomes empty', async () => {
