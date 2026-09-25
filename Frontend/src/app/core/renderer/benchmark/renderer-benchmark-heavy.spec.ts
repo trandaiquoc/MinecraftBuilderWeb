@@ -14,16 +14,16 @@ describe('explicit renderer benchmark', () => {
       const provider = rendererBenchmarkVisualProvider(); engine.setVisualProvider(provider);
       const started = Date.now();
       engine.update(project, undefined);
-      await settleRendererPromises();
+      await settleHydration(200, engine);
       const initial = diagnostics.snapshot();
       const position = { x: project.size.x - 1, y: project.size.y - 1, z: project.size.z - 1 };
       const afterAdd = { ...project, blocks: [...project.blocks, benchmarkBlock(project.blocks.length + 1, position)] };
       engine.update(afterAdd, undefined);
-      await settleRendererPromises();
+      await settleHydration(200, engine);
       const afterAddCounters = diagnostics.snapshot();
       const edited = { ...afterAdd, blocks: afterAdd.blocks.map((block, index) => index === 1 ? { ...block, state: { ...block.state, shape: 'inner_left' } } : block) };
       engine.update(edited, undefined);
-      await settleRendererPromises();
+      await settleHydration(200, engine);
       const afterStateCounters = diagnostics.snapshot();
       engine.update(edited, undefined, { selected: position });
       const afterSelectionCounters = diagnostics.snapshot();
@@ -37,7 +37,7 @@ describe('explicit renderer benchmark', () => {
       expect(afterSelectionCounters.blockVisualCreations).toBe(afterStateCounters.blockVisualCreations);
       expect(counters.decorationUpdates - afterSelectionCounters.decorationUpdates).toBe(firstDecoration ? 1 : 0);
       const beforeDispose = provider.resourceCounts?.(); provider.dispose(); const afterDispose = provider.resourceCounts?.();
-      console.info(`[renderer benchmark] ${size} initial=${initial.blockVisualCreations} addDelta=${afterAddCounters.blockVisualCreations - initial.blockVisualCreations} stateDelta=${afterStateCounters.blockVisualCreations - afterAddCounters.blockVisualCreations} selectionDelta=${afterSelectionCounters.blockVisualCreations - afterStateCounters.blockVisualCreations} decorationDelta=${counters.decorationVisualCreations - afterSelectionCounters.decorationVisualCreations} modelCache=${counters.resolvedModelCacheHits}/${counters.resolvedModelCacheMisses} geometryCache=${counters.geometryCacheHits}/${counters.geometryCacheMisses} textureCache=${counters.textureCacheHits}/${counters.textureCacheMisses} resources=${JSON.stringify(beforeDispose)} disposed=${JSON.stringify(afterDispose)} fullRebuilds=${counters.fullSceneRebuilds} elapsedMs=${Date.now() - started}`);
+      console.info(`[renderer benchmark] ${size} initial=${initial.blockVisualCreations} addDelta=${afterAddCounters.blockVisualCreations - initial.blockVisualCreations} stateDelta=${afterStateCounters.blockVisualCreations - afterAddCounters.blockVisualCreations} selectionDelta=${afterSelectionCounters.blockVisualCreations - afterStateCounters.blockVisualCreations} decorationDelta=${counters.decorationVisualCreations - afterSelectionCounters.decorationVisualCreations} modelCache=${counters.resolvedModelCacheHits}/${counters.resolvedModelCacheMisses} geometryCache=${counters.geometryCacheHits}/${counters.geometryCacheMisses} textureCache=${counters.textureCacheHits}/${counters.textureCacheMisses} fallbackMeshes=${counters.fallbackMeshCreations} cachedInsertions=${counters.cachedTemplateInsertions} cameraFrames=${counters.cameraMovementFrames} suppressedCameraRenders=${counters.cameraRenderRequestsSuppressed} resources=${JSON.stringify(beforeDispose)} disposed=${JSON.stringify(afterDispose)} fullRebuilds=${counters.fullSceneRebuilds} elapsedMs=${Date.now() - started}`);
       engine.dispose();
     }
   });
@@ -58,10 +58,16 @@ describe('explicit renderer benchmark', () => {
     expect(evidence.renderedBlocks).toBe(project.blocks.length);
     expect(counters.instancedMembers).toBeGreaterThan(0);
     expect(evidence.meshCount).toBeLessThan(project.blocks.length / 100);
-    console.info(`[renderer benchmark] stress CPU/hydration blocks=${evidence.renderedBlocks} calls=${evidence.renderCalls} triangles=${evidence.triangles} geometries=${evidence.geometries} textures=${evidence.textures} object3d=${evidence.object3dCount} meshes=${evidence.meshCount} instances=${evidence.instanceMembers} instanceMeshes=${evidence.instanceMeshCount} providerObjects=${counters.providerObjectCreations} templateCreates=${counters.reusableTemplateCreations} templateHits=${counters.reusableTemplateCacheHits} boundsComputations=${counters.instancedBoundsComputations} queue=${evidence.hydrationQueue} running=${evidence.hydrationRunning} frameMs=${evidence.frameDurationMs.toFixed(2)} hydrationElapsedMs=${Date.now() - started}`);
+    console.info(`[renderer benchmark] stress CPU/hydration blocks=${evidence.renderedBlocks} calls=${evidence.renderCalls} triangles=${evidence.triangles} geometries=${evidence.geometries} textures=${evidence.textures} object3d=${evidence.object3dCount} meshes=${evidence.meshCount} instances=${evidence.instanceMembers} instanceMeshes=${evidence.instanceMeshCount} providerObjects=${counters.providerObjectCreations} templateCreates=${counters.reusableTemplateCreations} templateHits=${counters.reusableTemplateCacheHits} cachedInsertions=${counters.cachedTemplateInsertions} fallbackMeshes=${counters.fallbackMeshCreations} boundsComputations=${counters.instancedBoundsComputations} cameraFrames=${counters.cameraMovementFrames} suppressedCameraRenders=${counters.cameraRenderRequestsSuppressed} queue=${evidence.hydrationQueue} running=${evidence.hydrationRunning} frameMs=${evidence.frameDurationMs.toFixed(2)} hydrationElapsedMs=${Date.now() - started}`);
     provider.dispose();
     engine.dispose();
   });
 });
 
 async function settleRendererPromises(rounds = 1): Promise<void> { for (let index = 0; index < rounds; index += 1) { await new Promise((resolve) => setTimeout(resolve, 0)); await Promise.resolve(); } }
+async function settleHydration(rounds: number, engine: ThreeViewportEngine): Promise<void> {
+  for (let index = 0; index < rounds; index += 1) {
+    await settleRendererPromises();
+    if (engine.hydrationDiagnostics().queued === 0 && engine.hydrationDiagnostics().running === 0) return;
+  }
+}

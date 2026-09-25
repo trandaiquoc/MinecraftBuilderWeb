@@ -31,6 +31,12 @@ export interface RendererCounters {
   readonly instancedBoundsComputations: number;
   readonly reusableTemplateCreations: number;
   readonly reusableTemplateCacheHits: number;
+  readonly fallbackMeshCreations: number;
+  readonly cachedTemplateInsertions: number;
+  readonly cameraMovementFrames: number;
+  readonly cameraMovementRenderCalls: number;
+  readonly cameraChangeEventsDuringMovement: number;
+  readonly cameraRenderRequestsSuppressed: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -66,6 +72,12 @@ const EMPTY_COUNTERS: RendererCounters = {
   instancedBoundsComputations: 0,
   reusableTemplateCreations: 0,
   reusableTemplateCacheHits: 0,
+  fallbackMeshCreations: 0,
+  cachedTemplateInsertions: 0,
+  cameraMovementFrames: 0,
+  cameraMovementRenderCalls: 0,
+  cameraChangeEventsDuringMovement: 0,
+  cameraRenderRequestsSuppressed: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

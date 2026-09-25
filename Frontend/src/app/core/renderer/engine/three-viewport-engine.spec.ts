@@ -272,6 +272,45 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('uses cached reusable templates without allocating a throwaway fallback mesh', async () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1); geometry.userData['providerOwnedGeometry'] = true;
+    const provider = {
+      create: vi.fn(async () => {
+        const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      reusableVisualKey: () => 'cached-cube',
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 300), decorations: [] };
+    const empty = { ...project, blocks: [] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider);
+    engine.update(project, undefined); await settleHydration(8);
+    const first = engine.rendererCounters();
+    engine.update(empty, undefined); engine.update(project, undefined); await settleHydration(8);
+    const second = engine.rendererCounters();
+    expect(second.reusableTemplateCacheHits).toBeGreaterThan(first.reusableTemplateCacheHits);
+    expect(second.cachedTemplateInsertions).toBeGreaterThan(0);
+    expect(second.fallbackMeshCreations).toBe(first.fallbackMeshCreations);
+    const internals = engine as unknown as { placeholderMaterials: { normal: THREE.Material } };
+    expect(internals.placeholderMaterials.normal.type).toBe('MeshBasicMaterial');
+    expect(internals.placeholderMaterials.normal.transparent).toBe(false);
+    expect(internals.placeholderMaterials.normal.depthWrite).toBe(true);
+    engine.dispose(); geometry.dispose();
+  });
+
+  it('suppresses the OrbitControls change render during an explicit keyboard movement frame', () => {
+    const engine = new ThreeViewportEngine();
+    const internals = engine as unknown as { cameraMovementInProgress: boolean; renderOnControlChange: () => void };
+    internals.cameraMovementInProgress = true;
+    internals.renderOnControlChange();
+    expect(engine.rendererCounters().cameraChangeEventsDuringMovement).toBe(1);
+    expect(engine.rendererCounters().cameraRenderRequestsSuppressed).toBe(1);
+    expect(engine.rendererCounters().cameraMovementRenderCalls).toBe(0);
+    engine.dispose();
+  });
+
   it('contains a synchronous cached-visual failure and continues hydration', async () => {
     let throwCachedFailure = false;
     const provider = {
@@ -863,6 +902,8 @@ describe('camera movement input contract', () => {
       expect([...internals.renderedBlocks.values()].every((entry) => entry.object.visible)).toBe(true);
     }
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(1);
+    expect(engine.rendererCounters().cameraMovementFrames).toBe(12);
+    expect(engine.rendererCounters().cameraMovementRenderCalls).toBe(12);
     engine.dispose(); geometry.dispose();
   });
 

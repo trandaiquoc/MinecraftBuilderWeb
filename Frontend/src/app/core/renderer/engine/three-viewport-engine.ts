@@ -58,6 +58,12 @@ export interface ViewportPerformanceEvidence {
   readonly reusableTemplateCreations: number;
   readonly reusableTemplateCacheHits: number;
   readonly instancedBoundsComputations: number;
+  readonly fallbackMeshCreations: number;
+  readonly cachedTemplateInsertions: number;
+  readonly cameraMovementFrames: number;
+  readonly cameraMovementRenderCalls: number;
+  readonly cameraChangeEventsDuringMovement: number;
+  readonly cameraRenderRequestsSuppressed: number;
   readonly hydrationQueue: number;
   readonly hydrationRunning: number;
   readonly frameDurationMs: number;
@@ -242,9 +248,9 @@ interface RenderedBlockEntry {
   readonly block: ProjectDocument['blocks'][number];
   readonly signature: string;
   readonly role: 'normal' | 'reference' | 'missing';
-  readonly fallback: THREE.Mesh;
+  fallback?: THREE.Mesh;
   revision: number;
-  object: THREE.Object3D;
+  object?: THREE.Object3D;
   instanceBatchKey?: string;
   instanceIndex?: number;
 }
@@ -283,6 +289,11 @@ export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
 export const VIEWPORT_HYDRATION_COMPLETE_DISPLAY_MS = 800;
 
 interface InstancePartTemplate { readonly geometry: THREE.BufferGeometry; readonly material: THREE.Material; readonly matrix: THREE.Matrix4; }
+interface CompiledInstanceTemplates {
+  readonly templates: readonly InstancePartTemplate[];
+  readonly signature: string;
+  readonly envelope: THREE.Box3;
+}
 interface InstanceBatch {
   readonly key: string;
   readonly capacity: number;
@@ -341,7 +352,9 @@ export class ThreeViewportEngine {
   };
   private readonly placeholderGeometry = Object.assign(new THREE.BoxGeometry(1, 1, 1), { userData: { sharedPlaceholderGeometry: true } });
   private readonly placeholderMaterials = {
-    normal: Object.assign(new THREE.MeshLambertMaterial({ color: 0x65717e, transparent: true, opacity: .62 }), { userData: { sharedPlaceholderMaterial: true } }),
+    // Normal placeholders are deliberately cheap opaque depth-writing meshes. Reference and
+    // missing placeholders retain their transparency semantics below.
+    normal: Object.assign(new THREE.MeshBasicMaterial({ color: 0x65717e, depthWrite: true }), { userData: { sharedPlaceholderMaterial: true } }),
     reference: Object.assign(new THREE.MeshLambertMaterial({ color: 0x65717e, transparent: true, opacity: .24, depthWrite: false }), { userData: { sharedPlaceholderMaterial: true } }),
     missing: Object.assign(new THREE.MeshLambertMaterial({ color: 0x9b5964, transparent: true, opacity: .58 }), { userData: { sharedPlaceholderMaterial: true } }),
   };
@@ -362,7 +375,16 @@ export class ThreeViewportEngine {
   private activeBlock?: ActiveBlock;
   private renderOptions: ViewportRenderOptions = {};
   private hasCameraFrame = false;
-  private readonly renderOnControlChange = () => { this.cameraInteractingUntil = performance.now() + 180; this.render(); };
+  private readonly renderOnControlChange = () => {
+    this.cameraInteractingUntil = performance.now() + 180;
+    if (this.cameraMovementInProgress) {
+      this.instrumentation.record('cameraChangeEventsDuringMovement');
+      this.instrumentation.record('cameraRenderRequestsSuppressed');
+      return;
+    }
+    this.render();
+  };
+  private cameraMovementInProgress = false;
   private cameraMoveFrame?: number;
   private readonly pressedActions = new Set<MovementAction>();
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
@@ -410,9 +432,11 @@ export class ThreeViewportEngine {
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
   private readonly instanceBatches = new Map<string, InstanceBatch>();
+  private readonly instanceTranslationMatrix = new THREE.Matrix4();
+  private readonly instanceTransformedMatrix = new THREE.Matrix4();
   /** Derived lookup index; batch.keys remains the physical source of truth. */
   private readonly instanceOwnershipIndex = new Map<string, { readonly batchKey: string; readonly index: number }>();
-  private readonly reusableInstanceTemplates = new Map<string, readonly InstancePartTemplate[]>();
+  private readonly reusableInstanceTemplates = new Map<string, CompiledInstanceTemplates>();
   private readonly placeholderBatches = new Map<string, PlaceholderBatch>();
   private readonly placeholderIndices = new Map<string, { readonly batchKey: string; readonly index: number }>();
   private readonly hydrationProgressListeners = new Set<(progress: ViewportHydrationProgress) => void>();
@@ -949,8 +973,9 @@ export class ThreeViewportEngine {
   private markHydrationFailure(job: BlockHydrationJob, error: unknown): void {
     const entry = this.renderedBlocks.get(job.key);
     if (!entry) return;
-    entry.fallback.userData['renderMode'] = 'fallback';
-    entry.fallback.userData['diagnostics'] = [{ code: 'GEOMETRY_BUILD_FAILED', message: error instanceof Error ? error.message : 'Visual construction failed' }];
+    const fallback = this.ensureFallbackVisual(entry);
+    fallback.userData['renderMode'] = 'fallback';
+    fallback.userData['diagnostics'] = [{ code: 'GEOMETRY_BUILD_FAILED', message: error instanceof Error ? error.message : 'Visual construction failed' }];
     this.scheduleRender();
   }
 
@@ -1087,35 +1112,30 @@ export class ThreeViewportEngine {
     if (existing) this.removeBlockEntry(key, existing);
     else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
     this.removePlaceholderVisual(key);
-    if (!this.fallbackGeometryCounted) { this.instrumentation.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
-    if (!this.fallbackMaterialRoles.has(role)) { this.instrumentation.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(role); }
-    const isReference = role === 'reference';
-    const material = role === 'missing' ? this.fallbackMaterials.missing : isReference ? this.fallbackMaterials.reference : this.fallbackMaterials.normal;
-    material.transparent = isReference;
-    material.opacity = isReference ? options.referenceOpacity ?? .28 : 1;
-    const fallback = new THREE.Mesh(this.fallbackGeometry, material);
-    fallback.position.set(block.position.x + .5, block.position.y + .5, block.position.z + .5);
-    fallback.userData['voxel'] = block.position; fallback.userData['renderRole'] = role;
-    const entry: RenderedBlockEntry = { key, block, signature: `${stableValue(block)}|${role}|${options.referenceOpacity ?? .28}`, role, fallback, revision: 0, object: fallback };
-    this.renderedBlocks.set(entry.key, entry); this.blocksGroup.add(fallback);
-    if (this.visualProvider && block.kind !== 'missing') {
+    const entry: RenderedBlockEntry = { key, block, signature: `${stableValue(block)}|${role}|${options.referenceOpacity ?? .28}`, role, revision: 0 };
+    this.renderedBlocks.set(entry.key, entry);
+    const providerAvailable = !!this.visualProvider && block.kind !== 'missing';
+    const provider = this.visualProvider;
+    const reusableKey = providerAvailable && allowInstancing && role === 'normal' ? provider?.reusableVisualKey?.(block, worldContext) : undefined;
+    const cachedTemplates = reusableKey ? this.reusableInstanceTemplates.get(reusableKey) : undefined;
+    if (providerAvailable && cachedTemplates) {
+      const instance = this.addInstanceVisualFromTemplates(cachedTemplates.templates, block, entry.key, 'cached-template', cachedTemplates);
+      if (instance) {
+        this.instrumentation.record('reusableTemplateCacheHits');
+        this.instrumentation.record('cachedTemplateInsertions');
+        entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0];
+        onComplete?.(); this.scheduleRender(); return;
+      }
+    }
+
+    const fallback = this.ensureFallbackVisual(entry, options.referenceOpacity);
+    if (providerAvailable) {
+      const isReference = role === 'reference';
       const generation = this.providerGeneration; const revision = ++entry.revision;
       this.instrumentation.record('modelResolutions');
-      const provider = this.visualProvider!;
-      const reusableKey = allowInstancing && role === 'normal' ? provider.reusableVisualKey?.(block, worldContext) : undefined;
-      const cachedTemplates = reusableKey ? this.reusableInstanceTemplates.get(reusableKey) : undefined;
-      if (cachedTemplates) {
-        const instance = this.addInstanceVisualFromTemplates(cachedTemplates, block, entry.key, 'cached-template');
-        if (instance) {
-          this.instrumentation.record('reusableTemplateCacheHits');
-          this.blocksGroup.remove(fallback);
-          entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0];
-          onComplete?.(); this.scheduleRender(); return;
-        }
-      }
       let visualPromise: ReturnType<BlockVisualProvider['create']>;
       this.instrumentation.record('providerObjectCreations');
-      try { visualPromise = provider.create(block, worldContext); } catch (error) { visualPromise = Promise.reject(error); }
+      try { visualPromise = provider!.create(block, worldContext); } catch (error) { visualPromise = Promise.reject(error); }
       void Promise.resolve(visualPromise).then((visual) => {
         if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
         fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
@@ -1132,20 +1152,39 @@ export class ThreeViewportEngine {
     } else onComplete?.();
   }
 
+  private ensureFallbackVisual(entry: RenderedBlockEntry, referenceOpacity = .28): THREE.Mesh {
+    if (entry.fallback) return entry.fallback;
+    if (!this.fallbackGeometryCounted) { this.instrumentation.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
+    if (!this.fallbackMaterialRoles.has(entry.role)) { this.instrumentation.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(entry.role); }
+    const isReference = entry.role === 'reference';
+    const material = entry.role === 'missing' ? this.fallbackMaterials.missing : isReference ? this.fallbackMaterials.reference : this.fallbackMaterials.normal;
+    material.transparent = isReference;
+    material.opacity = isReference ? referenceOpacity : 1;
+    const fallback = new THREE.Mesh(this.fallbackGeometry, material);
+    fallback.position.set(entry.block.position.x + .5, entry.block.position.y + .5, entry.block.position.z + .5);
+    fallback.userData['voxel'] = entry.block.position; fallback.userData['renderRole'] = entry.role;
+    entry.fallback = fallback; entry.object = fallback;
+    this.blocksGroup.add(fallback);
+    this.instrumentation.record('fallbackMeshCreations');
+    return fallback;
+  }
+
   private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
     const templates = this.instanceTemplates(object);
     if (!templates) return undefined;
-    const retainedTemplates = reusableKey && !this.reusableInstanceTemplates.has(reusableKey) ? cloneInstanceTemplates(templates) : undefined;
-    if (retainedTemplates && reusableKey) { this.reusableInstanceTemplates.set(reusableKey, retainedTemplates); this.instrumentation.record('reusableTemplateCreations'); }
-    return this.addInstanceVisualFromTemplates(retainedTemplates ?? templates, block, key, source);
+    const cached = reusableKey ? this.reusableInstanceTemplates.get(reusableKey) : undefined;
+    const retainedTemplates = cached?.templates ?? (reusableKey ? cloneInstanceTemplates(templates) : templates);
+    const compiled = cached ?? compileInstanceTemplates(retainedTemplates);
+    if (!cached && reusableKey) { this.reusableInstanceTemplates.set(reusableKey, compiled); this.instrumentation.record('reusableTemplateCreations'); }
+    return this.addInstanceVisualFromTemplates(retainedTemplates, block, key, source, compiled);
   }
 
-  private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
+  private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled = compileInstanceTemplates(templates)): { readonly batchKey: string; readonly index: number } | undefined {
     const existingEntry = this.renderedBlocks.get(key);
     this.traceInstanceOwnership('before-insert', key, source, existingEntry);
     if (existingEntry?.instanceBatchKey) this.removeInstanceVisual(key, existingEntry);
     else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
-    const signature = templates.map((template) => { const material = template.material as THREE.Material & { map?: THREE.Texture; color?: THREE.Color; alphaTest?: number; side?: number; vertexColors?: boolean }; return `${template.geometry.uuid}|${material.type}|${material.map?.uuid ?? ''}|${material.color?.getHexString() ?? ''}|${material.alphaTest ?? 0}|${material.side ?? 0}|${material.vertexColors ? 1 : 0}|${template.matrix.elements.map((value) => value.toFixed(4)).join(',')}`; }).join(';');
+    const signature = compiled.signature;
     const chunk = chunkKey(block.position);
     const batchKey = `${chunk}|${signature}`;
     let batch = this.instanceBatches.get(batchKey);
@@ -1155,8 +1194,7 @@ export class ThreeViewportEngine {
         const material = template.material.clone(); material.transparent = false; material.depthWrite = true;
         const mesh = new THREE.InstancedMesh(template.geometry, material, capacity); mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.userData['instanceVoxels'] = []; mesh.userData['instanceKeys'] = []; mesh.userData['realModel'] = true; mesh.userData['instanceBatchKey'] = batchKey; this.blocksGroup.add(mesh); return mesh;
       });
-      const envelope = instanceTemplateEnvelope(templates);
-      const bounds = stableChunkBounds(chunk, envelope);
+      const bounds = stableChunkBounds(chunk, compiled.envelope);
       parts.forEach((part) => setStableMeshBounds(part, bounds));
       this.instrumentation.record('instancedBoundsComputations', parts.length);
       batch = { key: batchKey, capacity, templates, parts, keys: [], positions: [] };
@@ -1165,8 +1203,9 @@ export class ThreeViewportEngine {
     }
     if (batch.keys.length >= batch.capacity) return undefined;
     const index = batch.keys.length; batch.keys.push(key); batch.positions.push({ ...block.position });
-    const translation = new THREE.Matrix4().makeTranslation(block.position.x, block.position.y, block.position.z);
-    batch.parts.forEach((part, partIndex) => { part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix)); part.count = index + 1; (part.userData['instanceVoxels'] as VoxelCoordinate[]).push({ ...block.position }); (part.userData['instanceKeys'] as string[]).push(key); part.instanceMatrix.needsUpdate = true; });
+    const translation = this.instanceTranslationMatrix.makeTranslation(block.position.x, block.position.y, block.position.z);
+    const transformed = this.instanceTransformedMatrix;
+    batch.parts.forEach((part, partIndex) => { transformed.copy(translation).multiply(batch.templates[partIndex].matrix); part.setMatrixAt(index, transformed); part.count = index + 1; (part.userData['instanceVoxels'] as VoxelCoordinate[]).push({ ...block.position }); (part.userData['instanceKeys'] as string[]).push(key); part.instanceMatrix.needsUpdate = true; });
     this.instrumentation.record('instancedBlockAdds'); this.instrumentation.record('instancedMembers');
     this.instanceOwnershipIndex.set(key, { batchKey, index });
     const ownerEntry = this.renderedBlocks.get(key);
@@ -1244,9 +1283,10 @@ export class ThreeViewportEngine {
       const movedEntry = this.renderedBlocks.get(movedKey);
       if (movedEntry?.instanceBatchKey === batchKey) movedEntry.instanceIndex = index;
       this.instanceOwnershipIndex.set(movedKey, { batchKey, index });
-      const translation = new THREE.Matrix4().makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
+      const translation = this.instanceTranslationMatrix.makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
+      const transformed = this.instanceTransformedMatrix;
       batch.parts.forEach((part, partIndex) => {
-        part.setMatrixAt(index, translation.clone().multiply(batch.templates[partIndex].matrix));
+        transformed.copy(translation).multiply(batch.templates[partIndex].matrix);
         const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[];
         const keys = part.userData['instanceKeys'] as string[];
         voxels[index] = { ...movedPosition };
@@ -1301,8 +1341,9 @@ export class ThreeViewportEngine {
     entry.revision += 1;
     if (entry.instanceBatchKey || this.instanceOwnershipIndex.has(key) || this.runtimeDiagnosticsEnabled && this.instanceMemberships(key, true).length) this.removeInstanceVisual(key, entry);
     else {
-      if (entry.object.parent === this.blocksGroup) this.blocksGroup.remove(entry.object);
-      if (entry.object !== entry.fallback) disposeObject(entry.object); else disposeObject(entry.fallback);
+      if (entry.object?.parent === this.blocksGroup) this.blocksGroup.remove(entry.object);
+      if (entry.object && entry.object !== entry.fallback) disposeObject(entry.object);
+      if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
     }
     if (this.renderedBlocks.get(key) === entry) this.renderedBlocks.delete(key);
     this.traceInstanceOwnership('after-remove-entry', key, 'reconcile', entry);
@@ -1316,7 +1357,7 @@ export class ThreeViewportEngine {
   }
 
   private clearReusableInstanceTemplates(): void {
-    for (const templates of this.reusableInstanceTemplates.values()) for (const template of templates) template.material.dispose();
+    for (const compiled of this.reusableInstanceTemplates.values()) for (const template of compiled.templates) template.material.dispose();
     this.reusableInstanceTemplates.clear();
   }
 
@@ -1902,6 +1943,12 @@ export class ThreeViewportEngine {
       reusableTemplateCreations: counters.reusableTemplateCreations,
       reusableTemplateCacheHits: counters.reusableTemplateCacheHits,
       instancedBoundsComputations: counters.instancedBoundsComputations,
+      fallbackMeshCreations: counters.fallbackMeshCreations,
+      cachedTemplateInsertions: counters.cachedTemplateInsertions,
+      cameraMovementFrames: counters.cameraMovementFrames,
+      cameraMovementRenderCalls: counters.cameraMovementRenderCalls,
+      cameraChangeEventsDuringMovement: counters.cameraChangeEventsDuringMovement,
+      cameraRenderRequestsSuppressed: counters.cameraRenderRequestsSuppressed,
       hydrationQueue: this.hydrationQueue.length + this.decorationHydrationQueue.length,
       hydrationRunning: this.hydrationRunning,
       frameDurationMs: this.frameDurationMs,
@@ -1921,7 +1968,7 @@ export class ThreeViewportEngine {
       for (const entry of visibleEntries) {
         const key = coordinateKey(entry.block.position);
         const rendered = this.renderedBlocks.get(key);
-        const isFinal = !!rendered && (rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback.userData['renderMode'] !== undefined);
+        const isFinal = !!rendered && (rendered.object !== undefined && rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback?.userData['renderMode'] !== undefined);
         if (entry.block.kind === 'missing' || isFinal || queuedKeys.has(key) || this.runningHydrationKeys.get(key) === this.hydrationGeneration) continue;
         if (this.pendingHydrationSignatures.has(key) || this.placeholderSignatures.has(key) || this.placeholderIndices.has(key) || !!rendered) {
           orphanedHydrationCount += 1;
@@ -2269,10 +2316,16 @@ export class ThreeViewportEngine {
     if (!direction.lengthSq()) return;
     this.camera.position.add(direction);
     this.controls.target.add(direction);
-    this.controls.update();
+    this.instrumentation.record('cameraMovementFrames');
+    this.cameraMovementInProgress = true;
+    try {
+      this.controls.update();
+    } finally {
+      this.cameraMovementInProgress = false;
+    }
     // Keyboard movement does not always produce an OrbitControls `change`
-    // event, so demand rendering must be driven explicitly for every camera
-    // frame.
+    // event, so demand rendering is driven explicitly once per movement frame.
+    this.instrumentation.record('cameraMovementRenderCalls');
     this.render();
   }
 }
@@ -2395,6 +2448,14 @@ function instanceTemplateEnvelope(templates: readonly InstancePartTemplate[]): T
     if (template.geometry.boundingBox) envelope.union(template.geometry.boundingBox.clone().applyMatrix4(template.matrix));
   }
   return envelope.isEmpty() ? unitVoxelEnvelope() : envelope;
+}
+
+function compileInstanceTemplates(templates: readonly InstancePartTemplate[]): CompiledInstanceTemplates {
+  const signature = templates.map((template) => {
+    const material = template.material as THREE.Material & { map?: THREE.Texture; color?: THREE.Color; alphaTest?: number; side?: number; vertexColors?: boolean };
+    return `${template.geometry.uuid}|${material.type}|${material.map?.uuid ?? ''}|${material.color?.getHexString() ?? ''}|${material.alphaTest ?? 0}|${material.side ?? 0}|${material.vertexColors ? 1 : 0}|${template.matrix.elements.map((value) => value.toFixed(4)).join(',')}`;
+  }).join(';');
+  return { templates, signature, envelope: instanceTemplateEnvelope(templates) };
 }
 function unitVoxelEnvelope(): THREE.Box3 { return new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 1)); }
 function stableChunkBounds(chunk: string, envelope: THREE.Box3): THREE.Box3 {

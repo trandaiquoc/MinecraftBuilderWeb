@@ -13,6 +13,9 @@ Diagnostics are intentionally structural rather than timing assertions:
 - `resolvedModelCacheHits` / `resolvedModelCacheMisses`: resolver reuse;
 - `geometryCacheHits` / `geometryCacheMisses`: shared standard JSON face geometry;
 - `textureCacheHits` / `textureCacheMisses`: provider texture promise reuse.
+- `fallbackMeshCreations`: actual per-voxel fallback meshes allocated; reusable-template cache hits do not increase this counter;
+- `cachedTemplateInsertions`: instance members inserted directly from a retained reusable template set;
+- `cameraMovementFrames`, `cameraMovementRenderCalls`, `cameraChangeEventsDuringMovement`, and `cameraRenderRequestsSuppressed`: demand-render evidence for keyboard camera movement. OrbitControls change events are suppressed while an explicit movement-frame render is in progress, so one keyboard frame produces at most one render request.
 
 Deterministic small (256 blocks), medium (2,048 blocks), and large (8,192 blocks) fixtures live beside the benchmark specs. Normal `npm test` runs only the small structural checks. Run the explicit medium/large benchmark with:
 
