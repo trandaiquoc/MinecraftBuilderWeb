@@ -107,6 +107,19 @@ export interface ViewportVoxelOwnershipDiagnostic {
   readonly runningGeneration?: number;
 }
 
+export interface ViewportOwnershipDiagnostics {
+  readonly authoritativeVisibleBlockCount: number;
+  readonly renderedBlockCount: number;
+  readonly placeholderVisualCount: number;
+  readonly instanceBatchCount: number;
+  readonly instanceMemberCount: number;
+  readonly blocksGroupChildCount: number;
+  readonly blockLikeSceneObjectsOutsideBlocksGroup: number;
+  readonly staleVoxelKeys: readonly string[];
+  readonly batchInvariantViolations: readonly string[];
+  readonly outsideBlocksGroupOwners: readonly string[];
+}
+
 export interface ViewportControlConfiguration {
   readonly orbitSensitivity: number;
   readonly panSensitivity: number;
@@ -299,6 +312,8 @@ export class ThreeViewportEngine {
   private blockBrightness = 3;
   private structureSyncKey = '';
   private syncedProject?: ProjectDocument;
+  private syncedBlockCount?: number;
+  private syncedBlocksReference?: readonly ProjectDocument['blocks'][number][];
   private decorationSyncKey = '';
   private syncedDecorationProject?: ProjectDocument;
   private decorationRevision = 0;
@@ -574,11 +589,15 @@ export class ThreeViewportEngine {
     const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
     const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
     const full = syncKey !== this.structureSyncKey;
-    if (blockInputChanged) {
-      const incrementalProjectChange = project !== this.syncedProject && !full && this.renderedBlocks.size === 0 && (this.hydrationQueue.length > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
-      if (full || !incrementalProjectChange && project !== this.syncedProject) this.cancelHydration();
+    const inPlaceBlockMutation = project === this.syncedProject && project !== undefined && (project.blocks !== this.syncedBlocksReference || project.blocks.length !== this.syncedBlockCount);
+    if (blockInputChanged || inPlaceBlockMutation) {
+      const projectIdentityChanged = project !== this.syncedProject;
+      const incrementalProjectChange = projectIdentityChanged && !full && this.renderedBlocks.size === 0 && (this.hydrationQueue.length > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
+      if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) this.cancelHydration();
       this.structureSyncKey = syncKey;
       this.syncedProject = project;
+      this.syncedBlockCount = project?.blocks.length;
+      this.syncedBlocksReference = project?.blocks;
       this.reconcileStructure(project, options, full);
     }
     if (decorationInputChanged) {
@@ -1063,7 +1082,7 @@ export class ThreeViewportEngine {
     this.reusableInstanceTemplates.clear();
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedDecorationProject = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -1300,6 +1319,86 @@ export class ThreeViewportEngine {
       queuedJob: queued.has(coordinateKeyValue),
       ...(this.runningHydrationKeys.has(coordinateKeyValue) ? { runningGeneration: this.runningHydrationKeys.get(coordinateKeyValue) } : {}),
     }));
+  }
+
+  rendererOwnershipDiagnostics(): ViewportOwnershipDiagnostics {
+    const expected = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
+    const expectedKeys = new Set(expected.map((entry) => coordinateKey(entry.block.position)));
+    const staleKeys = new Set<string>();
+    const addStale = (key: string): void => { if (!expectedKeys.has(key)) staleKeys.add(key); };
+    for (const key of this.renderedBlocks.keys()) addStale(key);
+    for (const key of this.placeholderIndices.keys()) addStale(key);
+    for (const key of this.pendingHydrationSignatures.keys()) addStale(key);
+    for (const key of this.placeholderSignatures.keys()) addStale(key);
+    for (const job of this.hydrationQueue) addStale(job.key);
+    for (const key of this.runningHydrationKeys.keys()) addStale(key);
+
+    const batchInvariantViolations: string[] = [];
+    let instanceMemberCount = 0;
+    for (const [batchKey, batch] of this.instanceBatches) {
+      instanceMemberCount += batch.keys.length;
+      if (batch.keys.length !== batch.positions.length) batchInvariantViolations.push(`${batchKey}: keys/positions length mismatch`);
+      for (const [partIndex, part] of batch.parts.entries()) {
+        const keys = part.userData['instanceKeys'] as unknown;
+        const voxels = part.userData['instanceVoxels'] as unknown;
+        if (!Array.isArray(keys) || keys.length !== batch.keys.length) batchInvariantViolations.push(`${batchKey}: part ${partIndex} keys length mismatch`);
+        if (!Array.isArray(voxels) || voxels.length !== batch.keys.length) batchInvariantViolations.push(`${batchKey}: part ${partIndex} voxels length mismatch`);
+        if (part.count !== batch.keys.length) batchInvariantViolations.push(`${batchKey}: part ${partIndex} count mismatch`);
+        if (Array.isArray(keys)) for (const key of keys) addStale(key);
+        if (Array.isArray(voxels)) for (const voxel of voxels) {
+          if (voxel && typeof voxel === 'object' && typeof (voxel as VoxelCoordinate).x === 'number') addStale(coordinateKey(voxel as VoxelCoordinate));
+        }
+      }
+      for (const [index, key] of batch.keys.entries()) {
+        const entry = this.renderedBlocks.get(key);
+        if (!entry || entry.instanceBatchKey !== batchKey || entry.instanceIndex !== index) batchInvariantViolations.push(`${batchKey}: ownership mismatch at ${index} (${key})`);
+      }
+    }
+
+    let placeholderVisualCount = 0;
+    for (const batch of this.placeholderBatches.values()) {
+      placeholderVisualCount += batch.keys.length;
+      if (batch.keys.length !== batch.positions.length || batch.mesh.count !== batch.keys.length) batchInvariantViolations.push(`${batch.key}: placeholder length/count mismatch`);
+      for (const key of batch.keys) addStale(key);
+    }
+
+    const outsideBlocksGroupOwners: string[] = [];
+    const isVisibleInScene = (object: THREE.Object3D): boolean => {
+      for (let current: THREE.Object3D | null = object; current; current = current.parent) if (!current.visible) return false;
+      return true;
+    };
+    const hasBlockMarker = (object: THREE.Object3D): boolean => {
+      const data = object.userData;
+      return data['voxel'] !== undefined || data['realModel'] === true || data['placeholder'] === true || data['instanceBatchKey'] !== undefined || data['activeBlock'] !== undefined || data['renderMode'] === 'fallback';
+    };
+    const voxelFromObject = (object: THREE.Object3D): string | undefined => {
+      const voxel = object.userData['voxel'] as VoxelCoordinate | undefined;
+      return voxel && typeof voxel.x === 'number' && typeof voxel.y === 'number' && typeof voxel.z === 'number' ? coordinateKey(voxel) : undefined;
+    };
+    const isOwnedByBlocksGroup = (object: THREE.Object3D): boolean => {
+      for (let current = object.parent; current; current = current.parent) if (current === this.blocksGroup) return true;
+      return false;
+    };
+    this.scene.traverse((object) => {
+      if (object === this.blocksGroup || object === this.decorationsGroup || object === this.projectGrid || object === this.ground || object === this.editingPlane || object === this.editingGrid || object === this.boundsBox || object === this.selectionOutline || object === this.selectionBox || object === this.ghost || object === this.movePreviewGroup || object === this.decorationGhostGroup || object === this.decorationSelectionGroup || object === this.logicalSelectionGroup) return;
+      if (isOwnedByBlocksGroup(object)) return;
+      if (!hasBlockMarker(object) || !isVisibleInScene(object)) return;
+      outsideBlocksGroupOwners.push(`${object.type}:${object.uuid}`);
+      const key = voxelFromObject(object); if (key) addStale(key);
+    });
+
+    return {
+      authoritativeVisibleBlockCount: expectedKeys.size,
+      renderedBlockCount: this.renderedBlocks.size,
+      placeholderVisualCount,
+      instanceBatchCount: this.instanceBatches.size,
+      instanceMemberCount,
+      blocksGroupChildCount: this.blocksGroup.children.length,
+      blockLikeSceneObjectsOutsideBlocksGroup: outsideBlocksGroupOwners.length,
+      staleVoxelKeys: [...staleKeys].sort(),
+      batchInvariantViolations,
+      outsideBlocksGroupOwners,
+    };
   }
 
   rendererCounters(): RendererCounters {
