@@ -50,6 +50,63 @@ describe('camera movement input contract', () => {
     expect(JSON.stringify(project)).toBe(before);
   });
 
+  it('keeps a seven-block selection and render membership intact for every camera movement action', async () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 7), decorations: [] };
+    const selectedPositions = project.blocks.map((block) => block.position);
+    engine.update(project, undefined, { selectionKind: 'explicit', selectionCount: selectedPositions.length, selectedPositions });
+    await settleHydration();
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
+    internal.camera.position.set(8, 6, 8);
+    internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    const projectBefore = JSON.stringify(project);
+    const selectionBefore = JSON.stringify(selectedPositions);
+    const renderedBefore = [...internal.renderedBlocks.keys()].sort();
+    const placeholdersBefore = [...internal.placeholderIndices.keys()].sort();
+    for (const action of ['move-forward', 'move-backward', 'move-left', 'move-right', 'move-up', 'move-down'] as const) {
+      const before = internal.camera.position.clone();
+      internal.moveCamera(new Set([action]), .05);
+      expect(internal.camera.position.distanceTo(before)).toBeGreaterThan(.1);
+    }
+    expect(JSON.stringify(project)).toBe(projectBefore);
+    expect(JSON.stringify(selectedPositions)).toBe(selectionBefore);
+    expect([...internal.renderedBlocks.keys()].sort()).toEqual(renderedBefore);
+    expect([...internal.placeholderIndices.keys()].sort()).toEqual(placeholdersBefore);
+    engine.dispose();
+  });
+
+  it('keeps the compact all-selection contract intact for the 20k fixture during camera movement', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('stress');
+    const selection = { selectionKind: 'all' as const, selectionCount: project.blocks.length, selectionBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 63, y: 4, z: 63 } } };
+    engine.update(project, undefined, selection);
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
+    internal.camera.position.set(8, 6, 8);
+    internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    const projectBefore = JSON.stringify(project);
+    for (const action of ['move-forward', 'move-left', 'move-backward', 'move-right', 'move-up', 'move-down'] as const) internal.moveCamera(new Set([action]), .02);
+    expect(JSON.stringify(project)).toBe(projectBefore);
+    expect(selection.selectionKind).toBe('all');
+    expect(selection.selectionCount).toBe(20000);
+    engine.dispose();
+  });
+
+  it('restores OrbitControls mouse mappings after an editor gesture is captured by the host', () => {
+    const engine = new ThreeViewportEngine();
+    const internal = engine as unknown as { controls: { mouseButtons: Record<string, THREE.MOUSE>; removeEventListener: () => void; dispose: () => void }; temporaryMouseButton: { key: 'LEFT' | 'MIDDLE' | 'RIGHT'; previous: THREE.MOUSE | null | undefined } | undefined };
+    internal.controls = { mouseButtons: { LEFT: THREE.MOUSE.PAN }, removeEventListener: vi.fn(), dispose: vi.fn() };
+    internal.temporaryMouseButton = { key: 'LEFT', previous: THREE.MOUSE.ROTATE };
+    engine.endEditorPointerGesture();
+    expect(internal.controls.mouseButtons['LEFT']).toBe(THREE.MOUSE.ROTATE);
+    expect(internal.temporaryMouseButton).toBeUndefined();
+    internal.temporaryMouseButton = { key: 'RIGHT', previous: undefined };
+    internal.controls.mouseButtons['RIGHT'] = THREE.MOUSE.PAN;
+    engine.endEditorPointerGesture();
+    expect(internal.controls.mouseButtons['RIGHT']).toBeUndefined();
+    engine.dispose();
+  });
+
   it('translates camera and OrbitControls focus together without touching rendered membership', async () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('small');

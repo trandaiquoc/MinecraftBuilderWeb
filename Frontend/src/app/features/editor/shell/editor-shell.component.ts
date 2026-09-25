@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, computed, effect, inject, isDevMode, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
@@ -16,7 +16,7 @@ import { GroupService } from '../../../core/editor/groups/group.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
-import { KeyboardAction } from '../../../core/editor/input/keyboard-bindings';
+import { isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, MovementAction } from '../../../core/editor/input/keyboard-bindings';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -47,7 +47,7 @@ export function hasEditorSelectionState(decorationSelected: boolean, logicalCoun
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'clearPressedMovementActions()', '(document:visibilitychange)': 'clearPressedMovementActions()', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'clearPressedMovementActions()', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -121,6 +121,7 @@ export class EditorShellComponent implements OnDestroy {
   private previousActiveGroupId: string | undefined;
   private moveDrag?: { readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: PanelPosition };
   private sidebarDrag?: { readonly side: 'left' | 'right'; readonly pointerId: number; readonly startX: number; readonly origin: number };
+  private readonly pressedMovementActions = new Map<string, MovementAction>();
 
   constructor() {
     void this.workspace.restore(new IndexedDbProjectStore());
@@ -132,7 +133,7 @@ export class EditorShellComponent implements OnDestroy {
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
   }
-  ngOnDestroy(): void { void this.autosave.flush().catch(() => undefined); }
+  ngOnDestroy(): void { this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
@@ -363,8 +364,35 @@ export class EditorShellComponent implements OnDestroy {
       this.closeMenus(); return;
     }
     const action = this.keyboard.actionForEvent(event); if (!action) return;
+    if (isMovementAction(action)) {
+      this.pressedMovementActions.set(event.code || event.key, action);
+      this.currentViewport()?.cameraKeyDown(action);
+      this.traceKeyboardRoute(event, action);
+      event.preventDefault();
+      return;
+    }
+    this.traceKeyboardRoute(event, action, action === 'delete-selection' ? 'Delete selection' : undefined);
     const handled = this.executeKeyboardAction(action);
     if (handled) event.preventDefault();
+  }
+
+  protected handleEditorKeyup(event: KeyboardEvent): void {
+    const key = event.code || event.key;
+    const action = this.pressedMovementActions.get(key);
+    if (!action) return;
+    this.pressedMovementActions.delete(key);
+    this.currentViewport()?.cameraKeyUp(action);
+    if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
+  }
+
+  protected clearPressedMovementActions(): void {
+    const viewport = this.currentViewport();
+    for (const action of this.pressedMovementActions.values()) viewport?.cameraKeyUp(action);
+    this.pressedMovementActions.clear();
+  }
+
+  private traceKeyboardRoute(event: KeyboardEvent, action: KeyboardAction, mutation?: string): void {
+    if (isDevMode()) console.debug('[MinecraftBuilder][keyboard route]', keyboardRouteTrace(event, action, mutation));
   }
 
   private executeKeyboardAction(action: KeyboardAction): boolean {

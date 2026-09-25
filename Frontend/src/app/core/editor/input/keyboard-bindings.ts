@@ -3,6 +3,28 @@ export type KeyboardAction =
   | 'undo' | 'redo' | 'select-all' | 'clear-selection' | 'delete-selection'
   | 'tool-place' | 'tool-select' | 'mode-3d' | 'mode-y-layer' | 'fit-structure' | 'focus-selection' | 'save-project'
   | `quick-slot-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}`;
+export type MovementAction = Extract<KeyboardAction, `move-${string}`>;
+export type KeyboardRouteOwner = 'camera' | 'editor';
+
+export interface KeyboardRouteTrace {
+  readonly code: string;
+  readonly action?: KeyboardAction;
+  readonly owner?: KeyboardRouteOwner;
+  readonly mutation?: string;
+}
+
+export function isMovementAction(action: KeyboardAction | undefined): action is MovementAction {
+  return !!action && action.startsWith('move-');
+}
+
+export function keyboardRouteOwner(action: KeyboardAction | undefined): KeyboardRouteOwner | undefined {
+  return action ? (isMovementAction(action) ? 'camera' : 'editor') : undefined;
+}
+
+/** Small dev/test-only description of the single owner selected for an input event. */
+export function keyboardRouteTrace(event: { readonly code?: string; readonly key: string }, action: KeyboardAction | undefined, mutation?: string): KeyboardRouteTrace {
+  return { code: event.code || event.key, action, owner: keyboardRouteOwner(action), ...(mutation ? { mutation } : {}) };
+}
 
 export const DEFAULT_KEYBINDINGS: Readonly<Record<KeyboardAction, string>> = {
   'move-forward': 'W', 'move-backward': 'S', 'move-left': 'A', 'move-right': 'D', 'move-up': 'Space', 'move-down': 'Shift',

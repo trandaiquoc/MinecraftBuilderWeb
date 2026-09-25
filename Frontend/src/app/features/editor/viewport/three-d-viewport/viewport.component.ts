@@ -67,11 +67,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
+  private pickConsumed = false;
   private boxCornerStart?: import('../../../../core/domain/project.types').VoxelCoordinate;
   private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
   private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
-  private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setKeyboardBindings(preferences.shortcuts); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); });
+  private readonly controlSync = effect(() => { const preferences = this.preferences.preferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); });
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
@@ -99,7 +100,14 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.capturePointer(event);
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.gestureAction = action;
+    this.pickConsumed = false;
     this.boxCornerStart = undefined;
+    if (action === 'pick-block') {
+      const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false);
+      const decorationWins = !!hit.decoration && (hit.blockDistance === undefined || hit.decorationDistance === undefined || hit.decorationDistance <= hit.blockDistance);
+      if (hit.block && !decorationWins) { this.editor.pick(hit.block); this.pickConsumed = true; }
+      return;
+    }
     if (action === 'primary-action' && this.tool.active() === 'select') {
       const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false);
       this.boxCornerStart = hit.block ?? hit.target;
@@ -112,12 +120,16 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.pointerStart = undefined;
     const gestureAction = this.gestureAction;
     this.gestureAction = undefined;
+    const pickConsumed = this.pickConsumed;
+    this.pickConsumed = false;
     const cornerStart = this.boxCornerStart;
     this.boxCornerStart = undefined;
     const faceDragStart = this.faceDragStart;
     this.faceDragStart = undefined;
     if (gestureAction) event.preventDefault();
+    this.engine.endEditorPointerGesture();
     this.releasePointer(event);
+    if (pickConsumed) return;
     const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
     if (!gestureAction) return;
     if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart && faceDragStart) {
@@ -164,16 +176,19 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected pointerLeave(event: PointerEvent): void {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
-    this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined;
+    this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined; this.faceDragStart = undefined;
     this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
     if (event) this.releasePointer(event);
-    this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearInput();
+    this.engine.endEditorPointerGesture();
+    this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearInput();
   }
   private capturePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.setPointerCapture && !target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId); }
   private releasePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.releasePointerCapture && target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId); }
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
+  cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
+  cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
 }
 
 function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {

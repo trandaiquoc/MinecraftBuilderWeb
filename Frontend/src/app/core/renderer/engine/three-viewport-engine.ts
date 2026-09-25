@@ -22,7 +22,7 @@ import { DecorationPlacementPlan, decorationAabb, facingFromNormal, planDecorati
 import { applyDecorationItemPreview, createDecorationVisual, DecorationTextureCache } from '../visuals/decoration-visuals';
 import type { ItemStackData } from '../../items/item-stack.types';
 import type { ActiveDecoration } from '../../decorations/decoration.service';
-import { DEFAULT_KEYBINDINGS, KeyboardAction, keyboardActionForEvent } from '../../editor/input/keyboard-bindings';
+import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
@@ -209,11 +209,8 @@ export class ThreeViewportEngine {
   private hasCameraFrame = false;
   private readonly renderOnControlChange = () => { this.cameraInteractingUntil = performance.now() + 180; this.render(); };
   private cameraMoveFrame?: number;
-  private readonly pressedActions = new Set<KeyboardAction>();
-  private keyboardBindings: Readonly<Record<KeyboardAction, string>> = DEFAULT_KEYBINDINGS;
+  private readonly pressedActions = new Set<MovementAction>();
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
-  private readonly onCameraKeyDown = (event: KeyboardEvent) => { if (isTextInput(event.target) || isDialogTarget(event.target)) { this.clearInput(); return; } const action = keyboardActionForEvent(event, this.keyboardBindings); if (!isMovementAction(action)) return; event.preventDefault(); this.pressedActions.add(action); this.startCameraMovement(); };
-  private readonly onCameraKeyUp = (event: KeyboardEvent) => { const action = keyboardActionForEvent(event, this.keyboardBindings); if (isMovementAction(action)) this.pressedActions.delete(action); };
   private readonly onWindowBlur = () => this.clearInput();
   private readonly onVisibilityChange = () => { if (document.hidden) this.clearInput(); };
   private readonly onCanvasPointerDownCapture = (event: PointerEvent) => {
@@ -338,7 +335,7 @@ export class ThreeViewportEngine {
     this.renderer.domElement.addEventListener('pointerup', this.onCanvasPointerUpCapture, true);
     this.renderer.domElement.addEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
     this.renderer.domElement.addEventListener('wheel', this.onCanvasWheelCapture, { capture: true, passive: false });
-    document.addEventListener('keydown', this.onCameraKeyDown); document.addEventListener('keyup', this.onCameraKeyUp); document.addEventListener('focusin', this.onWindowBlur); window.addEventListener('blur', this.onWindowBlur); document.addEventListener('visibilitychange', this.onVisibilityChange);
+    document.addEventListener('focusin', this.onWindowBlur); window.addEventListener('blur', this.onWindowBlur); document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
@@ -390,10 +387,8 @@ export class ThreeViewportEngine {
     this.applyControlConfiguration();
   }
 
-  setKeyboardBindings(bindings: Readonly<Record<KeyboardAction, string>>): void {
-    this.keyboardBindings = { ...bindings };
-    this.pressedActions.clear();
-  }
+  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.startCameraMovement(); }
+  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.render(); }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -680,8 +675,8 @@ export class ThreeViewportEngine {
 
   private processHydrationBatch(): void {
     const token = this.hydrationGeneration;
-    if (performance.now() < this.cameraInteractingUntil) { this.scheduleHydrationPump(80); return; }
-    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = this.adaptiveHydrationBudget();
+    const cameraInteracting = performance.now() < this.cameraInteractingUntil;
+    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = this.adaptiveHydrationBudget(cameraInteracting);
     this.instrumentation.record('hydrationBatches');
     while (this.hydrationRunning < VIEWPORT_VISUAL_CONCURRENCY && this.hydrationQueue.length && this.hydrationBatchBudget > 0) {
       const job = this.hydrationQueue.shift()!;
@@ -703,7 +698,12 @@ export class ThreeViewportEngine {
     if ((this.hydrationQueue.length && this.hydrationRunning === 0) || this.decorationHydrationQueue.length) this.scheduleHydrationPump(true);
   }
 
-  private adaptiveHydrationBudget(): number {
+  private adaptiveHydrationBudget(cameraInteracting = false): number {
+    if (cameraInteracting) {
+      if (this.frameDurationMs >= 28) return 8;
+      if (this.frameDurationMs >= 18) return 16;
+      return 24;
+    }
     if (this.frameDurationMs >= 28) return 24;
     if (this.frameDurationMs >= 18) return 48;
     return VIEWPORT_HYDRATION_BATCH_SIZE;
@@ -1052,7 +1052,7 @@ export class ThreeViewportEngine {
     this.renderer?.domElement.removeEventListener('pointerup', this.onCanvasPointerUpCapture, true);
     this.renderer?.domElement.removeEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
     this.renderer?.domElement.removeEventListener('wheel', this.onCanvasWheelCapture, true);
-    if (typeof document !== 'undefined') { document.removeEventListener('keydown', this.onCameraKeyDown); document.removeEventListener('keyup', this.onCameraKeyUp); document.removeEventListener('focusin', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); }
+    if (typeof document !== 'undefined') { document.removeEventListener('focusin', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); }
     if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
     this.clearInput();
     this.cancelHydration();
@@ -1196,6 +1196,8 @@ export class ThreeViewportEngine {
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();
   }
   clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
+  /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
+  endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
     if (!this.ghost.visible) return;
     const material = this.ghost.material as THREE.MeshBasicMaterial;
@@ -1475,7 +1477,7 @@ export class ThreeViewportEngine {
   }
 
   private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedActions, delta); if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
-  private moveCamera(keys: ReadonlySet<KeyboardAction>, delta: number): void {
+  private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     if (!this.controls || !keys.size) return;
     this.cameraInteractingUntil = performance.now() + 180;
     const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
@@ -1552,8 +1554,7 @@ export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE
   if (keys.has('KeyW')) direction.add(forward); if (keys.has('KeyS')) direction.sub(forward); if (keys.has('KeyD')) direction.add(right); if (keys.has('KeyA')) direction.sub(right); if (keys.has('Space')) direction.y += 1; if (keys.has('ShiftLeft') || keys.has('ShiftRight')) direction.y -= 1;
   return direction;
 }
-function isMovementAction(action: KeyboardAction | undefined): action is Extract<KeyboardAction, `move-${string}`> { return !!action && action.startsWith('move-'); }
-function cameraActionMovementDelta(actions: ReadonlySet<KeyboardAction>, camera: THREE.Camera, horizontalSpeed: number, verticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
+function cameraActionMovementDelta(actions: ReadonlySet<MovementAction>, camera: THREE.Camera, horizontalSpeed: number, verticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
   const direction = new THREE.Vector3();
   const horizontal = new Set<string>();
   if (actions.has('move-forward')) horizontal.add('KeyW'); if (actions.has('move-backward')) horizontal.add('KeyS'); if (actions.has('move-left')) horizontal.add('KeyA'); if (actions.has('move-right')) horizontal.add('KeyD');
@@ -1571,8 +1572,6 @@ export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Cam
   direction.y += verticalDirection * deltaSeconds * verticalSpeed;
   return direction;
 }
-function isTextInput(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT' || element.isContentEditable); }
-function isDialogTarget(target: EventTarget | null): boolean { const element = target as HTMLElement | null; return !!element && (element.matches('[role="dialog"]') || element.closest('[role="dialog"]') !== null); }
 export function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
   const direct = hit.object.userData['voxel'] as VoxelCoordinate | undefined;
   if (direct) return direct;

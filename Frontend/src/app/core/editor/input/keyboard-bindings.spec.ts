@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_KEYBINDINGS, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, keyboardActionForEvent, normalizeBinding, normalizeBindings } from './keyboard-bindings';
+import { DEFAULT_KEYBINDINGS, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, keyboardRouteOwner, keyboardRouteTrace, normalizeBinding, normalizeBindings } from './keyboard-bindings';
 
 describe('keyboard binding model', () => {
   it('normalizes modifier order and supports up to three tokens', () => {
@@ -24,6 +24,23 @@ describe('keyboard binding model', () => {
       expect(keyboardActionForEvent({ key, code: `Key${key.toUpperCase()}`, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe(action);
     }
     expect(keyboardActionForEvent({ key: 'Delete', code: 'Delete', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
+    expect(isMovementAction('move-right')).toBe(true);
+    expect(isMovementAction('delete-selection')).toBe(false);
+  });
+
+  it('routes each resolved action to exactly one owner and exposes a compact trace', () => {
+    expect(keyboardRouteOwner('move-forward')).toBe('camera');
+    expect(keyboardRouteOwner('delete-selection')).toBe('editor');
+    expect(keyboardRouteOwner(undefined)).toBeUndefined();
+    expect(keyboardRouteTrace({ code: 'KeyW', key: 'w' }, 'move-forward')).toEqual({ code: 'KeyW', action: 'move-forward', owner: 'camera' });
+    expect(keyboardRouteTrace({ key: 'Delete' }, 'delete-selection', 'Delete selection')).toEqual({ code: 'Delete', action: 'delete-selection', owner: 'editor', mutation: 'Delete selection' });
+  });
+
+  it('resolves a deliberately conflicting saved binding deterministically once', () => {
+    const bindings = normalizeBindings({ ...DEFAULT_KEYBINDINGS, 'delete-selection': 'W' });
+    const action = keyboardActionForEvent({ key: 'w', code: 'KeyW', target: null }, bindings);
+    expect(action).toBe('move-forward');
+    expect(keyboardRouteOwner(action)).toBe('camera');
   });
 
   it('normalizes missing bindings to defaults and detects conflicts', () => {
