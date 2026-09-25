@@ -71,6 +71,18 @@ export interface ViewportHydrationDiagnostics {
   readonly globalRunning: number;
   readonly currentGenerationRunning: number;
   readonly staleRunning: number;
+  readonly hydrationScheduled: boolean;
+  readonly hydrationTimerActive: boolean;
+  readonly hydrationBatchBudget: number;
+  readonly pendingSignatureCount: number;
+  readonly placeholderSignatureCount: number;
+  readonly placeholderVisualCount: number;
+  readonly renderedBlockCount: number;
+  readonly expectedVisibleBlockCount: number;
+  readonly runningOwnershipCount: number;
+  readonly runningByGeneration: Readonly<Record<string, number>>;
+  readonly orphanedHydrationCount: number;
+  readonly orphanedHydrationSample: readonly string[];
   readonly completed: number;
   readonly total: number;
   readonly scheduled: boolean;
@@ -766,7 +778,12 @@ export class ThreeViewportEngine {
     }
     this.processDecorationBatch(token);
     if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = 0;
-    if ((this.hydrationQueue.length && this.hydrationRunning === 0) || this.decorationHydrationQueue.length) this.scheduleHydrationPump(true);
+    // Queue ownership is authoritative. If current work remains and a job is
+    // admissible now, explicitly wake the pump even when another generation
+    // still has work in flight. Completion callbacks remain the wake-up path
+    // when every physical slot is occupied by non-cancellable work.
+    if (this.hydrationQueue.length && (this.canAdmitHydrationJob(token) || this.hydrationRunning === 0)) this.scheduleHydrationPump(this.hydrationBatchBudget <= 0);
+    if (this.decorationHydrationQueue.length) this.scheduleHydrationPump(true);
   }
 
   /**
@@ -1311,6 +1328,23 @@ export class ThreeViewportEngine {
 
   hydrationDiagnostics(): ViewportHydrationDiagnostics {
     const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;
+    const expectedVisibleBlockCount = this.project ? this.visibleBlocks(this.project, this.renderOptions).length : 0;
+    const orphanedHydrationSample: string[] = [];
+    let orphanedHydrationCount = 0;
+    if (this.visualProvider && this.project) {
+      const queuedKeys = new Set(this.hydrationQueue.filter((job) => job.token === this.hydrationGeneration).map((job) => job.key));
+      for (const entry of this.visibleBlocks(this.project, this.renderOptions)) {
+        const key = coordinateKey(entry.block.position);
+        const rendered = this.renderedBlocks.get(key);
+        const isFinal = !!rendered && (rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback.userData['renderMode'] !== undefined);
+        if (entry.block.kind === 'missing' || isFinal || queuedKeys.has(key) || this.runningHydrationKeys.get(key) === this.hydrationGeneration) continue;
+        if (this.pendingHydrationSignatures.has(key) || this.placeholderSignatures.has(key) || this.placeholderIndices.has(key) || !!rendered) {
+          orphanedHydrationCount += 1;
+          if (orphanedHydrationSample.length < 12) orphanedHydrationSample.push(key);
+        }
+      }
+    }
+    const runningByGeneration = Object.fromEntries([...this.hydrationRunningByGeneration.entries()].map(([generation, count]) => [String(generation), count]));
     return {
       generation: this.hydrationGeneration,
       queued: this.hydrationQueue.length + this.decorationHydrationQueue.length,
@@ -1318,6 +1352,18 @@ export class ThreeViewportEngine {
       globalRunning: this.hydrationRunning,
       currentGenerationRunning,
       staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning),
+      hydrationScheduled: this.hydrationScheduled,
+      hydrationTimerActive: this.hydrationTimer !== undefined,
+      hydrationBatchBudget: this.hydrationBatchBudget,
+      pendingSignatureCount: this.pendingHydrationSignatures.size,
+      placeholderSignatureCount: this.placeholderSignatures.size,
+      placeholderVisualCount: this.placeholderIndices.size,
+      renderedBlockCount: this.renderedBlocks.size,
+      expectedVisibleBlockCount,
+      runningOwnershipCount: this.runningHydrationKeys.size,
+      runningByGeneration,
+      orphanedHydrationCount,
+      orphanedHydrationSample,
       completed: this.hydrationProgressState.completed,
       total: this.hydrationProgressState.total,
       scheduled: this.hydrationScheduled || this.hydrationTimer !== undefined,
