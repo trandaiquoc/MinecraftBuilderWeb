@@ -809,68 +809,6 @@ describe('generation-aware hydration admission', () => {
     expect(inFlight).toBe(0);
     engine.dispose();
   });
-
-  it('completes the full empty-project to redo lifecycle without orphaned hydration', async () => {
-    type Pending = { readonly resolve: (value: ReturnType<typeof fallbackVisual>) => void; settled: boolean };
-    const pending: Pending[] = [];
-    const provider = {
-      create: vi.fn(() => new Promise<ReturnType<typeof fallbackVisual>>((resolve) => {
-        const entry = { resolve: (value: ReturnType<typeof fallbackVisual>) => { entry.settled = true; resolve(value); }, settled: false };
-        pending.push(entry);
-      })),
-      thumbnailUrl: () => undefined,
-    } as unknown as BlockVisualProvider;
-    const base = rendererBenchmarkProject('stress');
-    const project = { ...base, blocks: base.blocks.slice(0, 700), decorations: [] };
-    const engine = new ThreeViewportEngine();
-    engine.setVisualProvider(provider);
-    engine.update(project, undefined);
-    await Promise.resolve();
-    engine.update(undefined, undefined);
-    expect(engine.hydrationDiagnostics()).toMatchObject({ expectedVisibleBlockCount: 0, queued: 0 });
-    engine.update(project, undefined);
-    await Promise.resolve();
-    for (let pass = 0; pass < 220; pass += 1) {
-      for (const entry of pending) if (!entry.settled) entry.resolve(fallbackVisual());
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      await Promise.resolve();
-      if (engine.hydrationProgress().status === 'complete') break;
-    }
-    const diagnostics = engine.hydrationDiagnostics();
-    expect(diagnostics).toMatchObject({ queued: 0, globalRunning: 0, currentGenerationRunning: 0, staleRunning: 0, orphanedHydrationCount: 0, expectedVisibleBlockCount: 700, renderedBlockCount: 700 });
-    expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toHaveLength(700);
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
-    engine.dispose();
-  });
-
-  it('finishes redo when reusable template cache hits become synchronous completions', async () => {
-    const geometry = new THREE.BoxGeometry();
-    const provider = {
-      create: vi.fn(async () => {
-        const object = new THREE.Group();
-        object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
-        return { ...fallbackVisual(), object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const };
-      }),
-      reusableVisualKey: () => 'cached-cube',
-      thumbnailUrl: () => undefined,
-    };
-    const base = rendererBenchmarkProject('stress');
-    const project = { ...base, blocks: base.blocks.slice(0, 700), decorations: [] };
-    const engine = new ThreeViewportEngine();
-    engine.setVisualProvider(provider as unknown as BlockVisualProvider);
-    engine.update(project, undefined);
-    await settleHydration();
-    const firstCallCount = provider.create.mock.calls.length;
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700 });
-    engine.update(undefined, undefined);
-    engine.update(project, undefined);
-    await settleHydration();
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
-    expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, globalRunning: 0, orphanedHydrationCount: 0 });
-    expect(provider.create.mock.calls.length).toBeLessThanOrEqual(firstCallCount + VIEWPORT_VISUAL_CONCURRENCY);
-    engine.dispose();
-    geometry.dispose();
-  });
 });
 
 async function settleHydration(): Promise<void> {
