@@ -6,7 +6,7 @@ import type { ProjectDocument, PlacedBlock, ProjectGroup, VoxelCoordinate } from
 import { decorationAabb } from '../../decorations/placement/decoration-placement';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import { type StructureJsonBlock, type StructureJsonDecoration, type StructureJson } from './structure-json';
-import type { StructureJsonValidationPreview } from './structure-json-import';
+import { validateStructureJsonDecorations, type StructureJsonValidationPreview } from './structure-json-import';
 import { addDecorationToSpatialIndex, blocksIntersectingAabb, buildDecorationSpatialIndex, buildStructureImportSpatialContext, queryDecorationSpatialIndex } from './structure-json-spatial';
 
 export type StructureJsonImportMode = 'replace' | 'merge' | 'new-group';
@@ -25,7 +25,9 @@ export interface StructureJsonImportPlan {
   readonly resolvedBlockCount: number;
   readonly missingBlockCount: number;
   readonly importedDecorationCount: number;
+  readonly validDecorationCount: number;
   readonly missingDecorationAssetCount: number;
+  readonly decorationIssues: readonly StructureJsonValidationPreview['decorationIssues'][number][];
   readonly currentConflictCount: number;
   readonly currentConflicts: readonly StructureJsonProjectConflict[];
   readonly decorationConflictCount: number;
@@ -42,12 +44,16 @@ export function buildStructureJsonImportPlan(source: StructureJson, validation: 
   const importedBlocks = source.blocks.map((block) => toPlacedBlock(block, getDefinition(block.id)));
   const usedDecorationIds = new Set((project.decorations ?? []).map((entry) => entry.instanceId));
   const importedDecorations = source.decorations.map((decoration, index) => toPlacedDecoration(decoration, index, usedDecorationIds));
+  const decorationValidationProject = mode === 'replace'
+    ? { ...project, blocks: importedBlocks, decorations: [] }
+    : { ...project, blocks: [...project.blocks, ...importedBlocks] };
+  const decorationValidation = validateStructureJsonDecorations(source, decorationValidationProject);
   const blockers: StructureJsonImportBlocker[] = [];
   if (!validation.structuralValid) blockers.push({ code: 'structural-invalid' });
   if (validation.outOfBounds > 0) blockers.push({ code: 'out-of-bounds', count: validation.outOfBounds });
   if (validation.invalidStates > 0) blockers.push({ code: 'invalid-state', count: validation.invalidStates });
   if (validation.duplicateCoordinates > 0) blockers.push({ code: 'duplicate-coordinate', count: validation.duplicateCoordinates });
-  if (validation.invalidDecorations > 0) blockers.push({ code: 'invalid-decoration', count: validation.invalidDecorations });
+  if (decorationValidation.invalidDecorations > 0) blockers.push({ code: 'invalid-decoration', count: decorationValidation.invalidDecorations });
   const currentConflicts = mode === 'replace' ? [] : findCurrentConflicts(source.blocks, project);
   if (currentConflicts.length > 0) blockers.push({ code: 'existing-coordinate-conflict', count: currentConflicts.length });
   const decorationConflicts = mode === 'replace' ? [] : findDecorationConflicts(importedBlocks, importedDecorations, project);
@@ -60,7 +66,7 @@ export function buildStructureJsonImportPlan(source: StructureJson, validation: 
   }
   if (source.blocks.length === 0 && importedDecorations.length === 0 && mode !== 'replace') blockers.push({ code: 'empty-import' });
   const newGroup = mode === 'new-group' ? { id: nextGroupId(project.groups), name: uniqueGroupName(source.name ?? '', project.groups, fallbackGroupName) } : undefined;
-  return { mode, source, importedBlocks, importedDecorations, importedBlockCount: importedBlocks.length, resolvedBlockCount: importedBlocks.filter((block) => block.kind === 'resolved').length, missingBlockCount: importedBlocks.filter((block) => block.kind === 'missing').length, importedDecorationCount: importedDecorations.length, missingDecorationAssetCount: validation.missingDecorationAssets, currentConflictCount: currentConflicts.length, currentConflicts, decorationConflictCount: decorationConflicts.length, decorationConflicts, blockingIssues: blockers, newGroup, applicable: blockers.length === 0, emptyImport: source.blocks.length === 0 && importedDecorations.length === 0, baseProject: project };
+  return { mode, source, importedBlocks, importedDecorations, importedBlockCount: importedBlocks.length, resolvedBlockCount: importedBlocks.filter((block) => block.kind === 'resolved').length, missingBlockCount: importedBlocks.filter((block) => block.kind === 'missing').length, importedDecorationCount: importedDecorations.length, validDecorationCount: decorationValidation.validDecorations, missingDecorationAssetCount: decorationValidation.missingDecorationAssets, decorationIssues: decorationValidation.decorationIssues, currentConflictCount: currentConflicts.length, currentConflicts, decorationConflictCount: decorationConflicts.length, decorationConflicts, blockingIssues: blockers, newGroup, applicable: blockers.length === 0, emptyImport: source.blocks.length === 0 && importedDecorations.length === 0, baseProject: project };
 }
 
 export function applyStructureJsonImportPlan(current: ProjectDocument, plan: StructureJsonImportPlan, getDefinition: (id: string) => BlockDefinition | undefined, fallbackGroupName = 'Imported Structure'): ProjectDocument | undefined {

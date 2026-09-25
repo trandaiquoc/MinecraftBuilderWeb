@@ -63,6 +63,8 @@ export function thumbnailPreviewRotationY(object: THREE.Object3D): number {
 
 export interface BlockVisualProvider {
   create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult>;
+  /** Stable key for generic, opaque visuals that may reuse an instancing template. */
+  reusableVisualKey?(block: PlacedBlock, context?: BlockVisualWorldContext): string | undefined;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult>;
@@ -81,6 +83,7 @@ export interface VisualResourceCounts { readonly resolvedModels: number; readonl
 export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly resolver: BlockModelResolver;
   private readonly resolvedCache = new Map<string, ResolvedBlockModel>();
+  private readonly reusableKeyCache = new Map<string, string | undefined>();
   private readonly textureCache = new Map<string, Promise<THREE.Texture | undefined>>();
   private readonly fluidTextureCache = new Map<string, THREE.Texture>();
   private readonly specialVisuals: SpecialBlockVisualRegistry;
@@ -154,6 +157,17 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     }
   }
 
+  reusableVisualKey(block: PlacedBlock): string | undefined {
+    const stateKey = `${block.id}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`;
+    if (this.reusableKeyCache.has(stateKey)) return this.reusableKeyCache.get(stateKey);
+    if (fluidKindForBlockId(block.id) || this.specialVisuals.resolveCompatible(block)) return undefined;
+    const resolved = this.resolve(block.id, block.state);
+    if (!resolved.parts.some((part) => part.elements.length)) return undefined;
+    const key = `vanilla-template-v1|${stableVisualComponentKey({ id: block.id, state: block.state, parts: resolved.parts })}`;
+    this.reusableKeyCache.set(stateKey, key);
+    return key;
+  }
+
   private async createFluid(block: PlacedBlock, resolved: ResolvedBlockModel, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
     const kind = fluidKindForBlockId(block.id)!; const resources = kind === 'water' ? ['minecraft:block/water_still', 'minecraft:block/water_flow'] : ['minecraft:block/lava_still', 'minecraft:block/lava_flow'];
     const diagnostics: BlockRenderDiagnostic[] = []; const textures = await Promise.all(resources.map(async (resource) => {
@@ -204,7 +218,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const task = this.renderItemVisualThumbnail(itemId, components).then((result) => { if (result.quality === 'fallback' && result.retryable) this.itemVisualPreviewCache.delete(key); return result; });
     this.itemVisualPreviewCache.set(key, task); return task;
   }
-  setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); }
+  setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); this.reusableKeyCache.clear(); }
 
   retain(): void { if (!this.resourcesDisposed) this.visualLeaseCount += 1; }
   release(): void {
@@ -222,7 +236,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     this.geometryCache.clear();
     this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined;
     for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url);
-    this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.itemVisualPreviewCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear();
+    this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.itemVisualPreviewCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); this.reusableKeyCache.clear();
   }
 
   cacheStats(): Readonly<VisualCacheStats> { return { ...this.stats }; }

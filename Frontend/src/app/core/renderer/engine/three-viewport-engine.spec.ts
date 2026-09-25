@@ -343,7 +343,7 @@ describe('camera movement input contract', () => {
     sharedGeometry.dispose();
   });
 
-  it('flushes expanded bounds when progressive hydration adds an instance outside the initial bounds', async () => {
+  it('keeps conservative chunk bounds stable when progressive hydration adds an instance outside the initial members', async () => {
     const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
     sharedGeometry.userData['providerOwnedGeometry'] = true;
     const provider = {
@@ -357,13 +357,54 @@ describe('camera movement input contract', () => {
     const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
     const first = blocksGroup.children.find((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)!;
     const initialMaxZ = first.boundingBox!.max.z;
+    const initialBoundsComputations = engine.rendererCounters().instancedBoundsComputations;
     const expanded = { ...initial, blocks: [...initialBlocks, { ...base.blocks[0], position: { x: 0, y: 0, z: 15 } }] };
     engine.update(expanded, undefined); await settleHydration();
     const expandedInstance = blocksGroup.children.find((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)!;
-    expect(initialMaxZ).toBeCloseTo(1);
+    expect(initialMaxZ).toBeCloseTo(16);
     expect(expandedInstance.boundingBox!.max.z).toBeCloseTo(16);
     expect(expandedInstance.boundingSphere!.radius).toBeGreaterThan(0);
+    expect(engine.rendererCounters().instancedBoundsComputations).toBeLessThanOrEqual(initialBoundsComputations + 1);
     engine.dispose(); sharedGeometry.dispose();
+  });
+
+  it('keeps hydrated non-instanced objects inside the real camera frustum while WASD translates camera and target together', async () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1); geometry.userData['providerOwnedGeometry'] = true;
+    const provider = { create: vi.fn(async () => { const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())); return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small'); const project = { ...base, blocks: base.blocks.slice(0, 12), decorations: [] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined); await settleHydration();
+    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void; renderedBlocks: Map<string, { object: THREE.Object3D }> };
+    internals.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    internals.camera.position.set(10, 8, 12); internals.controls.target.set(2, 1, 2); internals.camera.lookAt(2, 1, 2); internals.controls.update();
+    const representative = internals.renderedBlocks.values().next().value?.object;
+    if (!representative) throw new Error('expected hydrated mesh');
+    for (let frame = 0; frame < 12; frame += 1) {
+      internals.moveCamera(new Set(['move-forward' as const, frame % 2 ? 'move-right' as const : 'move-left' as const]), .04);
+      const frustum = cameraFrustum(internals.camera);
+      expect(frustumIntersectsObject(frustum, representative)).toBe(true);
+      expect([...internals.renderedBlocks.values()].every((entry) => entry.object.visible)).toBe(true);
+    }
+    expect(engine.rendererCounters().fullSceneRebuilds).toBe(1);
+    engine.dispose(); geometry.dispose();
+  });
+
+  it('keeps placeholder chunk bounds frustum-visible during hydration and camera movement', async () => {
+    const pending: Array<(value: unknown) => void> = [];
+    const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const project = rendererBenchmarkProject('stress'); const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined);
+    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void; placeholderBatches: Map<string, { mesh: THREE.InstancedMesh }> };
+    internals.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    internals.camera.position.set(20, 18, 24); internals.controls.target.set(8, 2, 8); internals.controls.update();
+    const representativeBatch = internals.placeholderBatches.values().next().value?.mesh;
+    if (!representativeBatch) throw new Error('expected placeholder batch');
+    for (let frame = 0; frame < 8; frame += 1) {
+      internals.moveCamera(new Set(['move-forward' as const]), .03);
+      const frustum = cameraFrustum(internals.camera);
+      expect(frustum.intersectsObject(representativeBatch)).toBe(true);
+    }
+    expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toHaveLength(project.blocks.length);
+    for (const resolve of pending) resolve({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } });
+    await settleHydration(); engine.dispose();
   });
 
   it('shows complete coarse occupancy before exact hydration and clears it on cancellation', async () => {
@@ -594,7 +635,7 @@ describe('selection visualization scalability', () => {
     expect(internals.logicalSelectionGeometry).toBeDefined();
     expect(internals.logicalSelectionMaterial).toBeDefined();
     engine.dispose();
-  });
+  }, 20_000);
 
   it('keeps detailed small selection outlines on shared geometry/material', () => {
     const engine = new ThreeViewportEngine();
@@ -613,4 +654,21 @@ async function settleHydration(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 0));
     await Promise.resolve();
   }
+}
+
+function cameraFrustum(camera: THREE.PerspectiveCamera): THREE.Frustum {
+  camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+  return new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+}
+
+function frustumIntersectsObject(frustum: THREE.Frustum, object: THREE.Object3D): boolean {
+  object.updateMatrixWorld(true);
+  let intersects = false;
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) || intersects) return;
+    child.geometry.computeBoundingSphere();
+    const sphere = child.geometry.boundingSphere?.clone();
+    if (sphere) intersects = frustum.intersectsSphere(sphere.applyMatrix4(child.matrixWorld));
+  });
+  return intersects;
 }

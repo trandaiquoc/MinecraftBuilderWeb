@@ -11,6 +11,7 @@ export interface RendererCounters {
   readonly fallbackGeometryConstructions: number;
   readonly fallbackMaterialCreations: number;
   readonly modelResolutions: number;
+  readonly providerObjectCreations: number;
   readonly resolvedModelCacheHits: number;
   readonly resolvedModelCacheMisses: number;
   readonly geometryCacheHits: number;
@@ -27,6 +28,9 @@ export interface RendererCounters {
   readonly instancedBlockRemovals: number;
   readonly instancedMeshCount: number;
   readonly instancedMembers: number;
+  readonly instancedBoundsComputations: number;
+  readonly reusableTemplateCreations: number;
+  readonly reusableTemplateCacheHits: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -42,6 +46,7 @@ const EMPTY_COUNTERS: RendererCounters = {
   fallbackGeometryConstructions: 0,
   fallbackMaterialCreations: 0,
   modelResolutions: 0,
+  providerObjectCreations: 0,
   resolvedModelCacheHits: 0,
   resolvedModelCacheMisses: 0,
   geometryCacheHits: 0,
@@ -58,6 +63,9 @@ const EMPTY_COUNTERS: RendererCounters = {
   instancedBlockRemovals: 0,
   instancedMeshCount: 0,
   instancedMembers: 0,
+  instancedBoundsComputations: 0,
+  reusableTemplateCreations: 0,
+  reusableTemplateCacheHits: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

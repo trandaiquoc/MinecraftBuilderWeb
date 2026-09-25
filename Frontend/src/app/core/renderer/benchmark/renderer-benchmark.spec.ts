@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ThreeViewportEngine } from '../engine/three-viewport-engine';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
-import { rendererBenchmarkProject } from './renderer-benchmark-fixtures';
+import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from './renderer-benchmark-fixtures';
 
 describe('renderer incremental baseline', () => {
   it('keeps the normal benchmark test small and deterministic', () => {
@@ -44,4 +44,29 @@ describe('renderer incremental baseline', () => {
     expect(diagnostics.snapshot().fullSceneRebuilds).toBe(1);
     engine.dispose();
   });
+
+  it('reuses safe visual templates for the 20k stress scene instead of constructing one object per block', async () => {
+    const project = rendererBenchmarkProject('stress');
+    const diagnostics = new RendererDiagnostics();
+    const engine = new ThreeViewportEngine(diagnostics);
+    const provider = rendererBenchmarkVisualProvider();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await settleHydration();
+    const counters = diagnostics.snapshot();
+    expect(counters.instancedMembers).toBe(project.blocks.length);
+    expect(counters.reusableTemplateCreations).toBeGreaterThan(0);
+    expect(counters.reusableTemplateCacheHits).toBeGreaterThan(project.blocks.length / 2);
+    expect(counters.providerObjectCreations).toBeLessThan(project.blocks.length / 10);
+    expect(counters.instancedMeshCount).toBeLessThan(project.blocks.length / 100);
+    engine.dispose();
+    provider.dispose();
+  }, 20_000);
 });
+
+async function settleHydration(): Promise<void> {
+  for (let index = 0; index < 80; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+  }
+}

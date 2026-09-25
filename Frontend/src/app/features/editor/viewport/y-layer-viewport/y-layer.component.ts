@@ -12,7 +12,7 @@ import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
-import { pickBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
+import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -112,8 +112,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     this.boxCornerStart = undefined;
     if (action === 'pick-block') {
       const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), false);
-      const decorationWins = !!hit.decoration && (hit.blockDistance === undefined || hit.decorationDistance === undefined || hit.decorationDistance <= hit.blockDistance);
-      if (hit.block && !decorationWins) { this.editor.pick(hit.block); this.pickConsumed = true; }
+      if (blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!))) this.pickConsumed = true;
       return;
     }
     if (action === 'primary-action' && this.tool.active() === 'select') { const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), false); this.boxCornerStart = hit.target; }
@@ -141,7 +140,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     if (!click) return;
     const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place');
     const activeDecoration = this.decorations.active();
-    const decorationWins = !!hit.decoration && (hit.blockDistance === undefined || hit.decorationDistance === undefined || hit.decorationDistance <= hit.blockDistance);
+    const decorationWins = !!hit.decoration && !blockHitWinsOverDecoration(hit);
     if (hit.decoration && decorationWins && (gestureAction !== 'primary-action' || this.tool.active() === 'select')) {
       if (gestureAction === 'delete-target') this.decorations.delete(hit.decoration.instanceId);
       else if (gestureAction === 'pick-block') this.decorations.pick(hit.decoration.instanceId);
@@ -156,11 +155,16 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       this.editor.stackCandle(hit.block);
       return;
     }
-    if (gestureAction === 'pick-block' && pickBlockFromViewportHit(hit, (position) => this.editor.pick(position))) return;
+    if (gestureAction === 'pick-block' && blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!))) return;
     else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
-    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); }
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) this.selectPickedBlock(hit.block);
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
     else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
+  }
+  private selectPickedBlock(position: import('../../../../core/domain/project.types').VoxelCoordinate): void {
+    this.decorations.clearSelection();
+    const project = this.workspace.project();
+    if (project) this.selection.selectLogical(position, project, (id) => this.library.get(id));
   }
   protected statusLabel(): string { return this.i18n.t(this.status()); }
   protected setOpacity(value: string): void { const project = this.workspace.project(); if (!project) return; const opacity = Math.min(1, Math.max(0, Number(value))); this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, referenceLayerOpacity: opacity } }); }

@@ -63,6 +63,14 @@ describe('Structure JSON import plan', () => {
     expect(result?.metadata.updatedAt).not.toBe(base.metadata.updatedAt);
   });
 
+  it('validates replacement decorations against the incoming structure, not discarded current decorations', () => {
+    const value: StructureJson = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 0, y: 0, z: 1 }], decorations: [{ kind: 'item-frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north' }] };
+    const validation = validateParsedStructureJsonPreview(value, base.size, definitions, undefined, base);
+    const plan = buildStructureJsonImportPlan(value, validation, base, definitions, 'replace');
+    expect(plan.applicable).toBe(true);
+    expect(plan.decorationIssues).toEqual([]);
+  });
+
   it('blocks replacement when a current block belongs to a locked group', () => {
     const locked: ProjectDocument = { ...base, groups: [{ id: 'locked', name: 'Locked', visible: true, locked: true }], blocks: [{ ...base.blocks[0], groupIds: ['locked'] }] };
     const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }]), locked, 'replace');

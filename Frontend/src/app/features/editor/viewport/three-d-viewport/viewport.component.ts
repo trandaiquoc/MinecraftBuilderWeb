@@ -11,7 +11,7 @@ import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, faceLockedSelectionPlane, normalizeVoxelBox, voxelOnFaceLockedPlane } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
-import { pickBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
+import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -105,8 +105,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.boxCornerStart = undefined;
     if (action === 'pick-block') {
       const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false);
-      const decorationWins = !!hit.decoration && (hit.blockDistance === undefined || hit.decorationDistance === undefined || hit.decorationDistance <= hit.blockDistance);
-      if (hit.block && !decorationWins) { this.editor.pick(hit.block); this.pickConsumed = true; }
+      if (blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!, picked.faceNormal))) this.pickConsumed = true;
       return;
     }
     if (action === 'primary-action' && this.tool.active() === 'select') {
@@ -149,7 +148,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (!click) return;
     const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place');
     const activeDecoration = this.decorations.active();
-    const decorationWins = !!hit.decoration && (hit.blockDistance === undefined || hit.decorationDistance === undefined || hit.decorationDistance <= hit.blockDistance);
+    const decorationWins = !!hit.decoration && !blockHitWinsOverDecoration(hit);
     if (hit.decoration && decorationWins && (gestureAction !== 'primary-action' || this.tool.active() === 'select')) {
       if (gestureAction === 'delete-target') this.decorations.delete(hit.decoration.instanceId);
       else if (gestureAction === 'pick-block') this.decorations.pick(hit.decoration.instanceId);
@@ -167,11 +166,19 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       this.editor.stackCandle(hit.block);
       return;
     }
-    if (gestureAction === 'pick-block' && pickBlockFromViewportHit(hit, (position) => this.editor.pick(position))) return;
+    if (gestureAction === 'pick-block' && blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!, picked.faceNormal))) return;
     else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
-    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) { this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(hit.block!)); if (selected && (isSignDefinition(this.library.get(selected.id)) || isSignId(selected.id))) this.signTextSide.setFromHit(selected, hit.faceNormal); } }
+    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) this.selectPickedBlock(hit.block, hit.faceNormal);
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
     else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
+  }
+  private selectPickedBlock(position: import('../../../../core/domain/project.types').VoxelCoordinate, faceNormal?: import('../../../../core/editor/placement/placement').FaceNormal): void {
+    this.decorations.clearSelection();
+    const project = this.workspace.project();
+    if (!project) return;
+    this.selection.selectLogical(position, project, (id) => this.library.get(id));
+    const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(position));
+    if (selected && (isSignDefinition(this.library.get(selected.id)) || isSignId(selected.id))) this.signTextSide.setFromHit(selected, faceNormal);
   }
   protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }
   protected pointerLeave(event: PointerEvent): void {

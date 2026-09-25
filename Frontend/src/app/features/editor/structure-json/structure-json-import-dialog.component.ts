@@ -6,7 +6,7 @@ import { ProjectDocument } from '../../../core/domain/project.types';
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
-import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonDecorationIssue, StructureJsonValidationPreview, validateParsedStructureJsonPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
+import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonDecorationIssue, StructureJsonValidationPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
 import { buildStructureJsonImportPlan, prepareStructureJsonImportPlan, StructureJsonImportBlocker, StructureJsonImportMode, StructureJsonImportPlan } from '../../../core/persistence/structure-json/structure-json-import-plan';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
@@ -37,14 +37,15 @@ export class StructureJsonImportDialogComponent {
   protected readonly importModes: readonly StructureJsonImportMode[] = ['replace', 'merge', 'new-group'];
   protected readonly fileInput = signal<HTMLInputElement | undefined>(undefined);
   private validationGeneration = 0;
+  private readonly modePlanCache = new Map<StructureJsonImportMode, StructureJsonImportPlan>();
 
   protected close(): void { this.validationGeneration += 1; this.closed.emit(); }
   protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) this.close(); }
-  protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.importPlan.set(undefined); this.importMode.set('replace'); this.progress.set('idle'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1; }
+  protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.importPlan.set(undefined); this.modePlanCache.clear(); this.importMode.set('replace'); this.progress.set('idle'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1; }
   protected async loadFile(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = '';
     if (!file) return;
-    this.progress.set('reading'); this.preview.set(undefined); this.importPlan.set(undefined); this.importMode.set('replace'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1;
+    this.progress.set('reading'); this.preview.set(undefined); this.importPlan.set(undefined); this.modePlanCache.clear(); this.importMode.set('replace'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1;
     try { this.draftJson.set(await file.text()); this.progress.set('idle'); } catch { this.progress.set('idle'); }
   }
   protected async validate(): Promise<void> {
@@ -59,7 +60,7 @@ export class StructureJsonImportDialogComponent {
       if (generation === this.validationGeneration) this.checkingProgress.set({ completed, total });
     }, { isCancelled: () => generation !== this.validationGeneration }, this.project());
     if (generation !== this.validationGeneration || !result) return;
-    const finalResult = this.previewForMode(result, 'replace'); this.preview.set(finalResult); this.importMode.set('replace'); this.refreshPlan(finalResult, 'replace'); this.progress.set('complete');
+    this.modePlanCache.clear(); const finalResult = this.previewForMode(result, 'replace'); this.preview.set(finalResult); this.importMode.set('replace'); this.refreshPlan(finalResult, 'replace'); this.progress.set('complete');
   }
   protected progressLabel(): string { return this.i18n.t(`structureJsonProgress${this.progress()[0].toUpperCase()}${this.progress().slice(1)}`); }
   protected issueGroups(): readonly { readonly category: 'missing' | 'bounds' | 'state'; readonly label: string }[] { return [{ category: 'missing', label: this.i18n.t('structureJsonMissingBlocks') }, { category: 'bounds', label: this.i18n.t('structureJsonOutOfBounds') }, { category: 'state', label: this.i18n.t('structureJsonInvalidStates') }]; }
@@ -105,16 +106,19 @@ export class StructureJsonImportDialogComponent {
     this.closed.emit();
   }
   protected structuralMessage(): string { const code = this.preview()?.structuralCode; const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'block' ? 'structureJsonValidationBlock' : 'structureJsonValidationShape'; return this.i18n.t(key); }
-  private refreshPlan(result: StructureJsonValidationPreview | undefined, mode: StructureJsonImportMode): void {
-    const source = result?.parsed;
-    const project = this.project();
-    this.importPlan.set(source && result && project ? buildStructureJsonImportPlan(source, result, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback')) : undefined);
-  }
+  private refreshPlan(result: StructureJsonValidationPreview | undefined, mode: StructureJsonImportMode): void { this.importPlan.set(result ? this.modePlan(result, mode) : undefined); }
   private previewForMode(result: StructureJsonValidationPreview | undefined, mode: StructureJsonImportMode): StructureJsonValidationPreview | undefined {
-    const source = result?.parsed; const project = this.project();
-    if (!source || !result) return result;
-    const seed = buildStructureJsonImportPlan(source, result, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'));
-    const candidate = { ...project, blocks: mode === 'replace' ? seed.importedBlocks : [...project.blocks, ...seed.importedBlocks], decorations: mode === 'replace' ? [] : project.decorations };
-    return validateParsedStructureJsonPreview(source, project.size, (id) => this.library.get(id), undefined, candidate);
+    if (!result) return result;
+    const plan = this.modePlan(result, mode);
+    return { ...result, totalDecorations: plan.importedDecorationCount, validDecorations: plan.validDecorationCount, missingDecorationAssets: plan.missingDecorationAssetCount, invalidDecorations: plan.decorationIssues.filter((issue) => issue.category !== 'missing-asset').length, decorationIssues: plan.decorationIssues };
+  }
+  private modePlan(result: StructureJsonValidationPreview, mode: StructureJsonImportMode): StructureJsonImportPlan {
+    const cached = this.modePlanCache.get(mode);
+    if (cached && cached.source === result.parsed && cached.baseProject === this.project()) return cached;
+    const source = result.parsed;
+    if (!source) throw new Error('Cannot build an import plan without parsed structure data');
+    const plan = buildStructureJsonImportPlan(source, result, this.project(), (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'));
+    this.modePlanCache.set(mode, plan);
+    return plan;
   }
 }

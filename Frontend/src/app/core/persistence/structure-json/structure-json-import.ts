@@ -188,6 +188,10 @@ function validateDecorations(document: StructureJson, project: ProjectDocument):
   }
   return { totalDecorations: decorations.length, validDecorations: decorations.length - issues.length, missingDecorationAssets: issues.filter((issue) => issue.category === 'missing-asset').length, invalidDecorations: issues.filter((issue) => issue.category !== 'missing-asset').length, decorationIssues: issues };
 }
+/** Reuses the decoration-only pass when an import mode changes without rechecking every block. */
+export function validateStructureJsonDecorations(document: StructureJson, project: ProjectDocument): Pick<StructureJsonValidationPreview, 'totalDecorations' | 'validDecorations' | 'missingDecorationAssets' | 'invalidDecorations' | 'decorationIssues'> {
+  return validateDecorations(document, project);
+}
 function emptyPreview(code?: StructureJsonValidationCode): StructureJsonValidationPreview { return { structuralValid: false, structuralCode: code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0, outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0, issues: emptyIssues(), totalDecorations: 0, validDecorations: 0, missingDecorationAssets: 0, invalidDecorations: 0, decorationIssues: [] }; }
 function isCancelled(cancellation?: StructureJsonValidationCancellation): boolean { return Boolean(cancellation?.signal?.aborted || cancellation?.isCancelled?.()); }
 function yieldToBrowser(): Promise<void> { return new Promise((resolve) => setTimeout(resolve, 0)); }

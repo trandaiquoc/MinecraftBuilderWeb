@@ -58,7 +58,7 @@ describe('explicit renderer benchmark', () => {
     expect(evidence.renderedBlocks).toBe(project.blocks.length);
     expect(counters.instancedMembers).toBeGreaterThan(0);
     expect(evidence.meshCount).toBeLessThan(project.blocks.length / 100);
-    console.info(`[renderer benchmark] stress blocks=${evidence.renderedBlocks} calls=${evidence.renderCalls} triangles=${evidence.triangles} geometries=${evidence.geometries} textures=${evidence.textures} object3d=${evidence.object3dCount} meshes=${evidence.meshCount} instances=${evidence.instanceMembers} instanceMeshes=${evidence.instanceMeshCount} queue=${evidence.hydrationQueue} running=${evidence.hydrationRunning} frameMs=${evidence.frameDurationMs.toFixed(2)} fps=${evidence.approximateFps.toFixed(1)} elapsedMs=${Date.now() - started}`);
+    console.info(`[renderer benchmark] stress CPU/hydration blocks=${evidence.renderedBlocks} calls=${evidence.renderCalls} triangles=${evidence.triangles} geometries=${evidence.geometries} textures=${evidence.textures} object3d=${evidence.object3dCount} meshes=${evidence.meshCount} instances=${evidence.instanceMembers} instanceMeshes=${evidence.instanceMeshCount} providerObjects=${counters.providerObjectCreations} templateCreates=${counters.reusableTemplateCreations} templateHits=${counters.reusableTemplateCacheHits} boundsComputations=${counters.instancedBoundsComputations} queue=${evidence.hydrationQueue} running=${evidence.hydrationRunning} frameMs=${evidence.frameDurationMs.toFixed(2)} hydrationElapsedMs=${Date.now() - started}`);
     provider.dispose();
     engine.dispose();
   });
