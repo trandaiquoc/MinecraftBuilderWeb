@@ -63,18 +63,7 @@ export interface ViewportPerformanceEvidence {
   readonly frameDurationMs: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
-export interface ViewportHydrationDiagnostics {
-  readonly generation: number;
-  readonly queued: number;
-  /** Actual provider work in flight across every generation. */
-  readonly running: number;
-  readonly globalRunning: number;
-  readonly currentGenerationRunning: number;
-  readonly staleRunning: number;
-  readonly completed: number;
-  readonly total: number;
-  readonly scheduled: boolean;
-}
+export interface ViewportHydrationDiagnostics { readonly generation: number; readonly queued: number; readonly running: number; readonly completed: number; readonly total: number; readonly scheduled: boolean; }
 export interface VisibleSceneDiagnostics {
   readonly expectedVisibleVoxelCount: number;
   readonly renderedVoxelCount: number;
@@ -143,8 +132,6 @@ interface DecorationHydrationJob {
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
 export const VIEWPORT_VISUAL_CONCURRENCY = 6;
-/** Reserve admission only for genuinely large hydration batches. */
-const HYDRATION_RESERVE_THRESHOLD = 512;
 export const VIEWPORT_INSTANCE_CHUNK_SIZE = 16;
 export const VIEWPORT_INSTANCE_THRESHOLD = 256;
 export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
@@ -745,7 +732,7 @@ export class ThreeViewportEngine {
     const cameraInteracting = performance.now() < this.cameraInteractingUntil;
     if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = this.adaptiveHydrationBudget(cameraInteracting);
     this.instrumentation.record('hydrationBatches');
-    while (this.canAdmitHydrationJob(token) && this.hydrationQueue.length && this.hydrationBatchBudget > 0) {
+    while (this.hydrationRunning < VIEWPORT_VISUAL_CONCURRENCY && this.hydrationQueue.length && this.hydrationBatchBudget > 0) {
       const job = this.hydrationQueue.shift()!;
       if (job.token !== token || token !== this.hydrationGeneration) continue;
       this.pendingHydrationSignatures.delete(job.key);
@@ -754,9 +741,7 @@ export class ThreeViewportEngine {
       this.runningHydrationKeys.set(job.key, job.token);
       this.hydrationRunningByGeneration.set(job.token, (this.hydrationRunningByGeneration.get(job.token) ?? 0) + 1);
       this.createBlockEntry(job.block, job.role, job.worldContext, job.options, job.allowInstancing, () => {
-        // A newer generation may already own this coordinate. Stale work
-        // must release its own slot without erasing that newer ownership.
-        if (this.runningHydrationKeys.get(job.key) === job.token) this.runningHydrationKeys.delete(job.key);
+        this.runningHydrationKeys.delete(job.key);
         this.hydrationRunning = Math.max(0, this.hydrationRunning - 1);
         const generationRunning = Math.max(0, (this.hydrationRunningByGeneration.get(job.token) ?? 1) - 1);
         if (generationRunning) this.hydrationRunningByGeneration.set(job.token, generationRunning); else this.hydrationRunningByGeneration.delete(job.token);
@@ -767,21 +752,6 @@ export class ThreeViewportEngine {
     this.processDecorationBatch(token);
     if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = 0;
     if ((this.hydrationQueue.length && this.hydrationRunning === 0) || this.decorationHydrationQueue.length) this.scheduleHydrationPump(true);
-  }
-
-  /**
-   * Provider visuals currently have no AbortSignal/cancellation contract.
-   * Keep the real global in-flight count authoritative and reserve one slot
-   * while a large queue is active so a generation replacement can be admitted
-   * before the previous generation fills every slot.
-   */
-  private canAdmitHydrationJob(token: number): boolean {
-    if (this.hydrationRunning >= VIEWPORT_VISUAL_CONCURRENCY) return false;
-    const currentRunning = this.hydrationRunningByGeneration.get(token) ?? 0;
-    const staleRunning = Math.max(0, this.hydrationRunning - currentRunning);
-    const largeQueue = this.hydrationProgressState.total > HYDRATION_RESERVE_THRESHOLD || this.hydrationQueue.length > HYDRATION_RESERVE_THRESHOLD;
-    if (!largeQueue || staleRunning > 0) return true;
-    return currentRunning < VIEWPORT_VISUAL_CONCURRENCY - 1;
   }
 
   private adaptiveHydrationBudget(cameraInteracting = false): number {
@@ -821,6 +791,7 @@ export class ThreeViewportEngine {
     if (this.hydrationQueue.length || this.hydrationRunning) this.instrumentation.record('cancelledHydrations');
     this.hydrationQueue = [];
     this.pendingHydrationSignatures.clear();
+    this.runningHydrationKeys.clear();
     this.cancelDecorationHydration();
     this.hydrationBatchBudget = 0;
     if (this.hydrationTimer !== undefined) { clearTimeout(this.hydrationTimer); this.hydrationTimer = undefined; }
@@ -1310,14 +1281,10 @@ export class ThreeViewportEngine {
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
 
   hydrationDiagnostics(): ViewportHydrationDiagnostics {
-    const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;
     return {
       generation: this.hydrationGeneration,
       queued: this.hydrationQueue.length + this.decorationHydrationQueue.length,
       running: this.hydrationRunning,
-      globalRunning: this.hydrationRunning,
-      currentGenerationRunning,
-      staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning),
       completed: this.hydrationProgressState.completed,
       total: this.hydrationProgressState.total,
       scheduled: this.hydrationScheduled || this.hydrationTimer !== undefined,
