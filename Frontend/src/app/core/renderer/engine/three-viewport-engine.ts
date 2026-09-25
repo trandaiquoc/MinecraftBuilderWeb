@@ -243,6 +243,28 @@ export interface ViewportControlConfiguration {
   readonly verticalMoveSpeed: number;
 }
 
+export interface ViewportB5InputState {
+  readonly pressedActions: readonly MovementAction[];
+  readonly cameraMoveFrameActive: boolean;
+  readonly cameraMovementInProgress: boolean;
+  readonly cameraPosition: CameraVector;
+  readonly controlsTarget?: CameraVector;
+  readonly renderCount: number;
+  readonly performance: Pick<ViewportPerformanceEvidence, 'cameraMovementFrames' | 'cameraMovementRenderCalls' | 'cameraChangeEventsDuringMovement' | 'cameraRenderRequestsSuppressed'>;
+}
+
+export interface ViewportB5MovementFrame extends ViewportB5InputState {
+  readonly timestamp: number;
+  readonly delta: number;
+  readonly pressedActions: readonly MovementAction[];
+  readonly cameraPositionBefore: CameraVector;
+  readonly cameraPositionAfter: CameraVector;
+  readonly controlsTargetBefore?: CameraVector;
+  readonly controlsTargetAfter?: CameraVector;
+  readonly scheduledNextFrame: boolean;
+  readonly selectedBlock?: unknown;
+}
+
 interface RenderedBlockEntry {
   readonly key: string;
   readonly block: ProjectDocument['blocks'][number];
@@ -478,6 +500,8 @@ export class ThreeViewportEngine {
   private runtimeObservedProjectBlockCount = 0;
   private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
+  private b5FrameRecorder?: (frame: ViewportB5MovementFrame) => void;
+  private b5LifecycleRecorder?: (event: unknown) => void;
 
   constructor(readonly instrumentation = new RendererDiagnostics()) {
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
@@ -582,6 +606,26 @@ export class ThreeViewportEngine {
 
   cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.startCameraMovement(); }
   cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.render(); }
+
+  setB5FrameRecorder(recorder: ((frame: ViewportB5MovementFrame) => void) | undefined): void { this.b5FrameRecorder = recorder; }
+  setB5LifecycleRecorder(recorder: ((event: unknown) => void) | undefined): void { this.b5LifecycleRecorder = recorder; }
+  b5InputState(): ViewportB5InputState {
+    const counters = this.instrumentation.snapshot();
+    return {
+      pressedActions: [...this.pressedActions].sort(),
+      cameraMoveFrameActive: this.cameraMoveFrame !== undefined,
+      cameraMovementInProgress: this.cameraMovementInProgress,
+      cameraPosition: vectorValue(this.camera.position),
+      ...(this.controls && this.controls.target ? { controlsTarget: vectorValue(this.controls.target) } : {}),
+      renderCount: this.renderCount,
+      performance: {
+        cameraMovementFrames: counters.cameraMovementFrames,
+        cameraMovementRenderCalls: counters.cameraMovementRenderCalls,
+        cameraChangeEventsDuringMovement: counters.cameraChangeEventsDuringMovement,
+        cameraRenderRequestsSuppressed: counters.cameraRenderRequestsSuppressed,
+      },
+    };
+  }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -2041,7 +2085,72 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();
   }
-  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
+  b5SelectedBlockDiagnostic(position: VoxelCoordinate): unknown {
+    const key = coordinateKey(position);
+    const projectBlock = this.project?.blocks.find((block) => coordinateKey(block.position) === key);
+    const entry = this.renderedBlocks.get(key);
+    const indexed = this.instanceOwnershipIndex.get(key);
+    const batch = indexed ? this.instanceBatches.get(indexed.batchKey) : undefined;
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+    const batchParts = batch?.parts.map((part, partIndex) => {
+      part.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(part);
+      const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+      return {
+        partIndex, uuid: part.uuid, visible: part.visible, parent: objectParentPath(part), count: part.count,
+        frustumCulled: part.frustumCulled, matrixWorld: [...part.matrixWorld.elements],
+        boundingBox: boxValue(bounds), boundingSphere: { center: vectorValue(sphere.center), radius: sphere.radius },
+        materialVisible: materialVisibility(part.material),
+      };
+    }) ?? [];
+    const instanceMatrix = batch && indexed && indexed.index < batch.keys.length ? [...readInstanceMatrix(batch.parts[0], indexed.index).elements] : undefined;
+    const instanceWorldPosition = batch && indexed && indexed.index < batch.keys.length ? instanceWorldPositionValue(batch.parts[0], indexed.index) : undefined;
+    const memberships = [...this.instanceBatches.entries()].flatMap(([batchKey, value]) => value.keys.flatMap((memberKey, index) => memberKey === key ? [{ batchKey, index }] : []));
+    const object = entry?.object;
+    const objectBounds = object ? new THREE.Box3().setFromObject(object) : undefined;
+    const cameraProjection = [...this.camera.projectionMatrix.elements];
+    return {
+      key,
+      projectBlockExists: !!projectBlock,
+      projectBlock: projectBlock ? { id: projectBlock.id, state: { ...projectBlock.state }, position: { ...projectBlock.position } } : undefined,
+      projectBlockCount: this.project?.blocks.length ?? 0,
+      renderedEntry: entry ? {
+        role: entry.role, revision: entry.revision, objectType: entry.object?.type, objectUuid: entry.object?.uuid,
+        visible: entry.object?.visible, parent: entry.object ? objectParentPath(entry.object) : undefined,
+        fallback: entry.fallback ? { visible: entry.fallback.visible, parent: objectParentPath(entry.fallback), uuid: entry.fallback.uuid } : undefined,
+        instanceBatchKey: entry.instanceBatchKey, instanceIndex: entry.instanceIndex,
+      } : undefined,
+      instance: indexed ? {
+        ownershipIndex: { ...indexed }, targetBatchExists: !!batch, batchKey: indexed.batchKey,
+        batchKeyAtIndex: batch?.keys[indexed.index], positionAtIndex: batch?.positions[indexed.index],
+        occurrenceCount: memberships.length, logicalMemberCount: batch?.keys.length ?? 0, partCount: batch?.parts.length ?? 0,
+        parts: batchParts, instanceMatrix, instanceWorldPosition,
+      } : undefined,
+      nonInstanced: object && !indexed ? {
+        visible: object.visible, parent: objectParentPath(object), worldPosition: vectorValue(object.getWorldPosition(new THREE.Vector3())),
+        worldBounds: objectBounds ? boxValue(objectBounds) : undefined,
+        children: objectChildrenDiagnostics(object),
+      } : undefined,
+      frustum: {
+        camera: { position: vectorValue(this.camera.position), quaternion: [...this.camera.quaternion.toArray()], projectionMatrix: cameraProjection, near: this.camera.near, far: this.camera.far, fov: this.camera.fov, aspect: this.camera.aspect },
+        ...(batchParts.length ? { batchBoundsIntersectCameraFrustum: batchParts.some((part) => boxIntersectsFrustum(part.boundingBox, frustum)), instanceNearFrustum: instanceWorldPosition ? frustum.containsPoint(new THREE.Vector3(instanceWorldPosition.x, instanceWorldPosition.y, instanceWorldPosition.z)) : undefined } : {}),
+      },
+      overlays: {
+        selectionOutline: { visible: this.selectionOutline.visible, position: vectorValue(this.selectionOutline.position), bounds: boxValue(new THREE.Box3().setFromObject(this.selectionOutline)) },
+        logicalSelectionGroup: { childCount: this.logicalSelectionGroup.children.length, visible: this.logicalSelectionGroup.visible },
+        selectionBox: { visible: this.selectionBox.visible, bounds: boxValue(this.selectionBox.box) },
+      },
+      input: this.b5InputState(),
+      b4: this.performanceEvidence(),
+    };
+  }
+
+  clearInput(): void {
+    const before = this.b5InputState();
+    this.pressedActions.clear();
+    if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; }
+    this.b5LifecycleRecorder?.({ type: 'engine.clearInput', timestamp: new Date().toISOString(), before, after: this.b5InputState() });
+  }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
@@ -2308,10 +2417,12 @@ export class ThreeViewportEngine {
   /** Chunk bounds are conservative and assigned once at batch creation. */
   private flushInstanceBatchBounds(): void { }
 
-  private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedActions, delta); if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
-  private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
+  private startCameraMovement(): void { if (this.cameraMoveFrame !== undefined) return; let previous = performance.now(); const step = (now: number) => { this.cameraMoveFrame = undefined; const delta = Math.min((now - previous) / 1000, .1); previous = now; this.moveCamera(this.pressedActions, delta, now); if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step); }; this.cameraMoveFrame = requestAnimationFrame(step); }
+  private moveCamera(keys: ReadonlySet<MovementAction>, delta: number, timestamp = performance.now()): void {
     if (!this.controls || !keys.size) return;
     this.cameraInteractingUntil = performance.now() + 180;
+    const cameraPositionBefore = vectorValue(this.camera.position);
+    const controlsTargetBefore = vectorValue(this.controls.target);
     const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
     if (!direction.lengthSq()) return;
     this.camera.position.add(direction);
@@ -2327,6 +2438,10 @@ export class ThreeViewportEngine {
     // event, so demand rendering is driven explicitly once per movement frame.
     this.instrumentation.record('cameraMovementRenderCalls');
     this.render();
+    this.b5FrameRecorder?.({
+      timestamp, delta, cameraPositionBefore, cameraPositionAfter: vectorValue(this.camera.position),
+      controlsTargetBefore, controlsTargetAfter: vectorValue(this.controls.target), scheduledNextFrame: this.pressedActions.size > 0, ...this.b5InputState(), pressedActions: [...keys].sort(),
+    });
   }
 }
 
@@ -2337,6 +2452,13 @@ function cameraYaw(camera: THREE.Camera): number {
 }
 
 function vectorValue(vector: THREE.Vector3): CameraVector { return { x: vector.x, y: vector.y, z: vector.z }; }
+function boxValue(box: THREE.Box3 | undefined): { readonly min: CameraVector; readonly max: CameraVector } | undefined { return box ? { min: vectorValue(box.min), max: vectorValue(box.max) } : undefined; }
+function boxIntersectsFrustum(box: { readonly min: CameraVector; readonly max: CameraVector } | undefined, frustum: THREE.Frustum): boolean { return !!box && frustum.intersectsBox(new THREE.Box3(new THREE.Vector3(box.min.x, box.min.y, box.min.z), new THREE.Vector3(box.max.x, box.max.y, box.max.z))); }
+function materialVisibility(material: THREE.Material | readonly THREE.Material[]): readonly boolean[] { return (Array.isArray(material) ? material : [material]).map((entry) => entry.visible); }
+function objectParentPath(object: THREE.Object3D): readonly { readonly type: string; readonly uuid: string; readonly visible: boolean }[] { const path: { type: string; uuid: string; visible: boolean }[] = []; let current: THREE.Object3D | null = object; while (current) { path.push({ type: current.type, uuid: current.uuid, visible: current.visible }); current = current.parent; } return path; }
+function objectChildrenDiagnostics(object: THREE.Object3D): readonly unknown[] { const result: unknown[] = []; object.traverse((child) => { if (child === object || result.length >= 32) return; const bounds = child instanceof THREE.Mesh ? new THREE.Box3().setFromObject(child) : undefined; result.push({ type: child.type, uuid: child.uuid, visible: child.visible, frustumCulled: child.frustumCulled, parent: child.parent?.uuid, worldBounds: boxValue(bounds), materialVisible: child instanceof THREE.Mesh ? materialVisibility(child.material) : undefined }); }); return result; }
+function readInstanceMatrix(mesh: THREE.InstancedMesh, index: number): THREE.Matrix4 { const matrix = new THREE.Matrix4(); mesh.getMatrixAt(index, matrix); return matrix; }
+function instanceWorldPositionValue(mesh: THREE.InstancedMesh, index: number): CameraVector { const world = new THREE.Matrix4().multiplyMatrices(mesh.matrixWorld, readInstanceMatrix(mesh, index)); return vectorValue(new THREE.Vector3().setFromMatrixPosition(world)); }
 function perspectiveDirection(): THREE.Vector3 { return new THREE.Vector3(1, .75, 1).normalize(); }
 function presetDirection(preset: CameraPreset): THREE.Vector3 {
   switch (preset) {

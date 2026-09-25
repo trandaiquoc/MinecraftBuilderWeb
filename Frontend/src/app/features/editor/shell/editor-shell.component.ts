@@ -16,7 +16,7 @@ import { GroupService } from '../../../core/editor/groups/group.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
-import { isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, MovementAction } from '../../../core/editor/input/keyboard-bindings';
+import { bindingFromKeyboardEvent, isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, MovementAction } from '../../../core/editor/input/keyboard-bindings';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -42,12 +42,13 @@ import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-asset
 import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
+import { B5RuntimeDiagnosticsService } from '../../../core/editor/input/b5-runtime-diagnostics.service';
 
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'clearPressedMovementActions()', '(document:visibilitychange)': 'clearPressedMovementActions()', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'clearPressedMovementActions()', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -70,6 +71,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly importCoordinator = new ProjectPackageImportService(this.persistence);
   protected readonly importState = this.importCoordinator.state;
   private readonly library = inject(BlockLibraryService);
+  private readonly b5 = inject(B5RuntimeDiagnosticsService);
   private readonly session = inject(EditorSessionService);
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
@@ -124,6 +126,10 @@ export class EditorShellComponent implements OnDestroy {
   private readonly pressedMovementActions = new Map<string, MovementAction>();
 
   constructor() {
+    if (isDevMode() && typeof window !== 'undefined') {
+      window.__mbB5Diagnostics = () => { this.b5State(); return this.b5.snapshot(); };
+      window.__mbB5Reset = () => { this.b5State(); return this.b5.reset(); };
+    }
     void this.workspace.restore(new IndexedDbProjectStore());
     effect(() => {
       const activeGroupId = this.groups.activeGroupId();
@@ -133,7 +139,7 @@ export class EditorShellComponent implements OnDestroy {
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
   }
-  ngOnDestroy(): void { this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
+  ngOnDestroy(): void { this.b5.recordLifecycle({ type: 'shell.destroy', timestamp: new Date().toISOString(), before: this.b5State() }); this.clearPressedMovementActions('shell.destroy'); if (isDevMode() && typeof window !== 'undefined') { if (window.__mbB5Diagnostics) delete window.__mbB5Diagnostics; if (window.__mbB5Reset) delete window.__mbB5Reset; } void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
@@ -363,11 +369,13 @@ export class EditorShellComponent implements OnDestroy {
       if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
       this.closeMenus(); return;
     }
-    const action = this.keyboard.actionForEvent(event); if (!action) return;
+    const before = this.b5State();
+    const action = this.keyboard.actionForEvent(event); if (!action) { if (event.repeat || isMovementKey(event)) this.recordB5Keyboard(event, undefined, before, this.b5State()); return; }
     if (isMovementAction(action)) {
       this.pressedMovementActions.set(event.code || event.key, action);
       this.currentViewport()?.cameraKeyDown(action);
       this.traceKeyboardRoute(event, action);
+      this.recordB5Keyboard(event, action, before, this.b5State());
       event.preventDefault();
       return;
     }
@@ -377,18 +385,42 @@ export class EditorShellComponent implements OnDestroy {
   }
 
   protected handleEditorKeyup(event: KeyboardEvent): void {
+    const before = this.b5State();
     const key = event.code || event.key;
     const action = this.pressedMovementActions.get(key);
-    if (!action) return;
-    this.pressedMovementActions.delete(key);
-    this.currentViewport()?.cameraKeyUp(action);
-    if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
+    if (action) {
+      this.pressedMovementActions.delete(key);
+      this.currentViewport()?.cameraKeyUp(action);
+      if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
+    }
+    if (action || isMovementKey(event)) this.recordB5Keyboard(event, action, before, this.b5State());
   }
 
-  protected clearPressedMovementActions(): void {
+  protected handleFocusIn(event: FocusEvent): void { this.b5.recordLifecycle({ type: 'document.focusin', timestamp: new Date().toISOString(), target: eventTargetSummary(event.target), before: this.b5State() }); this.clearPressedMovementActions('focusin'); }
+  protected handleVisibilityChange(event: Event): void { this.b5.recordLifecycle({ type: 'document.visibilitychange', timestamp: new Date().toISOString(), hidden: typeof document !== 'undefined' && document.hidden, before: this.b5State() }); this.clearPressedMovementActions('visibilitychange'); }
+  protected handleWindowBlur(event: Event): void { this.b5.recordLifecycle({ type: 'window.blur', timestamp: new Date().toISOString(), before: this.b5State() }); this.clearPressedMovementActions('window.blur'); }
+
+  protected clearPressedMovementActions(reason = 'clearPressedMovementActions'): void {
+    const before = this.b5State();
     const viewport = this.currentViewport();
     for (const action of this.pressedMovementActions.values()) viewport?.cameraKeyUp(action);
     this.pressedMovementActions.clear();
+    this.b5.recordLifecycle({ type: 'shell.clearPressedMovementActions', reason, timestamp: new Date().toISOString(), before, after: this.b5State() });
+  }
+
+  private recordB5Keyboard(event: KeyboardEvent, action: KeyboardAction | undefined, before: unknown, after: unknown): void {
+    this.b5.recordKeyboard({ type: event.type, timestamp: new Date().toISOString(), key: event.key, code: event.code, repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
+  }
+
+  private b5State(): unknown {
+    const viewport = this.currentViewport() as (ViewportComponent | YLayerComponent | undefined);
+    const project = this.workspace.project();
+    const render = this.selection.renderState(project);
+    const shellActions = [...new Set(this.pressedMovementActions.values())].sort();
+    const engine = viewport?.b5InputSnapshot?.() as { readonly pressedActions?: readonly string[] } | undefined;
+    const context = { mode: this.mode.mode(), shellActions, engineActions: [...(engine?.pressedActions ?? [])].sort(), viewport: engine, selection: { kind: render.kind, single: this.selection.single(), count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256) }, projectBlockCount: project?.blocks.length ?? 0 };
+    this.b5.setContext(context);
+    return context;
   }
 
   private traceKeyboardRoute(event: KeyboardEvent, action: KeyboardAction, mutation?: string): void {
@@ -438,4 +470,11 @@ export class EditorShellComponent implements OnDestroy {
     const maximum = Math.min(520, Math.max(minimum, total - (otherVisible ? other : 0) - 320));
     return Math.round(Math.min(maximum, Math.max(minimum, width)));
   }
+}
+
+function isMovementKey(event: KeyboardEvent): boolean { return ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'].includes(event.code); }
+function eventTargetSummary(target: EventTarget | null): unknown {
+  const element = target as HTMLElement | null;
+  if (!element) return null;
+  return { tagName: element.tagName, id: element.id || undefined, contentEditable: element.isContentEditable || element.contentEditable === 'true', editable: isEditableKeyboardTarget(target), role: element.getAttribute('role') || undefined };
 }

@@ -31,6 +31,7 @@ import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { B5RuntimeDiagnosticsService } from '../../../../core/editor/input/b5-runtime-diagnostics.service';
 
 declare global {
   interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
@@ -57,6 +58,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly itemVisuals = inject(ItemVisualService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
+  private readonly b5 = inject(B5RuntimeDiagnosticsService);
   private readonly resolveSpecialVisual = (id: string) => this.library.get(id)?.specialVisual;
   private readonly resolveBlockDefinition = (id: string) => this.library.get(id);
   private readonly resolveDecorationTexture = (resource: string) => this.assets.sources.resources.textureUrl(resource);
@@ -83,6 +85,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void {
+    this.engine.setB5FrameRecorder((frame) => this.b5.recordMovementFrame({ mode: '3d', ...frame, selectedBlock: this.selection.single() ? this.engine.b5SelectedBlockDiagnostic(this.selection.single()!) : undefined, selection: this.b5SelectionSnapshot() }));
+    this.engine.setB5LifecycleRecorder((event) => this.b5.recordLifecycle({ mode: '3d', ...asRecord(event) }));
     if (isDevMode() && typeof window !== 'undefined') {
       this.engine.setRuntimeDiagnosticsEnabled(true);
       window.__mbViewportDiagnostics = this.runtimeDiagnosticsCommand;
@@ -96,7 +100,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   }
   ngOnDestroy(): void {
     if (isDevMode() && typeof window !== 'undefined' && window.__mbViewportDiagnostics === this.runtimeDiagnosticsCommand) delete window.__mbViewportDiagnostics;
-    this.engine.setRuntimeDiagnosticsEnabled(false);
+    this.b5.recordLifecycle({ type: 'viewport.destroy', mode: '3d', timestamp: new Date().toISOString(), input: this.engine.b5InputState() });
+    this.engine.setB5FrameRecorder(undefined); this.engine.setB5LifecycleRecorder(undefined); this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
     this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
   }
@@ -234,7 +239,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
   cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
   cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
+  b5InputSnapshot(): unknown { return this.engine.b5InputState(); }
+  b5SelectedBlockDiagnostic(position: import('../../../../core/domain/project.types').VoxelCoordinate): unknown { return this.engine.b5SelectedBlockDiagnostic(position); }
+  private b5SelectionSnapshot(): unknown { const project = this.workspace.project(); const render = this.selection.renderState(project); return { kind: render.kind, single: this.selection.single(), count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256), projectBlockCount: project?.blocks.length ?? 0, selectedProjectBlock: this.selection.single() ? project?.blocks.find((block) => coordinateKey(block.position) === coordinateKey(this.selection.single()!)) : undefined }; }
 }
+
+function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === 'object' ? value as Record<string, unknown> : { value }; }
 
 
 function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {
