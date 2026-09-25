@@ -12,6 +12,7 @@ import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
+import { pickBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -155,7 +156,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       this.editor.stackCandle(hit.block);
       return;
     }
-    if (gestureAction === 'pick-block' && hit.block) this.editor.pick(hit.block);
+    if (gestureAction === 'pick-block' && pickBlockFromViewportHit(hit, (position) => this.editor.pick(position))) return;
     else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); }
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();

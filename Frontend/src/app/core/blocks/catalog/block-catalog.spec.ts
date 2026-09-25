@@ -26,6 +26,8 @@ describe('BlockCatalog', () => {
     expect(blockCapability(door, 'multi-block')).toMatchObject({ mode: 'double-height', evidence: 'verified' });
     expect(hasBlockCapability(catalog.get('minecraft:red_bed'), 'special-renderer')).toBe(true);
     expect(hasBlockCapability(catalog.get('minecraft:red_bed'), 'directional')).toBe(true);
+    expect(hasBlockCapability(catalog.get('minecraft:oak_log'), 'axis-oriented')).toBe(true);
+    expect(hasBlockCapability(catalog.get('minecraft:chain'), 'axis-oriented')).toBe(false);
     expect(example?.capabilities).toEqual([]);
   });
 

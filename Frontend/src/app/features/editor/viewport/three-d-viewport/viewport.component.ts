@@ -11,6 +11,7 @@ import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, faceLockedSelectionPlane, normalizeVoxelBox, voxelOnFaceLockedPlane } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
+import { pickBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -166,7 +167,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       this.editor.stackCandle(hit.block);
       return;
     }
-    if (gestureAction === 'pick-block' && hit.block) this.editor.pick(hit.block);
+    if (gestureAction === 'pick-block' && pickBlockFromViewportHit(hit, (position) => this.editor.pick(position))) return;
     else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) { this.decorations.clearSelection(); const project = this.workspace.project(); if (project) { this.selection.selectLogical(hit.block, project, (id) => this.library.get(id)); const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(hit.block!)); if (selected && (isSignDefinition(this.library.get(selected.id)) || isSignId(selected.id))) this.signTextSide.setFromHit(selected, hit.faceNormal); } }
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
@@ -190,6 +191,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
   cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
 }
+
 
 function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {
   return action === 'primary-action' || action === 'delete-target' || action === 'pick-block';

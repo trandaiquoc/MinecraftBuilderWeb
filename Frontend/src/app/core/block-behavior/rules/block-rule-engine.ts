@@ -4,6 +4,7 @@ import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/proj
 import { isBlockLocked } from '../../editor/groups/group-membership';
 import { PlacementContext } from '../../editor/placement/placement';
 import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../logical-objects/logical-object';
+import { blockCapability, hasBlockCapability } from '../../blocks/capabilities/block-capability-resolver';
 
 export type RuleStatus = 'valid' | 'warning' | 'invalid' | 'unknown';
 export type RuleReason = 'ok' | 'unknown-behavior' | 'out-of-bounds' | 'occupied' | 'missing-support' | 'locked-affected-block' | 'unstable-neighbor-update';
@@ -51,7 +52,9 @@ export class BlockRuleEngine {
       : [block];
     const refreshed = this.refresh({ ...project, blocks: [...project.blocks, ...placed] }, targets);
     if (!refreshed.project) return refreshed;
-    const status = support.status === 'unknown' || !definition?.behavior ? 'unknown' : 'valid';
+    const knownPlacement = !!definition?.behavior || hasBlockCapability(definition, 'direct-placement');
+    const directPlacementOnly = !definition?.behavior && hasBlockCapability(definition, 'direct-placement');
+    const status = support.status === 'unknown' ? (directPlacementOnly ? 'valid' : 'unknown') : support.status === 'valid' && !knownPlacement ? 'unknown' : support.status;
     return { validation: { status, reason: status === 'valid' ? 'ok' : 'unknown-behavior', affectedPositions: refreshed.validation.affectedPositions }, project: touch(refreshed.project) };
   }
 
@@ -111,6 +114,12 @@ export class BlockRuleEngine {
   private preparePlacement(block: PlacedBlock, context: PlacementContext | undefined): PlacedBlock | undefined {
     const definition = this.definition(block.id);
     const behavior = definition?.behavior;
+    const axisCapability = blockCapability(definition, 'axis-oriented');
+    if (axisCapability && context?.faceNormal) {
+      const normal = context.faceNormal;
+      const axis = Math.abs(normal.x) >= Math.abs(normal.y) && Math.abs(normal.x) >= Math.abs(normal.z) ? 'x' : Math.abs(normal.z) >= Math.abs(normal.y) ? 'z' : 'y';
+      return { ...block, state: { ...block.state, [axisCapability.axisProperty]: axis } };
+    }
     if (behavior?.kind === 'double-height') {
       // The resource-selected branch is visual evidence only. A new logical
       // two-block placement always starts from its lower half so support is
@@ -192,7 +201,9 @@ export class BlockRuleEngine {
     const contractSupport = this.validateSupportContracts(project, block, definition);
     if (contractSupport) return contractSupport;
     const behavior = definition?.behavior;
-    if (!behavior) return { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position] };
+    if (!behavior) return hasBlockCapability(definition, 'direct-placement')
+      ? { status: 'valid', reason: 'ok', affectedPositions: [block.position] }
+      : { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position] };
     let supportPosition: VoxelCoordinate | undefined;
     if (behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign' || behavior.kind === 'wall-hanging-sign') supportPosition = add(block.position, directionOffset(opposite(block.state[behavior.facingProperty] ?? 'north')));
     if (behavior.kind === 'standing-sign') supportPosition = add(block.position, { x: 0, y: -1, z: 0 });

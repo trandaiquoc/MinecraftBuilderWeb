@@ -168,6 +168,17 @@ describe('BlockRuleEngine', () => {
     expect(honestEngine.place({ ...base, blocks: [block(noMetadata.id, { x: 2, y: 0, z: 2 })] }, block(plantDefinition.id, { x: 2, y: 1, z: 2 })).validation.status).toBe('unknown');
   });
 
+  it('accepts verified direct-placement blocks and derives a trusted pillar axis from the clicked face', () => {
+    for (const id of ['minecraft:stone', 'minecraft:stone_slab', 'minecraft:white_carpet', 'minecraft:oak_log']) {
+      const result = engine.place(base, block(id, { x: 2, y: 1, z: 2 }), { faceNormal: { x: 0, y: 1, z: 0 } });
+      expect(result.validation.status, id).toBe('valid');
+    }
+    expect(engine.place(base, block('minecraft:oak_log', { x: 2, y: 1, z: 2 }), { faceNormal: { x: 1, y: 0, z: 0 } }).project?.blocks[0].state['axis']).toBe('x');
+    expect(engine.place(base, block('minecraft:oak_log', { x: 2, y: 1, z: 2 }), { faceNormal: { x: 0, y: 0, z: -1 } }).project?.blocks[0].state['axis']).toBe('z');
+    expect(engine.place(base, block('minecraft:oak_log', { x: 2, y: 1, z: 2 }), { faceNormal: { x: 0, y: 1, z: 0 } }).project?.blocks[0].state['axis']).toBe('y');
+    expect(engine.place(base, block('example:unknown', { x: 2, y: 1, z: 2 })).validation.status).toBe('unknown');
+  });
+
   it('places and deletes door and tall plant pairs atomically', () => {
     const supported = { ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 })] };
     const door = engine.place(supported, block('minecraft:oak_door', { x: 2, y: 1, z: 2 })).project!;

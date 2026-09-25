@@ -2,6 +2,7 @@ import type { AssetResourceProvider, ResolvedBlockModel } from '../blocks/resolv
 import { BlockModelResolver } from '../blocks/resolver/block-model-resolver';
 import type { AssetBlockRecord, BlockItemEvidence, BlockStateDefinition, CatalogItemEvidence } from '../blocks/catalog/block-definition.types';
 import type { BlockCapabilityProfile } from '../blocks/capabilities/block-capability.types';
+import { blockCapability, hasBlockCapability } from '../blocks/capabilities/block-capability-resolver';
 import type { PlacementSupportRequirement } from '../blocks/catalog/block-definition.types';
 import { resourcePath, resolveResourceLocation } from './resource-location';
 import { blockStatePredicates, invalidPredicateReasons, type NormalizedPredicate, type NormalizedPropertyPredicate } from './normalized-predicate';
@@ -344,7 +345,12 @@ function score(model: ResolvedBlockModel): number { return (model.parts.length ?
 function modelSignature(model: ResolvedBlockModel): string { return JSON.stringify(model.parts.map((part) => [part.model, part.transform, part.elements.length, Object.keys(part.textures).sort()])); }
 function behaviorEffects(record: AssetBlockRecord, property: string): { readonly known: boolean; readonly behavior: boolean; readonly placement: boolean; readonly attachment: boolean; readonly connection: boolean; readonly evidence: readonly string[] } {
   const behavior = record.behavior;
-  if (!behavior) return { known: false, behavior: false, placement: false, attachment: false, connection: false, evidence: ['no verified common semantic contract for this property'] };
+  if (!behavior) {
+    const axis = blockCapability(record.capabilities, 'axis-oriented');
+    if (axis?.axisProperty === property) return { known: true, behavior: true, placement: true, attachment: false, connection: false, evidence: ['verified axis-oriented placement contract'] };
+    if (hasBlockCapability(record.capabilities, 'direct-placement')) return { known: true, behavior: false, placement: false, attachment: false, connection: false, evidence: ['verified direct-placement contract'] };
+    return { known: false, behavior: false, placement: false, attachment: false, connection: false, evidence: ['no verified common semantic contract for this property'] };
+  }
   const derived = behavior.kind === 'horizontal-connect' || behavior.kind === 'stairs' ? (behavior.derivedProperties as readonly string[]).includes(property) : false;
   const placement = behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign' || behavior.kind === 'wall-hanging-sign' || behavior.kind === 'head-placement' ? property === ('facing' in behavior ? behavior.facingProperty : 'rotation') : behavior.kind === 'standing-sign' || behavior.kind === 'hanging-sign' ? property === behavior.rotationProperty || behavior.kind === 'hanging-sign' && property === behavior.attachedProperty : behavior.kind === 'paired-horizontal' ? property === behavior.partProperty || property === behavior.facingProperty : behavior.kind === 'double-height' ? property === behavior.halfProperty : behavior.kind === 'stairs' ? property === 'facing' || property === 'half' : behavior.kind === 'vertical-chain' ? property === behavior.axisProperty : behavior.kind === 'lantern-placement' ? property === behavior.hangingProperty : behavior.kind === 'six-face-placement' ? property === behavior.facingProperty : behavior.kind === 'decorated-pot-placement' ? property === behavior.facingProperty : behavior.kind === 'conduit-placement' ? property === behavior.waterloggedProperty : behavior.kind === 'button' ? property === behavior.faceProperty || property === behavior.facingProperty : false;
   const attachment = behavior.kind === 'wall-mounted' || behavior.kind === 'wall-sign' || behavior.kind === 'wall-hanging-sign' || behavior.kind === 'torch-placement' || behavior.kind === 'lantern-placement' || behavior.kind === 'hanging-sign' ? property === ('facingProperty' in behavior ? behavior.facingProperty : behavior.kind === 'hanging-sign' ? behavior.attachedProperty : 'hanging') : false;

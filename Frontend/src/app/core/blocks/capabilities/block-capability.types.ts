@@ -28,6 +28,10 @@ export type BlockCapability =
   | (CapabilityBase<'item-display'> & { readonly slotCount: number })
   | (CapabilityBase<'item-storage-display'> & { readonly slotCount: number })
   | (CapabilityBase<'fluid'> & { readonly fluid: 'water' | 'lava' })
+  /** Verified ordinary placement contract; no executable neighbor behavior is implied. */
+  | CapabilityBase<'direct-placement'>
+  /** Verified pillar-like placement contract (for example log/stem families). */
+  | (CapabilityBase<'axis-oriented'> & { readonly axisProperty: string })
   | CapabilityBase<'waterloggable'>
   | CapabilityBase<'item-backed'>;
 

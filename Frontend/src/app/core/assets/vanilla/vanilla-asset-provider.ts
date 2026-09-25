@@ -154,6 +154,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const models = configuredModelIds(blockstate);
       const inferredDefinitions = registryEntry?.properties ?? known?.stateDefinitions ?? stateDefinitionsFromBlockstate(blockstate);
       const resourceDefault = resourceDefaultState(blockstate, inferredDefinitions);
+      const normalizedItemEvidence = itemByBlock.has(id) && !isDecorationEntityId(id) ? toBlockItemEvidence(itemByBlock.get(id)!, !!registryEntry) : undefined;
       const generated: AssetBlockRecord = {
         id,
         displayName: typeof language[`block.${namespace}.${name.replaceAll('/', '.')}`] === 'string' ? language[`block.${namespace}.${name.replaceAll('/', '.')}`] as string : humanize(name),
@@ -163,8 +164,12 @@ export class VanillaAssetProvider implements ContentSourceProvider {
         support: 'partial',
         visualSupport: 'partial',
         behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : resourceDefault.source,
-        capabilities: [...(known?.capabilities ?? []), ...verifiedVanillaCapabilityProfile(id)],
-        itemEvidence: itemByBlock.has(id) && !isDecorationEntityId(id) ? toBlockItemEvidence(itemByBlock.get(id)!, !!registryEntry) : undefined,
+        capabilities: [
+          ...(known?.capabilities ?? []),
+          ...verifiedVanillaCapabilityProfile(id),
+          ...(normalizedItemEvidence?.placeable === true ? [{ kind: 'direct-placement' as const, evidence: 'verified' as const }] : []),
+        ],
+        itemEvidence: normalizedItemEvidence,
       };
       const registryEnriched = behaviorRegistry.enrich(generated);
       const enriched = registryEnriched.behavior ? registryEnriched : applyCommonBehavior(registryEnriched, evaluateCommonBehavior(registryEnriched, this));

@@ -116,12 +116,13 @@ function capabilitySignature(capability: BlockCapability): string {
     case 'item-display': return `${capability.kind}:${capability.slotCount}`;
     case 'item-storage-display': return `${capability.kind}:${capability.slotCount}`;
     case 'inventory-storage': return `${capability.kind}:${capability.slotCount ?? ''}`;
+    case 'axis-oriented': return `${capability.kind}:${capability.axisProperty}`;
     default: return capability.kind;
   }
 }
 
 function requiresVerifiedEvidence(capability: BlockCapability): boolean {
-  return capability.kind === 'attachment' || capability.kind === 'multi-block' || capability.kind === 'block-entity' || capability.kind === 'inventory-storage' || capability.kind === 'item-display' || capability.kind === 'item-storage-display';
+  return capability.kind === 'attachment' || capability.kind === 'multi-block' || capability.kind === 'block-entity' || capability.kind === 'inventory-storage' || capability.kind === 'item-display' || capability.kind === 'item-storage-display' || capability.kind === 'direct-placement' || capability.kind === 'axis-oriented';
 }
 
 export function validateCapabilityProfile(capabilities: BlockCapabilityProfile): void {

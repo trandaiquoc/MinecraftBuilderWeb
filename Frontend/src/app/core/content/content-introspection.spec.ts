@@ -52,6 +52,19 @@ describe('content introspection', () => {
     expect(chain.representativeVisualState).toEqual({ axis: 'y' });
   });
 
+  it('reports direct-placement and axis contracts without inventing behavior for an unverified axis property', () => {
+    const engine = new ContentIntrospectionEngine(new Resources({}));
+    const descriptor = engine.inspectBlock({
+      id: 'minecraft:oak_log', displayName: 'Oak Log', defaultState: { axis: 'y' },
+      stateDefinitions: [{ name: 'axis', values: ['x', 'y', 'z'] }], resources: { textures: [] }, support: 'full', sourceId: 'vanilla',
+      capabilities: [{ kind: 'direct-placement', evidence: 'verified' }, { kind: 'axis-oriented', axisProperty: 'axis', evidence: 'verified' }],
+    });
+    const axis = descriptor.properties.find((property) => property.name === 'axis');
+    expect(axis?.effects.behavior).toBe(true);
+    expect(axis?.effects.placement).toBe(true);
+    expect(axis?.effects.runtimeUnknown).toBe(false);
+  });
+
   it('keeps item and supported decoration roles independent from block role', () => {
     const engine = new ContentIntrospectionEngine(new Resources({}));
     expect(engine.inspectItem({ itemId: 'fixture:gem', referencedModels: ['fixture:item/gem'], referencedResources: [], sourceFormat: 'modern-item-definition' }).roles).toEqual(['item']);

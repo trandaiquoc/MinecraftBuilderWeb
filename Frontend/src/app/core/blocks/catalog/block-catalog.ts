@@ -81,6 +81,9 @@ function toDefinition(record: AssetBlockRecord, sourceId = record.sourceId ?? 'v
   const descriptor = record.contentDescriptor ? mergeContentEvidence(record.contentDescriptor, record.semanticSupplements ?? []) : undefined;
   const stateDefinitions = mergeStateDefinitions(record.stateDefinitions, descriptor?.properties);
   const explicitCapabilities = [...(record.capabilities ?? []), ...(descriptor?.capabilityProfile ?? [])];
+  if (namespace === 'minecraft' && record.itemEvidence?.placeable === true && !explicitCapabilities.some((capability) => capability.kind === 'direct-placement')) {
+    explicitCapabilities.push({ kind: 'direct-placement', evidence: 'verified' });
+  }
   return {
     ...record,
     sourceId,

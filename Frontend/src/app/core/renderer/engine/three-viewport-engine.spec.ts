@@ -158,6 +158,21 @@ describe('camera movement input contract', () => {
     mesh.geometry.dispose(); mesh.material.dispose();
   });
 
+  it('picks normal meshes and placeholder/final instanced meshes through voxel ownership metadata', () => {
+    const normal = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    normal.userData['voxel'] = { x: 1, y: 2, z: 3 };
+    expect(blockCoordinateFromHit({ object: normal } as unknown as THREE.Intersection)).toEqual({ x: 1, y: 2, z: 3 });
+    const placeholder = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 1);
+    placeholder.userData['placeholder'] = true;
+    placeholder.userData['instanceVoxels'] = [{ x: 4, y: 5, z: 6 }];
+    expect(blockCoordinateFromHit({ object: placeholder, instanceId: 0 } as unknown as THREE.Intersection)).toEqual({ x: 4, y: 5, z: 6 });
+    const final = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 1);
+    final.userData['realModel'] = true;
+    final.userData['instanceVoxels'] = [{ x: 7, y: 8, z: 9 }];
+    expect(blockCoordinateFromHit({ object: final, instanceId: 0 } as unknown as THREE.Intersection)).toEqual({ x: 7, y: 8, z: 9 });
+    normal.geometry.dispose(); normal.material.dispose(); placeholder.geometry.dispose(); placeholder.material.dispose(); final.geometry.dispose(); final.material.dispose();
+  });
+
   it('adds voxel translation without replacing a special visual local transform', () => {
     const visual = new SpecialBlockVisualRegistry().resolve({ kind: 'resolved', id: 'minecraft:skeleton_skull', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { rotation: '0' } })!.create({ kind: 'resolved', id: 'minecraft:skeleton_skull', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { rotation: '0' } });
     translateVisualToVoxel(visual, { x: 7, y: 3, z: -2 });
@@ -465,6 +480,60 @@ describe('camera movement input contract', () => {
 });
 
 describe('selection visualization scalability', () => {
+  it('kicks a small block hydration queue without decoration or pointer work', async () => {
+    const pending: Array<(value: unknown) => void> = [];
+    const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 3), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toHaveLength(3);
+    expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 3, running: 0, scheduled: true });
+    expect(engine.ownershipDiagnostics()).toEqual(expect.arrayContaining([expect.objectContaining({ expectedVisible: true, placeholderEntry: true, queuedJob: true })]));
+    await Promise.resolve();
+    expect(engine.hydrationDiagnostics().running).toBeGreaterThan(0);
+    for (const resolve of pending) resolve({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } });
+    await settleHydration();
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 3, blocksTotal: 3 });
+    expect(engine.hydrationDiagnostics().queued).toBe(0);
+    engine.dispose();
+  });
+
+  it('keeps the hydration pump progressing during camera movement without a new generation', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const engine = new ThreeViewportEngine();
+    const project = { ...rendererBenchmarkProject('small'), blocks: rendererBenchmarkProject('small').blocks.slice(0, 7), decorations: [] };
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    const generation = engine.hydrationDiagnostics().generation;
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void; }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
+    internal.camera.position.set(8, 6, 8);
+    internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    for (let index = 0; index < 5; index += 1) internal.moveCamera(new Set(['move-forward' as const]), .05);
+    await settleHydration();
+    expect(engine.hydrationDiagnostics().generation).toBe(generation);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 7 });
+    engine.dispose();
+  });
+
+  it('does not rehydrate blocks when a catalog revision leaves effective descriptors unchanged', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined, setSpecialVisualDescriptors: vi.fn() } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const descriptor = (id: string): ContentSpecialVisualDescriptor | undefined => id === base.blocks[0].id ? { contractId: 'example', resources: { default: 'example:block' }, stateDependencies: [], provenance: 'trusted-data' } : undefined;
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.setSpecialVisualDescriptorResolver(descriptor, 1);
+    engine.update(base, undefined);
+    await settleHydration();
+    const before = engine.rendererCounters();
+    engine.setSpecialVisualDescriptorResolver(descriptor, 2);
+    const after = engine.rendererCounters();
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.blockVisualCreations).toBe(before.blockVisualCreations);
+    engine.dispose();
+  });
+
   it('reports one represented ownership state per expected visible voxel', () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('small');
