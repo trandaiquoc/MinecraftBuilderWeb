@@ -66,6 +66,7 @@ export class VanillaAssetsService {
   readonly compatibilityReport = signal<CompatibilityReport | undefined>(undefined);
   private loadRequest = 0;
   private inFlight?: { readonly version: string; readonly promise: Promise<void> };
+  private restoringExternalMods = false;
 
   constructor() {
     effect(() => { const version = this.workspace.project()?.metadata.minecraftVersion; if (version) void this.ensureVersion(version); });
@@ -393,8 +394,10 @@ export class VanillaAssetsService {
     if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider); else this.sources.register(provider);
     const catalog = provider.catalog();
     this.library.replaceSource(catalog); this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
-    this.refreshVisualProvider();
-    this.bumpGeneration();
+    if (!this.restoringExternalMods) {
+      this.refreshVisualProvider();
+      this.bumpGeneration();
+    }
     const summary = summarizeMod(provider);
     this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
   }
@@ -457,18 +460,25 @@ export class VanillaAssetsService {
     await yieldToBrowser();
     let failed = 0; let current = 0;
     this.activity.begin('mod-restore', `Restoring imported Mods (0 / ${total})`, 'mod');
-    for (const serialized of stored) {
-      let sourceName = serialized.metadata?.displayName;
-      try {
-        const provider = ExternalModProvider.deserialize(serialized, version);
-        sourceName = provider.metadata.displayName;
-        if (provider.report.canActivate === false) failed += 1;
-        else { await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`)); this.activateExternal(provider); }
-      } catch { failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
-      current += 1;
-      this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
-      this.activity.update({ loaded: current, total }, sourceName ? `Restoring imported Mods (${current} / ${total}): ${sourceName}` : `Restoring imported Mods (${current} / ${total})`);
-      await yieldToBrowser();
+    this.restoringExternalMods = true;
+    try {
+      for (const serialized of stored) {
+        let sourceName = serialized.metadata?.displayName;
+        try {
+          const provider = ExternalModProvider.deserialize(serialized, version);
+          sourceName = provider.metadata.displayName;
+          if (provider.report.canActivate === false) failed += 1;
+          else { await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`)); this.activateExternal(provider); }
+        } catch { failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
+        current += 1;
+        this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
+        this.activity.update({ loaded: current, total }, sourceName ? `Restoring imported Mods (${current} / ${total}): ${sourceName}` : `Restoring imported Mods (${current} / ${total})`);
+        await yieldToBrowser();
+      }
+    } finally {
+      this.restoringExternalMods = false;
+      this.refreshVisualProvider();
+      this.bumpGeneration();
     }
     this.contentRestore.set(contentRestoreAfterMods(total, failed));
     this.activity.finish('mod-restore', failed ? `Imported Mods restored with ${failed} warning${failed === 1 ? '' : 's'}` : 'Imported Mods restored', 'mod');

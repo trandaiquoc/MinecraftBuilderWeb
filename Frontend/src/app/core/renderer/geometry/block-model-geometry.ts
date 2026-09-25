@@ -70,6 +70,9 @@ export interface BlockVisualProvider {
   setSpecialVisualDescriptors?(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void;
   cacheStats?(): Readonly<VisualCacheStats>;
   resourceCounts?(): Readonly<VisualResourceCounts>;
+  /** Viewports hold a lease while their scene may reference provider-owned resources. */
+  retain?(): void;
+  release?(): void;
 }
 
 export interface VisualCacheStats { readonly resolvedModelCacheHits: number; readonly resolvedModelCacheMisses: number; readonly geometryCacheHits: number; readonly geometryCacheMisses: number; readonly textureCacheHits: number; readonly textureCacheMisses: number; }
@@ -86,6 +89,9 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly itemVisualPreviewCache = new Map<string, Promise<PerspectiveThumbnailResult>>();
   private readonly geometryCache = new Map<string, THREE.BufferGeometry>();
   private readonly stats = { resolvedModelCacheHits: 0, resolvedModelCacheMisses: 0, geometryCacheHits: 0, geometryCacheMisses: 0, textureCacheHits: 0, textureCacheMisses: 0 };
+  private visualLeaseCount = 0;
+  private disposalRequested = false;
+  private resourcesDisposed = false;
   private thumbnailRenderer?: THREE.WebGLRenderer;
   private readonly thumbnailObjectUrls = new Set<string>();
   private grassTintCache?: Promise<number | undefined>;
@@ -200,7 +206,24 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
   setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); }
 
-  dispose(): void { for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose()); for (const texture of this.fluidTextureCache.values()) texture.dispose(); for (const geometry of this.geometryCache.values()) geometry.dispose(); this.geometryCache.clear(); this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined; for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url); this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.itemVisualPreviewCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); }
+  retain(): void { if (!this.resourcesDisposed) this.visualLeaseCount += 1; }
+  release(): void {
+    if (this.visualLeaseCount > 0) this.visualLeaseCount -= 1;
+    if (this.disposalRequested && this.visualLeaseCount === 0) this.disposeResources();
+  }
+  dispose(): void { this.disposalRequested = true; if (this.visualLeaseCount === 0) this.disposeResources(); }
+
+  private disposeResources(): void {
+    if (this.resourcesDisposed) return;
+    this.resourcesDisposed = true;
+    for (const texture of this.textureCache.values()) void texture.then((value) => value?.dispose());
+    for (const texture of this.fluidTextureCache.values()) texture.dispose();
+    for (const geometry of this.geometryCache.values()) geometry.dispose();
+    this.geometryCache.clear();
+    this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined;
+    for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url);
+    this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.itemVisualPreviewCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear();
+  }
 
   cacheStats(): Readonly<VisualCacheStats> { return { ...this.stats }; }
   resourceCounts(): Readonly<VisualResourceCounts> { return { resolvedModels: this.resolvedCache.size, geometries: this.geometryCache.size, textures: this.textureCache.size, fluidTextures: this.fluidTextureCache.size, thumbnails: this.thumbnailCache.size + this.itemThumbnailCache.size + this.itemVisualPreviewCache.size }; }

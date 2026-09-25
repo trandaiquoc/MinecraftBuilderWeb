@@ -91,6 +91,7 @@ interface BlockHydrationJob {
   readonly token: number;
   readonly key: string;
   readonly block: ProjectDocument['blocks'][number];
+  readonly signature: string;
   readonly role: RenderedBlockEntry['role'];
   readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
   readonly options: ViewportRenderOptions;
@@ -230,6 +231,7 @@ export class ThreeViewportEngine {
   private decorationItemPreview?: (item: ItemStackData) => Promise<string | undefined>;
   private paintingResource?: (variantId: string) => string | undefined;
   private specialVisualResolver?: (blockId: string) => ContentSpecialVisualDescriptor | undefined;
+  private specialVisualRevision?: number;
   private definitionResolver?: (blockId: string) => BlockDefinition | undefined;
   private decorationTextureCache?: DecorationTextureCache;
   private placementPlanProvider?: PlacementPlanProvider;
@@ -252,6 +254,9 @@ export class ThreeViewportEngine {
   private blockBrightness = 3;
   private structureSyncKey = '';
   private syncedProject?: ProjectDocument;
+  private decorationSyncKey = '';
+  private syncedDecorationProject?: ProjectDocument;
+  private decorationRevision = 0;
   private providerGeneration = 0;
   private providerStats?: VisualCacheStats;
   private hydrationGeneration = 0;
@@ -260,6 +265,7 @@ export class ThreeViewportEngine {
   private decorationHydrationQueue: DecorationHydrationJob[] = [];
   private readonly pendingDecorationSignatures = new Map<string, string>();
   private hydrationRunning = 0;
+  private readonly hydrationRunningByGeneration = new Map<number, number>();
   private hydrationBatchBudget = 0;
   private hydrationTimer?: ReturnType<typeof setTimeout>;
   private hydrationScheduled = false;
@@ -434,16 +440,21 @@ export class ThreeViewportEngine {
 
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
+    const previousProvider = this.visualProvider;
     this.visualProvider = provider;
+    this.visualProvider?.retain?.();
     this.providerStats = undefined;
     this.providerGeneration += 1;
     this.structureSyncKey = '';
     this.ghostModelKey = '';
     if (provider) this.syncSpecialVisualDescriptors();
     this.update(this.project, this.activeBlock, this.renderOptions);
+    previousProvider?.release?.();
   }
-  setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined): void {
+  setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined, revision?: number): void {
+    if (resolver === this.specialVisualResolver && revision === this.specialVisualRevision) return;
     this.specialVisualResolver = resolver;
+    this.specialVisualRevision = revision;
     this.syncSpecialVisualDescriptors();
     this.structureSyncKey = '';
     this.update(this.project, this.activeBlock, this.renderOptions);
@@ -453,31 +464,31 @@ export class ThreeViewportEngine {
     this.decorationTextureCache?.dispose();
     this.decorationTextureCache = provider ? new DecorationTextureCache(provider, undefined, () => this.render()) : undefined;
     this.decorationTextureUrl = provider;
-    this.structureSyncKey = '';
+    this.decorationRevision += 1;
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemResourceProvider(provider: ((itemId: string) => readonly string[]) | undefined): void {
     if (provider === this.decorationItemResources) return;
     this.decorationItemResources = provider;
-    this.structureSyncKey = '';
+    this.decorationRevision += 1;
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemVisualProvider(provider: ((itemId: string) => ResolvedItemVisual | undefined) | undefined): void {
     if (provider === this.decorationItemVisual) return;
     this.decorationItemVisual = provider;
-    this.structureSyncKey = '';
+    this.decorationRevision += 1;
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemPreviewProvider(provider: ((item: ItemStackData) => Promise<string | undefined>) | undefined): void {
     if (provider === this.decorationItemPreview) return;
     this.decorationItemPreview = provider;
-    this.structureSyncKey = '';
+    this.decorationRevision += 1;
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setPaintingTextureResolver(provider: ((variantId: string) => string | undefined) | undefined): void {
     if (provider === this.paintingResource) return;
     this.paintingResource = provider;
-    this.structureSyncKey = '';
+    this.decorationRevision += 1;
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
@@ -498,13 +509,23 @@ export class ThreeViewportEngine {
     this.renderOptions = options;
     this.syncSpecialVisualDescriptors();
     const syncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}|${this.providerGeneration}` : 'empty';
-    const persistentInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
+    const blockInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
+    const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
+    const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
     const full = syncKey !== this.structureSyncKey;
-    if (persistentInputChanged) {
-      this.cancelHydration();
+    if (blockInputChanged) {
+      const incrementalProjectChange = project !== this.syncedProject && !full && this.renderedBlocks.size === 0 && this.hydrationQueue.length > 0;
+      if (full || !incrementalProjectChange && project !== this.syncedProject) this.cancelHydration();
       this.structureSyncKey = syncKey;
       this.syncedProject = project;
       this.reconcileStructure(project, options, full);
+    }
+    if (decorationInputChanged) {
+      if (!blockInputChanged) this.cancelDecorationHydration();
+      this.decorationSyncKey = decorationKey;
+      this.syncedDecorationProject = project;
+      this.reconcileDecorations(project, options, false);
+      this.beginHydrationProgress(this.hydrationQueue.length + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.decorationHydrationQueue.length);
     }
     this.setProjectBounds(project);
     this.setEditingPlane(options.layerY, project);
@@ -534,6 +555,10 @@ export class ThreeViewportEngine {
     const visible = this.visibleBlocks(project, options);
     const allowInstancing = visible.length >= VIEWPORT_INSTANCE_THRESHOLD;
     const visibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
+    this.hydrationQueue = this.hydrationQueue.filter((job) => {
+      const next = visibleMap.get(job.key);
+      return !!next && job.signature === next.signature;
+    });
     if (full) this.instrumentation.record('fullSceneRebuilds');
     const changed = new Set<string>();
     for (const [key, entry] of this.renderedBlocks) if (!visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.pendingHydrationSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
@@ -561,13 +586,12 @@ export class ThreeViewportEngine {
       this.ensurePlaceholderVisual(key, next.block, next.role);
       this.pendingHydrationSignatures.set(key, next.signature);
       this.instrumentation.record('blockVisualCreations');
-      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, role: next.role, worldContext, options, allowInstancing });
+      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing });
     }
     this.hydrationQueue.sort((left, right) => (left.role === right.role ? 0 : left.role === 'normal' ? -1 : 1));
     const previousMax = this.instrumentation.snapshot().maxPendingVisualJobs;
     if (this.hydrationQueue.length > previousMax) this.instrumentation.record('maxPendingVisualJobs', this.hydrationQueue.length - previousMax);
-    this.reconcileDecorations(project, options, full);
-    this.beginHydrationProgress(this.hydrationQueue.length, this.decorationHydrationQueue.length);
+    this.beginHydrationProgress(this.hydrationQueue.length + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.decorationHydrationQueue.length);
   }
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions): readonly { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string }[] {
@@ -633,8 +657,11 @@ export class ThreeViewportEngine {
       this.pendingHydrationSignatures.delete(job.key);
       this.hydrationBatchBudget -= 1;
       this.hydrationRunning += 1;
+      this.hydrationRunningByGeneration.set(job.token, (this.hydrationRunningByGeneration.get(job.token) ?? 0) + 1);
       this.createBlockEntry(job.block, job.role, job.worldContext, job.options, job.allowInstancing, () => {
         this.hydrationRunning = Math.max(0, this.hydrationRunning - 1);
+        const generationRunning = Math.max(0, (this.hydrationRunningByGeneration.get(job.token) ?? 1) - 1);
+        if (generationRunning) this.hydrationRunningByGeneration.set(job.token, generationRunning); else this.hydrationRunningByGeneration.delete(job.token);
         this.completeHydrationPart(job.token, 'block');
         this.scheduleHydrationPump(this.hydrationBatchBudget <= 0);
       });
@@ -675,11 +702,17 @@ export class ThreeViewportEngine {
     this.instrumentation.record('hydrationGenerations');
     if (this.hydrationQueue.length || this.hydrationRunning) this.instrumentation.record('cancelledHydrations');
     this.hydrationQueue = [];
-    this.decorationHydrationQueue = [];
+    this.pendingHydrationSignatures.clear();
+    this.cancelDecorationHydration();
     this.hydrationBatchBudget = 0;
     if (this.hydrationTimer !== undefined) { clearTimeout(this.hydrationTimer); this.hydrationTimer = undefined; }
     this.hydrationScheduled = false;
     this.resetHydrationProgress();
+  }
+
+  private cancelDecorationHydration(): void {
+    this.decorationHydrationQueue = [];
+    this.pendingDecorationSignatures.clear();
   }
 
   private scheduleRender(): void {
@@ -861,15 +894,21 @@ export class ThreeViewportEngine {
     this.providerStats = stats;
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.pendingHydrationSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.syncedProject = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.pendingHydrationSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedDecorationProject = undefined; }
 
-  private reconcileDecorations(project: ProjectDocument, options: ViewportRenderOptions, full: boolean): void {
+  private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
+    if (!project) {
+      for (const [id, entry] of this.renderedDecorations) this.removeDecorationEntry(id, entry);
+      this.cancelDecorationHydration();
+      return;
+    }
     const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (!options.isolatedGroupId || decorationHasGroup(decoration, options.isolatedGroupId)) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
     const map = new Map(visible.map((decoration) => [decoration.instanceId, decoration] as const));
+    this.decorationHydrationQueue = this.decorationHydrationQueue.filter((job) => stableValue(map.get(job.id)) === stableValue(job.decoration));
     for (const [id, entry] of this.renderedDecorations) if (!map.has(id)) { this.removeDecorationEntry(id, entry); this.pendingDecorationSignatures.delete(id); this.instrumentation.record('decorationRemovals'); }
     for (const id of this.pendingDecorationSignatures.keys()) if (!map.has(id)) this.pendingDecorationSignatures.delete(id);
     for (const [id, decoration] of map) {
-      const signature = stableValue(decoration); const current = this.renderedDecorations.get(id);
+      const signature = `${stableValue(decoration)}|${this.decorationRevision}`; const current = this.renderedDecorations.get(id);
       const pendingSignature = this.pendingDecorationSignatures.get(id);
       if ((!full && current?.signature === signature) || (!current && pendingSignature === signature)) continue;
       if (current) { this.removeDecorationEntry(id, current); this.instrumentation.record('decorationUpdates'); }
@@ -985,6 +1024,7 @@ export class ThreeViewportEngine {
     if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
     this.clearInput();
     this.cancelHydration();
+    const provider = this.visualProvider;
     if (this.renderTimer !== undefined) { clearTimeout(this.renderTimer); this.renderTimer = undefined; this.renderScheduled = false; }
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
@@ -1023,6 +1063,8 @@ export class ThreeViewportEngine {
     this.clearPlaceholderVisuals();
     this.placeholderGeometry.dispose();
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
+    provider?.release?.();
+    this.visualProvider = undefined;
     this.renderer = undefined;
     this.container = undefined;
   }
@@ -1385,15 +1427,8 @@ export class ThreeViewportEngine {
     this.cameraInteractingUntil = performance.now() + 180;
     const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
     if (!direction.lengthSq()) return;
-    const target = this.controls.target;
-    const nextPosition = this.camera.position.clone().add(direction);
-    const offset = nextPosition.sub(target);
-    const currentOffset = this.camera.position.clone().sub(target);
-    const fallbackDirection = currentOffset.lengthSq() > 1e-8 ? currentOffset.normalize() : new THREE.Vector3(0, 0, 1);
-    const minDistance = Math.max(this.controls.minDistance, .1);
-    const maxDistance = Number.isFinite(this.controls.maxDistance) ? Math.max(minDistance, this.controls.maxDistance) : Infinity;
-    const distance = THREE.MathUtils.clamp(offset.length(), minDistance, maxDistance);
-    this.camera.position.copy(target).add((offset.lengthSq() > 1e-8 ? offset.normalize() : fallbackDirection).multiplyScalar(distance));
+    this.camera.position.add(direction);
+    this.controls.target.add(direction);
     this.controls.update();
   }
 }

@@ -13,6 +13,19 @@ const face: ResolvedFace = { texture: 'minecraft:block/stone', uv: [16, 13, 0, 1
 
 describe('block model geometry', () => {
   beforeEach(() => { Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:stone') }); });
+  it('defers provider resource disposal until every viewport lease is released', () => {
+    const provider = new VanillaBlockVisualProvider({ readJson: () => undefined, readBinary: () => undefined, textureUrl: () => undefined } as any);
+    const disposeResources = vi.spyOn(provider as any, 'disposeResources');
+    provider.retain(); provider.retain();
+    provider.dispose();
+    expect(disposeResources).not.toHaveBeenCalled();
+    provider.release();
+    expect(disposeResources).not.toHaveBeenCalled();
+    provider.release();
+    expect(disposeResources).toHaveBeenCalledTimes(1);
+    provider.dispose();
+    expect((provider as any).resourcesDisposed).toBe(true);
+  });
   it('corrects only entity-head preview orientation while leaving generic previews unchanged', () => {
     const head = new THREE.Group(); head.userData['specialVisualFamily'] = 'heads-skulls';
     expect(thumbnailPreviewRotationY(head)).toBe(Math.PI);

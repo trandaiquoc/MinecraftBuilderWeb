@@ -50,7 +50,7 @@ describe('camera movement input contract', () => {
     expect(JSON.stringify(project)).toBe(before);
   });
 
-  it('moves the camera without translating OrbitControls focus or rendered membership', async () => {
+  it('translates camera and OrbitControls focus together without touching rendered membership', async () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('small');
     engine.update(project, undefined);
@@ -65,12 +65,22 @@ describe('camera movement input contract', () => {
       { selectionKind: 'all', selectionCount: project.blocks.length, selectionBounds: { min: project.blocks[0].position, max: project.blocks.at(-1)!.position } },
     ]) {
       engine.update(project, undefined, options);
-      const targetBefore = internal.controls.target.clone();
+      const targetBefore = new THREE.Vector3(0, 0, 0);
+      internal.controls.target.copy(targetBefore);
+      internal.camera.position.set(8, 6, 8);
+      const cameraBefore = internal.camera.position.clone();
+      const offsetBefore = cameraBefore.clone().sub(targetBefore);
       const renderedBefore = internal.renderedBlocks.size;
       const placeholdersBefore = internal.placeholderIndices.size;
-      internal.camera.position.set(8, 6, 8);
       for (let frame = 0; frame < 8; frame += 1) internal.moveCamera(new Set(['move-right']), .05);
-      expect(internal.controls.target).toEqual(targetBefore);
+      const cameraDelta = internal.camera.position.clone().sub(cameraBefore);
+      const targetDelta = internal.controls.target.clone().sub(targetBefore);
+      expect(targetDelta.x).toBeCloseTo(cameraDelta.x);
+      expect(targetDelta.y).toBeCloseTo(cameraDelta.y);
+      expect(targetDelta.z).toBeCloseTo(cameraDelta.z);
+      expect(internal.camera.position.clone().sub(internal.controls.target).x).toBeCloseTo(offsetBefore.x);
+      expect(internal.camera.position.clone().sub(internal.controls.target).y).toBeCloseTo(offsetBefore.y);
+      expect(internal.camera.position.clone().sub(internal.controls.target).z).toBeCloseTo(offsetBefore.z);
       expect(project.blocks).toHaveLength(projectBlockCount);
       expect(internal.renderedBlocks.size).toBe(renderedBefore);
       expect(internal.placeholderIndices.size).toBe(placeholdersBefore);
@@ -144,6 +154,28 @@ describe('camera movement input contract', () => {
     await Promise.resolve();
     const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
     expect(blocksGroup.children.some((child) => child.userData['stale'])).toBe(false);
+    engine.dispose();
+  });
+
+  it('requeues every visible block after a provider-generation cancellation', async () => {
+    const pendingA: Array<(value: unknown) => void> = [];
+    const fallback = () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } });
+    const providerA = { create: vi.fn(() => new Promise((resolve) => pendingA.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const providerB = { create: vi.fn(async () => fallback()), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 24), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(providerA);
+    engine.update(project, undefined);
+    await Promise.resolve();
+    engine.setVisualProvider(providerB);
+    for (const resolve of pendingA) resolve(fallback());
+    await settleHydration();
+    const internal = engine as unknown as { renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown> };
+    expect(providerB.create).toHaveBeenCalledTimes(project.blocks.length);
+    expect(internal.renderedBlocks.size).toBe(project.blocks.length);
+    expect(internal.placeholderIndices.size).toBe(0);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: project.blocks.length, percent: 100 });
     engine.dispose();
   });
 
@@ -296,6 +328,23 @@ describe('camera movement input contract', () => {
     const after = engine.rendererCounters();
     expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
     expect(after.blockVisualCreations).toBe(before.blockVisualCreations);
+    engine.dispose();
+  });
+
+  it('keeps decoration resolver changes out of the block-scene rebuild path', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const project = rendererBenchmarkProject('small');
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined); await settleHydration();
+    const before = engine.rendererCounters();
+    const first = (_resource: string) => undefined;
+    const second = (_resource: string) => undefined;
+    engine.setDecorationTextureProvider(first); await settleHydration();
+    engine.setDecorationTextureProvider(second); await settleHydration();
+    engine.setDecorationTextureProvider(second); await settleHydration();
+    const after = engine.rendererCounters();
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.blockVisualCreations).toBe(before.blockVisualCreations);
+    expect(after.decorationVisualCreations).toBeGreaterThan(before.decorationVisualCreations);
     engine.dispose();
   });
 
