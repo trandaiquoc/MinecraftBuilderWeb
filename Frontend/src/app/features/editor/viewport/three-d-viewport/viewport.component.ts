@@ -10,7 +10,7 @@ import { CameraStateService } from '../../../../core/editor/camera/camera-state.
 import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, faceLockedSelectionPlane, freeSpaceSelectionBox, normalizeVoxelBox, voxelOnFaceLockedPlane } from '../../../../core/editor/selection/selection';
-import { ThreeViewportEngine, ViewportOwnershipDiagnostics } from '../../../../core/renderer/engine/three-viewport-engine';
+import { ThreeViewportEngine, ViewportOwnershipDiagnostics, ViewportRuntimeDiagnostics } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -31,6 +31,10 @@ import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+
+declare global {
+  interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
+}
 
 @Component({ selector: 'app-viewport', templateUrl: './viewport.component.html', styleUrl: './viewport.component.scss' })
 export class ViewportComponent implements AfterViewInit, OnDestroy {
@@ -64,6 +68,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
+  private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
   private pointerStart?: { x: number; y: number };
@@ -77,8 +82,24 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
-  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); this.engine.mount(this.host().nativeElement); this.engine.restoreCamera(this.cameraState.get('3d')); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngAfterViewInit(): void {
+    if (isDevMode() && typeof window !== 'undefined') {
+      this.engine.setRuntimeDiagnosticsEnabled(true);
+      window.__mbViewportDiagnostics = this.runtimeDiagnosticsCommand;
+    }
+    this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context));
+    this.engine.mount(this.host().nativeElement);
+    this.engine.restoreCamera(this.cameraState.get('3d'));
+    const project = this.workspace.project(); const renderSelection = this.selection.renderState(project);
+    this.engine.update(project, this.active.active(), { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() });
+    if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics());
+  }
+  ngOnDestroy(): void {
+    if (isDevMode() && typeof window !== 'undefined' && window.__mbViewportDiagnostics === this.runtimeDiagnosticsCommand) delete window.__mbViewportDiagnostics;
+    this.engine.setRuntimeDiagnosticsEnabled(false);
+    const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
+    this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
+  }
 
   fitStructure(): void { this.engine.fitStructure(); }
   rendererDiagnostics(): ViewportOwnershipDiagnostics { return this.engine.rendererOwnershipDiagnostics(); }

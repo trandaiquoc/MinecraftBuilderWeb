@@ -404,9 +404,62 @@ describe('camera movement input contract', () => {
     expect(diagnostics.visibleMeshesOutsideBlocksGroupSample).toContainEqual(ghostDiagnostic);
     expect(diagnostics.visibleMeshesOutsideBlocksGroup).toBeGreaterThanOrEqual(1);
     expect(diagnostics.previewState).toMatchObject({ ghostVisible: true, ghostModelPresent: true, ghostModelVisible: true, ghostTarget: { x: 4, y: 2, z: 7 } });
+    const runtimeCapture = engine.runtimeGhostDiagnostics();
+    expect(runtimeCapture.current.visibleMeshes.find((mesh) => mesh.owner === 'ghostModel')).toMatchObject({
+      directSceneRoot: 'ghostModel',
+      descendantsOf: { ghostModel: true, blocksGroup: false },
+      worldBounds: { min: { x: 3.5, y: 1.5, z: 6.5 }, max: { x: 4.5, y: 2.5, z: 7.5 } },
+    });
+    expect(JSON.parse(JSON.stringify(runtimeCapture)).current.activeBlock).toEqual({ id: 'minecraft:cobblestone', state: {} });
     engine.dispose();
     geometry.dispose();
     texture.dispose();
+  });
+
+  it('retains the last two populated-to-empty runtime snapshots as JSON-safe data', () => {
+    const base = rendererBenchmarkProject('small');
+    const populated = { ...base, blocks: base.blocks.slice(0, 8), decorations: [] };
+    const empty = { ...populated, blocks: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setRuntimeDiagnosticsEnabled(true);
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      engine.update(populated, undefined);
+      engine.update(empty, undefined);
+    }
+    const capture = engine.runtimeGhostDiagnostics();
+    expect(capture.emptyTransitions.firstEmpty?.authoritativeProjectBlockCount).toBe(0);
+    expect(capture.emptyTransitions.secondEmpty?.authoritativeProjectBlockCount).toBe(0);
+    expect(capture.emptyTransitions.differences).toMatchObject({ visibleMeshCountDelta: 0, renderedBlockCountDelta: 0, visibleMeshesAdded: [], visibleMeshesRemoved: [], previewStateChanged: false, suspiciousVisualsAdded: [], suspiciousVisualsRemoved: [] });
+    expect(JSON.parse(JSON.stringify(capture)).emptyTransitions.secondEmpty.ownership).toMatchObject({ renderedBlockCount: 0, visibleMeshCount: 0, instanceMemberCount: 0 });
+    engine.dispose();
+  });
+
+  it('captures instanced world positions and suspicious ownership from the actual scene graph', () => {
+    const project = rendererBenchmarkProject('small');
+    const empty = { ...project, blocks: [], decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.update(empty, undefined);
+    const geometry = new THREE.BoxGeometry();
+    const instanced = new THREE.InstancedMesh(geometry, new THREE.MeshBasicMaterial(), 1);
+    instanced.count = 1;
+    instanced.userData['instanceBatchKey'] = 'fixture-batch';
+    instanced.userData['instanceKeys'] = ['9,2,3'];
+    instanced.userData['instanceVoxels'] = [{ x: 9, y: 2, z: 3 }];
+    instanced.setMatrixAt(0, new THREE.Matrix4().makeTranslation(9.5, 2.5, 3.5));
+    const internal = engine as unknown as { scene: THREE.Scene; blocksGroup: THREE.Group };
+    internal.scene.add(internal.blocksGroup);
+    internal.blocksGroup.add(instanced);
+
+    const snapshot = engine.runtimeGhostDiagnostics().current;
+    expect(snapshot.suspiciousVisuals).toContainEqual(expect.objectContaining({ owner: 'instanceBatches', reason: 'Block-renderer mesh remains while the project has zero blocks', position: { x: 0, y: 0, z: 0 } }));
+    expect(snapshot.visibleMeshes.find((mesh) => mesh.uuid === instanced.uuid)).toMatchObject({
+      owner: 'instanceBatches',
+      directSceneRoot: 'blocksGroup',
+      instanceCount: 1,
+      instances: { count: 1, batchKey: 'fixture-batch', instanceKeys: ['9,2,3'], instanceVoxels: [{ x: 9, y: 2, z: 3 }], worldPositions: [{ x: 9.5, y: 2.5, z: 3.5 }] },
+      worldBounds: { min: { x: 9, y: 2, z: 3 }, max: { x: 10, y: 3, z: 4 } },
+    });
+    engine.dispose();
   });
 
   it('keeps a second asynchronous mixed-visual build from restoring visuals after removal', async () => {
