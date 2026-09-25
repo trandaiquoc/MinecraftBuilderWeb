@@ -63,7 +63,29 @@ export interface ViewportPerformanceEvidence {
   readonly frameDurationMs: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
-export interface ViewportHydrationDiagnostics { readonly generation: number; readonly queued: number; readonly running: number; readonly completed: number; readonly total: number; readonly scheduled: boolean; }
+export interface ViewportHydrationDiagnostics {
+  readonly generation: number;
+  readonly queued: number;
+  readonly running: number;
+  readonly globalRunning: number;
+  readonly currentGenerationRunning: number;
+  readonly staleRunning: number;
+  readonly hydrationScheduled: boolean;
+  readonly hydrationTimerActive: boolean;
+  readonly hydrationBatchBudget: number;
+  readonly pendingSignatureCount: number;
+  readonly placeholderSignatureCount: number;
+  readonly placeholderVisualCount: number;
+  readonly renderedBlockCount: number;
+  readonly expectedVisibleBlockCount: number;
+  readonly runningOwnershipCount: number;
+  readonly runningByGeneration: Readonly<Record<string, number>>;
+  readonly orphanedHydrationCount: number;
+  readonly orphanedHydrationSample: readonly string[];
+  readonly completed: number;
+  readonly total: number;
+  readonly scheduled: boolean;
+}
 export interface VisibleSceneDiagnostics {
   readonly expectedVisibleVoxelCount: number;
   readonly renderedVoxelCount: number;
@@ -740,18 +762,51 @@ export class ThreeViewportEngine {
       this.hydrationRunning += 1;
       this.runningHydrationKeys.set(job.key, job.token);
       this.hydrationRunningByGeneration.set(job.token, (this.hydrationRunningByGeneration.get(job.token) ?? 0) + 1);
-      this.createBlockEntry(job.block, job.role, job.worldContext, job.options, job.allowInstancing, () => {
-        this.runningHydrationKeys.delete(job.key);
-        this.hydrationRunning = Math.max(0, this.hydrationRunning - 1);
-        const generationRunning = Math.max(0, (this.hydrationRunningByGeneration.get(job.token) ?? 1) - 1);
-        if (generationRunning) this.hydrationRunningByGeneration.set(job.token, generationRunning); else this.hydrationRunningByGeneration.delete(job.token);
-        this.completeHydrationPart(job.token, 'block');
-        this.scheduleHydrationPump(this.hydrationBatchBudget <= 0);
-      });
+      const complete = () => this.completeHydrationJob(job);
+      try {
+        this.createBlockEntry(job.block, job.role, job.worldContext, job.options, job.allowInstancing, complete);
+      } catch (error: unknown) {
+        // Cached/template insertion is synchronous and can fail before a
+        // provider promise exists. Convert that failure into a final fallback
+        // so one malformed visual cannot terminate the entire pump.
+        this.rollbackPartialInstanceVisual(job.key);
+        this.markHydrationFailure(job, error);
+        complete();
+      }
     }
     this.processDecorationBatch(token);
     if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = 0;
     if ((this.hydrationQueue.length && this.hydrationRunning === 0) || this.decorationHydrationQueue.length) this.scheduleHydrationPump(true);
+  }
+
+  private completeHydrationJob(job: BlockHydrationJob): void {
+    if (this.runningHydrationKeys.get(job.key) === job.token) this.runningHydrationKeys.delete(job.key);
+    this.hydrationRunning = Math.max(0, this.hydrationRunning - 1);
+    const generationRunning = Math.max(0, (this.hydrationRunningByGeneration.get(job.token) ?? 1) - 1);
+    if (generationRunning) this.hydrationRunningByGeneration.set(job.token, generationRunning); else this.hydrationRunningByGeneration.delete(job.token);
+    this.completeHydrationPart(job.token, 'block');
+    this.scheduleHydrationPump(this.hydrationBatchBudget <= 0);
+  }
+
+  private markHydrationFailure(job: BlockHydrationJob, error: unknown): void {
+    const entry = this.renderedBlocks.get(job.key);
+    if (!entry) return;
+    entry.fallback.userData['renderMode'] = 'fallback';
+    entry.fallback.userData['diagnostics'] = [{ code: 'GEOMETRY_BUILD_FAILED', message: error instanceof Error ? error.message : 'Visual construction failed' }];
+    this.scheduleRender();
+  }
+
+  private rollbackPartialInstanceVisual(key: string): void {
+    for (const [batchKey, batch] of this.instanceBatches) {
+      const index = batch.keys.indexOf(key);
+      if (index < 0) continue;
+      const entry = this.renderedBlocks.get(key);
+      if (entry) {
+        entry.instanceBatchKey = batchKey;
+        entry.instanceIndex = index;
+        this.removeInstanceVisual(key, entry);
+      }
+    }
   }
 
   private adaptiveHydrationBudget(cameraInteracting = false): number {
@@ -920,7 +975,7 @@ export class ThreeViewportEngine {
         if (instance) { entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0]; disposeObject(object); }
         else { this.blocksGroup.add(object); entry.object = object; }
         this.recordProviderCacheStats(); this.scheduleRender();
-      }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
+      }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; this.rollbackPartialInstanceVisual(entry.key); fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
     } else onComplete?.();
   }
 
@@ -1281,10 +1336,44 @@ export class ThreeViewportEngine {
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
 
   hydrationDiagnostics(): ViewportHydrationDiagnostics {
+    const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;
+    const visibleEntries = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
+    const expectedVisibleBlockCount = visibleEntries.length;
+    const queuedKeys = new Set(this.hydrationQueue.filter((job) => job.token === this.hydrationGeneration).map((job) => job.key));
+    const orphanedHydrationSample: string[] = [];
+    let orphanedHydrationCount = 0;
+    if (this.visualProvider && this.project) {
+      for (const entry of visibleEntries) {
+        const key = coordinateKey(entry.block.position);
+        const rendered = this.renderedBlocks.get(key);
+        const isFinal = !!rendered && (rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback.userData['renderMode'] !== undefined);
+        if (entry.block.kind === 'missing' || isFinal || queuedKeys.has(key) || this.runningHydrationKeys.get(key) === this.hydrationGeneration) continue;
+        if (this.pendingHydrationSignatures.has(key) || this.placeholderSignatures.has(key) || this.placeholderIndices.has(key) || !!rendered) {
+          orphanedHydrationCount += 1;
+          if (orphanedHydrationSample.length < 12) orphanedHydrationSample.push(key);
+        }
+      }
+    }
+    const runningByGeneration = Object.fromEntries([...this.hydrationRunningByGeneration.entries()].map(([generation, count]) => [String(generation), count]));
     return {
       generation: this.hydrationGeneration,
       queued: this.hydrationQueue.length + this.decorationHydrationQueue.length,
       running: this.hydrationRunning,
+      globalRunning: this.hydrationRunning,
+      currentGenerationRunning,
+      staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning),
+      hydrationScheduled: this.hydrationScheduled,
+      hydrationTimerActive: this.hydrationTimer !== undefined,
+      hydrationBatchBudget: this.hydrationBatchBudget,
+      pendingSignatureCount: this.pendingHydrationSignatures.size,
+      placeholderSignatureCount: this.placeholderSignatures.size,
+      placeholderVisualCount: this.placeholderIndices.size,
+      renderedBlockCount: this.renderedBlocks.size,
+      expectedVisibleBlockCount,
+      runningOwnershipCount: this.runningHydrationKeys.size,
+      runningByGeneration,
+      orphanedHydrationCount,
+      orphanedHydrationSample,
       completed: this.hydrationProgressState.completed,
       total: this.hydrationProgressState.total,
       scheduled: this.hydrationScheduled || this.hydrationTimer !== undefined,

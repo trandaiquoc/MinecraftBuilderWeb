@@ -271,6 +271,76 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('contains a synchronous cached-visual failure and continues hydration', async () => {
+    let throwCachedFailure = false;
+    const provider = {
+      create: vi.fn(async () => {
+        const geometry = new THREE.BoxGeometry(); geometry.userData['providerOwnedGeometry'] = true;
+        const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      reusableVisualKey: (block: PlacedBlock) => { if (throwCachedFailure && block.position.x === 1) throw new Error('cached visual insertion failed'); return 'fixture-cube'; },
+      thumbnailUrl: () => undefined,
+    };
+    const base = rendererBenchmarkProject('stress');
+    const project = { ...base, blocks: base.blocks.slice(0, 700), decorations: [] };
+    const previousProject = { ...project, blocks: [], decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider as unknown as BlockVisualProvider);
+    engine.update(project, undefined);
+    await settleHydration();
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
+    expect((engine as unknown as { reusableInstanceTemplates: Map<string, unknown> }).reusableInstanceTemplates.size).toBeGreaterThan(0);
+    engine.update(previousProject, undefined);
+    throwCachedFailure = true;
+    engine.update(project, undefined);
+    await settleHydration();
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
+    expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, globalRunning: 0, orphanedHydrationCount: 0 });
+    const failedEntry = (engine as unknown as { renderedBlocks: Map<string, { fallback: THREE.Mesh }> }).renderedBlocks.get('1,0,0');
+    expect(failedEntry?.fallback.userData['renderMode']).toBe('fallback');
+    expect(failedEntry?.fallback.userData['diagnostics']).toEqual([expect.objectContaining({ code: 'GEOMETRY_BUILD_FAILED' })]);
+    engine.dispose();
+  });
+
+  it('completes repeated full hydration after Undo/Redo with retained mixed templates', async () => {
+    const provider = {
+      create: vi.fn(async (block: PlacedBlock) => {
+        const geometry = new THREE.BoxGeometry(); geometry.userData['providerOwnedGeometry'] = true;
+        const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true }, blockId: block.id } as unknown as Awaited<ReturnType<BlockVisualProvider['create']>>;
+      }),
+      reusableVisualKey: (block: PlacedBlock) => block.id.endsWith(':glass') ? undefined : block.id,
+      thumbnailUrl: () => undefined,
+    };
+    const base = rendererBenchmarkProject('stress');
+    const project = { ...base, blocks: base.blocks.slice(0, 700), decorations: [] };
+    const previousProject = { ...project, blocks: [], decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider as unknown as BlockVisualProvider);
+    engine.update(project, undefined);
+    await settleHydration();
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
+    const initialCounters = engine.rendererCounters();
+    expect(initialCounters.reusableTemplateCreations).toBeGreaterThan(1);
+
+    const internals = engine as unknown as { renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown>; instanceBatches: Map<string, unknown>; reusableInstanceTemplates: Map<string, unknown> };
+    expect(internals.reusableInstanceTemplates.size).toBeGreaterThan(1);
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      engine.update(previousProject, undefined);
+      expect(internals.renderedBlocks.size).toBe(0);
+      expect(internals.placeholderIndices.size).toBe(0);
+      expect(internals.instanceBatches.size).toBe(0);
+      engine.update(project, undefined);
+      await settleHydration();
+      expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
+      expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, running: 0, orphanedHydrationCount: 0, expectedVisibleBlockCount: 700 });
+    }
+    expect(engine.rendererCounters().reusableTemplateCacheHits).toBeGreaterThan(100);
+    expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toHaveLength(700);
+    engine.dispose();
+  });
+
   it('reports actual hydration completion and does not let an old generation update it', async () => {
     const pending: Array<(value: unknown) => void> = [];
     const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
