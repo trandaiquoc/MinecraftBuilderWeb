@@ -4,6 +4,7 @@ import { ActiveBlock } from '../../blocks/placement-palette/active-block.service
 import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import { FaceNormal, resolveAttachmentPlacement, placementStatus, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
 import { blocksForLayers, YLayerVisibility } from '../../editor/viewport/y-layer';
+import { visibleBlockEntries } from '../../editor/viewport/visible-blocks';
 import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../../editor/camera/camera';
 import { isBlockVisible } from '../../editor/groups/group-membership';
 import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
@@ -59,6 +60,17 @@ export interface ViewportPerformanceEvidence {
   readonly approximateFps: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
+export interface VisibleSceneDiagnostics {
+  readonly expectedVisibleVoxelCount: number;
+  readonly renderedVoxelCount: number;
+  readonly placeholderVoxelCount: number;
+  readonly pendingVoxelCount: number;
+  readonly expectedVoxelKeys: readonly string[];
+  readonly renderedVoxelKeys: readonly string[];
+  readonly placeholderVoxelKeys: readonly string[];
+  readonly pendingVoxelKeys: readonly string[];
+  readonly representedVoxelKeys: readonly string[];
+}
 
 export interface ViewportControlConfiguration {
   readonly orbitSensitivity: number;
@@ -150,14 +162,14 @@ export class ThreeViewportEngine {
   private readonly blocksGroup = new THREE.Group();
   private readonly decorationsGroup = new THREE.Group();
   private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x4b9cff, transparent: true, opacity: 0.35 }));
-  private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166 }));
+  private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false }));
   private readonly selectionBox = new THREE.Box3Helper(new THREE.Box3(), 0xffd166);
   private readonly movePreviewGroup = new THREE.Group();
   private readonly decorationGhostGroup = new THREE.Group();
   private readonly decorationSelectionGroup = new THREE.Group();
   private readonly logicalSelectionGroup = new THREE.Group();
   private readonly logicalSelectionGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04));
-  private readonly logicalSelectionMaterial = new THREE.LineBasicMaterial({ color: 0xffd166 });
+  private readonly logicalSelectionMaterial = new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false });
   private readonly groupHighlightGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.12, 1.12, 1.12));
   private readonly groupHighlightMaterial = new THREE.LineBasicMaterial({ color: 0x58d8d0 });
   private lastSelectionPositions?: readonly VoxelCoordinate[];
@@ -277,7 +289,14 @@ export class ThreeViewportEngine {
   private fallbackGeometryCounted = false;
   private readonly fallbackMaterialRoles = new Set<string>();
 
-  constructor(readonly instrumentation = new RendererDiagnostics()) {}
+  constructor(readonly instrumentation = new RendererDiagnostics()) {
+    const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
+    selectionBoxMaterial.depthTest = false;
+    selectionBoxMaterial.depthWrite = false;
+    this.selectionOutline.renderOrder = 2000;
+    this.selectionBox.renderOrder = 2000;
+    this.logicalSelectionGroup.renderOrder = 2000;
+  }
 
   mount(container: HTMLElement): void {
     if (this.disposed) return;
@@ -529,7 +548,8 @@ export class ThreeViewportEngine {
     }
     this.setProjectBounds(project);
     this.setEditingPlane(options.layerY, project);
-    this.updateSelection(options.selected, options.selectedPositions, options.selectionKind, options.selectionCount, options.selectionBounds, options.selectionBox);
+    const visualSelection = this.visibleSelection(project, options);
+    this.updateSelection(visualSelection.selected, visualSelection.positions, visualSelection.kind, visualSelection.count, visualSelection.bounds, visualSelection.box);
     this.updateActiveGroup(project, options.activeGroupId, options.activeGroupPositions);
     this.updateMovePreview(project, options.groupMovePreview);
     this.updateGhostModel(active, undefined);
@@ -595,12 +615,24 @@ export class ThreeViewportEngine {
   }
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions): readonly { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string }[] {
-    const layered = options.layerY === undefined || !options.visibility ? project.blocks : blocksForLayers(project.blocks, options.layerY, options.visibility);
-    const isolatedKeys = new Set(options.isolatedGroupPositions?.map((position) => coordinateKey(position)));
-    return layered.filter((block) => isBlockVisible(block, project.groups) && (!options.isolatedGroupId || isolatedKeys.has(coordinateKey(block.position)))).map((block) => {
+    return visibleBlockEntries(project, options).map((block) => {
       const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
       return { block, role, signature: `${stableValue(block)}|${role}|${options.referenceOpacity ?? .28}` };
     });
+  }
+
+  private visibleSelection(project: ProjectDocument | undefined, options: ViewportRenderOptions): { readonly selected?: VoxelCoordinate; readonly positions?: readonly VoxelCoordinate[]; readonly kind?: string; readonly count?: number; readonly bounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly box?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } } {
+    if (!project) return { selected: options.selected, positions: options.selectedPositions, kind: options.selectionKind, count: options.selectionCount, bounds: options.selectionBounds, box: options.selectionBox };
+    const visible = this.visibleBlocks(project, options);
+    const visibleKeys = new Set(visible.map((entry) => coordinateKey(entry.block.position)));
+    const positions = (options.selectedPositions ?? []).filter((position) => visibleKeys.has(coordinateKey(position)));
+    const selected = options.selected && visibleKeys.has(coordinateKey(options.selected)) ? options.selected : undefined;
+    const inBounds = (position: VoxelCoordinate, bounds: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }): boolean => position.x >= bounds.min.x && position.x <= bounds.max.x && position.y >= bounds.min.y && position.y <= bounds.max.y && position.z >= bounds.min.z && position.z <= bounds.max.z;
+    const boundedVisible = options.selectionBounds ? visible.filter((entry) => inBounds(entry.block.position, options.selectionBounds!)).map((entry) => entry.block.position) : [];
+    const bounds = options.selectionBounds ? boundsOfPositions(boundedVisible) : undefined;
+    const box = options.selectionBox && visible.some((entry) => inBounds(entry.block.position, options.selectionBox!)) ? options.selectionBox : undefined;
+    const count = options.selectionBounds ? boundedVisible.length : positions.length || (selected ? 1 : 0);
+    return { selected, positions, kind: options.selectionKind, count, bounds, box };
   }
 
   private beginHydrationProgress(blocksTotal: number, decorationsTotal: number): void {
@@ -941,8 +973,8 @@ export class ThreeViewportEngine {
     if (!selectedId) return;
     const entry = this.renderedDecorations.get(selectedId); if (!entry) return;
     const bounds = new THREE.Box3().setFromObject(entry.object);
-    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(.04, bounds.max.x - bounds.min.x + .05), Math.max(.04, bounds.max.y - bounds.min.y + .05), Math.max(.04, bounds.max.z - bounds.min.z + .05))), new THREE.LineBasicMaterial({ color: this.palette.selection }));
-    outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.userData['decorationInstanceId'] = selectedId; outline.renderOrder = 1001; this.decorationSelectionGroup.add(outline);
+    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(.04, bounds.max.x - bounds.min.x + .05), Math.max(.04, bounds.max.y - bounds.min.y + .05), Math.max(.04, bounds.max.z - bounds.min.z + .05))), new THREE.LineBasicMaterial({ color: this.palette.selection, depthTest: false, depthWrite: false }));
+    outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.userData['decorationInstanceId'] = selectedId; outline.renderOrder = 2001; this.decorationSelectionGroup.add(outline);
   }
 
   hit(event: PointerEvent, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
@@ -1071,6 +1103,27 @@ export class ThreeViewportEngine {
 
   diagnostics(): ViewportDiagnostics {
     return { initialized: !!this.renderer, disposed: this.disposed, canvasWidth: this.canvasSize.width, canvasHeight: this.canvasSize.height, gridExists: !!this.projectGrid, boundsExists: !!this.boundsBox, rendererExists: !!this.renderer, sceneExists: true, cameraExists: true, controlsExist: !!this.controls, themeApplied: this.themeApplied, resizeApplied: this.canvasSize.width > 0 && this.canvasSize.height > 0, renderMode: 'demand', renderCount: this.renderCount };
+  }
+
+  visibleSceneDiagnostics(): VisibleSceneDiagnostics {
+    const expected = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
+    const expectedKeys = [...new Set(expected.map((entry) => coordinateKey(entry.block.position)))];
+    const expectedSet = new Set(expectedKeys);
+    const renderedVoxelKeys = [...this.renderedBlocks.keys()].filter((key) => expectedSet.has(key));
+    const placeholderVoxelKeys = [...this.placeholderIndices.keys()].filter((key) => expectedSet.has(key));
+    const pendingVoxelKeys = [...this.pendingHydrationSignatures.keys()].filter((key) => expectedSet.has(key));
+    const representedVoxelKeys = [...new Set([...renderedVoxelKeys, ...placeholderVoxelKeys])];
+    return {
+      expectedVisibleVoxelCount: expectedKeys.length,
+      renderedVoxelCount: renderedVoxelKeys.length,
+      placeholderVoxelCount: placeholderVoxelKeys.length,
+      pendingVoxelCount: pendingVoxelKeys.length,
+      expectedVoxelKeys: expectedKeys,
+      renderedVoxelKeys,
+      placeholderVoxelKeys,
+      pendingVoxelKeys,
+      representedVoxelKeys,
+    };
   }
 
   rendererCounters(): RendererCounters {
@@ -1247,7 +1300,7 @@ export class ThreeViewportEngine {
     this.selectionBox.visible = !!visualBox;
     if (visualBox) this.selectionBox.box.set(new THREE.Vector3(visualBox.min.x, visualBox.min.y, visualBox.min.z), new THREE.Vector3(visualBox.max.x + 1, visualBox.max.y + 1, visualBox.max.z + 1));
     if (aggregate) return;
-    for (const position of positions) { const outline = new THREE.LineSegments(this.logicalSelectionGeometry, this.logicalSelectionMaterial); outline.position.set(position.x + .5, position.y + .5, position.z + .5); outline.renderOrder = 1001; this.logicalSelectionGroup.add(outline); }
+    for (const position of positions) { const outline = new THREE.LineSegments(this.logicalSelectionGeometry, this.logicalSelectionMaterial); outline.position.set(position.x + .5, position.y + .5, position.z + .5); outline.renderOrder = 2001; this.logicalSelectionGroup.add(outline); }
   }
 
   private updateActiveGroup(project: ProjectDocument | undefined, activeGroupId: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void {

@@ -102,6 +102,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected pointerDown(event: PointerEvent): void {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
+    event.preventDefault();
+    this.capturePointer(event);
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.gestureAction = action;
     this.boxCornerStart = undefined;
@@ -114,6 +116,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     this.gestureAction = undefined;
     const cornerStart = this.boxCornerStart;
     this.boxCornerStart = undefined;
+    if (gestureAction) event.preventDefault();
+    this.releasePointer(event);
     const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
     if (!gestureAction) return;
     if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart) {
@@ -149,8 +153,18 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected setOpacity(value: string): void { const project = this.workspace.project(); if (!project) return; const opacity = Math.min(1, Math.max(0, Number(value))); this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, referenceLayerOpacity: opacity } }); }
   protected referenceOpacityPercent(): number { return Math.round((this.workspace.project()?.editorSettings.referenceLayerOpacity ?? .28) * 100); }
   protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }
-  protected pointerLeave(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set(''); }
-  protected cancelPointer(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.engine.clearInput(); }
+  protected pointerLeave(event: PointerEvent): void {
+    const target = event.currentTarget as HTMLElement | null;
+    if (target?.hasPointerCapture?.(event.pointerId)) return;
+    this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined;
+    this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
+  }
+  protected cancelPointer(event?: PointerEvent): void {
+    if (event) this.releasePointer(event);
+    this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.engine.clearInput();
+  }
+  private capturePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.setPointerCapture && !target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId); }
+  private releasePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.releasePointerCapture && target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId); }
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
 
   private refresh(): void { const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); }

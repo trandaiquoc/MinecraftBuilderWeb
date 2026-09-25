@@ -408,6 +408,42 @@ describe('camera movement input contract', () => {
 });
 
 describe('selection visualization scalability', () => {
+  it('reports one represented ownership state per expected visible voxel', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    engine.update(project, undefined);
+    const diagnostics = engine.visibleSceneDiagnostics();
+    expect(diagnostics.expectedVisibleVoxelCount).toBe(project.blocks.length);
+    expect(diagnostics.renderedVoxelCount + diagnostics.placeholderVoxelCount).toBe(project.blocks.length);
+    expect(diagnostics.representedVoxelKeys).toHaveLength(project.blocks.length);
+    engine.dispose();
+  });
+
+  it('keeps selection overlays above depth and in world space', () => {
+    const engine = new ThreeViewportEngine();
+    engine.update(undefined, undefined, { selected: { x: 3, y: 4, z: 5 }, selectionKind: 'explicit', selectionCount: 1 });
+    const internals = engine as unknown as { selectionOutline: THREE.LineSegments; selectionBox: THREE.Box3Helper; logicalSelectionMaterial: THREE.LineBasicMaterial };
+    expect((internals.selectionOutline.material as THREE.LineBasicMaterial).depthTest).toBe(false);
+    expect((internals.selectionOutline.material as THREE.LineBasicMaterial).depthWrite).toBe(false);
+    expect(internals.selectionOutline.renderOrder).toBeGreaterThan(1000);
+    expect(internals.selectionOutline.position.toArray()).toEqual([3.5, 4.5, 5.5]);
+    expect(internals.logicalSelectionMaterial.depthTest).toBe(false);
+    expect((internals.selectionBox.material as THREE.LineBasicMaterial).depthTest).toBe(false);
+    engine.dispose();
+  });
+
+  it('does not draw a misleading selection overlay for a block filtered out of Y-layer view', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    const selected = project.blocks.find((block) => block.position.y === 0)!.position;
+    engine.update(project, undefined, { layerY: 1, visibility: 'current-only', selected, selectionKind: 'explicit', selectionCount: 1 });
+    const internals = engine as unknown as { selectionOutline: THREE.LineSegments; logicalSelectionGroup: THREE.Group; selectionBox: THREE.Box3Helper };
+    expect(internals.selectionOutline.visible).toBe(false);
+    expect(internals.logicalSelectionGroup.children).toHaveLength(0);
+    expect(internals.selectionBox.visible).toBe(false);
+    engine.dispose();
+  });
+
   it('uses one aggregate bounds helper for the existing 20k fixture', () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('stress');

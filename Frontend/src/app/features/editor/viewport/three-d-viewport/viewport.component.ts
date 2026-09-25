@@ -20,7 +20,7 @@ import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
-import { isBlockVisible } from '../../../../core/editor/groups/group-membership';
+import { visibleBlockEntries } from '../../../../core/editor/viewport/visible-blocks';
 import { isSignDefinition, isSignId } from '../../../../core/editor/structure/structure-editor.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
@@ -95,6 +95,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected pointerDown(event: PointerEvent): void {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
+    event.preventDefault();
+    this.capturePointer(event);
     this.pointerStart = { x: event.clientX, y: event.clientY };
     this.gestureAction = action;
     this.boxCornerStart = undefined;
@@ -114,6 +116,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.boxCornerStart = undefined;
     const faceDragStart = this.faceDragStart;
     this.faceDragStart = undefined;
+    if (gestureAction) event.preventDefault();
+    this.releasePointer(event);
     const click = isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold);
     if (!gestureAction) return;
     if (!click && gestureAction === 'primary-action' && this.tool.active() === 'select' && cornerStart && faceDragStart) {
@@ -123,8 +127,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       if (project && cornerEnd) {
         const box = clampVoxelBox(normalizeVoxelBox(faceDragStart.block, cornerEnd), project.size);
         if (box) {
-          const isolated = new Set(this.groups.isolatedGroupPositions().map((position) => coordinateKey(position)));
-          this.selection.selectSurfaceBoxLogical(box, faceDragStart.normal, project, (id) => this.library.get(id), (block) => isBlockVisible(block, project.groups) && (!this.groups.isolatedGroupId() || isolated.has(coordinateKey(block.position))));
+          const visibleKeys = new Set(visibleBlockEntries(project, { isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions() }).map((block) => coordinateKey(block.position)));
+          this.selection.selectSurfaceBoxLogical(box, faceDragStart.normal, project, (id) => this.library.get(id), (block) => visibleKeys.has(coordinateKey(block.position)));
         }
       }
       return;
@@ -157,8 +161,18 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
   }
   protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }
-  protected pointerLeave(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set(''); }
-  protected cancelPointer(): void { this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearInput(); }
+  protected pointerLeave(event: PointerEvent): void {
+    const target = event.currentTarget as HTMLElement | null;
+    if (target?.hasPointerCapture?.(event.pointerId)) return;
+    this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined;
+    this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
+  }
+  protected cancelPointer(event?: PointerEvent): void {
+    if (event) this.releasePointer(event);
+    this.pointerStart = undefined; this.gestureAction = undefined; this.boxCornerStart = undefined; this.faceDragStart = undefined; this.engine.clearInput();
+  }
+  private capturePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.setPointerCapture && !target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId); }
+  private releasePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.releasePointerCapture && target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId); }
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
 }
 

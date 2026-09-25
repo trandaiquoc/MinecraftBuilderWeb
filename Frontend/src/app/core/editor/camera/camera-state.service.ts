@@ -4,9 +4,11 @@ import { EditorMode } from '../state/editor-mode.service';
 
 @Injectable({ providedIn: 'root' })
 export class CameraStateService {
-  readonly threeD = signal<CameraState | undefined>(undefined);
-  readonly yLayer = signal<CameraState | undefined>(undefined);
+  /** The editor has one current world view; switching projections must not restore a stale pose. */
+  readonly current = signal<CameraState | undefined>(undefined);
+  readonly threeD = this.current;
+  readonly yLayer = this.current;
 
-  get(mode: EditorMode): CameraState | undefined { return mode === '3d' ? this.threeD() : this.yLayer(); }
-  set(mode: EditorMode, state: CameraState): void { (mode === '3d' ? this.threeD : this.yLayer).set(state); }
+  get(_mode: EditorMode): CameraState | undefined { return this.current(); }
+  set(_mode: EditorMode, state: CameraState): void { this.current.set(state); }
 }
