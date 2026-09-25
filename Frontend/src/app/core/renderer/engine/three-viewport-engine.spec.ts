@@ -722,6 +722,7 @@ describe('selection visualization scalability', () => {
   });
 });
 
+<<<<<<< HEAD
 describe('generation-aware hydration admission', () => {
   const fallbackVisual = () => ({
     object: undefined,
@@ -873,6 +874,8 @@ describe('generation-aware hydration admission', () => {
   });
 });
 
+=======
+>>>>>>> parent of a59f5ee (Fix generation-aware hydration scheduling)
 async function settleHydration(): Promise<void> {
   for (let index = 0; index < 20; index += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));
