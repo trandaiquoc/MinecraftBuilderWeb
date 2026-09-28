@@ -16,7 +16,7 @@ import { GroupService } from '../../../core/editor/groups/group.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
-import { bindingFromKeyboardEvent, isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, MovementAction } from '../../../core/editor/input/keyboard-bindings';
+import { bindingFromKeyboardEvent, isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, MovementAction, movementPhysicalKey, MovementKeyOwnership } from '../../../core/editor/input/keyboard-bindings';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -123,7 +123,7 @@ export class EditorShellComponent implements OnDestroy {
   private previousActiveGroupId: string | undefined;
   private moveDrag?: { readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: PanelPosition };
   private sidebarDrag?: { readonly side: 'left' | 'right'; readonly pointerId: number; readonly startX: number; readonly origin: number };
-  private readonly pressedMovementActions = new Map<string, MovementAction>();
+  private readonly pressedMovementActions = new MovementKeyOwnership();
 
   constructor() {
     if (isDevMode() && typeof window !== 'undefined') {
@@ -372,8 +372,17 @@ export class EditorShellComponent implements OnDestroy {
     const before = this.b5State();
     const action = this.keyboard.actionForEvent(event); if (!action) { if (event.repeat || isMovementKey(event)) this.recordB5Keyboard(event, undefined, before, this.b5State()); return; }
     if (isMovementAction(action)) {
-      this.pressedMovementActions.set(event.code || event.key, action);
-      this.currentViewport()?.cameraKeyDown(action);
+      const owner = movementPhysicalKey(event);
+      const previous = this.pressedMovementActions.actionFor(owner);
+      if (previous === action) {
+        this.recordB5Keyboard(event, action, before, this.b5State());
+        event.preventDefault();
+        return;
+      }
+      if (previous) this.releaseMovementOwner(owner, previous);
+      const hadActionOwner = this.pressedMovementActions.hasAction(action);
+      this.pressedMovementActions.press(owner, action);
+      if (!hadActionOwner) this.currentViewport()?.cameraKeyDown(action);
       this.traceKeyboardRoute(event, action);
       this.recordB5Keyboard(event, action, before, this.b5State());
       event.preventDefault();
@@ -386,11 +395,10 @@ export class EditorShellComponent implements OnDestroy {
 
   protected handleEditorKeyup(event: KeyboardEvent): void {
     const before = this.b5State();
-    const key = event.code || event.key;
-    const action = this.pressedMovementActions.get(key);
+    const key = movementPhysicalKey(event);
+    const action = this.pressedMovementActions.actionFor(key);
     if (action) {
-      this.pressedMovementActions.delete(key);
-      this.currentViewport()?.cameraKeyUp(action);
+      this.releaseMovementOwner(key, action);
       if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
     }
     if (action || isMovementKey(event)) this.recordB5Keyboard(event, action, before, this.b5State());
@@ -403,20 +411,21 @@ export class EditorShellComponent implements OnDestroy {
   protected clearPressedMovementActions(reason = 'clearPressedMovementActions'): void {
     const before = this.b5State();
     const viewport = this.currentViewport();
-    for (const action of this.pressedMovementActions.values()) viewport?.cameraKeyUp(action);
-    this.pressedMovementActions.clear();
+    for (const action of this.pressedMovementActions.clear()) viewport?.cameraKeyUp(action);
     this.b5.recordLifecycle({ type: 'shell.clearPressedMovementActions', reason, timestamp: new Date().toISOString(), before, after: this.b5State() });
   }
 
+  private releaseMovementOwner(owner: string, action: MovementAction): void { this.pressedMovementActions.release(owner); if (!this.pressedMovementActions.hasAction(action)) this.currentViewport()?.cameraKeyUp(action); }
+
   private recordB5Keyboard(event: KeyboardEvent, action: KeyboardAction | undefined, before: unknown, after: unknown): void {
-    this.b5.recordKeyboard({ type: event.type, timestamp: new Date().toISOString(), key: event.key, code: event.code, repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
+    this.b5.recordKeyboard({ type: event.type, timestamp: new Date().toISOString(), key: event.key, code: event.code, ownerKey: movementPhysicalKey(event), repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
   }
 
   private b5State(): unknown {
     const viewport = this.currentViewport() as (ViewportComponent | YLayerComponent | undefined);
     const project = this.workspace.project();
     const render = this.selection.renderState(project);
-    const shellActions = [...new Set(this.pressedMovementActions.values())].sort();
+    const shellActions = this.pressedMovementActions.actions();
     const engine = viewport?.b5InputSnapshot?.() as { readonly pressedActions?: readonly string[] } | undefined;
     const context = { mode: this.mode.mode(), shellActions, engineActions: [...(engine?.pressedActions ?? [])].sort(), viewport: engine, selection: { kind: render.kind, single: this.selection.single(), count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256) }, projectBlockCount: project?.blocks.length ?? 0 };
     this.b5.setContext(context);

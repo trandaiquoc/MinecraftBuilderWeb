@@ -6,6 +6,17 @@ export type KeyboardAction =
 export type MovementAction = Extract<KeyboardAction, `move-${string}`>;
 export type KeyboardRouteOwner = 'camera' | 'editor';
 
+export class MovementKeyOwnership {
+  private readonly owners = new Map<string, MovementAction>();
+  actionFor(owner: string): MovementAction | undefined { return this.owners.get(owner); }
+  press(owner: string, action: MovementAction): MovementAction | undefined { const previous = this.owners.get(owner); this.owners.set(owner, action); return previous; }
+  release(owner: string): MovementAction | undefined { const action = this.owners.get(owner); this.owners.delete(owner); return action; }
+  hasAction(action: MovementAction): boolean { for (const value of this.owners.values()) if (value === action) return true; return false; }
+  actions(): readonly MovementAction[] { return [...new Set(this.owners.values())].sort(); }
+  ownerCount(): number { return this.owners.size; }
+  clear(): readonly MovementAction[] { const actions = this.actions(); this.owners.clear(); return actions; }
+}
+
 export interface KeyboardRouteTrace {
   readonly code: string;
   readonly action?: KeyboardAction;
@@ -70,6 +81,13 @@ export function bindingFromKeyboardEvent(event: { readonly key: string; readonly
   return normalizeBinding([...activeModifiers, primary].join('+'));
 }
 
+/** Stable physical owner key for movement state. Action resolution remains separate. */
+export function movementPhysicalKey(event: { readonly key: string; readonly code?: string; readonly ctrlKey?: boolean; readonly altKey?: boolean; readonly shiftKey?: boolean; readonly metaKey?: boolean }): string {
+  const physical = canonicalPhysicalKey(event.code, event.key);
+  const modifiers = [event.ctrlKey ? 'Ctrl' : '', event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '', event.metaKey ? 'Meta' : ''].filter(Boolean);
+  return `${modifiers.join('+')}:${physical}`;
+}
+
 export function isModifierOnlyBinding(binding: string | undefined): boolean {
   return !!binding && modifiers.has(binding);
 }
@@ -124,4 +142,21 @@ function codeToken(code: string | undefined): string | undefined {
   if (/^Key[A-Z]$/.test(code)) return code.slice(3);
   if (/^Digit[0-9]$/.test(code)) return code.slice(5);
   return undefined;
+}
+
+function canonicalPhysicalKey(code: string | undefined, key: string): string {
+  if (code) {
+    if (/^Key[A-Z]$/.test(code)) return code;
+    if (/^Digit[0-9]$/.test(code)) return code;
+    if (code === 'Space' || code === 'ShiftLeft' || code === 'ShiftRight' || code === 'ControlLeft' || code === 'ControlRight' || code === 'AltLeft' || code === 'AltRight' || code === 'MetaLeft' || code === 'MetaRight') return code;
+    if (code.startsWith('Arrow') || code.startsWith('Numpad')) return code;
+  }
+  const token = key === ' ' ? 'Space' : key.length === 1 ? key.toLocaleUpperCase() : key;
+  if (/^[A-Z]$/.test(token)) return `Key${token}`;
+  if (/^[0-9]$/.test(token)) return `Digit${token}`;
+  if (token === 'Shift') return 'Shift';
+  if (token === 'Control' || token === 'Ctrl') return 'Control';
+  if (token === 'Alt' || token === 'Option') return 'Alt';
+  if (token === 'Meta' || token === 'OS') return 'Meta';
+  return token;
 }

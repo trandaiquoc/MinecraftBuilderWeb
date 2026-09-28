@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_KEYBINDINGS, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, keyboardRouteOwner, keyboardRouteTrace, normalizeBinding, normalizeBindings } from './keyboard-bindings';
+import { DEFAULT_KEYBINDINGS, MovementKeyOwnership, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, keyboardRouteOwner, keyboardRouteTrace, movementPhysicalKey, normalizeBinding, normalizeBindings } from './keyboard-bindings';
 
 describe('keyboard binding model', () => {
   it('normalizes modifier order and supports up to three tokens', () => {
@@ -26,6 +26,8 @@ describe('keyboard binding model', () => {
     expect(keyboardActionForEvent({ key: 'Delete', code: 'Delete', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
     expect(isMovementAction('move-right')).toBe(true);
     expect(isMovementAction('delete-selection')).toBe(false);
+    expect(keyboardActionForEvent({ key: 'a', code: '', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('move-left');
+    expect(keyboardActionForEvent({ key: 'a', code: '', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('select-all');
   });
 
   it('routes each resolved action to exactly one owner and exposes a compact trace', () => {
@@ -54,5 +56,27 @@ describe('keyboard binding model', () => {
 
   it('does not treat cleared bindings as conflicts', () => {
     expect(findBindingConflicts({ ...DEFAULT_KEYBINDINGS, undo: '', redo: '' })).toEqual([]);
+  });
+
+  it('normalizes coded and missing-code movement events to one physical owner', () => {
+    expect(movementPhysicalKey({ code: 'KeyA', key: 'a' })).toBe(movementPhysicalKey({ code: '', key: 'a' }));
+    expect(movementPhysicalKey({ code: 'KeyW', key: 'w' })).not.toBe(movementPhysicalKey({ code: 'KeyA', key: 'a' }));
+    expect(movementPhysicalKey({ code: 'Space', key: ' ' })).toBe(movementPhysicalKey({ code: '', key: ' ' }));
+    expect(movementPhysicalKey({ code: 'ShiftLeft', key: 'Shift' })).not.toBe(movementPhysicalKey({ code: 'KeyA', key: 'a' }));
+  });
+
+  it('keeps repeated and multi-owner action transitions deterministic', () => {
+    const ownership = new MovementKeyOwnership();
+    expect(ownership.press('KeyW', 'move-forward')).toBeUndefined();
+    expect(ownership.press('KeyW', 'move-forward')).toBe('move-forward');
+    expect(ownership.press('KeyA', 'move-forward')).toBeUndefined();
+    expect(ownership.actions()).toEqual(['move-forward']);
+    expect(ownership.release('KeyW')).toBe('move-forward');
+    expect(ownership.hasAction('move-forward')).toBe(true);
+    expect(ownership.release('KeyA')).toBe('move-forward');
+    expect(ownership.hasAction('move-forward')).toBe(false);
+    ownership.press('KeyD', 'move-right'); ownership.press('Space', 'move-up');
+    expect(ownership.clear()).toEqual(['move-right', 'move-up']);
+    expect(ownership.ownerCount()).toBe(0);
   });
 });
