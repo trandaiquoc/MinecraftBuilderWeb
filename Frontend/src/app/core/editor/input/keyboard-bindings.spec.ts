@@ -51,9 +51,13 @@ describe('keyboard binding model', () => {
 
   it('normalizes coded and missing-code movement events to one physical owner', () => {
     expect(movementPhysicalKey({ code: 'KeyA', key: 'a' })).toBe(movementPhysicalKey({ code: '', key: 'a' }));
+    expect(movementPhysicalKey({ code: 'KeyA', key: 'a', shiftKey: true })).toBe('KeyA');
+    expect(movementPhysicalKey({ code: 'KeyA', key: 'a', ctrlKey: true, altKey: true, metaKey: true })).toBe('KeyA');
     expect(movementPhysicalKey({ code: 'KeyW', key: 'w' })).not.toBe(movementPhysicalKey({ code: 'KeyA', key: 'a' }));
     expect(movementPhysicalKey({ code: 'Space', key: ' ' })).toBe(movementPhysicalKey({ code: '', key: ' ' }));
+    expect(movementPhysicalKey({ code: '', key: 'Spacebar' })).toBe('Space');
     expect(movementPhysicalKey({ code: 'ShiftLeft', key: 'Shift' })).toBe(movementPhysicalKey({ code: '', key: 'Shift' }));
+    expect(movementPhysicalKey({ code: '', key: 'SHIFT' })).toBe('Shift');
     expect(movementPhysicalKey({ code: 'ShiftRight', key: 'Shift' })).toBe(movementPhysicalKey({ code: 'ShiftLeft', key: 'Shift' }));
   });
 

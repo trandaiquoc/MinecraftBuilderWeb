@@ -65,7 +65,81 @@ describe('editor shell movement/delete routing', () => {
 
     fixture.destroy();
   });
+
+  it('releases every fast multi-key movement owner in any order', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    const press = (key: string, code: string, options: KeyboardEventInit = {}) => shell.handleEditorShortcut(new KeyboardEvent('keydown', { key, code, cancelable: true, ...options }));
+    const release = (key: string, code: string, options: KeyboardEventInit = {}) => shell.handleEditorKeyup(new KeyboardEvent('keyup', { key, code, cancelable: true, ...options }));
+
+    press('w', 'KeyW'); press('a', 'KeyA'); press('d', 'KeyD');
+    release('d', 'KeyD'); release('w', 'KeyW'); release('a', 'KeyA');
+    press('w', 'KeyW'); press('a', 'KeyA'); release('a', 'KeyA'); release('w', 'KeyW');
+    press('a', 'KeyA'); release('a', 'KeyA'); press('a', 'KeyA'); release('a', 'KeyA');
+
+    expect(calls.down.mock.calls.map(([action]) => action)).toEqual(['move-forward', 'move-left', 'move-right', 'move-forward', 'move-left', 'move-left', 'move-left']);
+    expect(calls.up.mock.calls.map(([action]) => action)).toEqual(['move-right', 'move-forward', 'move-left', 'move-left', 'move-forward', 'move-left', 'move-left']);
+    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    fixture.destroy();
+  });
+
+  it('keeps ownership stable across modifier changes and coded/missing-code releases', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', cancelable: true }));
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'Shift', code: 'ShiftLeft', shiftKey: true, cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'a', code: '', shiftKey: true, cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Shift', code: 'ShiftRight', cancelable: true }));
+    expect(calls.down.mock.calls.map(([action]) => action)).toEqual(['move-left', 'move-down']);
+    expect(calls.up.mock.calls.map(([action]) => action)).toEqual(['move-left', 'move-down']);
+
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'Shift', code: 'ShiftLeft', shiftKey: true, cancelable: true }));
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', shiftKey: true, cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Shift', code: 'ShiftLeft', cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'a', code: 'KeyA', cancelable: true }));
+    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: '', cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'a', code: 'KeyA', cancelable: true }));
+    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    fixture.destroy();
+  });
+
+  it('clears all movement owners on lifecycle boundaries', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', cancelable: true }));
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD', cancelable: true }));
+    shell.handleWindowBlur();
+    expect(calls.up.mock.calls.map(([action]) => action)).toEqual(['move-forward', 'move-right']);
+    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', cancelable: true }));
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', cancelable: true }));
+    shell.handleVisibilityChange();
+    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    fixture.destroy();
+  });
 });
+
+function withFakeViewport(component: EditorShellComponent, calls: { readonly down: ReturnType<typeof vi.fn>; readonly up: ReturnType<typeof vi.fn> }): {
+  handleEditorShortcut: (event: KeyboardEvent) => void;
+  handleEditorKeyup: (event: KeyboardEvent) => void;
+  handleWindowBlur: () => void;
+  handleVisibilityChange: () => void;
+} {
+  const instance = component as unknown as {
+    currentViewport: () => unknown;
+    handleEditorShortcut: (event: KeyboardEvent) => void;
+    handleEditorKeyup: (event: KeyboardEvent) => void;
+    handleWindowBlur: () => void;
+    handleVisibilityChange: () => void;
+  };
+  instance.currentViewport = () => ({ cameraKeyDown: calls.down, cameraKeyUp: calls.up });
+  return instance;
+}
 
 function installIndexedDbStub(): void {
   const database = {

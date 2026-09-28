@@ -91,6 +91,28 @@ describe('camera movement input contract', () => {
     expect(JSON.stringify(project)).toBe(before);
   });
 
+  it('stops the movement RAF after the final action release', () => {
+    const callbacks = new Map<number, FrameRequestCallback>();
+    let nextId = 0;
+    const request = vi.fn((callback: FrameRequestCallback) => { const id = ++nextId; callbacks.set(id, callback); return id; });
+    vi.stubGlobal('requestAnimationFrame', request);
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
+    try {
+      const engine = new ThreeViewportEngine();
+      const internal = engine as unknown as { pressedActions: Set<string>; cameraMoveFrame?: number };
+      engine.cameraKeyDown('move-forward');
+      engine.cameraKeyUp('move-forward');
+      expect(internal.pressedActions.size).toBe(0);
+      const pending = [...callbacks.values()][0];
+      pending?.(performance.now() + 16);
+      expect(internal.cameraMoveFrame).toBeUndefined();
+      expect(request).toHaveBeenCalledTimes(1);
+      engine.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps a seven-block selection and render membership intact for every camera movement action', async () => {
     const engine = new ThreeViewportEngine();
     const base = rendererBenchmarkProject('small');

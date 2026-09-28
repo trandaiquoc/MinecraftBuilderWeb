@@ -69,11 +69,9 @@ export function bindingFromKeyboardEvent(event: { readonly key: string; readonly
   return normalizeBinding([...activeModifiers, primary].join('+'));
 }
 
-/** Stable physical owner key for movement state. Action resolution remains separate. */
+/** Stable physical owner key for movement state; modifier snapshots belong only to action resolution. */
 export function movementPhysicalKey(event: { readonly key: string; readonly code?: string; readonly ctrlKey?: boolean; readonly altKey?: boolean; readonly shiftKey?: boolean; readonly metaKey?: boolean }): string {
-  const physical = canonicalPhysicalKey(event.code, event.key);
-  const modifiers = [event.ctrlKey ? 'Ctrl' : '', event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '', event.metaKey ? 'Meta' : ''].filter(Boolean);
-  return `${modifiers.join('+')}:${physical}`;
+  return canonicalPhysicalKey(event.code, event.key);
 }
 
 export function isModifierOnlyBinding(binding: string | undefined): boolean {
@@ -143,7 +141,13 @@ function canonicalPhysicalKey(code: string | undefined, key: string): string {
     if (code === 'MetaLeft' || code === 'MetaRight') return 'Meta';
     if (code.startsWith('Arrow') || code.startsWith('Numpad')) return code;
   }
-  const token = key === ' ' ? 'Space' : key.length === 1 ? key.toLocaleUpperCase() : key;
+  const normalizedKey = key.trim().toLocaleLowerCase();
+  if (key === ' ' || normalizedKey === 'space' || normalizedKey === 'spacebar') return 'Space';
+  if (normalizedKey === 'shift') return 'Shift';
+  if (normalizedKey === 'control' || normalizedKey === 'ctrl') return 'Control';
+  if (normalizedKey === 'alt' || normalizedKey === 'option') return 'Alt';
+  if (normalizedKey === 'meta' || normalizedKey === 'os') return 'Meta';
+  const token = key.length === 1 ? key.toLocaleUpperCase() : key;
   if (/^[A-Z]$/.test(token)) return `Key${token}`;
   if (/^[0-9]$/.test(token)) return `Digit${token}`;
   if (token === 'Shift') return 'Shift';
