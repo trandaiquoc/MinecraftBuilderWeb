@@ -1039,44 +1039,6 @@ describe('camera movement input contract', () => {
   });
 });
 
-describe('B5 selected-block diagnostics', () => {
-  it('serializes non-instanced ownership and preserves camera input state', () => {
-    const engine = new ThreeViewportEngine();
-    const project = rendererBenchmarkProject('small');
-    const block = project.blocks[0];
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
-    const internal = engine as unknown as { project: ProjectDocument; renderedBlocks: Map<string, unknown>; pressedActions: Set<string> };
-    internal.project = project;
-    internal.pressedActions = new Set(['move-forward']);
-    internal.renderedBlocks.set(coordinateKey(block.position), { key: coordinateKey(block.position), block, signature: 'test', role: 'normal', revision: 1, object: mesh });
-    const snapshot = engine.b5SelectedBlockDiagnostic(block.position) as { projectBlockExists: boolean; renderedEntry: { objectType: string }; input: { pressedActions: readonly string[] } };
-    expect(snapshot.projectBlockExists).toBe(true);
-    expect(snapshot.renderedEntry.objectType).toBe('Mesh');
-    expect(snapshot.input.pressedActions).toEqual(['move-forward']);
-    expect(() => JSON.stringify(snapshot)).not.toThrow();
-    engine.dispose();
-  });
-
-  it('reports instanced ownership, stale index and frustum-safe plain data', () => {
-    const engine = new ThreeViewportEngine();
-    const project = rendererBenchmarkProject('small');
-    const block = project.blocks[0];
-    const key = coordinateKey(block.position);
-    const part = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 2);
-    part.setMatrixAt(0, new THREE.Matrix4().makeTranslation(.5, .5, .5)); part.instanceMatrix.needsUpdate = true;
-    const internal = engine as unknown as { project: ProjectDocument; renderedBlocks: Map<string, unknown>; instanceBatches: Map<string, unknown>; instanceOwnershipIndex: Map<string, unknown> };
-    internal.project = project;
-    internal.instanceBatches.set('batch', { key: 'batch', capacity: 2, templates: [], parts: [part], keys: [key], positions: [block.position] });
-    internal.instanceOwnershipIndex.set(key, { batchKey: 'batch', index: 0 });
-    internal.renderedBlocks.set(key, { key, block, signature: 'test', role: 'normal', revision: 1, instanceBatchKey: 'batch', instanceIndex: 0, object: part });
-    const snapshot = engine.b5SelectedBlockDiagnostic(block.position) as { instance: { occurrenceCount: number; instanceWorldPosition: { x: number; y: number; z: number } }; frustum: unknown };
-    expect(snapshot.instance.occurrenceCount).toBe(1);
-    expect(snapshot.instance.instanceWorldPosition.x).toBeCloseTo(.5);
-    expect(() => JSON.stringify(snapshot)).not.toThrow();
-    engine.dispose();
-  });
-});
-
 describe('provider handoff hydration ownership', () => {
   const resolvedVisual = () => ({
     object: new THREE.Group(),

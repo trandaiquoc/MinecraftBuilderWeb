@@ -20,7 +20,6 @@ import { blockCapability } from '../../blocks/capabilities/block-capability-reso
 import type { BlockEntityKind } from '../../blocks/capabilities/block-capability.types';
 import { defaultItemContainerData, setItemContainerSlot } from '../../block-entities/item-display/item-container';
 import type { ItemStackData } from '../../items/item-stack.types';
-import { recordB5Command } from '../input/b5-runtime-diagnostics.service';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -44,7 +43,7 @@ export class StructureEditorService {
         if (itemHost) return { ...block, blockEntityData: defaultItemContainerData(itemHost.kind, itemHost.slotCount) };
         return block;
       }) });
-    }, { source: 'StructureEditorService.place', operation: 'place' });
+    });
   }
 
   canStackCandle(position: VoxelCoordinate): boolean {
@@ -67,14 +66,12 @@ export class StructureEditorService {
         blocks: project.blocks.map((block) => coordinateKey(block.position) === coordinateKey(position) ? { ...block, state } : block),
         metadata: { ...project.metadata, updatedAt: new Date().toISOString() },
       };
-    }, { source: 'StructureEditorService.stackCandle', operation: 'stackCandle' });
+    });
   }
 
   delete(position: VoxelCoordinate): boolean {
-    const before = this.workspace.project(); const selectionBefore = this.selection.renderState(before);
     const changed = this.deletePositions([position], 'Delete');
     if (changed) this.selection.clearIf(position);
-    recordB5Command({ type: 'structure-command', source: 'StructureEditorService.delete', operation: 'delete', timestamp: new Date().toISOString(), target: position, changed, projectBlockCountBefore: before?.blocks.length ?? 0, projectBlockCountAfter: this.workspace.project()?.blocks.length ?? 0, selectionBefore, selectionAfter: this.selection.renderState(this.workspace.project()) });
     return changed;
   }
 
@@ -83,10 +80,8 @@ export class StructureEditorService {
     if (!project) return false;
     const selected = this.selection.selectedBlocks(project);
     if (!selected.length) return false;
-    const selectionBefore = this.selection.renderState(project);
     const changed = this.deletePositions(selected.map((block) => block.position), 'Delete selection');
     if (changed) this.selection.clear();
-    recordB5Command({ type: 'structure-command', source: 'StructureEditorService.deleteSelection', operation: 'deleteSelection', timestamp: new Date().toISOString(), changed, projectBlockCountBefore: project.blocks.length, projectBlockCountAfter: this.workspace.project()?.blocks.length ?? 0, selectionBefore, selectionAfter: this.selection.renderState(this.workspace.project()) });
     return changed;
   }
 
@@ -104,7 +99,7 @@ export class StructureEditorService {
       const result = this.rules().deleteMany(project, expanded.map((block) => block.position));
       this.lastValidation = result.validation;
       return result.project ? pruneInvalidDecorations(result.project) : result.project;
-    }, { source: 'StructureEditorService.deletePositions', operation: 'deletePositions' });
+    });
   }
 
   pick(position: VoxelCoordinate): void {
@@ -132,7 +127,7 @@ export class StructureEditorService {
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: changedState } : entry);
       const blocks = synchronizeLogicalObjectState(directlyChanged, position, changedState, (id) => this.library.get(id));
         const result = rules.refresh({ ...project, blocks }, [position]); this.lastValidation = result.validation; return result.project ? pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } }) : undefined;
-    }, { source: 'StructureEditorService.updateBlockState', operation: 'updateBlockState' });
+    });
     if (changed && selectedWasHead && this.selection.single()) {
       const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head' && block.state['facing'] === (after.blocks.find((entry) => entry.state['part'] === 'foot' && entry.id === selectedBefore?.id)?.state['facing'] ?? ''));
       if (nextHead) this.selection.selectLogical(nextHead.position, after!, (id) => this.library.get(id));
@@ -155,7 +150,7 @@ export class StructureEditorService {
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: rotated.state! } : entry);
       const updated = { ...project, blocks: synchronizeLogicalObjectState(directlyChanged, position, rotated.state, (id) => this.library.get(id)) };
       const result = this.rules().refresh(updated, [position]); this.lastValidation = result.validation; return result.project ? pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } }) : undefined;
-    }, { source: 'StructureEditorService.rotateBlock', operation: 'rotateBlock' });
+    });
     if (changed && selectedWasHead && this.selection.single()) {
       const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head');
       if (nextHead) this.selection.selectLogical(nextHead.position, after!, (id) => this.library.get(id));
@@ -174,7 +169,7 @@ export class StructureEditorService {
       const current = signData(block.blockEntityData); const target = current[side]; const lines = signLines(value);
       const data: SignBlockEntityData = { ...current, [side]: { ...target, lines } };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
-    }, { source: 'StructureEditorService.updateSignText', operation: 'updateSignText' });
+    });
   }
   updateSignAppearance(position: VoxelCoordinate, side: 'front' | 'back', patch: { readonly color?: string; readonly glowing?: boolean }): boolean {
     return this.history.execute('Sign appearance edit', (project) => {
@@ -184,14 +179,14 @@ export class StructureEditorService {
       if (!isVanillaSignColor(color)) return undefined;
       const data: SignBlockEntityData = { ...current, [side]: { ...target, color, glowing: patch.glowing ?? target.glowing } };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
-    }, { source: 'StructureEditorService.updateSignAppearance', operation: 'updateSignAppearance' });
+    });
   }
   updateSignWaxed(position: VoxelCoordinate, waxed: boolean): boolean {
     return this.history.execute('Sign wax edit', (project) => {
       const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const data: SignBlockEntityData = { ...current, waxed };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
-    }, { source: 'StructureEditorService.updateSignWaxed', operation: 'updateSignWaxed' });
+    });
   }
   updateDecoratedPotDecoration(position: VoxelCoordinate, side: 'back' | 'left' | 'right' | 'front', sherd: string): boolean {
     return this.history.execute('Decorated Pot pattern edit', (project) => {
@@ -199,7 +194,7 @@ export class StructureEditorService {
       if (!block || !(isBlockEntity(this.library.get(block.id), 'decorated-pot') || block.id === 'minecraft:decorated_pot') || hasLockedMembership(block, project.groups)) return undefined;
       const current = decoratedPotData(block.blockEntityData); const data = { ...current, decorations: { ...current.decorations, [side]: normalizeDecoratedPotSherd(sherd) } };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
-    }, { source: 'StructureEditorService.updateDecoratedPotDecoration', operation: 'updateDecoratedPotDecoration' });
+    });
   }
   setBlockItemSlot(position: VoxelCoordinate, slot: number, stack: ItemStackData | undefined): boolean {
     return this.history.execute('Item slot edit', (project) => {
@@ -207,7 +202,7 @@ export class StructureEditorService {
       if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups)) return undefined;
       const data = setItemContainerSlot(block.blockEntityData, capability.kind, capability.slotCount, slot, stack);
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
-    }, { source: 'StructureEditorService.setBlockItemSlot', operation: 'setBlockItemSlot' });
+    });
   }
   validatePlacement(position: VoxelCoordinate, context?: PlacementContext): RuleValidation {
     const project = this.workspace.project(); const active = this.activeBlock.active();

@@ -3,7 +3,6 @@ import { BlockLibraryService } from '../../blocks/catalog/block-library.service'
 import type { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { reconcileMissingBlocksCooperatively } from './missing-block-reconciliation';
-import { recordB5Mutation } from '../input/b5-runtime-diagnostics.service';
 
 @Injectable({ providedIn: 'root' })
 export class MissingBlockReconciliationService {
@@ -21,10 +20,6 @@ export class MissingBlockReconciliationService {
   private async reconcile(project: ProjectDocument, revision: number, token: number): Promise<void> {
     const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id));
     if (token !== this.operationToken || this.workspace.project() !== project || this.library.catalogRevision() !== revision) return;
-    if (result.project !== project) {
-      const stack = new Error().stack;
-      this.workspace.project.set(result.project);
-      recordB5Mutation('missing-block-reconciliation', 'Reconcile missing blocks', project, result.project, { operation: 'reconcile', stack });
-    }
+    if (result.project !== project) this.workspace.project.set(result.project);
   }
 }

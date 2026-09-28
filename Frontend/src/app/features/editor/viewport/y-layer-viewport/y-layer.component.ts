@@ -31,7 +31,6 @@ import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.dir
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
-import { B5RuntimeDiagnosticsService, recordB5Command, recordB5Pointer } from '../../../../core/editor/input/b5-runtime-diagnostics.service';
 
 @Component({ selector: 'app-y-layer', imports: [ThemedSelectComponent, LucideChevronLeft, LucideChevronRight, UiTooltipDirective], templateUrl: './y-layer.component.html', styleUrl: './y-layer.component.scss' })
 export class YLayerComponent implements AfterViewInit, OnDestroy {
@@ -68,7 +67,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
-  private readonly b5 = inject(B5RuntimeDiagnosticsService);
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
   private pointerStart?: { x: number; y: number };
@@ -81,8 +79,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
-  ngAfterViewInit(): void { this.engine.setB5FrameRecorder((frame) => this.b5.recordMovementFrame({ mode: 'y-layer', ...frame, selectedBlock: this.selection.single() ? this.engine.b5SelectedBlockDiagnostic(this.selection.single()!) : undefined, selection: this.b5SelectionSnapshot() })); this.engine.setB5LifecycleRecorder((event) => this.b5.recordLifecycle({ mode: 'y-layer', ...asRecord(event) })); this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { this.b5.recordLifecycle({ type: 'viewport.destroy', mode: 'y-layer', timestamp: new Date().toISOString(), input: this.engine.b5InputState() }); this.engine.setB5FrameRecorder(undefined); this.engine.setB5LifecycleRecorder(undefined); const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   focusSelection(): void {
@@ -112,7 +110,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     this.gestureAction = action;
     this.pickConsumed = false;
     this.boxCornerStart = undefined;
-    this.recordPointer(event, 'pointerdown', { action, captured: !!(event.currentTarget as HTMLElement | null)?.hasPointerCapture?.(event.pointerId) });
     if (action === 'pick-block') {
       const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), false);
       if (blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!))) this.pickConsumed = true;
@@ -122,8 +119,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   }
   protected pointerUp(event: PointerEvent): void {
     const start = this.pointerStart;
-    const gestureBefore = this.gestureAction;
-    const boxCornerBefore = !!this.boxCornerStart;
     this.pointerStart = undefined;
     const gestureAction = this.gestureAction;
     this.gestureAction = undefined;
@@ -131,7 +126,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     this.pickConsumed = false;
     const cornerStart = this.boxCornerStart;
     this.boxCornerStart = undefined;
-    this.recordPointer(event, 'pointerup', { gestureActionBefore: gestureBefore, gestureActionAfter: this.gestureAction, pointerStartPresent: !!start, faceDragStartPresent: boxCornerBefore, freeSpaceDragStartPresent: false, click: isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold) });
     if (gestureAction) event.preventDefault();
     this.engine.endEditorPointerGesture();
     this.releasePointer(event);
@@ -145,7 +139,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     }
     if (!click) return;
     const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place');
-    this.recordPointer(event, 'pointerup-hit', { gestureAction, hit: { block: hit.block, target: hit.target, faceNormal: hit.faceNormal, placementContext: hit.placementContext } });
     const activeDecoration = this.decorations.active();
     const decorationWins = !!hit.decoration && !blockHitWinsOverDecoration(hit);
     if (hit.decoration && decorationWins && (gestureAction !== 'primary-action' || this.tool.active() === 'select')) {
@@ -163,10 +156,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (gestureAction === 'pick-block' && blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!))) return;
-    else if (gestureAction === 'delete-target' && hit.block) {
-      const before = this.workspace.project(); const selectionBefore = this.b5SelectionSnapshot(); const changed = this.editor.delete(hit.block);
-      recordB5Command({ type: 'pointer-command', source: 'YLayerComponent.pointerUp', operation: 'viewport.delete-target', mode: 'y-layer', timestamp: new Date().toISOString(), target: hit.block, changed, beforeProjectId: before?.id, beforeBlockCount: before?.blocks.length ?? 0, afterBlockCount: this.workspace.project()?.blocks.length ?? 0, selectionBefore, selectionAfter: this.b5SelectionSnapshot() });
-    }
+    else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) this.selectPickedBlock(hit.block);
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
     else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
@@ -183,12 +173,10 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected pointerLeave(event: PointerEvent): void {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
-    this.recordPointer(event, 'pointerleave', { captured: false, gestureActionBefore: this.gestureAction, gestureActionAfter: undefined, pointerStartPresent: !!this.pointerStart, faceDragStartPresent: !!this.boxCornerStart, freeSpaceDragStartPresent: false });
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined;
     this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
-    if (event) this.recordPointer(event, event.type === 'lostpointercapture' ? 'lostpointercapture' : 'pointercancel', { gestureActionBefore: this.gestureAction, gestureActionAfter: undefined, pointerStartPresent: !!this.pointerStart, faceDragStartPresent: !!this.boxCornerStart, freeSpaceDragStartPresent: false });
     if (event) this.releasePointer(event);
     this.engine.endEditorPointerGesture();
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined; this.engine.clearInput();
@@ -198,16 +186,9 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
   cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
   cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
-  b5InputSnapshot(): unknown { return this.engine.b5InputState(); }
-  b5SelectedBlockDiagnostic(position: VoxelCoordinate): unknown { return this.engine.b5SelectedBlockDiagnostic(position); }
-  private b5SelectionSnapshot(): unknown { const project = this.workspace.project(); const render = this.selection.renderState(project); const selected = this.selection.single(); return { kind: render.kind, single: selected, count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256), projectBlockCount: project?.blocks.length ?? 0, selectedProjectBlock: selected ? project?.blocks.find((block) => block.position.x === selected.x && block.position.y === selected.y && block.position.z === selected.z) : undefined }; }
-  private recordPointer(event: PointerEvent, phase: string, extra: Record<string, unknown> = {}): void { recordB5Pointer({ phase, timestamp: new Date().toISOString(), eventTimeStamp: event.timeStamp, isTrusted: event.isTrusted, pointerId: event.pointerId, pointerType: event.pointerType, button: event.button, buttons: event.buttons, clientX: event.clientX, clientY: event.clientY, target: eventTargetSummary(event.target), currentTarget: eventTargetSummary(event.currentTarget), gestureAction: this.gestureAction, pointerStart: this.pointerStart, currentY: this.currentY(), ...extra }); }
 
   private refresh(): void { const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); }
 }
-
-function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === 'object' ? value as Record<string, unknown> : { value }; }
-function eventTargetSummary(value: EventTarget | null): Record<string, unknown> | undefined { const element = value instanceof HTMLElement ? value : undefined; return element ? { tag: element.tagName.toLowerCase(), id: element.id || undefined, className: element.className || undefined } : value ? { type: value.constructor?.name ?? 'EventTarget' } : undefined; }
 
 function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {
   return action === 'primary-action' || action === 'delete-target' || action === 'pick-block';

@@ -2,7 +2,6 @@ import { Injectable, signal } from '@angular/core';
 import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
 import { ProjectStore } from '../persistence/project-store/project-store.port';
-import { recordB5Mutation } from '../editor/input/b5-runtime-diagnostics.service';
 
 export const ACTIVE_PROJECT_KEY = 'minecraft-builder.active-project';
 
@@ -16,21 +15,14 @@ export class WorkspaceStateService {
   private restorePromise?: Promise<ProjectDocument | undefined>;
 
   activate(project: ProjectDocument, storage: Pick<Storage, 'setItem'> | undefined = browserStorage()): void {
-    const before = this.project();
-    const after = migrateProject(project);
-    const stack = new Error().stack;
-    this.project.set(after);
-    recordB5Mutation('workspace.activate', 'Activate project', before, after, { operation: 'activate', stack });
+    this.project.set(migrateProject(project));
     this.restoreStatus.set('ready');
     this.restoreError.set(undefined);
     try { storage?.setItem(ACTIVE_PROJECT_KEY, project.id); } catch { /* The project remains usable when browser storage is unavailable. */ }
   }
 
   deactivate(storage: Pick<Storage, 'removeItem'> | undefined = browserStorage()): void {
-    const before = this.project();
-    const stack = new Error().stack;
     this.project.set(undefined);
-    recordB5Mutation('workspace.deactivate', 'Deactivate project', before, undefined, { operation: 'deactivate', stack });
     this.restoreStatus.set('empty');
     this.restoreError.set(undefined);
     try { storage?.removeItem(ACTIVE_PROJECT_KEY); } catch { /* In-memory workspace is still cleared. */ }

@@ -45,7 +45,7 @@ export class GroupService {
       createdId = nextGroupId(project.groups);
       const group: ProjectGroup = { id: createdId, name: trimmed, visible: true, locked: false };
       return this.withGroups(project, [...project.groups, group]);
-    }, { source: 'GroupService.create', operation: 'createGroup' });
+    });
     if (changed) this.activeGroupId.set(createdId);
     return changed;
   }
@@ -63,15 +63,15 @@ export class GroupService {
   renameActive(name: string): boolean { const id = this.activeGroupId(); return id ? this.rename(id, name) : false; }
   rename(id: string, name: string): boolean {
     const trimmed = name.trim(); if (!trimmed) return false;
-    return this.history.execute('Rename group', (project) => project.groups.some((group) => group.id === id) && !this.hasName(project, trimmed, id) ? this.withGroups(project, project.groups.map((group) => group.id === id ? { ...group, name: trimmed } : group)) : undefined, { source: 'GroupService.rename', operation: 'renameGroup' });
+    return this.history.execute('Rename group', (project) => project.groups.some((group) => group.id === id) && !this.hasName(project, trimmed, id) ? this.withGroups(project, project.groups.map((group) => group.id === id ? { ...group, name: trimmed } : group)) : undefined);
   }
   setActiveVisible(visible: boolean): boolean { const id = this.activeGroupId(); return id ? this.setVisible(id, visible) : false; }
-  setVisible(id: string, visible: boolean): boolean { return this.history.execute('Set group visibility', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups(normalized, normalized.groups.map((group) => group.id === id ? { ...group, visible } : group)) : undefined; }, { source: 'GroupService.setVisible', operation: 'setGroupVisibility' }); }
+  setVisible(id: string, visible: boolean): boolean { return this.history.execute('Set group visibility', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups(normalized, normalized.groups.map((group) => group.id === id ? { ...group, visible } : group)) : undefined; }); }
   setActiveLocked(locked: boolean): boolean { const id = this.activeGroupId(); return id ? this.setLocked(id, locked) : false; }
-  setLocked(id: string, locked: boolean): boolean { return this.history.execute('Set group lock', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups(normalized, normalized.groups.map((group) => group.id === id ? { ...group, locked } : group)) : undefined; }, { source: 'GroupService.setLocked', operation: 'setGroupLock' }); }
+  setLocked(id: string, locked: boolean): boolean { return this.history.execute('Set group lock', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups(normalized, normalized.groups.map((group) => group.id === id ? { ...group, locked } : group)) : undefined; }); }
   deleteActive(): boolean { const id = this.activeGroupId(); return id ? this.delete(id) : false; }
   delete(id: string): boolean {
-    const changed = this.history.execute('Delete group', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups({ ...normalized, blocks: normalized.blocks.map((block) => removeGroup(block, id)), decorations: normalized.decorations?.map((decoration) => removeDecorationGroup(decoration, id)) }, normalized.groups.filter((group) => group.id !== id)) : undefined; }, { source: 'GroupService.delete', operation: 'deleteGroup' });
+    const changed = this.history.execute('Delete group', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups({ ...normalized, blocks: normalized.blocks.map((block) => removeGroup(block, id)), decorations: normalized.decorations?.map((decoration) => removeDecorationGroup(decoration, id)) }, normalized.groups.filter((group) => group.id !== id)) : undefined; });
     if (changed && this.activeGroupId() === id) this.select(undefined);
     if (changed && this.isolatedGroupId() === id) this.isolatedGroupId.set(undefined);
     return changed;
@@ -85,7 +85,7 @@ export class GroupService {
       const result = new BlockRuleEngine((blockId) => this.library.get(blockId)).deleteMany(current, positions);
       if (!result.project) return undefined;
       return { ...result.project, decorations: (result.project.decorations ?? []).filter((decoration) => !decorations.some((removed) => removed.instanceId === decoration.instanceId)), metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } };
-    }, { source: 'GroupService.deleteActiveBlocks', operation: 'deleteGroupBlocks' });
+    });
     if (changed) this.selection.clear();
     return changed;
   }
@@ -107,7 +107,7 @@ export class GroupService {
     const projectBeforeMove = this.workspace.project();
     const movingBefore = projectBeforeMove ? this.movingBlocks(this.normalize(projectBeforeMove), id) : [];
     const selectedMoves = !!selected && movingBefore.some((block) => coordinateKey(block.position) === coordinateKey(selected));
-    const changed = this.history.execute('Move group', (project) => { const normalized = this.normalize(project); const movingKeys = new Set(this.movingBlocks(normalized, id).map((block) => coordinateKey(block.position))); const movingDecorationIds = new Set((normalized.decorations ?? []).filter((decoration) => decorationHasGroup(decoration, id)).map((decoration) => decoration.instanceId)); return { ...normalized, blocks: normalized.blocks.map((block) => movingKeys.has(coordinateKey(block.position)) ? { ...block, position: translated(block.position, preview.offset) } : block), decorations: normalized.decorations?.map((decoration) => movingDecorationIds.has(decoration.instanceId) ? { ...decoration, anchor: translated(decoration.anchor, preview.offset) } : decoration), metadata: { ...normalized.metadata, updatedAt: new Date().toISOString() } }; }, { source: 'GroupService.saveMove', operation: 'moveGroup' });
+    const changed = this.history.execute('Move group', (project) => { const normalized = this.normalize(project); const movingKeys = new Set(this.movingBlocks(normalized, id).map((block) => coordinateKey(block.position))); const movingDecorationIds = new Set((normalized.decorations ?? []).filter((decoration) => decorationHasGroup(decoration, id)).map((decoration) => decoration.instanceId)); return { ...normalized, blocks: normalized.blocks.map((block) => movingKeys.has(coordinateKey(block.position)) ? { ...block, position: translated(block.position, preview.offset) } : block), decorations: normalized.decorations?.map((decoration) => movingDecorationIds.has(decoration.instanceId) ? { ...decoration, anchor: translated(decoration.anchor, preview.offset) } : decoration), metadata: { ...normalized.metadata, updatedAt: new Date().toISOString() } }; });
     if (changed) { if (selected && selectedMoves) this.selection.select(translated(selected, preview.offset)); this.resetMove(); }
     return changed;
   }
@@ -125,7 +125,7 @@ export class GroupService {
       if ((!selected.length && !selectedDecoration) || !target || target.locked || selected.some((block) => isBlockLocked(block, normalized.groups)) || !!selectedDecoration && isDecorationLocked(selectedDecoration, normalized.groups)) return undefined;
       const keys = new Set(selected.map((block) => coordinateKey(block.position)));
       return { ...normalized, blocks: normalized.blocks.map((block) => keys.has(coordinateKey(block.position)) ? map(block) : block), decorations: normalized.decorations?.map((decoration) => decoration.instanceId === selectedDecorationId ? (label.startsWith('Add') ? { ...decoration, groupIds: [...(decoration.groupIds ?? []), ...(decoration.groupIds?.includes(groupId) ? [] : [groupId])] } : removeDecorationGroup(decoration, groupId)) : decoration), metadata: { ...normalized.metadata, updatedAt: new Date().toISOString() } };
-    }, { source: 'GroupService.mutateSelected', operation: label });
+    });
   }
   private hasName(project: ProjectDocument, name: string, exceptId?: string): boolean { const normalized = normalizeGroupName(name); return project.groups.some((group) => group.id !== exceptId && normalizeGroupName(group.name) === normalized); }
   private withGroups(project: ProjectDocument, groups: readonly ProjectGroup[]): ProjectDocument { return { ...project, groups, metadata: { ...project.metadata, updatedAt: new Date().toISOString() } }; }
