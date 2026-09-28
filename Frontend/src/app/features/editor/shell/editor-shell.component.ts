@@ -42,7 +42,7 @@ import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-asset
 import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
-import { B5RuntimeDiagnosticsService } from '../../../core/editor/input/b5-runtime-diagnostics.service';
+import { B5RuntimeDiagnosticsService, recordB5Command } from '../../../core/editor/input/b5-runtime-diagnostics.service';
 
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
@@ -138,6 +138,7 @@ export class EditorShellComponent implements OnDestroy {
       this.groups.resetMove();
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
+    effect(() => { this.b5.observeProject(this.workspace.project(), 'workspace.project.signal'); });
   }
   ngOnDestroy(): void { this.b5.recordLifecycle({ type: 'shell.destroy', timestamp: new Date().toISOString(), before: this.b5State() }); this.clearPressedMovementActions('shell.destroy'); if (isDevMode() && typeof window !== 'undefined') { if (window.__mbB5Diagnostics) delete window.__mbB5Diagnostics; if (window.__mbB5Reset) delete window.__mbB5Reset; } void this.autosave.flush().catch(() => undefined); }
 
@@ -418,7 +419,7 @@ export class EditorShellComponent implements OnDestroy {
   private releaseMovementOwner(owner: string, action: MovementAction): void { this.pressedMovementActions.release(owner); if (!this.pressedMovementActions.hasAction(action)) this.currentViewport()?.cameraKeyUp(action); }
 
   private recordB5Keyboard(event: KeyboardEvent, action: KeyboardAction | undefined, before: unknown, after: unknown): void {
-    this.b5.recordKeyboard({ type: event.type, timestamp: new Date().toISOString(), key: event.key, code: event.code, ownerKey: movementPhysicalKey(event), repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
+    this.b5.recordKeyboard({ type: event.type, timestamp: new Date().toISOString(), eventTimeStamp: event.timeStamp, isTrusted: event.isTrusted, location: event.location, key: event.key, code: event.code, ownerKey: movementPhysicalKey(event), repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
   }
 
   private b5State(): unknown {
@@ -427,7 +428,7 @@ export class EditorShellComponent implements OnDestroy {
     const render = this.selection.renderState(project);
     const shellActions = this.pressedMovementActions.actions();
     const engine = viewport?.b5InputSnapshot?.() as { readonly pressedActions?: readonly string[] } | undefined;
-    const context = { mode: this.mode.mode(), shellActions, engineActions: [...(engine?.pressedActions ?? [])].sort(), viewport: engine, selection: { kind: render.kind, single: this.selection.single(), count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256) }, projectBlockCount: project?.blocks.length ?? 0 };
+    const context = { mode: this.mode.mode(), tool: this.tool.active(), shellActions, engineActions: [...(engine?.pressedActions ?? [])].sort(), viewport: engine, history: { canUndo: this.history.canUndo(), canRedo: this.history.canRedo(), lastLabel: this.history.lastLabel() }, selection: { kind: render.kind, single: this.selection.single(), count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256) }, selectedDecoration: this.selectedDecoration(), activeDecoration: this.decorations.active(), projectBlockCount: project?.blocks.length ?? 0, projectId: project?.id };
     this.b5.setContext(context);
     return context;
   }
@@ -437,24 +438,23 @@ export class EditorShellComponent implements OnDestroy {
   }
 
   private executeKeyboardAction(action: KeyboardAction): boolean {
-    if (action === 'undo') return this.history.undo();
-    if (action === 'redo') return this.history.redo();
-    if (action === 'select-all') { const project = this.workspace.project(); if (!project) return false; this.selection.selectAll(project, (id) => this.library.get(id)); return true; }
-    if (action === 'clear-selection') { this.selection.clear(); this.decorations.clearSelection(); return true; }
-    if (action === 'delete-selection') {
-      const decoration = this.selectedDecoration();
-      if (decoration) { this.decorations.delete(decoration.instanceId); return true; }
-      return this.editor.deleteSelection();
-    }
-    if (action === 'tool-place') { this.tool.active.set('place'); return true; }
-    if (action === 'tool-select') { this.tool.active.set('select'); return true; }
-    if (action === 'mode-3d') { this.mode.setMode('3d'); return true; }
-    if (action === 'mode-y-layer') { this.mode.setMode('y-layer'); return true; }
-    if (action === 'fit-structure') { this.fitStructure(); return true; }
-    if (action === 'focus-selection') { if (!this.focusSelectionAvailable()) return false; this.focusSelection(); return true; }
-    if (action === 'save-project') { void this.saveProject(); return true; }
-    if (action.startsWith('quick-slot-')) { const index = Number(action.slice('quick-slot-'.length)) - 1; const entry = this.quickBar.entries()[index]; if (!entry) return false; this.quickBar.select(entry); return true; }
-    return false;
+    const before = this.b5State();
+    let handled = false;
+    if (action === 'undo') handled = this.history.undo();
+    else if (action === 'redo') handled = this.history.redo();
+    else if (action === 'select-all') { const project = this.workspace.project(); if (project) { this.selection.selectAll(project, (id) => this.library.get(id)); handled = true; } }
+    else if (action === 'clear-selection') { this.selection.clear(); this.decorations.clearSelection(); handled = true; }
+    else if (action === 'delete-selection') { const decoration = this.selectedDecoration(); handled = decoration ? (this.decorations.delete(decoration.instanceId), true) : this.editor.deleteSelection(); }
+    else if (action === 'tool-place') { this.tool.active.set('place'); handled = true; }
+    else if (action === 'tool-select') { this.tool.active.set('select'); handled = true; }
+    else if (action === 'mode-3d') { this.mode.setMode('3d'); handled = true; }
+    else if (action === 'mode-y-layer') { this.mode.setMode('y-layer'); handled = true; }
+    else if (action === 'fit-structure') { this.fitStructure(); handled = true; }
+    else if (action === 'focus-selection') { if (this.focusSelectionAvailable()) { this.focusSelection(); handled = true; } }
+    else if (action === 'save-project') { void this.saveProject(); handled = true; }
+    else if (action.startsWith('quick-slot-')) { const index = Number(action.slice('quick-slot-'.length)) - 1; const entry = this.quickBar.entries()[index]; if (entry) { this.quickBar.select(entry); handled = true; } }
+    if (handled) recordB5Command({ type: 'keyboard-command', source: 'EditorShellComponent.executeKeyboardAction', action, timestamp: new Date().toISOString(), before, after: this.b5State() });
+    return handled;
   }
 
   private currentViewport(): ViewportComponent | YLayerComponent | undefined {

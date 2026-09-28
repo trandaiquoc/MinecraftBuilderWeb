@@ -100,7 +100,7 @@ export class StructureJsonImportDialogComponent {
     const prepared = prepareStructureJsonImportPlan(this.project(), plan, this.i18n.t('structureJsonImportedGroupFallback'));
     if (!prepared) { await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
     this.hydrationStatus.markNextActivity('import');
-    const changed = this.history.execute('Import Structure JSON', (current) => current === plan.baseProject ? prepared : undefined);
+    const changed = this.history.execute('Import Structure JSON', (current) => current === plan.baseProject ? prepared : undefined, { source: 'StructureJsonImportDialog.applyImport', operation: 'importStructureJson' });
     if (!changed) { this.hydrationStatus.markNextActivity('build'); await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
     this.selection.clear();
     this.closed.emit();

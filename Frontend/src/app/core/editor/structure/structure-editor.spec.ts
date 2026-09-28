@@ -7,6 +7,7 @@ import { SelectionService } from '../selection/selection.service';
 import { isSignId, signLines, StructureEditorService } from './structure-editor.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
+import { B5RuntimeDiagnosticsService } from '../input/b5-runtime-diagnostics.service';
 
 function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService } {
   const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const history = new HistoryService(workspace); const library = new BlockLibraryService(active);
@@ -108,6 +109,28 @@ describe('StructureEditorService mutations', () => {
     expect(editor.deleteSelection()).toBe(true); expect(workspace.project()!.blocks).toHaveLength(0);
     expect(history.undo()).toBe(true); expect(workspace.project()!.blocks).toHaveLength(2);
     expect(history.redo()).toBe(true); expect(workspace.project()!.blocks).toHaveLength(0);
+  });
+
+  it('attributes delete and deleteSelection to their exact StructureEditor entry points', () => {
+    const diagnostics = new B5RuntimeDiagnosticsService();
+    const first = makeEditor(project);
+    diagnostics.reset();
+    expect(first.editor.delete({ x: 1, y: 1, z: 1 })).toBe(true);
+    const deleteMutation = diagnostics.snapshot().mutations.at(-1);
+    expect(deleteMutation?.['source']).toBe('StructureEditorService.deletePositions');
+    expect(deleteMutation?.['historyLabel']).toBe('Delete');
+    expect(deleteMutation?.['removedCoordinates']).toEqual(['1,1,1']);
+    expect(diagnostics.snapshot().commandExecutions.some((entry) => entry['source'] === 'StructureEditorService.delete')).toBe(true);
+
+    const second = makeEditor(project);
+    second.selection.select({ x: 1, y: 1, z: 1 });
+    diagnostics.reset();
+    expect(second.editor.deleteSelection()).toBe(true);
+    const selectionMutation = diagnostics.snapshot().mutations.at(-1);
+    expect(selectionMutation?.['source']).toBe('StructureEditorService.deletePositions');
+    expect(selectionMutation?.['historyLabel']).toBe('Delete selection');
+    expect(diagnostics.snapshot().commandExecutions.some((entry) => entry['source'] === 'StructureEditorService.deleteSelection')).toBe(true);
+    expect(diagnostics.snapshot().firstSelectionClearAfterReset?.['source']).toBe('SelectionService.clear');
   });
 
   it('selects every logical structure voxel without changing history', () => {

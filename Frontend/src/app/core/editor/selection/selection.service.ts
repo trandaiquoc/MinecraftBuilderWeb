@@ -4,6 +4,7 @@ import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../../blo
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { VoxelBox, exposedSurfaceSelectionSeeds, voxelInBox } from './selection';
 import type { FaceNormal } from '../placement/placement';
+import { recordB5SelectionClear } from '../input/b5-runtime-diagnostics.service';
 
 export type SelectionKind = 'none' | 'single' | 'explicit' | 'box' | 'all';
 export interface SelectionRenderState {
@@ -62,10 +63,18 @@ export class SelectionService {
     this.allBounds.set(boundsOf(project.blocks));
     this.compactBoxSelection = false; this.boxVisibility = () => true;
   }
-  clear(): void { this.single.set(undefined); this.box.set(undefined); this.logicalPositions.set([]); this.kind.set('none'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
+  clear(): void {
+    const before = this.diagnosticSnapshot();
+    this.clearInternal();
+    recordB5SelectionClear('SelectionService.clear', before, this.diagnosticSnapshot());
+  }
   clearIf(position: VoxelCoordinate): void {
     const selected = this.single();
-    if (this.kind() === 'all' || selected?.x === position.x && selected.y === position.y && selected.z === position.z || this.logicalPositions().some((entry) => entry.x === position.x && entry.y === position.y && entry.z === position.z)) this.clear();
+    if (this.kind() === 'all' || selected?.x === position.x && selected.y === position.y && selected.z === position.z || this.logicalPositions().some((entry) => entry.x === position.x && entry.y === position.y && entry.z === position.z)) {
+      const before = this.diagnosticSnapshot();
+      this.clearInternal();
+      recordB5SelectionClear('SelectionService.clearIf', before, this.diagnosticSnapshot());
+    }
   }
   hasAny(project?: ProjectDocument): boolean {
     const kind = this.kind();
@@ -112,6 +121,8 @@ export class SelectionService {
     const positions = kind === 'all' ? [] : this.logicalPositions();
     return { kind, count: this.count(project), positions, bounds: this.bounds(project) };
   }
+  private diagnosticSnapshot(): Record<string, unknown> { return { kind: this.kind(), single: this.single(), box: this.box(), logicalPositions: this.logicalPositions().slice(0, 256), allBounds: this.allBounds() }; }
+  private clearInternal(): void { this.single.set(undefined); this.box.set(undefined); this.logicalPositions.set([]); this.kind.set('none'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
 }
 
 function boundsOf(blocks: readonly { readonly position: VoxelCoordinate }[]): VoxelBox | undefined {

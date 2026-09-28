@@ -31,7 +31,7 @@ import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
-import { B5RuntimeDiagnosticsService } from '../../../../core/editor/input/b5-runtime-diagnostics.service';
+import { B5RuntimeDiagnosticsService, recordB5Command, recordB5Pointer } from '../../../../core/editor/input/b5-runtime-diagnostics.service';
 
 declare global {
   interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
@@ -131,6 +131,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.pickConsumed = false;
     this.faceDragStart = undefined;
     this.freeSpaceDragStart = undefined;
+    this.recordPointer(event, 'pointerdown', { action, captured: !!(event.currentTarget as HTMLElement | null)?.hasPointerCapture?.(event.pointerId) });
     if (action === 'pick-block') {
       const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, false);
       if (blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!, picked.faceNormal))) this.pickConsumed = true;
@@ -147,6 +148,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   }
   protected pointerUp(event: PointerEvent): void {
     const start = this.pointerStart;
+    const gestureBefore = this.gestureAction;
+    const faceDragBefore = !!this.faceDragStart;
+    const freeSpaceDragBefore = !!this.freeSpaceDragStart;
     this.pointerStart = undefined;
     const gestureAction = this.gestureAction;
     this.gestureAction = undefined;
@@ -156,6 +160,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.faceDragStart = undefined;
     const freeSpaceDragStart = this.freeSpaceDragStart;
     this.freeSpaceDragStart = undefined;
+    this.recordPointer(event, 'pointerup', { gestureActionBefore: gestureBefore, gestureActionAfter: this.gestureAction, pointerStartPresent: !!start, faceDragStartPresent: faceDragBefore, freeSpaceDragStartPresent: freeSpaceDragBefore, click: isPointerClick(start, { x: event.clientX, y: event.clientY }, this.preferences.preferences().controls.clickDragThreshold) });
     if (gestureAction) event.preventDefault();
     this.engine.endEditorPointerGesture();
     this.releasePointer(event);
@@ -189,6 +194,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     }
     if (!click) return;
     const hit = this.engine.hit(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place');
+    this.recordPointer(event, 'pointerup-hit', { gestureAction, hit: { block: hit.block, target: hit.target, faceNormal: hit.faceNormal, placementContext: hit.placementContext } });
     const activeDecoration = this.decorations.active();
     const decorationWins = !!hit.decoration && !blockHitWinsOverDecoration(hit);
     if (hit.decoration && decorationWins && (gestureAction !== 'primary-action' || this.tool.active() === 'select')) {
@@ -209,7 +215,10 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (gestureAction === 'pick-block' && blockHitWinsOverDecoration(hit) && pickAndSelectBlockFromViewportHit(hit, (position) => this.editor.pick(position), (picked) => this.selectPickedBlock(picked.block!, picked.faceNormal))) return;
-    else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
+    else if (gestureAction === 'delete-target' && hit.block) {
+      const before = this.workspace.project(); const selectionBefore = this.b5SelectionSnapshot(); const changed = this.editor.delete(hit.block);
+      recordB5Command({ type: 'pointer-command', source: 'ViewportComponent.pointerUp', operation: 'viewport.delete-target', mode: '3d', timestamp: new Date().toISOString(), target: hit.block, changed, beforeProjectId: before?.id, beforeBlockCount: before?.blocks.length ?? 0, afterBlockCount: this.workspace.project()?.blocks.length ?? 0, selectionBefore, selectionAfter: this.b5SelectionSnapshot() });
+    }
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block) this.selectPickedBlock(hit.block, hit.faceNormal);
     else if (gestureAction === 'primary-action' && this.tool.active() === 'select') this.selection.clear();
     else if (gestureAction === 'primary-action' && this.tool.active() === 'place' && hit.target && status !== 'invalid') this.editor.place(hit.target, hit.placementContext);
@@ -226,10 +235,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected pointerLeave(event: PointerEvent): void {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
+    this.recordPointer(event, 'pointerleave', { captured: false, gestureActionBefore: this.gestureAction, gestureActionAfter: undefined, pointerStartPresent: !!this.pointerStart, faceDragStartPresent: !!this.faceDragStart, freeSpaceDragStartPresent: !!this.freeSpaceDragStart });
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined;
     this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
+    if (event) this.recordPointer(event, event.type === 'lostpointercapture' ? 'lostpointercapture' : 'pointercancel', { gestureActionBefore: this.gestureAction, gestureActionAfter: undefined, pointerStartPresent: !!this.pointerStart, faceDragStartPresent: !!this.faceDragStart, freeSpaceDragStartPresent: !!this.freeSpaceDragStart });
     if (event) this.releasePointer(event);
     this.engine.endEditorPointerGesture();
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined; this.engine.clearInput();
@@ -242,9 +253,11 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   b5InputSnapshot(): unknown { return this.engine.b5InputState(); }
   b5SelectedBlockDiagnostic(position: import('../../../../core/domain/project.types').VoxelCoordinate): unknown { return this.engine.b5SelectedBlockDiagnostic(position); }
   private b5SelectionSnapshot(): unknown { const project = this.workspace.project(); const render = this.selection.renderState(project); return { kind: render.kind, single: this.selection.single(), count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256), projectBlockCount: project?.blocks.length ?? 0, selectedProjectBlock: this.selection.single() ? project?.blocks.find((block) => coordinateKey(block.position) === coordinateKey(this.selection.single()!)) : undefined }; }
+  private recordPointer(event: PointerEvent, phase: string, extra: Record<string, unknown> = {}): void { recordB5Pointer({ phase, timestamp: new Date().toISOString(), eventTimeStamp: event.timeStamp, isTrusted: event.isTrusted, pointerId: event.pointerId, pointerType: event.pointerType, button: event.button, buttons: event.buttons, clientX: event.clientX, clientY: event.clientY, target: eventTargetSummary(event.target), currentTarget: eventTargetSummary(event.currentTarget), gestureAction: this.gestureAction, pointerStart: this.pointerStart, ...extra }); }
 }
 
 function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === 'object' ? value as Record<string, unknown> : { value }; }
+function eventTargetSummary(value: EventTarget | null): Record<string, unknown> | undefined { const element = value instanceof HTMLElement ? value : undefined; return element ? { tag: element.tagName.toLowerCase(), id: element.id || undefined, className: element.className || undefined } : value ? { type: value.constructor?.name ?? 'EventTarget' } : undefined; }
 
 
 function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {
