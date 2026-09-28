@@ -54,7 +54,7 @@ const defaults: UiPreferences = {
   editorMode: '3d',
   appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', fontSize: 'normal', editorBackground: 'dark' },
   accessibility: { blockBrightness: 3 },
-  controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9, clickDragThreshold: 5 },
+  controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,
   mouseBindings: DEFAULT_MOUSE_BINDINGS,
   layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 260, rightSidebarWidth: 230 },

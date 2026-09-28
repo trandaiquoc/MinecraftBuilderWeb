@@ -428,7 +428,7 @@ export class ThreeViewportEngine {
   private renderCount = 0;
   private canvasSize = { width: 0, height: 0 };
   private themeApplied = false;
-  private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 1, cameraMoveSpeed: 9, verticalMoveSpeed: 9 };
+  private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9 };
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
   private readonly instanceBatches = new Map<string, InstanceBatch>();

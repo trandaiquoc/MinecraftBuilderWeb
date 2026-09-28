@@ -14,6 +14,9 @@ describe('UiPreferencesService', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');
     expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
+    expect(preferences.preferences().controls.zoomSensitivity).toBe(2);
+    expect(preferences.preferences().controls.cameraMoveSpeed).toBe(15);
+    expect(preferences.preferences().controls.verticalMoveSpeed).toBe(9);
     preferences.setAppearance({ preset: 'craft', base: 'dark' });
     preferences.setAppearance({ editorBackground: 'light' });
     preferences.setLocale('vi');
@@ -77,6 +80,14 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().appearance.font).toBe('minecraft-style');
     expect(preferences.preferences().controls.orbitSensitivity).toBe(3);
     expect(preferences.preferences().controls.clickDragThreshold).toBe(1);
+  });
+
+  it('keeps saved control values while reset restores the new defaults', () => {
+    localStorage.setItem(key, JSON.stringify({ controls: { zoomSensitivity: 1.4, cameraMoveSpeed: 6, verticalMoveSpeed: 12 } }));
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().controls).toMatchObject({ zoomSensitivity: 1.4, cameraMoveSpeed: 6, verticalMoveSpeed: 12 });
+    preferences.reset();
+    expect(preferences.preferences().controls).toMatchObject({ zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9 });
   });
 
   it('migrates a missing font size to normal without resetting appearance', () => {
