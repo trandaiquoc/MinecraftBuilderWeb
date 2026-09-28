@@ -31,6 +31,7 @@ import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.dir
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { inputDiagnostics } from '../../../../core/editor/input/input-diagnostics';
 
 @Component({ selector: 'app-y-layer', imports: [ThemedSelectComponent, LucideChevronLeft, LucideChevronRight, UiTooltipDirective], templateUrl: './y-layer.component.html', styleUrl: './y-layer.component.scss' })
 export class YLayerComponent implements AfterViewInit, OnDestroy {
@@ -66,7 +67,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly status = signal<PlacementStatus>('invalid');
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
-  private readonly engine = new ThreeViewportEngine();
+  private readonly viewportInstanceId = inputDiagnostics.registerViewport('y-layer');
+  private readonly engine = new ThreeViewportEngine(undefined, { viewportInstanceId: this.viewportInstanceId, mode: 'y-layer' });
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
   private pointerStart?: { x: number; y: number };
@@ -80,7 +82,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); inputDiagnostics.destroyViewport(this.viewportInstanceId); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   focusSelection(): void {
@@ -186,6 +188,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
   cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
   cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
+  inputDiagnosticIdentity(): { readonly viewportInstanceId: string; readonly engineInstanceId: string; readonly mode: 'y-layer' } { return { viewportInstanceId: this.viewportInstanceId, engineInstanceId: this.engine.diagnosticInstanceId, mode: 'y-layer' }; }
 
   private refresh(): void { const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: project.editorSettings.currentY, visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() }); }
 }

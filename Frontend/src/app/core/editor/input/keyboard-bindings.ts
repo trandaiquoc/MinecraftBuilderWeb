@@ -12,6 +12,7 @@ export class MovementKeyOwnership {
   release(owner: string): MovementAction | undefined { const action = this.owners.get(owner); this.owners.delete(owner); return action; }
   hasAction(action: MovementAction): boolean { for (const value of this.owners.values()) if (value === action) return true; return false; }
   actions(): readonly MovementAction[] { return [...new Set(this.owners.values())].sort(); }
+  entries(): readonly { readonly physicalOwner: string; readonly action: MovementAction }[] { return [...this.owners].map(([physicalOwner, action]) => ({ physicalOwner, action })); }
   ownerCount(): number { return this.owners.size; }
   clear(): readonly MovementAction[] { const actions = this.actions(); this.owners.clear(); return actions; }
 }
