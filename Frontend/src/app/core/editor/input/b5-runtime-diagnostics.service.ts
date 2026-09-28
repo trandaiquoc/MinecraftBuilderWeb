@@ -9,6 +9,7 @@ export interface B5DiagnosticSnapshot {
   readonly resetAt: string;
   readonly baseline: B5JsonValue | null;
   readonly context: B5JsonValue | null;
+  readonly rawKeyboardEvents: readonly B5JsonObject[];
   readonly keyboard: readonly B5JsonObject[];
   readonly lifecycle: readonly B5JsonObject[];
   readonly movementFrames: readonly B5JsonObject[];
@@ -19,6 +20,7 @@ export interface B5DiagnosticSnapshot {
   readonly pointerLifecycle: readonly B5JsonObject[];
   readonly unattributedProjectMutations: readonly B5JsonObject[];
   readonly firstBlockRemovalIncident: B5JsonObject | null;
+  readonly firstDeleteSelectionKeyboardIncident: B5JsonObject | null;
   readonly firstSelectionClearAfterReset: B5JsonObject | null;
   readonly lastKeyboardEvent: B5JsonObject | null;
   readonly lastPointerEvent: B5JsonObject | null;
@@ -29,6 +31,7 @@ export interface B5DiagnosticSnapshot {
 /** Silent, bounded runtime evidence for the B5 WASD/selection investigation. */
 @Injectable({ providedIn: 'root' })
 export class B5RuntimeDiagnosticsService {
+  private readonly rawKeyboardEvents: B5JsonObject[] = [];
   private readonly keyboardEvents: B5JsonObject[] = [];
   private readonly lifecycleEvents: B5JsonObject[] = [];
   private readonly movementFrames: B5JsonObject[] = [];
@@ -43,6 +46,7 @@ export class B5RuntimeDiagnosticsService {
   private baseline: B5JsonValue | null = null;
   private context: B5JsonValue | null = null;
   private firstBlockRemovalIncident: B5JsonObject | null = null;
+  private firstDeleteSelectionKeyboardIncident: B5JsonObject | null = null;
   private firstSelectionClearAfterReset: B5JsonObject | null = null;
   private lastKeyboardEvent: B5JsonObject | null = null;
   private lastPointerEvent: B5JsonObject | null = null;
@@ -50,11 +54,16 @@ export class B5RuntimeDiagnosticsService {
   private lastObservedProjectFingerprint: string | undefined;
   private lastRecordedMutationFingerprint: string | undefined;
   private eventSequence = 0;
+  private keyboardEventSequence = 0;
+  private activeKeyboardEventId: string | undefined;
+  private readonly rawKeyboardById = new Map<string, B5JsonObject>();
 
   constructor() { activeDiagnostics = this; }
 
   reset(): B5DiagnosticSnapshot {
     this.keyboardEvents.length = 0;
+    this.rawKeyboardEvents.length = 0;
+    this.rawKeyboardById.clear();
     this.lifecycleEvents.length = 0;
     this.movementFrames.length = 0;
     this.selectedTrace.length = 0;
@@ -64,9 +73,12 @@ export class B5RuntimeDiagnosticsService {
     this.pointerLifecycle.length = 0;
     this.unattributedProjectMutations.length = 0;
     this.firstBlockRemovalIncident = null;
+    this.firstDeleteSelectionKeyboardIncident = null;
     this.firstSelectionClearAfterReset = null;
     this.lastRecordedMutationFingerprint = undefined;
     this.eventSequence = 0;
+    this.keyboardEventSequence = 0;
+    this.activeKeyboardEventId = undefined;
     this.sequence += 1;
     this.resetAt = new Date().toISOString();
     this.baseline = this.context;
@@ -74,6 +86,34 @@ export class B5RuntimeDiagnosticsService {
   }
 
   setContext(value: unknown): void { this.context = jsonSafe(value); }
+  beginKeyboardRouting(value: unknown): string {
+    const keyboardEventId = `keyboard-${++this.keyboardEventSequence}`;
+    const record = { ...asRecord(jsonSafe(value)), keyboardEventId, sequence: ++this.eventSequence };
+    this.rawKeyboardEvents.push(record);
+    this.rawKeyboardById.set(keyboardEventId, record);
+    this.activeKeyboardEventId = keyboardEventId;
+    while (this.rawKeyboardEvents.length > 240) this.rawKeyboardEvents.shift();
+    return keyboardEventId;
+  }
+  resolveKeyboardRouting(keyboardEventId: string, value: unknown): void {
+    const previous = this.rawKeyboardById.get(keyboardEventId);
+    if (!previous) return;
+    const merged = { ...previous, ...asRecord(jsonSafe(value)) };
+    const index = this.rawKeyboardEvents.findIndex((entry) => entry['keyboardEventId'] === keyboardEventId);
+    if (index >= 0) this.rawKeyboardEvents[index] = merged;
+    this.rawKeyboardById.set(keyboardEventId, merged);
+  }
+  endKeyboardRouting(keyboardEventId: string): void { if (this.activeKeyboardEventId === keyboardEventId) this.activeKeyboardEventId = undefined; }
+  completeFirstDeleteSelectionKeyboardIncident(value: unknown): void {
+    if (this.firstDeleteSelectionKeyboardIncident) return;
+    const supplied = asRecord(jsonSafe(value));
+    const keyboardEventId = typeof supplied['keyboardEventId'] === 'string' ? supplied['keyboardEventId'] : undefined;
+    this.firstDeleteSelectionKeyboardIncident = {
+      ...supplied,
+      ...(keyboardEventId ? { rawKeyboardEvent: this.rawKeyboardById.get(keyboardEventId) ?? null } : {}),
+      ...(keyboardEventId ? { mutationSequence: this.mutationSequencesFor(keyboardEventId) } : {}),
+    };
+  }
   recordKeyboard(value: unknown): void {
     const safe = { ...asRecord(jsonSafe(value)), sequence: ++this.eventSequence };
     this.lastKeyboardEvent = safe;
@@ -107,6 +147,7 @@ export class B5RuntimeDiagnosticsService {
     const selectionBefore = this.contextValue('selection');
     const record: B5JsonObject = {
       sequence: ++this.eventSequence, timestamp: new Date().toISOString(), source,
+      ...(this.activeKeyboardEventId ? { keyboardEventId: this.activeKeyboardEventId } : {}),
       ...(details.operation ? { operation: details.operation } : {}),
       ...(label ? { historyLabel: label } : {}),
       projectIdBefore: projectId(beforeProject), projectIdAfter: projectId(afterProject),
@@ -126,6 +167,7 @@ export class B5RuntimeDiagnosticsService {
     if (afterBlockCount < beforeBlockCount && !this.firstBlockRemovalIncident) {
       this.firstBlockRemovalIncident = {
         sequence: ++this.eventSequence, timestamp: record['timestamp'] ?? new Date().toISOString(), mutation: record, selectionBefore, selectionAfter: null,
+          ...(this.activeKeyboardEventId ? { keyboardEventId: this.activeKeyboardEventId } : {}),
         projectCounts: { before: beforeBlockCount, after: afterBlockCount, current: afterBlockCount },
         selection: this.contextValue('selection'), history: this.contextValue('history'), input: this.contextValue('viewport'),
         lastKeyboardEvent: this.lastKeyboardEvent, lastPointerEvent: this.lastPointerEvent, lastCommand: this.lastCommand,
@@ -136,7 +178,7 @@ export class B5RuntimeDiagnosticsService {
   recordCommand(value: unknown): void {
     const safe = asRecord(jsonSafe(value));
     const operation = `${safe['operation'] ?? ''} ${safe['action'] ?? ''} ${safe['label'] ?? ''}`.toLowerCase();
-    const record = { ...safe, sequence: ++this.eventSequence, ...(safe['stack'] === undefined && /(delete|undo|redo|place|move|edit|import)/.test(operation) ? { stack: captureStack() } : {}) };
+    const record = { ...safe, sequence: ++this.eventSequence, ...(this.activeKeyboardEventId && safe['keyboardEventId'] === undefined ? { keyboardEventId: this.activeKeyboardEventId } : {}), ...(safe['stack'] === undefined && /(delete|undo|redo|place|move|edit|import)/.test(operation) ? { stack: captureStack() } : {}) };
     this.lastCommand = record; this.push(this.commandExecutions, record, 120);
   }
   recordPointerLifecycle(value: unknown): void { const safe = { ...asRecord(jsonSafe(value)), sequence: ++this.eventSequence }; this.lastPointerEvent = safe; this.push(this.pointerLifecycle, safe, 240); }
@@ -156,7 +198,7 @@ export class B5RuntimeDiagnosticsService {
       const beforeKeys = fingerprintKeys(previous); const afterKeys = fingerprintKeys(fingerprint); const removedKeys = beforeKeys.filter((key) => !afterKeys.includes(key)); const addedKeys = afterKeys.filter((key) => !beforeKeys.includes(key));
       const record: B5JsonObject = { sequence: ++this.eventSequence, timestamp: new Date().toISOString(), source: 'unattributed.project.signal', operation: source, beforeBlockCount: blockCountFromFingerprint(previous), afterBlockCount: blockCountFromFingerprint(fingerprint), removedKeys, addedKeys, beforeFingerprint: previous, afterFingerprint: fingerprint, stack: captureStack(), context: this.context, lastKeyboardEvent: this.lastKeyboardEvent, lastPointerEvent: this.lastPointerEvent, lastCommand: this.lastCommand };
       this.push(this.unattributedProjectMutations, record, 120);
-      if (!this.firstBlockRemovalIncident) this.firstBlockRemovalIncident = { sequence: ++this.eventSequence, timestamp: record['timestamp'], mutation: record, selectionBefore: this.contextValue('selection'), selectionAfter: null, projectCounts: { before: record['beforeBlockCount'], after: record['afterBlockCount'], current: record['afterBlockCount'] }, selection: this.contextValue('selection'), history: this.contextValue('history'), input: this.contextValue('viewport'), lastKeyboardEvent: this.lastKeyboardEvent, lastPointerEvent: this.lastPointerEvent, lastCommand: this.lastCommand };
+      if (!this.firstBlockRemovalIncident) this.firstBlockRemovalIncident = { sequence: ++this.eventSequence, timestamp: record['timestamp'], mutation: record, ...(this.activeKeyboardEventId ? { keyboardEventId: this.activeKeyboardEventId } : {}), selectionBefore: this.contextValue('selection'), selectionAfter: null, projectCounts: { before: record['beforeBlockCount'], after: record['afterBlockCount'], current: record['afterBlockCount'] }, selection: this.contextValue('selection'), history: this.contextValue('history'), input: this.contextValue('viewport'), lastKeyboardEvent: this.lastKeyboardEvent, lastPointerEvent: this.lastPointerEvent, lastCommand: this.lastCommand };
     }
   }
 
@@ -164,6 +206,7 @@ export class B5RuntimeDiagnosticsService {
     return {
       version: 'B5', sequence: this.sequence, resetAt: this.resetAt,
       baseline: this.baseline, context: this.context,
+      rawKeyboardEvents: this.rawKeyboardEvents.map((entry) => ({ ...entry })),
       keyboard: this.keyboardEvents.map((entry) => ({ ...entry })),
       lifecycle: this.lifecycleEvents.map((entry) => ({ ...entry })),
       movementFrames: this.movementFrames.map((entry) => ({ ...entry })),
@@ -174,6 +217,7 @@ export class B5RuntimeDiagnosticsService {
       pointerLifecycle: this.pointerLifecycle.map((entry) => ({ ...entry })),
       unattributedProjectMutations: this.unattributedProjectMutations.map((entry) => ({ ...entry })),
       firstBlockRemovalIncident: this.firstBlockRemovalIncident ? { ...this.firstBlockRemovalIncident } : null,
+      firstDeleteSelectionKeyboardIncident: this.firstDeleteSelectionKeyboardIncident ? { ...this.firstDeleteSelectionKeyboardIncident } : null,
       firstSelectionClearAfterReset: this.firstSelectionClearAfterReset ? { ...this.firstSelectionClearAfterReset } : null,
       lastKeyboardEvent: this.lastKeyboardEvent ? { ...this.lastKeyboardEvent } : null,
       lastPointerEvent: this.lastPointerEvent ? { ...this.lastPointerEvent } : null,
@@ -203,6 +247,9 @@ export class B5RuntimeDiagnosticsService {
     while (target.length > limit) target.shift();
   }
   private contextValue(key: string): B5JsonValue | null { return isObject(this.context) ? this.context[key] ?? null : null; }
+  private mutationSequencesFor(keyboardEventId: string): number[] {
+    return this.mutations.filter((entry) => entry['keyboardEventId'] === keyboardEventId).map((entry) => entry['sequence']).filter((sequence): sequence is number => typeof sequence === 'number');
+  }
 }
 
 let activeDiagnostics: B5RuntimeDiagnosticsService | undefined;

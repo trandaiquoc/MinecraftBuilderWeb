@@ -96,10 +96,16 @@ export function keyboardActionForEvent(event: { readonly key: string; readonly c
   if (isEditableKeyboardTarget(event.target)) return undefined;
   const binding = bindingFromKeyboardEvent(event);
   if (!binding) return undefined;
+  return matchingKeyboardActions(binding, bindings)[0];
+}
+
+/** Returns configured actions using the exact alias/matching rules used by the resolver. */
+export function matchingKeyboardActions(binding: string | undefined, bindings: Readonly<Record<KeyboardAction, string>>): readonly KeyboardAction[] {
+  if (!binding) return [];
   const aliases = [binding];
   if (binding.startsWith('Meta+')) aliases.push(`Ctrl+${binding.slice(5)}`);
   if (binding.startsWith('Ctrl+')) aliases.push(`Meta+${binding.slice(5)}`);
-  return KEYBOARD_ACTIONS.find(({ action }) => bindings[action].split('|').some((configured) => aliases.includes(configured)))?.action;
+  return KEYBOARD_ACTIONS.filter(({ action }) => bindings[action].split('|').some((configured) => aliases.includes(configured))).map(({ action }) => action);
 }
 
 export function findBindingConflicts(bindings: Readonly<Record<KeyboardAction, string>>): readonly KeyboardAction[][] {

@@ -98,4 +98,28 @@ describe('B5 runtime diagnostics', () => {
     expect(diagnostics.snapshot().unattributedProjectMutations).toHaveLength(1);
     expect(diagnostics.snapshot().firstBlockRemovalIncident?.['mutation']).toBeTruthy();
   });
+
+  it('correlates one raw delete keydown with its first delete incident and resets it', () => {
+    const diagnostics = new B5RuntimeDiagnosticsService();
+    const before = { id: 'keyboard-forensics', blocks: [{ id: 'minecraft:stone', position: { x: 0, y: 0, z: 0 } }] };
+    const after = { id: 'keyboard-forensics', blocks: [] };
+    diagnostics.setContext({ mode: '3d', tool: 'select', shellActions: [], engineActions: [], selection: { kind: 'single' }, projectBlockCount: 1 });
+    const id = diagnostics.beginKeyboardRouting({ key: 'Delete', code: 'Delete', repeat: false, normalizedBinding: 'Delete', shellInstanceId: 'shell-1', componentCreatedAt: 'now', defaultPreventedBefore: false });
+    diagnostics.resolveKeyboardRouting(id, { resolvedAction: 'delete-selection', matchingConfiguredBindings: ['delete-selection'], eventAfterResolution: { key: 'Delete', code: 'Delete', repeat: false } });
+    diagnostics.recordMutation('history.execute', 'Delete selection', before, after, { operation: 'execute' });
+    diagnostics.recordCommand({ type: 'keyboard-command', action: 'delete-selection' });
+    diagnostics.completeFirstDeleteSelectionKeyboardIncident({ keyboardEventId: id, normalizedBinding: 'Delete', resolvedAction: 'delete-selection', resolutionStack: 'stack', projectBlockCountBefore: 1, projectBlockCountAfter: 0, resultingHistoryLabel: 'Delete selection' });
+    diagnostics.endKeyboardRouting(id);
+    const incident = diagnostics.snapshot().firstDeleteSelectionKeyboardIncident;
+    expect(diagnostics.snapshot().rawKeyboardEvents).toHaveLength(1);
+    expect(diagnostics.snapshot().rawKeyboardEvents[0]['keyboardEventId']).toBe(id);
+    expect(incident?.['keyboardEventId']).toBe(id);
+    expect((incident?.['rawKeyboardEvent'] as B5JsonObject)['key']).toBe('Delete');
+    expect(incident?.['mutationSequence']).toHaveLength(1);
+    diagnostics.completeFirstDeleteSelectionKeyboardIncident({ keyboardEventId: id, resolvedAction: 'delete-selection', resolutionStack: 'second' });
+    expect(diagnostics.snapshot().firstDeleteSelectionKeyboardIncident?.['resolutionStack']).toBe('stack');
+    diagnostics.reset();
+    expect(diagnostics.snapshot().rawKeyboardEvents).toHaveLength(0);
+    expect(diagnostics.snapshot().firstDeleteSelectionKeyboardIncident).toBeNull();
+  });
 });

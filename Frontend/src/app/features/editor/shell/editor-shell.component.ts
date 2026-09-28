@@ -16,7 +16,7 @@ import { GroupService } from '../../../core/editor/groups/group.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
-import { bindingFromKeyboardEvent, isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, MovementAction, movementPhysicalKey, MovementKeyOwnership } from '../../../core/editor/input/keyboard-bindings';
+import { bindingFromKeyboardEvent, isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, matchingKeyboardActions, MovementAction, movementPhysicalKey, MovementKeyOwnership } from '../../../core/editor/input/keyboard-bindings';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -48,8 +48,14 @@ export function hasEditorSelectionState(decorationSelected: boolean, logicalCoun
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
+const b5RelevantKeyboardActions: readonly KeyboardAction[] = ['move-forward', 'move-backward', 'move-left', 'move-right', 'move-up', 'move-down', 'delete-selection', 'select-all', 'clear-selection', 'undo', 'redo', 'save-project'];
+let nextB5ShellInstanceId = 0;
+const liveB5ShellInstances = new Set<string>();
+
 @Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
+  private readonly b5ShellInstanceId = `shell-${++nextB5ShellInstanceId}`;
+  private readonly b5ComponentCreatedAt = new Date().toISOString();
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
   protected readonly workspace = inject(WorkspaceStateService);
@@ -126,6 +132,7 @@ export class EditorShellComponent implements OnDestroy {
   private readonly pressedMovementActions = new MovementKeyOwnership();
 
   constructor() {
+    liveB5ShellInstances.add(this.b5ShellInstanceId);
     if (isDevMode() && typeof window !== 'undefined') {
       window.__mbB5Diagnostics = () => { this.b5State(); return this.b5.snapshot(); };
       window.__mbB5Reset = () => { this.b5State(); return this.b5.reset(); };
@@ -140,7 +147,7 @@ export class EditorShellComponent implements OnDestroy {
     });
     effect(() => { this.b5.observeProject(this.workspace.project(), 'workspace.project.signal'); });
   }
-  ngOnDestroy(): void { this.b5.recordLifecycle({ type: 'shell.destroy', timestamp: new Date().toISOString(), before: this.b5State() }); this.clearPressedMovementActions('shell.destroy'); if (isDevMode() && typeof window !== 'undefined') { if (window.__mbB5Diagnostics) delete window.__mbB5Diagnostics; if (window.__mbB5Reset) delete window.__mbB5Reset; } void this.autosave.flush().catch(() => undefined); }
+  ngOnDestroy(): void { this.b5.recordLifecycle({ type: 'shell.destroy', timestamp: new Date().toISOString(), before: this.b5State() }); this.clearPressedMovementActions('shell.destroy'); liveB5ShellInstances.delete(this.b5ShellInstanceId); if (isDevMode() && typeof window !== 'undefined') { if (window.__mbB5Diagnostics) delete window.__mbB5Diagnostics; if (window.__mbB5Reset) delete window.__mbB5Reset; } void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
@@ -365,33 +372,64 @@ export class EditorShellComponent implements OnDestroy {
     return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
-    if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen()) return;
-    if (event.key === 'Escape') {
-      if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
-      this.closeMenus(); return;
-    }
     const before = this.b5State();
-    const action = this.keyboard.actionForEvent(event); if (!action) { if (event.repeat || isMovementKey(event)) this.recordB5Keyboard(event, undefined, before, this.b5State()); return; }
-    if (isMovementAction(action)) {
-      const owner = movementPhysicalKey(event);
-      const previous = this.pressedMovementActions.actionFor(owner);
-      if (previous === action) {
-        this.recordB5Keyboard(event, action, before, this.b5State());
+    const normalizedBinding = bindingFromKeyboardEvent(event);
+    const keyboardEventId = this.b5.beginKeyboardRouting({
+      timestamp: new Date().toISOString(), performanceTimeStamp: typeof performance !== 'undefined' ? performance.now() : undefined, eventTimeStamp: event.timeStamp,
+      isTrusted: event.isTrusted, type: event.type, key: event.key, code: event.code, location: event.location, repeat: event.repeat, isComposing: event.isComposing,
+      ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey, target: eventTargetSummary(event.target), currentTarget: eventTargetSummary(event.currentTarget),
+      activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, defaultPreventedBefore: event.defaultPrevented,
+      normalizedBinding, shellInstanceId: this.b5ShellInstanceId, componentCreatedAt: this.b5ComponentCreatedAt, liveShellInstanceIds: [...liveB5ShellInstances], liveShellInstanceCount: liveB5ShellInstances.size,
+      before,
+      relevantConfiguredBindings: this.relevantKeyboardBindings(),
+    });
+    const eventBeforeRouting = keyboardEventState(event);
+    let firstDeleteIncident: unknown;
+    try {
+      if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen()) {
+        this.b5.resolveKeyboardRouting(keyboardEventId, { resolvedAction: undefined, routeOwner: 'blocked-modal', eventBeforeRouting });
+        return;
+      }
+      const configuredBindings = this.keyboard.bindings();
+      const action = this.keyboard.actionForEvent(event);
+      const matchingConfiguredBindings = matchingKeyboardActions(normalizedBinding, configuredBindings);
+      const resolverMismatch = !!action && !matchingConfiguredBindings.includes(action);
+      this.b5.resolveKeyboardRouting(keyboardEventId, {
+        normalizedBinding, resolvedAction: action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, matchingConfiguredBindings, resolvedConfiguredBinding: action ? configuredBindings[action] : undefined,
+        expectedMatchingActions: matchingConfiguredBindings, resolverMismatch, actionResolverResult: { normalizedBinding, resolvedAction: action, matchingConfiguredBindings, resolverMismatch }, eventBeforeRouting, eventAfterResolution: keyboardEventState(event),
+      });
+      if (event.key === 'Escape') {
+        if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
+        this.closeMenus(); return;
+      }
+      if (!action) { if (event.repeat || isMovementKey(event)) this.recordB5Keyboard(event, undefined, before, this.b5State(), keyboardEventId, normalizedBinding); return; }
+      if (isMovementAction(action)) {
+        const owner = movementPhysicalKey(event);
+        const previous = this.pressedMovementActions.actionFor(owner);
+        if (previous === action) {
+          this.recordB5Keyboard(event, action, before, this.b5State(), keyboardEventId, normalizedBinding);
+          event.preventDefault();
+          return;
+        }
+        if (previous) this.releaseMovementOwner(owner, previous);
+        const hadActionOwner = this.pressedMovementActions.hasAction(action);
+        this.pressedMovementActions.press(owner, action);
+        if (!hadActionOwner) this.currentViewport()?.cameraKeyDown(action);
+        this.traceKeyboardRoute(event, action);
+        this.recordB5Keyboard(event, action, before, this.b5State(), keyboardEventId, normalizedBinding);
         event.preventDefault();
         return;
       }
-      if (previous) this.releaseMovementOwner(owner, previous);
-      const hadActionOwner = this.pressedMovementActions.hasAction(action);
-      this.pressedMovementActions.press(owner, action);
-      if (!hadActionOwner) this.currentViewport()?.cameraKeyDown(action);
-      this.traceKeyboardRoute(event, action);
-      this.recordB5Keyboard(event, action, before, this.b5State());
-      event.preventDefault();
-      return;
+      const resolutionStack = action === 'delete-selection' ? captureKeyboardStack() : undefined;
+      this.traceKeyboardRoute(event, action, action === 'delete-selection' ? 'Delete selection' : undefined);
+      const handled = this.executeKeyboardAction(action, keyboardEventId);
+      if (handled) event.preventDefault();
+      if (action === 'delete-selection') firstDeleteIncident = { keyboardEventId, normalizedBinding, resolvedAction: action, actionResolverResult: { normalizedBinding, resolvedAction: action, matchingConfiguredBindings, resolverMismatch }, relevantConfiguredBindings: this.relevantKeyboardBindings(configuredBindings), matchingConfiguredBindings, shellActionsBefore: stateField(before, 'shellActions'), engineActionsBefore: stateField(before, 'engineActions'), shellActionsAfter: stateField(this.b5State(), 'shellActions'), engineActionsAfter: stateField(this.b5State(), 'engineActions'), currentTool: this.tool.active(), currentMode: this.mode.mode(), selectionBefore: stateField(before, 'selection'), projectBlockCountBefore: stateField(before, 'projectBlockCount'), selectionAfter: stateField(this.b5State(), 'selection'), projectBlockCountAfter: this.workspace.project()?.blocks.length ?? 0, resultingHistoryLabel: this.history.lastLabel(), resolutionStack, handled };
+    } finally {
+      this.b5.resolveKeyboardRouting(keyboardEventId, { eventAfterRouting: keyboardEventState(event), defaultPreventedAfter: event.defaultPrevented, eventMutatedDuringRouting: !sameKeyboardEventState(eventBeforeRouting, keyboardEventState(event)) });
+      if (firstDeleteIncident) this.b5.completeFirstDeleteSelectionKeyboardIncident(firstDeleteIncident);
+      this.b5.endKeyboardRouting(keyboardEventId);
     }
-    this.traceKeyboardRoute(event, action, action === 'delete-selection' ? 'Delete selection' : undefined);
-    const handled = this.executeKeyboardAction(action);
-    if (handled) event.preventDefault();
   }
 
   protected handleEditorKeyup(event: KeyboardEvent): void {
@@ -418,8 +456,12 @@ export class EditorShellComponent implements OnDestroy {
 
   private releaseMovementOwner(owner: string, action: MovementAction): void { this.pressedMovementActions.release(owner); if (!this.pressedMovementActions.hasAction(action)) this.currentViewport()?.cameraKeyUp(action); }
 
-  private recordB5Keyboard(event: KeyboardEvent, action: KeyboardAction | undefined, before: unknown, after: unknown): void {
-    this.b5.recordKeyboard({ type: event.type, timestamp: new Date().toISOString(), eventTimeStamp: event.timeStamp, isTrusted: event.isTrusted, location: event.location, key: event.key, code: event.code, ownerKey: movementPhysicalKey(event), repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
+  private recordB5Keyboard(event: KeyboardEvent, action: KeyboardAction | undefined, before: unknown, after: unknown, keyboardEventId?: string, normalizedBinding?: string): void {
+    this.b5.recordKeyboard({ keyboardEventId, type: event.type, timestamp: new Date().toISOString(), eventTimeStamp: event.timeStamp, isTrusted: event.isTrusted, location: event.location, key: event.key, code: event.code, ownerKey: movementPhysicalKey(event), repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), currentTarget: eventTargetSummary(event.currentTarget), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: normalizedBinding ?? bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
+  }
+
+  private relevantKeyboardBindings(bindings = this.keyboard.bindings()): Record<string, string> {
+    return Object.fromEntries(b5RelevantKeyboardActions.map((action) => [action, bindings[action]]));
   }
 
   private b5State(): unknown {
@@ -437,7 +479,7 @@ export class EditorShellComponent implements OnDestroy {
     if (isDevMode()) console.debug('[MinecraftBuilder][keyboard route]', keyboardRouteTrace(event, action, mutation));
   }
 
-  private executeKeyboardAction(action: KeyboardAction): boolean {
+  private executeKeyboardAction(action: KeyboardAction, _keyboardEventId?: string): boolean {
     const before = this.b5State();
     let handled = false;
     if (action === 'undo') handled = this.history.undo();
@@ -482,8 +524,19 @@ export class EditorShellComponent implements OnDestroy {
 }
 
 function isMovementKey(event: KeyboardEvent): boolean { return ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'].includes(event.code); }
+function keyboardEventState(event: KeyboardEvent): Record<string, unknown> {
+  return { key: event.key, code: event.code, repeat: event.repeat, ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey };
+}
+function sameKeyboardEventState(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+function stateField(value: unknown, key: string): unknown {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>)[key] : undefined;
+}
+function captureKeyboardStack(): string { return new Error().stack?.split('\n').slice(2, 22).join('\n') ?? ''; }
 function eventTargetSummary(target: EventTarget | null): unknown {
   const element = target as HTMLElement | null;
   if (!element) return null;
+  if (typeof element.getAttribute !== 'function') return { nodeName: (target as Node | null)?.nodeName ?? undefined };
   return { tagName: element.tagName, id: element.id || undefined, contentEditable: element.isContentEditable || element.contentEditable === 'true', editable: isEditableKeyboardTarget(target), role: element.getAttribute('role') || undefined };
 }

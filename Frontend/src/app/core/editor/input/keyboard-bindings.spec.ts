@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_KEYBINDINGS, MovementKeyOwnership, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, keyboardRouteOwner, keyboardRouteTrace, movementPhysicalKey, normalizeBinding, normalizeBindings } from './keyboard-bindings';
+import { DEFAULT_KEYBINDINGS, MovementKeyOwnership, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, keyboardRouteOwner, keyboardRouteTrace, matchingKeyboardActions, movementPhysicalKey, normalizeBinding, normalizeBindings } from './keyboard-bindings';
 
 describe('keyboard binding model', () => {
   it('normalizes modifier order and supports up to three tokens', () => {
@@ -28,6 +28,20 @@ describe('keyboard binding model', () => {
     expect(isMovementAction('delete-selection')).toBe(false);
     expect(keyboardActionForEvent({ key: 'a', code: '', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('move-left');
     expect(keyboardActionForEvent({ key: 'a', code: '', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('select-all');
+  });
+
+  it('keeps movement resolution stable for repeated and missing-code WASD events', () => {
+    for (const [key, code, action] of [['a', 'KeyA', 'move-left'], ['d', 'KeyD', 'move-right'], ['s', 'KeyS', 'move-backward']] as const) {
+      for (const repeat of [false, true]) {
+        const codedEvent = { key, code, repeat, target: null };
+        const missingCodeEvent = { key, code: '', repeat, target: null };
+        expect(keyboardActionForEvent(codedEvent, DEFAULT_KEYBINDINGS)).toBe(action);
+        expect(keyboardActionForEvent(missingCodeEvent, DEFAULT_KEYBINDINGS)).toBe(action);
+      }
+    }
+    expect(keyboardActionForEvent({ key: 'Delete', code: 'Delete', target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
+    expect(keyboardActionForEvent({ key: 'Backspace', code: 'Backspace', target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
+    expect(matchingKeyboardActions('A', DEFAULT_KEYBINDINGS)).toEqual(['move-left']);
   });
 
   it('routes each resolved action to exactly one owner and exposes a compact trace', () => {
