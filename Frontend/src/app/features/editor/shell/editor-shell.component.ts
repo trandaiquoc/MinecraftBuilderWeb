@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, computed, effect, inject, isDevMode, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
@@ -16,7 +16,7 @@ import { GroupService } from '../../../core/editor/groups/group.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
-import { bindingFromKeyboardEvent, isEditableKeyboardTarget, isMovementAction, KeyboardAction, keyboardRouteTrace, matchingKeyboardActions, MovementAction, movementPhysicalKey, MovementKeyOwnership } from '../../../core/editor/input/keyboard-bindings';
+import { isEditableKeyboardTarget, isMovementAction, KeyboardAction, MovementAction, movementPhysicalKey, MovementKeyOwnership, shouldSuppressEditorActionDuringMovement } from '../../../core/editor/input/keyboard-bindings';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -42,20 +42,13 @@ import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-asset
 import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
-import { B5RuntimeDiagnosticsService, recordB5Command } from '../../../core/editor/input/b5-runtime-diagnostics.service';
 
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-const b5RelevantKeyboardActions: readonly KeyboardAction[] = ['move-forward', 'move-backward', 'move-left', 'move-right', 'move-up', 'move-down', 'delete-selection', 'select-all', 'clear-selection', 'undo', 'redo', 'save-project'];
-let nextB5ShellInstanceId = 0;
-const liveB5ShellInstances = new Set<string>();
-
 @Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
-  private readonly b5ShellInstanceId = `shell-${++nextB5ShellInstanceId}`;
-  private readonly b5ComponentCreatedAt = new Date().toISOString();
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
   protected readonly workspace = inject(WorkspaceStateService);
@@ -77,7 +70,6 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly importCoordinator = new ProjectPackageImportService(this.persistence);
   protected readonly importState = this.importCoordinator.state;
   private readonly library = inject(BlockLibraryService);
-  private readonly b5 = inject(B5RuntimeDiagnosticsService);
   private readonly session = inject(EditorSessionService);
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
@@ -132,11 +124,6 @@ export class EditorShellComponent implements OnDestroy {
   private readonly pressedMovementActions = new MovementKeyOwnership();
 
   constructor() {
-    liveB5ShellInstances.add(this.b5ShellInstanceId);
-    if (isDevMode() && typeof window !== 'undefined') {
-      window.__mbB5Diagnostics = () => { this.b5State(); return this.b5.snapshot(); };
-      window.__mbB5Reset = () => { this.b5State(); return this.b5.reset(); };
-    }
     void this.workspace.restore(new IndexedDbProjectStore());
     effect(() => {
       const activeGroupId = this.groups.activeGroupId();
@@ -145,9 +132,8 @@ export class EditorShellComponent implements OnDestroy {
       this.groups.resetMove();
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
-    effect(() => { this.b5.observeProject(this.workspace.project(), 'workspace.project.signal'); });
   }
-  ngOnDestroy(): void { this.b5.recordLifecycle({ type: 'shell.destroy', timestamp: new Date().toISOString(), before: this.b5State() }); this.clearPressedMovementActions('shell.destroy'); liveB5ShellInstances.delete(this.b5ShellInstanceId); if (isDevMode() && typeof window !== 'undefined') { if (window.__mbB5Diagnostics) delete window.__mbB5Diagnostics; if (window.__mbB5Reset) delete window.__mbB5Reset; } void this.autosave.flush().catch(() => undefined); }
+  ngOnDestroy(): void { this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
@@ -372,131 +358,72 @@ export class EditorShellComponent implements OnDestroy {
     return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
-    const before = this.b5State();
-    const normalizedBinding = bindingFromKeyboardEvent(event);
-    const keyboardEventId = this.b5.beginKeyboardRouting({
-      timestamp: new Date().toISOString(), performanceTimeStamp: typeof performance !== 'undefined' ? performance.now() : undefined, eventTimeStamp: event.timeStamp,
-      isTrusted: event.isTrusted, type: event.type, key: event.key, code: event.code, location: event.location, repeat: event.repeat, isComposing: event.isComposing,
-      ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey, target: eventTargetSummary(event.target), currentTarget: eventTargetSummary(event.currentTarget),
-      activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, defaultPreventedBefore: event.defaultPrevented,
-      normalizedBinding, shellInstanceId: this.b5ShellInstanceId, componentCreatedAt: this.b5ComponentCreatedAt, liveShellInstanceIds: [...liveB5ShellInstances], liveShellInstanceCount: liveB5ShellInstances.size,
-      before,
-      relevantConfiguredBindings: this.relevantKeyboardBindings(),
-    });
-    const eventBeforeRouting = keyboardEventState(event);
-    let firstDeleteIncident: unknown;
-    try {
-      if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen()) {
-        this.b5.resolveKeyboardRouting(keyboardEventId, { resolvedAction: undefined, routeOwner: 'blocked-modal', eventBeforeRouting });
-        return;
-      }
-      const configuredBindings = this.keyboard.bindings();
-      const action = this.keyboard.actionForEvent(event);
-      const matchingConfiguredBindings = matchingKeyboardActions(normalizedBinding, configuredBindings);
-      const resolverMismatch = !!action && !matchingConfiguredBindings.includes(action);
-      this.b5.resolveKeyboardRouting(keyboardEventId, {
-        normalizedBinding, resolvedAction: action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, matchingConfiguredBindings, resolvedConfiguredBinding: action ? configuredBindings[action] : undefined,
-        expectedMatchingActions: matchingConfiguredBindings, resolverMismatch, actionResolverResult: { normalizedBinding, resolvedAction: action, matchingConfiguredBindings, resolverMismatch }, eventBeforeRouting, eventAfterResolution: keyboardEventState(event),
-      });
-      if (event.key === 'Escape') {
-        if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
-        this.closeMenus(); return;
-      }
-      if (!action) { if (event.repeat || isMovementKey(event)) this.recordB5Keyboard(event, undefined, before, this.b5State(), keyboardEventId, normalizedBinding); return; }
-      if (isMovementAction(action)) {
-        const owner = movementPhysicalKey(event);
-        const previous = this.pressedMovementActions.actionFor(owner);
-        if (previous === action) {
-          this.recordB5Keyboard(event, action, before, this.b5State(), keyboardEventId, normalizedBinding);
-          event.preventDefault();
-          return;
-        }
-        if (previous) this.releaseMovementOwner(owner, previous);
-        const hadActionOwner = this.pressedMovementActions.hasAction(action);
-        this.pressedMovementActions.press(owner, action);
-        if (!hadActionOwner) this.currentViewport()?.cameraKeyDown(action);
-        this.traceKeyboardRoute(event, action);
-        this.recordB5Keyboard(event, action, before, this.b5State(), keyboardEventId, normalizedBinding);
+    if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen()) return;
+    if (event.key === 'Escape') {
+      if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
+      this.closeMenus(); return;
+    }
+    const action = this.keyboard.actionForEvent(event); if (!action) return;
+    if (isMovementAction(action)) {
+      const owner = movementPhysicalKey(event);
+      const previous = this.pressedMovementActions.actionFor(owner);
+      if (previous === action) {
         event.preventDefault();
         return;
       }
-      const resolutionStack = action === 'delete-selection' ? captureKeyboardStack() : undefined;
-      this.traceKeyboardRoute(event, action, action === 'delete-selection' ? 'Delete selection' : undefined);
-      const handled = this.executeKeyboardAction(action, keyboardEventId);
-      if (handled) event.preventDefault();
-      if (action === 'delete-selection') firstDeleteIncident = { keyboardEventId, normalizedBinding, resolvedAction: action, actionResolverResult: { normalizedBinding, resolvedAction: action, matchingConfiguredBindings, resolverMismatch }, relevantConfiguredBindings: this.relevantKeyboardBindings(configuredBindings), matchingConfiguredBindings, shellActionsBefore: stateField(before, 'shellActions'), engineActionsBefore: stateField(before, 'engineActions'), shellActionsAfter: stateField(this.b5State(), 'shellActions'), engineActionsAfter: stateField(this.b5State(), 'engineActions'), currentTool: this.tool.active(), currentMode: this.mode.mode(), selectionBefore: stateField(before, 'selection'), projectBlockCountBefore: stateField(before, 'projectBlockCount'), selectionAfter: stateField(this.b5State(), 'selection'), projectBlockCountAfter: this.workspace.project()?.blocks.length ?? 0, resultingHistoryLabel: this.history.lastLabel(), resolutionStack, handled };
-    } finally {
-      this.b5.resolveKeyboardRouting(keyboardEventId, { eventAfterRouting: keyboardEventState(event), defaultPreventedAfter: event.defaultPrevented, eventMutatedDuringRouting: !sameKeyboardEventState(eventBeforeRouting, keyboardEventState(event)) });
-      if (firstDeleteIncident) this.b5.completeFirstDeleteSelectionKeyboardIncident(firstDeleteIncident);
-      this.b5.endKeyboardRouting(keyboardEventId);
+      if (previous) this.releaseMovementOwner(owner, previous);
+      const hadActionOwner = this.pressedMovementActions.hasAction(action);
+      this.pressedMovementActions.press(owner, action);
+      if (!hadActionOwner) this.currentViewport()?.cameraKeyDown(action);
+      event.preventDefault();
+      return;
     }
+    if (shouldSuppressEditorActionDuringMovement(action, this.pressedMovementActions)) {
+      event.preventDefault();
+      return;
+    }
+    const handled = this.executeKeyboardAction(action);
+    if (handled) event.preventDefault();
   }
 
   protected handleEditorKeyup(event: KeyboardEvent): void {
-    const before = this.b5State();
     const key = movementPhysicalKey(event);
     const action = this.pressedMovementActions.actionFor(key);
-    if (action) {
-      this.releaseMovementOwner(key, action);
-      if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
-    }
-    if (action || isMovementKey(event)) this.recordB5Keyboard(event, action, before, this.b5State());
+    if (!action) return;
+    this.releaseMovementOwner(key, action);
+    if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
   }
 
-  protected handleFocusIn(event: FocusEvent): void { this.b5.recordLifecycle({ type: 'document.focusin', timestamp: new Date().toISOString(), target: eventTargetSummary(event.target), before: this.b5State() }); this.clearPressedMovementActions('focusin'); }
-  protected handleVisibilityChange(event: Event): void { this.b5.recordLifecycle({ type: 'document.visibilitychange', timestamp: new Date().toISOString(), hidden: typeof document !== 'undefined' && document.hidden, before: this.b5State() }); this.clearPressedMovementActions('visibilitychange'); }
-  protected handleWindowBlur(event: Event): void { this.b5.recordLifecycle({ type: 'window.blur', timestamp: new Date().toISOString(), before: this.b5State() }); this.clearPressedMovementActions('window.blur'); }
+  protected handleFocusIn(_event?: FocusEvent): void { this.clearPressedMovementActions(); }
+  protected handleVisibilityChange(_event?: Event): void { this.clearPressedMovementActions(); }
+  protected handleWindowBlur(_event?: FocusEvent): void { this.clearPressedMovementActions(); }
 
-  protected clearPressedMovementActions(reason = 'clearPressedMovementActions'): void {
-    const before = this.b5State();
+  protected clearPressedMovementActions(): void {
     const viewport = this.currentViewport();
     for (const action of this.pressedMovementActions.clear()) viewport?.cameraKeyUp(action);
-    this.b5.recordLifecycle({ type: 'shell.clearPressedMovementActions', reason, timestamp: new Date().toISOString(), before, after: this.b5State() });
   }
 
   private releaseMovementOwner(owner: string, action: MovementAction): void { this.pressedMovementActions.release(owner); if (!this.pressedMovementActions.hasAction(action)) this.currentViewport()?.cameraKeyUp(action); }
 
-  private recordB5Keyboard(event: KeyboardEvent, action: KeyboardAction | undefined, before: unknown, after: unknown, keyboardEventId?: string, normalizedBinding?: string): void {
-    this.b5.recordKeyboard({ keyboardEventId, type: event.type, timestamp: new Date().toISOString(), eventTimeStamp: event.timeStamp, isTrusted: event.isTrusted, location: event.location, key: event.key, code: event.code, ownerKey: movementPhysicalKey(event), repeat: event.repeat, modifiers: { ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey }, target: eventTargetSummary(event.target), currentTarget: eventTargetSummary(event.currentTarget), activeElement: typeof document !== 'undefined' ? eventTargetSummary(document.activeElement) : undefined, normalizedBinding: normalizedBinding ?? bindingFromKeyboardEvent(event), action, routeOwner: action && isMovementAction(action) ? 'camera' : action ? 'editor' : undefined, mode: this.mode.mode(), before, after });
-  }
-
-  private relevantKeyboardBindings(bindings = this.keyboard.bindings()): Record<string, string> {
-    return Object.fromEntries(b5RelevantKeyboardActions.map((action) => [action, bindings[action]]));
-  }
-
-  private b5State(): unknown {
-    const viewport = this.currentViewport() as (ViewportComponent | YLayerComponent | undefined);
-    const project = this.workspace.project();
-    const render = this.selection.renderState(project);
-    const shellActions = this.pressedMovementActions.actions();
-    const engine = viewport?.b5InputSnapshot?.() as { readonly pressedActions?: readonly string[] } | undefined;
-    const context = { mode: this.mode.mode(), tool: this.tool.active(), shellActions, engineActions: [...(engine?.pressedActions ?? [])].sort(), viewport: engine, history: { canUndo: this.history.canUndo(), canRedo: this.history.canRedo(), lastLabel: this.history.lastLabel() }, selection: { kind: render.kind, single: this.selection.single(), count: render.count, bounds: render.bounds, positions: render.positions.slice(0, 256) }, selectedDecoration: this.selectedDecoration(), activeDecoration: this.decorations.active(), projectBlockCount: project?.blocks.length ?? 0, projectId: project?.id };
-    this.b5.setContext(context);
-    return context;
-  }
-
-  private traceKeyboardRoute(event: KeyboardEvent, action: KeyboardAction, mutation?: string): void {
-    if (isDevMode()) console.debug('[MinecraftBuilder][keyboard route]', keyboardRouteTrace(event, action, mutation));
-  }
-
-  private executeKeyboardAction(action: KeyboardAction, _keyboardEventId?: string): boolean {
-    const before = this.b5State();
-    let handled = false;
-    if (action === 'undo') handled = this.history.undo();
-    else if (action === 'redo') handled = this.history.redo();
-    else if (action === 'select-all') { const project = this.workspace.project(); if (project) { this.selection.selectAll(project, (id) => this.library.get(id)); handled = true; } }
-    else if (action === 'clear-selection') { this.selection.clear(); this.decorations.clearSelection(); handled = true; }
-    else if (action === 'delete-selection') { const decoration = this.selectedDecoration(); handled = decoration ? (this.decorations.delete(decoration.instanceId), true) : this.editor.deleteSelection(); }
-    else if (action === 'tool-place') { this.tool.active.set('place'); handled = true; }
-    else if (action === 'tool-select') { this.tool.active.set('select'); handled = true; }
-    else if (action === 'mode-3d') { this.mode.setMode('3d'); handled = true; }
-    else if (action === 'mode-y-layer') { this.mode.setMode('y-layer'); handled = true; }
-    else if (action === 'fit-structure') { this.fitStructure(); handled = true; }
-    else if (action === 'focus-selection') { if (this.focusSelectionAvailable()) { this.focusSelection(); handled = true; } }
-    else if (action === 'save-project') { void this.saveProject(); handled = true; }
-    else if (action.startsWith('quick-slot-')) { const index = Number(action.slice('quick-slot-'.length)) - 1; const entry = this.quickBar.entries()[index]; if (entry) { this.quickBar.select(entry); handled = true; } }
-    if (handled) recordB5Command({ type: 'keyboard-command', source: 'EditorShellComponent.executeKeyboardAction', action, timestamp: new Date().toISOString(), before, after: this.b5State() });
-    return handled;
+  private executeKeyboardAction(action: KeyboardAction): boolean {
+    if (action === 'undo') return this.history.undo();
+    if (action === 'redo') return this.history.redo();
+    if (action === 'select-all') { const project = this.workspace.project(); if (!project) return false; this.selection.selectAll(project, (id) => this.library.get(id)); return true; }
+    if (action === 'clear-selection') { this.selection.clear(); this.decorations.clearSelection(); return true; }
+    if (action === 'delete-selection') {
+      const decoration = this.selectedDecoration();
+      if (decoration) { this.decorations.delete(decoration.instanceId); return true; }
+      return this.editor.deleteSelection();
+    }
+    if (action === 'tool-place') { this.tool.active.set('place'); return true; }
+    if (action === 'tool-select') { this.tool.active.set('select'); return true; }
+    if (action === 'mode-3d') { this.mode.setMode('3d'); return true; }
+    if (action === 'mode-y-layer') { this.mode.setMode('y-layer'); return true; }
+    if (action === 'fit-structure') { this.fitStructure(); return true; }
+    if (action === 'focus-selection') { if (!this.focusSelectionAvailable()) return false; this.focusSelection(); return true; }
+    if (action === 'save-project') { void this.saveProject(); return true; }
+    if (action.startsWith('quick-slot-')) { const index = Number(action.slice('quick-slot-'.length)) - 1; const entry = this.quickBar.entries()[index]; if (!entry) return false; this.quickBar.select(entry); return true; }
+    return false;
   }
 
   private currentViewport(): ViewportComponent | YLayerComponent | undefined {
@@ -521,22 +448,4 @@ export class EditorShellComponent implements OnDestroy {
     const maximum = Math.min(520, Math.max(minimum, total - (otherVisible ? other : 0) - 320));
     return Math.round(Math.min(maximum, Math.max(minimum, width)));
   }
-}
-
-function isMovementKey(event: KeyboardEvent): boolean { return ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'].includes(event.code); }
-function keyboardEventState(event: KeyboardEvent): Record<string, unknown> {
-  return { key: event.key, code: event.code, repeat: event.repeat, ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey, metaKey: event.metaKey };
-}
-function sameKeyboardEventState(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-function stateField(value: unknown, key: string): unknown {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>)[key] : undefined;
-}
-function captureKeyboardStack(): string { return new Error().stack?.split('\n').slice(2, 22).join('\n') ?? ''; }
-function eventTargetSummary(target: EventTarget | null): unknown {
-  const element = target as HTMLElement | null;
-  if (!element) return null;
-  if (typeof element.getAttribute !== 'function') return { nodeName: (target as Node | null)?.nodeName ?? undefined };
-  return { tagName: element.tagName, id: element.id || undefined, contentEditable: element.isContentEditable || element.contentEditable === 'true', editable: isEditableKeyboardTarget(target), role: element.getAttribute('role') || undefined };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_KEYBINDINGS, MovementKeyOwnership, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, keyboardRouteOwner, keyboardRouteTrace, matchingKeyboardActions, movementPhysicalKey, normalizeBinding, normalizeBindings } from './keyboard-bindings';
+import { DEFAULT_KEYBINDINGS, MovementKeyOwnership, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, movementPhysicalKey, normalizeBinding, normalizeBindings, shouldSuppressEditorActionDuringMovement } from './keyboard-bindings';
 
 describe('keyboard binding model', () => {
   it('normalizes modifier order and supports up to three tokens', () => {
@@ -30,33 +30,10 @@ describe('keyboard binding model', () => {
     expect(keyboardActionForEvent({ key: 'a', code: '', ctrlKey: true, altKey: false, shiftKey: false, metaKey: false, target: null }, DEFAULT_KEYBINDINGS)).toBe('select-all');
   });
 
-  it('keeps movement resolution stable for repeated and missing-code WASD events', () => {
-    for (const [key, code, action] of [['a', 'KeyA', 'move-left'], ['d', 'KeyD', 'move-right'], ['s', 'KeyS', 'move-backward']] as const) {
-      for (const repeat of [false, true]) {
-        const codedEvent = { key, code, repeat, target: null };
-        const missingCodeEvent = { key, code: '', repeat, target: null };
-        expect(keyboardActionForEvent(codedEvent, DEFAULT_KEYBINDINGS)).toBe(action);
-        expect(keyboardActionForEvent(missingCodeEvent, DEFAULT_KEYBINDINGS)).toBe(action);
-      }
-    }
-    expect(keyboardActionForEvent({ key: 'Delete', code: 'Delete', target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
-    expect(keyboardActionForEvent({ key: 'Backspace', code: 'Backspace', target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
-    expect(matchingKeyboardActions('A', DEFAULT_KEYBINDINGS)).toEqual(['move-left']);
-  });
-
-  it('routes each resolved action to exactly one owner and exposes a compact trace', () => {
-    expect(keyboardRouteOwner('move-forward')).toBe('camera');
-    expect(keyboardRouteOwner('delete-selection')).toBe('editor');
-    expect(keyboardRouteOwner(undefined)).toBeUndefined();
-    expect(keyboardRouteTrace({ code: 'KeyW', key: 'w' }, 'move-forward')).toEqual({ code: 'KeyW', action: 'move-forward', owner: 'camera' });
-    expect(keyboardRouteTrace({ key: 'Delete' }, 'delete-selection', 'Delete selection')).toEqual({ code: 'Delete', action: 'delete-selection', owner: 'editor', mutation: 'Delete selection' });
-  });
-
   it('resolves a deliberately conflicting saved binding deterministically once', () => {
     const bindings = normalizeBindings({ ...DEFAULT_KEYBINDINGS, 'delete-selection': 'W' });
     const action = keyboardActionForEvent({ key: 'w', code: 'KeyW', target: null }, bindings);
     expect(action).toBe('move-forward');
-    expect(keyboardRouteOwner(action)).toBe('camera');
   });
 
   it('normalizes missing bindings to defaults and detects conflicts', () => {
@@ -93,5 +70,50 @@ describe('keyboard binding model', () => {
     ownership.press('KeyD', 'move-right'); ownership.press('Space', 'move-up');
     expect(ownership.clear()).toEqual(['move-right', 'move-up']);
     expect(ownership.ownerCount()).toBe(0);
+  });
+
+  it('suppresses only destructive editor actions while any movement owner remains active', () => {
+    const ownership = new MovementKeyOwnership();
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(false);
+    ownership.press('KeyA', 'move-left');
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(true);
+    expect(shouldSuppressEditorActionDuringMovement('undo', ownership)).toBe(false);
+    ownership.press('KeyW', 'move-forward');
+    ownership.release('KeyA');
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(true);
+    ownership.release('KeyW');
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(false);
+  });
+
+  it('keeps the movement/delete policy independent from the physical key label', () => {
+    const ownership = new MovementKeyOwnership();
+    ownership.press('ArrowLeft', 'move-left');
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(true);
+    expect(shouldSuppressEditorActionDuringMovement('select-all', ownership)).toBe(false);
+  });
+
+  it('keeps suppression active across repeat, alternate movement owners, and remapped movement keys', () => {
+    const ownership = new MovementKeyOwnership();
+    for (const [owner, action] of [['KeyD', 'move-right'], ['KeyW', 'move-forward'], ['KeyS', 'move-backward']] as const) {
+      expect(ownership.press(owner, action)).toBeUndefined();
+      expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(true);
+      expect(ownership.press(owner, action)).toBe(action);
+    }
+    expect(keyboardActionForEvent({ key: 'ArrowLeft', code: 'ArrowLeft', target: null }, { ...DEFAULT_KEYBINDINGS, 'move-left': 'ArrowLeft' })).toBe('move-left');
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(true);
+    ownership.release('KeyD'); ownership.release('KeyW'); ownership.release('KeyS');
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(false);
+  });
+
+  it('does not suppress an unknown key or Ctrl+A and allows Delete after the final release', () => {
+    const ownership = new MovementKeyOwnership();
+    ownership.press('KeyA', 'move-left');
+    expect(keyboardActionForEvent({ key: 'Unidentified', code: '', target: null }, DEFAULT_KEYBINDINGS)).toBeUndefined();
+    expect(keyboardActionForEvent({ key: 'a', code: 'KeyA', ctrlKey: true, target: null }, DEFAULT_KEYBINDINGS)).toBe('select-all');
+    expect(shouldSuppressEditorActionDuringMovement('select-all', ownership)).toBe(false);
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(true);
+    ownership.release('KeyA');
+    expect(shouldSuppressEditorActionDuringMovement('delete-selection', ownership)).toBe(false);
+    expect(keyboardActionForEvent({ key: 'Delete', code: 'Delete', target: null }, DEFAULT_KEYBINDINGS)).toBe('delete-selection');
   });
 });
