@@ -9,6 +9,7 @@ import type { PlacementPlan } from '../../block-behavior/placement/placement-pla
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 import { coordinateKey } from '../../domain/coordinates';
+import { viewportThemePalette } from './viewport-theme';
 
 describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
@@ -28,12 +29,19 @@ describe('camera movement input contract', () => {
     const base = rendererBenchmarkProject('small');
     const project = { ...base, blocks: base.blocks.slice(0, 300), decorations: [] };
     const internals = engine as unknown as {
+      fallbackMaterials: { normal: THREE.MeshLambertMaterial };
       placeholderMaterials: { normal: THREE.MeshBasicMaterial };
       logicalSelectionMaterial: THREE.LineBasicMaterial;
       instanceBatches: Map<string, { parts: THREE.InstancedMesh[] }>;
     };
     engine.update(project, undefined);
     const placeholderBase = internals.placeholderMaterials.normal.color.clone();
+    engine.applyTheme(viewportThemePalette('light'));
+    expect(internals.placeholderMaterials.normal.color.getHex()).toBe(viewportThemePalette('light').block);
+    expect(internals.fallbackMaterials.normal.color.getHex()).toBe(viewportThemePalette('light').block);
+    engine.applyTheme(viewportThemePalette('dark'));
+    expect(internals.placeholderMaterials.normal.color.getHex()).toBe(viewportThemePalette('dark').block);
+    expect(internals.fallbackMaterials.normal.color.getHex()).toBe(viewportThemePalette('dark').block);
     engine.setBlockBrightness(0);
     const placeholderDark = internals.placeholderMaterials.normal.color.clone();
     engine.setBlockBrightness(10);
@@ -50,16 +58,23 @@ describe('camera movement input contract', () => {
       reusableVisualKey: () => 'brightness-cube',
       thumbnailUrl: () => undefined,
     } as unknown as BlockVisualProvider;
+    engine.setBlockBrightness(3);
     engine.setVisualProvider(provider);
     engine.update(project, undefined);
     await settleHydration(20, engine);
     const batch = [...internals.instanceBatches.values()][0];
     expect(batch).toBeDefined();
-    const hydratedBase = (batch.parts[0].material as THREE.MeshBasicMaterial).color.clone();
+    const hydratedMaterial = batch.parts[0].material as THREE.MeshBasicMaterial;
+    const hydratedBase = hydratedMaterial.color.clone();
+    expect(hydratedBase.getHex()).toBe(0x6688aa);
+    engine.applyTheme(viewportThemePalette('light'));
+    expect(hydratedMaterial.color.equals(hydratedBase)).toBe(true);
     engine.setBlockBrightness(0);
-    const hydratedDark = (batch.parts[0].material as THREE.MeshBasicMaterial).color.clone();
+    const hydratedDark = hydratedMaterial.color.clone();
     engine.setBlockBrightness(10);
     expect(hydratedDark.equals(hydratedBase)).toBe(false);
+    engine.setBlockBrightness(3);
+    expect(hydratedMaterial.color.equals(hydratedBase)).toBe(true);
     engine.dispose(); geometry.dispose();
   });
 

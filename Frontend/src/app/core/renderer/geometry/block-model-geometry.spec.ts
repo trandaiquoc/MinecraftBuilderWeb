@@ -3,8 +3,6 @@ import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../../blocks/resolver';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, itemVisualResource, itemVisualTextureResources, resolveItemVisual, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
-import { applyBlockTheme } from '../engine/three-viewport-engine';
-import { viewportThemePalette } from '../engine/viewport-theme';
 import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
@@ -189,12 +187,11 @@ describe('block model geometry', () => {
     expect((await realLikeVisualProvider().create(block('minecraft:stone', {}))).mode).toBe('real');
   });
 
-  it('preserves a real texture map when light and dark block themes are applied', async () => {
+  it('preserves a real texture map and provider color independently of viewport themes', async () => {
     const result = await realLikeVisualProvider().create(block('minecraft:stone', {}));
-    const material = firstMaterial(result.object!); const map = material.map;
-    result.object!.traverse((object) => { object.userData['realModel'] = true; });
-    applyBlockTheme(result.object!, viewportThemePalette('light')); applyBlockTheme(result.object!, viewportThemePalette('dark'));
+    const material = firstMaterial(result.object!); const map = material.map; const color = material.color.clone();
     expect(material.map).toBe(map);
+    expect(material.color.equals(color)).toBe(true);
   });
 
   it('uses an asset-backed Stone thumbnail after the provider becomes ready', () => {

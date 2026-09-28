@@ -545,7 +545,6 @@ export class ThreeViewportEngine {
     (this.projectGrid?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(palette.grid);
     (this.editingGrid?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(palette.editingGrid);
     (this.boundsBox?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(palette.bounds);
-    applyBlockTheme(this.blocksGroup, palette);
     (this.selectionOutline.material as THREE.LineBasicMaterial).color.setHex(palette.selection);
     (this.selectionBox.material as THREE.LineBasicMaterial).color.setHex(palette.selection);
     this.fallbackMaterials.normal.color.setHex(palette.block);
@@ -1148,7 +1147,7 @@ export class ThreeViewportEngine {
         if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
         fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
         if (!visual.object) return;
-        const object = visual.object; object.userData['realModel'] = true; applyBlockTheme(object, this.palette); applyBlockBrightnessToObject(object, this.blockBrightness); translateVisualToVoxel(object, block.position);
+        const object = visual.object; object.userData['realModel'] = true; applyBlockBrightnessToObject(object, this.blockBrightness); translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
         object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh && isReference) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = options.referenceOpacity ?? .28; } } });
         const instance = allowInstancing && role === 'normal' ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async') : undefined;
@@ -2480,14 +2479,3 @@ function setStableMeshBounds(mesh: THREE.InstancedMesh, bounds: THREE.Box3): voi
 }
 function chunkKey(position: VoxelCoordinate): string { return `${Math.floor(position.x / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.y / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.z / VIEWPORT_INSTANCE_CHUNK_SIZE)}`; }
 function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry'] && !child.geometry.userData['sharedPlaceholderGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial'] || material.userData['sharedPlaceholderMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
-
-export function applyBlockTheme(root: THREE.Object3D, palette: ViewportThemePalette): void {
-  root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh) || object.userData['realModel']) return;
-    const material = object.material as THREE.MeshLambertMaterial;
-    const role = object.userData['renderRole'];
-    if (role === 'missing') material.color.setHex(palette.missingBlock);
-    else if (role === 'reference') material.color.setHex(palette.referenceBlock);
-    else material.color.setHex(palette.block);
-  });
-}
