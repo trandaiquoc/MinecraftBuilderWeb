@@ -29,4 +29,16 @@ describe('B5 runtime diagnostics', () => {
     expect(reset.baseline).toEqual({ camera: { x: 1 }, selection: { single: { x: 2, y: 0, z: 3 } } });
     expect(reset.sequence).toBe(1);
   });
+
+  it('records bounded block-key mutation provenance without dumping project arrays', () => {
+    const diagnostics = new B5RuntimeDiagnosticsService();
+    const before = { blocks: [{ position: { x: 1, y: 0, z: 2 } }, { position: { x: 3, y: 0, z: 4 } }] };
+    const after = { blocks: [{ position: { x: 1, y: 0, z: 2 } }] };
+    diagnostics.recordMutation('history.execute', 'Delete', before, after);
+    const mutation = diagnostics.snapshot().mutations[0];
+    expect(mutation['beforeBlockCount']).toBe(2);
+    expect(mutation['afterBlockCount']).toBe(1);
+    expect(mutation['removedCoordinates']).toEqual(['3,0,4']);
+    expect(mutation['blocks']).toBeUndefined();
+  });
 });
