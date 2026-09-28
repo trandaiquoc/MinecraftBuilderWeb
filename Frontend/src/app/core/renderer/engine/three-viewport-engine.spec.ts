@@ -23,6 +23,46 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('updates placeholder and hydrated instanced block materials without affecting overlays', async () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 300), decorations: [] };
+    const internals = engine as unknown as {
+      placeholderMaterials: { normal: THREE.MeshBasicMaterial };
+      logicalSelectionMaterial: THREE.LineBasicMaterial;
+      instanceBatches: Map<string, { parts: THREE.InstancedMesh[] }>;
+    };
+    engine.update(project, undefined);
+    const placeholderBase = internals.placeholderMaterials.normal.color.clone();
+    engine.setBlockBrightness(0);
+    const placeholderDark = internals.placeholderMaterials.normal.color.clone();
+    engine.setBlockBrightness(10);
+    expect(placeholderDark.equals(placeholderBase)).toBe(false);
+    const overlayBase = internals.logicalSelectionMaterial.color.clone();
+    expect(internals.logicalSelectionMaterial.color.equals(overlayBase)).toBe(true);
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1); geometry.userData['providerOwnedGeometry'] = true;
+    const provider = {
+      create: vi.fn(async () => {
+        const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x6688aa })));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      reusableVisualKey: () => 'brightness-cube',
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await settleHydration(20, engine);
+    const batch = [...internals.instanceBatches.values()][0];
+    expect(batch).toBeDefined();
+    const hydratedBase = (batch.parts[0].material as THREE.MeshBasicMaterial).color.clone();
+    engine.setBlockBrightness(0);
+    const hydratedDark = (batch.parts[0].material as THREE.MeshBasicMaterial).color.clone();
+    engine.setBlockBrightness(10);
+    expect(hydratedDark.equals(hydratedBase)).toBe(false);
+    engine.dispose(); geometry.dispose();
+  });
+
   it('uses WASD on the camera plane and Space/Shift for world vertical movement', () => {
     expect(cameraMovementDirection(new Set(['KeyW']), camera).z).toBeLessThan(0);
     expect(cameraMovementDirection(new Set(['Space']), camera)).toMatchObject({ x: 0, y: 1, z: 0 });

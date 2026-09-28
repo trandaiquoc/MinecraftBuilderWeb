@@ -1,4 +1,4 @@
-import { Component, computed, inject, output, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, output, signal } from '@angular/core';
 import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { blockBrightnessStopPercent, UiPreferences, UiPreferencesService, UiLocale, ThemePreset, UiFont, UiFontSize, BaseTheme } from '../../../../core/ui/preferences/ui-preferences.service';
@@ -19,7 +19,7 @@ type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPr
   styleUrl: './settings-dialog.component.scss',
   host: { '(document:keydown.escape)': 'requestClose()', '(document:keydown)': 'handleShortcutKeydown($event)', '(document:pointerdown)': 'handleShortcutPointerdown($event)', '(document:wheel)': 'handleShortcutWheel($event)' },
 })
-export class SettingsDialogComponent {
+export class SettingsDialogComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
   private readonly dialogs = inject(DialogService);
@@ -68,7 +68,11 @@ export class SettingsDialogComponent {
   protected setEditorBackground(editorBackground: BaseTheme): void { this.updateDraft({ appearance: { ...this.draft().appearance, editorBackground } }); }
   protected setBlockBrightness(value: string): void {
     const numeric = Number(value);
-    if (Number.isFinite(numeric)) this.updateDraft({ accessibility: { blockBrightness: Math.min(10, Math.max(0, Math.round(numeric))) } });
+    if (Number.isFinite(numeric)) {
+      const blockBrightness = Math.min(10, Math.max(0, Math.round(numeric)));
+      this.updateDraft({ accessibility: { blockBrightness } });
+      this.preferences.previewAccessibility({ blockBrightness });
+    }
   }
   protected brightnessDefaultStop(): string { return `${blockBrightnessStopPercent(this.preferences.defaultPreferences().accessibility.blockBrightness)}%`; }
   protected defaultBlockBrightness(): number { return this.preferences.defaultPreferences().accessibility.blockBrightness; }
@@ -125,7 +129,11 @@ export class SettingsDialogComponent {
   protected restoreControlsDefaults(): void { this.updateDraft({ controls: { ...this.preferences.defaultPreferences().controls } }); }
   protected restoreShortcutsDefaults(): void { this.updateDraft({ shortcuts: { ...this.preferences.defaultPreferences().shortcuts } }); this.cancelShortcutCapture(); }
   protected restoreMouseDefaults(): void { this.updateDraft({ mouseBindings: { ...this.preferences.defaultPreferences().mouseBindings } }); this.cancelShortcutCapture(); }
-  protected restoreAccessibilityDefaults(): void { this.updateDraft({ accessibility: { ...this.preferences.defaultPreferences().accessibility } }); }
+  protected restoreAccessibilityDefaults(): void {
+    const accessibility = { ...this.preferences.defaultPreferences().accessibility };
+    this.updateDraft({ accessibility });
+    this.preferences.previewAccessibility(accessibility);
+  }
   protected clearShortcut(action: KeyboardAction): void { this.setShortcut(action, ''); this.cancelShortcutCapture(); }
   protected clearMouseBinding(action: MouseAction): void { this.setMouseShortcut(action, ''); this.cancelShortcutCapture(); }
   protected clearAllShortcuts(): void { this.updateDraft({ shortcuts: Object.fromEntries(KEYBOARD_ACTIONS.map(({ action }) => [action, ''])) as UiPreferences['shortcuts'] }); this.cancelShortcutCapture(); }
@@ -134,20 +142,22 @@ export class SettingsDialogComponent {
     if (this.shortcutConflicts().length || this.mouseBindingConflicts().length) return;
     const draft = this.draft();
     this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, accessibility: { ...draft.accessibility }, controls: { ...draft.controls }, shortcuts: { ...draft.shortcuts }, mouseBindings: { ...draft.mouseBindings } });
+    this.preferences.clearAccessibilityPreview();
     this.baseline.set(this.readDraft());
     this.draft.set(this.readDraft());
   }
   protected async saveAndClose(): Promise<void> { if (this.shortcutConflicts().length || this.mouseBindingConflicts().length) return; await this.apply(); this.closed.emit(); }
   protected async requestClose(): Promise<void> {
     if (this.capturingAction() || this.capturingMouseAction()) { this.cancelShortcutCapture(); return; }
-    if (!this.dirty()) { this.closed.emit(); return; }
+    if (!this.dirty()) { this.preferences.clearAccessibilityPreview(); this.closed.emit(); return; }
     const confirmed = await this.dialogs.confirm({ title: this.i18n.t('discardChangesTitle'), text: this.i18n.t('discardChangesText'), confirmButtonText: this.i18n.t('discardChanges'), cancelButtonText: this.i18n.t('cancel') });
-    if (confirmed) this.closed.emit();
+    if (confirmed) { this.preferences.clearAccessibilityPreview(); this.closed.emit(); }
   }
   protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) void this.requestClose(); }
   protected sectionLabel(section: SettingsSection): string {
     return ({ general: this.i18n.t('generalSettings'), appearance: this.i18n.t('appearanceSettings'), controls: this.i18n.t('controlsSettings'), shortcuts: this.i18n.t('shortcutsSettings'), accessibility: this.i18n.t('accessibilitySettings') } as const)[section];
   }
+  ngOnDestroy(): void { this.preferences.clearAccessibilityPreview(); }
   private setShortcut(action: KeyboardAction, binding: string): void { this.updateDraft({ shortcuts: { ...this.draft().shortcuts, [action]: binding } }); }
   private setMouseShortcut(action: MouseAction, binding: string): void { this.updateDraft({ mouseBindings: { ...this.draft().mouseBindings, [action]: binding } }); }
   private displayBinding(binding: string): string { return binding ? binding.split('|').map((alternative) => alternative.split('+').map((token) => this.displayBindingToken(token)).join(' + ')).join(' / ') : this.i18n.t('unassigned'); }

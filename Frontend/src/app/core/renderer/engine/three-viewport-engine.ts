@@ -26,6 +26,7 @@ import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
+import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, setBlockBrightnessBaseColor } from './block-brightness';
 import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -553,6 +554,9 @@ export class ThreeViewportEngine {
     this.placeholderMaterials.normal.color.setHex(palette.block);
     this.placeholderMaterials.reference.color.setHex(palette.referenceBlock);
     this.placeholderMaterials.missing.color.setHex(palette.missingBlock);
+    for (const material of Object.values(this.fallbackMaterials)) setBlockBrightnessBaseColor(material);
+    for (const material of Object.values(this.placeholderMaterials)) setBlockBrightnessBaseColor(material);
+    this.applyBlockBrightness();
     this.logicalSelectionGroup.traverse((object) => { if (object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.selection); });
     this.scene.traverse((object) => { if (object.userData['groupHighlight'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(object.userData['groupLocked'] ? palette.lockedGroup : palette.group); });
     this.movePreviewGroup.traverse((object) => { if (object instanceof THREE.Mesh) (object.material as THREE.MeshBasicMaterial).color.setHex(object.userData['previewInvalid'] ? palette.invalid : palette.valid); });
@@ -573,6 +577,10 @@ export class ThreeViewportEngine {
     const lighting = viewportLightingForBrightness(this.blockBrightness);
     if (this.hemisphereLight) this.hemisphereLight.intensity = lighting.hemisphereIntensity;
     if (this.keyLight) this.keyLight.intensity = lighting.directionalIntensity;
+    for (const material of Object.values(this.fallbackMaterials)) applyBlockBrightnessToMaterial(material, this.blockBrightness);
+    for (const material of Object.values(this.placeholderMaterials)) applyBlockBrightnessToMaterial(material, this.blockBrightness);
+    applyBlockBrightnessToObject(this.blocksGroup, this.blockBrightness);
+    for (const compiled of this.reusableInstanceTemplates.values()) for (const template of compiled.templates) applyBlockBrightnessToMaterial(template.material, this.blockBrightness);
   }
 
   setControlConfiguration(configuration: ViewportControlConfiguration): void {
@@ -1140,7 +1148,7 @@ export class ThreeViewportEngine {
         if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
         fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
         if (!visual.object) return;
-        const object = visual.object; object.userData['realModel'] = true; applyBlockTheme(object, this.palette); translateVisualToVoxel(object, block.position);
+        const object = visual.object; object.userData['realModel'] = true; applyBlockTheme(object, this.palette); applyBlockBrightnessToObject(object, this.blockBrightness); translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
         object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh && isReference) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = options.referenceOpacity ?? .28; } } });
         const instance = allowInstancing && role === 'normal' ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async') : undefined;

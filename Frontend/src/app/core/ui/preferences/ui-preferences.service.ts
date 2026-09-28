@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, normalizeBindings } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, normalizeMouseBindings } from '../../editor/input/mouse-bindings';
 
@@ -63,6 +63,22 @@ const defaults: UiPreferences = {
 @Injectable({ providedIn: 'root' })
 export class UiPreferencesService {
   readonly preferences = signal<UiPreferences>(this.read());
+  private readonly accessibilityPreview = signal<Partial<UiPreferences['accessibility']> | undefined>(undefined);
+  readonly effectivePreferences = computed<UiPreferences>(() => {
+    const current = this.preferences();
+    const preview = this.accessibilityPreview();
+    return preview ? { ...current, accessibility: { ...current.accessibility, ...preview } } : current;
+  });
+
+  previewAccessibility(patch: Partial<UiPreferences['accessibility']>): void {
+    this.accessibilityPreview.update((current) => ({
+      ...current,
+      ...patch,
+      ...(patch.blockBrightness === undefined ? {} : { blockBrightness: normalizeBlockBrightness(patch.blockBrightness) }),
+    }));
+  }
+
+  clearAccessibilityPreview(): void { this.accessibilityPreview.set(undefined); }
 
   update(patch: Partial<UiPreferences>): void {
     const current = this.preferences();

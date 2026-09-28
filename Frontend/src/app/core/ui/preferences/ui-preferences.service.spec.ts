@@ -57,6 +57,15 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().appearance.preset).toBe('craft');
   });
 
+  it('keeps accessibility previews ephemeral and exposes them to viewport consumers', () => {
+    const preferences = new UiPreferencesService();
+    preferences.previewAccessibility({ blockBrightness: 10 });
+    expect(preferences.effectivePreferences().accessibility.blockBrightness).toBe(10);
+    expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
+    preferences.clearAccessibilityPreview();
+    expect(preferences.effectivePreferences().accessibility.blockBrightness).toBe(3);
+  });
+
   it('persists resizable sidebar widths and clamps invalid stored values', () => {
     const preferences = new UiPreferencesService();
     preferences.setLayout({ leftSidebarWidth: 340, rightSidebarWidth: 300 });
