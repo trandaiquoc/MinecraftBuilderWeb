@@ -148,7 +148,11 @@ function canonicalPhysicalKey(code: string | undefined, key: string): string {
   if (code) {
     if (/^Key[A-Z]$/.test(code)) return code;
     if (/^Digit[0-9]$/.test(code)) return code;
-    if (code === 'Space' || code === 'ShiftLeft' || code === 'ShiftRight' || code === 'ControlLeft' || code === 'ControlRight' || code === 'AltLeft' || code === 'AltRight' || code === 'MetaLeft' || code === 'MetaRight') return code;
+    if (code === 'Space') return 'Space';
+    if (code === 'ShiftLeft' || code === 'ShiftRight') return 'Shift';
+    if (code === 'ControlLeft' || code === 'ControlRight') return 'Control';
+    if (code === 'AltLeft' || code === 'AltRight') return 'Alt';
+    if (code === 'MetaLeft' || code === 'MetaRight') return 'Meta';
     if (code.startsWith('Arrow') || code.startsWith('Numpad')) return code;
   }
   const token = key === ' ' ? 'Space' : key.length === 1 ? key.toLocaleUpperCase() : key;
