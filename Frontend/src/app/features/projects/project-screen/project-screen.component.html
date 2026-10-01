@@ -1,16 +1,18 @@
 <main class="project-page">
-  <section class="project-intro">
+  <header class="project-intro">
     <p class="eyebrow">{{ i18n.t('appName') }}</p>
     <h1>{{ i18n.t('projectTitle') }}</h1>
     <p>{{ i18n.t('projectSubtitle') }}</p>
-  </section>
+  </header>
 
   <section class="project-grid" [attr.aria-label]="i18n.t('projectActions')">
     <form class="project-form" (submit)="$event.preventDefault(); createProject()">
-      <h2>{{ i18n.t('newProject') }}</h2>
-      <label>{{ i18n.t('projectName') }}<input [value]="name()" (input)="updateName($any($event.target).value)" required /></label>
-      <label>{{ i18n.t('minecraftVersion') }}<app-searchable-dropdown [options]="versionOptions()" [selectedId]="minecraftVersion()" [placeholder]="i18n.t('searchMinecraftVersions')" [emptyLabel]="i18n.t('minecraftVersionUnavailable')" [noResults]="i18n.t('noMinecraftVersions')" [ariaLabel]="i18n.t('minecraftVersion')" (selectionChange)="setMinecraftVersion($any($event))" /></label>
-      <p class="version-support"><strong>{{ versionSupportLabel() }}</strong>@if (minecraftVersion() !== '1.21.1') { <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span> }</p>
+      <div class="form-section form-section--identity">
+        <h2>{{ i18n.t('newProject') }}</h2>
+        <label class="field-label">{{ i18n.t('projectName') }}<input class="project-text-input" [value]="name()" (input)="updateName($any($event.target).value)" required /></label>
+        <label class="field-label">{{ i18n.t('minecraftVersion') }}<app-searchable-dropdown [options]="versionOptions()" [selectedId]="minecraftVersion()" [placeholder]="i18n.t('searchMinecraftVersions')" [emptyLabel]="i18n.t('minecraftVersionUnavailable')" [noResults]="i18n.t('noMinecraftVersions')" [ariaLabel]="i18n.t('minecraftVersion')" (selectionChange)="setMinecraftVersion($any($event))" /></label>
+        <p class="version-support"><strong>{{ versionSupportLabel() }}</strong>@if (minecraftVersion() !== '1.21.1') { <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span> }</p>
+      </div>
       <fieldset class="structure-mode-fieldset">
         <legend>{{ i18n.t('structureMode') }}</legend>
         <label class="structure-mode-option" [class.active]="structureMode() === 'vanilla-structure-block'">
@@ -22,32 +24,34 @@
           <span><strong>{{ i18n.t('hugeStructureBlocks') }}</strong><small>{{ i18n.t('hugeStructureBlocksHint') }}</small></span>
         </label>
       </fieldset>
-      <div class="size-heading"><span>{{ i18n.t('structureSize') }}</span><button type="button" class="size-shortcut" (click)="setVanillaMax()">{{ i18n.t('vanillaMax') }}</button></div>
+      <div class="size-heading"><span>{{ i18n.t('structureSize') }}</span><button type="button" class="size-shortcut ui-button ui-button--ghost ui-button--sm" (click)="setVanillaMax()">{{ i18n.t('vanillaMax') }}</button></div>
       <div class="size-grid" [class.size-warning]="sizePolicy().exceedsVanilla && structureMode() === 'vanilla-structure-block'" [class.size-error]="structureMode() === 'huge-structure-blocks' && !sizePolicy().fitsHugeStructureBlocks">
-        <label [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('x')">{{ i18n.t('sizeX') }}<input type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
-        <label [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('y')">{{ i18n.t('sizeY') }}<input type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
-        <label [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('z')">{{ i18n.t('sizeZ') }}<input type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeZ()" (input)="updateSize('z', $any($event.target).value)" /></label>
+        <label class="field-label" [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('x')">{{ i18n.t('sizeX') }}<input class="size-input" type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
+        <label class="field-label" [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('y')">{{ i18n.t('sizeY') }}<input class="size-input" type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
+        <label class="field-label" [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('z')">{{ i18n.t('sizeZ') }}<input class="size-input" type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeZ()" (input)="updateSize('z', $any($event.target).value)" /></label>
       </div>
       @if (!sizePolicy().dimensionsValid) {
         <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">{{ i18n.t('invalidProjectSize') }}</p>
       } @else if (structureMode() === 'vanilla-structure-block' && sizePolicy().exceedsVanilla) {
         <p id="size-feedback" class="size-feedback size-feedback--warning" role="alert">{{ i18n.t('vanillaOversizedWarning') }}</p>
-        <button type="button" class="size-action" (click)="useHugeStructureBlocks()">{{ i18n.t('useHugeStructureBlocks') }}</button>
       } @else if (structureMode() === 'huge-structure-blocks' && !sizePolicy().fitsHugeStructureBlocks) {
         <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">{{ i18n.t('hugeStructureBlocksLimitExceeded') }}</p>
       }
-      <button type="submit" class="ui-button ui-button--primary" [disabled]="creating() || !!openingId() || !canCreateProject()">{{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}</button>
+      <div class="project-actions">
+        @if (structureMode() === 'vanilla-structure-block' && sizePolicy().exceedsVanilla) { <button type="button" class="ui-button ui-button--secondary size-action" (click)="useHugeStructureBlocks()">{{ i18n.t('useHugeStructureBlocks') }}</button> }
+        <button type="submit" class="ui-button ui-button--primary create-action" [disabled]="creating() || !!openingId() || !canCreateProject()">{{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}</button>
+      </div>
       @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     </form>
 
     <section class="recent-projects">
       <h2>{{ i18n.t('recent') }}</h2>
       @if (loadStatus() === 'loading') { <p class="muted" aria-live="polite">{{ i18n.t('loadingProjects') }}</p> }
-      @else if (loadStatus() === 'error') { <p class="error" role="alert">{{ i18n.t('projectListError') }}</p><button type="button" (click)="retryLoad()">{{ i18n.t('retry') }}</button> }
-      @else if (projects().length === 0) { <p class="muted">{{ i18n.t('noProjects') }}</p> }
+      @else if (loadStatus() === 'error') { <p class="error" role="alert">{{ i18n.t('projectListError') }}</p><button class="ui-button ui-button--secondary" type="button" (click)="retryLoad()">{{ i18n.t('retry') }}</button> }
+      @else if (projects().length === 0) { <p class="project-list-empty muted">{{ i18n.t('noProjects') }}</p> }
       @else { @for (project of projects(); track project.id) {
         <div class="project-row" [class.opening]="openingId() === project.id" [class.deleting]="deletingProjectIds().has(project.id)">
-          <button class="project-open-action" type="button" [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)" (click)="openProject(project.id)"><span>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</span><small>{{ i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion) }} · {{ project.updatedAt | date:'short' }}</small><strong>{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</strong></button>
+          <button class="project-open-action" type="button" [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)" (click)="openProject(project.id)"><span class="project-row-copy"><strong>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</strong><small>{{ i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion) }} · {{ project.updatedAt | date:'short' }}</small></span><span class="project-row-cta">{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</span></button>
           <button class="project-delete-action ui-button ui-button--danger ui-button--icon" type="button" uiTooltip="{{ i18n.t('deleteProjectAriaLabel').replace('{name}', project.name) }}" [disabled]="deletingProjectIds().has(project.id)" [attr.aria-label]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" [attr.title]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" (click)="deleteProject(project, $event)"><svg lucideTrash2 aria-hidden="true"></svg></button>
         </div>
       } }
