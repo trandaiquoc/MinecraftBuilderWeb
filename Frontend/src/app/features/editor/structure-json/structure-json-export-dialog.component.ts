@@ -2,13 +2,14 @@ import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { LucideCopy, LucideDownload, LucideSave, LucideX } from '@lucide/angular';
 import { ProjectDocument } from '../../../core/domain/project.types';
+import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { sanitizeFilename } from '../../../core/persistence/file-name';
-import { createStructureJsonExample, serializeStructureJson, serializeStructureJsonValue, StructureJsonValidationCode, validateStructureJson } from '../../../core/persistence/structure-json/structure-json';
+import { hasUnsupportedProjectBlockEntities, serializeStructureJson, StructureJsonValidationCode, validateStructureJson } from '../../../core/persistence/structure-json/structure-json';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
 type CopyFeedback = 'success' | 'error' | undefined;
-type StructureJsonTab = 'structure' | 'example' | 'ai';
+type StructureJsonTab = 'structure';
 
 @Component({
   selector: 'app-structure-json-export-dialog',
@@ -19,6 +20,7 @@ type StructureJsonTab = 'structure' | 'example' | 'ai';
 })
 export class StructureJsonExportDialogComponent {
   protected readonly i18n = inject(I18nService);
+  private readonly library = inject(BlockLibraryService);
   readonly project = input.required<ProjectDocument>();
   readonly closed = output<void>();
   protected readonly tab = signal<StructureJsonTab>('structure');
@@ -28,15 +30,13 @@ export class StructureJsonExportDialogComponent {
   protected readonly feedback = signal<CopyFeedback>(undefined);
   protected readonly downloadGuardOpen = signal(false);
   protected readonly dirty = computed(() => this.savedJson() !== this.draftJson());
-  protected readonly exampleJson = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
-  protected readonly aiInstructions = computed(() => this.i18n.t('structureJsonAiInstructions'));
-  protected readonly aiWorkflow = computed(() => this.i18n.t('structureJsonAiWorkflow'));
-  protected readonly tabs: readonly StructureJsonTab[] = ['structure', 'example', 'ai'];
+  protected readonly tabs: readonly StructureJsonTab[] = ['structure'];
 
   ngOnInit(): void {
-    const snapshot = serializeStructureJson(this.project());
+    const snapshot = serializeStructureJson(this.project(), this.resolveMaxStackSize, this.resolveDefinition);
     this.savedJson.set(snapshot);
     this.draftJson.set(snapshot);
+    this.validateDraft(snapshot);
   }
 
   protected onEscape(): void { if (this.downloadGuardOpen()) this.downloadGuardOpen.set(false); else this.close(); }
@@ -46,6 +46,7 @@ export class StructureJsonExportDialogComponent {
   protected blockCount(): number { return this.project().blocks.length; }
   protected decorationCount(): number { return this.project().decorations?.length ?? 0; }
   protected hasRawDecorationMetadata(): boolean { return (this.project().decorations ?? []).some((decoration) => !!decoration.raw && Object.keys(decoration.raw).length > 0); }
+  protected hasUnsupportedBlockEntityData(): boolean { return hasUnsupportedProjectBlockEntities(this.project(), this.resolveDefinition); }
   protected setTab(tab: StructureJsonTab): void { this.tab.set(tab); this.feedback.set(undefined); }
   protected handleTabKeydown(event: KeyboardEvent): void {
     const index = this.tabs.indexOf(this.tab());
@@ -54,28 +55,33 @@ export class StructureJsonExportDialogComponent {
   }
   protected setDraftJson(value: string): void { this.draftJson.set(value); this.validationError.set(undefined); this.feedback.set(undefined); }
   protected saveChanges(): boolean {
-    const result = validateStructureJson(this.draftJson());
-    if (!result.valid) { this.validationError.set(this.validationMessage(result.code, result.path)); this.tab.set('structure'); return false; }
+    if (!this.validateDraft()) return false;
     this.savedJson.set(this.draftJson());
     this.validationError.set(undefined);
     return true;
   }
   protected discardChanges(): void { this.draftJson.set(this.savedJson()); this.validationError.set(undefined); this.feedback.set(undefined); }
-  protected async copyJson(): Promise<void> { await this.copy(this.draftJson()); }
-  protected async copyExample(): Promise<void> { await this.copy(this.exampleJson()); }
-  protected async copyInstructions(): Promise<void> { await this.copy(this.aiInstructions()); }
-  protected download(): void { if (this.dirty()) this.downloadGuardOpen.set(true); else this.downloadText(this.savedJson()); }
-  protected downloadSaved(): void { this.downloadGuardOpen.set(false); this.downloadText(this.savedJson()); }
+  protected async copyJson(): Promise<void> { if (!this.validateDraft()) return; await this.copy(this.draftJson()); }
+  protected download(): void { if (!this.validateDraft()) return; if (this.dirty()) this.downloadGuardOpen.set(true); else this.downloadText(this.savedJson()); }
+  protected downloadSaved(): void { if (!this.validateDraft(this.savedJson())) return; this.downloadGuardOpen.set(false); this.downloadText(this.savedJson()); }
   protected saveAndDownload(): void { if (this.saveChanges()) { this.downloadGuardOpen.set(false); this.downloadText(this.savedJson()); } }
-  protected tabLabel(tab: StructureJsonTab): string { return this.i18n.t(tab === 'structure' ? 'structureJsonTab' : tab === 'example' ? 'structureJsonExampleTab' : 'structureJsonAiTab'); }
+  protected tabLabel(_tab: StructureJsonTab): string { return this.i18n.t('structureJsonTab'); }
   protected validationMessage(code: StructureJsonValidationCode | undefined, path?: string): string {
-    const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'minecraft-version' ? 'structureJsonValidationMinecraftVersion' : code === 'blocks' ? 'structureJsonValidationBlocks' : code === 'block' ? 'structureJsonValidationBlock' : code === 'decorations' ? 'structureJsonValidationDecorations' : code === 'decoration' ? 'structureJsonValidationDecoration' : 'structureJsonValidationShape';
+    const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'minecraft-version' ? 'structureJsonValidationMinecraftVersion' : code === 'blocks' ? 'structureJsonValidationBlocks' : code === 'block' ? 'structureJsonValidationBlock' : code === 'block-entity' ? 'structureJsonReasonInvalidBlockEntity' : code === 'decorations' ? 'structureJsonValidationDecorations' : code === 'decoration' ? 'structureJsonValidationDecoration' : 'structureJsonValidationShape';
     return `${this.i18n.t(key)}${path ? ` (${path})` : ''}`;
   }
   private downloadText(value: string): void {
     const url = URL.createObjectURL(new Blob([value], { type: 'application/json;charset=utf-8' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${sanitizeFilename(this.project().metadata.name)}.structure.json`; anchor.click(); URL.revokeObjectURL(url);
   }
+  private validateDraft(value = this.draftJson()): boolean {
+    const result = validateStructureJson(value, this.resolveDefinition, this.resolveMaxStackSize);
+    if (!result.valid) { this.validationError.set(this.validationMessage(result.code, result.path)); this.tab.set('structure'); return false; }
+    this.validationError.set(undefined);
+    return true;
+  }
+  private readonly resolveDefinition = (id: string) => this.library.get(id);
+  private readonly resolveMaxStackSize = (id: string) => this.library.maxStackSizeFor(id);
   private async copy(value: string): Promise<void> {
     try { if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); this.feedback.set('success'); } catch { this.feedback.set('error'); }
   }

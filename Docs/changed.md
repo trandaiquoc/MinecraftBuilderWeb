@@ -1964,3 +1964,30 @@ ZIP-only fields. Sizes through 48 blocks per axis are vanilla-compatible,
 49..512 require Huge Structure Blocks guidance, and larger sizes are rejected.
 The existing smoke ZIP/NBT hashes remain unchanged. FINAL UI MANUAL MINECRAFT
 VERIFICATION: PENDING.
+
+## POST-15 Structure JSON vNext and external-AI helper
+
+Structure JSON now uses the canonical unversioned top-level contract with
+`format`, `minecraftVersion`, `blocks`, and `decorations`; only legacy
+`formatVersion: 2` input is accepted and normalized during migration. Verified
+semantic block entities are represented as `container`, `decorated-pot`, and
+`sign` unions. Unsupported block-entity data is warned about in the export
+dialog rather than presented as lossless; Project Backup remains the full
+fidelity path. JSON import validates host compatibility, slot bounds, and item
+stack limits without changing the project schema version.
+
+Item max-stack evidence is propagated from the local
+`vanilla-item-registry-1.21.1.json` source into catalog entries and the shared
+item-stack validator. Known counts above the authoritative limit are rejected;
+unknown mod items are allowed only at count 1; counts are never clamped.
+Structure JSON may retain item components, while NBT export emits an explicit
+unsupported diagnostic when components cannot be mapped losslessly.
+
+The Structure JSON Import dialog now provides **Import JSON** and **Create with
+AI** tabs. The latter is a pure local prompt builder with dynamic active
+version/source, imported mod metadata, and exact external block/item/painting
+IDs. It does not fetch, clone, execute, or call an AI service. Export keeps a
+single Structure JSON tab; Example/AI reference tabs are intentionally import
+workflow concerns. Existing exporter artifacts remain unchanged: ZIP SHA-256
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661` and NBT
+SHA-256 `db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.

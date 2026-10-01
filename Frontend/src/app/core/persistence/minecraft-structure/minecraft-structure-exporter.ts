@@ -6,6 +6,7 @@ import { validateCoordinate } from '../../domain/validation';
 import type { MinecraftNbtCompound, MinecraftStructurePaletteEntry, MinecraftStructureTemplate } from './minecraft-structure-types';
 import { mapBlockEntity, mapDecoration } from './minecraft-structure-semantic-mappers';
 import { createDecorationSupportIndex, validateDecorationAgainstProject } from '../../decorations/placement/decoration-placement';
+import type { ItemMaxStackResolver } from '../../items/item-stack-validation';
 
 export interface MinecraftStructureExportSuccess {
   readonly ok: true;
@@ -31,12 +32,13 @@ export async function exportMinecraftStructure(
   project: ProjectDocument,
   codec: MinecraftJavaNbtCodec,
   adapter = new MinecraftJavaStructureAdapter(),
+  resolveMaxStackSize?: ItemMaxStackResolver,
 ): Promise<MinecraftStructureExportResult> {
   const validation = validateMinecraftStructureProject(project);
   const diagnostics = [...validation.diagnostics];
   const blockEntities = new Map<string, MinecraftNbtCompound>();
   project.blocks.forEach((block, index) => {
-    const mapped = mapBlockEntity(block, index);
+    const mapped = mapBlockEntity(block, index, resolveMaxStackSize);
     if (!mapped.ok) diagnostics.push(mapped.diagnostic);
     else if (mapped.value) blockEntities.set(coordinateKey(block.position), mapped.value);
   });
@@ -49,7 +51,7 @@ export async function exportMinecraftStructure(
     const support = validateDecorationAgainstProject(project, decoration, supportIndex);
     if (support.status === 'invalid') diagnostics.push({ code: 'invalid-decoration', message: `Decoration cannot survive in the exported project: ${support.reason ?? 'invalid support'}.`, path: `decorations.${index}` });
   });
-  const mappedEntities = sortedDecorations.map((decoration, index) => mapDecoration(decoration, index));
+  const mappedEntities = sortedDecorations.map((decoration, index) => mapDecoration(decoration, index, resolveMaxStackSize));
   const entities = [];
   for (const mapped of mappedEntities) {
     if (!mapped.ok) diagnostics.push(mapped.diagnostic);

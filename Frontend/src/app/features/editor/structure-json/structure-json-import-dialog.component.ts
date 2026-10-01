@@ -1,6 +1,6 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import { Component, inject, input, output, signal } from '@angular/core';
-import { LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideTriangleAlert, LucideUpload, LucideX } from '@lucide/angular';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideCopy, LucideTriangleAlert, LucideUpload, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { HistoryService } from '../../../core/editor/history/history.service';
@@ -13,12 +13,16 @@ import type { StructureJson } from '../../../core/persistence/structure-json/str
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
+import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
+import { buildContentContextText, buildExternalAiPrompt } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
+import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
+type ImportDialogTab = 'import' | 'ai';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
-  imports: [CdkTrapFocus, LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideTriangleAlert, LucideUpload, LucideX, UiTooltipDirective],
+  imports: [CdkTrapFocus, LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideCopy, LucideTriangleAlert, LucideUpload, LucideX, UiTooltipDirective],
   templateUrl: './structure-json-import-dialog.component.html',
   styleUrl: './structure-json-import-dialog.component.scss',
   host: { '(document:keydown.escape)': 'close()' },
@@ -30,6 +34,7 @@ export class StructureJsonImportDialogComponent {
   private readonly selection = inject(SelectionService);
   private readonly dialogs = inject(DialogService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
+  private readonly aiContext = inject(ExternalAiPromptContextService);
   readonly project = input.required<ProjectDocument>();
   readonly closed = output<void>();
   protected readonly draftJson = signal('');
@@ -40,10 +45,19 @@ export class StructureJsonImportDialogComponent {
   protected readonly importPlan = signal<StructureJsonImportPlan | undefined>(undefined);
   protected readonly importModes: readonly StructureJsonImportMode[] = ['replace', 'merge', 'new-group'];
   protected readonly fileInput = signal<HTMLInputElement | undefined>(undefined);
+  protected readonly activeTab = signal<ImportDialogTab>('import');
+  protected readonly aiDescription = signal('');
+  protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiContext.snapshot(this.project())));
+  protected readonly aiContextText = computed(() => buildContentContextText(this.aiContext.snapshot(this.project())));
+  protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
+  protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
   private validationGeneration = 0;
   private readonly modePlanCache = new Map<StructureJsonImportMode, StructureJsonImportPlan>();
 
   protected close(): void { this.validationGeneration += 1; this.closed.emit(); }
+  protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
+  protected setAiDescription(value: string): void { this.aiDescription.set(value); }
+  protected async copyAiPrompt(): Promise<void> { await this.copyText(this.aiPrompt()); }
   protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) this.close(); }
   protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.importPlan.set(undefined); this.modePlanCache.clear(); this.importMode.set('replace'); this.progress.set('idle'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1; }
   protected async loadFile(event: Event): Promise<void> {
@@ -62,7 +76,7 @@ export class StructureJsonImportDialogComponent {
     this.progress.set('checking');
     const result = await validateParsedStructureJsonPreviewAsync(parsed.value, this.project().size, (id) => this.library.get(id), (completed, total) => {
       if (generation === this.validationGeneration) this.checkingProgress.set({ completed, total });
-    }, { isCancelled: () => generation !== this.validationGeneration }, this.project());
+    }, { isCancelled: () => generation !== this.validationGeneration }, this.project(), (id) => this.library.maxStackSizeFor(id));
     if (generation !== this.validationGeneration || !result) return;
     this.modePlanCache.clear(); const finalResult = this.previewForMode(result, 'replace'); this.preview.set(finalResult); this.importMode.set('replace'); this.refreshPlan(finalResult, 'replace'); this.progress.set('complete');
   }
@@ -81,7 +95,7 @@ export class StructureJsonImportDialogComponent {
     return this.i18n.t(key);
   }
   protected moreIssueLabel(category: 'missing' | 'bounds' | 'state'): string { return this.i18n.t('structureJsonMoreIssues').replace('{count}', `${this.moreIssueCount(category)}`); }
-  protected reasonLabel(issue: StructureJsonBlockIssue): string { const reason = issue.reason; const key = reason.code === 'missing-block' ? 'structureJsonReasonMissingBlock' : reason.code === 'out-of-bounds' ? 'structureJsonReasonOutOfBounds' : reason.code === 'unknown-state-property' ? 'structureJsonReasonUnknownStateProperty' : 'structureJsonReasonUnsupportedStateValue'; return this.i18n.t(key); }
+  protected reasonLabel(issue: StructureJsonBlockIssue): string { const reason = issue.reason; const key = reason.code === 'missing-block' ? 'structureJsonReasonMissingBlock' : reason.code === 'out-of-bounds' ? 'structureJsonReasonOutOfBounds' : reason.code === 'unknown-state-property' ? 'structureJsonReasonUnknownStateProperty' : reason.code === 'invalid-block-entity' ? 'structureJsonReasonInvalidBlockEntity' : 'structureJsonReasonUnsupportedStateValue'; return this.i18n.t(key); }
   protected selectImportMode(mode: StructureJsonImportMode): void { const result = this.previewForMode(this.preview(), mode); this.preview.set(result); this.importMode.set(mode); this.refreshPlan(result, mode); }
   protected modeDescription(mode: StructureJsonImportMode): string { return this.i18n.t(({ replace: 'structureJsonImportReplaceDescription', merge: 'structureJsonImportMergeDescription', 'new-group': 'structureJsonImportNewGroupDescription' } as const)[mode]); }
   protected modeLabel(mode: StructureJsonImportMode): string { return this.i18n.t(({ replace: 'structureJsonImportReplace', merge: 'structureJsonImportMerge', 'new-group': 'structureJsonImportNewGroup' } as const)[mode]); }
@@ -176,8 +190,11 @@ export class StructureJsonImportDialogComponent {
       && plan.decorationIssues.filter((issue) => issue.category !== 'missing-asset').every((issue) => issue.category === 'bounds' && issue.reason === 'out-of-bounds');
   }
   private buildPlanForSource(source: StructureJson, project: ProjectDocument, mode: StructureJsonImportMode): StructureJsonImportPlan {
-    const validation = validateParsedStructureJsonPreview(source, project.size, (id) => this.library.get(id), undefined, project);
+    const validation = validateParsedStructureJsonPreview(source, project.size, (id) => this.library.get(id), undefined, project, (id) => this.library.maxStackSizeFor(id));
     return buildStructureJsonImportPlan(source, validation, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'));
+  }
+  private async copyText(value: string): Promise<void> {
+    try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); } catch { /* The prompt remains visible for manual copy. */ }
   }
 }
 

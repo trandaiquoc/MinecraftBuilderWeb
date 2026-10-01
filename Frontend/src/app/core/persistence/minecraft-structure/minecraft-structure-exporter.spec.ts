@@ -23,7 +23,7 @@ const project = (size: ProjectSize, blocks: readonly PlacedBlock[], overrides: P
 });
 
 async function exported(document: ProjectDocument) {
-  return exportMinecraftStructure(document, new NbtifyMinecraftJavaCodec());
+  return exportMinecraftStructure(document, new NbtifyMinecraftJavaCodec(), undefined, () => 64);
 }
 
 describe('core Minecraft Structure NBT exporter', () => {

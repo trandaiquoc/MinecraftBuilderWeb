@@ -3,6 +3,7 @@ export const VANILLA_ITEM_REGISTRY_URL = 'assets/vanilla-item-registry-1.21.1.js
 export interface VanillaItemRegistryEntry {
   readonly id: string;
   readonly defaultComponents?: Readonly<Record<string, unknown>>;
+  readonly maxStackSize?: number;
 }
 
 export interface VanillaItemRegistryDocument {
@@ -38,7 +39,10 @@ export function parseVanillaItemRegistry(value: unknown): VanillaItemRegistry {
     if (typeof id !== 'string' || !/^[a-z0-9_.-]+:[a-z0-9_./-]+$/.test(id) || seen.has(id)) throw new Error(`Invalid vanilla item registry entry at index ${index}`);
     seen.add(id);
     if (components !== undefined && (typeof components !== 'object' || components === null || Array.isArray(components))) throw new Error(`Invalid default components for ${id}`);
-    return { id, ...(components ? { defaultComponents: { ...components as Record<string, unknown> } } : {}) };
+    const defaultComponents = components ? { ...components as Record<string, unknown> } : undefined;
+    const maxStackSize = defaultComponents?.['minecraft:max_stack_size'];
+    if (maxStackSize !== undefined && (!Number.isInteger(maxStackSize) || (maxStackSize as number) < 1)) throw new Error(`Invalid max stack size for ${id}`);
+    return { id, ...(defaultComponents ? { defaultComponents } : {}), ...(maxStackSize === undefined ? {} : { maxStackSize: maxStackSize as number }) };
   });
   return new VanillaItemRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: document['source'], items });
 }

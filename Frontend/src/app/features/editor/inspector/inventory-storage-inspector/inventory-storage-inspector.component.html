@@ -28,7 +28,7 @@
       [disabled]="locked"
       (stackChange)="setStack($event)" />
     @if (selectedStack(); as stack) {
-      <label class="count-field"><span>{{ i18n.t('itemCount') }}</span><input type="number" min="1" step="1" [value]="stack.count" [disabled]="locked" (change)="changeCount($event)" /></label>
+      <label class="count-field"><span>{{ i18n.t('itemCount') }}</span><input type="number" min="1" [attr.max]="maxStackSize()" step="1" [value]="stack.count" [disabled]="locked" (change)="changeCount($event)" /></label>
       <button type="button" class="clear-item" [disabled]="locked" (click)="clearSelected()">{{ i18n.t('clearItem') }}</button>
       @if (countFeedback()) { <p class="validation-feedback">{{ i18n.t('invalid') }}</p> }
     }

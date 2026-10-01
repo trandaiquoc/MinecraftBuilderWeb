@@ -15,7 +15,7 @@ describe('StructureJsonExportDialogComponent', () => {
   it('exposes the export actions without adding an import action', async () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonExportDialogComponent],
-      providers: [{ provide: I18nService, useValue: { t: (key: string) => ({ exportStructureJson: 'Export Structure JSON', exportStructureJsonDescription: 'Description', structureJsonInfo: 'Structure info', structureJsonProject: 'Project', structureJsonMinecraftVersion: 'Minecraft version', structureJsonBlockCount: 'Blocks', structureJsonFormat: 'Format', structureJsonTab: 'Structure JSON', structureJsonExampleTab: 'Example', structureJsonAiTab: 'AI Instructions', structureJsonSaved: 'Saved', structureJsonDirty: 'Unsaved changes', structureJsonDiscardChanges: 'Discard changes', structureJsonSaveChanges: 'Save changes', copyJson: 'Copy JSON', downloadJson: 'Download .json', copyExample: 'Copy Example', copyAiInstructions: 'Copy AI Instructions', structureJsonLimitations: 'Limitations', structureJsonCopySuccess: 'Copied', structureJsonCopyFailed: 'Failed', structureJsonAiInstructions: 'Instructions', cancel: 'Cancel' }[key] ?? key) } }],
+      providers: [{ provide: I18nService, useValue: { t: (key: string) => ({ exportStructureJson: 'Export Structure JSON', exportStructureJsonDescription: 'Description', structureJsonInfo: 'Structure info', structureJsonProject: 'Project', structureJsonMinecraftVersion: 'Minecraft version', structureJsonBlockCount: 'Blocks', structureJsonFormat: 'Format', structureJsonTab: 'Structure JSON', structureJsonSaved: 'Saved', structureJsonDirty: 'Unsaved changes', structureJsonDiscardChanges: 'Discard changes', structureJsonSaveChanges: 'Save changes', copyJson: 'Copy JSON', downloadJson: 'Download .json', structureJsonLimitations: 'Limitations', structureJsonCopySuccess: 'Copied', structureJsonCopyFailed: 'Failed', cancel: 'Cancel' }[key] ?? key) } }],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonExportDialogComponent);
     fixture.componentRef.setInput('project', project);
@@ -23,17 +23,12 @@ describe('StructureJsonExportDialogComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Export Structure JSON');
     expect(text).toContain('Copy JSON');
-    expect(text).toContain('Example');
-    expect(text).toContain('AI Instructions');
+    expect(text).toContain('Structure JSON');
     expect(text).not.toContain('Preview');
     expect(text).not.toContain('Import Structure JSON');
     expect(fixture.nativeElement.querySelectorAll('button').length).toBeGreaterThan(3);
     const tabs = fixture.nativeElement.querySelectorAll('[role="tab"]') as NodeListOf<HTMLButtonElement>;
-    expect(tabs.length).toBe(3);
-    tabs[1].click();
-    fixture.detectChanges();
-    expect((fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement).readOnly).toBe(true);
-    expect(fixture.nativeElement.textContent).toContain('Copy Example');
+    expect(tabs.length).toBe(1);
   });
 
   it('keeps draft and saved JSON separate and guards only dirty downloads', async () => {

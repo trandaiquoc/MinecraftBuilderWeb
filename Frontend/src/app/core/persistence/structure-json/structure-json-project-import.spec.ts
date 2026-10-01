@@ -5,7 +5,7 @@ import { prepareStructureJsonProjectImport, proposedStructureProjectName } from 
 
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
 const definitions = (id: string): BlockDefinition | undefined => id === stone.id ? stone : undefined;
-const source = (blocks: StructureJson['blocks'], decorations: StructureJson['decorations'] = [], name?: string, minecraftVersion = '1.21.1'): StructureJson => ({ format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion, ...(name ? { name } : {}), blocks, decorations });
+const source = (blocks: StructureJson['blocks'], decorations: StructureJson['decorations'] = [], name?: string, minecraftVersion = '1.21.1'): StructureJson => ({ format: 'minecraftbuilder-structure', minecraftVersion, ...(name ? { name } : {}), blocks, decorations });
 const options = (value: StructureJson, overrides: Partial<Parameters<typeof prepareStructureJsonProjectImport>[0]> = {}) => prepareStructureJsonProjectImport({ source: value, filename: 'fallback-name.json', fallbackName: 'Untitled structure', projectId: 'imported-project', autoUseHuge: false, getDefinition: definitions, ...overrides });
 
 describe('Structure JSON project creation preparation', () => {

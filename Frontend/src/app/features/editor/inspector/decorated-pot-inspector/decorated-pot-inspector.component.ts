@@ -7,6 +7,7 @@ import { StructureEditorService } from '../../../../core/editor/structure/struct
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
 import { SearchableDropdownComponent, type SearchableDropdownOption } from '../../../../shared/ui/searchable-dropdown/searchable-dropdown.component';
+import { validateItemStack } from '../../../../core/items/item-stack-validation';
 
 type PotSide = 'back' | 'left' | 'right' | 'front';
 
@@ -24,9 +25,10 @@ export class DecoratedPotInspectorComponent {
   }
   protected sideLabel(side: PotSide): string { return this.i18n.t(`pot${side[0].toUpperCase()}${side.slice(1)}`); }
   protected selectedSherd(side: PotSide): string { return this.data().decorations[side]; }
+  protected maxStackSize(): number | undefined { const item = this.data().item; return item ? this.catalog.get(item.id)?.maxStackSize : undefined; }
   protected selectSherd(side: PotSide, id: string): void { if (!this.locked && isDecoratedPotSherd(id)) this.editor.updateDecoratedPotDecoration(this.position, side, id); }
   protected setItem(stack: ItemStackData | undefined): void { if (!this.locked) this.editor.setDecoratedPotItem(this.position, stack); }
-  protected changeCount(event: Event): void { const current = this.data().item; const count = Number((event.target as HTMLInputElement).value); if (!current || this.locked || !Number.isInteger(count) || count < 1) return; this.editor.setDecoratedPotItem(this.position, { ...current, count }); }
+  protected changeCount(event: Event): void { const current = this.data().item; const count = Number((event.target as HTMLInputElement).value); if (!current || this.locked || !validateItemStack({ ...current, count }, (id) => this.catalog.get(id)?.maxStackSize).valid) return; this.editor.setDecoratedPotItem(this.position, { ...current, count }); }
   protected clearItem(): void { this.setItem(undefined); }
   protected hasRaw(): boolean { const raw = this.data().raw; return !!raw && Object.keys(raw).length > 0; }
 }

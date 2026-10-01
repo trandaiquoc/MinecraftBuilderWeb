@@ -20,6 +20,7 @@ import { blockCapability } from '../../blocks/capabilities/block-capability-reso
 import type { BlockEntityKind } from '../../blocks/capabilities/block-capability.types';
 import { defaultItemContainerData, setItemContainerSlot } from '../../block-entities/item-display/item-container';
 import type { ItemStackData } from '../../items/item-stack.types';
+import { validateItemStack } from '../../items/item-stack-validation';
 import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
 
 @Injectable({ providedIn: 'root' })
@@ -200,7 +201,7 @@ export class StructureEditorService {
   setDecoratedPotItem(position: VoxelCoordinate, stack: ItemStackData | undefined): boolean {
     return this.history.execute('Decorated Pot item edit', (project) => {
       const block = this.find(project, position);
-      if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups) || (stack !== undefined && !validItemStack(stack))) return undefined;
+      if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups) || (stack !== undefined && !validateItemStack(stack, (id) => this.library.maxStackSizeFor(id)).valid)) return undefined;
       const current = decoratedPotData(block.blockEntityData);
       const data = { ...current, ...(stack ? { item: stack } : { item: undefined }) };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
@@ -209,7 +210,7 @@ export class StructureEditorService {
   setBlockItemSlot(position: VoxelCoordinate, slot: number, stack: ItemStackData | undefined): boolean {
     return this.history.execute('Item slot edit', (project) => {
       const block = this.find(project, position); const capability = block ? itemHostCapability(this.library.get(block.id), block.id) : undefined;
-      if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups) || (stack !== undefined && !validItemStack(stack))) return undefined;
+      if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups) || (stack !== undefined && !validateItemStack(stack, (id) => this.library.maxStackSizeFor(id)).valid)) return undefined;
       const data = setItemContainerSlot(block.blockEntityData, capability.kind, capability.slotCount, slot, stack);
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
@@ -242,7 +243,6 @@ function itemHostCapability(definition: ReturnType<BlockLibraryService['get']>, 
   return inventory?.editable ? { kind: 'inventory-storage', slotCount: inventory.slotCount, evidence: 'verified' } : undefined;
 }
 function isDecoratedPotBlock(block: PlacedBlock, definition: ReturnType<BlockLibraryService['get']>): boolean { return block.id === 'minecraft:decorated_pot' || isBlockEntity(definition, 'decorated-pot'); }
-function validItemStack(stack: ItemStackData): boolean { return typeof stack.id === 'string' && stack.id.length > 0 && Number.isInteger(stack.count) && stack.count >= 1; }
 function isPotSide(value: string): value is 'back' | 'left' | 'right' | 'front' { return value === 'back' || value === 'left' || value === 'right' || value === 'front'; }
 export function isSignDefinition(definition: ReturnType<BlockLibraryService['get']>): boolean { return blockCapability(definition, 'block-entity')?.entityKind === 'sign'; }
 export function defaultSignData(): SignBlockEntityData { const side: SignSide = { lines: ['', '', '', ''], color: 'black', glowing: false }; return { kind: 'sign', front: side, back: { ...side, lines: [...side.lines] as SignSide['lines'] }, waxed: false }; }

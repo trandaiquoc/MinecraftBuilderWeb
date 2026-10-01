@@ -7,6 +7,7 @@ import type { PlacedBlock, VoxelCoordinate } from '../../../../core/domain/proje
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
+import { validateItemStack } from '../../../../core/items/item-stack-validation';
 
 @Component({
   selector: 'app-inventory-storage-inspector',
@@ -37,6 +38,7 @@ export class InventoryStorageInspectorComponent implements OnChanges {
   protected columns(): number { return this.schema.slotCount === 5 ? 5 : 9; }
   protected selectedEntry(): ItemSlotData | undefined { return this.slots().find((entry) => entry.slot === this.selectedSlot()); }
   protected selectedStack(): ItemStackData | undefined { return this.selectedEntry()?.stack; }
+  protected maxStackSize(): number | undefined { const stack = this.selectedStack(); return stack ? this.catalog.get(stack.id)?.maxStackSize : undefined; }
   protected displayName(stack: ItemStackData | undefined): string { return stack ? (this.catalog.get(stack.id)?.displayName ?? stack.id) : this.i18n.t('emptySlot'); }
   protected selectSlot(slot: number): void { this.selectedSlot.set(slot); this.countFeedback.set(''); }
   protected setStack(stack: ItemStackData | undefined): void {
@@ -48,7 +50,8 @@ export class InventoryStorageInspectorComponent implements OnChanges {
     const value = Number((event.target as HTMLInputElement).value);
     const current = this.selectedStack();
     if (!current || this.locked) return;
-    if (!Number.isInteger(value) || value < 1) { this.countFeedback.set('invalid'); return; }
+    const result = validateItemStack({ ...current, count: value }, (id) => this.catalog.get(id)?.maxStackSize);
+    if (!result.valid) { this.countFeedback.set(result.code ?? 'invalid'); return; }
     this.countFeedback.set('');
     this.editor.setBlockItemSlot(this.position, this.selectedSlot(), { ...current, count: value });
   }

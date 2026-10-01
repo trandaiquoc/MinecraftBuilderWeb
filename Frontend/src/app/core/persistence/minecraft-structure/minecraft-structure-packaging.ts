@@ -151,10 +151,10 @@ export function deriveStructureExportDefaults(project: ProjectDocument, cached: 
   return { namespace, structurePath: generatedName, archiveName, archiveFilename: `${archiveName}.zip`, description };
 }
 
-export async function prepareStructureExport(project: ProjectDocument, codec: MinecraftJavaNbtCodec, input: StructureExportInput): Promise<StructureExportResult> {
+export async function prepareStructureExport(project: ProjectDocument, codec: MinecraftJavaNbtCodec, input: StructureExportInput, resolveMaxStackSize?: (id: string) => number | undefined): Promise<StructureExportResult> {
   const inputDiagnostics = validateStructureExportInput(project, input);
   if (inputDiagnostics.length > 0) return { ok: false, diagnostics: inputDiagnostics };
-  const exported = await exportMinecraftStructure(project, codec);
+  const exported = await exportMinecraftStructure(project, codec, undefined, resolveMaxStackSize);
   if (!exported.ok) return { ok: false, diagnostics: exported.diagnostics };
   const metadata = createStructureExportMetadata(input, project);
   const packMcmeta = createPackMcmeta(project.metadata.minecraftVersion, input.description);
@@ -174,12 +174,12 @@ export async function prepareStructureExport(project: ProjectDocument, codec: Mi
 }
 
 /** Builds only the standalone artifact while keeping the production exporter authoritative. */
-export async function prepareStandaloneStructureNbt(project: ProjectDocument, codec: MinecraftJavaNbtCodec, input: StandaloneStructureNbtInput): Promise<StandaloneStructureNbtResult> {
+export async function prepareStandaloneStructureNbt(project: ProjectDocument, codec: MinecraftJavaNbtCodec, input: StandaloneStructureNbtInput, resolveMaxStackSize?: (id: string) => number | undefined): Promise<StandaloneStructureNbtResult> {
   const diagnostics: StructurePackagingDiagnostic[] = [];
   if (project.metadata.minecraftVersion !== MINECRAFT_JAVA_1_21_1) diagnostics.push({ code: 'unsupported-packaging-version', message: `Standalone packaging supports Minecraft Java ${MINECRAFT_JAVA_1_21_1} only.`, path: 'project.metadata.minecraftVersion' });
   diagnostics.push(...validateStructureNamespace(input.namespace), ...validateStructurePath(input.structurePath));
   if (diagnostics.length > 0) return { ok: false, diagnostics };
-  const exported = await exportMinecraftStructure(project, codec);
+  const exported = await exportMinecraftStructure(project, codec, undefined, resolveMaxStackSize);
   if (!exported.ok) return { ok: false, diagnostics: exported.diagnostics };
   const metadata = createStructureExportMetadata({ ...input, archiveName: lastPathSegment(input.structurePath), description: '' }, project);
   return { ok: true, standalone: { ...metadata, bytes: exported.bytes, dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION } };

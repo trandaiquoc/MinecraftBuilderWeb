@@ -4,10 +4,9 @@
   "title": "MinecraftBuilder Structure JSON",
   "type": "object",
   "additionalProperties": false,
-  "required": ["format", "formatVersion", "minecraftVersion", "blocks", "decorations"],
+  "required": ["format", "minecraftVersion", "blocks", "decorations"],
   "properties": {
     "format": { "const": "minecraftbuilder-structure" },
-    "formatVersion": { "const": 2 },
     "minecraftVersion": { "type": "string", "minLength": 1 },
     "name": { "type": "string" },
     "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
@@ -15,8 +14,12 @@
   },
   "$defs": {
     "coordinate": { "type": "object", "additionalProperties": false, "required": ["x", "y", "z"], "properties": { "x": { "type": "integer" }, "y": { "type": "integer" }, "z": { "type": "integer" } } },
-    "block": { "type": "object", "additionalProperties": false, "required": ["id", "x", "y", "z"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9/._-]+$" }, "x": { "type": "integer" }, "y": { "type": "integer" }, "z": { "type": "integer" }, "state": { "type": "object", "additionalProperties": { "type": "string" } } } },
+    "block": { "type": "object", "additionalProperties": false, "required": ["id", "x", "y", "z"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9/._-]+$" }, "x": { "type": "integer" }, "y": { "type": "integer" }, "z": { "type": "integer" }, "state": { "type": "object", "additionalProperties": { "type": "string" } }, "blockEntity": { "oneOf": [{ "$ref": "#/$defs/container" }, { "$ref": "#/$defs/decoratedPot" }, { "$ref": "#/$defs/sign" }] } } },
     "item": { "type": "object", "additionalProperties": false, "required": ["id"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9/._-]+$" }, "count": { "type": "integer", "minimum": 1 }, "components": { "type": "object" } } },
+    "container": { "type": "object", "additionalProperties": false, "required": ["kind", "items"], "properties": { "kind": { "const": "container" }, "items": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["slot", "item"], "properties": { "slot": { "type": "integer", "minimum": 0 }, "item": { "$ref": "#/$defs/item" } } } } } },
+    "decoratedPot": { "type": "object", "additionalProperties": false, "required": ["kind", "decorations"], "properties": { "kind": { "const": "decorated-pot" }, "decorations": { "type": "object", "additionalProperties": false, "required": ["back", "left", "right", "front"], "properties": { "back": { "type": "string" }, "left": { "type": "string" }, "right": { "type": "string" }, "front": { "type": "string" } } }, "item": { "$ref": "#/$defs/item" } } },
+    "signSide": { "type": "object", "additionalProperties": false, "required": ["lines", "color", "glowing"], "properties": { "lines": { "type": "array", "prefixItems": [{ "type": "string" }, { "type": "string" }, { "type": "string" }, { "type": "string" }], "items": false }, "color": { "type": "string" }, "glowing": { "type": "boolean" }, "filteredMessages": { "type": "array", "prefixItems": [{ "type": "string" }, { "type": "string" }, { "type": "string" }, { "type": "string" }], "items": false } } },
+    "sign": { "type": "object", "additionalProperties": false, "required": ["kind", "front", "back", "waxed"], "properties": { "kind": { "const": "sign" }, "front": { "$ref": "#/$defs/signSide" }, "back": { "$ref": "#/$defs/signSide" }, "waxed": { "type": "boolean" } } },
     "painting": { "type": "object", "additionalProperties": false, "required": ["kind", "anchor", "facing", "variantId"], "properties": { "kind": { "const": "painting" }, "anchor": { "$ref": "#/$defs/coordinate" }, "facing": { "enum": ["north", "south", "east", "west"] }, "variantId": { "type": "string", "minLength": 1 } } },
     "frame": { "type": "object", "additionalProperties": false, "required": ["kind", "anchor", "facing"], "properties": { "kind": { "enum": ["item-frame", "glow-item-frame"] }, "anchor": { "$ref": "#/$defs/coordinate" }, "facing": { "enum": ["down", "up", "north", "south", "west", "east"] }, "item": { "$ref": "#/$defs/item" }, "rotation": { "type": "integer", "minimum": 0, "maximum": 7 }, "invisible": { "type": "boolean" }, "fixed": { "type": "boolean" }, "itemDropChance": { "type": "number", "minimum": 0, "maximum": 1 } } }
   }

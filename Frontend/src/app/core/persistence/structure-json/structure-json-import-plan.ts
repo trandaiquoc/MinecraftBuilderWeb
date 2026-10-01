@@ -5,7 +5,7 @@ import { coordinateKey } from '../../domain/coordinates';
 import type { ProjectDocument, PlacedBlock, ProjectGroup, VoxelCoordinate } from '../../domain/project.types';
 import { decorationAabb } from '../../decorations/placement/decoration-placement';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
-import { type StructureJsonBlock, type StructureJsonDecoration, type StructureJson } from './structure-json';
+import { projectBlockEntityDataFromStructureJson, type StructureJsonBlock, type StructureJsonDecoration, type StructureJson } from './structure-json';
 import { validateStructureJsonDecorations, type StructureJsonValidationPreview } from './structure-json-import';
 import { addDecorationToSpatialIndex, blocksIntersectingAabb, buildDecorationSpatialIndex, buildStructureImportSpatialContext, queryDecorationSpatialIndex } from './structure-json-spatial';
 
@@ -88,7 +88,7 @@ export function prepareStructureJsonImportPlan(current: ProjectDocument, plan: S
   return { ...current, blocks: [...current.blocks, ...blocks], decorations: [...(current.decorations ?? []), ...decorations], groups: [...current.groups, group], metadata: { ...current.metadata, updatedAt } };
 }
 
-function toPlacedBlock(block: StructureJsonBlock, definition: BlockDefinition | undefined): PlacedBlock { const position = { x: block.x, y: block.y, z: block.z }; return definition ? { kind: 'resolved', id: block.id, namespace: definition.namespace, position, state: { ...definition.defaultState, ...(block.state ?? {}) } } : { kind: 'missing', id: block.id, namespace: namespaceOf(block.id), position, state: { ...(block.state ?? {}) } }; }
+function toPlacedBlock(block: StructureJsonBlock, definition: BlockDefinition | undefined): PlacedBlock { const position = { x: block.x, y: block.y, z: block.z }; const blockEntityData = block.blockEntity ? projectBlockEntityDataFromStructureJson(block.blockEntity, block.id, definition) : undefined; return definition ? { kind: 'resolved', id: block.id, namespace: definition.namespace, position, state: { ...definition.defaultState, ...(block.state ?? {}) }, ...(blockEntityData ? { blockEntityData } : {}) } : { kind: 'missing', id: block.id, namespace: namespaceOf(block.id), position, state: { ...(block.state ?? {}) }, ...(blockEntityData ? { blockEntityData } : {}) }; }
 function toPlacedDecoration(decoration: StructureJsonDecoration, index: number, usedIds: Set<string>): PlacedDecoration {
   const instanceId = nextDecorationId(index, usedIds);
   usedIds.add(instanceId);

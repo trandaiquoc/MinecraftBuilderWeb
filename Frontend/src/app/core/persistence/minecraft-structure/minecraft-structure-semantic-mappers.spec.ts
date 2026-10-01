@@ -48,7 +48,7 @@ describe('verified 1.21.1 semantic NBT mappers', () => {
   it('maps verified chest, barrel and hopper inventories with block-specific capacities', () => {
     const emptyChest = mapBlockEntity(block('minecraft:chest', { kind: 'item-container', hostKind: 'inventory-storage', slots: [] }), 0);
     expect(emptyChest.ok && emptyChest.value?.value['Items']).toEqual({ type: 'list', elementType: 'compound', value: [] });
-    const chest = mapBlockEntity(block('minecraft:chest', { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 1 } }, { slot: 26, stack: { id: 'example:gem', count: 2 } }] }), 0);
+    const chest = mapBlockEntity(block('minecraft:chest', { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 1 } }, { slot: 26, stack: { id: 'example:gem', count: 1 } }] }), 0);
     expect(chest.ok && chest.value?.value['id']).toEqual({ type: 'string', value: 'minecraft:chest' });
     expect(chest.ok && chest.value?.value['Items']).toMatchObject({ type: 'list', elementType: 'compound' });
     if (chest.ok && chest.value?.value['Items']?.type === 'list') expect(chest.value.value['Items'].value[0]).toMatchObject({ type: 'compound', value: { Slot: { type: 'byte', value: 0 }, id: { type: 'string', value: 'minecraft:diamond' }, count: { type: 'int', value: 1 } } });

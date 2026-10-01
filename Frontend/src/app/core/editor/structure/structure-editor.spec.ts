@@ -137,9 +137,9 @@ describe('StructureEditorService mutations', () => {
     const displayProject: ProjectDocument = { ...project, blocks: [{ kind: 'resolved', id: 'example:display_case', namespace: 'example', position: { x: 1, y: 1, z: 1 }, state: {}, blockEntityData: { legacy: { keep: true } } }] };
     const { editor, workspace, history, library } = makeEditor(displayProject);
     library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{ id: 'example:display_case', displayName: 'Display Case', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'item-storage-display', slotCount: 2, evidence: 'verified' }] }] });
-    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 1, { id: 'example:gem', count: 2, components: { custom: true } })).toBe(true);
+ expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 1, { id: 'example:gem', count: 1, components: { custom: true } })).toBe(true);
     const data = workspace.project()!.blocks[0].blockEntityData as { slots: readonly { slot: number; stack?: { id: string; count: number; components?: unknown } }[]; raw?: unknown };
-    expect(data.slots[1]?.stack).toEqual({ id: 'example:gem', count: 2, components: { custom: true } });
+ expect(data.slots[1]?.stack).toEqual({ id: 'example:gem', count: 1, components: { custom: true } });
     expect(data.raw).toEqual({ legacy: { keep: true } });
     expect(history.undo()).toBe(true);
     expect(history.redo()).toBe(true);
@@ -172,12 +172,12 @@ describe('StructureEditorService mutations', () => {
     const chestProject: ProjectDocument = { ...project, blocks: [{ kind: 'resolved', id: 'minecraft:chest', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: {}, blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [], raw: { legacy: true } } }] };
     const { editor, workspace, history, library } = makeEditor(chestProject);
     library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{ id: 'minecraft:chest', displayName: 'Chest', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'inventory-storage', slotCount: 27, evidence: 'verified' }] }] });
-    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, { id: 'minecraft:diamond', count: 3, components: { custom: true } })).toBe(true);
+ expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, { id: 'minecraft:diamond', count: 1, components: { custom: true } })).toBe(true);
     let data = workspace.project()!.blocks[0].blockEntityData as { slots: readonly { slot: number; stack?: ItemStackData }[]; raw?: unknown };
-    expect(data.slots[26].stack).toEqual({ id: 'minecraft:diamond', count: 3, components: { custom: true } }); expect(data.raw).toEqual({ legacy: true });
-    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, { id: 'minecraft:diamond', count: 5, components: { custom: true } })).toBe(true);
+    expect(data.slots[26].stack).toEqual({ id: 'minecraft:diamond', count: 1, components: { custom: true } }); expect(data.raw).toEqual({ legacy: true });
+ expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, { id: 'minecraft:diamond', count: 1, components: { custom: true } })).toBe(true);
     expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, undefined)).toBe(true);
-    expect(history.undo()).toBe(true); data = workspace.project()!.blocks[0].blockEntityData as typeof data; expect(data.slots[26].stack?.count).toBe(5);
+ expect(history.undo()).toBe(true); data = workspace.project()!.blocks[0].blockEntityData as typeof data; expect(data.slots[26].stack?.count).toBe(1);
     expect(history.redo()).toBe(true); expect((workspace.project()!.blocks[0].blockEntityData as typeof data).slots[26].stack).toBeUndefined();
   });
 
@@ -199,9 +199,9 @@ describe('StructureEditorService mutations', () => {
     const { editor, workspace, history } = makeEditor(pot);
     expect(editor.updateDecoratedPotDecoration({ x: 1, y: 1, z: 1 }, 'back', 'minecraft:heart_pottery_sherd')).toBe(true);
     expect(editor.updateDecoratedPotDecoration({ x: 1, y: 1, z: 1 }, 'back', 'minecraft:not_a_sherd')).toBe(false);
-    expect(editor.setDecoratedPotItem({ x: 1, y: 1, z: 1 }, { id: 'minecraft:diamond', count: 2, components: { custom: true } })).toBe(true);
+    expect(editor.setDecoratedPotItem({ x: 1, y: 1, z: 1 }, { id: 'minecraft:diamond', count: 1, components: { custom: true } })).toBe(true);
     const data = workspace.project()!.blocks[0].blockEntityData as { decorations: { back: string }; item?: ItemStackData; raw?: unknown };
-    expect(data.decorations.back).toBe('minecraft:heart_pottery_sherd'); expect(data.item).toEqual({ id: 'minecraft:diamond', count: 2, components: { custom: true } }); expect(data.raw).toEqual({ future: true });
+    expect(data.decorations.back).toBe('minecraft:heart_pottery_sherd'); expect(data.item).toEqual({ id: 'minecraft:diamond', count: 1, components: { custom: true } }); expect(data.raw).toEqual({ future: true });
     expect(history.undo()).toBe(true); expect((workspace.project()!.blocks[0].blockEntityData as typeof data).item).toBeUndefined(); expect(history.redo()).toBe(true);
   });
 

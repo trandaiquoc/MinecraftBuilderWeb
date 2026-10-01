@@ -58,6 +58,7 @@ function toCatalogEntry(item: CatalogItemEvidence, sourceId: string, sourceName:
     referencedModels: item.referencedModels,
     referencedResources: item.referencedResources,
     ...(item.explicitBlockPlacement ? { explicitBlockPlacement: item.explicitBlockPlacement } : {}),
+    ...(item.maxStackSize === undefined ? {} : { maxStackSize: item.maxStackSize }),
   };
 }
 

@@ -15,6 +15,7 @@
           <div><dt>{{ i18n.t('structureJsonFormat') }}</dt><dd>{{ i18n.t('structureJsonCurrentFormat') }}</dd></div>
         </dl>
         <p class="structure-json-limitations">{{ i18n.t('structureJsonLimitations') }}</p>
+        @if (hasUnsupportedBlockEntityData()) { <p class="structure-json-validation" role="status">{{ i18n.t('structureJsonBlockEntityWarning') }}</p> }
         @if (hasRawDecorationMetadata()) { <p class="structure-json-validation" role="status">{{ i18n.t('structureJsonRawMetadataWarning') }}</p> }
       </aside>
       <section class="structure-json-workspace">
@@ -28,11 +29,6 @@
             <div class="editor-heading"><div><strong>{{ i18n.t('structureJsonTab') }}</strong>@if (dirty()) { <span class="dirty-status">{{ i18n.t('structureJsonDirty') }}</span> } @else { <span class="saved-status">{{ i18n.t('structureJsonSaved') }}</span> }</div><div class="editor-actions"><button type="button" class="ui-button ui-button--secondary ui-button--sm" [disabled]="!dirty()" (click)="discardChanges()">{{ i18n.t('structureJsonDiscardChanges') }}</button><button type="button" class="ui-button ui-button--primary ui-button--sm" [disabled]="!dirty()" (click)="saveChanges()"><svg lucideSave aria-hidden="true"></svg>{{ i18n.t('structureJsonSaveChanges') }}</button></div></div>
             <textarea class="structure-json-editor" [value]="draftJson()" (input)="setDraftJson($any($event.target).value)" [attr.aria-label]="i18n.t('structureJsonTab')" spellcheck="false"></textarea>
             @if (validationError(); as error) { <p class="structure-json-validation" role="alert">{{ error }}</p> }
-          } @else if (tab() === 'example') {
-            <div class="reference-heading"><strong>{{ i18n.t('structureJsonExampleTab') }}</strong><button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="copyExample()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('copyExample') }}</button></div>
-            <textarea class="structure-json-editor reference-editor" [value]="exampleJson()" readonly [attr.aria-label]="i18n.t('structureJsonExampleTab')" spellcheck="false"></textarea>
-          } @else {
-            <div class="ai-workspace"><div class="ai-workflow"><h3>{{ i18n.t('structureJsonAiTab') }}</h3><p>{{ aiWorkflow() }}</p><p class="ai-example">{{ i18n.t('structureJsonAiExample') }}</p></div><div class="reference-heading"><strong>{{ i18n.t('structureJsonSuggestedInstructions') }}</strong><button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="copyInstructions()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('copyAiInstructions') }}</button></div><textarea class="structure-json-editor reference-editor prose-editor" [value]="aiInstructions()" readonly [attr.aria-label]="i18n.t('structureJsonSuggestedInstructions')" spellcheck="false"></textarea></div>
           }
           @if (feedback() === 'success') { <p class="structure-json-feedback success" role="status">{{ i18n.t('structureJsonCopySuccess') }}</p> }
           @if (feedback() === 'error') { <p class="structure-json-feedback error" role="alert">{{ i18n.t('structureJsonCopyFailed') }}</p> }

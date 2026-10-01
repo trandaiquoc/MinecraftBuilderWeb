@@ -4,7 +4,7 @@ import type { ProjectDocument } from '../../domain/project.types';
 import type { StructureJson } from './structure-json';
 
 const source: StructureJson = {
-  format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1',
+  format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1',
   blocks: [{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }, { id: 'minecraft:stone', x: 63, y: 17, z: 63 }, { id: 'minecraft:stone', x: -1, y: 0, z: 0 }],
   decorations: [{ kind: 'item-frame', anchor: { x: 64, y: 1, z: 1 }, facing: 'north' }],
 };
@@ -18,7 +18,7 @@ describe('Structure JSON bounds preflight', () => {
   });
 
   it('reports no inferred size for an empty structure', () => {
-    const empty: StructureJson = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [], decorations: [] };
+    const empty: StructureJson = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [], decorations: [] };
     expect(inferRequiredStructureJsonSize(empty)).toBeUndefined();
     expect(inspectStructureJsonBounds(empty, { x: 16, y: 16, z: 16 })).toMatchObject({ requiredSize: { x: 1, y: 1, z: 1 }, hasCoordinateContent: false });
   });

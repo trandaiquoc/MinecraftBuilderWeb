@@ -41,6 +41,7 @@ export interface BlockItemEvidence {
   readonly sourceFormat?: 'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
   readonly referencedModels?: readonly string[];
   readonly referencedResources?: readonly string[];
+  readonly maxStackSize?: number;
 }
 
 /** Source-level item evidence. Item registry identity is independent from BlockDefinition identity. */
@@ -52,6 +53,8 @@ export interface CatalogItemEvidence {
   readonly sourceFormat: 'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
   readonly sourceId?: string;
   readonly sourceName?: string;
+  /** Authoritative Item#getMaxCount() evidence when available. */
+  readonly maxStackSize?: number;
 }
 
 export type BlockBehavior =

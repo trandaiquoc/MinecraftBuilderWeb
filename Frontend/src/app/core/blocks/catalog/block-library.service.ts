@@ -36,7 +36,9 @@ export class BlockLibraryService {
   catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog.conflicts(); }
   select(item: PlaceableItemDefinition): void { this.decorations?.clearActive(); this.activeBlock.select(item); }
   get(id: string): NormalizedBlockDefinition | undefined { return this.catalog.get(id); }
+  allDefinitions(): readonly NormalizedBlockDefinition[] { this.revision(); return this.catalog.all(); }
   getItem(itemId: string): PlaceableItemDefinition | undefined { return this.itemById.get(itemId) ?? this.itemByBlockId.get(itemId); }
+  maxStackSizeFor(itemId: string): number | undefined { return this.itemById.get(itemId)?.maxStackSize ?? this.itemByBlockId.get(itemId)?.maxStackSize; }
   itemForBlock(blockId: string): PlaceableItemDefinition | undefined {
     return this.itemByBlockId.get(blockId) ?? this.itemById.get(blockId);
   }

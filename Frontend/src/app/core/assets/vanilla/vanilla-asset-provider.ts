@@ -154,7 +154,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const models = configuredModelIds(blockstate);
       const inferredDefinitions = registryEntry?.properties ?? known?.stateDefinitions ?? stateDefinitionsFromBlockstate(blockstate);
       const resourceDefault = resourceDefaultState(blockstate, inferredDefinitions);
-      const normalizedItemEvidence = itemByBlock.has(id) && !isDecorationEntityId(id) ? toBlockItemEvidence(itemByBlock.get(id)!, !!registryEntry) : undefined;
+      const normalizedItemEvidence = itemByBlock.has(id) && !isDecorationEntityId(id) ? toBlockItemEvidence(itemByBlock.get(id)!, !!registryEntry, itemRegistry?.get(id)?.maxStackSize) : undefined;
       const generated: AssetBlockRecord = {
         id,
         displayName: typeof language[`block.${namespace}.${name.replaceAll('/', '.')}`] === 'string' ? language[`block.${namespace}.${name.replaceAll('/', '.')}`] as string : humanize(name),
@@ -190,7 +190,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       sourceId: this.source.id,
       sourceName: this.source.displayName,
       blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })),
-      targetItems: itemEvidence.map((item) => ({ ...item, sourceId: this.source.id, sourceName: this.source.displayName })),
+      targetItems: itemEvidence.map((item) => ({ ...item, ...(itemRegistry?.get(item.itemId)?.maxStackSize === undefined ? {} : { maxStackSize: itemRegistry.get(item.itemId)!.maxStackSize }), sourceId: this.source.id, sourceName: this.source.displayName })),
       // The Vanilla provider has inspected the item domain even when the
       // target resource format contains no usable item definitions. Keep an
       // empty/unknown catalog conservative rather than exposing every block.
@@ -200,9 +200,9 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   }
 }
 
-function toBlockItemEvidence(evidence: TargetItemEvidence, authoritative = false) {
+function toBlockItemEvidence(evidence: TargetItemEvidence, authoritative = false, maxStackSize?: number) {
   const classification = classifyContent({ id: evidence.explicitBlockPlacement?.blockId ?? evidence.itemId, hasWorldBlock: true, hasItemEvidence: true, authoritative });
-  return { itemId: evidence.itemId, placeable: classification.placeable, contentKind: classification.kind, provenance: classification.provenance, sourceFormat: evidence.sourceFormat, referencedModels: evidence.referencedModels, referencedResources: evidence.referencedResources } as const;
+  return { itemId: evidence.itemId, placeable: classification.placeable, contentKind: classification.kind, provenance: classification.provenance, sourceFormat: evidence.sourceFormat, referencedModels: evidence.referencedModels, referencedResources: evidence.referencedResources, ...(maxStackSize === undefined ? {} : { maxStackSize }) } as const;
 }
 
 function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<typeof evaluateCommonBehavior>): AssetBlockRecord {

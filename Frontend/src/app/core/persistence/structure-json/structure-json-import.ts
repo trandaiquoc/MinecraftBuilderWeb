@@ -2,19 +2,21 @@ import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { coordinateKey, isWithinBounds } from '../../domain/coordinates';
 import { ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
-import { StructureJsonDecoration, StructureJson, parseStructureJson, StructureJsonBlock, StructureJsonValidationCode } from './structure-json';
+import { StructureJsonDecoration, StructureJson, parseStructureJson, StructureJsonBlock, StructureJsonValidationCode, validateStructureJsonBlockEntity } from './structure-json';
 import type { ParsedStructureJsonResult } from './structure-json';
 import { decorationAabb, decorationInBounds, paintingSupportFootprint, supportsDecoration } from '../../decorations/placement/decoration-placement';
 import { allPaintingVariants, paintingVariant } from '../../decorations/decoration.types';
 import { materializeBlockState } from '../../blocks/catalog/block-state-compatibility';
 import { addDecorationToSpatialIndex, blocksIntersectingAabb, buildDecorationSpatialIndex, buildStructureImportSpatialContext, queryDecorationSpatialIndex } from './structure-json-spatial';
+import { validateItemStack, type ItemMaxStackResolver } from '../../items/item-stack-validation';
 
 export type StructureJsonIssueCategory = 'missing' | 'bounds' | 'state' | 'duplicate';
 export type StructureJsonIssueReason =
   | { readonly code: 'missing-block' }
   | { readonly code: 'out-of-bounds' }
   | { readonly code: 'unknown-state-property'; readonly property: string }
-  | { readonly code: 'unsupported-state-value'; readonly property: string; readonly value: string };
+  | { readonly code: 'unsupported-state-value'; readonly property: string; readonly value: string }
+  | { readonly code: 'invalid-block-entity'; readonly detail: string };
 
 export interface StructureJsonBlockIssue {
   readonly category: StructureJsonIssueCategory;
@@ -80,22 +82,22 @@ export async function parseStructureJsonWithWorker(text: string): Promise<Parsed
   });
 }
 
-export function validateStructureJsonPreview(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
-  return validateStructureJsonPreviewBase(serialized, size, getDefinition, onProgress, project);
+export function validateStructureJsonPreview(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument, resolveMaxStackSize?: (id: string) => number | undefined): StructureJsonValidationPreview {
+  return validateStructureJsonPreviewBase(serialized, size, getDefinition, onProgress, project, resolveMaxStackSize);
 }
 
-export function validateParsedStructureJsonPreview(parsed: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
-  return validateParsedStructureJsonPreviewBase(parsed, size, getDefinition, onProgress, project);
+export function validateParsedStructureJsonPreview(parsed: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument, resolveMaxStackSize?: (id: string) => number | undefined): StructureJsonValidationPreview {
+  return validateParsedStructureJsonPreviewBase(parsed, size, getDefinition, onProgress, project, resolveMaxStackSize);
 }
 
-export async function validateStructureJsonPreviewAsync(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation): Promise<StructureJsonValidationPreview | undefined> {
+export async function validateStructureJsonPreviewAsync(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation, project?: ProjectDocument, resolveMaxStackSize?: (id: string) => number | undefined): Promise<StructureJsonValidationPreview | undefined> {
   if (isCancelled(cancellation)) return undefined;
   const parsed = parseStructureJson(serialized);
   if (!parsed.valid || !parsed.value) return emptyPreview(parsed.code);
-  return validateParsedStructureJsonPreviewAsync(parsed.value, size, getDefinition, onProgress, cancellation);
+  return validateParsedStructureJsonPreviewAsync(parsed.value, size, getDefinition, onProgress, cancellation, project, resolveMaxStackSize);
 }
 
-export async function validateParsedStructureJsonPreviewAsync(parsed: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation, project?: ProjectDocument): Promise<StructureJsonValidationPreview | undefined> {
+export async function validateParsedStructureJsonPreviewAsync(parsed: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, cancellation?: StructureJsonValidationCancellation, project?: ProjectDocument, resolveMaxStackSize?: (id: string) => number | undefined): Promise<StructureJsonValidationPreview | undefined> {
   if (isCancelled(cancellation)) return undefined;
   const issues = emptyIssues();
   const coordinates = new Map<string, { readonly position: VoxelCoordinate; readonly indexes: number[]; readonly ids: string[] }>();
@@ -122,23 +124,23 @@ export async function validateParsedStructureJsonPreviewAsync(parsed: StructureJ
       const block = parsed.blocks[index]; const position = { x: block.x, y: block.y, z: block.z };
       if (!isWithinBounds(position, size)) issues.bounds.push(issue('bounds', index, block, { code: 'out-of-bounds' }));
       const definition = getDefinition(block.id);
-      if (!definition) issues.missing.push(issue('missing', index, block, { code: 'missing-block' }));
-      else { const invalid = findInvalidState(block, definition); if (invalid) issues.state.push({ ...issue('state', index, block, invalid.reason), property: invalid.property, value: invalid.value }); else if (isWithinBounds(position, size) && !duplicateIndexes.has(index)) validBlocks += 1; }
+      if (!definition) { issues.missing.push(issue('missing', index, block, { code: 'missing-block' })); if (block.blockEntity) issues.state.push(issue('state', index, block, { code: 'invalid-block-entity', detail: 'missing-host' })); }
+      else { const invalid = findInvalidState(block, definition); const entityError = block.blockEntity ? validateStructureJsonBlockEntity(block.blockEntity, block.id, definition, resolveMaxStackSize) : undefined; if (invalid) issues.state.push({ ...issue('state', index, block, invalid.reason), property: invalid.property, value: invalid.value }); else if (entityError) issues.state.push(issue('state', index, block, { code: 'invalid-block-entity', detail: entityError })); else if (isWithinBounds(position, size) && !duplicateIndexes.has(index)) validBlocks += 1; }
     }
     onProgress?.(end, parsed.blocks.length);
     if (end < parsed.blocks.length) { await yieldToBrowser(); if (isCancelled(cancellation)) return undefined; }
   }
-  const decorationResult = validateDecorations(parsed, project ?? ({ size, blocks: [], decorations: [] } as unknown as ProjectDocument));
+  const decorationResult = validateDecorations(parsed, project ?? ({ size, blocks: [], decorations: [] } as unknown as ProjectDocument), resolveMaxStackSize);
   return { structuralValid: true, parsed, totalBlocks: parsed.blocks.length, validBlocks, missingBlocks: issues.missing.length, outOfBounds: issues.bounds.length, invalidStates: issues.state.length, duplicateCoordinates: issues.duplicate.length, affectedDuplicateBlocks: issues.duplicate.reduce((count, conflict) => count + conflict.blockIndexes.length, 0), issues, ...decorationResult };
 }
 
-function validateStructureJsonPreviewBase(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
+function validateStructureJsonPreviewBase(serialized: string, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument, resolveMaxStackSize?: (id: string) => number | undefined): StructureJsonValidationPreview {
   const parsed = parseStructureJson(serialized);
   if (!parsed.valid || !parsed.value) return emptyPreview(parsed.code);
-  return validateParsedStructureJsonPreviewBase(parsed.value, size, getDefinition, onProgress, project);
+  return validateParsedStructureJsonPreviewBase(parsed.value, size, getDefinition, onProgress, project, resolveMaxStackSize);
 }
 
-function validateParsedStructureJsonPreviewBase(value: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument): StructureJsonValidationPreview {
+function validateParsedStructureJsonPreviewBase(value: StructureJson, size: ProjectSize, getDefinition: (id: string) => BlockDefinition | undefined, onProgress?: (completed: number, total: number) => void, project?: ProjectDocument, resolveMaxStackSize?: (id: string) => number | undefined): StructureJsonValidationPreview {
   const issues = emptyIssues();
   const coordinates = new Map<string, { readonly position: VoxelCoordinate; readonly indexes: number[]; readonly ids: string[] }>();
   for (let index = 0; index < value.blocks.length; index += 1) {
@@ -152,11 +154,11 @@ function validateParsedStructureJsonPreviewBase(value: StructureJson, size: Proj
     const block = value.blocks[index]; const position = { x: block.x, y: block.y, z: block.z };
     if (!isWithinBounds(position, size)) issues.bounds.push(issue('bounds', index, block, { code: 'out-of-bounds' }));
     const definition = getDefinition(block.id);
-    if (!definition) issues.missing.push(issue('missing', index, block, { code: 'missing-block' }));
-    else { const invalid = findInvalidState(block, definition); if (invalid) issues.state.push({ ...issue('state', index, block, invalid.reason), property: invalid.property, value: invalid.value }); else if (isWithinBounds(position, size) && !duplicateIndexes.has(index)) validBlocks += 1; }
+    if (!definition) { issues.missing.push(issue('missing', index, block, { code: 'missing-block' })); if (block.blockEntity) issues.state.push(issue('state', index, block, { code: 'invalid-block-entity', detail: 'missing-host' })); }
+    else { const invalid = findInvalidState(block, definition); const entityError = block.blockEntity ? validateStructureJsonBlockEntity(block.blockEntity, block.id, definition, resolveMaxStackSize) : undefined; if (invalid) issues.state.push({ ...issue('state', index, block, invalid.reason), property: invalid.property, value: invalid.value }); else if (entityError) issues.state.push(issue('state', index, block, { code: 'invalid-block-entity', detail: entityError })); else if (isWithinBounds(position, size) && !duplicateIndexes.has(index)) validBlocks += 1; }
     onProgress?.(index + 1, value.blocks.length);
   }
-  const decorationResult = validateDecorations(value, project ?? ({ size, blocks: [], decorations: [] } as unknown as ProjectDocument));
+  const decorationResult = validateDecorations(value, project ?? ({ size, blocks: [], decorations: [] } as unknown as ProjectDocument), resolveMaxStackSize);
   return { structuralValid: true, parsed: value, totalBlocks: value.blocks.length, validBlocks, missingBlocks: issues.missing.length, outOfBounds: issues.bounds.length, invalidStates: issues.state.length, duplicateCoordinates: issues.duplicate.length, affectedDuplicateBlocks: issues.duplicate.reduce((count, conflict) => count + conflict.blockIndexes.length, 0), issues, ...decorationResult };
 }
 
@@ -167,12 +169,13 @@ function findInvalidState(block: StructureJsonBlock, definition: BlockDefinition
 }
 
 function issue(category: StructureJsonIssueCategory, index: number, block: StructureJsonBlock, reason: StructureJsonIssueReason): StructureJsonBlockIssue { return { category, index, id: block.id, position: { x: block.x, y: block.y, z: block.z }, reason }; }
-function validateDecorations(document: StructureJson, project: ProjectDocument): Pick<StructureJsonValidationPreview, 'totalDecorations' | 'validDecorations' | 'missingDecorationAssets' | 'invalidDecorations' | 'decorationIssues'> {
+function validateDecorations(document: StructureJson, project: ProjectDocument, resolveMaxStackSize?: ItemMaxStackResolver): Pick<StructureJsonValidationPreview, 'totalDecorations' | 'validDecorations' | 'missingDecorationAssets' | 'invalidDecorations' | 'decorationIssues'> {
   const decorations = document.decorations; const issues: StructureJsonDecorationIssue[] = []; const variants = new Map(allPaintingVariants().map((entry) => [entry.id, entry]));
   const spatial = buildStructureImportSpatialContext(project.blocks, project.decorations ?? []);
   const candidateSpatial = buildDecorationSpatialIndex([]);
   for (let index = 0; index < decorations.length; index += 1) {
     const decoration = decorations[index]; const variant = decoration.kind === 'painting' ? variants.get(decoration.variantId.replace(/^minecraft:/, '')) ?? paintingVariant(decoration.variantId) : undefined;
+    if (decoration.kind !== 'painting' && decoration.item && !validateItemStack({ id: decoration.item.id, count: decoration.item.count ?? 1, ...(decoration.item.components ? { components: decoration.item.components } : {}) }, resolveMaxStackSize).valid) { issues.push({ category: 'invalid', index, kind: decoration.kind, anchor: decoration.anchor, reason: 'invalid-item-stack' }); continue; }
     if (decoration.kind === 'painting' && !variant) { issues.push({ category: 'missing-asset', index, kind: decoration.kind, anchor: decoration.anchor, reason: 'missing-painting-variant' }); continue; }
     if (!decorationInBounds(decoration.anchor, project.size)) { issues.push({ category: 'bounds', index, kind: decoration.kind, anchor: decoration.anchor, reason: 'out-of-bounds' }); continue; }
     const direction = decoration.facing === 'up' ? { x: 0, y: 1, z: 0 } : decoration.facing === 'down' ? { x: 0, y: -1, z: 0 } : decoration.facing === 'north' ? { x: 0, y: 0, z: -1 } : decoration.facing === 'south' ? { x: 0, y: 0, z: 1 } : decoration.facing === 'west' ? { x: -1, y: 0, z: 0 } : { x: 1, y: 0, z: 0 };

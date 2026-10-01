@@ -20,6 +20,7 @@ export interface PlaceableItemDefinition {
   readonly modName?: string;
   readonly sourceId?: string;
   readonly sourceName?: string;
+  readonly maxStackSize?: number;
   readonly defaultState: BlockState;
   /** State used only for browser/thumbnail representation; placement keeps defaultState. */
   readonly previewState?: BlockState;
@@ -39,7 +40,7 @@ export interface PlaceableItemDefinition {
 // repeated Unicode normalization on every keystroke.
 const placementSearchIndex = new WeakMap<object, string>();
 
-export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: string; }
+export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName' | 'maxStackSize'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: string; }
 
 interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; readonly placementVariants?: BlockPlacementVariants; }
 
@@ -198,7 +199,7 @@ function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlock
   const previewBlocks = previewFor(entry, definition, previewState ?? defaultState);
   const placementVariants = entry.placementVariants ?? (definition.namespace === 'minecraft' && entry.concreteBlockIds.length > 1 ? { standing: entry.concreteBlockIds[0], wall: entry.concreteBlockIds[1] } : undefined);
   const itemEvidence = definition.sourceId && definition.sourceId !== 'vanilla' ? 'inferred' : 'verified';
-  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, defaultState, ...(previewState ? { previewState } : {}), concreteBlockIds, ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks };
+  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, ...(definition.itemEvidence?.maxStackSize === undefined ? {} : { maxStackSize: definition.itemEvidence.maxStackSize }), defaultState, ...(previewState ? { previewState } : {}), concreteBlockIds, ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks };
 }
 
 function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState): readonly PlacedBlock[] {

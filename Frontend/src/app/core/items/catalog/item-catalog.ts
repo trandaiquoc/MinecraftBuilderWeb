@@ -35,6 +35,7 @@ export interface ItemCatalogEntry {
   readonly referencedResources: readonly string[];
   readonly visual?: ItemVisualInfo;
   readonly explicitBlockPlacement?: { readonly blockId: string };
+  readonly maxStackSize?: number;
 }
 
 /** Source-independent index for ItemStack-capable content. It never becomes the Block catalog. */

@@ -19,6 +19,7 @@ import {
   type StructurePackagingDiagnostic,
 } from './minecraft-structure-packaging';
 import { classifyStructureSize, MINECRAFT_JAVA_1_21_1, HUGE_STRUCTURE_AXIS_LIMIT } from './minecraft-structure-contract';
+import { ItemCatalogService } from '../../items/catalog/item-catalog.service';
 
 export type StructureExportMode = 'standalone' | 'datapack';
 
@@ -59,19 +60,19 @@ export function preflightStructureExport(project: ProjectDocument | undefined, m
   return { ok: true, diagnostics: [], metadata: metadataForPreview(project, mode, form) };
 }
 
-export async function prepareAndDownloadStructure(project: ProjectDocument | undefined, mode: StructureExportMode, form: StructureExportForm, codec: MinecraftJavaNbtCodec, downloadPort: StructureExportDownloadPort): Promise<StructureExportDownloadResult> {
+export async function prepareAndDownloadStructure(project: ProjectDocument | undefined, mode: StructureExportMode, form: StructureExportForm, codec: MinecraftJavaNbtCodec, downloadPort: StructureExportDownloadPort, resolveMaxStackSize?: (id: string) => number | undefined): Promise<StructureExportDownloadResult> {
   const preflight = preflightStructureExport(project, mode, form);
   if (!project) return { ok: false, diagnostics: preflight.diagnostics };
   if (!preflight.ok) return { ok: false, diagnostics: preflight.diagnostics };
   try {
     if (mode === 'standalone') {
-      const result = await prepareStandaloneStructureNbt(project, codec, form satisfies StandaloneStructureNbtInput);
+      const result = await prepareStandaloneStructureNbt(project, codec, form satisfies StandaloneStructureNbtInput, resolveMaxStackSize);
       if (!result.ok) return { ok: false, diagnostics: result.diagnostics };
       const metadata = result.standalone;
       downloadPort.download(metadata.bytes, metadata.suggestedDownloadFilename, 'application/octet-stream');
       return { ok: true, diagnostics: [], metadata, filename: metadata.suggestedDownloadFilename, mimeType: 'application/octet-stream', byteLength: metadata.bytes.byteLength };
     }
-    const prepared = await prepareStructureExport(project, codec, form);
+    const prepared = await prepareStructureExport(project, codec, form, resolveMaxStackSize);
     if (!prepared.ok) return { ok: false, diagnostics: prepared.diagnostics };
     const archive = await writeDatapackArchive(prepared.datapack);
     if (!archive.ok) return { ok: false, diagnostics: archive.diagnostics };
@@ -89,6 +90,7 @@ export class MinecraftStructureExportService {
   private readonly preferences = inject(UiPreferencesService);
   private readonly browserDownload = inject(BrowserDownloadService);
   private readonly codec = new NbtifyMinecraftJavaCodec();
+  private readonly itemCatalog = inject(ItemCatalogService);
 
   defaults(project = this.workspace.project()): ReturnType<typeof deriveStructureExportDefaults> | undefined {
     return project ? deriveStructureExportDefaults(project, this.preferences.preferences().structureExport) : undefined;
@@ -99,7 +101,7 @@ export class MinecraftStructureExportService {
   }
 
   async download(mode: StructureExportMode, form: StructureExportForm, project = this.workspace.project()): Promise<StructureExportDownloadResult> {
-    const result = await prepareAndDownloadStructure(project, mode, form, this.codec, this.browserDownload);
+    const result = await prepareAndDownloadStructure(project, mode, form, this.codec, this.browserDownload, (id) => this.itemCatalog.get(id)?.maxStackSize);
     if (result.ok) this.preferences.setStructureExport(mode === 'standalone' ? { namespace: form.namespace } : { namespace: form.namespace, archiveName: form.archiveName, description: form.description });
     return result;
   }
