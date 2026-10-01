@@ -47,6 +47,17 @@ describe('translation dictionaries', () => {
     service.setLocale('en');
   });
 
+  it('localizes recent-project mode and metadata labels in both locales', () => {
+    const service = TestBed.inject(I18nService);
+    service.setLocale('en');
+    expect(service.t('recentProjectVanilla')).toBe('Vanilla');
+    expect(service.t('recentProjectSize')).toBe('Size');
+    service.setLocale('vi');
+    expect(service.t('recentProjectHuge')).toBe('Huge');
+    expect(service.t('recentProjectUpdated')).toBe('Cập nhật');
+    service.setLocale('en');
+  });
+
   it('localizes known diagnostics and preserves unknown fallback text', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('vi');

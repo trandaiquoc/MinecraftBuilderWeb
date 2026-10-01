@@ -1,9 +1,11 @@
-import { ProjectDocument } from '../../domain/project.types';
+import { ProjectDocument, ProjectSize, StructureMode } from '../../domain/project.types';
 
 export interface ProjectSummary {
   readonly id: string;
   readonly name: string;
   readonly minecraftVersion: string;
+  readonly size: ProjectSize;
+  readonly structureMode: StructureMode;
   readonly updatedAt: string;
 }
 

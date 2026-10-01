@@ -58,10 +58,15 @@
 .project-row.opening { background: var(--control-selected); color: var(--control-selected-text); }
 .project-open-action { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .75rem 0 .75rem 1rem; border: 0; border-radius: inherit; background: transparent; color: inherit; text-align: left; }
 .project-open-action:disabled { cursor: wait; opacity: .72; }
-.project-row-copy { display: grid; gap: .25rem; min-width: 0; }
-.project-row-copy strong, .project-row-copy small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-row-copy { display: grid; gap: .3rem; min-width: 0; }
+.project-row-copy strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-row-copy strong { color: inherit; font-size: .9rem; }
-.project-row-copy small { color: var(--text-muted); font-size: .75rem; }
+.project-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; min-width: 0; color: var(--text-muted); font-size: .75rem; line-height: 1.35; }
+.project-row-meta small { color: inherit; font-size: inherit; }
+.project-mode-badge { display: inline-flex; align-items: center; min-height: 1.35rem; padding: .12rem .4rem; border-radius: 999px; background: color-mix(in srgb, var(--success) 16%, var(--surface-raised)); color: var(--success); font-size: .68rem; font-weight: 750; letter-spacing: .02em; }
+.project-mode-badge--huge { background: color-mix(in srgb, var(--info) 18%, var(--surface-raised)); color: var(--info); }
+.project-size { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 650; }
+.project-updated { color: var(--text-muted); }
 .project-row-cta { align-self: center; color: var(--accent); font-size: .8rem; font-weight: 700; white-space: nowrap; }
 .project-row.opening .project-row-copy small, .project-row.opening .project-row-cta { color: inherit; }
 .project-delete-action { display: grid; place-items: center; width: var(--control-md); min-width: var(--control-md); min-height: var(--control-md); margin: .2rem .2rem .2rem 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--danger); cursor: pointer; }

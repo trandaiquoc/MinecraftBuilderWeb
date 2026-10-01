@@ -42,7 +42,16 @@ describe('local persistence helpers', () => {
   });
 
   it('keeps summary migration independent from full project documents', () => {
-    expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z' })).toEqual({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z' });
+    expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z', size: project.size, structureMode: project.structureMode })).toEqual({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', size: project.size, structureMode: project.structureMode, updatedAt: '2026-01-01T00:00:00Z' });
+    expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z', document: project })).toMatchObject({ size: project.size, structureMode: project.structureMode });
+  });
+
+  it('updates recent-project size and mode when the canonical project is saved', async () => {
+    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
+    expect(await store.list()).toContainEqual(expect.objectContaining({ size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block' }));
+    const changed = { ...project, size: { x: 64, y: 18, z: 64 }, structureMode: 'huge-structure-blocks' as const };
+    await persistence.save(changed);
+    expect(await store.list()).toContainEqual(expect.objectContaining({ size: changed.size, structureMode: changed.structureMode }));
   });
 
   it('does not mark a newer dirty revision clean when an older save completes', () => {
@@ -206,7 +215,7 @@ class MemoryProjectStore implements ProjectStore {
   async open(id: string): Promise<ProjectDocument | undefined> { const value = this.projects.get(id); return value && structuredClone(value); }
   async save(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
   async delete(id: string): Promise<void> { this.projects.delete(id); this.recovery.delete(id); }
-  async list(): Promise<readonly ProjectSummary[]> { return [...this.projects.values()].map((value) => ({ id: value.id, name: value.metadata.name, minecraftVersion: value.metadata.minecraftVersion, updatedAt: value.metadata.updatedAt })); }
+  async list(): Promise<readonly ProjectSummary[]> { return [...this.projects.values()].map((value) => ({ id: value.id, name: value.metadata.name, minecraftVersion: value.metadata.minecraftVersion, size: value.size, structureMode: value.structureMode, updatedAt: value.metadata.updatedAt })); }
   async saveRecoverySnapshot(value: ProjectDocument): Promise<void> { this.recovery.set(value.id, structuredClone(value)); }
   async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { return this.recovery.get(id); }
   async deleteRecoverySnapshot(id: string): Promise<void> { this.recovery.delete(id); }

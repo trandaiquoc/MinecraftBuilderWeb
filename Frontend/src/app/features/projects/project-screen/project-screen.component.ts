@@ -73,6 +73,11 @@ export class ProjectScreenComponent {
   protected useHugeStructureBlocks(): void { this.structureMode.set('huge-structure-blocks'); }
   protected setVanillaMax(): void { this.sizeX.set('48'); this.sizeY.set('48'); this.sizeZ.set('48'); this.structureMode.set(DEFAULT_STRUCTURE_MODE); }
   protected versionSupportLabel(): string { return this.minecraftVersion() === DEFAULT_MINECRAFT_VERSION ? this.i18n.t('verifiedSupport') : this.i18n.t('resourceCompatibility'); }
+  protected summaryModeLabel(mode: StructureMode): string { return this.i18n.t(mode === 'huge-structure-blocks' ? 'recentProjectHuge' : 'recentProjectVanilla'); }
+  protected summaryModeFullLabel(mode: StructureMode): string { return this.i18n.t(mode === 'huge-structure-blocks' ? 'hugeStructureBlocks' : 'vanillaStructureBlock'); }
+  protected summarySizeLabel(project: ProjectSummary): string { return `${project.size.x} × ${project.size.y} × ${project.size.z}`; }
+  protected summaryModeAriaLabel(project: ProjectSummary): string { return this.i18n.t('recentProjectModeAria').replace('{mode}', this.summaryModeFullLabel(project.structureMode)); }
+  protected summarySizeAriaLabel(project: ProjectSummary): string { return this.i18n.t('recentProjectSizeAria').replace('{size}', this.summarySizeLabel(project)); }
 
   protected async createProject(): Promise<void> {
     const guard = projectCreationGuard(this.creating(), !!this.openingId(), this.canCreateProject());

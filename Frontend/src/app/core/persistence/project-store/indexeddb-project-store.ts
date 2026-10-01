@@ -3,15 +3,19 @@ import { DEFAULT_MINECRAFT_VERSION, ProjectDocument } from '../../domain/project
 import { ProjectStore, ProjectSummary } from './project-store.port';
 
 const DATABASE_NAME = 'minecraft-builder';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 const PROJECTS_STORE = 'projects';
 const PROJECT_SUMMARIES_STORE = 'project-summaries';
 const RECOVERY_STORE = 'recovery-snapshots';
 
 interface StoredProject { readonly id: string; readonly name: string; readonly minecraftVersion?: string; readonly updatedAt: string; readonly document: ProjectDocument; }
 
-export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' | 'name' | 'minecraftVersion' | 'updatedAt'>): ProjectSummary {
-  return { id: record.id, name: record.name, minecraftVersion: record.minecraftVersion ?? DEFAULT_MINECRAFT_VERSION, updatedAt: record.updatedAt };
+export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' | 'name' | 'minecraftVersion' | 'updatedAt'> & Partial<Pick<ProjectSummary, 'size' | 'structureMode'>> & { readonly document?: ProjectDocument }): ProjectSummary {
+  const migrated = record.document ? migrateProject(record.document) : undefined;
+  const size = record.size ?? migrated?.size;
+  const structureMode = record.structureMode ?? migrated?.structureMode;
+  if (!size || !structureMode) throw new Error('Stored project summary is missing size or structure mode');
+  return { id: record.id, name: record.name, minecraftVersion: record.minecraftVersion ?? migrated?.metadata.minecraftVersion ?? DEFAULT_MINECRAFT_VERSION, size, structureMode, updatedAt: record.updatedAt };
 }
 
 export class IndexedDbProjectStore implements ProjectStore {
@@ -64,7 +68,7 @@ export class IndexedDbProjectStore implements ProjectStore {
 }
 
 function toStoredProject(project: ProjectDocument): StoredProject { return { id: project.id, name: project.metadata.name, minecraftVersion: project.metadata.minecraftVersion, updatedAt: project.metadata.updatedAt, document: project }; }
-function toSummary(project: ProjectDocument): ProjectSummary { return projectSummaryFromStoredRecord({ id: project.id, name: project.metadata.name, minecraftVersion: project.metadata.minecraftVersion, updatedAt: project.metadata.updatedAt }); }
+function toSummary(project: ProjectDocument): ProjectSummary { return projectSummaryFromStoredRecord({ id: project.id, name: project.metadata.name, minecraftVersion: project.metadata.minecraftVersion, updatedAt: project.metadata.updatedAt, size: project.size, structureMode: project.structureMode }); }
 
 function openDatabase(name: string): Promise<IDBDatabase> {
   if (typeof indexedDB === 'undefined') return Promise.reject(new Error('IndexedDB is not available in this environment'));
