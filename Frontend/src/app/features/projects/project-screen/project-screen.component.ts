@@ -68,6 +68,7 @@ export class ProjectScreenComponent {
   }
   protected setMinecraftVersion(value: string): void { if (value) this.minecraftVersion.set(value); }
   protected setOuterTheme(theme: 'dark' | 'light' | 'craft'): void { this.theme.setPreset(theme); }
+  protected setOuterLocale(locale: 'en' | 'vi'): void { this.i18n.setLocale(locale); }
   protected setStructureMode(mode: StructureMode): void { this.structureMode.set(mode); }
   protected useHugeStructureBlocks(): void { this.structureMode.set('huge-structure-blocks'); }
   protected setVanillaMax(): void { this.sizeX.set('48'); this.sizeY.set('48'); this.sizeZ.set('48'); this.structureMode.set(DEFAULT_STRUCTURE_MODE); }

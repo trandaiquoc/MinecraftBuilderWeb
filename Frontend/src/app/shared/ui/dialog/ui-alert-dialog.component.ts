@@ -3,6 +3,13 @@ import { Component, signal } from '@angular/core';
 import { LucideAlertTriangle, LucideCheckCircle2, LucideInfo, LucideX } from '@lucide/angular';
 
 export type UiAlertKind = 'confirm' | 'success' | 'warning' | 'error' | 'info';
+export type UiAlertActionKind = 'primary' | 'secondary' | 'danger';
+export interface UiAlertAction {
+  readonly id: string;
+  readonly label: string;
+  readonly value: unknown;
+  readonly kind?: UiAlertActionKind;
+}
 export interface UiAlertModel {
   readonly kind: UiAlertKind;
   readonly title: string;
@@ -11,6 +18,8 @@ export interface UiAlertModel {
   readonly cancelButtonText: string;
   readonly destructive: boolean;
   readonly showCancel: boolean;
+  readonly actions?: readonly UiAlertAction[];
+  readonly cancelValue?: unknown;
 }
 
 @Component({
@@ -27,8 +36,12 @@ export interface UiAlertModel {
       </header>
       @if (model().text) { <p class="ui-alert-dialog__text">{{ model().text }}</p> }
       <footer class="ui-alert-dialog__actions">
-        @if (model().showCancel) { <button type="button" class="ui-button ui-button--secondary" (click)="cancel()">{{ model().cancelButtonText }}</button> }
-        <button type="button" class="ui-button" [class.ui-button--danger]="model().destructive || model().kind === 'error'" [class.ui-button--primary]="!model().destructive && model().kind !== 'error'" (click)="confirm()">{{ model().confirmButtonText }}</button>
+        @if (model().actions; as actions) {
+          @for (action of actions; track action.id) { <button type="button" class="ui-button" [class.ui-button--danger]="action.kind === 'danger'" [class.ui-button--secondary]="action.kind === 'secondary' || !action.kind" [class.ui-button--primary]="action.kind === 'primary'" (click)="choose(action.value)">{{ action.label }}</button> }
+        } @else {
+          @if (model().showCancel) { <button type="button" class="ui-button ui-button--secondary" (click)="cancel()">{{ model().cancelButtonText }}</button> }
+          <button type="button" class="ui-button" [class.ui-button--danger]="model().destructive || model().kind === 'error'" [class.ui-button--primary]="!model().destructive && model().kind !== 'error'" (click)="confirm()">{{ model().confirmButtonText }}</button>
+        }
       </footer>
     </section>
   `,
@@ -47,11 +60,12 @@ export interface UiAlertModel {
   `],
 })
 export class UiAlertDialogComponent {
-  readonly model = signal<UiAlertModel>({ kind: 'info', title: '', confirmButtonText: 'OK', cancelButtonText: 'Cancel', destructive: false, showCancel: false });
+  readonly model = signal<UiAlertModel>({ kind: 'info', title: '', confirmButtonText: 'OK', cancelButtonText: 'Cancel', destructive: false, showCancel: false, cancelValue: false });
   readonly titleId = `ui-alert-title-${Math.random().toString(36).slice(2)}`;
-  private finish?: (confirmed: boolean) => void;
-  configure(model: UiAlertModel, finish: (confirmed: boolean) => void): void { this.model.set(model); this.finish = finish; }
+  private finish?: (value: unknown) => void;
+  configure(model: UiAlertModel, finish: (value: unknown) => void): void { this.model.set(model); this.finish = finish; }
   protected confirm(): void { this.finish?.(true); }
-  protected cancel(): void { this.finish?.(false); }
+  protected choose(value: unknown): void { this.finish?.(value); }
+  protected cancel(): void { this.finish?.(this.model().cancelValue); }
   protected onKeydown(event: KeyboardEvent): void { if (event.key === 'Escape') { event.preventDefault(); this.cancel(); } }
 }

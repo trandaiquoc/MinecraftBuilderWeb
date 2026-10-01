@@ -7,7 +7,8 @@
 .outer-topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem 1rem; min-height: 3.5rem; margin-bottom: clamp(2.25rem, 5vw, 4rem); padding: .55rem .65rem .55rem .8rem; border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-control-raised); }
 .outer-brand { display: inline-flex; align-items: center; gap: .6rem; min-width: 0; color: var(--text); font-size: .95rem; font-weight: 750; letter-spacing: .01em; }
 .outer-brand-mark { display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-contrast); font-size: 1rem; font-weight: 800; box-shadow: var(--shadow-control); }
-.outer-theme-control { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+.outer-topbar-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .7rem 1rem; min-width: 0; }
+.outer-language-control, .outer-theme-control { display: flex; align-items: center; gap: .55rem; min-width: 0; }
 .outer-theme-label { color: var(--text-muted); font-size: .75rem; font-weight: 650; white-space: nowrap; }
 .outer-theme-switch { display: inline-flex; align-items: center; gap: .2rem; padding: .2rem; border-radius: var(--radius-sm); background: var(--surface-raised); }
 .outer-theme-option { min-width: 0; white-space: nowrap; }
@@ -72,5 +73,5 @@
 .recent-project-error, .error { color: var(--danger); font-size: .85rem; line-height: 1.4; }
 .recent-project-error { margin-top: .75rem; }
 @media (max-width: 860px) { .project-grid { grid-template-columns: 1fr; } }
-@media (max-width: 520px) { .project-page { padding-inline: 1rem; } .outer-topbar { align-items: flex-start; } .outer-theme-control { width: 100%; justify-content: space-between; } .outer-theme-switch { flex: 1 1 auto; justify-content: stretch; } .outer-theme-option { flex: 1 1 0; } .size-grid { grid-template-columns: 1fr; } .size-input { text-align: left; } .project-actions { flex-direction: column; } .project-actions > button { width: 100%; flex-basis: auto; } }
+@media (max-width: 520px) { .project-page { padding-inline: 1rem; } .outer-topbar { align-items: flex-start; } .outer-topbar-controls, .outer-language-control, .outer-theme-control { width: 100%; justify-content: space-between; } .outer-theme-switch { flex: 1 1 auto; justify-content: stretch; } .outer-theme-option { flex: 1 1 0; } .size-grid { grid-template-columns: 1fr; } .size-input { text-align: left; } .project-actions { flex-direction: column; } .project-actions > button { width: 100%; flex-basis: auto; } }
 @media (max-width: 390px) { .project-open-action { grid-template-columns: 1fr; gap: .4rem; padding-left: .75rem; } .project-row-cta { justify-self: start; } }
