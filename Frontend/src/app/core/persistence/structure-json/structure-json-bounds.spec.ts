@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipStructureJsonToBounds, inspectStructureJsonBounds, resizeProjectForStructureJsonImport } from './structure-json-bounds';
+import { clipStructureJsonToBounds, inferRequiredStructureJsonSize, inspectStructureJsonBounds, resizeProjectForStructureJsonImport } from './structure-json-bounds';
 import type { ProjectDocument } from '../../domain/project.types';
 import type { StructureJson } from './structure-json';
 
@@ -15,6 +15,12 @@ describe('Structure JSON bounds preflight', () => {
     expect(inspectStructureJsonBounds(source, { x: 32, y: 10, z: 32 })).toMatchObject({
       requiredSize: { x: 65, y: 18, z: 64 }, exceedsCurrent: true, hasNegativeCoordinates: true, blocksOutsideBounds: 2, decorationsOutsideBounds: 1,
     });
+  });
+
+  it('reports no inferred size for an empty structure', () => {
+    const empty: StructureJson = { format: 'minecraftbuilder-structure', formatVersion: 2, minecraftVersion: '1.21.1', blocks: [], decorations: [] };
+    expect(inferRequiredStructureJsonSize(empty)).toBeUndefined();
+    expect(inspectStructureJsonBounds(empty, { x: 16, y: 16, z: 16 })).toMatchObject({ requiredSize: { x: 1, y: 1, z: 1 }, hasCoordinateContent: false });
   });
 
   it('does not report an exact fit as oversized', () => {

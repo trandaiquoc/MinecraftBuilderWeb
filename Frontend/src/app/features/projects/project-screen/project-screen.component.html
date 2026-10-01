@@ -59,6 +59,8 @@
       }
       <div class="project-actions">
         <button type="submit" class="ui-button ui-button--primary create-action" [disabled]="creating() || !!openingId() || !canCreateProject()">{{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}</button>
+        <input #structureJsonFile type="file" accept="application/json,.json" hidden (change)="selectStructureJson($event)" />
+        <button type="button" class="ui-button ui-button--secondary structure-json-create-action" [disabled]="creating() || !!openingId()" (click)="openStructureJsonPicker(structureJsonFile)"><svg lucideFileUp aria-hidden="true"></svg><span>{{ i18n.t('createFromStructureJson') }}</span></button>
       </div>
       @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     </form>
@@ -77,5 +79,38 @@
       @if (deleteError()) { <p class="error recent-project-error" role="alert">{{ deleteError() }}</p> }
     </section>
   </section>
+  @if (structureJsonImportOpen()) {
+    <div class="project-import-backdrop" role="presentation" (click)="$event.target === $event.currentTarget && closeStructureJsonImport()">
+      <section class="project-import-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" tabindex="-1" autofocus [attr.aria-label]="i18n.t('createFromStructureJson')">
+        <header class="project-import-header">
+          <div><p class="eyebrow">{{ i18n.t('structureJsonFormatV2') }}</p><h2>{{ i18n.t('createFromStructureJson') }}</h2><p>{{ i18n.t('createFromStructureJsonDescription') }}</p></div>
+          <button type="button" class="ui-close-button" [attr.aria-label]="i18n.t('cancel')" [attr.title]="i18n.t('cancel')" (click)="closeStructureJsonImport()"><svg lucideX aria-hidden="true"></svg></button>
+        </header>
+        <div class="project-import-body">
+          <div class="project-import-file"><span>{{ i18n.t('structureJsonSource') }}</span><code>{{ structureJsonImportFilename() }}</code></div>
+          @if (structureJsonImportProgress() === 'reading' || structureJsonImportProgress() === 'parsing' || structureJsonImportProgress() === 'checking' || structureJsonImportProgress() === 'saving') { <p class="project-import-progress" role="status" aria-live="polite">{{ structureJsonImportProgressLabel() }}</p> }
+          @if (structureJsonImportError(); as importError) { <p class="project-import-error" role="alert">{{ importError }}</p> }
+          @if (structureJsonImportPreview(); as imported) {
+            <dl class="project-import-summary">
+              <div><dt>{{ i18n.t('projectName') }}</dt><dd>{{ imported.projectName }}</dd></div>
+              <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ i18n.t('minecraftJavaVersion').replace('{version}', imported.minecraftVersion) }} <span class="project-import-support">{{ imported.minecraftVersion === defaultMinecraftVersion ? i18n.t('verifiedSupport') : i18n.t('resourceCompatibility') }}</span></dd></div>
+              <div><dt>{{ i18n.t('structureSize') }}</dt><dd>{{ imported.size.x }} × {{ imported.size.y }} × {{ imported.size.z }}</dd></div>
+              <div><dt>{{ i18n.t('structureJsonTotalBlocks') }}</dt><dd>{{ imported.totalBlocks }}</dd></div>
+              @if (imported.totalDecorations > 0) { <div><dt>{{ i18n.t('structureJsonTotalDecorations') }}</dt><dd>{{ imported.totalDecorations }}</dd></div> }
+              @if (imported.missingBlocks > 0) { <div class="project-import-warning"><dt>{{ i18n.t('structureJsonMissingBlocks') }}</dt><dd>{{ imported.missingBlocks }}</dd></div> }
+              @if (imported.missingDecorationAssets > 0) { <div class="project-import-warning"><dt>{{ i18n.t('structureJsonMissingDecorationAssets') }}</dt><dd>{{ imported.missingDecorationAssets }}</dd></div> }
+              <div class="project-import-compatibility" [class.project-import-compatibility--huge]="imported.structureMode === 'huge-structure-blocks'"><dt>{{ i18n.t('structureJsonImportCompatibility') }}</dt><dd>{{ structureJsonImportModeLabel(imported) }}{{ imported.structureMode === 'huge-structure-blocks' ? ' · ' + i18n.t('structureJsonProjectHugeRequired') : '' }}</dd></div>
+            </dl>
+            @if (imported.structureMode === 'huge-structure-blocks') {
+              <aside class="huge-recommendation huge-recommendation--active project-import-huge-info">
+                <div class="huge-recommendation-copy"><strong>{{ i18n.t('hugeStructureBlocksRecommendationTitle') }}</strong><p>{{ imported.requiresHugeConfirmation ? i18n.t('structureJsonProjectHugeConfirm') : i18n.t('hugeStructureBlocksActive') }}</p><details><summary>{{ i18n.t('hugeStructureBlocksHowToUse') }}</summary><ol><li>{{ i18n.t('hugeStructureBlocksStepInstall').replace('{version}', imported.minecraftVersion) }}</li><li>{{ i18n.t('hugeStructureBlocksStepLaunch') }}</li><li>{{ i18n.t('hugeStructureBlocksStepUse') }}</li></ol></details><div class="huge-recommendation-links" [attr.aria-label]="i18n.t('hugeStructureBlocksResources')"><a class="huge-resource-link" href="https://modrinth.com/mod/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksModrinth') }} ↗</small></a><a class="huge-resource-link" href="https://www.curseforge.com/minecraft/mc-mods/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksCurseForge') }} ↗</small></a></div></div>
+              </aside>
+            }
+          }
+        </div>
+        <footer class="project-import-footer"><button type="button" class="ui-button ui-button--ghost" (click)="closeStructureJsonImport()">{{ i18n.t('cancel') }}</button><button type="button" class="ui-button ui-button--primary" [disabled]="!structureJsonImportPreview()?.project || structureJsonImportCreating()" (click)="createProjectFromStructureJson()">{{ structureJsonImportPreview()?.requiresHugeConfirmation ? i18n.t('structureJsonProjectUseHugeAndCreate') : i18n.t('structureJsonProjectCreate') }}</button></footer>
+      </section>
+    </div>
+  }
   @if (settingsDialogOpen()) { <app-settings-dialog (closed)="closeSettingsDialog()" /> }
 </main>

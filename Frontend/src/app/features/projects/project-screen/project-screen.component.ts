@@ -1,4 +1,5 @@
 import { DatePipe } from '@angular/common';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -13,27 +14,32 @@ import { WorkspaceStateService } from '../../../core/workspace/workspace-state.s
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
-import { LucideSettings, LucideTrash2 } from '@lucide/angular';
+import { LucideFileUp, LucideSettings, LucideTrash2, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { SearchableDropdownComponent, SearchableDropdownOption } from '../../../shared/ui/searchable-dropdown/searchable-dropdown.component';
 import { MojangRelease, MojangVersionService } from '../../../core/assets/vanilla/mojang-vanilla-asset-source';
 import { DEFAULT_MINECRAFT_VERSION } from '../../../core/domain/project.types';
 import { SettingsDialogComponent } from '../../editor/settings/settings-dialog/settings-dialog.component';
+import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
+import { parseStructureJsonWithWorker } from '../../../core/persistence/structure-json/structure-json-import';
+import { prepareStructureJsonProjectImport, type StructureJsonProjectImportError, type StructureJsonProjectImportPreview } from '../../../core/persistence/structure-json/structure-json-project-import';
 
 @Component({
   selector: 'app-project-screen',
-  imports: [DatePipe, LucideSettings, LucideTrash2, UiTooltipDirective, SearchableDropdownComponent, SettingsDialogComponent],
+  imports: [CdkTrapFocus, DatePipe, LucideFileUp, LucideSettings, LucideTrash2, LucideX, UiTooltipDirective, SearchableDropdownComponent, SettingsDialogComponent],
   templateUrl: './project-screen.component.html',
   styleUrl: './project-screen.component.scss',
 })
 export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
+  private readonly library = inject(BlockLibraryService);
   private readonly router = inject(Router);
   private readonly workspace = inject(WorkspaceStateService);
   private readonly dialogs = inject(DialogService);
   private readonly session = inject(EditorSessionService);
   protected readonly name = signal(this.i18n.t('untitledStructure'));
+  protected readonly defaultMinecraftVersion = DEFAULT_MINECRAFT_VERSION;
   protected readonly sizeX = signal('16');
   protected readonly sizeY = signal('16');
   protected readonly sizeZ = signal('16');
@@ -56,6 +62,13 @@ export class ProjectScreenComponent {
   protected readonly openingId = signal<string | undefined>(undefined);
   protected readonly deletingProjectIds = signal<ReadonlySet<string>>(new Set());
   protected readonly settingsDialogOpen = signal(false);
+  protected readonly structureJsonImportOpen = signal(false);
+  protected readonly structureJsonImportProgress = signal<'idle' | 'reading' | 'parsing' | 'checking' | 'saving' | 'error' | 'ready'>('idle');
+  protected readonly structureJsonImportFilename = signal('');
+  protected readonly structureJsonImportPreview = signal<StructureJsonProjectImportPreview | undefined>(undefined);
+  protected readonly structureJsonImportError = signal<string | undefined>(undefined);
+  protected readonly structureJsonImportCreating = signal(false);
+  private structureJsonImportGeneration = 0;
   protected readonly deleteError = signal<string | undefined>(undefined);
   private readonly autosave = inject(ProjectAutosaveService);
   private persistence?: ProjectPersistenceService;
@@ -79,6 +92,90 @@ export class ProjectScreenComponent {
   protected setVanillaMax(): void { this.sizeX.set('48'); this.sizeY.set('48'); this.sizeZ.set('48'); this.structureMode.set(DEFAULT_STRUCTURE_MODE); }
   protected openSettingsDialog(): void { this.settingsDialogOpen.set(true); }
   protected closeSettingsDialog(): void { this.settingsDialogOpen.set(false); }
+  protected openStructureJsonPicker(input: HTMLInputElement): void { if (!this.structureJsonImportCreating()) input.click(); }
+  protected async selectStructureJson(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const generation = ++this.structureJsonImportGeneration;
+    this.structureJsonImportOpen.set(true);
+    this.structureJsonImportFilename.set(file.name);
+    this.structureJsonImportPreview.set(undefined);
+    this.structureJsonImportError.set(undefined);
+    this.structureJsonImportProgress.set('reading');
+    try {
+      const serialized = await file.text();
+      if (generation !== this.structureJsonImportGeneration) return;
+      this.structureJsonImportProgress.set('parsing');
+      const parsed = await parseStructureJsonWithWorker(serialized);
+      if (generation !== this.structureJsonImportGeneration) return;
+      if (!parsed.valid || !parsed.value) {
+        this.structureJsonImportError.set(this.structureJsonValidationError(parsed.code));
+        this.structureJsonImportProgress.set('error');
+        return;
+      }
+      this.structureJsonImportProgress.set('checking');
+      const result = await prepareStructureJsonProjectImport({
+        source: parsed.value,
+        filename: file.name,
+        fallbackName: this.i18n.t('untitledStructure'),
+        projectId: createId(),
+        autoUseHuge: this.preferences.preferences().autoUseHugeStructureBlocks,
+        getDefinition: (id) => this.library.get(id),
+        onProgress: () => undefined,
+        cancellation: { isCancelled: () => generation !== this.structureJsonImportGeneration },
+      });
+      if (generation !== this.structureJsonImportGeneration) return;
+      this.structureJsonImportPreview.set(result.preview);
+      if (!result.ok) {
+        this.structureJsonImportError.set(this.structureJsonProjectImportError(result.code));
+        this.structureJsonImportProgress.set('error');
+        return;
+      }
+      this.structureJsonImportProgress.set('ready');
+    } catch {
+      if (generation === this.structureJsonImportGeneration) {
+        this.structureJsonImportError.set(this.i18n.t('structureJsonProjectFileReadError'));
+        this.structureJsonImportProgress.set('error');
+      }
+    }
+  }
+  protected closeStructureJsonImport(): void {
+    this.structureJsonImportGeneration += 1;
+    this.structureJsonImportOpen.set(false);
+    this.structureJsonImportPreview.set(undefined);
+    this.structureJsonImportError.set(undefined);
+    this.structureJsonImportProgress.set('idle');
+    this.structureJsonImportCreating.set(false);
+  }
+  protected async createProjectFromStructureJson(): Promise<void> {
+    const project = this.structureJsonImportPreview()?.project;
+    if (!project || this.structureJsonImportCreating()) return;
+    this.structureJsonImportCreating.set(true);
+    this.structureJsonImportProgress.set('saving');
+    this.structureJsonImportError.set(undefined);
+    try {
+      await this.getPersistence().createValidatedImportedProject(project);
+      this.session.resetForProjectChange(project.id);
+      this.workspace.activate(project);
+      this.structureJsonImportOpen.set(false);
+      await this.router.navigateByUrl('/editor');
+    } catch {
+      this.structureJsonImportError.set(this.i18n.t('createStorageError'));
+      this.structureJsonImportProgress.set('error');
+      this.structureJsonImportCreating.set(false);
+    }
+  }
+  protected structureJsonImportProgressLabel(): string {
+    const progress = this.structureJsonImportProgress();
+    if (progress === 'reading') return this.i18n.t('structureJsonProjectReading');
+    if (progress === 'parsing') return this.i18n.t('structureJsonProjectParsing');
+    if (progress === 'checking') return this.i18n.t('structureJsonProjectChecking');
+    if (progress === 'saving') return this.i18n.t('structureJsonProjectSaving');
+    return '';
+  }
+  protected structureJsonImportModeLabel(preview: StructureJsonProjectImportPreview): string { return this.i18n.t(preview.structureMode === 'huge-structure-blocks' ? 'hugeStructureBlocks' : 'vanillaStructureBlock'); }
   protected versionSupportLabel(): string { return this.minecraftVersion() === DEFAULT_MINECRAFT_VERSION ? this.i18n.t('verifiedSupport') : this.i18n.t('resourceCompatibility'); }
   protected summaryModeFullLabel(mode: StructureMode): string { return this.i18n.t(mode === 'huge-structure-blocks' ? 'hugeStructureBlocks' : 'vanillaStructureBlock'); }
   protected summarySizeLabel(project: ProjectSummary): string { return `${project.size.x} × ${project.size.y} × ${project.size.z}`; }
@@ -184,6 +281,15 @@ export class ProjectScreenComponent {
     catch { this.projects.set([]); this.listError.set(true); this.loadStatus.set('error'); }
   }
   private async loadVersions(): Promise<void> { try { await this.versions.loadReleases(); } catch { /* Keep the safe 1.21.1 fallback when Mojang metadata is offline. */ } }
+
+  private structureJsonValidationError(code: string | undefined): string {
+    const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'minecraft-version' ? 'structureJsonValidationMinecraftVersion' : code === 'block' ? 'structureJsonValidationBlock' : 'structureJsonValidationShape';
+    return this.i18n.t(key);
+  }
+  private structureJsonProjectImportError(code: StructureJsonProjectImportError): string {
+    const key = ({ 'empty-structure': 'structureJsonProjectEmpty', 'negative-coordinates': 'structureJsonProjectNegativeCoordinates', 'unsupported-size': 'hugeStructureBlocksLimitExceeded', validation: 'structureJsonProjectValidationError', 'invalid-project': 'structureJsonProjectValidationError' } as const)[code];
+    return this.i18n.t(key);
+  }
 
   private getPersistence(): ProjectPersistenceService {
     return this.persistence ??= new ProjectPersistenceService(new IndexedDbProjectStore());
