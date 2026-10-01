@@ -83,6 +83,16 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().layout.rightSidebarVisible).toBe(true);
   });
 
+  it('persists and safely normalizes Structure NBT export defaults without storing project paths', () => {
+    localStorage.setItem(key, JSON.stringify({ structureExport: { namespace: 'example_mod', archiveName: 'shared-pack', description: 'Shared export' } }));
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().structureExport).toEqual({ namespace: 'example_mod', archiveName: 'shared-pack', description: 'Shared export' });
+    preferences.setStructureExport({ namespace: 'minecraftbuilder' });
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}').structureExport).toMatchObject({ namespace: 'minecraftbuilder', archiveName: 'shared-pack' });
+    localStorage.setItem(key, JSON.stringify({ structureExport: { namespace: 4, archiveName: null, description: false } }));
+    expect(new UiPreferencesService().preferences().structureExport).toEqual({ namespace: 'minecraftbuilder', archiveName: '', description: '' });
+  });
+
   it('normalizes corrupt enum and numeric values', () => {
     localStorage.setItem(key, JSON.stringify({ locale: 'fr', appearance: { preset: 'neon', font: 'comic' }, controls: { orbitSensitivity: 99, clickDragThreshold: -2 } }));
     const preferences = new UiPreferencesService();

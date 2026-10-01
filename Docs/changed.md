@@ -1827,3 +1827,20 @@ diagonal `{min.x-1,min.y,min.z-1}` helper offset was removed. Both 3D and
 Y-Layer use the shared helper. This is renderer-guide positioning only;
 exporter/NBT semantics are unchanged. The 15.3 exporter smoke remains
 manually verified in Minecraft Java 1.21.1: PASS (user report).
+
+## Prompt 15.4 Structure NBT packaging checkpoint
+
+Added a non-UI standalone Structure NBT packaging model and datapack entry
+plan around the current production exporter. Standalone metadata uses
+`generated/<namespace>/structures/<path>.nbt`; datapack metadata uses the
+Java 1.21+ singular path `data/<namespace>/structure/<path>.nbt` and
+deterministic `pack.mcmeta` with `pack_format` 48. Namespace, structure path,
+and archive filename validation are separate and reject traversal without
+silently rewriting submitted values. Export defaults cache namespace, archive
+name, and description through UI preferences while structure paths are
+derived per current project.
+
+No ZIP dependency was installed. The archive-writer port and safe datapack
+entry plan are ready for approved browser ZIP integration; final export UI
+remains deferred to Prompt 15.5. The existing exporter remains the only NBT
+serializer, so unsupported raw NBT still fails explicitly.

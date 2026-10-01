@@ -9,11 +9,18 @@ export type UiFont = 'geist' | 'minecraft-style';
 export type UiFontSize = 'small' | 'normal' | 'large';
 export type PersistedEditorMode = '3d' | 'y-layer';
 
+export interface StructureExportPreferences {
+  readonly namespace: string;
+  readonly archiveName: string;
+  readonly description: string;
+}
+
 export interface UiPreferences {
   readonly version: 1;
   readonly locale: UiLocale;
   readonly autoUseHugeStructureBlocks: boolean;
   readonly showStructureBlockGuide: boolean;
+  readonly structureExport: StructureExportPreferences;
   readonly editorMode: PersistedEditorMode;
   readonly appearance: {
     readonly preset: ThemePreset;
@@ -55,6 +62,7 @@ const defaults: UiPreferences = {
   locale: 'en',
   autoUseHugeStructureBlocks: false,
   showStructureBlockGuide: true,
+  structureExport: { namespace: 'minecraftbuilder', archiveName: '', description: '' },
   editorMode: '3d',
   appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', fontSize: 'normal', editorBackground: 'dark' },
   accessibility: { blockBrightness: 3 },
@@ -105,6 +113,10 @@ export class UiPreferencesService {
     this.commit({ ...current, accessibility: { ...current.accessibility, ...patch, blockBrightness: normalizeBlockBrightness(patch.blockBrightness ?? current.accessibility.blockBrightness) } });
   }
 
+  setStructureExport(patch: Partial<StructureExportPreferences>): void {
+    this.commit({ ...this.preferences(), structureExport: { ...this.preferences().structureExport, ...patch } });
+  }
+
   setLayout(patch: Partial<UiPreferences['layout']>): void {
     this.commit({ ...this.preferences(), layout: { ...this.preferences().layout, ...patch } });
   }
@@ -145,6 +157,7 @@ function normalize(value: unknown): UiPreferences {
     locale: isLocale(candidate.locale) ? candidate.locale : defaults.locale,
     autoUseHugeStructureBlocks: typeof candidate.autoUseHugeStructureBlocks === 'boolean' ? candidate.autoUseHugeStructureBlocks : defaults.autoUseHugeStructureBlocks,
     showStructureBlockGuide: typeof candidate.showStructureBlockGuide === 'boolean' ? candidate.showStructureBlockGuide : defaults.showStructureBlockGuide,
+    structureExport: normalizeStructureExport(candidate.structureExport),
     editorMode: isEditorMode(candidate.editorMode) ? candidate.editorMode : defaults.editorMode,
     appearance: {
       preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset) ? (appearance as Partial<UiPreferences['appearance']>).preset! : defaults.appearance.preset,
@@ -213,6 +226,16 @@ function normalizeLayout(value: unknown): UiPreferences['layout'] {
   };
 }
 
+function normalizeStructureExport(value: unknown): StructureExportPreferences {
+  if (!value || typeof value !== 'object') return defaults.structureExport;
+  const candidate = value as Partial<StructureExportPreferences>;
+  return {
+    namespace: typeof candidate.namespace === 'string' ? candidate.namespace : defaults.structureExport.namespace,
+    archiveName: typeof candidate.archiveName === 'string' ? candidate.archiveName : defaults.structureExport.archiveName,
+    description: typeof candidate.description === 'string' ? candidate.description : defaults.structureExport.description,
+  };
+}
+
 function clonePreferences(value: UiPreferences): UiPreferences {
-  return { ...value, appearance: { ...value.appearance }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, layout: { ...value.layout } };
+  return { ...value, appearance: { ...value.appearance }, structureExport: { ...value.structureExport }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, layout: { ...value.layout } };
 }

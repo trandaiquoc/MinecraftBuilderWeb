@@ -30,6 +30,29 @@ with the same X/Z as the project's minimum corner. This is the guide's chosen
 workflow convention, not a claim that Minecraft Structure Blocks support only
 that relative position.
 
+## Standalone and datapack packaging checkpoint
+
+Prompt 15.4 adds a non-UI packaging boundary around the existing production
+exporter. A standalone `.nbt` keeps the exact gzip bytes produced by that
+exporter and is intended for
+`generated/<namespace>/structures/<path>.nbt`. A datapack plan uses the
+singular Java 1.21+ entry path
+`data/<namespace>/structure/<path>.nbt`; the plural `structures` is reserved
+for the world `generated` path. Its root metadata is deterministic
+`pack.mcmeta` with `pack.pack_format = 48` and a JSON-serialized description.
+
+This checkpoint deliberately does not install a ZIP writer dependency. It
+exposes a library-neutral archive-writer port and validated entry plan; ZIP
+generation remains blocked pending approval of a browser-compatible package.
+Namespace/resource-location validation is separate from archive filename and
+path-traversal validation. No Minecraft maximum length is invented. Export
+defaults cache only namespace, archive name, and description through UI
+preferences; the structure path is derived from the current project name.
+Unknown untyped raw NBT remains an explicit exporter diagnostic, and packaging
+does not increase Vanilla Structure Block limits. Projects above 48 blocks per
+axis retain Huge Structure Blocks compatibility metadata without claiming the
+ZIP installs that mod.
+
 ## StructureTemplate shape
 
 Minecraft's 1.21.1 `StructureTemplate` API exposes `size`, `palette` (or
