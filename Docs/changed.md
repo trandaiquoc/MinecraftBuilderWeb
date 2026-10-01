@@ -1818,3 +1818,12 @@ production codec and is explicitly **NOT A GOLDEN**. The previous
 `exporter_smoke_1_21_1.nbt` has manual Minecraft Structure Block verification
 PASS (user report). UI export/download, ZIP/datapack packaging, and arbitrary
 raw-NBT preservation remain deferred.
+
+## Prompt 15.3.1 Structure Block guide alignment
+
+The editor Structure Block guide now uses the verified workflow convention
+Relative Position `0 1 0`: guide voxel `{min.x,min.y-1,min.z}`. The old
+diagonal `{min.x-1,min.y,min.z-1}` helper offset was removed. Both 3D and
+Y-Layer use the shared helper. This is renderer-guide positioning only;
+exporter/NBT semantics are unchanged. The 15.3 exporter smoke remains
+manually verified in Minecraft Java 1.21.1: PASS (user report).

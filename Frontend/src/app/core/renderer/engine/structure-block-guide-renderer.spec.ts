@@ -27,7 +27,7 @@ describe('Structure Block guide renderer', () => {
     const guideGroup = (engine as unknown as { structureBlockGuideGroup: THREE.Group }).structureBlockGuideGroup;
     expect(guideGroup.name).toBe('structureBlockGuide');
     expect(guideGroup.children).toHaveLength(1);
-    expect(guideGroup.children[0].position.toArray()).toEqual([-1, 0, -1]);
+    expect(guideGroup.children[0].position.toArray()).toEqual([0, -1, 0]);
     const guideMaterials: THREE.Material[] = [];
     guideGroup.traverse((object) => { if (object instanceof THREE.Mesh) guideMaterials.push(object.material as THREE.Material); });
     expect(guideMaterials).toHaveLength(1);

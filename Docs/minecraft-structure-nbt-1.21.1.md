@@ -24,6 +24,12 @@ through guide-owned cloned materials, independently from normal block
 brightness, without mutating shared source materials or using the old neon
 outline treatment.
 
+The editor guide follows the verified Structure Block workflow convention
+Relative Position `0 1 0`: it is placed directly below the structure origin,
+with the same X/Z as the project's minimum corner. This is the guide's chosen
+workflow convention, not a claim that Minecraft Structure Blocks support only
+that relative position.
+
 ## StructureTemplate shape
 
 Minecraft's 1.21.1 `StructureTemplate` API exposes `size`, `palette` (or
@@ -242,7 +248,7 @@ current integrity record is 818 bytes, SHA-256
 - [Minecraft 1.21.1 SignBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/SignBlockEntity.html)
 - [Minecraft 1.21.1 DecoratedPotBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/DecoratedPotBlockEntity.html)
 - [Minecraft 1.21.1 ConduitBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/ConduitBlockEntity.html)
-- [Yarn ItemFrameEntity reference](https://maven.fabricmc.net/docs/yarn/1.21.9%2Bbuild.1/net/minecraft/entity/decoration/ItemFrameEntity.html) (field-name cross-check; native 1.21.1 tags are locked by the golden fixture)
+- [Yarn ItemFrameEntity reference (1.21.1+build.1)](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.1/net/minecraft/entity/decoration/ItemFrameEntity.html) (field-name cross-check; native 1.21.1 tags are locked by the golden fixture)
 - [Minecraft 1.21.1 Painting mappings](https://mappings.dev/1.21.1/net/minecraft/world/entity/decoration/Painting.html)
 - [Java 1.21.1 StructureTemplate mappings](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.1/net/minecraft/structure/StructureTemplate.html)
 - The independent Minecraft-generated `golden_1_21_1.nbt` fixture is the
