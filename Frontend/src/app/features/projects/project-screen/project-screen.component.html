@@ -1,37 +1,116 @@
 <main class="project-page">
-  <section class="project-intro">
+  <header class="outer-topbar">
+    <div class="outer-brand"><span class="outer-brand-mark" aria-hidden="true">M</span><span>{{ i18n.t('appName') }}</span></div>
+    <div class="outer-topbar-controls">
+      <button type="button" class="outer-settings-action ui-button ui-button--secondary" uiTooltip="{{ i18n.t('settingsMenu') }}" [attr.aria-label]="i18n.t('settingsMenu')" [attr.title]="i18n.t('settingsMenu')" (click)="openSettingsDialog()"><svg lucideSettings aria-hidden="true"></svg><span>{{ i18n.t('settingsMenu') }}</span></button>
+    </div>
+  </header>
+  <header class="project-intro">
     <p class="eyebrow">{{ i18n.t('appName') }}</p>
     <h1>{{ i18n.t('projectTitle') }}</h1>
     <p>{{ i18n.t('projectSubtitle') }}</p>
-  </section>
+  </header>
 
   <section class="project-grid" [attr.aria-label]="i18n.t('projectActions')">
     <form class="project-form" (submit)="$event.preventDefault(); createProject()">
-      <h2>{{ i18n.t('newProject') }}</h2>
-      <label>{{ i18n.t('projectName') }}<input [value]="name()" (input)="updateName($any($event.target).value)" required /></label>
-      <label>{{ i18n.t('minecraftVersion') }}<app-searchable-dropdown [options]="versionOptions()" [selectedId]="minecraftVersion()" [placeholder]="i18n.t('searchMinecraftVersions')" [emptyLabel]="i18n.t('minecraftVersionUnavailable')" [noResults]="i18n.t('noMinecraftVersions')" [ariaLabel]="i18n.t('minecraftVersion')" (selectionChange)="setMinecraftVersion($any($event))" /></label>
-      <p class="version-support"><strong>{{ versionSupportLabel() }}</strong>@if (minecraftVersion() !== '1.21.1') { <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span> }</p>
-      <div class="size-grid">
-        <label>{{ i18n.t('sizeX') }}<input type="number" min="1" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
-        <label>{{ i18n.t('sizeY') }}<input type="number" min="1" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
-        <label>{{ i18n.t('sizeZ') }}<input type="number" min="1" [value]="sizeZ()" (input)="updateSize('z', $any($event.target).value)" /></label>
+      <div class="form-section form-section--identity">
+        <h2>{{ i18n.t('newProject') }}</h2>
+        <label class="field-label">{{ i18n.t('projectName') }}<input class="project-text-input" [value]="name()" (input)="updateName($any($event.target).value)" required /></label>
+        <label class="field-label">{{ i18n.t('minecraftVersion') }}<app-searchable-dropdown [options]="versionOptions()" [selectedId]="minecraftVersion()" [placeholder]="i18n.t('searchMinecraftVersions')" [emptyLabel]="i18n.t('minecraftVersionUnavailable')" [noResults]="i18n.t('noMinecraftVersions')" [ariaLabel]="i18n.t('minecraftVersion')" (selectionChange)="setMinecraftVersion($any($event))" /></label>
+        <p class="version-support"><strong>{{ versionSupportLabel() }}</strong>@if (minecraftVersion() !== '1.21.1') { <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span> }</p>
       </div>
-      <button type="submit" class="ui-button ui-button--primary" [disabled]="creating() || !!openingId() || !validDimensions()">{{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}</button>
+      <div class="size-heading"><span>{{ i18n.t('structureSize') }}</span><button type="button" class="size-shortcut ui-button ui-button--ghost ui-button--sm" (click)="setVanillaMax()">{{ i18n.t('vanillaMax') }}</button></div>
+      <div class="size-grid" [class.size-warning]="sizePolicy().exceedsVanilla" [class.size-error]="!sizePolicy().fitsHugeStructureBlocks">
+        <label class="field-label" [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('x')">{{ i18n.t('sizeX') }}<input class="size-input" type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
+        <label class="field-label" [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('y')">{{ i18n.t('sizeY') }}<input class="size-input" type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
+        <label class="field-label" [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('z')">{{ i18n.t('sizeZ') }}<input class="size-input" type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeZ()" (input)="updateSize('z', $any($event.target).value)" /></label>
+      </div>
+      @if (!sizePolicy().dimensionsValid) {
+        <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">{{ i18n.t('invalidProjectSize') }}</p>
+      } @else if (!sizePolicy().fitsHugeStructureBlocks) {
+        <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">{{ i18n.t('hugeStructureBlocksLimitExceeded') }}</p>
+      }
+      @if (sizePolicy().fitsVanilla) {
+        <p class="size-compatibility" role="status">{{ i18n.t('vanillaCompatible') }}</p>
+      } @else if (sizePolicy().fitsHugeStructureBlocks) {
+        <aside class="huge-recommendation" [class.huge-recommendation--active]="effectiveStructureMode() === 'huge-structure-blocks'" aria-live="polite">
+          <div class="huge-recommendation-copy">
+            <strong>{{ i18n.t('hugeStructureBlocksRecommendationTitle') }}</strong>
+            @if (effectiveStructureMode() === 'huge-structure-blocks') {
+              <p>{{ i18n.t('hugeStructureBlocksActive') }}</p>
+            } @else {
+              <p>{{ i18n.t('hugeStructureBlocksRecommendationText') }}</p>
+            }
+            <details>
+              <summary>{{ i18n.t('hugeStructureBlocksHowToUse') }}</summary>
+              <ol>
+                <li>{{ i18n.t('hugeStructureBlocksStepInstall').replace('{version}', minecraftVersion()) }}</li>
+                <li>{{ i18n.t('hugeStructureBlocksStepLaunch') }}</li>
+                <li>{{ i18n.t('hugeStructureBlocksStepUse') }}</li>
+              </ol>
+            </details>
+            <div class="huge-recommendation-links" [attr.aria-label]="i18n.t('hugeStructureBlocksResources')">
+              <a class="huge-resource-link" href="https://modrinth.com/mod/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksModrinth') }} ↗</small></a>
+              <a class="huge-resource-link" href="https://www.curseforge.com/minecraft/mc-mods/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksCurseForge') }} ↗</small></a>
+            </div>
+          </div>
+          @if (effectiveStructureMode() !== 'huge-structure-blocks') { <button type="button" class="ui-button ui-button--secondary size-action" (click)="useHugeStructureBlocks()">{{ i18n.t('useHugeStructureBlocks') }}</button> }
+        </aside>
+      }
+      <div class="project-actions">
+        <button type="submit" class="ui-button ui-button--primary create-action" [disabled]="creating() || !!openingId() || !canCreateProject()">{{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}</button>
+        <input #structureJsonFile type="file" accept="application/json,.json" hidden (change)="selectStructureJson($event)" />
+        <button type="button" class="ui-button ui-button--secondary structure-json-create-action" [disabled]="creating() || !!openingId()" (click)="openStructureJsonPicker(structureJsonFile)"><svg lucideFileUp aria-hidden="true"></svg><span>{{ i18n.t('createFromStructureJson') }}</span></button>
+      </div>
       @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     </form>
 
     <section class="recent-projects">
       <h2>{{ i18n.t('recent') }}</h2>
       @if (loadStatus() === 'loading') { <p class="muted" aria-live="polite">{{ i18n.t('loadingProjects') }}</p> }
-      @else if (loadStatus() === 'error') { <p class="error" role="alert">{{ i18n.t('projectListError') }}</p><button type="button" (click)="retryLoad()">{{ i18n.t('retry') }}</button> }
-      @else if (projects().length === 0) { <p class="muted">{{ i18n.t('noProjects') }}</p> }
+      @else if (loadStatus() === 'error') { <p class="error" role="alert">{{ i18n.t('projectListError') }}</p><button class="ui-button ui-button--secondary" type="button" (click)="retryLoad()">{{ i18n.t('retry') }}</button> }
+      @else if (projects().length === 0) { <p class="project-list-empty muted">{{ i18n.t('noProjects') }}</p> }
       @else { @for (project of projects(); track project.id) {
         <div class="project-row" [class.opening]="openingId() === project.id" [class.deleting]="deletingProjectIds().has(project.id)">
-          <button class="project-open-action" type="button" [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)" (click)="openProject(project.id)"><span>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</span><small>{{ i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion) }} · {{ project.updatedAt | date:'short' }}</small><strong>{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</strong></button>
+          <button class="project-open-action" type="button" [disabled]="!!openingId() || creating() || deletingProjectIds().has(project.id)" (click)="openProject(project.id)"><span class="project-row-copy"><strong>{{ openingId() === project.id ? i18n.t('openingProject') : project.name }}</strong><span class="project-row-meta"><small>{{ i18n.t('minecraftJavaVersion').replace('{version}', project.minecraftVersion) }}</small><span class="project-size-badge" [class.project-size-badge--huge]="project.structureMode === 'huge-structure-blocks'" [attr.aria-label]="summarySizeBadgeAriaLabel(project)" [attr.title]="summarySizeBadgeAriaLabel(project)">{{ summarySizeLabel(project) }}</span><small class="project-updated">{{ i18n.t('recentProjectUpdated') }} {{ project.updatedAt | date:'short' }}</small></span></span><span class="project-row-cta">{{ openingId() === project.id ? i18n.t('openingProject') : i18n.t('open') }}</span></button>
           <button class="project-delete-action ui-button ui-button--danger ui-button--icon" type="button" uiTooltip="{{ i18n.t('deleteProjectAriaLabel').replace('{name}', project.name) }}" [disabled]="deletingProjectIds().has(project.id)" [attr.aria-label]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" [attr.title]="i18n.t('deleteProjectAriaLabel').replace('{name}', project.name)" (click)="deleteProject(project, $event)"><svg lucideTrash2 aria-hidden="true"></svg></button>
         </div>
       } }
       @if (deleteError()) { <p class="error recent-project-error" role="alert">{{ deleteError() }}</p> }
     </section>
   </section>
+  @if (structureJsonImportOpen()) {
+    <div class="project-import-backdrop" role="presentation" (click)="$event.target === $event.currentTarget && closeStructureJsonImport()">
+      <section class="project-import-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" tabindex="-1" autofocus [attr.aria-label]="i18n.t('createFromStructureJson')">
+        <header class="project-import-header">
+          <div><p class="eyebrow">{{ i18n.t('structureJsonFormatV2') }}</p><h2>{{ i18n.t('createFromStructureJson') }}</h2><p>{{ i18n.t('createFromStructureJsonDescription') }}</p></div>
+          <button type="button" class="ui-close-button" [attr.aria-label]="i18n.t('cancel')" [attr.title]="i18n.t('cancel')" (click)="closeStructureJsonImport()"><svg lucideX aria-hidden="true"></svg></button>
+        </header>
+        <div class="project-import-body">
+          <div class="project-import-file"><span>{{ i18n.t('structureJsonSource') }}</span><code>{{ structureJsonImportFilename() }}</code></div>
+          @if (structureJsonImportProgress() === 'reading' || structureJsonImportProgress() === 'parsing' || structureJsonImportProgress() === 'checking' || structureJsonImportProgress() === 'saving') { <p class="project-import-progress" role="status" aria-live="polite">{{ structureJsonImportProgressLabel() }}</p> }
+          @if (structureJsonImportError(); as importError) { <p class="project-import-error" role="alert">{{ importError }}</p> }
+          @if (structureJsonImportPreview(); as imported) {
+            <dl class="project-import-summary">
+              <div><dt>{{ i18n.t('projectName') }}</dt><dd>{{ imported.projectName }}</dd></div>
+              <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ i18n.t('minecraftJavaVersion').replace('{version}', imported.minecraftVersion) }} <span class="project-import-support">{{ imported.minecraftVersion === defaultMinecraftVersion ? i18n.t('verifiedSupport') : i18n.t('resourceCompatibility') }}</span></dd></div>
+              <div><dt>{{ i18n.t('structureSize') }}</dt><dd>{{ imported.size.x }} × {{ imported.size.y }} × {{ imported.size.z }}</dd></div>
+              <div><dt>{{ i18n.t('structureJsonTotalBlocks') }}</dt><dd>{{ imported.totalBlocks }}</dd></div>
+              @if (imported.totalDecorations > 0) { <div><dt>{{ i18n.t('structureJsonTotalDecorations') }}</dt><dd>{{ imported.totalDecorations }}</dd></div> }
+              @if (imported.missingBlocks > 0) { <div class="project-import-warning"><dt>{{ i18n.t('structureJsonMissingBlocks') }}</dt><dd>{{ imported.missingBlocks }}</dd></div> }
+              @if (imported.missingDecorationAssets > 0) { <div class="project-import-warning"><dt>{{ i18n.t('structureJsonMissingDecorationAssets') }}</dt><dd>{{ imported.missingDecorationAssets }}</dd></div> }
+              <div class="project-import-compatibility" [class.project-import-compatibility--huge]="imported.structureMode === 'huge-structure-blocks'"><dt>{{ i18n.t('structureJsonImportCompatibility') }}</dt><dd>{{ structureJsonImportModeLabel(imported) }}{{ imported.structureMode === 'huge-structure-blocks' ? ' · ' + i18n.t('structureJsonProjectHugeRequired') : '' }}</dd></div>
+            </dl>
+            @if (imported.structureMode === 'huge-structure-blocks') {
+              <aside class="huge-recommendation huge-recommendation--active project-import-huge-info">
+                <div class="huge-recommendation-copy"><strong>{{ i18n.t('hugeStructureBlocksRecommendationTitle') }}</strong><p>{{ imported.requiresHugeConfirmation ? i18n.t('structureJsonProjectHugeConfirm') : i18n.t('hugeStructureBlocksActive') }}</p><details><summary>{{ i18n.t('hugeStructureBlocksHowToUse') }}</summary><ol><li>{{ i18n.t('hugeStructureBlocksStepInstall').replace('{version}', imported.minecraftVersion) }}</li><li>{{ i18n.t('hugeStructureBlocksStepLaunch') }}</li><li>{{ i18n.t('hugeStructureBlocksStepUse') }}</li></ol></details><div class="huge-recommendation-links" [attr.aria-label]="i18n.t('hugeStructureBlocksResources')"><a class="huge-resource-link" href="https://modrinth.com/mod/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksModrinth') }} ↗</small></a><a class="huge-resource-link" href="https://www.curseforge.com/minecraft/mc-mods/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksCurseForge') }} ↗</small></a></div></div>
+              </aside>
+            }
+          }
+        </div>
+        <footer class="project-import-footer"><button type="button" class="ui-button ui-button--ghost" (click)="closeStructureJsonImport()">{{ i18n.t('cancel') }}</button><button type="button" class="ui-button ui-button--primary" [disabled]="!structureJsonImportPreview()?.project || structureJsonImportCreating()" (click)="createProjectFromStructureJson()">{{ structureJsonImportPreview()?.requiresHugeConfirmation ? i18n.t('structureJsonProjectUseHugeAndCreate') : i18n.t('structureJsonProjectCreate') }}</button></footer>
+      </section>
+    </div>
+  }
+  @if (settingsDialogOpen()) { <app-settings-dialog (closed)="closeSettingsDialog()" /> }
 </main>

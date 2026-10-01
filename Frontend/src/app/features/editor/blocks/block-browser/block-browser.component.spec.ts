@@ -59,7 +59,15 @@ describe('BlockBrowserComponent bootstrap presentation', () => {
     const item = component['library'].allItems()[0];
     component['select'](item);
     expect(component['library'].activeBlock.active()?.id).toBe(item.displayBlockId);
-    expect(component['activePreviewItem']()?.itemId).toBe(item.itemId);
     expect(component['isActive'](item)).toBe(true);
+  });
+
+  it('keeps the search as a single full-width structure without an active preview card', async () => {
+    await TestBed.configureTestingModule({ imports: [BlockBrowserComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(BlockBrowserComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#block-search')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.active-block')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.search-active-row')).toBeNull();
   });
 });

@@ -26,14 +26,13 @@ import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
-import { inputDiagnostics, InputDiagnosticMode } from '../../editor/input/input-diagnostics';
-import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, setBlockBrightnessBaseColor } from './block-brightness';
+import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, applyStructureGuideBrightnessToObject, setBlockBrightnessBaseColor, STRUCTURE_GUIDE_BRIGHTNESS } from './block-brightness';
 import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
+import { structureBlockGuidePosition } from './structure-block-guide';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
-export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
-export interface ViewportEngineDiagnosticsContext { readonly viewportInstanceId: string; readonly mode: InputDiagnosticMode; }
+export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; }
 export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
 export interface ViewportHydrationProgress {
   readonly generation: number;
@@ -330,6 +329,7 @@ export class ThreeViewportEngine {
   private readonly pointer = new THREE.Vector2();
   private readonly blocksGroup = new THREE.Group();
   private readonly decorationsGroup = new THREE.Group();
+  private readonly structureBlockGuideGroup = new THREE.Group();
   private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x4b9cff, transparent: true, opacity: 0.35 }));
   private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false }));
   private readonly selectionBox = new THREE.Box3Helper(new THREE.Box3(), 0xffd166);
@@ -341,6 +341,8 @@ export class ThreeViewportEngine {
   private readonly logicalSelectionMaterial = new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false });
   private readonly groupHighlightGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.12, 1.12, 1.12));
   private readonly groupHighlightMaterial = new THREE.LineBasicMaterial({ color: 0x58d8d0 });
+  private structureBlockGuideKey = '';
+  private structureBlockGuideGeneration = 0;
   private lastSelectionPositions?: readonly VoxelCoordinate[];
   private lastSelectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate };
   private lastSelectionKind?: string;
@@ -376,6 +378,7 @@ export class ThreeViewportEngine {
   private resizeObserver?: ResizeObserver;
   private project?: ProjectDocument;
   private activeBlock?: ActiveBlock;
+  private showStructureBlockGuide = true;
   private renderOptions: ViewportRenderOptions = {};
   private hasCameraFrame = false;
   private readonly renderOnControlChange = () => {
@@ -482,12 +485,8 @@ export class ThreeViewportEngine {
   private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
 
-  readonly diagnosticInstanceId: string;
-  readonly diagnosticViewportInstanceId: string;
-
-  constructor(readonly instrumentation = new RendererDiagnostics(), diagnosticsContext?: ViewportEngineDiagnosticsContext) {
-    this.diagnosticViewportInstanceId = diagnosticsContext?.viewportInstanceId ?? '';
-    this.diagnosticInstanceId = inputDiagnostics.registerEngine(this.diagnosticViewportInstanceId, diagnosticsContext?.mode ?? '3d');
+  constructor(readonly instrumentation = new RendererDiagnostics()) {
+    this.structureBlockGuideGroup.name = 'structureBlockGuide';
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
     selectionBoxMaterial.depthTest = false;
     selectionBoxMaterial.depthWrite = false;
@@ -510,6 +509,8 @@ export class ThreeViewportEngine {
     this.applyBlockBrightness();
     this.scene.add(this.blocksGroup);
     this.scene.add(this.decorationsGroup);
+    this.structureBlockGuideGroup.name = 'structureBlockGuide';
+    this.scene.add(this.structureBlockGuideGroup);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
     this.selectionOutline.visible = false;
@@ -594,8 +595,14 @@ export class ThreeViewportEngine {
     this.applyControlConfiguration();
   }
 
-  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); inputDiagnostics.recordCameraKeyDown(this.diagnosticInstanceId, action); inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, this.cameraMoveFrame !== undefined, this.cameraMoveFrame); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); inputDiagnostics.recordCameraKeyUp(this.diagnosticInstanceId, action); inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, this.cameraMoveFrame !== undefined, this.cameraMoveFrame); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.render(); }
+  setStructureBlockGuideVisible(visible: boolean): void {
+    if (this.showStructureBlockGuide === visible) return;
+    this.showStructureBlockGuide = visible;
+    this.update(this.project, this.activeBlock, this.renderOptions);
+  }
+
+  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.startCameraMovement(); }
+  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.render(); }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -681,6 +688,9 @@ export class ThreeViewportEngine {
     if (this.syncSpecialVisualDescriptors()) {
       this.structureSyncKey = '';
       this.update(this.project, this.activeBlock, this.renderOptions);
+    } else {
+      this.structureBlockGuideKey = '';
+      this.update(this.project, this.activeBlock, this.renderOptions);
     }
   }
   setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined): void {
@@ -717,7 +727,12 @@ export class ThreeViewportEngine {
   }
 
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
-  setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined): void { this.definitionResolver = resolver; }
+  setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined): void {
+    if (this.definitionResolver === resolver) return;
+    this.definitionResolver = resolver;
+    this.structureBlockGuideKey = '';
+    this.update(this.project, this.activeBlock, this.renderOptions);
+  }
 
   private collectSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): readonly NormalizedSpecialVisualDescriptor[] {
     const ids = new Set([...(this.project?.blocks ?? []).map((block) => block.id), ...(this.activeBlock ? [this.activeBlock.id] : []), ...plannedBlocks.map((block) => block.id)]);
@@ -761,6 +776,7 @@ export class ThreeViewportEngine {
       this.beginHydrationProgress(this.hydrationQueue.length + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.decorationHydrationQueue.length);
     }
     this.setProjectBounds(project);
+    this.updateStructureBlockGuide(project, options);
     this.setEditingPlane(options.layerY, project);
     const visualSelection = this.visibleSelection(project, options);
     this.updateSelection(visualSelection.selected, visualSelection.positions, visualSelection.kind, visualSelection.count, visualSelection.bounds, visualSelection.box);
@@ -1527,7 +1543,6 @@ export class ThreeViewportEngine {
     if (typeof document !== 'undefined') { document.removeEventListener('focusin', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); }
     if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
     this.clearInput();
-    inputDiagnostics.disposeEngine(this.diagnosticInstanceId);
     this.cancelHydration();
     const provider = this.visualProvider;
     if (this.renderTimer !== undefined) { clearTimeout(this.renderTimer); this.renderTimer = undefined; this.renderScheduled = false; }
@@ -1543,6 +1558,8 @@ export class ThreeViewportEngine {
     for (const child of [...this.decorationGhostGroup.children]) disposeObject(child); this.decorationGhostGroup.clear();
     for (const child of [...this.decorationSelectionGroup.children]) disposeObject(child); this.decorationSelectionGroup.clear();
     this.renderedBlocks.clear(); this.renderedDecorations.clear(); this.providerGeneration += 1;
+    this.clearStructureBlockGuide();
+    this.structureBlockGuideGroup.clear();
     this.ghost.geometry.dispose();
     (this.ghost.material as THREE.Material).dispose();
     this.ground?.geometry.dispose();
@@ -1741,7 +1758,7 @@ export class ThreeViewportEngine {
       const known: readonly [THREE.Object3D | undefined, string][] = [
         [this.blocksGroup, 'blocksGroup'], [this.decorationsGroup, 'decorationsGroup'], [this.ghost, 'ghost'],
         [this.ghostModel, 'ghostModel'], [this.movePreviewGroup, 'movePreviewGroup'], [this.decorationGhostGroup, 'decorationGhostGroup'],
-        [this.decorationSelectionGroup, 'decorationSelectionGroup'], [this.logicalSelectionGroup, 'logicalSelectionGroup'],
+        [this.decorationSelectionGroup, 'decorationSelectionGroup'], [this.logicalSelectionGroup, 'logicalSelectionGroup'], [this.structureBlockGuideGroup, 'structureBlockGuide'],
         [this.projectGrid, 'projectGrid'], [this.ground, 'ground'], [this.editingPlane, 'editingPlane'], [this.boundsBox, 'boundsBox'],
         [this.selectionOutline, 'selectionOutline'], [this.selectionBox, 'selectionBox'],
       ];
@@ -1798,7 +1815,7 @@ export class ThreeViewportEngine {
           || owner === 'movePreviewGroup' && !!this.renderOptions.groupMovePreview
           || owner === 'decorationGhostGroup' && !!this.renderOptions.activeDecoration;
         const knownBlockOwner = owner === 'blocksGroup' || owner === 'instanceBatches' || owner === 'placeholderBatches' || owner === 'fallback mesh';
-        const knownNonBlockOwner = ['decorationsGroup', 'decorationSelectionGroup', 'projectGrid', 'ground', 'editingPlane', 'boundsBox', 'selectionOutline', 'selectionBox', 'logicalSelectionGroup'].includes(owner);
+        const knownNonBlockOwner = ['decorationsGroup', 'decorationSelectionGroup', 'structureBlockGuide', 'projectGrid', 'ground', 'editingPlane', 'boundsBox', 'selectionOutline', 'selectionBox', 'logicalSelectionGroup'].includes(owner);
         let reason: string | undefined;
         if (knownBlockOwner) reason = 'Block-renderer mesh remains while the project has zero blocks';
         else if ((owner === 'ghostModel' || owner === 'ghost') && !intentionalPreview) reason = 'Visible placement ghost has no active placement target';
@@ -2056,7 +2073,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();
   }
-  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } inputDiagnostics.recordEngineClearInput(this.diagnosticInstanceId); inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, false); }
+  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
@@ -2206,6 +2223,64 @@ export class ThreeViewportEngine {
     }
   }
 
+  private updateStructureBlockGuide(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
+    const enabled = this.showStructureBlockGuide;
+    const definition = this.definitionResolver?.('minecraft:structure_block');
+    const key = project && enabled && this.visualProvider && definition
+      ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${this.providerGeneration}|${options.structureBlockGuideRevision ?? 0}|${definition.sourceId ?? ''}`
+      : `${project?.id ?? 'none'}|${enabled ? 'waiting' : 'hidden'}|${this.providerGeneration}`;
+    if (key === this.structureBlockGuideKey) return;
+    this.structureBlockGuideKey = key;
+    this.clearStructureBlockGuide();
+    if (!project || !enabled || !this.visualProvider || !definition) return;
+
+    const generation = this.structureBlockGuideGeneration;
+    const provider = this.visualProvider;
+    const guidePosition = structureBlockGuidePosition(projectGridBounds(project.size).min);
+    const guideBlock: PlacedBlock = {
+      kind: 'resolved',
+      id: 'minecraft:structure_block',
+      namespace: 'minecraft',
+      position: { x: 0, y: 0, z: 0 },
+      state: { ...definition.defaultState, mode: 'save' },
+    };
+    void provider.create(guideBlock).then((visual) => {
+      if (generation !== this.structureBlockGuideGeneration || key !== this.structureBlockGuideKey || this.visualProvider !== provider || !visual.object || visual.mode === 'fallback') {
+        if (visual.object) disposeObject(visual.object);
+        return;
+      }
+      const guide = new THREE.Group();
+      guide.name = 'structureBlockGuide';
+      guide.userData['structureBlockGuide'] = true;
+      const object = visual.object;
+      object.userData['structureBlockGuide'] = true;
+      applyStructureGuideBrightnessToObject(object, STRUCTURE_GUIDE_BRIGHTNESS);
+      const bounds = new THREE.Box3().setFromObject(object);
+      if (!Number.isFinite(bounds.min.x) || !Number.isFinite(bounds.max.x)) {
+        disposeObject(object);
+        return;
+      }
+      guide.add(object);
+      guide.position.set(guidePosition.x, guidePosition.y, guidePosition.z);
+      this.structureBlockGuideGroup.add(guide);
+      this.render();
+    }).catch(() => { /* Missing or invalid assets leave the helper absent by design. */ });
+  }
+
+  private clearStructureBlockGuide(): void {
+    this.structureBlockGuideGeneration += 1;
+    for (const child of [...this.structureBlockGuideGroup.children]) {
+      child.traverse((object) => {
+        if (object instanceof THREE.LineSegments) {
+          object.geometry.dispose();
+          (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => material.dispose());
+        }
+      });
+      disposeObject(child);
+      this.structureBlockGuideGroup.remove(child);
+    }
+  }
+
   private updateMovePreview(project: ProjectDocument | undefined, preview: GroupMovePreview | undefined): void {
     for (const child of [...this.movePreviewGroup.children]) { child.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.movePreviewGroup.remove(child); }
     if (!project || !preview || !preview.offset.x && !preview.offset.y && !preview.offset.z) return;
@@ -2331,13 +2406,10 @@ export class ThreeViewportEngine {
       const rawDeltaMs = now - previous;
       const delta = Math.min(rawDeltaMs / 1000, .1);
       previous = now;
-      inputDiagnostics.recordMovementFrame(this.diagnosticInstanceId, rawDeltaMs, delta, [...this.pressedActions]);
       this.moveCamera(this.pressedActions, delta);
       if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step);
-      inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, this.cameraMoveFrame !== undefined, this.cameraMoveFrame);
     };
     this.cameraMoveFrame = requestAnimationFrame(step);
-    inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, true, this.cameraMoveFrame);
   }
   private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     if (!this.controls || !keys.size) return;

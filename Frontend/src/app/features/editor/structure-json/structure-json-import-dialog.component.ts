@@ -6,11 +6,15 @@ import { ProjectDocument } from '../../../core/domain/project.types';
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
-import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonDecorationIssue, StructureJsonValidationPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
+import { parseStructureJsonWithWorker, StructureJsonBlockIssue, StructureJsonCoordinateConflict, StructureJsonDecorationIssue, StructureJsonValidationPreview, validateParsedStructureJsonPreview, validateParsedStructureJsonPreviewAsync } from '../../../core/persistence/structure-json/structure-json-import';
 import { buildStructureJsonImportPlan, prepareStructureJsonImportPlan, StructureJsonImportBlocker, StructureJsonImportMode, StructureJsonImportPlan } from '../../../core/persistence/structure-json/structure-json-import-plan';
+import { clipStructureJsonToBounds, inspectStructureJsonBounds, resizeProjectForStructureJsonImport, StructureJsonBoundsPreflight } from '../../../core/persistence/structure-json/structure-json-bounds';
+import type { StructureJson } from '../../../core/persistence/structure-json/structure-json';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
+
+type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
@@ -71,6 +75,7 @@ export class StructureJsonImportDialogComponent {
   protected moreDuplicateCount(): number { return Math.max(0, this.issueCount('duplicate') - 12); }
   protected decorationIssues(): readonly StructureJsonDecorationIssue[] { return (this.preview()?.decorationIssues ?? []).slice(0, 12); }
   protected moreDecorationIssueCount(): number { return Math.max(0, (this.preview()?.decorationIssues.length ?? 0) - 12); }
+  protected canApplyImport(): boolean { const plan = this.importPlan(); return !!plan && (plan.applicable || this.isBoundsOnlyPlan(plan)); }
   protected decorationReasonLabel(issue: StructureJsonDecorationIssue): string {
     const key = issue.reason === 'missing-painting-variant' ? 'structureJsonDecorationReasonMissingAsset' : issue.reason === 'out-of-bounds' ? 'structureJsonDecorationReasonOutOfBounds' : issue.reason === 'missing-support' || issue.reason === 'missing-painting-support' ? 'structureJsonDecorationReasonMissingSupport' : issue.reason === 'blocked-by-block' || issue.reason === 'overlap-decoration' ? 'structureJsonDecorationReasonConflict' : 'structureJsonDecorationReasonInvalid';
     return this.i18n.t(key);
@@ -91,18 +96,62 @@ export class StructureJsonImportDialogComponent {
     if (plan.missingBlockCount > 0) text += `\n\n${this.i18n.t('structureJsonMissingPlaceholderNotice').replace('{count}', String(plan.missingBlockCount))}`;
     return text;
   }
+  protected oversizedImportText(bounds: StructureJsonBoundsPreflight): string {
+    const current = formatProjectSize(this.project().size);
+    const required = formatProjectSize(bounds.requiredSize);
+    let text = this.i18n.t('structureJsonOversizedImportText').replace('{current}', current).replace('{required}', required);
+    const resized = resizeProjectForStructureJsonImport(this.project(), bounds);
+    if (resized?.structureMode === 'huge-structure-blocks' && this.project().structureMode !== 'huge-structure-blocks') text += `\n\n${this.i18n.t('structureJsonImportResizeHugeNotice')}`;
+    if (!resized && !bounds.hasNegativeCoordinates) text += `\n\n${this.i18n.t('structureJsonImportResizeUnavailable')}`;
+    if (bounds.hasNegativeCoordinates) text += `\n\n${this.i18n.t('structureJsonImportNegativeCoordinates')}`;
+    return text;
+  }
   protected async applyImport(): Promise<void> {
     const plan = this.importPlan();
-    if (!plan?.applicable) return;
-    const confirmed = await this.dialogs.confirm({ title: this.i18n.t('structureJsonApplyImportTitle'), text: this.confirmationText(plan), confirmButtonText: this.i18n.t('structureJsonApplyImport'), cancelButtonText: this.i18n.t('cancel'), icon: plan.mode === 'replace' ? 'warning' : 'question', destructive: plan.mode === 'replace' });
-    if (!confirmed) return;
-    if (plan.mode === 'replace' && plan.importedBlockCount === 0 && this.project().blocks.length === 0) { this.selection.clear(); this.closed.emit(); return; }
-    const prepared = prepareStructureJsonImportPlan(this.project(), plan, this.i18n.t('structureJsonImportedGroupFallback'));
+    if (!plan) return;
+    const baseProject = this.project();
+    const bounds = inspectStructureJsonBounds(plan.source, baseProject.size);
+    let effectivePlan = plan;
+    let targetProject = baseProject;
+    let clipped = false;
+    if (this.isBoundsOnlyPlan(plan) && bounds.hasNegativeCoordinates) {
+      await this.dialogs.warning(this.i18n.t('structureJsonImportResizeUnavailable'), this.i18n.t('structureJsonImportNegativeCoordinates')); return;
+    }
+    if (bounds.exceedsCurrent && this.isBoundsOnlyPlan(plan)) {
+      const choice = await this.dialogs.choice<OversizedImportChoice>({
+        title: this.i18n.t('structureJsonOversizedImportTitle'),
+        text: this.oversizedImportText(bounds),
+        icon: 'warning',
+        options: [
+          { id: 'resize', label: this.i18n.t('structureJsonImportResizeAndImport'), value: 'resize', kind: 'primary' },
+          { id: 'keep', label: this.i18n.t('structureJsonImportKeepCurrentSize'), value: 'keep', kind: 'secondary' },
+          { id: 'cancel', label: this.i18n.t('structureJsonImportCancel'), value: 'cancel', kind: 'secondary' },
+        ],
+      });
+      if (this.project() !== baseProject || choice === undefined || choice === 'cancel') return;
+      if (choice === 'keep') {
+        effectivePlan = this.buildPlanForSource(clipStructureJsonToBounds(plan.source, baseProject.size), baseProject, plan.mode);
+        clipped = true;
+      } else {
+        const resized = resizeProjectForStructureJsonImport(baseProject, bounds);
+        if (!resized) { await this.dialogs.warning(this.i18n.t('structureJsonImportResizeUnavailable')); return; }
+        targetProject = resized;
+        effectivePlan = this.buildPlanForSource(plan.source, targetProject, plan.mode);
+      }
+      if (!effectivePlan?.applicable) { await this.dialogs.warning(this.i18n.t('structureJsonImportResizeUnavailable')); return; }
+    } else {
+      if (!plan.applicable) return;
+      const confirmed = await this.dialogs.confirm({ title: this.i18n.t('structureJsonApplyImportTitle'), text: this.confirmationText(plan), confirmButtonText: this.i18n.t('structureJsonApplyImport'), cancelButtonText: this.i18n.t('cancel'), icon: plan.mode === 'replace' ? 'warning' : 'question', destructive: plan.mode === 'replace' });
+      if (!confirmed || this.project() !== baseProject) return;
+    }
+    if (effectivePlan.emptyImport && effectivePlan.mode === 'replace' && baseProject.blocks.length === 0 && (baseProject.decorations ?? []).length === 0 && targetProject === baseProject) { this.selection.clear(); this.closed.emit(); return; }
+    const prepared = prepareStructureJsonImportPlan(targetProject, effectivePlan, this.i18n.t('structureJsonImportedGroupFallback'));
     if (!prepared) { await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
     this.hydrationStatus.markNextActivity('import');
-    const changed = this.history.execute('Import Structure JSON', (current) => current === plan.baseProject ? prepared : undefined);
+    const changed = this.history.execute('Import Structure JSON', (current) => current === baseProject ? prepared : undefined);
     if (!changed) { this.hydrationStatus.markNextActivity('build'); await this.dialogs.warning(this.i18n.t('structureJsonImportStale')); return; }
     this.selection.clear();
+    if (clipped) await this.dialogs.warning(this.i18n.t('structureJsonImportClippedTitle'), this.i18n.t('structureJsonImportClippedText').replace('{blocks}', String(bounds.blocksOutsideBounds)).replace('{decorations}', String(bounds.decorationsOutsideBounds)));
     this.closed.emit();
   }
   protected structuralMessage(): string { const code = this.preview()?.structuralCode; const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'block' ? 'structureJsonValidationBlock' : 'structureJsonValidationShape'; return this.i18n.t(key); }
@@ -121,4 +170,15 @@ export class StructureJsonImportDialogComponent {
     this.modePlanCache.set(mode, plan);
     return plan;
   }
+  private isBoundsOnlyPlan(plan: StructureJsonImportPlan): boolean {
+    if (!plan.blockingIssues.length) return false;
+    return plan.blockingIssues.every((blocker) => blocker.code === 'out-of-bounds' || blocker.code === 'invalid-decoration')
+      && plan.decorationIssues.filter((issue) => issue.category !== 'missing-asset').every((issue) => issue.category === 'bounds' && issue.reason === 'out-of-bounds');
+  }
+  private buildPlanForSource(source: StructureJson, project: ProjectDocument, mode: StructureJsonImportMode): StructureJsonImportPlan {
+    const validation = validateParsedStructureJsonPreview(source, project.size, (id) => this.library.get(id), undefined, project);
+    return buildStructureJsonImportPlan(source, validation, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'));
+  }
 }
+
+function formatProjectSize(size: ProjectDocument['size']): string { return `${size.x} × ${size.y} × ${size.z}`; }

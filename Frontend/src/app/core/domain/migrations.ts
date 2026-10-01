@@ -1,4 +1,5 @@
 import { CURRENT_PROJECT_SCHEMA_VERSION, DEFAULT_MINECRAFT_VERSION, ProjectDocument, ProjectSchemaVersion } from './project.types';
+import { normalizeStructureModeForSize } from './structure-size-policy';
 
 export function migrateProject(project: ProjectDocument, targetVersion: ProjectSchemaVersion = CURRENT_PROJECT_SCHEMA_VERSION): ProjectDocument {
   if (project.schemaVersion > targetVersion) {
@@ -20,5 +21,7 @@ export function migrateProject(project: ProjectDocument, targetVersion: ProjectS
   if (migrated.schemaVersion === 2 && targetVersion >= 3) {
     migrated = { ...migrated, schemaVersion: 3, decorations: migrated.decorations ?? [] };
   }
+  const normalizedMode = normalizeStructureModeForSize(migrated.size, migrated.structureMode);
+  if (normalizedMode !== migrated.structureMode) migrated = { ...migrated, structureMode: normalizedMode };
   return migrated;
 }

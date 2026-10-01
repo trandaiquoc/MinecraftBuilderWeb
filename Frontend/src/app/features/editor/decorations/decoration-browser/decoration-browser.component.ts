@@ -9,6 +9,7 @@ import { ALL_CONTENT_SOURCE, sourceOptions } from '../../../../shared/ui/content
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
 import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
+import { humanizeDecorationName } from '../../../../core/decorations/decoration-display';
 
 @Component({ selector: 'app-decoration-browser', imports: [PaintingPickerComponent, ContentSourceSelectorComponent, ItemStackPickerComponent], templateUrl: './decoration-browser.component.html', styleUrl: './decoration-browser.component.scss' })
 export class DecorationBrowserComponent {
@@ -39,11 +40,9 @@ export class DecorationBrowserComponent {
   protected readonly visiblePaintingVariants = computed(() => this.paintingCatalog.placeable(this.activeSource()));
   protected readonly showFrames = computed(() => (this.activeSource() === ALL_CONTENT_SOURCE && this.sources().some((source) => source.id === 'vanilla')) || this.activeSource() === 'vanilla');
   protected paintingTexture(): string | undefined { this.assets.generation(); const active = this.decorations.active(); const id = active?.kind === 'painting' ? active.variantId : this.visiblePaintingVariants()[0]?.id; const variant = this.paintingCatalog.get(id); return variant ? this.assets.sources.resources.textureUrl(variant.assetPath) : undefined; }
-  protected paintingCaption(): string { const active = this.decorations.active(); const requested = active?.kind === 'painting' ? this.paintingCatalog.get(active.variantId) : undefined; const variant = requested && (this.activeSource() === ALL_CONTENT_SOURCE || (requested.sourceId ?? 'vanilla') === this.activeSource()) ? requested : this.visiblePaintingVariants()[0]; return variant ? `${humanize(variant.id)} · ${variant.width} × ${variant.height}` : ''; }
+  protected paintingCaption(): string { const active = this.decorations.active(); const requested = active?.kind === 'painting' ? this.paintingCatalog.get(active.variantId) : undefined; const variant = requested && (this.activeSource() === ALL_CONTENT_SOURCE || (requested.sourceId ?? 'vanilla') === this.activeSource()) ? requested : this.visiblePaintingVariants()[0]; return variant ? `${humanizeDecorationName(variant.id)} · ${variant.width} × ${variant.height}` : ''; }
   protected frameTexture(glow: boolean): string | undefined { this.assets.generation(); return this.assets.provider()?.textureUrl(glow ? 'minecraft:block/glow_item_frame' : 'minecraft:block/item_frame'); }
   protected selectSource(id: string): void { this.selectedSource.set(id === 'minecraft' ? 'vanilla' : id); }
   protected selectPaintingForSource(): void { const first = this.visiblePaintingVariants()[0]; if (first) this.decorations.selectPainting(first.id); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }
 }
-
-function humanize(id: string): string { return id.split('_').map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(' '); }

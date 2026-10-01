@@ -128,6 +128,26 @@ describe('camera movement input contract', () => {
     }
   });
 
+  it('cancels the movement RAF when camera input is invalidated atomically', () => {
+    const callbacks = new Map<number, FrameRequestCallback>();
+    let nextId = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { const id = ++nextId; callbacks.set(id, callback); return id; });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
+    try {
+      const engine = new ThreeViewportEngine();
+      const internal = engine as unknown as { pressedActions: Set<string>; cameraMoveFrame?: number };
+      engine.cameraKeyDown('move-forward');
+      expect(internal.pressedActions.size).toBe(1);
+      engine.clearInput();
+      expect(internal.pressedActions.size).toBe(0);
+      expect(internal.cameraMoveFrame).toBeUndefined();
+      expect(callbacks.size).toBe(0);
+      engine.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps a seven-block selection and render membership intact for every camera movement action', async () => {
     const engine = new ThreeViewportEngine();
     const base = rendererBenchmarkProject('small');

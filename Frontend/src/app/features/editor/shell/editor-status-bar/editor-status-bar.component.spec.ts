@@ -2,6 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
+import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { ProjectAutosaveService } from '../../../../core/persistence/autosave/project-autosave.service';
 import { EditorStatusBarComponent } from './editor-status-bar.component';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
@@ -66,5 +68,59 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
     hydration.publish(owner, { generation: 1, status: 'complete', completed: 20000, total: 20000, blocksCompleted: 20000, blocksTotal: 20000, decorationsCompleted: 0, decorationsTotal: 0, percent: 100 });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.hydration-status')).toBeNull();
+  });
+});
+
+describe('EditorStatusBarComponent active placement status', () => {
+  async function createFixture(): Promise<{ fixture: ReturnType<typeof TestBed.createComponent<EditorStatusBarComponent>>; library: BlockLibraryService; decorations: DecorationService }> {
+    await TestBed.configureTestingModule({ imports: [EditorStatusBarComponent], providers: [{ provide: ProjectAutosaveService, useValue: { status: signal('saved'), error: signal(undefined) } }] }).compileComponents();
+    const fixture = TestBed.createComponent(EditorStatusBarComponent);
+    return { fixture, library: TestBed.inject(BlockLibraryService), decorations: TestBed.inject(DecorationService) };
+  }
+
+  it('shows the active block display name without an asset preview', async () => {
+    const { fixture, library } = await createFixture();
+    const item = library.allItems()[0];
+    library.activeBlock.select(item);
+    fixture.detectChanges();
+    const status = fixture.nativeElement.querySelector('.active-placement-status') as HTMLElement;
+    expect(status.textContent).toContain('Active block');
+    expect(status.textContent).toContain(item.displayName);
+    expect(status.querySelector('img')).toBeNull();
+    expect(status.querySelector('.asset-status-copy')).toBeNull();
+  });
+
+  it('shows painting and frame decoration labels', async () => {
+    const { fixture, decorations } = await createFixture();
+    decorations.selectPainting('kebab');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.active-placement-status')?.textContent).toContain('Painting · Kebab');
+
+    decorations.selectFrame(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.active-placement-label')?.textContent).toContain('Active decoration');
+    expect(fixture.nativeElement.querySelector('.active-placement-value')?.textContent).toContain('Item Frame');
+
+    decorations.selectFrame(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.active-placement-label')?.textContent).toContain('Active decoration');
+    expect(fixture.nativeElement.querySelector('.active-placement-value')?.textContent).toContain('Glow Item Frame');
+  });
+
+  it('shows only the current placement target and no empty status', async () => {
+    const { fixture, library, decorations } = await createFixture();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.active-placement-status')).toBeNull();
+
+    decorations.selectFrame(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.active-placement-status')?.textContent).toContain('Item Frame');
+
+    const item = library.allItems()[0];
+    library.select(item);
+    fixture.detectChanges();
+    const status = fixture.nativeElement.querySelector('.active-placement-status') as HTMLElement;
+    expect(status.textContent).toContain('Active block');
+    expect(status.textContent).not.toContain('Active decoration');
   });
 });

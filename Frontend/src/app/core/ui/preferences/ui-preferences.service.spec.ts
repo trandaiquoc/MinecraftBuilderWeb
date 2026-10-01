@@ -13,6 +13,8 @@ describe('UiPreferencesService', () => {
   it('uses safe defaults and persists updates', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');
+    expect(preferences.preferences().autoUseHugeStructureBlocks).toBe(false);
+    expect(preferences.preferences().showStructureBlockGuide).toBe(true);
     expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
     expect(preferences.preferences().controls.zoomSensitivity).toBe(2);
     expect(preferences.preferences().controls.cameraMoveSpeed).toBe(15);
@@ -106,6 +108,28 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().appearance.preset).toBe('light');
     preferences.setAppearance({ fontSize: 'large' });
     expect(new UiPreferencesService().preferences().appearance.fontSize).toBe('large');
+  });
+
+  it('normalizes, persists and resets the automatic Huge Structure Blocks preference', () => {
+    localStorage.setItem(key, JSON.stringify({ locale: 'vi' }));
+    expect(new UiPreferencesService().preferences().autoUseHugeStructureBlocks).toBe(false);
+    const preferences = new UiPreferencesService();
+    preferences.update({ autoUseHugeStructureBlocks: true });
+    expect(preferences.preferences().autoUseHugeStructureBlocks).toBe(true);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}').autoUseHugeStructureBlocks).toBe(true);
+    preferences.reset();
+    expect(preferences.preferences().autoUseHugeStructureBlocks).toBe(false);
+  });
+
+  it('normalizes, persists and resets the Structure Block guide preference', () => {
+    localStorage.setItem(key, JSON.stringify({ showStructureBlockGuide: 'yes' }));
+    expect(new UiPreferencesService().preferences().showStructureBlockGuide).toBe(true);
+    const preferences = new UiPreferencesService();
+    preferences.update({ showStructureBlockGuide: false });
+    expect(preferences.preferences().showStructureBlockGuide).toBe(false);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}').showStructureBlockGuide).toBe(false);
+    preferences.reset();
+    expect(preferences.preferences().showStructureBlockGuide).toBe(true);
   });
 
   it('migrates mouse defaults without losing saved keyboard overrides', () => {

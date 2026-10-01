@@ -12,6 +12,8 @@ export type PersistedEditorMode = '3d' | 'y-layer';
 export interface UiPreferences {
   readonly version: 1;
   readonly locale: UiLocale;
+  readonly autoUseHugeStructureBlocks: boolean;
+  readonly showStructureBlockGuide: boolean;
   readonly editorMode: PersistedEditorMode;
   readonly appearance: {
     readonly preset: ThemePreset;
@@ -51,6 +53,8 @@ const LEGACY_LAYOUT_KEY = 'minecraft-builder.editor-layout';
 const defaults: UiPreferences = {
   version: 1,
   locale: 'en',
+  autoUseHugeStructureBlocks: false,
+  showStructureBlockGuide: true,
   editorMode: '3d',
   appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', fontSize: 'normal', editorBackground: 'dark' },
   accessibility: { blockBrightness: 3 },
@@ -139,6 +143,8 @@ function normalize(value: unknown): UiPreferences {
     ...defaults,
     ...candidate,
     locale: isLocale(candidate.locale) ? candidate.locale : defaults.locale,
+    autoUseHugeStructureBlocks: typeof candidate.autoUseHugeStructureBlocks === 'boolean' ? candidate.autoUseHugeStructureBlocks : defaults.autoUseHugeStructureBlocks,
+    showStructureBlockGuide: typeof candidate.showStructureBlockGuide === 'boolean' ? candidate.showStructureBlockGuide : defaults.showStructureBlockGuide,
     editorMode: isEditorMode(candidate.editorMode) ? candidate.editorMode : defaults.editorMode,
     appearance: {
       preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset) ? (appearance as Partial<UiPreferences['appearance']>).preset! : defaults.appearance.preset,

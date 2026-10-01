@@ -1,5 +1,4 @@
 import { Component, computed, effect, ElementRef, inject, output, signal, viewChild } from '@angular/core';
-import { BehaviorSupportLevel, VisualSupportLevel } from '../../../../core/blocks/catalog/block-definition.types';
 import { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -49,11 +48,6 @@ export class BlockBrowserComponent {
   protected readonly rows = computed<readonly (readonly PlaceableItemDefinition[])[]>(() => {
     return groupBlockItemsIntoRows(this.results(), this.columnCount());
   });
-  protected readonly activePreviewItem = computed(() => {
-    const active = this.library.activeBlock.active();
-    const item = active ? this.library.getItem(active.itemId || active.id) : undefined;
-    return active && item ? { ...item, defaultState: { ...active.state }, previewState: { ...active.state } } : undefined;
-  });
   private readonly catalogGridHost = viewChild<ElementRef<HTMLElement>>('catalogGridHost');
   private readonly catalogViewport = viewChild<CdkVirtualScrollViewport>('catalogViewport');
   private readonly thumbnailScope = effect(() => { this.assets.visualProvider(); this.results(); this.assets.invalidateQueuedThumbnails(); });
@@ -71,10 +65,6 @@ export class BlockBrowserComponent {
     const observer = new ResizeObserver(update);
     observer.observe(host);
     onCleanup(() => observer.disconnect());
-  });
-  private readonly activePreviewScope = effect(() => {
-    const active = this.activePreviewItem();
-    if (active) this.assets.requestItemThumbnail(active, 'selected');
   });
   protected search(event: Event): void { this.library.setQuery((event.target as HTMLInputElement).value); }
   protected openAssetManager(): void { this.assetManagerRequested.emit(); }
@@ -98,6 +88,4 @@ export class BlockBrowserComponent {
     return this.quick.has(entry) ? this.i18n.t('alreadyInQuickBar') : this.quick.isFull() ? this.i18n.t('quickBarFull') : this.i18n.t('addToQuickBar');
   }
   protected trackRow(index: number, row: readonly PlaceableItemDefinition[]): string { return row[0]?.itemId ?? `row-${index}`; }
-  protected behaviorLabel(support: BehaviorSupportLevel): string { return this.i18n.behaviorSupport(support); }
-  protected visualLabel(support: VisualSupportLevel): string { return this.i18n.visualSupport(support); }
 }

@@ -1,4 +1,8 @@
 import { Component, computed, inject } from '@angular/core';
+import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
+import { DecorationService } from '../../../../core/decorations/decoration.service';
+import { humanizeDecorationName } from '../../../../core/decorations/decoration-display';
+import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { EditorModeService } from '../../../../core/editor/state/editor-mode.service';
 import { EditorToolService } from '../../../../core/editor/state/tool.service';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
@@ -18,7 +22,25 @@ export class EditorStatusBarComponent {
   protected readonly workspace = inject(WorkspaceStateService);
   protected readonly assets = inject(VanillaAssetsService);
   protected readonly hydration = inject(ViewportHydrationStatusService);
+  protected readonly library = inject(BlockLibraryService);
+  protected readonly decorations = inject(DecorationService);
+  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   protected readonly selectionCount = computed(() => this.selection.count(this.workspace.project()));
+  protected readonly activePlacement = computed<ActivePlacementStatus | undefined>(() => {
+    const activeBlock = this.library.activeBlock.active();
+    if (activeBlock) {
+      const id = activeBlock.itemId || activeBlock.id;
+      return { kind: 'block', label: this.library.getItem(id)?.displayName ?? id };
+    }
+    const activeDecoration = this.decorations.active();
+    if (!activeDecoration) return undefined;
+    if (activeDecoration.kind === 'painting') {
+      const variant = this.paintingCatalog.get(activeDecoration.variantId);
+      const label = variant ? humanizeDecorationName(variant.id) : activeDecoration.variantId ? humanizeDecorationName(activeDecoration.variantId) : this.i18n.t('painting');
+      return { kind: 'decoration', label: `${this.i18n.t('painting')} · ${label}` };
+    }
+    return { kind: 'decoration', label: activeDecoration.kind === 'glow-item-frame' ? this.i18n.t('glowItemFrame') : this.i18n.t('itemFrame') };
+  });
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionCount())); }
   protected assetStatus(): ReturnType<typeof deriveAssetBootstrapStatus> { return deriveAssetBootstrapStatus(this.assets.status(), this.assets.contentRestore(), this.assets.downloadProgress()); }
@@ -51,3 +73,5 @@ export class EditorStatusBarComponent {
   private formatPercent(value: number): string { return value.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 1 }); }
   private formatCount(value: number): string { return value.toLocaleString(this.i18n.locale()); }
 }
+
+interface ActivePlacementStatus { readonly kind: 'block' | 'decoration'; readonly label: string; }

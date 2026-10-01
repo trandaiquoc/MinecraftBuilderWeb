@@ -40,6 +40,19 @@ describe('DialogService', () => {
     await expect(escaped).resolves.toBe(false);
   });
 
+  it('resolves a typed choice and uses undefined for Escape', async () => {
+    const result = service.choice({ title: 'Choose', options: [{ id: 'resize', label: 'Resize', value: 'resize', kind: 'primary' }, { id: 'keep', label: 'Keep', value: 'keep', kind: 'secondary' }] as const });
+    await Promise.resolve();
+    const pane = overlayContainer.getContainerElement().querySelector('.ui-alert-dialog') as HTMLElement;
+    (Array.from(pane.querySelectorAll('button')).find((button) => button.textContent?.includes('Keep')) as HTMLButtonElement).click();
+    await expect(result).resolves.toBe('keep');
+
+    const cancelled = service.choice({ title: 'Choose', options: [{ id: 'resize', label: 'Resize', value: 'resize' }] });
+    await Promise.resolve();
+    overlayContainer.getContainerElement().querySelector('.ui-alert-dialog')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await expect(cancelled).resolves.toBeUndefined();
+  });
+
   it.each(['success', 'warning', 'error', 'info'] as const)('opens %s notice with a single action', async (kind) => {
     const result = service[kind](kind);
     await Promise.resolve();
