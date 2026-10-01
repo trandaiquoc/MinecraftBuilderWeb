@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateStructureSize } from './structure-size-policy';
+import { canonicalStructureModeForSize, evaluateStructureSize, isStructureCreationAllowed, normalizeStructureModeForSize } from './structure-size-policy';
 
 const size = (x: number, y: number, z: number) => ({ x, y, z });
 
@@ -51,5 +51,33 @@ describe('evaluateStructureSize', () => {
   ])('rejects invalid form dimensions %j', (dimensions) => {
     expect(evaluateStructureSize(dimensions, 'vanilla-structure-block').dimensionsValid).toBe(false);
     expect(evaluateStructureSize(dimensions, 'vanilla-structure-block').selectedModeValid).toBe(false);
+  });
+});
+
+describe('canonical structure mode policy', () => {
+  it.each([
+    [16, 16, 16],
+    [48, 48, 48],
+  ])('uses Vanilla for %i × %i × %i', (x, y, z) => {
+    expect(canonicalStructureModeForSize(size(x, y, z))).toBe('vanilla-structure-block');
+  });
+
+  it('requires an explicit Huge confirmation once an axis exceeds 48', () => {
+    const oversized = size(49, 48, 48);
+    expect(canonicalStructureModeForSize(oversized)).toBe('huge-structure-blocks');
+    expect(isStructureCreationAllowed(oversized, 'vanilla-structure-block')).toBe(false);
+    expect(isStructureCreationAllowed(oversized, 'huge-structure-blocks')).toBe(true);
+  });
+
+  it('does not treat sizes above 512 as supported', () => {
+    const unsupported = size(513, 18, 64);
+    expect(canonicalStructureModeForSize(unsupported)).toBeUndefined();
+    expect(isStructureCreationAllowed(unsupported, 'huge-structure-blocks')).toBe(false);
+    expect(normalizeStructureModeForSize(unsupported, 'huge-structure-blocks')).toBe('huge-structure-blocks');
+  });
+
+  it('normalizes legacy mode metadata to the size-compatible mode', () => {
+    expect(normalizeStructureModeForSize(size(32, 32, 32), 'huge-structure-blocks')).toBe('vanilla-structure-block');
+    expect(normalizeStructureModeForSize(size(64, 18, 64), 'vanilla-structure-block')).toBe('huge-structure-blocks');
   });
 });

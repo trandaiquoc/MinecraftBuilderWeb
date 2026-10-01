@@ -44,6 +44,9 @@ describe('local persistence helpers', () => {
   it('keeps summary migration independent from full project documents', () => {
     expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z', size: project.size, structureMode: project.structureMode })).toEqual({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', size: project.size, structureMode: project.structureMode, updatedAt: '2026-01-01T00:00:00Z' });
     expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z', document: project })).toMatchObject({ size: project.size, structureMode: project.structureMode });
+    const oversized = { ...project, size: { x: 64, y: 18, z: 64 }, structureMode: 'vanilla-structure-block' as const };
+    expect(projectSummaryFromStoredRecord({ id: oversized.id, name: oversized.metadata.name, minecraftVersion: oversized.metadata.minecraftVersion, updatedAt: oversized.metadata.updatedAt, document: oversized })).toMatchObject({ size: oversized.size, structureMode: 'huge-structure-blocks' });
+    expect(projectSummaryFromStoredRecord({ id: oversized.id, name: oversized.metadata.name, minecraftVersion: oversized.metadata.minecraftVersion, updatedAt: oversized.metadata.updatedAt, size: oversized.size, structureMode: oversized.structureMode })).toMatchObject({ size: oversized.size, structureMode: 'huge-structure-blocks' });
   });
 
   it('updates recent-project size and mode when the canonical project is saved', async () => {

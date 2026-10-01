@@ -5,7 +5,7 @@ import { IndexedDbProjectStore } from '../../../core/persistence/project-store/i
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
 import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
 import { ProjectDocument, StructureMode } from '../../../core/domain/project.types';
-import { DEFAULT_STRUCTURE_MODE, evaluateStructureSize } from '../../../core/domain/structure-size-policy';
+import { DEFAULT_STRUCTURE_MODE, evaluateStructureSize, isStructureCreationAllowed } from '../../../core/domain/structure-size-policy';
 import { validateProject } from '../../../core/domain/validation';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
@@ -64,20 +64,23 @@ export class ProjectScreenComponent {
   protected updateName(value: string): void { this.name.set(value); }
   protected updateSize(axis: 'x' | 'y' | 'z', value: string): void {
     ({ x: () => this.sizeX.set(value), y: () => this.sizeY.set(value), z: () => this.sizeZ.set(value) }[axis])();
+    const nextSize = { x: Number(axis === 'x' ? value : this.sizeX()), y: Number(axis === 'y' ? value : this.sizeY()), z: Number(axis === 'z' ? value : this.sizeZ()) };
+    if (evaluateStructureSize(nextSize).fitsVanilla) this.structureMode.set(DEFAULT_STRUCTURE_MODE);
     this.error.set(undefined);
   }
   protected setMinecraftVersion(value: string): void { if (value) this.minecraftVersion.set(value); }
   protected setOuterTheme(theme: 'dark' | 'light' | 'craft'): void { this.theme.setPreset(theme); }
   protected setOuterLocale(locale: 'en' | 'vi'): void { this.i18n.setLocale(locale); }
-  protected setStructureMode(mode: StructureMode): void { this.structureMode.set(mode); }
-  protected useHugeStructureBlocks(): void { this.structureMode.set('huge-structure-blocks'); }
+  protected useHugeStructureBlocks(): void {
+    if (this.sizePolicy().exceedsVanilla && this.sizePolicy().fitsHugeStructureBlocks) this.structureMode.set('huge-structure-blocks');
+  }
   protected setVanillaMax(): void { this.sizeX.set('48'); this.sizeY.set('48'); this.sizeZ.set('48'); this.structureMode.set(DEFAULT_STRUCTURE_MODE); }
   protected versionSupportLabel(): string { return this.minecraftVersion() === DEFAULT_MINECRAFT_VERSION ? this.i18n.t('verifiedSupport') : this.i18n.t('resourceCompatibility'); }
-  protected summaryModeLabel(mode: StructureMode): string { return this.i18n.t(mode === 'huge-structure-blocks' ? 'recentProjectHuge' : 'recentProjectVanilla'); }
   protected summaryModeFullLabel(mode: StructureMode): string { return this.i18n.t(mode === 'huge-structure-blocks' ? 'hugeStructureBlocks' : 'vanillaStructureBlock'); }
   protected summarySizeLabel(project: ProjectSummary): string { return `${project.size.x} × ${project.size.y} × ${project.size.z}`; }
-  protected summaryModeAriaLabel(project: ProjectSummary): string { return this.i18n.t('recentProjectModeAria').replace('{mode}', this.summaryModeFullLabel(project.structureMode)); }
-  protected summarySizeAriaLabel(project: ProjectSummary): string { return this.i18n.t('recentProjectSizeAria').replace('{size}', this.summarySizeLabel(project)); }
+  protected summarySizeBadgeAriaLabel(project: ProjectSummary): string {
+    return this.i18n.t('recentProjectSizeBadgeAria').replace('{mode}', this.summaryModeFullLabel(project.structureMode)).replace('{size}', this.summarySizeLabel(project));
+  }
 
   protected async createProject(): Promise<void> {
     const guard = projectCreationGuard(this.creating(), !!this.openingId(), this.canCreateProject());
@@ -162,11 +165,13 @@ export class ProjectScreenComponent {
 
   protected async retryLoad(): Promise<void> { await this.loadProjects(); }
   protected validDimensions(): boolean { return this.sizePolicy().dimensionsValid; }
-  protected canCreateProject(): boolean { return this.validDimensions() && this.sizePolicy().selectedModeValid; }
+  protected canCreateProject(): boolean {
+    return isStructureCreationAllowed({ x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, this.structureMode());
+  }
   protected creationValidationMessage(): string {
     const policy = this.sizePolicy();
     if (!policy.dimensionsValid) return this.i18n.t('invalidProjectSize');
-    return policy.mode === 'vanilla-structure-block' ? this.i18n.t('vanillaOversizedWarning') : this.i18n.t('hugeStructureBlocksLimitExceeded');
+    return !policy.fitsHugeStructureBlocks ? this.i18n.t('hugeStructureBlocksLimitExceeded') : this.i18n.t('vanillaOversizedWarning');
   }
 
   private async loadProjects(): Promise<void> {

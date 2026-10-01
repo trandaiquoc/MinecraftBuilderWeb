@@ -22,6 +22,23 @@ export function structureModeAxisLimit(mode: StructureMode): number {
   return mode === 'huge-structure-blocks' ? HUGE_STRUCTURE_BLOCKS_MAX_AXIS : VANILLA_STRUCTURE_BLOCK_MAX_AXIS;
 }
 
+/** Returns the only supported mode for a valid size, or undefined when it exceeds HSB. */
+export function canonicalStructureModeForSize(size: ProjectSize): StructureMode | undefined {
+  const policy = evaluateStructureSize(size);
+  if (!policy.dimensionsValid || !policy.fitsHugeStructureBlocks) return undefined;
+  return policy.fitsVanilla ? DEFAULT_STRUCTURE_MODE : 'huge-structure-blocks';
+}
+
+/** Repairs legacy mode metadata without changing unsupported dimensions. */
+export function normalizeStructureModeForSize(size: ProjectSize, mode: StructureMode): StructureMode {
+  return canonicalStructureModeForSize(size) ?? mode;
+}
+
+export function isStructureCreationAllowed(size: ProjectSize, mode: StructureMode): boolean {
+  const policy = evaluateStructureSize(size, mode);
+  return policy.dimensionsValid && (policy.fitsVanilla || (mode === 'huge-structure-blocks' && policy.fitsHugeStructureBlocks));
+}
+
 export function evaluateStructureSize(size: ProjectSize, mode: StructureMode = DEFAULT_STRUCTURE_MODE): StructureSizePolicy {
   const axes: readonly StructureAxis[] = ['x', 'y', 'z'];
   const dimensionsValid = axes.every((axis) => Number.isInteger(size[axis]) && size[axis] >= 1);

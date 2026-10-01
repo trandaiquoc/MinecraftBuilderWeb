@@ -58,6 +58,18 @@ describe('translation dictionaries', () => {
     service.setLocale('en');
   });
 
+  it('localizes the Huge Structure Blocks guidance in both locales', () => {
+    const service = TestBed.inject(I18nService);
+    service.setLocale('en');
+    expect(service.t('vanillaCompatible')).toContain('Vanilla');
+    expect(service.t('hugeStructureBlocksModrinth')).toBe('Download on Modrinth');
+    expect(service.t('hugeStructureBlocksStepInstall')).toContain('{version}');
+    service.setLocale('vi');
+    expect(service.t('vanillaCompatible')).toContain('vanilla');
+    expect(service.t('hugeStructureBlocksModrinth')).toBe('Tải trên Modrinth');
+    service.setLocale('en');
+  });
+
   it('localizes known diagnostics and preserves unknown fallback text', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('vi');

@@ -1,4 +1,4 @@
-import { evaluateStructureSize } from '../../domain/structure-size-policy';
+import { canonicalStructureModeForSize } from '../../domain/structure-size-policy';
 import type { ProjectDocument, ProjectSize, StructureMode, VoxelCoordinate } from '../../domain/project.types';
 import { isWithinBounds } from '../../domain/coordinates';
 import type { StructureJson } from './structure-json';
@@ -18,16 +18,13 @@ export function resizeProjectForStructureJsonImport(project: ProjectDocument, bo
     y: Math.max(project.size.y, bounds.requiredSize.y),
     z: Math.max(project.size.z, bounds.requiredSize.z),
   };
-  const mode = importStructureModeForSize(project.structureMode, size);
+  const mode = importStructureModeForSize(size);
   if (!mode) return undefined;
   return { ...project, size, structureMode: mode };
 }
 
-function importStructureModeForSize(currentMode: StructureMode, size: ProjectSize): StructureMode | undefined {
-  const currentPolicy = evaluateStructureSize(size, currentMode);
-  if (currentPolicy.selectedModeValid) return currentMode;
-  const hugePolicy = evaluateStructureSize(size, 'huge-structure-blocks');
-  return hugePolicy.selectedModeValid ? 'huge-structure-blocks' : undefined;
+function importStructureModeForSize(size: ProjectSize): StructureMode | undefined {
+  return canonicalStructureModeForSize(size);
 }
 
 export function inspectStructureJsonBounds(source: StructureJson, currentSize: ProjectSize): StructureJsonBoundsPreflight {
