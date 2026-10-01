@@ -1,0 +1,48 @@
+<div class="structure-export-backdrop" role="presentation" (click)="onBackdropClick($event)">
+  <section class="structure-export-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('structureExportDialogTitle')" tabindex="-1" autofocus>
+    <header class="structure-export-header">
+      <div><p class="eyebrow">MinecraftBuilder</p><h2>{{ i18n.t('structureExportDialogTitle') }}</h2><p>{{ i18n.t('structureExportDialogDescription') }}</p></div>
+      <button type="button" class="ui-close-button" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button>
+    </header>
+    <div class="structure-export-body">
+      <section class="structure-export-main">
+        <fieldset class="mode-selector">
+          <legend>{{ i18n.t('structureExportMode') }}</legend>
+          <label [class.selected]="mode() === 'datapack'"><input type="radio" name="structure-export-mode" [checked]="mode() === 'datapack'" (change)="setMode('datapack')" /> <span><strong>{{ i18n.t('structureExportDatapack') }}</strong><small>{{ i18n.t('structureExportDatapackHint') }}</small></span></label>
+          <label [class.selected]="mode() === 'standalone'"><input type="radio" name="structure-export-mode" [checked]="mode() === 'standalone'" (change)="setMode('standalone')" /> <span><strong>{{ i18n.t('structureExportStandalone') }}</strong><small>{{ i18n.t('structureExportStandaloneHint') }}</small></span></label>
+        </fieldset>
+        <div class="form-grid">
+          <label><span>{{ i18n.t('structureExportNamespace') }}</span><input [value]="namespace()" (input)="setField('namespace', $event)" [attr.aria-invalid]="preflight().diagnostics.some(d => d.path === 'namespace')" /></label>
+          <label><span>{{ i18n.t('structureExportPath') }}</span><input [value]="structurePath()" (input)="setField('structurePath', $event)" [attr.aria-invalid]="preflight().diagnostics.some(d => d.path === 'structurePath')" /></label>
+          @if (mode() === 'datapack') {
+            <label><span>{{ i18n.t('structureExportArchive') }}</span><input [value]="archiveName()" (input)="setField('archiveName', $event)" [attr.aria-invalid]="preflight().diagnostics.some(d => d.path === 'archiveName')" /><small>{{ i18n.t('structureExportArchiveHint') }}</small></label>
+            <label class="wide"><span>{{ i18n.t('structureExportDescription') }}</span><textarea rows="3" [value]="description()" (input)="setField('description', $event)"></textarea></label>
+          }
+        </div>
+        <div class="live-summary">
+          <div><span>{{ i18n.t('structureExportResourceLocation') }}</span><code>{{ metadata()?.resourceLocation ?? (namespace() + ':' + structurePath()) }}</code></div>
+          <div><span>{{ i18n.t('structureExportFilename') }}</span><code>{{ mode() === 'datapack' ? (archiveName() + '.zip') : ((structurePath().split('/').pop() || '') + '.nbt') }}</code></div>
+        </div>
+        @if (preflight().diagnostics.length > 0) {
+          <div class="validation-errors" role="alert"><strong>{{ i18n.t('structureExportValidationSummary') }}</strong><ul>@for (diagnostic of preflight().diagnostics; track diagnostic.code + ':' + diagnostic.path) { <li>{{ diagnosticText(diagnostic) }}</li> }</ul></div>
+        }
+        @if (errorDiagnostics().length > 0) {
+          <div class="validation-errors" role="alert"><strong>{{ i18n.t('structureExportFailed') }}</strong><ul>@for (diagnostic of errorDiagnostics(); track diagnostic.code + ':' + diagnostic.path) { <li>{{ diagnosticText(diagnostic) }}</li> }</ul></div>
+        }
+        @if (result(); as completed) { <p class="export-success" role="status">{{ i18n.t('structureExportSuccess') }} {{ completed.filename }} ({{ completed.byteLength }} bytes)</p> }
+      </section>
+      <aside class="structure-export-info">
+        <h3>{{ i18n.t('structureExportInstall') }}</h3>
+        <p>{{ projectName() }}</p>
+        @if (sizeWarning()) { <p class="size-warning">{{ i18n.t('structureExportSizeWarning') }}</p> }
+        @if (metadata(); as details) {
+          <dl><div><dt>{{ i18n.t('structureExportByteSize') }}</dt><dd>{{ i18n.t(details.sizeClass === 'huge' ? 'structureExportHugeBlocksWarning' : details.sizeClass === 'unsupported' ? 'structureExportTooLarge' : 'structureExportVanillaCompatible') }}</dd></div>
+            @if (mode() === 'standalone') { <div><dt>{{ i18n.t('structureExportWorldPath') }}</dt><dd><code>{{ details.worldInstallPath }}</code></dd></div><p>{{ i18n.t('structureExportStandaloneGuide') }}</p> }
+            @else { <div><dt>{{ i18n.t('structureExportDatapackPath') }}</dt><dd><code>{{ details.datapackInstallPath }}</code></dd></div><p>{{ i18n.t('structureExportDatapackGuide') }}</p><p><code>/reload</code> · {{ i18n.t('structureExportLoadCommand') }} <code>{{ details.resourceLocation }}</code></p> }
+          </dl>
+        }
+      </aside>
+    </div>
+    <footer class="structure-export-footer"><button type="button" class="ui-button ui-button--ghost" (click)="close()">{{ i18n.t('cancel') }}</button><button type="button" class="ui-button ui-button--primary" [disabled]="!canDownload()" (click)="download()"><svg lucideDownload aria-hidden="true"></svg>{{ busy() ? i18n.t('structureExportWorking') : i18n.t('structureExportDownload') }}</button></footer>
+  </section>
+</div>

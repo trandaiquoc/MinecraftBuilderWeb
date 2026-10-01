@@ -156,7 +156,7 @@ export async function prepareStructureExport(project: ProjectDocument, codec: Mi
   if (inputDiagnostics.length > 0) return { ok: false, diagnostics: inputDiagnostics };
   const exported = await exportMinecraftStructure(project, codec);
   if (!exported.ok) return { ok: false, diagnostics: exported.diagnostics };
-  const metadata = metadataFor(input, project);
+  const metadata = createStructureExportMetadata(input, project);
   const packMcmeta = createPackMcmeta(project.metadata.minecraftVersion, input.description);
   if (!packMcmeta.ok) return { ok: false, diagnostics: [packMcmeta.diagnostic] };
   const standalone: StandaloneStructureNbtPackage = { ...metadata, bytes: exported.bytes, dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION };
@@ -181,11 +181,11 @@ export async function prepareStandaloneStructureNbt(project: ProjectDocument, co
   if (diagnostics.length > 0) return { ok: false, diagnostics };
   const exported = await exportMinecraftStructure(project, codec);
   if (!exported.ok) return { ok: false, diagnostics: exported.diagnostics };
-  const metadata = metadataFor({ ...input, archiveName: lastPathSegment(input.structurePath), description: '' }, project);
+  const metadata = createStructureExportMetadata({ ...input, archiveName: lastPathSegment(input.structurePath), description: '' }, project);
   return { ok: true, standalone: { ...metadata, bytes: exported.bytes, dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION } };
 }
 
-function metadataFor(input: StructureExportInput, project: ProjectDocument): StructureExportMetadata {
+export function createStructureExportMetadata(input: StructureExportInput, project: ProjectDocument): StructureExportMetadata {
   const archiveFilename = `${input.archiveName}.zip`;
   const sizeClass = classifyStructureSize(project.size);
   return {

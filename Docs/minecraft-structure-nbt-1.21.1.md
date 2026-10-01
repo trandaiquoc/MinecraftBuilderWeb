@@ -366,6 +366,34 @@ canonical sherd sides and its optional stored item/count while preserving
 components and imported raw data through known-field edits. No NBT/ZIP export
 UI was added in this prompt; viewport pattern rendering remains unchanged.
 
+## Prompt 15.5 final export UI
+
+File > Export Structure NBT now opens a dedicated dialog with two explicit
+modes: standalone Structure NBT and Datapack ZIP. The dialog uses an
+application export facade rather than importing the NBT codec or ZIP library;
+the browser download service is the only layer that touches Blob/object URLs
+and temporary anchors.
+
+Standalone downloads use the last path segment as `<name>.nbt` and install at
+`<world>/generated/<namespace>/structures/<path>.nbt`. ZIP downloads keep the
+production `pack_format: 48` contract and exact entries `pack.mcmeta` plus
+`data/<namespace>/structure/<path>.nbt`; the ZIP remains compressed at
+`<world>/datapacks/<archive>.zip`. The dialog displays ResourceLocation,
+compatibility, output name, diagnostics with paths, and install guidance. It
+never auto-installs or splits a structure.
+
+Existing namespace, path, archive, version, size, and semantic exporter
+validation is reused without inventing Minecraft length limits. Namespace,
+archive name, and description are cached only after successful export through
+`UiPreferencesService`; structure path stays project-derived. Sizes through 48
+blocks per axis are vanilla-compatible, 49..512 show Huge Structure Blocks
+guidance, and larger sizes are rejected. Furnace/raw/components limitations
+remain explicit exporter diagnostics. The committed smoke hashes are unchanged:
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661` and
+`db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
+
+FINAL UI MANUAL MINECRAFT VERIFICATION: PENDING.
+
 ## Boundary
 
 The intended dependency direction is:

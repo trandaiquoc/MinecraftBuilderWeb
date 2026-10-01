@@ -42,12 +42,13 @@ import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-asset
 import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
+import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
 
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -88,6 +89,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly diagnosticsOpen = signal(false);
   protected readonly structureJsonExportOpen = signal(false);
   protected readonly structureJsonImportOpen = signal(false);
+  protected readonly structureNbtExportOpen = signal(false);
   protected readonly leftDrawerOpen = signal(false);
   protected readonly rightDrawerOpen = signal(false);
   private drawerOpener?: HTMLElement;
@@ -266,7 +268,8 @@ export class EditorShellComponent implements OnDestroy {
     } catch { void this.dialogs.error(this.i18n.t('exportProjectError'), this.i18n.t('exportProjectError')); }
   }
   protected showUnavailableFeature(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('featureUnavailable'), this.i18n.t('featureUnavailable')); }
-  protected showStructureExportUnavailable(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('exportStructureNbt'), this.i18n.t('structureNbtUnavailable')); }
+  protected openStructureNbtExport(): void { this.closeMenus(); this.structureNbtExportOpen.set(true); }
+  protected closeStructureNbtExport(): void { this.structureNbtExportOpen.set(false); }
   protected openStructureJsonExport(): void { this.closeMenus(); this.structureJsonExportOpen.set(true); }
   protected closeStructureJsonExport(): void { this.structureJsonExportOpen.set(false); }
   protected showControlsHelp(): void { this.closeMenus(); this.controlsHelpOpen.set(true); }
@@ -359,7 +362,7 @@ export class EditorShellComponent implements OnDestroy {
     return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
   }
   protected handleEditorShortcut(event: KeyboardEvent): void {
-    if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen()) return;
+    if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen() || this.structureNbtExportOpen()) return;
     if (event.key === 'Escape') {
       if (this.leftDrawerOpen() || this.rightDrawerOpen()) { this.closeDrawers(); event.preventDefault(); return; }
       this.closeMenus(); return;

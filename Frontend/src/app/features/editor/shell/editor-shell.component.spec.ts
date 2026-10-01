@@ -29,6 +29,20 @@ describe('editor shell movement/delete routing', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it('opens and closes the Structure NBT export dialog from the File action', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const shell = fixture.componentInstance as unknown as {
+      openStructureNbtExport: () => void;
+      closeStructureNbtExport: () => void;
+      structureNbtExportOpen: () => boolean;
+    };
+    shell.openStructureNbtExport();
+    expect(shell.structureNbtExportOpen()).toBe(true);
+    shell.closeStructureNbtExport();
+    expect(shell.structureNbtExportOpen()).toBe(false);
+    fixture.destroy();
+  });
+
   it('suppresses delete while movement owns the keyboard, then allows delete after release', () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
     const shell = fixture.componentInstance as unknown as {

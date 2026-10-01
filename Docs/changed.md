@@ -1936,4 +1936,31 @@ Furnace inventory remains explicitly unavailable and is never initialized as a
 generic editable container. Added Decorated Pot side sherd and stored-item
 editing using the verified sherd list. Known-field edits preserve item
 components and imported raw data; unsupported raw/components remain exporter
-diagnostics. Manual UI verification: **NOT YET MANUALLY VERIFIED IN EDITOR UI**.
+diagnostics. Manual UI verification: **PASS** (user report).
+
+## Prompt 15.5 final Structure NBT export UI
+
+File > Export Structure NBT now opens a dedicated dialog with exactly two
+outputs: Structure NBT (`.nbt`) and Datapack ZIP (`.zip`), defaulting to ZIP.
+The dialog talks only to `MinecraftStructureExportService`; codec, exporter,
+and fflate details remain below that application boundary. Browser download
+uses a separate Blob/object-URL/temporary-anchor service and is not part of the
+core package plan.
+
+Standalone guidance targets
+`<world>/generated/<namespace>/structures/<path>.nbt` (plural `structures`).
+ZIP guidance targets `<world>/datapacks/<archive>.zip`, keeps the archive
+zipped, and uses `/reload` plus Structure Block LOAD with the displayed
+ResourceLocation. The exact production ZIP entries remain
+`pack.mcmeta` and `data/<namespace>/structure/<path>.nbt` (singular
+`structure`), with pack format 48 and one exporter run per selected download.
+
+The dialog reuses namespace, path, archive, version, size, and semantic export
+diagnostics, shows diagnostic paths, blocks duplicate downloads while busy, and
+does not auto-install or split structures. Namespace/archive/description cache
+is written only after successful export; structure path remains project-derived.
+No arbitrary Minecraft length limit is added. Standalone mode ignores invalid
+ZIP-only fields. Sizes through 48 blocks per axis are vanilla-compatible,
+49..512 require Huge Structure Blocks guidance, and larger sizes are rejected.
+The existing smoke ZIP/NBT hashes remain unchanged. FINAL UI MANUAL MINECRAFT
+VERIFICATION: PENDING.
