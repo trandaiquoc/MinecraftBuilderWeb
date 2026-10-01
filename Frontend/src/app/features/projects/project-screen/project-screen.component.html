@@ -1,4 +1,15 @@
 <main class="project-page">
+  <header class="outer-topbar">
+    <div class="outer-brand"><span class="outer-brand-mark" aria-hidden="true">M</span><span>{{ i18n.t('appName') }}</span></div>
+    <div class="outer-theme-control">
+      <span class="outer-theme-label">{{ i18n.t('theme') }}</span>
+      <div class="outer-theme-switch" role="group" [attr.aria-label]="i18n.t('theme')">
+        <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="theme.preset() === 'dark'" [attr.aria-pressed]="theme.preset() === 'dark'" (click)="setOuterTheme('dark')">{{ i18n.t('dark') }}</button>
+        <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="theme.preset() === 'light'" [attr.aria-pressed]="theme.preset() === 'light'" (click)="setOuterTheme('light')">{{ i18n.t('light') }}</button>
+        <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="theme.preset() === 'craft'" [attr.aria-pressed]="theme.preset() === 'craft'" (click)="setOuterTheme('craft')">{{ i18n.t('craft') }}</button>
+      </div>
+    </div>
+  </header>
   <header class="project-intro">
     <p class="eyebrow">{{ i18n.t('appName') }}</p>
     <h1>{{ i18n.t('projectTitle') }}</h1>

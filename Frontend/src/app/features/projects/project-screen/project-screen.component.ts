@@ -8,6 +8,7 @@ import { ProjectDocument, StructureMode } from '../../../core/domain/project.typ
 import { DEFAULT_STRUCTURE_MODE, evaluateStructureSize } from '../../../core/domain/structure-size-policy';
 import { validateProject } from '../../../core/domain/validation';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { ThemeService } from '../../../core/ui/theme/theme.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
@@ -26,6 +27,7 @@ import { DEFAULT_MINECRAFT_VERSION } from '../../../core/domain/project.types';
 })
 export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
+  protected readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
   private readonly workspace = inject(WorkspaceStateService);
   private readonly dialogs = inject(DialogService);
@@ -65,6 +67,7 @@ export class ProjectScreenComponent {
     this.error.set(undefined);
   }
   protected setMinecraftVersion(value: string): void { if (value) this.minecraftVersion.set(value); }
+  protected setOuterTheme(theme: 'dark' | 'light' | 'craft'): void { this.theme.setPreset(theme); }
   protected setStructureMode(mode: StructureMode): void { this.structureMode.set(mode); }
   protected useHugeStructureBlocks(): void { this.structureMode.set('huge-structure-blocks'); }
   protected setVanillaMax(): void { this.sizeX.set('48'); this.sizeY.set('48'); this.sizeZ.set('48'); this.structureMode.set(DEFAULT_STRUCTURE_MODE); }
