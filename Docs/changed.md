@@ -1840,7 +1840,37 @@ silently rewriting submitted values. Export defaults cache namespace, archive
 name, and description through UI preferences while structure paths are
 derived per current project.
 
-No ZIP dependency was installed. The archive-writer port and safe datapack
-entry plan are ready for approved browser ZIP integration; final export UI
-remains deferred to Prompt 15.5. The existing exporter remains the only NBT
-serializer, so unsupported raw NBT still fails explicitly.
+The archive-writer port and safe datapack entry plan remain library-neutral;
+the final export UI remains deferred to Prompt 15.5. The existing exporter
+remains the only NBT serializer, so unsupported raw NBT still fails explicitly.
+
+## Prompt 15.4.1 fflate datapack ZIP integration
+
+Approved dependency `fflate@0.8.3` is installed exactly and integrated through
+`FflateZipArchiveWriter`. The adapter uses fflate's callback-based `zip()` API,
+keeps binary data as `Uint8Array`, and applies per-entry compression: the
+already-gzipped Structure NBT entry uses ZIP STORE (`level: 0`), while
+`pack.mcmeta` uses DEFLATE (`level: 6`). A fixed 1980 DOS-compatible timestamp
+makes generated archives reproducible. No Node-only or DOM download code was
+added, and Prompt 15.5 export UI/File-menu wiring remains disabled.
+
+The production ZIP tree is exactly `pack.mcmeta` plus
+`data/<namespace>/structure/<path>.nbt` (singular `structure`, no outer root,
+`generated`, or plural `structures`). `prepareStructureExport()` runs the
+exporter once and shares the exact NBT byte buffer between standalone and ZIP
+outputs. Writer-boundary validation rejects traversal/absolute/drive/control
+paths and duplicate names. Archive-name validation additionally rejects
+leading/trailing whitespace, whitespace-only names, trailing dots, and Windows
+reserved stems without silently trimming input.
+
+The committed fixture
+`exporter_datapack_smoke_1_21_1.zip` is **EXPORTER/PACKAGER-GENERATED — NOT A
+GOLDEN**. It is 1261 bytes with SHA-256
+`9cca5ff92967e90425fe8d4b3d0c1819cb892603d4c69d7ca039e225caa349f9`; its NBT
+entry is 856 bytes with SHA-256
+`cfd99e9aba231e1cc8a812959f4e57b72a791ef498501e07d6d43dbe0995023f`.
+The artifact has pack format 48, DataVersion 3955, dimensions 6×2×6, 72
+blocks (68 Air), three block entities (sign, decorated pot, hanging sign),
+and painting/item-frame/glow-item-frame entities. A permanent test reads this
+committed ZIP and decodes it with the production NBT codec. Manual Minecraft
+Java 1.21.1 datapack verification is still pending.

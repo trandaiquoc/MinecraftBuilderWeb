@@ -3,7 +3,8 @@ import { classifyStructureSize, MINECRAFT_JAVA_1_21_1, MINECRAFT_JAVA_1_21_1_DAT
 import { exportMinecraftStructure } from './minecraft-structure-exporter';
 import type { MinecraftJavaNbtCodec } from './minecraft-structure-codec';
 import type { StructureExportPreferences } from '../../ui/preferences/ui-preferences.service';
-import type { ZipArchiveOutputEntry } from './zip-archive-writer';
+import type { ZipArchiveOutputEntry, ZipArchiveWriter } from './zip-archive-writer';
+import { FflateZipArchiveWriter } from './fflate-zip-archive-writer';
 
 export const MINECRAFT_JAVA_1_21_1_PACK_FORMAT = 48 as const;
 export const DEFAULT_STRUCTURE_EXPORT_NAMESPACE = 'minecraftbuilder' as const;
@@ -17,7 +18,8 @@ export type StructurePackagingDiagnosticCode =
   | 'invalid-structure-path'
   | 'invalid-archive-name'
   | 'invalid-description'
-  | 'unsupported-packaging-version';
+  | 'unsupported-packaging-version'
+  | 'archive-write-failed';
 
 export type StructurePackagingDiagnostic = MinecraftStructureDiagnostic | {
   readonly code: StructurePackagingDiagnosticCode;
@@ -73,6 +75,10 @@ export interface DatapackArchivePlan extends StructureExportMetadata {
   readonly embeddedNbtBytes: Uint8Array;
 }
 
+export interface DatapackArchivePackage extends DatapackArchivePlan {
+  readonly bytes: Uint8Array;
+}
+
 export interface StructureExportArtifacts {
   readonly ok: true;
   readonly standalone: StandaloneStructureNbtPackage;
@@ -85,6 +91,8 @@ export interface StructureExportFailure {
 }
 
 export type StructureExportResult = StructureExportArtifacts | StructureExportFailure;
+
+export type DatapackArchiveResult = ({ readonly ok: true } & DatapackArchivePackage) | StructureExportFailure;
 
 export type StandaloneStructureNbtResult = { readonly ok: true; readonly standalone: StandaloneStructureNbtPackage } | StructureExportFailure;
 
@@ -103,10 +111,19 @@ export function validateStructurePath(value: unknown): readonly StructurePackagi
 }
 
 export function validateArchiveName(value: unknown): readonly StructurePackagingDiagnostic[] {
-  if (typeof value !== 'string' || !value || value === '.' || value === '..' || CONTROL_CHARACTERS.test(value) || /[\\/:<>|"*?]/.test(value) || /^[a-z]:/i.test(value) || /\.zip$/i.test(value) || isWindowsReservedName(value)) {
+  if (typeof value !== 'string' || !value || !value.trim() || /^\s|\s$/.test(value) || value.endsWith('.') || value === '.' || value === '..' || CONTROL_CHARACTERS.test(value) || /[\\/:<>|"*?]/.test(value) || /^[a-z]:/i.test(value) || /\.zip$/i.test(value) || isWindowsReservedName(value)) {
     return [{ code: 'invalid-archive-name', message: 'Archive name must be a safe filename stem without a .zip suffix or path separators.', path: 'archiveName' }];
   }
   return [];
+}
+
+/** Writes the already-prepared datapack plan without rerunning NBT export. */
+export async function writeDatapackArchive(plan: DatapackArchivePlan, writer: ZipArchiveWriter = new FflateZipArchiveWriter()): Promise<DatapackArchiveResult> {
+  try {
+    return { ok: true, ...plan, bytes: await writer.write(plan.entries) };
+  } catch (error) {
+    return { ok: false, diagnostics: [{ code: 'archive-write-failed', message: error instanceof Error ? error.message : 'ZIP archive writing failed.' }] };
+  }
 }
 
 export function validateStructureExportInput(project: ProjectDocument, input: StructureExportInput): readonly StructurePackagingDiagnostic[] {

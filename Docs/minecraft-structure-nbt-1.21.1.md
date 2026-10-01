@@ -41,17 +41,53 @@ singular Java 1.21+ entry path
 for the world `generated` path. Its root metadata is deterministic
 `pack.mcmeta` with `pack.pack_format = 48` and a JSON-serialized description.
 
-This checkpoint deliberately does not install a ZIP writer dependency. It
-exposes a library-neutral archive-writer port and validated entry plan; ZIP
-generation remains blocked pending approval of a browser-compatible package.
-Namespace/resource-location validation is separate from archive filename and
-path-traversal validation. No Minecraft maximum length is invented. Export
-defaults cache only namespace, archive name, and description through UI
+The approved browser ZIP dependency is now `fflate@0.8.3`. The production
+`FflateZipArchiveWriter` implements the library-neutral writer port and uses
+fflate's callback-based `zip()` API with per-entry options. Already-gzipped NBT
+is passed with ZIP compression level `0` (method STORE), while `pack.mcmeta`
+uses DEFLATE level `6`. A fixed DOS-compatible timestamp keeps artifacts
+reproducible without leaking the local clock. No Blob, File, Node filesystem,
+base64, or Angular dependency is present in the adapter.
+
+The exact datapack tree is:
+
+```
+pack.mcmeta
+data/<namespace>/structure/<path>.nbt
+```
+
+There is no outer archive directory, `generated/` directory, or plural
+`structures` datapack directory. `prepareStructureExport()` runs the NBT
+exporter once; the same `Uint8Array` is used by the standalone artifact and
+the ZIP entry. Namespace/resource-location validation is separate from archive
+filename and ZIP entry path validation. Archive names reject leading/trailing
+whitespace, whitespace-only values, trailing dots, reserved Windows stems, and
+unsafe suffixes without trimming submitted values. The writer rejects unsafe
+relative paths and duplicate entry names at its boundary.
+
+Export defaults cache only namespace, archive name, and description through UI
 preferences; the structure path is derived from the current project name.
 Unknown untyped raw NBT remains an explicit exporter diagnostic, and packaging
 does not increase Vanilla Structure Block limits. Projects above 48 blocks per
 axis retain Huge Structure Blocks compatibility metadata without claiming the
 ZIP installs that mod.
+
+The committed smoke artifact
+`Frontend/src/app/core/persistence/minecraft-structure/fixtures/exporter_datapack_smoke_1_21_1.zip`
+is **EXPORTER/PACKAGER-GENERATED — NOT A GOLDEN**. It has SHA-256
+`9cca5ff92967e90425fe8d4b3d0c1819cb892603d4c69d7ca039e225caa349f9` and size
+1261 bytes. It contains exactly the two entries above for
+`minecraftbuilder:exporter_datapack_smoke_1_21_1`; `pack.mcmeta` is
+`{"pack":{"pack_format":48,"description":"MinecraftBuilder 1.21.1 export smoke"}}`.
+The embedded gzip NBT is 856 bytes with SHA-256
+`cfd99e9aba231e1cc8a812959f4e57b72a791ef498501e07d6d43dbe0995023f`,
+DataVersion 3955, dimensions 6×2×6, 5 palette entries, 72 block records with
+68 Air records, 3 block entities (`minecraft:sign`,
+`minecraft:decorated_pot`, `minecraft:hanging_sign`), and 3 entities
+(`minecraft:painting`, `minecraft:item_frame`,
+`minecraft:glow_item_frame`). The permanent self-verification test decodes the
+artifact through the production codec. It has **not yet been verified in a
+Minecraft client**.
 
 ## StructureTemplate shape
 
@@ -172,8 +208,8 @@ no new export limit is invented here.
 
 `minecraft-structure-exporter.ts` converts a validated `ProjectDocument` to a
 canonical `MinecraftStructureTemplate`, then uses the injected codec to emit a
-gzip `.nbt` byte array. The UI, Blob/download flow, ZIP packaging, and menu
-action remain disabled.
+gzip `.nbt` byte array. The UI, Blob/download flow, and menu action remain
+disabled; the non-UI ZIP packaging layer consumes these exact bytes.
 
 The exporter traverses voxels in deterministic `Y → Z → X` order and sorts the
 palette by canonical state identity (`Name` plus sorted string Properties).
