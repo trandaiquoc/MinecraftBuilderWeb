@@ -1,3 +1,5 @@
+// @ts-expect-error Node's file API is only used by this fixture verification test.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/project.types';
 import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
@@ -33,6 +35,31 @@ describe('core Minecraft Structure NBT exporter', () => {
     expect(result.template.blocks).toHaveLength(4);
     expect(result.template.blocks.filter((entry) => result.template.palette[entry.state].name === 'minecraft:air')).toHaveLength(3);
     expect(result.template.blocks.map((entry) => entry.pos)).toEqual([[0, 0, 0], [1, 0, 0], [0, 0, 1], [1, 0, 1]]);
+  });
+
+  it('uses one Air palette identity for explicit and implicit Air voxels', async () => {
+    const result = await exported(project({ x: 3, y: 1, z: 1 }, [
+      block('minecraft:air', { x: 0, y: 0, z: 0 }),
+      block('minecraft:stone', { x: 2, y: 0, z: 0 }),
+    ]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const airEntries = result.template.palette
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => entry.name === 'minecraft:air');
+    expect(airEntries).toHaveLength(1);
+    expect(result.template.blocks).toHaveLength(3);
+    expect(result.template.blocks[0].state).toBe(airEntries[0].index);
+    expect(result.template.blocks[1].state).toBe(airEntries[0].index);
+  });
+
+  it('keeps a fully explicit Air structure to one Air palette entry', async () => {
+    const result = await exported(project({ x: 1, y: 1, z: 1 }, [block('minecraft:air', { x: 0, y: 0, z: 0 })]));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.template.palette).toEqual([{ name: 'minecraft:air' }]);
+      expect(result.template.blocks).toEqual([{ pos: [0, 0, 0], state: 0 }]);
+    }
   });
 
   it('omits an unused Air palette entry for a completely filled structure', async () => {
@@ -94,6 +121,25 @@ describe('core Minecraft Structure NBT exporter', () => {
     expect(entity.ok).toBe(false);
     if (!entity.ok) expect(entity.diagnostics.map((entry) => entry.code)).toContain('unsupported-block-entity');
 
+    const sign = await exported(project({ x: 1, y: 1, z: 1 }, [{
+      ...block('minecraft:oak_sign', { x: 0, y: 0, z: 0 }),
+      blockEntityData: {
+        kind: 'sign',
+        waxed: false,
+        front: { lines: ['front', '', '', ''] as const, color: 'black', glowing: false },
+        back: { lines: ['', '', '', ''] as const, color: 'black', glowing: false },
+      },
+    }]));
+    expect(sign.ok).toBe(false);
+    if (!sign.ok) expect(sign.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'unsupported-block-entity', path: 'blocks.0.blockEntityData' })]));
+
+    const decoratedPot = await exported(project({ x: 1, y: 1, z: 1 }, [{
+      ...block('minecraft:decorated_pot', { x: 0, y: 0, z: 0 }),
+      blockEntityData: { kind: 'decorated-pot', decorations: { back: 'brick', left: 'brick', right: 'brick', front: 'brick' } },
+    }]));
+    expect(decoratedPot.ok).toBe(false);
+    if (!decoratedPot.ok) expect(decoratedPot.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'unsupported-block-entity', path: 'blocks.0.blockEntityData' })]));
+
     const decoration = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'painting-1', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
     expect(decoration.ok).toBe(false);
     if (!decoration.ok) expect(decoration.diagnostics.map((entry) => entry.code)).toContain('unsupported-decoration');
@@ -107,5 +153,23 @@ describe('core Minecraft Structure NBT exporter', () => {
     const adapter = new MinecraftJavaStructureAdapter();
     const decoded = adapter.decodeStructure(await codec.decode(result.bytes));
     expect(decoded).toEqual(result.template);
+  });
+
+  it('decodes the exporter-generated smoke fixture through the production codec', async () => {
+    const codec = new NbtifyMinecraftJavaCodec();
+    const adapter = new MinecraftJavaStructureAdapter();
+    const bytes = new Uint8Array(readFileSync('src/app/core/persistence/minecraft-structure/fixtures/exporter_smoke_1_21_1.nbt'));
+    const decoded = adapter.decodeStructure(await codec.decode(bytes));
+    expect(decoded.dataVersion).toBe(3955);
+    expect(decoded.size).toEqual({ x: 3, y: 2, z: 3 });
+    expect(decoded.blocks).toHaveLength(18);
+    expect(decoded.palette).toEqual([
+      { name: 'minecraft:air' },
+      { name: 'minecraft:oak_stairs', properties: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' } },
+      { name: 'minecraft:stone' },
+    ]);
+    expect(decoded.blocks.filter((entry) => decoded.palette[entry.state].name === 'minecraft:air')).toHaveLength(16);
+    expect(decoded.blocks.find((entry) => entry.pos[0] === 0 && entry.pos[1] === 0 && entry.pos[2] === 0)).toEqual({ pos: [0, 0, 0], state: 2 });
+    expect(decoded.blocks.find((entry) => entry.pos[0] === 1 && entry.pos[1] === 0 && entry.pos[2] === 0)).toEqual({ pos: [1, 0, 0], state: 1 });
   });
 });

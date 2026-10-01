@@ -1,4 +1,4 @@
-import { MINECRAFT_JAVA_1_21_1_DATA_VERSION, structureStateIdentity, validateMinecraftStructureProject, validateStructureTemplate, type MinecraftStructureDiagnostic } from './minecraft-structure-contract';
+import { MINECRAFT_JAVA_1_21_1_DATA_VERSION, canonicalProperties, structureStateIdentity, validateMinecraftStructureProject, validateStructureTemplate, type MinecraftStructureDiagnostic } from './minecraft-structure-contract';
 import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
 import type { MinecraftJavaNbtCodec } from './minecraft-structure-codec';
 import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/project.types';
@@ -30,9 +30,10 @@ export async function exportMinecraftStructure(
   adapter = new MinecraftJavaStructureAdapter(),
 ): Promise<MinecraftStructureExportResult> {
   const validation = validateMinecraftStructureProject(project);
-  const diagnostics = validation.diagnostics.map((diagnostic) => diagnostic.code === 'unsupported-raw-nbt'
-    ? { ...diagnostic, code: 'unsupported-block-entity' as const, message: 'Block entity data is not supported by the core 15.2 exporter.' }
-    : diagnostic);
+  const diagnostics = validation.diagnostics.filter((diagnostic) => diagnostic.code !== 'unsupported-raw-nbt');
+  project.blocks.forEach((block, index) => {
+    if (block.blockEntityData !== undefined) diagnostics.push({ code: 'unsupported-block-entity', message: 'Block entity data is not supported by the core 15.2 exporter.', path: `blocks.${index}.blockEntityData` });
+  });
   if (project.decorations && project.decorations.length > 0) diagnostics.push({ code: 'unsupported-decoration', message: 'Decorations/entities require the later semantic entity exporter.', path: 'decorations' });
   diagnostics.push(...invalidStateDiagnostics(project.blocks));
   diagnostics.push(...duplicateCoordinateDiagnostics(project.blocks));
@@ -44,15 +45,16 @@ export async function exportMinecraftStructure(
   for (const block of project.blocks) {
     identities.set(structureStateIdentity(block.id, block.state), { id: block.id, state: block.state });
   }
+  const airIdentity = structureStateIdentity('minecraft:air', {});
   const airNeeded = occupied.size < volume(project.size);
-  if (airNeeded) identities.set('minecraft:air', { id: 'minecraft:air', state: {} });
+  if (airNeeded) identities.set(airIdentity, { id: 'minecraft:air', state: {} });
   const orderedStates = [...identities.entries()].sort(([left], [right]) => left.localeCompare(right));
   const palette = orderedStates.map(([, entry]): MinecraftStructurePaletteEntry => ({
     name: entry.id,
-    ...(Object.keys(entry.state).length > 0 ? { properties: entry.state } : {}),
+    ...(Object.keys(entry.state).length > 0 ? { properties: canonicalProperties(entry.state) } : {}),
   }));
   const paletteIndexes = new Map(orderedStates.map(([identity], index) => [identity, index]));
-  const airIndex = paletteIndexes.get('minecraft:air');
+  const airIndex = paletteIndexes.get(airIdentity);
   const blocks = [];
   for (let y = 0; y < project.size.y; y += 1) {
     for (let z = 0; z < project.size.z; z += 1) {

@@ -1777,3 +1777,18 @@ mapping, ZIP packaging, and download actions remain deferred to later phases.
 Prompt 15.2 does not claim 512³ is safe: explicit-Air output requires careful
 memory, main-thread, gzip, and streaming/chunking design. The existing 512-axis
 product policy remains unchanged.
+
+## Prompt 15.2.1 exporter correctness patch
+
+The core 15.2 exporter now rejects every block with `blockEntityData` using an
+`unsupported-block-entity` diagnostic. This includes semantic Sign and
+Decorated Pot data, unknown data, and raw data; none can be silently omitted
+before 15.3 block-entity mapping is implemented. Generated and explicit
+`minecraft:air` use the same canonical `structureStateIdentity` and therefore
+share one palette entry. Palette properties are emitted canonically sorted.
+
+An exporter-generated smoke file is committed at
+`Frontend/src/app/core/persistence/minecraft-structure/fixtures/exporter_smoke_1_21_1.nbt`.
+It is intentionally not a golden fixture. Automated production-codec decode
+checks pass; manual Minecraft 1.21.1 Structure Block loading is not yet
+verified.

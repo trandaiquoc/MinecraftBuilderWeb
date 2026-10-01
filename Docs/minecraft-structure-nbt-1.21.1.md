@@ -157,6 +157,29 @@ unsupported block entities, and non-empty decorations return diagnostics before
 encoding. This phase always writes an empty `entities` list for supported core
 projects; semantic block-entity and top-level entity export remains 15.3 scope.
 
+Prompt 15.2.1 makes the block-entity capability boundary strict: every
+`blockEntityData` value is rejected by the core exporter with
+`unsupported-block-entity`, including semantic Sign and Decorated Pot data as
+well as unknown or raw data. No block-entity data can pass validation and then
+disappear from the emitted structure; intentional block-entity mapping remains
+15.3 scope.
+
+Generated Air uses the same canonical identity as an explicit Air block:
+`structureStateIdentity('minecraft:air', {})`. Explicit and implicit Air
+voxels therefore share one palette entry. Palette properties are emitted in
+canonical sorted order as well as being used for identity.
+
+The exporter smoke fixture
+`Frontend/src/app/core/persistence/minecraft-structure/fixtures/exporter_smoke_1_21_1.nbt`
+is a small exporter-generated file for manual Structure Block loading. It is
+not a golden fixture and remains pending independent Minecraft verification.
+Its current integrity record is: 268 bytes, SHA-256
+`9a32ab8c86687320396d8f24913dd0c5ad025632c8718958efacc44d729894cf`, gzip
+compression, DataVersion `3955`, size `[3,2,3]`, three palette entries, and
+18 block entries. Sixteen entries reference Air; the non-Air entries are Stone
+and Oak Stairs with `facing=north`, `half=bottom`, `shape=straight`, and
+`waterlogged=false`.
+
 ## Boundary
 
 The intended dependency direction is:
