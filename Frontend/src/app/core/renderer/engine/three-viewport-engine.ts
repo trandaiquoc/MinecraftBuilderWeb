@@ -28,10 +28,11 @@ import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
 import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, setBlockBrightnessBaseColor } from './block-brightness';
 import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
+import { structureBlockGuidePosition } from './structure-block-guide';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
-export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
+export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; }
 export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
 export interface ViewportHydrationProgress {
   readonly generation: number;
@@ -328,6 +329,7 @@ export class ThreeViewportEngine {
   private readonly pointer = new THREE.Vector2();
   private readonly blocksGroup = new THREE.Group();
   private readonly decorationsGroup = new THREE.Group();
+  private readonly structureBlockGuideGroup = new THREE.Group();
   private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x4b9cff, transparent: true, opacity: 0.35 }));
   private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false }));
   private readonly selectionBox = new THREE.Box3Helper(new THREE.Box3(), 0xffd166);
@@ -339,6 +341,8 @@ export class ThreeViewportEngine {
   private readonly logicalSelectionMaterial = new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false });
   private readonly groupHighlightGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.12, 1.12, 1.12));
   private readonly groupHighlightMaterial = new THREE.LineBasicMaterial({ color: 0x58d8d0 });
+  private structureBlockGuideKey = '';
+  private structureBlockGuideGeneration = 0;
   private lastSelectionPositions?: readonly VoxelCoordinate[];
   private lastSelectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate };
   private lastSelectionKind?: string;
@@ -374,6 +378,7 @@ export class ThreeViewportEngine {
   private resizeObserver?: ResizeObserver;
   private project?: ProjectDocument;
   private activeBlock?: ActiveBlock;
+  private showStructureBlockGuide = true;
   private renderOptions: ViewportRenderOptions = {};
   private hasCameraFrame = false;
   private readonly renderOnControlChange = () => {
@@ -481,6 +486,7 @@ export class ThreeViewportEngine {
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
 
   constructor(readonly instrumentation = new RendererDiagnostics()) {
+    this.structureBlockGuideGroup.name = 'structureBlockGuide';
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
     selectionBoxMaterial.depthTest = false;
     selectionBoxMaterial.depthWrite = false;
@@ -503,6 +509,8 @@ export class ThreeViewportEngine {
     this.applyBlockBrightness();
     this.scene.add(this.blocksGroup);
     this.scene.add(this.decorationsGroup);
+    this.structureBlockGuideGroup.name = 'structureBlockGuide';
+    this.scene.add(this.structureBlockGuideGroup);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
     this.selectionOutline.visible = false;
@@ -558,6 +566,7 @@ export class ThreeViewportEngine {
     this.applyBlockBrightness();
     this.logicalSelectionGroup.traverse((object) => { if (object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.selection); });
     this.scene.traverse((object) => { if (object.userData['groupHighlight'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(object.userData['groupLocked'] ? palette.lockedGroup : palette.group); });
+    this.structureBlockGuideGroup.traverse((object) => { if (object.userData['structureBlockGuideOutline'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.structureGuide); });
     this.movePreviewGroup.traverse((object) => { if (object instanceof THREE.Mesh) (object.material as THREE.MeshBasicMaterial).color.setHex(object.userData['previewInvalid'] ? palette.invalid : palette.valid); });
     const ghostStatus = this.ghost.userData['status'] as PlacementStatus | undefined;
     if (ghostStatus) (this.ghost.material as THREE.MeshBasicMaterial).color.setHex(colorForStatus(this.palette, ghostStatus));
@@ -585,6 +594,12 @@ export class ThreeViewportEngine {
   setControlConfiguration(configuration: ViewportControlConfiguration): void {
     this.controlConfiguration = { ...configuration };
     this.applyControlConfiguration();
+  }
+
+  setStructureBlockGuideVisible(visible: boolean): void {
+    if (this.showStructureBlockGuide === visible) return;
+    this.showStructureBlockGuide = visible;
+    this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
   cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.startCameraMovement(); }
@@ -674,6 +689,9 @@ export class ThreeViewportEngine {
     if (this.syncSpecialVisualDescriptors()) {
       this.structureSyncKey = '';
       this.update(this.project, this.activeBlock, this.renderOptions);
+    } else {
+      this.structureBlockGuideKey = '';
+      this.update(this.project, this.activeBlock, this.renderOptions);
     }
   }
   setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined): void {
@@ -710,7 +728,12 @@ export class ThreeViewportEngine {
   }
 
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
-  setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined): void { this.definitionResolver = resolver; }
+  setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined): void {
+    if (this.definitionResolver === resolver) return;
+    this.definitionResolver = resolver;
+    this.structureBlockGuideKey = '';
+    this.update(this.project, this.activeBlock, this.renderOptions);
+  }
 
   private collectSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): readonly NormalizedSpecialVisualDescriptor[] {
     const ids = new Set([...(this.project?.blocks ?? []).map((block) => block.id), ...(this.activeBlock ? [this.activeBlock.id] : []), ...plannedBlocks.map((block) => block.id)]);
@@ -754,6 +777,7 @@ export class ThreeViewportEngine {
       this.beginHydrationProgress(this.hydrationQueue.length + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.decorationHydrationQueue.length);
     }
     this.setProjectBounds(project);
+    this.updateStructureBlockGuide(project, options);
     this.setEditingPlane(options.layerY, project);
     const visualSelection = this.visibleSelection(project, options);
     this.updateSelection(visualSelection.selected, visualSelection.positions, visualSelection.kind, visualSelection.count, visualSelection.bounds, visualSelection.box);
@@ -1535,6 +1559,8 @@ export class ThreeViewportEngine {
     for (const child of [...this.decorationGhostGroup.children]) disposeObject(child); this.decorationGhostGroup.clear();
     for (const child of [...this.decorationSelectionGroup.children]) disposeObject(child); this.decorationSelectionGroup.clear();
     this.renderedBlocks.clear(); this.renderedDecorations.clear(); this.providerGeneration += 1;
+    this.clearStructureBlockGuide();
+    this.structureBlockGuideGroup.clear();
     this.ghost.geometry.dispose();
     (this.ghost.material as THREE.Material).dispose();
     this.ground?.geometry.dispose();
@@ -1733,7 +1759,7 @@ export class ThreeViewportEngine {
       const known: readonly [THREE.Object3D | undefined, string][] = [
         [this.blocksGroup, 'blocksGroup'], [this.decorationsGroup, 'decorationsGroup'], [this.ghost, 'ghost'],
         [this.ghostModel, 'ghostModel'], [this.movePreviewGroup, 'movePreviewGroup'], [this.decorationGhostGroup, 'decorationGhostGroup'],
-        [this.decorationSelectionGroup, 'decorationSelectionGroup'], [this.logicalSelectionGroup, 'logicalSelectionGroup'],
+        [this.decorationSelectionGroup, 'decorationSelectionGroup'], [this.logicalSelectionGroup, 'logicalSelectionGroup'], [this.structureBlockGuideGroup, 'structureBlockGuide'],
         [this.projectGrid, 'projectGrid'], [this.ground, 'ground'], [this.editingPlane, 'editingPlane'], [this.boundsBox, 'boundsBox'],
         [this.selectionOutline, 'selectionOutline'], [this.selectionBox, 'selectionBox'],
       ];
@@ -1790,7 +1816,7 @@ export class ThreeViewportEngine {
           || owner === 'movePreviewGroup' && !!this.renderOptions.groupMovePreview
           || owner === 'decorationGhostGroup' && !!this.renderOptions.activeDecoration;
         const knownBlockOwner = owner === 'blocksGroup' || owner === 'instanceBatches' || owner === 'placeholderBatches' || owner === 'fallback mesh';
-        const knownNonBlockOwner = ['decorationsGroup', 'decorationSelectionGroup', 'projectGrid', 'ground', 'editingPlane', 'boundsBox', 'selectionOutline', 'selectionBox', 'logicalSelectionGroup'].includes(owner);
+        const knownNonBlockOwner = ['decorationsGroup', 'decorationSelectionGroup', 'structureBlockGuide', 'projectGrid', 'ground', 'editingPlane', 'boundsBox', 'selectionOutline', 'selectionBox', 'logicalSelectionGroup'].includes(owner);
         let reason: string | undefined;
         if (knownBlockOwner) reason = 'Block-renderer mesh remains while the project has zero blocks';
         else if ((owner === 'ghostModel' || owner === 'ghost') && !intentionalPreview) reason = 'Visible placement ghost has no active placement target';
@@ -2195,6 +2221,73 @@ export class ThreeViewportEngine {
       outline.userData['groupLocked'] = !!group?.locked;
       outline.renderOrder = 1000;
       this.scene.add(outline);
+    }
+  }
+
+  private updateStructureBlockGuide(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
+    const enabled = this.showStructureBlockGuide;
+    const definition = this.definitionResolver?.('minecraft:structure_block');
+    const key = project && enabled && this.visualProvider && definition
+      ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${this.providerGeneration}|${options.structureBlockGuideRevision ?? 0}|${definition.sourceId ?? ''}`
+      : `${project?.id ?? 'none'}|${enabled ? 'waiting' : 'hidden'}|${this.providerGeneration}`;
+    if (key === this.structureBlockGuideKey) return;
+    this.structureBlockGuideKey = key;
+    this.clearStructureBlockGuide();
+    if (!project || !enabled || !this.visualProvider || !definition) return;
+
+    const generation = this.structureBlockGuideGeneration;
+    const provider = this.visualProvider;
+    const guidePosition = structureBlockGuidePosition(projectGridBounds(project.size).min);
+    const guideBlock: PlacedBlock = {
+      kind: 'resolved',
+      id: 'minecraft:structure_block',
+      namespace: 'minecraft',
+      position: { x: 0, y: 0, z: 0 },
+      state: { ...definition.defaultState, mode: 'save' },
+    };
+    void provider.create(guideBlock).then((visual) => {
+      if (generation !== this.structureBlockGuideGeneration || key !== this.structureBlockGuideKey || this.visualProvider !== provider || !visual.object || visual.mode === 'fallback') {
+        if (visual.object) disposeObject(visual.object);
+        return;
+      }
+      const guide = new THREE.Group();
+      guide.name = 'structureBlockGuide';
+      guide.userData['structureBlockGuide'] = true;
+      const object = visual.object;
+      object.userData['structureBlockGuide'] = true;
+      const bounds = new THREE.Box3().setFromObject(object);
+      if (!Number.isFinite(bounds.min.x) || !Number.isFinite(bounds.max.x)) {
+        disposeObject(object);
+        return;
+      }
+      guide.add(object);
+      const size = bounds.getSize(new THREE.Vector3());
+      const outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x + .08, size.y + .08, size.z + .08)),
+        new THREE.LineBasicMaterial({ color: this.palette.structureGuide, depthTest: false, depthWrite: false, transparent: true, opacity: .95 }),
+      );
+      outline.position.copy(bounds.getCenter(new THREE.Vector3()));
+      outline.userData['structureBlockGuideOutline'] = true;
+      outline.renderOrder = 2002;
+      guide.add(outline);
+      guide.position.set(guidePosition.x, guidePosition.y, guidePosition.z);
+      guide.renderOrder = 2001;
+      this.structureBlockGuideGroup.add(guide);
+      this.render();
+    }).catch(() => { /* Missing or invalid assets leave the helper absent by design. */ });
+  }
+
+  private clearStructureBlockGuide(): void {
+    this.structureBlockGuideGeneration += 1;
+    for (const child of [...this.structureBlockGuideGroup.children]) {
+      child.traverse((object) => {
+        if (object instanceof THREE.LineSegments) {
+          object.geometry.dispose();
+          (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => material.dispose());
+        }
+      });
+      disposeObject(child);
+      this.structureBlockGuideGroup.remove(child);
     }
   }
 

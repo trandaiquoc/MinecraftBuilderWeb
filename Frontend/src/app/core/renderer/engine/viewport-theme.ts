@@ -15,6 +15,7 @@ export interface ViewportThemePalette {
   invalid: number;
   warning: number;
   unknown: number;
+  structureGuide: number;
 }
 
 const darkPalette: ViewportThemePalette = {
@@ -32,6 +33,7 @@ const darkPalette: ViewportThemePalette = {
   invalid: 0xff526b,
   warning: 0xffc857,
   unknown: 0xc2a5ff,
+  structureGuide: 0x63e6a0,
 };
 
 const lightPalette: ViewportThemePalette = {
@@ -49,6 +51,7 @@ const lightPalette: ViewportThemePalette = {
   invalid: 0xc52d45,
   warning: 0xa66000,
   unknown: 0x6546a3,
+  structureGuide: 0x00734a,
 };
 
 export function viewportThemePalette(mode: ViewportThemeMode): ViewportThemePalette {
