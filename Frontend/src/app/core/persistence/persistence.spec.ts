@@ -27,6 +27,17 @@ describe('local persistence helpers', () => {
     expect(parseProjectPackage(serializeProjectPackage(project))).toEqual(migrateProject(project));
   });
 
+  it('preserves semantic inventory and decorated-pot item data across project package persistence', () => {
+    const enriched: ProjectDocument = {
+      ...project,
+      blocks: [
+        { ...block('minecraft:chest', 0, 0, 0), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 1 } }] } },
+        { ...block('minecraft:decorated_pot', 1, 0, 0), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' }, item: { id: 'minecraft:apple', count: 2 } } },
+      ],
+    };
+    expect(parseProjectPackage(serializeProjectPackage(enriched))).toEqual(migrateProject(enriched));
+  });
+
   it('classifies malformed, arbitrary, newer, and invalid package data without activating anything', () => {
     expect(() => parseProjectPackage('{')).toThrowError(ProjectPackageError);
     try { parseProjectPackage('{"blocks":[]}'); } catch (error) { expect(error).toMatchObject({ category: 'not-project-package' }); }

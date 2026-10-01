@@ -1,7 +1,7 @@
 import { normalizeItemStack } from '../../items/item-stack.types';
 import type { ItemStackData } from '../../items/item-stack.types';
 
-export type ItemHostKind = 'item-display' | 'item-storage-display';
+export type ItemHostKind = 'item-display' | 'item-storage-display' | 'inventory-storage';
 
 export interface ItemSlotData {
   readonly slot: number;

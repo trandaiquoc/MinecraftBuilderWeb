@@ -72,7 +72,7 @@ function hasUnsupportedBlockEntityData(value: unknown): boolean {
   if (value === undefined) return false;
   if (!isRecord(value) || Array.isArray(value)) return true;
   const kind = value['kind'];
-  if (kind === 'sign' || kind === 'decorated-pot') return hasNonEmptyRaw(value['raw']);
+  if (kind === 'sign' || kind === 'decorated-pot' || kind === 'item-container') return hasNonEmptyRaw(value['raw']);
   return true;
 }
 

@@ -1,5 +1,6 @@
 import { isValidNamespacedResourceLocation } from '../../content/resource-location';
-import type { DecoratedPotBlockEntityData, ProjectBlockEntityData, SignBlockEntityData, SignSide, PlacedBlock } from '../../domain/project.types';
+import type { DecoratedPotBlockEntityData, SignBlockEntityData, SignSide, PlacedBlock } from '../../domain/project.types';
+import type { ItemContainerBlockEntityData, ItemSlotData } from '../../block-entities/item-display/item-container';
 import type { ItemStackData } from '../../items/item-stack.types';
 import { decorationAabb, paintingEntityPosition } from '../../decorations/placement/decoration-placement';
 import { paintingVariant, type DecorationFacing, type PlacedDecoration } from '../../decorations/decoration.types';
@@ -22,7 +23,7 @@ export function mapBlockEntity(block: PlacedBlock, index: number): SemanticMappi
     case 'sign': return mapSign(block.id, value as unknown as SignBlockEntityData, index);
     case 'decorated-pot': return mapPot(block.id, value as unknown as DecoratedPotBlockEntityData, index);
     case 'conduit': return failure('unsupported-block-entity', 'Conduit semantic data is not modeled by the current ProjectDocument export contract.', `blocks.${index}.blockEntityData`);
-    case 'item-container': return failure('unsupported-block-entity', 'Generic item-container data has no verified Java 1.21.1 block entity mapping.', `blocks.${index}.blockEntityData`);
+    case 'item-container': return mapContainer(block.id, value as unknown as ItemContainerBlockEntityData, index);
     default: return failure('unsupported-raw-nbt', `Block entity kind at blocks.${index} is not supported by the semantic 15.3 mapper.`, `blocks.${index}.blockEntityData`);
   }
 }
@@ -76,7 +77,49 @@ function mapPot(blockId: string, data: DecoratedPotBlockEntityData, index: numbe
   if (!sides.every((value) => typeof value === 'string' && isValidNamespacedResourceLocation(value))) return failure('invalid-block-entity', 'Decorated Pot sherd IDs must be valid namespaced ResourceLocations.', `blocks.${index}.blockEntityData.decorations`);
   const fields: Record<string, MinecraftNbtTag> = { id: stringTag('minecraft:decorated_pot') };
   if (!sides.every((value) => value === 'minecraft:brick')) fields['sherds'] = list('string', sides.map((value) => stringTag(value as string)));
+  if (data.item !== undefined) {
+    const item = mapItemStack(data.item, `blocks.${index}.blockEntityData.item`);
+    if (!item.ok) return item;
+    fields['item'] = item.value;
+  }
   return { ok: true, value: compound(fields) };
+}
+
+const verifiedContainerSchemas: Readonly<Record<string, { readonly id: string; readonly slotCount: number }>> = {
+  'minecraft:chest': { id: 'minecraft:chest', slotCount: 27 },
+  'minecraft:barrel': { id: 'minecraft:barrel', slotCount: 27 },
+  'minecraft:hopper': { id: 'minecraft:hopper', slotCount: 5 },
+};
+
+function mapContainer(blockId: string, data: ItemContainerBlockEntityData, index: number): SemanticMappingResult<MinecraftNbtCompound> {
+  const schema = verifiedContainerSchemas[blockId];
+  if (blockId === 'minecraft:furnace') return failure('unsupported-block-entity', 'Furnace export is deferred because the current semantic model cannot represent its operational NBT (burn/cook timers and recipe-use data) losslessly.', `blocks.${index}.blockEntityData`);
+  if (!schema) return failure('unsupported-block-entity', 'Inventory block entity data is only supported for verified vanilla container IDs.', `blocks.${index}.id`);
+  if (!isRecord(data) || data['kind'] !== 'item-container' || data['hostKind'] !== 'inventory-storage' || !Array.isArray(data['slots'])) return failure('invalid-block-entity', 'Inventory container data must use the inventory-storage host and a slot array.', `blocks.${index}.blockEntityData`);
+  const rawValidation = validateContainerRaw(data['raw'], schema.slotCount, `blocks.${index}.blockEntityData.raw`);
+  if (!rawValidation.ok) return rawValidation;
+  const slots = validateContainerSlots(data['slots'], schema.slotCount, `blocks.${index}.blockEntityData.slots`);
+  if (!slots.ok) return slots;
+  const items = slots.value.flatMap((entry) => entry.stack ? [mapItemStack(entry.stack, `blocks.${index}.blockEntityData.slots.${entry.slot}.stack`, entry.slot)] : []);
+  const mappedItems: MinecraftNbtTag[] = [];
+  for (const item of items) {
+    if (!item.ok) return item;
+    mappedItems.push(item.value);
+  }
+  const fields: Record<string, MinecraftNbtTag> = { id: stringTag(schema.id), Items: list('compound', mappedItems as MinecraftNbtCompound[]) };
+  if (blockId === 'minecraft:hopper') fields['TransferCooldown'] = intTag(0);
+  return { ok: true, value: compound(fields) };
+}
+
+function validateContainerSlots(value: readonly ItemSlotData[], slotCount: number, path: string): SemanticMappingResult<readonly ItemSlotData[]> {
+  const seen = new Set<number>();
+  for (let index = 0; index < value.length; index += 1) {
+    const entry = value[index];
+    if (!isRecord(entry) || !Number.isInteger(entry.slot) || entry.slot < 0 || entry.slot >= slotCount) return failure('invalid-block-entity', `Container slot must be an integer from 0 to ${slotCount - 1}.`, `${path}.${index}.slot`);
+    if (seen.has(entry.slot)) return failure('invalid-block-entity', 'Container slots must not contain duplicate slot numbers.', `${path}.${index}.slot`);
+    seen.add(entry.slot);
+  }
+  return { ok: true, value };
 }
 
 function mapPainting(decoration: PlacedDecoration, index: number): SemanticMappingResult<{ readonly pos: readonly [number, number, number]; readonly blockPos: readonly [number, number, number]; readonly nbt: MinecraftNbtCompound }> {
@@ -103,17 +146,34 @@ function mapItemFrame(decoration: PlacedDecoration, index: number): SemanticMapp
   return { ok: true, value: { pos: tuple3(position.x, position.y, position.z), blockPos: tuple3i(decoration.anchor.x, decoration.anchor.y, decoration.anchor.z), nbt: compound(fields) } };
 }
 
-function mapItemStack(item: ItemStackData, path: string): SemanticMappingResult<MinecraftNbtCompound> {
+function mapItemStack(item: ItemStackData, path: string, slot?: number): SemanticMappingResult<MinecraftNbtCompound> {
+  if (!isRecord(item)) return failure('invalid-entity-item', 'Item stack must be an object.', path);
   if (!isValidNamespacedResourceLocation(item.id)) return failure('invalid-entity-item', 'Item ID must be a valid namespaced ResourceLocation.', `${path}.id`);
   if (!Number.isInteger(item.count) || item.count < 1) return failure('invalid-entity-item', 'Item count must be a positive integer.', `${path}.count`);
   if (item.components !== undefined) return failure('unsupported-raw-nbt', 'Item components are not represented by the verified 15.3 ItemStack mapper.', `${path}.components`);
-  return { ok: true, value: compound({ id: stringTag(item.id), count: intTag(item.count) }) };
+  return { ok: true, value: compound({ ...(slot === undefined ? {} : { Slot: byteTag(slot) }), id: stringTag(item.id), count: intTag(item.count) }) };
 }
 
 function isVanillaSignBlockId(id: string): boolean { return id.startsWith('minecraft:') && (/(?:^|_)(?:wall_)?sign$/.test(id.slice('minecraft:'.length)) || /(?:^|_)(?:wall_)?hanging_sign$/.test(id.slice('minecraft:'.length))); }
 function isHorizontal(value: DecorationFacing): value is 'north' | 'south' | 'west' | 'east' { return value === 'north' || value === 'south' || value === 'west' || value === 'east'; }
 function namespaced(value: string): string | undefined { const candidate = value.includes(':') ? value : `minecraft:${value}`; return isValidNamespacedResourceLocation(candidate) ? candidate : undefined; }
 function hasUnknownRaw(raw: unknown): boolean { return raw !== undefined && (!isRecord(raw) || Object.keys(raw).length > 0); }
+function validateContainerRaw(raw: unknown, slotCount: number, path: string): SemanticMappingResult<undefined> {
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'kind' && key !== 'hostKind' && key !== 'slots')) return failure('unsupported-raw-nbt', 'Container raw data cannot be represented without loss.', path);
+  if (raw['kind'] !== undefined && raw['kind'] !== 'item-container') return failure('unsupported-raw-nbt', 'Container raw data has an unsupported semantic kind.', `${path}.kind`);
+  if (raw['hostKind'] !== undefined && raw['hostKind'] !== 'inventory-storage') return failure('unsupported-raw-nbt', 'Container raw data has an unsupported host kind.', `${path}.hostKind`);
+  if (raw['slots'] === undefined) return { ok: true, value: undefined };
+  if (!Array.isArray(raw['slots'])) return failure('unsupported-raw-nbt', 'Container raw slots must be an array.', `${path}.slots`);
+  const slots = validateContainerSlots(raw['slots'] as readonly ItemSlotData[], slotCount, `${path}.slots`);
+  if (!slots.ok) return failure('unsupported-raw-nbt', slots.diagnostic.message, slots.diagnostic.path ?? path);
+  for (const entry of raw['slots']) {
+    if (!isRecord(entry) || entry['stack'] === undefined) continue;
+    const stack = mapItemStack(entry['stack'] as ItemStackData, `${path}.slots.${String(entry['slot'])}.stack`);
+    if (!stack.ok) return failure('unsupported-raw-nbt', stack.diagnostic.message, stack.diagnostic.path ?? path);
+  }
+  return { ok: true, value: undefined };
+}
 function failure(code: MinecraftStructureDiagnostic['code'], message: string, path: string): SemanticMappingFailure { return { ok: false, diagnostic: { code, message, path } }; }
 function compound(value: Record<string, MinecraftNbtTag>): MinecraftNbtCompound { return { type: 'compound', value }; }
 function stringTag(value: string): MinecraftNbtTag { return { type: 'string', value }; }

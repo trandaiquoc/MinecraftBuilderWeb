@@ -1805,10 +1805,11 @@ Painting, Item Frame, and Glow Item Frame decorations become typed top-level
 StructureTemplate entities with deterministic ordering, verified facing/position
 fields, and typed item stacks where the current domain can represent them.
 Unknown painting dimensions, mismatched entity kinds, invalid item data, and
-unsupported components fail explicitly. Conduit and the generic item-container
-model remain unsupported because the current ProjectDocument does not provide
-a verified Java 1.21.1 persisted schema for them; no data is guessed or
-silently dropped.
+unsupported components fail explicitly. Conduit remains unsupported because
+the current ProjectDocument does not provide a verified persisted payload. The
+generic item-container model was subsequently extended for verified
+`inventory-storage` Chest, Barrel, and Hopper mappings in Prompt 15.4.2; no
+data is guessed or silently dropped.
 
 Golden regression coverage now checks actual Chest, Sign/Hanging Sign,
 Painting, and Glow Item Frame native tag shapes from `golden_1_21_1.nbt`.
@@ -1865,12 +1866,63 @@ reserved stems without silently trimming input.
 
 The committed fixture
 `exporter_datapack_smoke_1_21_1.zip` is **EXPORTER/PACKAGER-GENERATED — NOT A
-GOLDEN**. It is 1261 bytes with SHA-256
-`9cca5ff92967e90425fe8d4b3d0c1819cb892603d4c69d7ca039e225caa349f9`; its NBT
-entry is 856 bytes with SHA-256
-`cfd99e9aba231e1cc8a812959f4e57b72a791ef498501e07d6d43dbe0995023f`.
-The artifact has pack format 48, DataVersion 3955, dimensions 6×2×6, 72
-blocks (68 Air), three block entities (sign, decorated pot, hanging sign),
+GOLDEN**. It is 1853 bytes with SHA-256
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661`; its NBT
+entry is 1448 bytes with SHA-256
+`db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
+The artifact has pack format 48, DataVersion 3955, dimensions 10x4x8, 320
+blocks (274 Air), six block entities (sign, decorated pot, hanging sign,
+chest, barrel, hopper),
 and painting/item-frame/glow-item-frame entities. A permanent test reads this
 committed ZIP and decodes it with the production NBT codec. Manual Minecraft
 Java 1.21.1 datapack verification is still pending.
+
+## Prompt 15.4.2 hanging entity survival and block entity completeness
+
+The exporter now validates hanging decorations against the whole
+ProjectDocument before producing any NBT. A support index is built once from
+resolved non-Air project voxels (unknown/missing blocks do not qualify as
+verified support). Normal Item Frames and Glow Item Frames require the exact
+support voxel behind the anchor for every horizontal facing. Paintings require
+the complete catalog-sized backing footprint, so a missing support block makes
+the entire export fail with `invalid-decoration`. Fixed frames retain the
+verified Java survival exception and may export without a support voxel. Export
+never silently prunes or repairs an invalid decoration.
+
+Decorated Pots now optionally preserve their stored item using the verified
+`item` ItemStack compound, without changing sherd order or all-brick omission.
+Verified `inventory-storage` mappings are block-specific: Chest and Barrel
+have 27 slots, Hopper has 5 slots and writes `TransferCooldown: 0`. Furnace is
+explicitly UNSUPPORTED because the current semantic model cannot preserve its
+burn/cook timers and recipe-use data losslessly. Slot numbers are native Byte,
+item IDs are String, counts are Int, and unsupported components, unknown raw
+fields, invalid IDs/counts, duplicate slots, and out-of-range slots fail
+explicitly. Capability profiles expose the verified slot count for all four
+vanilla IDs, even though Furnace export remains unsupported.
+
+The new semantic fields are optional and require no project schema bump.
+Persistence round-trip coverage keeps Chest inventory and Decorated Pot item
+data. The smoke project includes a support wall, Painting, Item Frame, Glow
+Item Frame, Sign, Hanging Sign, Decorated Pot item, Chest, Barrel, and Hopper;
+both committed artifacts were regenerated through the production exporter and
+`FflateZipArchiveWriter`.
+
+The current NBT smoke is 1448 bytes with SHA-256
+`db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
+The ZIP is 1853 bytes with SHA-256
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661`; its
+embedded NBT has the same 1448-byte SHA-256. Both are
+**EXPORTER/PACKAGER-GENERATED - NOT A GOLDEN**. Manual Minecraft attachment
+survival verification remains pending.
+
+The Java 1.21.1 sources used for this pass are the mappings for
+[DecoratedPotBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/DecoratedPotBlockEntity.html),
+[ChestBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/ChestBlockEntity.html),
+[BarrelBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/BarrelBlockEntity.html),
+[HopperBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/HopperBlockEntity.html),
+and [AbstractFurnaceBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.html),
+plus Yarn's [ItemFrameEntity](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.3/net/minecraft/entity/decoration/ItemFrameEntity.html)
+and [BlockAttachedEntity](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.3/net/minecraft/entity/decoration/BlockAttachedEntity.html)
+references for `fixed`, `attachedBlockPos`, and `canStayAttached`, together with
+the [deobfuscated 1.21.1 ItemFrameEntity source](https://raw.githubusercontent.com/Soumeh/1.21.1-Deobfuscated/main/minecraft/src/net/minecraft/entity/decoration/ItemFrameEntity.java)
+for the exact fixed/support survival check.

@@ -1,4 +1,5 @@
 import { DecoratedPotBlockEntityData } from '../../domain/project.types';
+import { normalizeItemStack, type ItemStackData } from '../../items/item-stack.types';
 
 export const DECORATED_POT_DEFAULT_SHERD = 'minecraft:brick';
 export const decoratedPotSherdIds = [
@@ -21,7 +22,10 @@ export function decoratedPotData(value: unknown): DecoratedPotBlockEntityData {
   const decorations = raw?.['decorations'] && typeof raw['decorations'] === 'object' ? raw['decorations'] as Readonly<Record<string, unknown>> : sherds.length ? {
     back: sherds[0], left: sherds[1], right: sherds[2], front: sherds[3],
   } : raw;
-  const preservedRaw = raw?.['kind'] === 'decorated-pot' && raw['raw'] && typeof raw['raw'] === 'object' ? raw['raw'] as Readonly<Record<string, unknown>> : raw?.['kind'] === 'decorated-pot' ? undefined : raw;
+  const item = normalizeItemStack(raw?.['item']);
+  const invalidItem = raw?.['item'] !== undefined && !item;
+  const nestedRaw = raw?.['kind'] === 'decorated-pot' && raw['raw'] && typeof raw['raw'] === 'object' ? raw['raw'] as Readonly<Record<string, unknown>> : undefined;
+  const preservedRaw = raw?.['kind'] === 'decorated-pot' ? (nestedRaw ?? (invalidItem ? { item: raw['item'] } : undefined)) : raw;
   const result: DecoratedPotBlockEntityData = {
     kind: 'decorated-pot',
     decorations: {
@@ -29,13 +33,16 @@ export function decoratedPotData(value: unknown): DecoratedPotBlockEntityData {
       right: normalizeDecoratedPotSherd(decorations?.['right']), front: normalizeDecoratedPotSherd(decorations?.['front']),
     },
     ...(preservedRaw ? { raw: preservedRaw } : {}),
+    ...(item ? { item: item as ItemStackData } : {}),
   };
   return result;
 }
 
-export interface MinecraftDecoratedPotBlockEntityNbt { readonly id: 'minecraft:decorated_pot'; readonly sherds?: readonly string[]; }
+export interface MinecraftDecoratedPotBlockEntityNbt { readonly id: 'minecraft:decorated_pot'; readonly sherds?: readonly string[]; readonly item?: ItemStackData; }
 export function toMinecraftDecoratedPotBlockEntityNbt(data: DecoratedPotBlockEntityData | unknown): MinecraftDecoratedPotBlockEntityNbt {
-  const decorations = decoratedPotData(data).decorations;
+  const normalized = decoratedPotData(data);
+  const decorations = normalized.decorations;
   const values = [decorations.back, decorations.left, decorations.right, decorations.front].map(normalizeDecoratedPotSherd);
-  return values.every((value) => value === DECORATED_POT_DEFAULT_SHERD) ? { id: 'minecraft:decorated_pot' } : { id: 'minecraft:decorated_pot', sherds: values };
+  const item = normalized.item;
+  return { id: 'minecraft:decorated_pot', ...(values.every((value) => value === DECORATED_POT_DEFAULT_SHERD) ? {} : { sherds: values }), ...(item ? { item } : {}) };
 }

@@ -14,4 +14,7 @@ describe('decorated pot block entity', () => {
     expect(decoratedPotData({ item: { id: 'minecraft:diamond' }, sherds: ['minecraft:brick'] }).raw).toMatchObject({ item: { id: 'minecraft:diamond' } });
     expect(decoratedPotData({ sherds: ['minecraft:angler_pottery_sherd', 'minecraft:brick', 'minecraft:skull_pottery_sherd', 'minecraft:heart_pottery_sherd'] }).decorations).toEqual({ back: 'minecraft:angler_pottery_sherd', left: 'minecraft:brick', right: 'minecraft:skull_pottery_sherd', front: 'minecraft:heart_pottery_sherd' });
   });
+  it('does not silently discard an invalid typed decorated-pot item', () => {
+    expect(decoratedPotData({ kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' }, item: { id: 'minecraft:diamond', count: 0 } }).raw).toEqual({ item: { id: 'minecraft:diamond', count: 0 } });
+  });
 });

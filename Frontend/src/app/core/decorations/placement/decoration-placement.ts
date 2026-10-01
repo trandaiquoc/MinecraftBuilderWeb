@@ -3,8 +3,11 @@ import { DecorationFacing, DecorationKind, PaintingVariant, PlacedDecoration, pa
 import { ProjectDocument } from '../../domain/project.types';
 
 export interface DecorationAabb { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number }; }
-export type DecorationPlacementReason = 'unsupported-face' | 'out-of-bounds' | 'missing-support' | 'blocked-by-block' | 'overlap-decoration';
+export type DecorationPlacementReason = 'unsupported-face' | 'out-of-bounds' | 'missing-support' | 'unknown-painting-variant' | 'blocked-by-block' | 'overlap-decoration';
 export interface DecorationPlacementPlan { readonly status: 'valid' | 'invalid' | 'unknown'; readonly reason?: DecorationPlacementReason; readonly decoration?: PlacedDecoration; }
+export interface DecorationSupportIndex { readonly occupied: ReadonlySet<string>; }
+export type DecorationSupportBlockPredicate = (block: ProjectDocument['blocks'][number]) => boolean;
+export interface DecorationProjectValidation { readonly status: 'valid' | 'invalid'; readonly reason?: DecorationPlacementReason; readonly supportPositions: readonly VoxelCoordinate[]; }
 
 export function directionVector(facing: DecorationFacing): VoxelCoordinate {
   switch (facing) {
@@ -67,6 +70,30 @@ export function paintingSupportFootprint(anchor: VoxelCoordinate, facing: Decora
   });
 }
 
+/** Builds the project-wide support lookup once for placement, pruning and export. */
+export function createDecorationSupportIndex(project: Pick<ProjectDocument, 'blocks'>, isSupportBlock: DecorationSupportBlockPredicate = defaultDecorationSupportBlock): DecorationSupportIndex {
+  return { occupied: new Set(project.blocks.filter(isSupportBlock).map((block) => coordinateKey(block.position))) };
+}
+
+export function decorationSupportPositions(decoration: Pick<PlacedDecoration, 'kind' | 'anchor' | 'facing' | 'variantId' | 'fixed'>): readonly VoxelCoordinate[] {
+  if (decoration.kind === 'painting') {
+    const variant = paintingVariant(decoration.variantId);
+    return variant && isHorizontal(decoration.facing) ? paintingSupportFootprint(decoration.anchor, decoration.facing, variant) : [];
+  }
+  const direction = directionVector(decoration.facing);
+  return [{ x: decoration.anchor.x - direction.x, y: decoration.anchor.y - direction.y, z: decoration.anchor.z - direction.z }];
+}
+
+export function validateDecorationAgainstProject(project: Pick<ProjectDocument, 'size' | 'blocks'>, decoration: PlacedDecoration, supportIndex = createDecorationSupportIndex(project)): DecorationProjectValidation {
+  if (!decorationInBounds(decoration.anchor, project.size)) return { status: 'invalid', reason: 'out-of-bounds', supportPositions: [] };
+  if (decoration.kind === 'painting' && !isHorizontal(decoration.facing)) return { status: 'invalid', reason: 'unsupported-face', supportPositions: [] };
+  if (decoration.kind === 'painting' && !paintingVariant(decoration.variantId)) return { status: 'invalid', reason: 'unknown-painting-variant', supportPositions: [] };
+  if (decoration.fixed === true && (decoration.kind === 'item-frame' || decoration.kind === 'glow-item-frame')) return { status: 'valid', supportPositions: [] };
+  const supportPositions = decorationSupportPositions(decoration);
+  if (supportPositions.length === 0 || supportPositions.some((position) => !supportIndex.occupied.has(coordinateKey(position)))) return { status: 'invalid', reason: 'missing-support', supportPositions };
+  return { status: 'valid', supportPositions };
+}
+
 export function planDecorationPlacement(project: ProjectDocument, active: { readonly kind: DecorationKind; readonly variantId?: string; readonly item?: import('../decoration.types').DecorationItemStack; readonly fixed?: boolean }, support: VoxelCoordinate, facing: DecorationFacing, random = Math.random): DecorationPlacementPlan {
   const anchor = decorationAnchorFromSupport(support, facing);
   if (active.kind === 'painting' && !['north', 'south', 'east', 'west'].includes(facing)) return { status: 'invalid', reason: 'unsupported-face' };
@@ -75,9 +102,11 @@ export function planDecorationPlacement(project: ProjectDocument, active: { read
   const entityTypeId = active.kind === 'painting' ? 'minecraft:painting' : active.kind === 'item-frame' ? 'minecraft:item_frame' : 'minecraft:glow_item_frame';
   const decoration: PlacedDecoration = { instanceId: 'preview', kind: active.kind, entityTypeId, anchor, facing, ...(variant ? { variantId: variant.id } : {}), ...(active.item ? { item: active.item } : {}), ...(active.kind !== 'painting' ? { rotation: 0, invisible: false, fixed: active.fixed ?? false, itemDropChance: 1 } : {}) };
   if (!decorationInBounds(anchor, project.size)) return { status: 'invalid', reason: 'out-of-bounds', decoration };
-  const supportExists = project.blocks.some((block) => sameCoordinate(block.position, support));
+  const supportIndex = createDecorationSupportIndex(project);
+  const supportExists = supportIndex.occupied.has(coordinateKey(support));
   if (!supportsDecoration(active.kind, facing, supportExists, active.fixed)) return { status: 'invalid', reason: 'missing-support', decoration };
-  if (variant && paintingSupportFootprint(anchor, facing, variant).some((position) => !project.blocks.some((block) => sameCoordinate(block.position, position)))) return { status: 'invalid', reason: 'missing-support', decoration };
+  const projectValidation = validateDecorationAgainstProject(project, decoration, supportIndex);
+  if (projectValidation.status === 'invalid') return { status: 'invalid', reason: projectValidation.reason, decoration };
   const aabb = decorationAabb(decoration);
   if (project.blocks.some((block) => aabb.min.x < block.position.x + 1 && aabb.max.x > block.position.x && aabb.min.y < block.position.y + 1 && aabb.max.y > block.position.y && aabb.min.z < block.position.z + 1 && aabb.max.z > block.position.z && !sameCoordinate(block.position, support))) return { status: 'invalid', reason: 'blocked-by-block', decoration };
   if ((project.decorations ?? []).some((entry) => decorationOverlaps(aabb, decorationAabb(entry)))) return { status: 'invalid', reason: 'overlap-decoration', decoration };
@@ -96,15 +125,12 @@ export function decorationOverlaps(a: DecorationAabb, b: DecorationAabb): boolea
 
 export function pruneInvalidDecorations(project: ProjectDocument): ProjectDocument {
   const decorations = project.decorations ?? [];
+  const supportIndex = createDecorationSupportIndex(project);
   const kept = decorations.filter((decoration, index) => {
-    if (decoration.fixed && (decoration.kind === 'item-frame' || decoration.kind === 'glow-item-frame')) return true;
-    if (!decorationInBounds(decoration.anchor, project.size)) return false;
+    const projectValidation = validateDecorationAgainstProject(project, decoration, supportIndex);
+    if (projectValidation.status === 'invalid') return false;
     const direction = directionVector(decoration.facing);
     const support = { x: decoration.anchor.x - direction.x, y: decoration.anchor.y - direction.y, z: decoration.anchor.z - direction.z };
-    const supportExists = project.blocks.some((block) => sameCoordinate(block.position, support));
-    if (!supportsDecoration(decoration.kind, decoration.facing, supportExists, decoration.fixed)) return false;
-    const variant = decoration.kind === 'painting' ? paintingVariant(decoration.variantId) : undefined;
-    if (variant && paintingSupportFootprint(decoration.anchor, decoration.facing, variant).some((position) => !project.blocks.some((block) => sameCoordinate(block.position, position)))) return false;
     const aabb = decorationAabb(decoration);
     if (project.blocks.some((block) => !sameCoordinate(block.position, support) && aabb.min.x < block.position.x + 1 && aabb.max.x > block.position.x && aabb.min.y < block.position.y + 1 && aabb.max.y > block.position.y && aabb.min.z < block.position.z + 1 && aabb.max.z > block.position.z)) return false;
     return !decorations.some((other, otherIndex) => index !== otherIndex && decorationOverlaps(aabb, decorationAabb(other)));
@@ -113,3 +139,6 @@ export function pruneInvalidDecorations(project: ProjectDocument): ProjectDocume
 }
 
 function sameCoordinate(a: VoxelCoordinate, b: VoxelCoordinate): boolean { return a.x === b.x && a.y === b.y && a.z === b.z; }
+function isHorizontal(facing: DecorationFacing): facing is 'north' | 'south' | 'west' | 'east' { return facing === 'north' || facing === 'south' || facing === 'west' || facing === 'east'; }
+function coordinateKey(position: VoxelCoordinate): string { return `${position.x},${position.y},${position.z}`; }
+function defaultDecorationSupportBlock(block: ProjectDocument['blocks'][number]): boolean { return block.kind === 'resolved' && block.id !== 'minecraft:air'; }

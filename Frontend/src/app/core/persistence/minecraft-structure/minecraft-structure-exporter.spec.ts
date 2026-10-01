@@ -141,7 +141,30 @@ describe('core Minecraft Structure NBT exporter', () => {
     if (decoratedPot.ok) expect(decoratedPot.template.blocks[0].nbt?.value['sherds']).toMatchObject({ type: 'list', elementType: 'string' });
 
     const decoration = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'painting-1', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
-    expect(decoration.ok).toBe(true);
+    expect(decoration.ok).toBe(false);
+    if (!decoration.ok) expect(decoration.diagnostics.map((entry) => entry.code)).toContain('invalid-decoration');
+
+    const supportedPainting = await exported(project({ x: 2, y: 1, z: 2 }, [block('minecraft:stone', { x: 0, y: 0, z: 1 })], { decorations: [{ instanceId: 'painting-supported', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
+    expect(supportedPainting.ok).toBe(true);
+
+    const completeLargePainting = await exported(project({ x: 3, y: 3, z: 3 }, [
+      block('minecraft:stone', { x: 1, y: 1, z: 2 }), block('minecraft:stone', { x: 2, y: 1, z: 2 }),
+      block('minecraft:stone', { x: 1, y: 2, z: 2 }), block('minecraft:stone', { x: 2, y: 2, z: 2 }),
+    ], { decorations: [{ instanceId: 'painting-large', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 1, y: 1, z: 1 }, facing: 'north', variantId: 'minecraft:match' }] }));
+    expect(completeLargePainting.ok).toBe(true);
+    const partialLargePainting = await exported(project({ x: 3, y: 3, z: 3 }, [
+      block('minecraft:stone', { x: 1, y: 1, z: 2 }), block('minecraft:stone', { x: 2, y: 1, z: 2 }),
+      block('minecraft:stone', { x: 1, y: 2, z: 2 }),
+    ], { decorations: [{ instanceId: 'painting-partial', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 1, y: 1, z: 1 }, facing: 'north', variantId: 'minecraft:match' }] }));
+    expect(partialLargePainting.ok).toBe(false);
+    if (!partialLargePainting.ok) expect(partialLargePainting.diagnostics.map((entry) => entry.code)).toContain('invalid-decoration');
+
+    for (const [facing, support] of Object.entries({ north: { x: 1, y: 0, z: 2 }, south: { x: 1, y: 0, z: 0 }, east: { x: 0, y: 0, z: 1 }, west: { x: 2, y: 0, z: 1 } } as const)) {
+      const frame = await exported(project({ x: 3, y: 1, z: 3 }, [block('minecraft:stone', support)], { decorations: [{ instanceId: `frame-${facing}`, kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 1, y: 0, z: 1 }, facing: facing as 'north' | 'south' | 'east' | 'west', rotation: 0, invisible: false, fixed: false, itemDropChance: 1 }] }));
+      expect(frame.ok, facing).toBe(true);
+    }
+    const fixedFrame = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'fixed-frame', kind: 'glow-item-frame', entityTypeId: 'minecraft:glow_item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', rotation: 0, invisible: false, fixed: true, itemDropChance: 1 }] }));
+    expect(fixedFrame.ok).toBe(true);
 
     const mismatchedDecoration = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'painting-2', kind: 'painting', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
     expect(mismatchedDecoration.ok).toBe(false);

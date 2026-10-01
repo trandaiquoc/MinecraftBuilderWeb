@@ -13,9 +13,12 @@ const VERIFIED_SHELF_IDS = new Set([
   'minecraft:warped_shelf',
 ]);
 
-const VERIFIED_STORAGE_ONLY_IDS = new Set([
-  'minecraft:chest', 'minecraft:barrel', 'minecraft:hopper', 'minecraft:furnace',
-]);
+const VERIFIED_STORAGE_SLOT_COUNTS: Readonly<Record<string, number>> = {
+  'minecraft:chest': 27,
+  'minecraft:barrel': 27,
+  'minecraft:hopper': 5,
+  'minecraft:furnace': 3,
+};
 
 // Verified vanilla pillar families. Placement consumes this contract instead
 // of branching on individual registry IDs in the rule engine.
@@ -35,7 +38,8 @@ const VERIFIED_PILLAR_IDS = new Set([
 
 export function verifiedVanillaCapabilityProfile(id: string): readonly BlockCapability[] {
   if (VERIFIED_SHELF_IDS.has(id)) return [{ kind: 'item-storage-display', slotCount: 3, evidence: 'verified' }];
-  if (VERIFIED_STORAGE_ONLY_IDS.has(id)) return [{ kind: 'inventory-storage', evidence: 'verified' }];
+  const slotCount = VERIFIED_STORAGE_SLOT_COUNTS[id];
+  if (slotCount !== undefined) return [{ kind: 'inventory-storage', slotCount, evidence: 'verified' }];
   if (VERIFIED_PILLAR_IDS.has(id)) return [
     { kind: 'direct-placement', evidence: 'verified' },
     { kind: 'axis-oriented', axisProperty: 'axis', evidence: 'verified' },
@@ -44,3 +48,5 @@ export function verifiedVanillaCapabilityProfile(id: string): readonly BlockCapa
 }
 
 export function isVerifiedVanillaShelf(id: string): boolean { return VERIFIED_SHELF_IDS.has(id); }
+
+export function verifiedVanillaInventorySlotCount(id: string): number | undefined { return VERIFIED_STORAGE_SLOT_COUNTS[id]; }

@@ -5,6 +5,7 @@ import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/pro
 import { validateCoordinate } from '../../domain/validation';
 import type { MinecraftNbtCompound, MinecraftStructurePaletteEntry, MinecraftStructureTemplate } from './minecraft-structure-types';
 import { mapBlockEntity, mapDecoration } from './minecraft-structure-semantic-mappers';
+import { createDecorationSupportIndex, validateDecorationAgainstProject } from '../../decorations/placement/decoration-placement';
 
 export interface MinecraftStructureExportSuccess {
   readonly ok: true;
@@ -42,7 +43,13 @@ export async function exportMinecraftStructure(
   diagnostics.push(...invalidStateDiagnostics(project.blocks));
   diagnostics.push(...duplicateCoordinateDiagnostics(project.blocks));
   diagnostics.push(...invalidDecorationAnchorDiagnostics(project.decorations ?? [], project.size));
-  const mappedEntities = (project.decorations ?? []).slice().sort(compareDecorations).map((decoration, index) => mapDecoration(decoration, index));
+  const supportIndex = createDecorationSupportIndex(project);
+  const sortedDecorations = (project.decorations ?? []).slice().sort(compareDecorations);
+  sortedDecorations.forEach((decoration, index) => {
+    const support = validateDecorationAgainstProject(project, decoration, supportIndex);
+    if (support.status === 'invalid') diagnostics.push({ code: 'invalid-decoration', message: `Decoration cannot survive in the exported project: ${support.reason ?? 'invalid support'}.`, path: `decorations.${index}` });
+  });
+  const mappedEntities = sortedDecorations.map((decoration, index) => mapDecoration(decoration, index));
   const entities = [];
   for (const mapped of mappedEntities) {
     if (!mapped.ok) diagnostics.push(mapped.diagnostic);

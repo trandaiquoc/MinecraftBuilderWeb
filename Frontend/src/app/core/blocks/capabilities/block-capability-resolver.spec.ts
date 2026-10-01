@@ -43,8 +43,10 @@ describe('block capability resolver', () => {
 
   it('requires verified evidence and preserves the distinction between storage and display hosts', () => {
     expect(verifiedVanillaCapabilityProfile('minecraft:oak_shelf')).toEqual([{ kind: 'item-storage-display', slotCount: 3, evidence: 'verified' }]);
-    expect(verifiedVanillaCapabilityProfile('minecraft:chest')).toEqual([{ kind: 'inventory-storage', evidence: 'verified' }]);
+    expect(verifiedVanillaCapabilityProfile('minecraft:chest')).toEqual([{ kind: 'inventory-storage', slotCount: 27, evidence: 'verified' }]);
+    expect(verifiedVanillaCapabilityProfile('minecraft:furnace')).toEqual([{ kind: 'inventory-storage', slotCount: 3, evidence: 'verified' }]);
     expect(verifiedVanillaCapabilityProfile('example:wooden_shelf')).toEqual([]);
     expect(deriveBlockCapabilities({ explicit: [{ kind: 'item-storage-display', slotCount: 2, evidence: 'inferred' }] })).toEqual([]);
+    expect(() => validateCapabilityProfile([{ kind: 'inventory-storage', slotCount: 0, evidence: 'verified' }])).toThrow('positive integer slotCount');
   });
 });

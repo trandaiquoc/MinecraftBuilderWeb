@@ -75,15 +75,16 @@ ZIP installs that mod.
 The committed smoke artifact
 `Frontend/src/app/core/persistence/minecraft-structure/fixtures/exporter_datapack_smoke_1_21_1.zip`
 is **EXPORTER/PACKAGER-GENERATED — NOT A GOLDEN**. It has SHA-256
-`9cca5ff92967e90425fe8d4b3d0c1819cb892603d4c69d7ca039e225caa349f9` and size
-1261 bytes. It contains exactly the two entries above for
+`420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661` and size
+1853 bytes. It contains exactly the two entries above for
 `minecraftbuilder:exporter_datapack_smoke_1_21_1`; `pack.mcmeta` is
 `{"pack":{"pack_format":48,"description":"MinecraftBuilder 1.21.1 export smoke"}}`.
-The embedded gzip NBT is 856 bytes with SHA-256
-`cfd99e9aba231e1cc8a812959f4e57b72a791ef498501e07d6d43dbe0995023f`,
-DataVersion 3955, dimensions 6×2×6, 5 palette entries, 72 block records with
-68 Air records, 3 block entities (`minecraft:sign`,
-`minecraft:decorated_pot`, `minecraft:hanging_sign`), and 3 entities
+The embedded gzip NBT is 1448 bytes with SHA-256
+`db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`,
+DataVersion 3955, dimensions 10x4x8, 8 palette entries, 320 block records with
+274 Air records, 6 block entities (`minecraft:sign`, `minecraft:decorated_pot`,
+`minecraft:hanging_sign`, `minecraft:chest`, `minecraft:barrel`,
+`minecraft:hopper`), and 3 entities
 (`minecraft:painting`, `minecraft:item_frame`,
 `minecraft:glow_item_frame`). The permanent self-verification test decodes the
 artifact through the production codec. It has **not yet been verified in a
@@ -268,11 +269,15 @@ disabled/deferred.
 - The current ProjectDocument has no persisted Conduit payload. Conduit is
   therefore UNSUPPORTED in this exporter rather than receiving guessed runtime
   fields or an invented block-entity record.
-- The current generic `item-container` model represents item-display/storage
-  display capabilities, not a verified Java Chest (or other container) block
-  entity. It is UNSUPPORTED for Structure NBT until a block-specific ID,
-  capacity, and typed item schema are modeled. The golden Chest remains a
-  regression reference, not an inferred generic mapping.
+- `item-container` with `hostKind: "inventory-storage"` maps only verified
+  vanilla block IDs: Chest and Barrel use 27 slots, Hopper uses 5 slots, and
+  Furnace remains unsupported because the current semantic model cannot retain
+  its burn/cook timers and recipe-use data losslessly. Chest/Barrel/Hopper emit
+  their block-entity ID and `Items`; Hopper also emits the verified default
+  `TransferCooldown: 0`. Empty inventories emit an empty `Items` list.
+- Inventory slots are block-specific, integer, unique, and range-checked. The
+  mapper rejects arbitrary block IDs, unknown raw fields, invalid components,
+  duplicate slots, and out-of-range slots instead of guessing or dropping data.
 
 ### Supported top-level entities
 
@@ -296,22 +301,59 @@ compound shapes, Glow Item Frame Facing/ItemRotation bytes, and Painting
 variant/facing tags. The generated fixture below is self-verified through the
 production codec only; it is not independent Minecraft compatibility proof.
 
-`exporter_be_entity_smoke_1_21_1.nbt` contains dimensions `6 x 2 x 6`, 72
-explicit blocks (65 Air), Sign and Hanging Sign block entities, a non-default
-Decorated Pot, and Painting, Item Frame, and Glow Item Frame entities. Its
-current integrity record is 818 bytes, SHA-256
-`33a5794b7ff94d86b776e38070abae6180a8880a0faef24f42eea1fbf2cd5407`.
+`exporter_be_entity_smoke_1_21_1.nbt` contains dimensions `10 x 4 x 8`, 320
+explicit blocks (274 Air), a support wall, Sign and Hanging Sign block
+entities, a non-default Decorated Pot with an item, Chest, Barrel, and Hopper
+block entities, and Painting, Item Frame, and Glow Item Frame entities. Its
+current integrity record is 1448 bytes, SHA-256
+`db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
 
 ### Sources
 
 - [Minecraft 1.21.1 SignBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/SignBlockEntity.html)
 - [Minecraft 1.21.1 DecoratedPotBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/DecoratedPotBlockEntity.html)
+- [Minecraft 1.21.1 ChestBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/ChestBlockEntity.html)
+- [Minecraft 1.21.1 BarrelBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/BarrelBlockEntity.html)
+- [Minecraft 1.21.1 HopperBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/HopperBlockEntity.html)
+- [Minecraft 1.21.1 AbstractFurnaceBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.html)
 - [Minecraft 1.21.1 ConduitBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/ConduitBlockEntity.html)
 - [Yarn ItemFrameEntity reference (1.21.1+build.1)](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.1/net/minecraft/entity/decoration/ItemFrameEntity.html) (field-name cross-check; native 1.21.1 tags are locked by the golden fixture)
+- [Yarn BlockAttachedEntity reference (1.21.1+build.3)](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.3/net/minecraft/entity/decoration/BlockAttachedEntity.html) (attachment position and `canStayAttached` contract)
+- [Deobfuscated Java 1.21.1 ItemFrameEntity source](https://raw.githubusercontent.com/Soumeh/1.21.1-Deobfuscated/main/minecraft/src/net/minecraft/entity/decoration/ItemFrameEntity.java) (fixed/support survival check and persisted frame tags)
 - [Minecraft 1.21.1 Painting mappings](https://mappings.dev/1.21.1/net/minecraft/world/entity/decoration/Painting.html)
 - [Java 1.21.1 StructureTemplate mappings](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.1/net/minecraft/structure/StructureTemplate.html)
 - The independent Minecraft-generated `golden_1_21_1.nbt` fixture is the
   primary source for observed native tag types and wrapper shape.
+
+## Prompt 15.4.2 hanging-entity survival and block-entity completeness
+
+The exporter now validates Painting, Item Frame, and Glow Item Frame
+decorations against the complete ProjectDocument before mapping any NBT. The
+support lookup is built once from resolved non-Air project voxels (unknown or
+missing blocks do not qualify as verified support), and normal frames require the
+exact block immediately behind their anchor for all horizontal facings. A
+Painting uses its catalog dimensions and requires every backing voxel in its
+footprint. Fixed Item Frames and Glow Item Frames retain the verified fixed
+survival exception and therefore do not require a support voxel in this editor
+contract. Invalid decorations fail the entire export; they are never pruned,
+moved, made fixed, or replaced with fabricated support.
+
+Decorated Pot data now optionally preserves its stored `item` ItemStack in the
+typed `item` compound while retaining the lossless `back,left,right,front`
+sherd order. Verified inventory storage maps are block-specific: Chest and
+Barrel use 27 slots, Hopper uses 5 slots and emits `TransferCooldown: 0`, and
+Furnace remains explicitly unsupported because its operational burn/cook and
+recipe-use fields are not represented by the current semantic model. Slot
+numbers are byte tags; item IDs are strings and counts are ints. Unsupported
+components, unknown raw fields, invalid IDs/counts, duplicate slots, and
+out-of-range slots fail explicitly.
+
+Project persistence treats these additions as optional fields; no schema bump
+was required. The committed smoke artifacts were regenerated through the
+production exporter and ZIP writer, include a support wall plus all three
+hanging entity types and Chest/Barrel/Hopper/Pot examples, and remain
+**EXPORTER-GENERATED - NOT A GOLDEN**. They have not yet been manually checked
+in Minecraft after the attachment survival timer.
 
 ## Boundary
 

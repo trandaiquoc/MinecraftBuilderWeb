@@ -130,6 +130,8 @@ export function validateCapabilityProfile(capabilities: BlockCapabilityProfile):
   if (verifiedOnly) throw new Error(`Capability ${verifiedOnly.kind} requires verified evidence`);
   const itemHosts = capabilities.filter((capability) => capability.kind === 'item-display' || capability.kind === 'item-storage-display');
   if (itemHosts.some((capability) => !Number.isInteger(capability.slotCount) || capability.slotCount < 1)) throw new Error('Item display capabilities require a positive integer slotCount');
+  const inventoryHosts = capabilities.filter((capability) => capability.kind === 'inventory-storage');
+  if (inventoryHosts.some((capability) => capability.slotCount !== undefined && (!Number.isInteger(capability.slotCount) || capability.slotCount < 1))) throw new Error('Inventory storage capabilities require a positive integer slotCount when specified');
   if (new Set(itemHosts.map((capability) => capability.kind)).size > 1) throw new Error('A block capability profile cannot contain both item-display and item-storage-display');
   const directional = capabilities.filter((capability) => capability.kind === 'directional');
   if (new Set(directional.map((capability) => capability.mode)).size > 1) throw new Error('A block capability profile cannot contain conflicting directional modes');
