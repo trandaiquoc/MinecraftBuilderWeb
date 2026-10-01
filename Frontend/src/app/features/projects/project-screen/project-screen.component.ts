@@ -4,30 +4,31 @@ import { Router } from '@angular/router';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
 import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
-import { ProjectDocument, StructureMode } from '../../../core/domain/project.types';
-import { DEFAULT_STRUCTURE_MODE, evaluateStructureSize, isStructureCreationAllowed } from '../../../core/domain/structure-size-policy';
+import { ProjectDocument, ProjectSize, StructureMode } from '../../../core/domain/project.types';
+import { DEFAULT_STRUCTURE_MODE, effectiveStructureModeForSize, evaluateStructureSize, isStructureCreationAllowed } from '../../../core/domain/structure-size-policy';
 import { validateProject } from '../../../core/domain/validation';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
-import { ThemeService } from '../../../core/ui/theme/theme.service';
+import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
-import { LucideTrash2 } from '@lucide/angular';
+import { LucideSettings, LucideTrash2 } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { SearchableDropdownComponent, SearchableDropdownOption } from '../../../shared/ui/searchable-dropdown/searchable-dropdown.component';
 import { MojangRelease, MojangVersionService } from '../../../core/assets/vanilla/mojang-vanilla-asset-source';
 import { DEFAULT_MINECRAFT_VERSION } from '../../../core/domain/project.types';
+import { SettingsDialogComponent } from '../../editor/settings/settings-dialog/settings-dialog.component';
 
 @Component({
   selector: 'app-project-screen',
-  imports: [DatePipe, LucideTrash2, UiTooltipDirective, SearchableDropdownComponent],
+  imports: [DatePipe, LucideSettings, LucideTrash2, UiTooltipDirective, SearchableDropdownComponent, SettingsDialogComponent],
   templateUrl: './project-screen.component.html',
   styleUrl: './project-screen.component.scss',
 })
 export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
-  protected readonly theme = inject(ThemeService);
+  private readonly preferences = inject(UiPreferencesService);
   private readonly router = inject(Router);
   private readonly workspace = inject(WorkspaceStateService);
   private readonly dialogs = inject(DialogService);
@@ -38,7 +39,9 @@ export class ProjectScreenComponent {
   protected readonly sizeZ = signal('16');
   protected readonly minecraftVersion = signal<string>(DEFAULT_MINECRAFT_VERSION);
   protected readonly structureMode = signal<StructureMode>(DEFAULT_STRUCTURE_MODE);
-  protected readonly sizePolicy = computed(() => evaluateStructureSize({ x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, this.structureMode()));
+  private readonly enteredSize = computed<ProjectSize>(() => ({ x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }));
+  protected readonly effectiveStructureMode = computed(() => effectiveStructureModeForSize(this.enteredSize(), this.structureMode(), this.preferences.preferences().autoUseHugeStructureBlocks));
+  protected readonly sizePolicy = computed(() => evaluateStructureSize(this.enteredSize(), this.effectiveStructureMode()));
   protected readonly versions = inject(MojangVersionService);
   protected readonly versionOptions = computed<readonly SearchableDropdownOption[]>(() => {
     const releases = this.versions.releases();
@@ -52,6 +55,7 @@ export class ProjectScreenComponent {
   protected readonly creating = signal(false);
   protected readonly openingId = signal<string | undefined>(undefined);
   protected readonly deletingProjectIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly settingsDialogOpen = signal(false);
   protected readonly deleteError = signal<string | undefined>(undefined);
   private readonly autosave = inject(ProjectAutosaveService);
   private persistence?: ProjectPersistenceService;
@@ -69,12 +73,12 @@ export class ProjectScreenComponent {
     this.error.set(undefined);
   }
   protected setMinecraftVersion(value: string): void { if (value) this.minecraftVersion.set(value); }
-  protected setOuterTheme(theme: 'dark' | 'light' | 'craft'): void { this.theme.setPreset(theme); }
-  protected setOuterLocale(locale: 'en' | 'vi'): void { this.i18n.setLocale(locale); }
   protected useHugeStructureBlocks(): void {
     if (this.sizePolicy().exceedsVanilla && this.sizePolicy().fitsHugeStructureBlocks) this.structureMode.set('huge-structure-blocks');
   }
   protected setVanillaMax(): void { this.sizeX.set('48'); this.sizeY.set('48'); this.sizeZ.set('48'); this.structureMode.set(DEFAULT_STRUCTURE_MODE); }
+  protected openSettingsDialog(): void { this.settingsDialogOpen.set(true); }
+  protected closeSettingsDialog(): void { this.settingsDialogOpen.set(false); }
   protected versionSupportLabel(): string { return this.minecraftVersion() === DEFAULT_MINECRAFT_VERSION ? this.i18n.t('verifiedSupport') : this.i18n.t('resourceCompatibility'); }
   protected summaryModeFullLabel(mode: StructureMode): string { return this.i18n.t(mode === 'huge-structure-blocks' ? 'hugeStructureBlocks' : 'vanillaStructureBlock'); }
   protected summarySizeLabel(project: ProjectSummary): string { return `${project.size.x} × ${project.size.y} × ${project.size.z}`; }
@@ -90,7 +94,7 @@ export class ProjectScreenComponent {
     const now = new Date().toISOString();
     const project: ProjectDocument = {
       schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || this.i18n.t('untitledStructure'), minecraftVersion: this.minecraftVersion(), createdAt: now, updatedAt: now },
-      size: { x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, structureMode: this.structureMode(), blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
+      size: this.enteredSize(), structureMode: this.effectiveStructureMode(), blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
     };
     const validation = validateProject(project);
     if (!validation.valid) {
@@ -166,7 +170,7 @@ export class ProjectScreenComponent {
   protected async retryLoad(): Promise<void> { await this.loadProjects(); }
   protected validDimensions(): boolean { return this.sizePolicy().dimensionsValid; }
   protected canCreateProject(): boolean {
-    return isStructureCreationAllowed({ x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, this.structureMode());
+    return isStructureCreationAllowed(this.enteredSize(), this.effectiveStructureMode());
   }
   protected creationValidationMessage(): string {
     const policy = this.sizePolicy();

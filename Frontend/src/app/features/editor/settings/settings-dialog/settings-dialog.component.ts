@@ -10,7 +10,7 @@ import { MOUSE_ACTIONS, MouseAction, findMouseBindingConflicts, mouseBindingFrom
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 
 type SettingsSection = 'general' | 'appearance' | 'controls' | 'shortcuts' | 'accessibility';
-type SettingsDraft = Pick<UiPreferences, 'locale'> & { readonly appearance: UiPreferences['appearance']; readonly accessibility: UiPreferences['accessibility']; readonly controls: UiPreferences['controls']; readonly shortcuts: UiPreferences['shortcuts']; readonly mouseBindings: UiPreferences['mouseBindings'] };
+type SettingsDraft = Pick<UiPreferences, 'locale' | 'autoUseHugeStructureBlocks'> & { readonly appearance: UiPreferences['appearance']; readonly accessibility: UiPreferences['accessibility']; readonly controls: UiPreferences['controls']; readonly shortcuts: UiPreferences['shortcuts']; readonly mouseBindings: UiPreferences['mouseBindings'] };
 
 @Component({
   selector: 'app-settings-dialog',
@@ -57,6 +57,7 @@ export class SettingsDialogComponent implements OnDestroy {
 
   protected setSection(section: SettingsSection): void { this.section.set(section); }
   protected setLocale(locale: UiLocale): void { this.updateDraft({ locale }); }
+  protected setAutoUseHugeStructureBlocks(enabled: boolean): void { this.updateDraft({ autoUseHugeStructureBlocks: enabled }); }
   protected setPreset(preset: ThemePreset): void {
     const base: BaseTheme = preset === 'light' ? 'light' : 'dark';
     this.updateDraft({ appearance: { ...this.draft().appearance, preset, base } });
@@ -124,7 +125,7 @@ export class SettingsDialogComponent implements OnDestroy {
   }
   protected shortcutGroupLabel(group: 'movement' | 'tools-view' | 'editing' | 'quickBar'): string { return ({ movement: this.i18n.t('movementSettingsGroup'), 'tools-view': this.i18n.t('toolsViewSettingsGroup'), editing: this.i18n.t('editingSettingsGroup'), quickBar: this.i18n.t('quickBarSettingsGroup') } as const)[group]; }
   protected mouseActionLabel(action: MouseAction): string { return ({ 'primary-action': this.i18n.t('mousePrimaryAction'), 'delete-target': this.i18n.t('mouseDeleteTarget'), 'pick-block': this.i18n.t('mousePickBlock'), 'orbit-camera': this.i18n.t('mouseOrbit'), 'pan-camera': this.i18n.t('mousePan'), 'zoom-in': this.i18n.t('mouseZoomIn'), 'zoom-out': this.i18n.t('mouseZoomOut') } as const)[action]; }
-  protected restoreGeneralDefaults(): void { this.updateDraft({ locale: this.preferences.defaultPreferences().locale }); }
+  protected restoreGeneralDefaults(): void { const defaults = this.preferences.defaultPreferences(); this.updateDraft({ locale: defaults.locale, autoUseHugeStructureBlocks: defaults.autoUseHugeStructureBlocks }); }
   protected restoreAppearanceDefaults(): void { this.updateDraft({ appearance: { ...this.preferences.defaultPreferences().appearance } }); }
   protected restoreControlsDefaults(): void { this.updateDraft({ controls: { ...this.preferences.defaultPreferences().controls } }); }
   protected restoreShortcutsDefaults(): void { this.updateDraft({ shortcuts: { ...this.preferences.defaultPreferences().shortcuts } }); this.cancelShortcutCapture(); }
@@ -141,7 +142,7 @@ export class SettingsDialogComponent implements OnDestroy {
   protected async apply(): Promise<void> {
     if (this.shortcutConflicts().length || this.mouseBindingConflicts().length) return;
     const draft = this.draft();
-    this.preferences.update({ locale: draft.locale, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, accessibility: { ...draft.accessibility }, controls: { ...draft.controls }, shortcuts: { ...draft.shortcuts }, mouseBindings: { ...draft.mouseBindings } });
+    this.preferences.update({ locale: draft.locale, autoUseHugeStructureBlocks: draft.autoUseHugeStructureBlocks, appearance: { ...this.preferences.preferences().appearance, ...draft.appearance }, accessibility: { ...draft.accessibility }, controls: { ...draft.controls }, shortcuts: { ...draft.shortcuts }, mouseBindings: { ...draft.mouseBindings } });
     this.preferences.clearAccessibilityPreview();
     this.baseline.set(this.readDraft());
     this.draft.set(this.readDraft());
@@ -163,5 +164,5 @@ export class SettingsDialogComponent implements OnDestroy {
   private displayBinding(binding: string): string { return binding ? binding.split('|').map((alternative) => alternative.split('+').map((token) => this.displayBindingToken(token)).join(' + ')).join(' / ') : this.i18n.t('unassigned'); }
   private displayBindingToken(token: string): string { return ({ Ctrl: this.i18n.t('keyCtrl'), Shift: this.i18n.t('keyShift'), Alt: this.i18n.t('keyAlt'), Meta: this.i18n.t('keyMeta'), LeftClick: this.i18n.t('mouseLeftClick'), RightClick: this.i18n.t('mouseRightClick'), MiddleClick: this.i18n.t('mouseMiddleClick'), WheelUp: this.i18n.t('mouseWheelUp'), WheelDown: this.i18n.t('mouseWheelDown') } as Record<string, string>)[token] ?? token; }
   private updateDraft(patch: Partial<SettingsDraft>): void { this.draft.update((current) => ({ ...current, ...patch, appearance: { ...current.appearance, ...(patch.appearance ?? {}) }, accessibility: { ...current.accessibility, ...(patch.accessibility ?? {}) }, controls: { ...current.controls, ...(patch.controls ?? {}) }, shortcuts: { ...current.shortcuts, ...(patch.shortcuts ?? {}) }, mouseBindings: { ...current.mouseBindings, ...(patch.mouseBindings ?? {}) } })); }
-  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, appearance: { ...current.appearance }, accessibility: { ...current.accessibility }, controls: { ...current.controls }, shortcuts: { ...current.shortcuts }, mouseBindings: { ...current.mouseBindings } }; }
+  private readDraft(): SettingsDraft { const current = this.preferences.preferences(); return { locale: current.locale, autoUseHugeStructureBlocks: current.autoUseHugeStructureBlocks, appearance: { ...current.appearance }, accessibility: { ...current.accessibility }, controls: { ...current.controls }, shortcuts: { ...current.shortcuts }, mouseBindings: { ...current.mouseBindings } }; }
 }

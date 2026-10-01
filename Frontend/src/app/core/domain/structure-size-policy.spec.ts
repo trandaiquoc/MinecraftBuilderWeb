@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalStructureModeForSize, evaluateStructureSize, isStructureCreationAllowed, normalizeStructureModeForSize } from './structure-size-policy';
+import { canonicalStructureModeForSize, effectiveStructureModeForSize, evaluateStructureSize, isStructureCreationAllowed, normalizeStructureModeForSize } from './structure-size-policy';
 
 const size = (x: number, y: number, z: number) => ({ x, y, z });
 
@@ -79,5 +79,12 @@ describe('canonical structure mode policy', () => {
   it('normalizes legacy mode metadata to the size-compatible mode', () => {
     expect(normalizeStructureModeForSize(size(32, 32, 32), 'huge-structure-blocks')).toBe('vanilla-structure-block');
     expect(normalizeStructureModeForSize(size(64, 18, 64), 'vanilla-structure-block')).toBe('huge-structure-blocks');
+  });
+
+  it('uses the optional automatic Huge mode only for supported oversized sizes', () => {
+    expect(effectiveStructureModeForSize(size(49, 48, 48), 'vanilla-structure-block', false)).toBe('vanilla-structure-block');
+    expect(effectiveStructureModeForSize(size(49, 48, 48), 'vanilla-structure-block', true)).toBe('huge-structure-blocks');
+    expect(effectiveStructureModeForSize(size(48, 48, 48), 'huge-structure-blocks', true)).toBe('vanilla-structure-block');
+    expect(effectiveStructureModeForSize(size(513, 18, 64), 'vanilla-structure-block', true)).toBe('vanilla-structure-block');
   });
 });

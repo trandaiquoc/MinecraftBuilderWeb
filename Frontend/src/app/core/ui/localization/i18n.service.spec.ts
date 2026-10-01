@@ -62,11 +62,15 @@ describe('translation dictionaries', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('en');
     expect(service.t('vanillaCompatible')).toContain('Vanilla');
-    expect(service.t('hugeStructureBlocksModrinth')).toBe('Download on Modrinth');
+    expect(service.t('hugeStructureBlocksModrinth')).toBe('View on Modrinth');
+    expect(service.t('hugeStructureBlocksResources')).toBe('Huge Structure Blocks resources');
+    expect(service.t('autoUseHugeStructureBlocksDescription')).toContain('48 blocks');
     expect(service.t('hugeStructureBlocksStepInstall')).toContain('{version}');
     service.setLocale('vi');
     expect(service.t('vanillaCompatible')).toContain('vanilla');
-    expect(service.t('hugeStructureBlocksModrinth')).toBe('Tải trên Modrinth');
+    expect(service.t('hugeStructureBlocksModrinth')).toBe('Xem trên Modrinth');
+    expect(service.t('hugeStructureBlocksResources')).toBe('Tài nguyên Huge Structure Blocks');
+    expect(service.t('autoUseHugeStructureBlocksDescription')).toContain('48 khối');
     service.setLocale('en');
   });
 

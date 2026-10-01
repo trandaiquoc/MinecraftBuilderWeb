@@ -19,7 +19,11 @@
             <label>{{ i18n.t('language') }}
               <app-themed-select [options]="languageOptions()" [selectedId]="draft().locale" [ariaLabel]="i18n.t('language')" (selectionChange)="setLocale($any($event))" />
             </label>
-          <button type="button" class="section-reset ui-button ui-button--ghost ui-button--sm" (click)="restoreGeneralDefaults()">{{ i18n.t('restoreDefaults') }}</button>
+            <label class="preference-toggle">
+              <span class="preference-toggle-copy"><strong>{{ i18n.t('autoUseHugeStructureBlocks') }}</strong><small>{{ i18n.t('autoUseHugeStructureBlocksDescription') }}</small></span>
+              <input type="checkbox" [checked]="draft().autoUseHugeStructureBlocks" (change)="setAutoUseHugeStructureBlocks($any($event.target).checked)" [attr.aria-label]="i18n.t('autoUseHugeStructureBlocks')" />
+            </label>
+            <button type="button" class="section-reset ui-button ui-button--ghost ui-button--sm" (click)="restoreGeneralDefaults()">{{ i18n.t('restoreDefaults') }}</button>
           </section>
         } @else if (section() === 'appearance') {
           <section>

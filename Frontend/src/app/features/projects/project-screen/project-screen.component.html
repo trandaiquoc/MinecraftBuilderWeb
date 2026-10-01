@@ -2,21 +2,7 @@
   <header class="outer-topbar">
     <div class="outer-brand"><span class="outer-brand-mark" aria-hidden="true">M</span><span>{{ i18n.t('appName') }}</span></div>
     <div class="outer-topbar-controls">
-      <div class="outer-language-control">
-        <span class="outer-theme-label">{{ i18n.t('language') }}</span>
-        <div class="outer-theme-switch" role="group" [attr.aria-label]="i18n.t('language')">
-          <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="i18n.locale() === 'en'" [attr.aria-pressed]="i18n.locale() === 'en'" (click)="setOuterLocale('en')">{{ i18n.t('english') }}</button>
-          <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="i18n.locale() === 'vi'" [attr.aria-pressed]="i18n.locale() === 'vi'" (click)="setOuterLocale('vi')">{{ i18n.t('vietnamese') }}</button>
-        </div>
-      </div>
-      <div class="outer-theme-control">
-      <span class="outer-theme-label">{{ i18n.t('theme') }}</span>
-      <div class="outer-theme-switch" role="group" [attr.aria-label]="i18n.t('theme')">
-        <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="theme.preset() === 'dark'" [attr.aria-pressed]="theme.preset() === 'dark'" (click)="setOuterTheme('dark')">{{ i18n.t('dark') }}</button>
-        <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="theme.preset() === 'light'" [attr.aria-pressed]="theme.preset() === 'light'" (click)="setOuterTheme('light')">{{ i18n.t('light') }}</button>
-        <button type="button" class="outer-theme-option ui-button ui-button--sm" [class.ui-button--selected]="theme.preset() === 'craft'" [attr.aria-pressed]="theme.preset() === 'craft'" (click)="setOuterTheme('craft')">{{ i18n.t('craft') }}</button>
-      </div>
-      </div>
+      <button type="button" class="outer-settings-action ui-button ui-button--secondary" uiTooltip="{{ i18n.t('settingsMenu') }}" [attr.aria-label]="i18n.t('settingsMenu')" [attr.title]="i18n.t('settingsMenu')" (click)="openSettingsDialog()"><svg lucideSettings aria-hidden="true"></svg><span>{{ i18n.t('settingsMenu') }}</span></button>
     </div>
   </header>
   <header class="project-intro">
@@ -47,10 +33,10 @@
       @if (sizePolicy().fitsVanilla) {
         <p class="size-compatibility" role="status">{{ i18n.t('vanillaCompatible') }}</p>
       } @else if (sizePolicy().fitsHugeStructureBlocks) {
-        <aside class="huge-recommendation" [class.huge-recommendation--active]="structureMode() === 'huge-structure-blocks'" aria-live="polite">
+        <aside class="huge-recommendation" [class.huge-recommendation--active]="effectiveStructureMode() === 'huge-structure-blocks'" aria-live="polite">
           <div class="huge-recommendation-copy">
             <strong>{{ i18n.t('hugeStructureBlocksRecommendationTitle') }}</strong>
-            @if (structureMode() === 'huge-structure-blocks') {
+            @if (effectiveStructureMode() === 'huge-structure-blocks') {
               <p>{{ i18n.t('hugeStructureBlocksActive') }}</p>
             } @else {
               <p>{{ i18n.t('hugeStructureBlocksRecommendationText') }}</p>
@@ -63,12 +49,12 @@
                 <li>{{ i18n.t('hugeStructureBlocksStepUse') }}</li>
               </ol>
             </details>
-            <div class="huge-recommendation-links">
-              <a href="https://modrinth.com/mod/huge-structure-blocks" target="_blank" rel="noopener noreferrer">{{ i18n.t('hugeStructureBlocksModrinth') }}</a>
-              <a href="https://www.curseforge.com/minecraft/mc-mods/huge-structure-blocks" target="_blank" rel="noopener noreferrer">{{ i18n.t('hugeStructureBlocksCurseForge') }}</a>
+            <div class="huge-recommendation-links" [attr.aria-label]="i18n.t('hugeStructureBlocksResources')">
+              <a class="huge-resource-link" href="https://modrinth.com/mod/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksModrinth') }} ↗</small></a>
+              <a class="huge-resource-link" href="https://www.curseforge.com/minecraft/mc-mods/huge-structure-blocks" target="_blank" rel="noopener noreferrer"><span>{{ i18n.t('hugeStructureBlocks') }}</span><small>{{ i18n.t('hugeStructureBlocksCurseForge') }} ↗</small></a>
             </div>
           </div>
-          @if (structureMode() !== 'huge-structure-blocks') { <button type="button" class="ui-button ui-button--secondary size-action" (click)="useHugeStructureBlocks()">{{ i18n.t('useHugeStructureBlocks') }}</button> }
+          @if (effectiveStructureMode() !== 'huge-structure-blocks') { <button type="button" class="ui-button ui-button--secondary size-action" (click)="useHugeStructureBlocks()">{{ i18n.t('useHugeStructureBlocks') }}</button> }
         </aside>
       }
       <div class="project-actions">
@@ -91,4 +77,5 @@
       @if (deleteError()) { <p class="error recent-project-error" role="alert">{{ deleteError() }}</p> }
     </section>
   </section>
+  @if (settingsDialogOpen()) { <app-settings-dialog (closed)="closeSettingsDialog()" /> }
 </main>

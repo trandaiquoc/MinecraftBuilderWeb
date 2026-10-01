@@ -39,6 +39,13 @@ export function isStructureCreationAllowed(size: ProjectSize, mode: StructureMod
   return policy.dimensionsValid && (policy.fitsVanilla || (mode === 'huge-structure-blocks' && policy.fitsHugeStructureBlocks));
 }
 
+export function effectiveStructureModeForSize(size: ProjectSize, selectedMode: StructureMode, autoUseHuge: boolean): StructureMode {
+  const policy = evaluateStructureSize(size);
+  if (policy.fitsVanilla) return DEFAULT_STRUCTURE_MODE;
+  if (autoUseHuge && policy.fitsHugeStructureBlocks) return 'huge-structure-blocks';
+  return selectedMode;
+}
+
 export function evaluateStructureSize(size: ProjectSize, mode: StructureMode = DEFAULT_STRUCTURE_MODE): StructureSizePolicy {
   const axes: readonly StructureAxis[] = ['x', 'y', 'z'];
   const dimensionsValid = axes.every((axis) => Number.isInteger(size[axis]) && size[axis] >= 1);
