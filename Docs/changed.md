@@ -1745,15 +1745,29 @@ Structure JSON now has one current decoration-aware contract (`StructureJson`) f
 
 Selection `all` is represented semantically instead of as a cloned coordinate array. Large selections use aggregate bounds visualization, while small selections reuse shared outline geometry/material. Bulk consumers query selection membership through `SelectionService` so Ctrl+A remains complete without allocating one Three.js resource per block.
 
-## Prompt 15.1 Structure NBT contract boundary
+## Prompt 15.1.1 Structure NBT golden checkpoint
 
-The current tree now documents the verified Minecraft Java 1.21.1 Structure
+The current tree documents the verified Minecraft Java 1.21.1 Structure
 Template contract and pins its DataVersion to 3955. A typed NBT model,
 canonical palette/state identity helpers, strict namespaced ResourceLocation
 validation, version/size/coordinate diagnostics, and a codec/adapter port live
 under `core/persistence/minecraft-structure`. Missing local assets preserve
 their registry ID/state and are never converted to air.
 
-No NBT codec dependency, binary exporter, download action, or Minecraft-generated
-golden fixture was added. Sparse/Air semantics remain an explicit checkpoint
-until an independently saved 1.21.1 Structure Block fixture is provided.
+The immutable Minecraft-generated golden fixture
+`Frontend/src/app/core/persistence/minecraft-structure/fixtures/golden_1_21_1.nbt`
+is 1296 bytes with SHA-256
+`fe1e881588eda3d8d262917e2aef7b01d25f0dee5c2a352466b7afaf1c4d49fe`.
+It is a Java 1.21.1 Structure Block SAVE with Include Entities ON, dimensions
+5 × 4 × 5, and manual reload PASS. Independent decoding confirms gzip, an
+unnamed root Compound, DataVersion 3955, 14 palette entries, 100 explicit
+block entries, complete coordinate coverage, and 83 explicit
+`minecraft:air` entries. Manual Air-over-Stone verification PASS confirms that
+saved Air clears pre-existing target Stone.
+
+Sparse/Air semantics are therefore VERIFIED for this Structure Block form:
+future faithful export must materialize empty ProjectDocument voxels as Air,
+not omit them and not replace them with Structure Void. No production exporter,
+download action, or codec dependency was added. Codec approval remains open;
+`nbtify@2.2.0` is the preferred candidate, with `prismarine-nbt@2.8.0` as
+fallback pending an Angular/browser adapter evaluation.
