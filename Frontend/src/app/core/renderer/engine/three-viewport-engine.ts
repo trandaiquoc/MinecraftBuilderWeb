@@ -26,7 +26,7 @@ import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
-import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, setBlockBrightnessBaseColor } from './block-brightness';
+import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, applyStructureGuideBrightnessToObject, setBlockBrightnessBaseColor, STRUCTURE_GUIDE_BRIGHTNESS } from './block-brightness';
 import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
 import { structureBlockGuidePosition } from './structure-block-guide';
 
@@ -566,7 +566,6 @@ export class ThreeViewportEngine {
     this.applyBlockBrightness();
     this.logicalSelectionGroup.traverse((object) => { if (object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.selection); });
     this.scene.traverse((object) => { if (object.userData['groupHighlight'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(object.userData['groupLocked'] ? palette.lockedGroup : palette.group); });
-    this.structureBlockGuideGroup.traverse((object) => { if (object.userData['structureBlockGuideOutline'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.structureGuide); });
     this.movePreviewGroup.traverse((object) => { if (object instanceof THREE.Mesh) (object.material as THREE.MeshBasicMaterial).color.setHex(object.userData['previewInvalid'] ? palette.invalid : palette.valid); });
     const ghostStatus = this.ghost.userData['status'] as PlacementStatus | undefined;
     if (ghostStatus) (this.ghost.material as THREE.MeshBasicMaterial).color.setHex(colorForStatus(this.palette, ghostStatus));
@@ -2255,23 +2254,14 @@ export class ThreeViewportEngine {
       guide.userData['structureBlockGuide'] = true;
       const object = visual.object;
       object.userData['structureBlockGuide'] = true;
+      applyStructureGuideBrightnessToObject(object, STRUCTURE_GUIDE_BRIGHTNESS);
       const bounds = new THREE.Box3().setFromObject(object);
       if (!Number.isFinite(bounds.min.x) || !Number.isFinite(bounds.max.x)) {
         disposeObject(object);
         return;
       }
       guide.add(object);
-      const size = bounds.getSize(new THREE.Vector3());
-      const outline = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x + .08, size.y + .08, size.z + .08)),
-        new THREE.LineBasicMaterial({ color: this.palette.structureGuide, depthTest: false, depthWrite: false, transparent: true, opacity: .95 }),
-      );
-      outline.position.copy(bounds.getCenter(new THREE.Vector3()));
-      outline.userData['structureBlockGuideOutline'] = true;
-      outline.renderOrder = 2002;
-      guide.add(outline);
       guide.position.set(guidePosition.x, guidePosition.y, guidePosition.z);
-      guide.renderOrder = 2001;
       this.structureBlockGuideGroup.add(guide);
       this.render();
     }).catch(() => { /* Missing or invalid assets leave the helper absent by design. */ });

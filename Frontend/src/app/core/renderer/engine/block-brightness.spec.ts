@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, blockBrightnessMaterialFactor, setBlockBrightnessBaseColor } from './block-brightness';
+import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, applyStructureGuideBrightnessToObject, blockBrightnessMaterialFactor, setBlockBrightnessBaseColor, STRUCTURE_GUIDE_BRIGHTNESS, structureGuideBrightnessMaterialFactor } from './block-brightness';
 
 describe('block brightness material policy', () => {
   it('uses a visible monotonic factor around the vanilla/default level', () => {
@@ -64,5 +64,52 @@ describe('block brightness material policy', () => {
     expect(special.color.equals(specialSource)).toBe(true);
     root.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
     fluid.dispose(); special.map?.dispose(); special.dispose();
+  });
+
+  it('keeps guide brightness above the normal maximum as an independent semantic scale', () => {
+    expect(STRUCTURE_GUIDE_BRIGHTNESS).toBe(18);
+    expect(structureGuideBrightnessMaterialFactor()).toBeGreaterThan(blockBrightnessMaterialFactor(10));
+  });
+
+  it('clones guide materials, preserves shared textures, and does not change the source material', () => {
+    const texture = new THREE.Texture();
+    const source = new THREE.MeshLambertMaterial({ color: 0x6688aa, map: texture, transparent: true, opacity: .8, alphaTest: .1 });
+    source.userData['sharedPlaceholderMaterial'] = true;
+    const root = new THREE.Mesh(new THREE.BoxGeometry(), source);
+    const sourceColor = source.color.clone();
+
+    applyStructureGuideBrightnessToObject(root);
+
+    const guide = root.material as unknown as THREE.MeshBasicMaterial;
+    expect(guide).not.toBe(source);
+    expect(guide).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(guide.map).toBe(texture);
+    expect(guide.userData['sharedPlaceholderMaterial']).toBeUndefined();
+    expect(guide.color.getHex()).not.toBe(sourceColor.getHex());
+    expect(source.color.equals(sourceColor)).toBe(true);
+    expect(guide.transparent).toBe(true);
+    expect(guide.opacity).toBe(.8);
+    expect(guide.alphaTest).toBe(.1);
+
+    let textureDisposed = false;
+    texture.addEventListener('dispose', () => textureDisposed = true);
+    guide.dispose();
+    expect(textureDisposed).toBe(false);
+    root.geometry.dispose(); source.dispose(); texture.dispose();
+  });
+
+  it('keeps standard materials and applies self-lit guide output without replacing their texture', () => {
+    const texture = new THREE.Texture();
+    const source = new THREE.MeshStandardMaterial({ color: 0x6688aa, map: texture });
+    const root = new THREE.Mesh(new THREE.BoxGeometry(), source);
+
+    applyStructureGuideBrightnessToObject(root);
+
+    const guide = root.material as THREE.MeshStandardMaterial;
+    expect(guide).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(guide).not.toBe(source);
+    expect(guide.map).toBe(texture);
+    expect(guide.emissiveIntensity).toBeGreaterThan(0);
+    guide.dispose(); root.geometry.dispose(); source.dispose(); texture.dispose();
   });
 });
