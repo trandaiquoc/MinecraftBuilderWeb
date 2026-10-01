@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, computed, effect, inject, isDevMode, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
@@ -42,7 +42,6 @@ import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-asset
 import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
-import { InputShellOwner, InputViewportIdentity, inputDiagnostics, installInputDiagnosticsGlobal } from '../../../core/editor/input/input-diagnostics';
 
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
@@ -123,17 +122,10 @@ export class EditorShellComponent implements OnDestroy {
   private moveDrag?: { readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: PanelPosition };
   private sidebarDrag?: { readonly side: 'left' | 'right'; readonly pointerId: number; readonly startX: number; readonly origin: number };
   private readonly pressedMovementActions = new MovementKeyOwnership();
+  private keyboardStreamState: 'synchronized' | 'uncertain' = 'synchronized';
 
   constructor() {
-    if (isDevMode()) { inputDiagnostics.enable(); installInputDiagnosticsGlobal(); }
     void this.workspace.restore(new IndexedDbProjectStore());
-    effect(() => {
-      const mode = this.mode.mode();
-      const previous = this.inputDiagnosticMode;
-      if (previous && previous !== mode) inputDiagnostics.recordLifecycle({ type: 'mode-change', before: previous, after: mode });
-      this.inputDiagnosticMode = mode;
-      this.syncInputDiagnostics();
-    });
     effect(() => {
       const activeGroupId = this.groups.activeGroupId();
       if (activeGroupId === this.previousActiveGroupId) return;
@@ -142,8 +134,7 @@ export class EditorShellComponent implements OnDestroy {
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
   }
-  private inputDiagnosticMode: '3d' | 'y-layer' = '3d';
-  ngOnDestroy(): void { inputDiagnostics.recordLifecycle({ type: 'shell-destroy' }); this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
+  ngOnDestroy(): void { this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
@@ -202,7 +193,7 @@ export class EditorShellComponent implements OnDestroy {
   protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void { this.theme.setPreset(theme); this.closeMenus(); }
   protected chooseFont(font: 'geist' | 'minecraft-style'): void { this.theme.setFont(font); this.closeMenus(); }
   protected chooseEditorBackground(background: 'dark' | 'light'): void { this.theme.setEditorBackground(background); this.closeMenus(); }
-  protected setEditorMode(mode: '3d' | 'y-layer'): void { this.mode.setMode(mode); this.closeMenus(); }
+  protected setEditorMode(mode: '3d' | 'y-layer'): void { this.changeEditorMode(mode); this.closeMenus(); }
   protected retryRestore(): void { void this.workspace.restore(new IndexedDbProjectStore()); }
   protected async backToProjects(): Promise<void> {
     if (!await this.confirmLeavingProtectedAssetOperation()) return;
@@ -376,38 +367,27 @@ export class EditorShellComponent implements OnDestroy {
     const action = this.keyboard.actionForEvent(event); if (!action) return;
     if (isMovementAction(action)) {
       const owner = movementPhysicalKey(event);
-      const ownersBefore = this.inputOwnerSnapshot();
-      const target = this.currentInputIdentity();
+      if (!owner) {
+        this.invalidateMovementSession();
+        event.preventDefault();
+        return;
+      }
       const previous = this.pressedMovementActions.actionFor(owner);
       if (previous === action) {
-        inputDiagnostics.recordKeyDown(event, { physicalOwner: owner, action, ownerBefore: true, ownersBefore, ownersAfter: ownersBefore, target, cameraKeyDownEmitted: false, enginePressedActionsAfter: target ? inputDiagnostics.engineSnapshot(target.engineInstanceId)?.pressedActions : undefined });
-        inputDiagnostics.check('movement-keydown-repeat', { owner, action });
         event.preventDefault();
         return;
       }
       if (previous) this.releaseMovementOwner(owner, previous);
       const hadActionOwner = this.pressedMovementActions.hasAction(action);
       this.pressedMovementActions.press(owner, action);
-      this.syncInputDiagnostics();
+      this.keyboardStreamState = 'synchronized';
       const emitted = !hadActionOwner;
       if (emitted) this.currentViewport()?.cameraKeyDown(action);
-      const ownersAfter = this.inputOwnerSnapshot();
-      inputDiagnostics.recordMovementRoute(owner, action, target);
-      inputDiagnostics.recordKeyDown(event, { physicalOwner: owner, action, ownerBefore: !!previous, ownersBefore, ownersAfter, target, cameraKeyDownEmitted: emitted, enginePressedActionsAfter: target ? inputDiagnostics.engineSnapshot(target.engineInstanceId)?.pressedActions : undefined });
-      inputDiagnostics.check('movement-keydown', { owner, action });
       event.preventDefault();
       return;
     }
-    if (shouldSuppressEditorActionDuringMovement(action, this.pressedMovementActions)) {
-      if (action === 'delete-selection') this.recordDeleteEvent(event, true, this.workspace.project()?.blocks.length, this.workspace.project()?.blocks.length);
+    if (action === 'delete-selection' && (this.keyboardStreamState === 'uncertain' || shouldSuppressEditorActionDuringMovement(action, this.pressedMovementActions))) {
       event.preventDefault();
-      return;
-    }
-    if (action === 'delete-selection') {
-      const before = this.workspace.project()?.blocks.length;
-      const handled = this.executeKeyboardAction(action);
-      this.recordDeleteEvent(event, false, before, this.workspace.project()?.blocks.length);
-      if (handled) event.preventDefault();
       return;
     }
     const handled = this.executeKeyboardAction(action);
@@ -416,49 +396,34 @@ export class EditorShellComponent implements OnDestroy {
 
   protected handleEditorKeyup(event: KeyboardEvent): void {
     const key = movementPhysicalKey(event);
-    const ownersBefore = this.inputOwnerSnapshot();
+    if (!key) {
+      this.invalidateMovementSession();
+      if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
+      return;
+    }
     const action = this.pressedMovementActions.actionFor(key);
-    const target = this.currentInputIdentity();
-    const engineBefore = target ? inputDiagnostics.engineSnapshot(target.engineInstanceId)?.pressedActions : undefined;
-    if (action) this.releaseMovementOwner(key, action);
-    const ownersAfter = this.inputOwnerSnapshot();
-    const engineAfter = target ? inputDiagnostics.engineSnapshot(target.engineInstanceId)?.pressedActions : undefined;
-    inputDiagnostics.recordKeyUp(event, { physicalOwner: key, action, ownerFound: !!action, ownersBefore, ownersAfter, target, cameraKeyUpEmitted: !!action && !this.pressedMovementActions.hasAction(action), enginePressedActionsBefore: engineBefore, enginePressedActionsAfter: engineAfter });
-    inputDiagnostics.check('movement-keyup', { key, action, ownerFound: !!action });
     if (!action) return;
+    this.releaseMovementOwner(key, action);
     if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
   }
 
-  protected handleFocusIn(event?: FocusEvent): void { inputDiagnostics.recordLifecycle({ type: 'document.focusin', target: typeof HTMLElement !== 'undefined' && event?.target instanceof HTMLElement ? event.target.tagName.toLowerCase() : undefined }); this.clearPressedMovementActions(); }
-  protected handleVisibilityChange(_event?: Event): void { inputDiagnostics.recordLifecycle({ type: 'visibilitychange', visibilityState: typeof document !== 'undefined' ? document.visibilityState : undefined }); this.clearPressedMovementActions(); }
-  protected handleWindowBlur(_event?: FocusEvent): void { inputDiagnostics.recordLifecycle({ type: 'window.blur' }); this.clearPressedMovementActions(); }
+  protected handleFocusIn(_event?: FocusEvent): void { this.clearPressedMovementActions(); }
+  protected handleVisibilityChange(_event?: Event): void { this.clearPressedMovementActions(); }
+  protected handleWindowBlur(_event?: FocusEvent): void { this.clearPressedMovementActions(); }
 
   protected clearPressedMovementActions(): void {
-    inputDiagnostics.recordLifecycle({ type: 'shell-clearPressedMovementActions' });
-    const viewport = this.currentViewport();
-    const actions = this.pressedMovementActions.clear();
-    this.syncInputDiagnostics();
-    for (const action of actions) viewport?.cameraKeyUp(action);
-    this.syncInputDiagnostics();
-    inputDiagnostics.check('clearPressedMovementActions');
+    this.pressedMovementActions.clear();
+    this.currentViewport()?.clearCameraInput();
+    this.keyboardStreamState = 'synchronized';
   }
 
-  private releaseMovementOwner(owner: string, action: MovementAction): void { this.pressedMovementActions.release(owner); this.syncInputDiagnostics(); if (!this.pressedMovementActions.hasAction(action)) this.currentViewport()?.cameraKeyUp(action); this.syncInputDiagnostics(); inputDiagnostics.check('movement-owner-release', { owner, action }); }
+  private releaseMovementOwner(owner: string, action: MovementAction): void {
+    this.pressedMovementActions.release(owner);
+    if (!this.pressedMovementActions.hasAction(action)) this.currentViewport()?.cameraKeyUp(action);
+  }
 
-  private inputOwnerSnapshot(): readonly InputShellOwner[] {
-    return this.pressedMovementActions.entries().map(({ physicalOwner, action }) => ({ physicalOwner, action, ...this.routeForOwner(physicalOwner) }));
-  }
-  private routeForOwner(owner: string): Pick<InputShellOwner, 'downViewportInstanceId' | 'downEngineInstanceId' | 'downTimestamp'> { return inputDiagnostics.routeForOwner(owner); }
-  private currentInputIdentity(): InputViewportIdentity | undefined {
-    const viewport = this.currentViewport() as (ViewportComponent | YLayerComponent | { inputDiagnosticIdentity?: () => InputViewportIdentity } | undefined);
-    return typeof viewport?.inputDiagnosticIdentity === 'function' ? viewport.inputDiagnosticIdentity() : undefined;
-  }
-  private syncInputDiagnostics(): void { inputDiagnostics.setShellState(this.inputOwnerSnapshot(), this.inputDiagnosticMode); }
-  private recordDeleteEvent(event: KeyboardEvent, suppressed: boolean, projectBlockCountBefore?: number, projectBlockCountAfter?: number): void {
-    const snapshot = inputDiagnostics.snapshot();
-    inputDiagnostics.recordDelete({ timestamp: Date.now(), key: event.key, code: event.code, repeat: event.repeat, isTrusted: event.isTrusted, suppressed, shellOwnerCount: this.pressedMovementActions.ownerCount(), shellActions: this.pressedMovementActions.actions(), allEnginePressedActions: snapshot.current.liveEngines.map((engine) => ({ engineInstanceId: engine.engineInstanceId, actions: engine.pressedActions })), projectBlockCountBefore, projectBlockCountAfter });
-    inputDiagnostics.check('delete-selection', { suppressed });
-  }
+  private invalidateMovementSession(): void { this.keyboardStreamState = 'uncertain'; this.pressedMovementActions.clear(); this.currentViewport()?.clearCameraInput(); }
+  private changeEditorMode(mode: '3d' | 'y-layer'): void { if (this.mode.mode() === mode) return; this.clearPressedMovementActions(); this.mode.setMode(mode); }
 
   private executeKeyboardAction(action: KeyboardAction): boolean {
     if (action === 'undo') return this.history.undo();
@@ -472,8 +437,8 @@ export class EditorShellComponent implements OnDestroy {
     }
     if (action === 'tool-place') { this.tool.active.set('place'); return true; }
     if (action === 'tool-select') { this.tool.active.set('select'); return true; }
-    if (action === 'mode-3d') { this.mode.setMode('3d'); return true; }
-    if (action === 'mode-y-layer') { this.mode.setMode('y-layer'); return true; }
+    if (action === 'mode-3d') { this.changeEditorMode('3d'); return true; }
+    if (action === 'mode-y-layer') { this.changeEditorMode('y-layer'); return true; }
     if (action === 'fit-structure') { this.fitStructure(); return true; }
     if (action === 'focus-selection') { if (!this.focusSelectionAvailable()) return false; this.focusSelection(); return true; }
     if (action === 'save-project') { void this.saveProject(); return true; }

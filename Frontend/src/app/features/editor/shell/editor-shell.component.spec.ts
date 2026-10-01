@@ -6,6 +6,7 @@ import { SelectionService } from '../../../core/editor/selection/selection.servi
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
+import { EditorModeService } from '../../../core/editor/state/editor-mode.service';
 
 const project: ProjectDocument = {
   schemaVersion: 3,
@@ -68,7 +69,7 @@ describe('editor shell movement/delete routing', () => {
 
   it('releases every fast multi-key movement owner in any order', () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
-    const calls = { down: vi.fn(), up: vi.fn() };
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
     const shell = withFakeViewport(fixture.componentInstance, calls);
     const press = (key: string, code: string, options: KeyboardEventInit = {}) => shell.handleEditorShortcut(new KeyboardEvent('keydown', { key, code, cancelable: true, ...options }));
     const release = (key: string, code: string, options: KeyboardEventInit = {}) => shell.handleEditorKeyup(new KeyboardEvent('keyup', { key, code, cancelable: true, ...options }));
@@ -86,7 +87,7 @@ describe('editor shell movement/delete routing', () => {
 
   it('keeps ownership stable across modifier changes and coded/missing-code releases', () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
-    const calls = { down: vi.fn(), up: vi.fn() };
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
     const shell = withFakeViewport(fixture.componentInstance, calls);
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', cancelable: true }));
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'Shift', code: 'ShiftLeft', shiftKey: true, cancelable: true }));
@@ -109,26 +110,103 @@ describe('editor shell movement/delete routing', () => {
 
   it('clears all movement owners on lifecycle boundaries', () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
-    const calls = { down: vi.fn(), up: vi.fn() };
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
     const shell = withFakeViewport(fixture.componentInstance, calls);
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', cancelable: true }));
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD', cancelable: true }));
     shell.handleWindowBlur();
-    expect(calls.up.mock.calls.map(([action]) => action)).toEqual(['move-forward', 'move-right']);
+    expect(calls.clear).toHaveBeenCalledTimes(1);
+    expect(calls.up).not.toHaveBeenCalled();
     expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', cancelable: true }));
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', cancelable: true }));
     shell.handleVisibilityChange();
+    expect(calls.clear).toHaveBeenCalledTimes(2);
     expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    fixture.destroy();
+  });
+
+  it('clears the whole movement session after an unidentifiable release', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: '', cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Unidentified', code: '', cancelable: true }));
+    expect(calls.down.mock.calls.map(([action]) => action)).toEqual(['move-left']);
+    expect(calls.clear).toHaveBeenCalledTimes(1);
+    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    fixture.destroy();
+  });
+
+  it('suppresses the IME destructive sequence before and after a new movement session', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const selection = TestBed.inject(SelectionService);
+    const editor = TestBed.inject(StructureEditorService);
+    workspace.activate(project, undefined);
+    selection.select({ x: 1, y: 1, z: 1 });
+    const deleteSelection = vi.spyOn(editor, 'deleteSelection');
+
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Unidentified', code: '', cancelable: true }));
+    const before = JSON.stringify(workspace.project());
+    const firstDelete = new KeyboardEvent('keydown', { key: 'Backspace', code: 'Backspace', cancelable: true });
+    shell.handleEditorShortcut(firstDelete);
+    expect(firstDelete.defaultPrevented).toBe(true);
+    expect(deleteSelection).not.toHaveBeenCalled();
+    expect(JSON.stringify(workspace.project())).toBe(before);
+
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: '', cancelable: true }));
+    const secondUnknownRelease = new KeyboardEvent('keyup', { key: 'Unidentified', code: '', cancelable: true });
+    shell.handleEditorKeyup(secondUnknownRelease);
+    const secondDelete = new KeyboardEvent('keydown', { key: 'Backspace', code: 'Backspace', cancelable: true });
+    shell.handleEditorShortcut(secondDelete);
+    expect(secondDelete.defaultPrevented).toBe(true);
+    expect(deleteSelection).not.toHaveBeenCalled();
+    expect(calls.clear).toHaveBeenCalledTimes(2);
+    fixture.destroy();
+  });
+
+  it('keeps normal identifiable release synchronized so Backspace still deletes', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const selection = TestBed.inject(SelectionService);
+    const editor = TestBed.inject(StructureEditorService);
+    workspace.activate(project, undefined);
+    selection.select({ x: 1, y: 1, z: 1 });
+    const deleteSelection = vi.spyOn(editor, 'deleteSelection');
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'a', code: '', cancelable: true }));
+    const deletion = new KeyboardEvent('keydown', { key: 'Backspace', code: 'Backspace', cancelable: true });
+    shell.handleEditorShortcut(deletion);
+    expect(deletion.defaultPrevented).toBe(true);
+    expect(deleteSelection).toHaveBeenCalledTimes(1);
+    expect(calls.clear).not.toHaveBeenCalled();
+    fixture.destroy();
+  });
+
+  it('clears the old viewport before a mode transition', () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    const mode = TestBed.inject(EditorModeService);
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', cancelable: true }));
+    shell.setEditorMode('y-layer');
+    expect(calls.clear).toHaveBeenCalledTimes(1);
+    expect(mode.mode()).toBe('y-layer');
     fixture.destroy();
   });
 });
 
-function withFakeViewport(component: EditorShellComponent, calls: { readonly down: ReturnType<typeof vi.fn>; readonly up: ReturnType<typeof vi.fn> }): {
+function withFakeViewport(component: EditorShellComponent, calls: { readonly down: ReturnType<typeof vi.fn>; readonly up: ReturnType<typeof vi.fn>; readonly clear: ReturnType<typeof vi.fn> }): {
   handleEditorShortcut: (event: KeyboardEvent) => void;
   handleEditorKeyup: (event: KeyboardEvent) => void;
   handleWindowBlur: () => void;
   handleVisibilityChange: () => void;
+  setEditorMode: (mode: '3d' | 'y-layer') => void;
 } {
   const instance = component as unknown as {
     currentViewport: () => unknown;
@@ -136,8 +214,9 @@ function withFakeViewport(component: EditorShellComponent, calls: { readonly dow
     handleEditorKeyup: (event: KeyboardEvent) => void;
     handleWindowBlur: () => void;
     handleVisibilityChange: () => void;
+    setEditorMode: (mode: '3d' | 'y-layer') => void;
   };
-  instance.currentViewport = () => ({ cameraKeyDown: calls.down, cameraKeyUp: calls.up });
+  instance.currentViewport = () => ({ cameraKeyDown: calls.down, cameraKeyUp: calls.up, clearCameraInput: calls.clear });
   return instance;
 }
 

@@ -26,14 +26,12 @@ import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
-import { inputDiagnostics, InputDiagnosticMode } from '../../editor/input/input-diagnostics';
 import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, setBlockBrightnessBaseColor } from './block-brightness';
 import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; }
-export interface ViewportEngineDiagnosticsContext { readonly viewportInstanceId: string; readonly mode: InputDiagnosticMode; }
 export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
 export interface ViewportHydrationProgress {
   readonly generation: number;
@@ -482,12 +480,7 @@ export class ThreeViewportEngine {
   private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
 
-  readonly diagnosticInstanceId: string;
-  readonly diagnosticViewportInstanceId: string;
-
-  constructor(readonly instrumentation = new RendererDiagnostics(), diagnosticsContext?: ViewportEngineDiagnosticsContext) {
-    this.diagnosticViewportInstanceId = diagnosticsContext?.viewportInstanceId ?? '';
-    this.diagnosticInstanceId = inputDiagnostics.registerEngine(this.diagnosticViewportInstanceId, diagnosticsContext?.mode ?? '3d');
+  constructor(readonly instrumentation = new RendererDiagnostics()) {
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
     selectionBoxMaterial.depthTest = false;
     selectionBoxMaterial.depthWrite = false;
@@ -594,8 +587,8 @@ export class ThreeViewportEngine {
     this.applyControlConfiguration();
   }
 
-  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); inputDiagnostics.recordCameraKeyDown(this.diagnosticInstanceId, action); inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, this.cameraMoveFrame !== undefined, this.cameraMoveFrame); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); inputDiagnostics.recordCameraKeyUp(this.diagnosticInstanceId, action); inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, this.cameraMoveFrame !== undefined, this.cameraMoveFrame); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.render(); }
+  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.startCameraMovement(); }
+  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.render(); }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -1527,7 +1520,6 @@ export class ThreeViewportEngine {
     if (typeof document !== 'undefined') { document.removeEventListener('focusin', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); }
     if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
     this.clearInput();
-    inputDiagnostics.disposeEngine(this.diagnosticInstanceId);
     this.cancelHydration();
     const provider = this.visualProvider;
     if (this.renderTimer !== undefined) { clearTimeout(this.renderTimer); this.renderTimer = undefined; this.renderScheduled = false; }
@@ -2056,7 +2048,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();
   }
-  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } inputDiagnostics.recordEngineClearInput(this.diagnosticInstanceId); inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, false); }
+  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
@@ -2331,13 +2323,10 @@ export class ThreeViewportEngine {
       const rawDeltaMs = now - previous;
       const delta = Math.min(rawDeltaMs / 1000, .1);
       previous = now;
-      inputDiagnostics.recordMovementFrame(this.diagnosticInstanceId, rawDeltaMs, delta, [...this.pressedActions]);
       this.moveCamera(this.pressedActions, delta);
       if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step);
-      inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, this.cameraMoveFrame !== undefined, this.cameraMoveFrame);
     };
     this.cameraMoveFrame = requestAnimationFrame(step);
-    inputDiagnostics.syncEngine(this.diagnosticInstanceId, this.pressedActions, true, this.cameraMoveFrame);
   }
   private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     if (!this.controls || !keys.size) return;

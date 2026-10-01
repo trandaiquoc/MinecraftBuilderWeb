@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_KEYBINDINGS, MovementKeyOwnership, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, movementPhysicalKey, normalizeBinding, normalizeBindings, shouldSuppressEditorActionDuringMovement } from './keyboard-bindings';
+import { DEFAULT_KEYBINDINGS, MovementKeyOwnership, bindingFromKeyboardEvent, findBindingConflicts, isModifierOnlyBinding, isMovementAction, keyboardActionForEvent, movementPhysicalKey, normalizeBinding, normalizeBindings, physicalKeyboardIdentity, shouldSuppressEditorActionDuringMovement } from './keyboard-bindings';
 
 describe('keyboard binding model', () => {
   it('normalizes modifier order and supports up to three tokens', () => {
@@ -59,6 +59,10 @@ describe('keyboard binding model', () => {
     expect(movementPhysicalKey({ code: 'ShiftLeft', key: 'Shift' })).toBe(movementPhysicalKey({ code: '', key: 'Shift' }));
     expect(movementPhysicalKey({ code: '', key: 'SHIFT' })).toBe('Shift');
     expect(movementPhysicalKey({ code: 'ShiftRight', key: 'Shift' })).toBe(movementPhysicalKey({ code: 'ShiftLeft', key: 'Shift' }));
+    expect(physicalKeyboardIdentity({ code: '', key: 'Unidentified' })).toBeUndefined();
+    expect(physicalKeyboardIdentity({ code: '', key: 'Process' })).toBeUndefined();
+    expect(physicalKeyboardIdentity({ code: '', key: 'Dead' })).toBeUndefined();
+    expect(physicalKeyboardIdentity({ code: 'KeyA', key: 'Unidentified' })).toBe('KeyA');
   });
 
   it('keeps repeated and multi-owner action transitions deterministic', () => {

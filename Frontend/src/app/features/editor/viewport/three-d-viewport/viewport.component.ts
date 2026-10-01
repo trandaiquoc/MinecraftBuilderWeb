@@ -31,7 +31,6 @@ import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
-import { inputDiagnostics } from '../../../../core/editor/input/input-diagnostics';
 
 declare global {
   interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
@@ -68,8 +67,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly status = signal<PlacementStatus>('invalid');
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
-  private readonly viewportInstanceId = inputDiagnostics.registerViewport('3d');
-  private readonly engine = new ThreeViewportEngine(undefined, { viewportInstanceId: this.viewportInstanceId, mode: '3d' });
+  private readonly engine = new ThreeViewportEngine();
   private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
@@ -100,7 +98,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (isDevMode() && typeof window !== 'undefined' && window.__mbViewportDiagnostics === this.runtimeDiagnosticsCommand) delete window.__mbViewportDiagnostics;
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
-    this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); inputDiagnostics.destroyViewport(this.viewportInstanceId);
+    this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }
@@ -236,7 +234,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected preventViewportWheel(event: WheelEvent): void { event.preventDefault(); }
   cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
   cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
-  inputDiagnosticIdentity(): { readonly viewportInstanceId: string; readonly engineInstanceId: string; readonly mode: '3d' } { return { viewportInstanceId: this.viewportInstanceId, engineInstanceId: this.engine.diagnosticInstanceId, mode: '3d' }; }
+  clearCameraInput(): void { this.engine.clearInput(); }
 }
 
 

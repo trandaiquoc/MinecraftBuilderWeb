@@ -12,7 +12,6 @@ export class MovementKeyOwnership {
   release(owner: string): MovementAction | undefined { const action = this.owners.get(owner); this.owners.delete(owner); return action; }
   hasAction(action: MovementAction): boolean { for (const value of this.owners.values()) if (value === action) return true; return false; }
   actions(): readonly MovementAction[] { return [...new Set(this.owners.values())].sort(); }
-  entries(): readonly { readonly physicalOwner: string; readonly action: MovementAction }[] { return [...this.owners].map(([physicalOwner, action]) => ({ physicalOwner, action })); }
   ownerCount(): number { return this.owners.size; }
   clear(): readonly MovementAction[] { const actions = this.actions(); this.owners.clear(); return actions; }
 }
@@ -71,8 +70,17 @@ export function bindingFromKeyboardEvent(event: { readonly key: string; readonly
 }
 
 /** Stable physical owner key for movement state; modifier snapshots belong only to action resolution. */
-export function movementPhysicalKey(event: { readonly key: string; readonly code?: string; readonly ctrlKey?: boolean; readonly altKey?: boolean; readonly shiftKey?: boolean; readonly metaKey?: boolean }): string {
-  return canonicalPhysicalKey(event.code, event.key);
+export function physicalKeyboardIdentity(event: { readonly key: string; readonly code?: string; readonly ctrlKey?: boolean; readonly altKey?: boolean; readonly shiftKey?: boolean; readonly metaKey?: boolean }): string | undefined {
+  const code = event.code?.trim();
+  if (code && !UNKNOWN_KEY_TOKENS.has(code)) return canonicalPhysicalKey(code, event.key);
+  if (code) return undefined;
+  if (UNKNOWN_KEY_TOKENS.has(event.key)) return undefined;
+  return canonicalPhysicalKey(undefined, event.key);
+}
+
+/** Returns a stable owner only when the browser event identifies a physical key. */
+export function movementPhysicalKey(event: { readonly key: string; readonly code?: string; readonly ctrlKey?: boolean; readonly altKey?: boolean; readonly shiftKey?: boolean; readonly metaKey?: boolean }): string | undefined {
+  return physicalKeyboardIdentity(event);
 }
 
 export function isModifierOnlyBinding(binding: string | undefined): boolean {
@@ -157,3 +165,5 @@ function canonicalPhysicalKey(code: string | undefined, key: string): string {
   if (token === 'Meta' || token === 'OS') return 'Meta';
   return token;
 }
+
+const UNKNOWN_KEY_TOKENS = new Set(['Unidentified', 'Process', 'Dead']);
