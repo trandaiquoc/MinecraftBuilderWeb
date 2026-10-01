@@ -2,6 +2,9 @@
 .status-left, .status-right { display: flex; align-items: center; min-width: 0; gap: 1.1rem; overflow: hidden; }
 .status-right { flex: 0 1 min(54%, 42rem); justify-content: flex-end; margin-left: auto; }
 .status-left > span, .asset-status-copy, .hydration-status-copy, .hydration-status-count { overflow: hidden; text-overflow: ellipsis; }
+.active-placement-status { display: inline-flex; min-width: 0; max-width: min(24rem, 30vw); gap: .25rem; }
+.active-placement-label { flex: 0 0 auto; color: var(--text-muted); }
+.active-placement-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .asset-status, .hydration-status { display: grid; min-width: 0; gap: .28rem; overflow: hidden; text-align: right; justify-items: end; }
 .asset-status { flex: 0 1 min(48%, 32rem); min-width: 10rem; }
 .hydration-status { flex: 0 1 min(52%, 34rem); min-width: 12rem; font-variant-numeric: tabular-nums; }

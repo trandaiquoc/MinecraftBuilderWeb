@@ -1,13 +1,6 @@
 <section class="block-browser">
   <app-content-source-selector [sources]="sources()" [selectedId]="activeSource()" [label]="i18n.t('contentSource')" [manageLabel]="i18n.t('manageSources')" (selectionChange)="selectSource($event)" (manageRequested)="openAssetManager()" />
-  <div class="search-active-row">
-    <div class="search-field"><label class="search-label" for="block-search">{{ i18n.t('blockSearch') }}</label><input id="block-search" type="search" [value]="library.query()" (input)="search($event)" [placeholder]="i18n.t('blockSearchPlaceholder')" /></div>
-    @if (activePreviewItem(); as activeItem) {
-      <div class="active-block" [attr.title]="activeItem.displayName"><span>{{ i18n.t('activeBlock') }}</span><div class="active-block-content">@if (assets.thumbnailUrlForItem(activeItem); as thumbnail) { <img [src]="thumbnail" alt="" /> } @else { <span class="active-preview-placeholder">◇</span> }<div><strong>{{ activeItem.displayName }}</strong><small>{{ activeItem.modName || (activeItem.namespace === 'minecraft' ? 'Minecraft' : activeItem.namespace) }}</small></div></div></div>
-    } @else if (library.activeBlock.active(); as active) {
-      <div class="active-block" [attr.title]="active.itemId || active.id"><span>{{ i18n.t('activeBlock') }}</span><div class="active-block-content"><span class="active-preview-placeholder">◇</span><div><strong>{{ active.itemId || active.id }}</strong><small>{{ active.sourceId || active.support }}</small></div></div></div>
-    }
-  </div>
+  <div class="search-field"><label class="search-label" for="block-search">{{ i18n.t('blockSearch') }}</label><input id="block-search" type="search" [value]="library.query()" (input)="search($event)" [placeholder]="i18n.t('blockSearchPlaceholder')" /></div>
   @if (assetsUnavailable()) {
     <div class="asset-empty-state"><p>{{ assets.message() || i18n.t('assetsUnavailableForBrowser') }}</p><button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="retryAssets()">{{ i18n.t('retry') }}</button><button type="button" class="ui-button ui-button--primary ui-button--sm" (click)="openAssetManager()">{{ i18n.t('openAssetManager') }}</button></div>
   } @else if (results().length) {

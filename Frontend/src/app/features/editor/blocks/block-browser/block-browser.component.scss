@@ -3,7 +3,6 @@
 .asset-empty-state p { margin: 0; }
 .asset-empty-state button { justify-self: start; border: 0; border-radius: 4px; padding: .3rem .45rem; background: var(--control-normal); color: var(--text); cursor: pointer; font-size: .68rem; box-shadow: 0 2px 0 rgb(0 0 0 / .12); }
 .asset-empty-state button:hover { background: var(--surface-hover); }
-.search-active-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .8fr); gap: .45rem; align-items: end; min-width: 0; }
 .search-field { display: grid; gap: .2rem; min-width: 0; }
 .search-label { color: var(--text-muted); font-size: .78rem; }
 .block-browser input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 5px; padding: .48rem .6rem; background: var(--surface-raised); color: var(--text); }
@@ -25,30 +24,12 @@
 .preview.special { background: #745c34; }
 .block-copy { min-width: 0; display: grid; align-content: start; gap: .12rem; }.block-copy strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-overflow: ellipsis; overflow-wrap: anywhere; font-size: .78rem; line-height: 1.05; }.block-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .block-copy small { color: var(--text-muted); font-size: .68rem; }
-.muted, .active-block { color: var(--text-muted); font-size: .75rem; }
-.active-block { display: grid; gap: .12rem; min-width: 0; min-height: 2.65rem; padding: .3rem .4rem; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-raised); }
-.active-block-content { display: flex; align-items: center; gap: .35rem; min-width: 0; }
-.active-block-content img, .active-preview-placeholder { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; object-fit: cover; image-rendering: pixelated; }
-.active-preview-placeholder { background: var(--surface-muted); color: var(--text-muted); }
-.active-block-content > div { display: grid; min-width: 0; gap: .1rem; }
-.active-block strong { overflow: hidden; color: var(--accent); text-overflow: ellipsis; white-space: nowrap; }
-.active-block button { justify-self: start; border: 1px solid var(--border-strong); border-radius: 4px; padding: .25rem .4rem; background: var(--surface); color: var(--text); font-size: .65rem; cursor: pointer; }
-.active-block small { overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
-.active-support { display: flex; gap: .35rem; }
-.active-support span { font-size: .63rem; text-transform: uppercase; }
+.muted { color: var(--text-muted); font-size: .75rem; }
 .block-item.active .block-copy small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
-.block-copy small, .active-block small { font-family: var(--font-ui); }
+.block-copy small { font-family: var(--font-ui); }
 
 :host-context([data-font='minecraft-style']) .search-label,
-:host-context([data-font='minecraft-style']) .block-copy strong,
-:host-context([data-font='minecraft-style']) .active-block > span,
-:host-context([data-font='minecraft-style']) .active-block button { font-size: .84rem; line-height: 1.05; font-weight: 400; }
-:host-context([data-font='minecraft-style']) .block-copy small,
-:host-context([data-font='minecraft-style']) .active-block small { font-size: .72rem; line-height: 1.1; }
+:host-context([data-font='minecraft-style']) .block-copy strong { font-size: .84rem; line-height: 1.05; font-weight: 400; }
+:host-context([data-font='minecraft-style']) .block-copy small { font-size: .72rem; line-height: 1.1; }
 .quick-add-action svg { width: .85rem; height: .85rem; }
 .quick-add-wrapper { position: absolute; top: .3rem; left: .3rem; z-index: 1; opacity: 0; }.block-item:hover .quick-add-wrapper, .block-item:focus-within .quick-add-wrapper, .quick-add-wrapper:focus-visible { opacity: 1; }.quick-add-wrapper .quick-add-action { position: static; }.quick-add-action:disabled { cursor: not-allowed; opacity: .5; }
-
-@media (max-width: 520px) {
-  .search-active-row { grid-template-columns: 1fr; align-items: stretch; }
-  .active-block { max-width: none; }
-}

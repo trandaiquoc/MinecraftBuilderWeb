@@ -1,6 +1,4 @@
 .decoration-browser { display: grid; align-content: start; gap: .55rem; min-width: 0; min-height: 0; padding: .65rem; }
-.decoration-browser-header { display: flex; align-items: center; justify-content: space-between; gap: .4rem; min-width: 0; }
-.decoration-browser h3 { min-width: 0; margin: 0; font-size: .78rem; }
 .decoration-choice-list { display: grid; gap: .35rem; min-width: 0; }
 .decoration-card { display: grid; grid-template-columns: 3.1rem minmax(0, 1fr); align-items: center; gap: .55rem; width: 100%; min-width: 0; min-height: 3.25rem; padding: .3rem; border: 0; border-radius: 6px; background: var(--surface-muted); color: inherit; text-align: left; cursor: pointer; box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
 .decoration-card:hover { background: var(--surface-hover); }

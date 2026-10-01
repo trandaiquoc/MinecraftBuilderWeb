@@ -1,7 +1,4 @@
 <section class="decoration-browser">
-  <header class="decoration-browser-header">
-    <h3>{{ i18n.t('decorationsPanel') }}</h3>
-  </header>
   <app-content-source-selector [sources]="sources()" [selectedId]="activeSource()" [label]="i18n.t('contentSource')" [manageLabel]="i18n.t('manageSources')" (selectionChange)="selectSource($event)" (manageRequested)="openAssetManager()" />
   @if (visiblePaintingVariants().length || showFrames()) { <div class="decoration-choice-list">
     @if (visiblePaintingVariants().length) { <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'painting'" [attr.aria-pressed]="decorations.active()?.kind === 'painting'" (click)="selectPaintingForSource()">
