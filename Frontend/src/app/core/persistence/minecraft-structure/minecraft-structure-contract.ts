@@ -16,6 +16,10 @@ export type MinecraftStructureDiagnosticCode =
   | 'out-of-bounds'
   | 'invalid-resource-location'
   | 'unsupported-raw-nbt'
+  | 'unsupported-block-entity'
+  | 'unsupported-decoration'
+  | 'invalid-state-property'
+  | 'duplicate-coordinate'
   | 'unsupported-entity'
   | 'codec-unavailable'
   | 'golden-fixture-unavailable';

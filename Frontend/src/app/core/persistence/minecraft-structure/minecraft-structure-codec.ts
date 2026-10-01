@@ -1,6 +1,6 @@
 import type { MinecraftNbtRoot, MinecraftNbtTag, MinecraftStructureTemplate } from './minecraft-structure-types';
 
-/** Port used by a future browser codec; the UI and ProjectDocument never depend on a package implementation. */
+/** Binary codec port; the UI and ProjectDocument never depend on a package implementation. */
 export interface MinecraftJavaNbtCodec {
   readonly name: string;
   readonly supportsGzip: boolean;

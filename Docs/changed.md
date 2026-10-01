@@ -1745,14 +1745,14 @@ Structure JSON now has one current decoration-aware contract (`StructureJson`) f
 
 Selection `all` is represented semantically instead of as a cloned coordinate array. Large selections use aggregate bounds visualization, while small selections reuse shared outline geometry/material. Bulk consumers query selection membership through `SelectionService` so Ctrl+A remains complete without allocating one Three.js resource per block.
 
-## Prompt 15.1.1 Structure NBT golden checkpoint
+## Prompt 15.2 Core Structure NBT exporter
 
 The current tree documents the verified Minecraft Java 1.21.1 Structure
 Template contract and pins its DataVersion to 3955. A typed NBT model,
 canonical palette/state identity helpers, strict namespaced ResourceLocation
-validation, version/size/coordinate diagnostics, and a codec/adapter port live
-under `core/persistence/minecraft-structure`. Missing local assets preserve
-their registry ID/state and are never converted to air.
+validation, version/size/coordinate diagnostics, codec adapter, and core
+exporter live under `core/persistence/minecraft-structure`. Missing local
+assets preserve their registry ID/state and are never converted to air.
 
 The immutable Minecraft-generated golden fixture
 `Frontend/src/app/core/persistence/minecraft-structure/fixtures/golden_1_21_1.nbt`
@@ -1765,9 +1765,15 @@ block entries, complete coordinate coverage, and 83 explicit
 `minecraft:air` entries. Manual Air-over-Stone verification PASS confirms that
 saved Air clears pre-existing target Stone.
 
-Sparse/Air semantics are therefore VERIFIED for this Structure Block form:
-future faithful export must materialize empty ProjectDocument voxels as Air,
-not omit them and not replace them with Structure Void. No production exporter,
-download action, or codec dependency was added. Codec approval remains open;
-`nbtify@2.2.0` is the preferred candidate, with `prismarine-nbt@2.8.0` as
-fallback pending an Angular/browser adapter evaluation.
+Sparse/Air semantics are therefore VERIFIED for this Structure Block form.
+`nbtify@2.2.0` is approved and integrated behind the codec port. Golden
+semantic tests decode the actual fixture and verify native tag types plus a
+typed round-trip. The core exporter materializes every empty ProjectDocument
+voxel as Air, sorts palette state identity deterministically, traverses voxels
+in Y → Z → X order, preserves missing/modded IDs, and fails explicitly for
+unsupported block entities/decorations. Export UI, full block-entity/entity
+mapping, ZIP packaging, and download actions remain deferred to later phases.
+
+Prompt 15.2 does not claim 512³ is safe: explicit-Air output requires careful
+memory, main-thread, gzip, and streaming/chunking design. The existing 512-axis
+product policy remains unchanged.

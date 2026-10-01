@@ -1,0 +1,111 @@
+import { describe, expect, it } from 'vitest';
+import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/project.types';
+import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import { exportMinecraftStructure } from './minecraft-structure-exporter';
+import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
+
+const block = (id: string, position: { x: number; y: number; z: number }, state: Readonly<Record<string, string>> = {}, kind: 'resolved' | 'missing' = 'resolved'): PlacedBlock => ({
+  kind, id, namespace: id.split(':')[0], position, state,
+});
+
+const project = (size: ProjectSize, blocks: readonly PlacedBlock[], overrides: Partial<ProjectDocument> = {}): ProjectDocument => ({
+  schemaVersion: 3,
+  id: 'export-test',
+  metadata: { name: 'Export test', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' },
+  size,
+  structureMode: 'vanilla-structure-block',
+  blocks,
+  groups: [],
+  editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 },
+  ...overrides,
+});
+
+async function exported(document: ProjectDocument) {
+  return exportMinecraftStructure(document, new NbtifyMinecraftJavaCodec());
+}
+
+describe('core Minecraft Structure NBT exporter', () => {
+  it('materializes every empty voxel as explicit Air', async () => {
+    const result = await exported(project({ x: 2, y: 1, z: 2 }, [block('minecraft:stone', { x: 0, y: 0, z: 0 })]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.voxelCount).toBe(4);
+    expect(result.template.blocks).toHaveLength(4);
+    expect(result.template.blocks.filter((entry) => result.template.palette[entry.state].name === 'minecraft:air')).toHaveLength(3);
+    expect(result.template.blocks.map((entry) => entry.pos)).toEqual([[0, 0, 0], [1, 0, 0], [0, 0, 1], [1, 0, 1]]);
+  });
+
+  it('omits an unused Air palette entry for a completely filled structure', async () => {
+    const result = await exported(project({ x: 1, y: 1, z: 1 }, [block('minecraft:stone', { x: 0, y: 0, z: 0 })]));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.template.palette).toEqual([{ name: 'minecraft:stone' }]);
+  });
+
+  it('materializes a typical 64x18x64 sparse structure without a per-voxel project scan', async () => {
+    const result = await exported(project({ x: 64, y: 18, z: 64 }, [block('minecraft:stone', { x: 32, y: 9, z: 32 })]));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.voxelCount).toBe(73_728);
+      expect(result.template.blocks).toHaveLength(73_728);
+      expect(result.template.blocks.filter((entry) => result.template.palette[entry.state].name === 'minecraft:air')).toHaveLength(73_727);
+    }
+  });
+
+  it('preserves missing and modded IDs/states without requiring catalog assets', async () => {
+    const result = await exported(project({ x: 2, y: 1, z: 1 }, [
+      block('example:unknown_block', { x: 1, y: 0, z: 0 }, { variant: 'raw' }, 'missing'),
+      block('minecraft:stone', { x: 0, y: 0, z: 0 }),
+    ]));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.template.palette).toEqual([{ name: 'example:unknown_block', properties: { variant: 'raw' } }, { name: 'minecraft:stone' }]);
+  });
+
+  it('is deterministic when input blocks and property keys are reordered', async () => {
+    const first = await exported(project({ x: 2, y: 1, z: 1 }, [
+      block('minecraft:oak_stairs', { x: 1, y: 0, z: 0 }, { facing: 'north', half: 'bottom' }),
+      block('minecraft:stone', { x: 0, y: 0, z: 0 }),
+    ]));
+    const second = await exported(project({ x: 2, y: 1, z: 1 }, [
+      block('minecraft:stone', { x: 0, y: 0, z: 0 }),
+      block('minecraft:oak_stairs', { x: 1, y: 0, z: 0 }, { half: 'bottom', facing: 'north' }),
+    ]));
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) expect(second.template).toEqual(first.template);
+  });
+
+  it('rejects duplicate coordinates, invalid versions, bounds, block entities, and decorations', async () => {
+    const duplicate = await exported(project({ x: 1, y: 1, z: 1 }, [block('minecraft:stone', { x: 0, y: 0, z: 0 }), block('minecraft:dirt', { x: 0, y: 0, z: 0 })]));
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) expect(duplicate.diagnostics.map((entry) => entry.code)).toContain('duplicate-coordinate');
+
+    const wrongVersion = await exported(project({ x: 1, y: 1, z: 1 }, [], { metadata: { ...project({ x: 1, y: 1, z: 1 }, []).metadata, minecraftVersion: '26.3' } }));
+    expect(wrongVersion.ok).toBe(false);
+    if (!wrongVersion.ok) expect(wrongVersion.diagnostics.map((entry) => entry.code)).toContain('unsupported-version');
+
+    const outOfBounds = await exported(project({ x: 1, y: 1, z: 1 }, [block('minecraft:stone', { x: 1, y: 0, z: 0 })]));
+    expect(outOfBounds.ok).toBe(false);
+    if (!outOfBounds.ok) expect(outOfBounds.diagnostics.map((entry) => entry.code)).toContain('out-of-bounds');
+
+    const tooLarge = await exported(project({ x: 513, y: 1, z: 1 }, []));
+    expect(tooLarge.ok).toBe(false);
+    if (!tooLarge.ok) expect(tooLarge.diagnostics.map((entry) => entry.code)).toContain('unsupported-size');
+
+    const entity = await exported(project({ x: 1, y: 1, z: 1 }, [{ ...block('minecraft:chest', { x: 0, y: 0, z: 0 }), blockEntityData: { kind: 'unknown' } }]));
+    expect(entity.ok).toBe(false);
+    if (!entity.ok) expect(entity.diagnostics.map((entry) => entry.code)).toContain('unsupported-block-entity');
+
+    const decoration = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'painting-1', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
+    expect(decoration.ok).toBe(false);
+    if (!decoration.ok) expect(decoration.diagnostics.map((entry) => entry.code)).toContain('unsupported-decoration');
+  });
+
+  it('round-trips a supported exported structure through the typed adapter and codec', async () => {
+    const result = await exported(project({ x: 2, y: 1, z: 1 }, [block('minecraft:stone', { x: 0, y: 0, z: 0 })]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const codec = new NbtifyMinecraftJavaCodec();
+    const adapter = new MinecraftJavaStructureAdapter();
+    const decoded = adapter.decodeStructure(await codec.decode(result.bytes));
+    expect(decoded).toEqual(result.template);
+  });
+});

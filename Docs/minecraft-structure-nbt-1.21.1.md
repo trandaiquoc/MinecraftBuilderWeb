@@ -1,8 +1,8 @@
 # Minecraft Java 1.21.1 Structure NBT contract
 
-This document records the Prompt 15.1 boundary only. It is not an exporter
-implementation and it does not enable the unavailable `Export Structure NBT`
-menu action.
+This document records the Prompt 15.1/15.2 core boundary. It contains the
+binary codec and exporter contract, but it does not enable the unavailable
+`Export Structure NBT` menu action.
 
 ## Verified target
 
@@ -85,37 +85,22 @@ The existing semantic helpers are not treated as a general NBT codec:
 - Block-entity data (`blocks[].nbt`) stays separate from top-level structure
   entities (`entities[]`).
 
-## Codec decision
+## Codec implementation
 
-No NBT dependency exists in the current package and no dependency was added.
-The code defines a typed NBT model plus `MinecraftJavaNbtCodec` and
-`MinecraftStructureAdapter` ports, keeping low-level binary code out of the
-UI and ProjectDocument.
+The approved dependency is `nbtify@2.2.0` (MIT). The production adapter lives
+in `nbtify-minecraft-java-codec.ts` behind `MinecraftJavaNbtCodec` and uses the
+actual package API:
 
-The current registry metadata was rechecked on 2026-10-01:
+- `read(bytes, { endian: 'big', compression: 'gzip', rootName: true, strict: true })`.
+- `write(new NBTData(root, { rootName: '', endian: 'big', compression: 'gzip' }))`.
+- nbtify `Int8`, `Int16`, `Int32`, `Float32`, `bigint`, typed arrays, and its
+  `TAG_TYPE` list marker are mapped explicitly to the internal typed NBT model.
 
-- `prismarine-nbt` `2.8.0`: MIT, TypeScript declarations, Java big-endian
-  support and gzip-aware parsing. Its package is about 1.09 MB unpacked and
-  depends on `protodef`; browser bundling and gzip-write/CompressionStream
-  integration need an Angular proof-of-fit.
-- `nbtify` `2.2.0`: MIT, browser-oriented API and TypeScript declarations. Its
-  package is about 118 KB unpacked and depends on `mutf-8`; its last registry
-  publish is older and its Java/gzip behavior still needs an adapter-level
-  verification against this fixture.
-
-Neither is approved or installed. The real fixture was independently decoded
-with a temporary analysis parser, but that parser is not production code. A
-codec should be selected only after checking deterministic semantic output,
-full tag coverage, gzip read/write, browser fallback behavior, bundle impact,
-and large explicit-Air structures.
-
-**Preferred candidate for approval:** `nbtify@2.2.0`, subject to a focused
-Angular/browser adapter spike. Its browser-first footprint is the better fit
-for this application; `prismarine-nbt@2.8.0` is the fallback if its broader
-tag/runtime behavior proves necessary.
-
-No dependency is installed in this checkpoint. Approval is required before
-adding `nbtify@2.2.0`.
+The adapter preserves Java big-endian encoding, unnamed root names, native
+numeric tags, list element types, byte/int/long arrays, and Long precision.
+nbtify uses browser `CompressionStream`/`DecompressionStream`; the current
+target browsers therefore need those APIs plus BigInt and standard typed-array
+support. Its only runtime dependency is `mutf-8`.
 
 ## Golden fixture status
 
@@ -137,8 +122,8 @@ Sign, and Hanging Sign compounds.
 
 The typed contract is compatible with the observed root, INT/DOUBLE/COMPOUND/
 STRING lists, palette properties, and nested block-entity tags. Permanent
-semantic binary tests remain codec-approval work; no fixture-specific decoder
-was added to production.
+semantic codec tests decode this binary fixture directly and also exercise a
+typed encode/decode round-trip; they do not compare gzip bytes.
 
 ## Prompt 15.2 performance requirement
 
@@ -153,6 +138,24 @@ main-thread blocking, gzip cost, canonical block ordering, and streaming or
 chunked encoding. Codec choice must document whether it requires complete
 in-memory materialization. The existing 512-axis product policy is unchanged;
 no new export limit is invented here.
+
+## Core exporter
+
+`minecraft-structure-exporter.ts` converts a validated `ProjectDocument` to a
+canonical `MinecraftStructureTemplate`, then uses the injected codec to emit a
+gzip `.nbt` byte array. The UI, Blob/download flow, ZIP packaging, and menu
+action remain disabled.
+
+The exporter traverses voxels in deterministic `Y → Z → X` order and sorts the
+palette by canonical state identity (`Name` plus sorted string Properties).
+Occupied blocks are indexed by coordinate, giving `O(volume + placedBlocks)`
+construction rather than scanning the project for every voxel. Every absent
+voxel becomes explicit `minecraft:air`; Structure Void is never invented.
+Missing and modded IDs retain their exact namespaced ID and state without asset
+resolution. Duplicate coordinates, invalid versions/size/coordinates/IDs,
+unsupported block entities, and non-empty decorations return diagnostics before
+encoding. This phase always writes an empty `entities` list for supported core
+projects; semantic block-entity and top-level entity export remains 15.3 scope.
 
 ## Boundary
 
