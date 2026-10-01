@@ -1,5 +1,6 @@
 import { isPositiveInteger, isWithinBounds } from './coordinates';
 import { BlockId, PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from './project.types';
+import { isValidNamespacedResourceLocation } from '../content/resource-location';
 
 export type DomainValidationCode =
   | 'invalid-size'
@@ -23,7 +24,6 @@ export interface DomainValidationResult {
   readonly issues: readonly DomainValidationIssue[];
 }
 
-const REGISTRY_ID_PATTERN = /^[a-z0-9_.-]+:[a-z0-9_.-]+$/;
 const NAMESPACE_PATTERN = /^[a-z0-9_.-]+$/;
 /** Mojang release IDs are identifiers, not SemVer (for example 26.3 is valid). */
 export const MINECRAFT_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$/;
@@ -51,7 +51,7 @@ export function validateCoordinate(position: VoxelCoordinate, size?: ProjectSize
 
 export function validateBlockId(block: BlockId): readonly DomainValidationIssue[] {
   const issues: DomainValidationIssue[] = [];
-  if (!REGISTRY_ID_PATTERN.test(block.id)) {
+  if (!isValidNamespacedResourceLocation(block.id)) {
     issues.push({ code: 'invalid-block-id', message: 'block ID must use namespace:path syntax', path: 'id' });
   }
   if (!NAMESPACE_PATTERN.test(block.namespace)) {

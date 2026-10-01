@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseResourceLocation, resourcePath, resolveResourceLocation } from './resource-location';
+import { isValidNamespacedResourceLocation, parseResourceLocation, resourcePath, resolveResourceLocation } from './resource-location';
 
 describe('resource locations', () => {
   it('normalizes namespaced and bare locations to the default namespace', () => {
@@ -12,5 +12,12 @@ describe('resource locations', () => {
     expect(resolveResourceLocation('#all')).toBeUndefined();
     expect(resolveResourceLocation('../block/stone')).toBeUndefined();
     expect(resolveResourceLocation('example:bad path')).toBeUndefined();
+  });
+  it('validates namespaced IDs with Minecraft namespace/path character rules', () => {
+    expect(isValidNamespacedResourceLocation('minecraft:oak_stairs')).toBe(true);
+    expect(isValidNamespacedResourceLocation('example:blocks/stone')).toBe(true);
+    expect(isValidNamespacedResourceLocation('Example:stone')).toBe(false);
+    expect(isValidNamespacedResourceLocation('example:bad path')).toBe(false);
+    expect(isValidNamespacedResourceLocation('example:')).toBe(false);
   });
 });

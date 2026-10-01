@@ -1744,3 +1744,16 @@ previews therefore include grouped decorations as well.
 Structure JSON now has one current decoration-aware contract (`StructureJson`) for export, examples, validation, and import planning. Replace imports always replace both blocks and decorations; Project Backup versioning remains independent. A legacy blocks-only payload is normalized at the import boundary only, and does not create a second editor semantic.
 
 Selection `all` is represented semantically instead of as a cloned coordinate array. Large selections use aggregate bounds visualization, while small selections reuse shared outline geometry/material. Bulk consumers query selection membership through `SelectionService` so Ctrl+A remains complete without allocating one Three.js resource per block.
+
+## Prompt 15.1 Structure NBT contract boundary
+
+The current tree now documents the verified Minecraft Java 1.21.1 Structure
+Template contract and pins its DataVersion to 3955. A typed NBT model,
+canonical palette/state identity helpers, strict namespaced ResourceLocation
+validation, version/size/coordinate diagnostics, and a codec/adapter port live
+under `core/persistence/minecraft-structure`. Missing local assets preserve
+their registry ID/state and are never converted to air.
+
+No NBT codec dependency, binary exporter, download action, or Minecraft-generated
+golden fixture was added. Sparse/Air semantics remain an explicit checkpoint
+until an independently saved 1.21.1 Structure Block fixture is provided.

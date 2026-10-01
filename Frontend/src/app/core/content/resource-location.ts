@@ -13,6 +13,14 @@ export interface ResourceLocation {
 }
 
 const NAMESPACE = /^[a-z0-9_.-]+$/;
+const RESOURCE_LOCATION_PATH = /^[a-z0-9/._-]+$/;
+
+/** Strict namespaced ResourceLocation validation for persisted/exported IDs. */
+export function isValidNamespacedResourceLocation(value: string): boolean {
+  const separator = value.indexOf(':');
+  if (separator <= 0 || separator !== value.lastIndexOf(':')) return false;
+  return NAMESPACE.test(value.slice(0, separator)) && RESOURCE_LOCATION_PATH.test(value.slice(separator + 1));
+}
 
 export function parseResourceLocation(value: string, defaultNamespace = 'minecraft'): ResourceLocation | undefined {
   const raw = value.trim();
