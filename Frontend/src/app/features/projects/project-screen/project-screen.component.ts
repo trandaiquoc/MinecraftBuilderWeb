@@ -4,7 +4,8 @@ import { Router } from '@angular/router';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
 import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
-import { ProjectDocument } from '../../../core/domain/project.types';
+import { ProjectDocument, StructureMode } from '../../../core/domain/project.types';
+import { DEFAULT_STRUCTURE_MODE, evaluateStructureSize } from '../../../core/domain/structure-size-policy';
 import { validateProject } from '../../../core/domain/validation';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
@@ -34,6 +35,8 @@ export class ProjectScreenComponent {
   protected readonly sizeY = signal('16');
   protected readonly sizeZ = signal('16');
   protected readonly minecraftVersion = signal<string>(DEFAULT_MINECRAFT_VERSION);
+  protected readonly structureMode = signal<StructureMode>(DEFAULT_STRUCTURE_MODE);
+  protected readonly sizePolicy = computed(() => evaluateStructureSize({ x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, this.structureMode()));
   protected readonly versions = inject(MojangVersionService);
   protected readonly versionOptions = computed<readonly SearchableDropdownOption[]>(() => {
     const releases = this.versions.releases();
@@ -62,17 +65,20 @@ export class ProjectScreenComponent {
     this.error.set(undefined);
   }
   protected setMinecraftVersion(value: string): void { if (value) this.minecraftVersion.set(value); }
+  protected setStructureMode(mode: StructureMode): void { this.structureMode.set(mode); }
+  protected useHugeStructureBlocks(): void { this.structureMode.set('huge-structure-blocks'); }
+  protected setVanillaMax(): void { this.sizeX.set('48'); this.sizeY.set('48'); this.sizeZ.set('48'); this.structureMode.set(DEFAULT_STRUCTURE_MODE); }
   protected versionSupportLabel(): string { return this.minecraftVersion() === DEFAULT_MINECRAFT_VERSION ? this.i18n.t('verifiedSupport') : this.i18n.t('resourceCompatibility'); }
 
   protected async createProject(): Promise<void> {
-    const guard = projectCreationGuard(this.creating(), !!this.openingId(), this.validDimensions());
+    const guard = projectCreationGuard(this.creating(), !!this.openingId(), this.canCreateProject());
     if (guard === 'busy') return;
-    if (guard === 'invalid') { this.error.set(this.i18n.t('invalidProjectSize')); return; }
+    if (guard === 'invalid') { this.error.set(this.creationValidationMessage()); return; }
     this.creating.set(true); this.error.set(undefined);
     const now = new Date().toISOString();
     const project: ProjectDocument = {
       schemaVersion: 3, id: createId(), metadata: { name: this.name().trim() || this.i18n.t('untitledStructure'), minecraftVersion: this.minecraftVersion(), createdAt: now, updatedAt: now },
-      size: { x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
+      size: { x: Number(this.sizeX()), y: Number(this.sizeY()), z: Number(this.sizeZ()) }, structureMode: this.structureMode(), blocks: [], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
     };
     const validation = validateProject(project);
     if (!validation.valid) {
@@ -146,7 +152,13 @@ export class ProjectScreenComponent {
   }
 
   protected async retryLoad(): Promise<void> { await this.loadProjects(); }
-  protected validDimensions(): boolean { return [this.sizeX(), this.sizeY(), this.sizeZ()].every((value) => /^\d+$/.test(value.trim()) && Number(value) >= 1); }
+  protected validDimensions(): boolean { return this.sizePolicy().dimensionsValid; }
+  protected canCreateProject(): boolean { return this.validDimensions() && this.sizePolicy().selectedModeValid; }
+  protected creationValidationMessage(): string {
+    const policy = this.sizePolicy();
+    if (!policy.dimensionsValid) return this.i18n.t('invalidProjectSize');
+    return policy.mode === 'vanilla-structure-block' ? this.i18n.t('vanillaOversizedWarning') : this.i18n.t('hugeStructureBlocksLimitExceeded');
+  }
 
   private async loadProjects(): Promise<void> {
     this.loadStatus.set('loading'); this.listError.set(false);

@@ -11,12 +11,32 @@
       <label>{{ i18n.t('projectName') }}<input [value]="name()" (input)="updateName($any($event.target).value)" required /></label>
       <label>{{ i18n.t('minecraftVersion') }}<app-searchable-dropdown [options]="versionOptions()" [selectedId]="minecraftVersion()" [placeholder]="i18n.t('searchMinecraftVersions')" [emptyLabel]="i18n.t('minecraftVersionUnavailable')" [noResults]="i18n.t('noMinecraftVersions')" [ariaLabel]="i18n.t('minecraftVersion')" (selectionChange)="setMinecraftVersion($any($event))" /></label>
       <p class="version-support"><strong>{{ versionSupportLabel() }}</strong>@if (minecraftVersion() !== '1.21.1') { <span>{{ i18n.t('behaviorMayBeIncomplete') }}</span> }</p>
-      <div class="size-grid">
-        <label>{{ i18n.t('sizeX') }}<input type="number" min="1" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
-        <label>{{ i18n.t('sizeY') }}<input type="number" min="1" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
-        <label>{{ i18n.t('sizeZ') }}<input type="number" min="1" [value]="sizeZ()" (input)="updateSize('z', $any($event.target).value)" /></label>
+      <fieldset class="structure-mode-fieldset">
+        <legend>{{ i18n.t('structureMode') }}</legend>
+        <label class="structure-mode-option" [class.active]="structureMode() === 'vanilla-structure-block'">
+          <input type="radio" name="structure-mode" value="vanilla-structure-block" [checked]="structureMode() === 'vanilla-structure-block'" (change)="setStructureMode('vanilla-structure-block')" />
+          <span><strong>{{ i18n.t('vanillaStructureBlock') }}</strong><small>{{ i18n.t('vanillaStructureBlockHint') }}</small></span>
+        </label>
+        <label class="structure-mode-option" [class.active]="structureMode() === 'huge-structure-blocks'">
+          <input type="radio" name="structure-mode" value="huge-structure-blocks" [checked]="structureMode() === 'huge-structure-blocks'" (change)="setStructureMode('huge-structure-blocks')" />
+          <span><strong>{{ i18n.t('hugeStructureBlocks') }}</strong><small>{{ i18n.t('hugeStructureBlocksHint') }}</small></span>
+        </label>
+      </fieldset>
+      <div class="size-heading"><span>{{ i18n.t('structureSize') }}</span><button type="button" class="size-shortcut" (click)="setVanillaMax()">{{ i18n.t('vanillaMax') }}</button></div>
+      <div class="size-grid" [class.size-warning]="sizePolicy().exceedsVanilla && structureMode() === 'vanilla-structure-block'" [class.size-error]="structureMode() === 'huge-structure-blocks' && !sizePolicy().fitsHugeStructureBlocks">
+        <label [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('x')">{{ i18n.t('sizeX') }}<input type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeX()" (input)="updateSize('x', $any($event.target).value)" /></label>
+        <label [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('y')">{{ i18n.t('sizeY') }}<input type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeY()" (input)="updateSize('y', $any($event.target).value)" /></label>
+        <label [class.over-limit]="sizePolicy().selectedModeExceededAxes.includes('z')">{{ i18n.t('sizeZ') }}<input type="number" min="1" [attr.aria-describedby]="sizePolicy().selectedModeValid ? null : 'size-feedback'" [value]="sizeZ()" (input)="updateSize('z', $any($event.target).value)" /></label>
       </div>
-      <button type="submit" class="ui-button ui-button--primary" [disabled]="creating() || !!openingId() || !validDimensions()">{{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}</button>
+      @if (!sizePolicy().dimensionsValid) {
+        <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">{{ i18n.t('invalidProjectSize') }}</p>
+      } @else if (structureMode() === 'vanilla-structure-block' && sizePolicy().exceedsVanilla) {
+        <p id="size-feedback" class="size-feedback size-feedback--warning" role="alert">{{ i18n.t('vanillaOversizedWarning') }}</p>
+        <button type="button" class="size-action" (click)="useHugeStructureBlocks()">{{ i18n.t('useHugeStructureBlocks') }}</button>
+      } @else if (structureMode() === 'huge-structure-blocks' && !sizePolicy().fitsHugeStructureBlocks) {
+        <p id="size-feedback" class="size-feedback size-feedback--error" role="alert">{{ i18n.t('hugeStructureBlocksLimitExceeded') }}</p>
+      }
+      <button type="submit" class="ui-button ui-button--primary" [disabled]="creating() || !!openingId() || !canCreateProject()">{{ creating() ? i18n.t('creatingProject') : i18n.t('create') }}</button>
       @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     </form>
 
