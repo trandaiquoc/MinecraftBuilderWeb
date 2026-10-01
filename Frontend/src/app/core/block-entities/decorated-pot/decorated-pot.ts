@@ -11,6 +11,7 @@ export const decoratedPotSherdIds = [
   'minecraft:shelter_pottery_sherd', 'minecraft:skull_pottery_sherd', 'minecraft:snort_pottery_sherd',
 ] as const;
 const allowed = new Set<string>([DECORATED_POT_DEFAULT_SHERD, ...decoratedPotSherdIds]);
+export function isDecoratedPotSherd(value: unknown): value is string { return typeof value === 'string' && allowed.has(value); }
 export function normalizeDecoratedPotSherd(value: unknown): string { return typeof value === 'string' && allowed.has(value) ? value : DECORATED_POT_DEFAULT_SHERD; }
 export function defaultDecoratedPotData(): DecoratedPotBlockEntityData {
   const side = DECORATED_POT_DEFAULT_SHERD;

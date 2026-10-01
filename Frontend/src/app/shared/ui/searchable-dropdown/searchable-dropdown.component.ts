@@ -27,6 +27,7 @@ export class SearchableDropdownComponent {
   @Input() ariaLabel = '';
   @Input() closeLabel = '';
   @Input() noResults = 'No matches';
+  @Input() disabled = false;
   @Output() readonly selectionChange = new EventEmitter<string>();
   @Output() readonly visibleOptionIds = new EventEmitter<readonly string[]>();
   protected readonly open = signal(false);
@@ -55,6 +56,7 @@ export class SearchableDropdownComponent {
     return matches;
   }
   protected toggle(): void {
+    if (this.disabled) return;
     if (this.open()) this.close();
     else {
       this.open.set(true);

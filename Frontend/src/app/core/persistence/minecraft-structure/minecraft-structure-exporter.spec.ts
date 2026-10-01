@@ -185,6 +185,21 @@ describe('core Minecraft Structure NBT exporter', () => {
     expect(decoded).toEqual(result.template);
   });
 
+  it('round-trips editor container and pot block entities through the production codec', async () => {
+    const result = await exported(project({ x: 4, y: 1, z: 1 }, [
+      { ...block('minecraft:chest', { x: 0, y: 0, z: 0 }), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 2 } }] } },
+      { ...block('minecraft:barrel', { x: 1, y: 0, z: 0 }), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 26, stack: { id: 'minecraft:stone', count: 7 } }] } },
+      { ...block('minecraft:hopper', { x: 2, y: 0, z: 0 }), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 4, stack: { id: 'minecraft:apple', count: 1 } }] } },
+      { ...block('minecraft:decorated_pot', { x: 3, y: 0, z: 0 }), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:heart_pottery_sherd', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' }, item: { id: 'minecraft:diamond', count: 3 } } },
+    ]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const decoded = new MinecraftJavaStructureAdapter().decodeStructure(await new NbtifyMinecraftJavaCodec().decode(result.bytes));
+    expect(decoded.blocks.filter((entry) => entry.nbt).map((entry) => entry.nbt?.value['id'])).toEqual([
+      { type: 'string', value: 'minecraft:chest' }, { type: 'string', value: 'minecraft:barrel' }, { type: 'string', value: 'minecraft:hopper' }, { type: 'string', value: 'minecraft:decorated_pot' },
+    ]);
+  });
+
   it('decodes the exporter-generated smoke fixture through the production codec', async () => {
     const codec = new NbtifyMinecraftJavaCodec();
     const adapter = new MinecraftJavaStructureAdapter();

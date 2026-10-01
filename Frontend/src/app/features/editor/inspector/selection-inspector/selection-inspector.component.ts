@@ -12,9 +12,13 @@ import { SignInspectorComponent } from '../sign-inspector/sign-inspector.compone
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
 import { ItemDisplayInspectorComponent } from '../item-display-inspector/item-display-inspector.component';
 import { blockCapability } from '../../../../core/blocks/capabilities/block-capability-resolver';
+import { verifiedInventoryContainerSchema } from '../../../../core/block-entities/item-display/inventory-storage-schema';
+import { isBlockLocked } from '../../../../core/editor/groups/group-membership';
+import { InventoryStorageInspectorComponent } from '../inventory-storage-inspector/inventory-storage-inspector.component';
+import { DecoratedPotInspectorComponent } from '../decorated-pot-inspector/decorated-pot-inspector.component';
 import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';
 
-@Component({ selector: 'app-selection-inspector', imports: [DecorationInspectorComponent, SignInspectorComponent, ThemedSelectComponent, ItemDisplayInspectorComponent], templateUrl: './selection-inspector.component.html', styleUrl: './selection-inspector.component.scss' })
+@Component({ selector: 'app-selection-inspector', imports: [DecorationInspectorComponent, SignInspectorComponent, ThemedSelectComponent, ItemDisplayInspectorComponent, InventoryStorageInspectorComponent, DecoratedPotInspectorComponent], templateUrl: './selection-inspector.component.html', styleUrl: './selection-inspector.component.scss' })
 export class SelectionInspectorComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly workspace = inject(WorkspaceStateService);
@@ -43,6 +47,9 @@ export class SelectionInspectorComponent {
     const definition = this.selectedDefinition();
     return blockCapability(definition, 'item-storage-display') ?? blockCapability(definition, 'item-display');
   });
+  protected readonly selectedInventorySchema = computed(() => { const block = this.selectedBlock(); return block ? verifiedInventoryContainerSchema(block.id) : undefined; });
+  protected readonly selectedDecoratedPot = computed(() => { const block = this.selectedBlock(); return !!block && (block.id === 'minecraft:decorated_pot' || blockCapability(this.selectedDefinition(), 'block-entity')?.entityKind === 'decorated-pot'); });
+  protected readonly selectedBlockLocked = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return !!project && !!block && isBlockLocked(block, project.groups); });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
   protected readonly selectedBlockCount = computed(() => { const project = this.workspace.project(); const box = this.selection.box(); return project && box ? project.blocks.filter((block) => block.position.x >= box.min.x && block.position.x <= box.max.x && block.position.y >= box.min.y && block.position.y <= box.max.y && block.position.z >= box.min.z && block.position.z <= box.max.z).length : 0; });
   constructor() {

@@ -14,12 +14,13 @@ import { PlacementContext } from '../placement/placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from '../../block-entities/sign/sign-text-metrics';
 import { planPlacement, PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import { isVanillaSignColor } from '../../block-entities/sign/sign-nbt';
-import { decoratedPotData, defaultDecoratedPotData, normalizeDecoratedPotSherd } from '../../block-entities/decorated-pot/decorated-pot';
+import { decoratedPotData, defaultDecoratedPotData, isDecoratedPotSherd } from '../../block-entities/decorated-pot/decorated-pot';
 import { pruneInvalidDecorations } from '../../decorations/placement/decoration-placement';
 import { blockCapability } from '../../blocks/capabilities/block-capability-resolver';
 import type { BlockEntityKind } from '../../blocks/capabilities/block-capability.types';
 import { defaultItemContainerData, setItemContainerSlot } from '../../block-entities/item-display/item-container';
 import type { ItemStackData } from '../../items/item-stack.types';
+import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -39,7 +40,7 @@ export class StructureEditorService {
         const entityKind = blockEntityKind(this.library.get(block.id));
         if (entityKind === 'sign' || isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
         if (entityKind === 'decorated-pot' || block.id === 'minecraft:decorated_pot') return { ...block, blockEntityData: defaultDecoratedPotData() };
-        const itemHost = itemHostCapability(this.library.get(block.id));
+        const itemHost = itemHostCapability(this.library.get(block.id), block.id);
         if (itemHost) return { ...block, blockEntityData: defaultItemContainerData(itemHost.kind, itemHost.slotCount) };
         return block;
       }) });
@@ -191,15 +192,24 @@ export class StructureEditorService {
   updateDecoratedPotDecoration(position: VoxelCoordinate, side: 'back' | 'left' | 'right' | 'front', sherd: string): boolean {
     return this.history.execute('Decorated Pot pattern edit', (project) => {
       const block = this.find(project, position);
-      if (!block || !(isBlockEntity(this.library.get(block.id), 'decorated-pot') || block.id === 'minecraft:decorated_pot') || hasLockedMembership(block, project.groups)) return undefined;
-      const current = decoratedPotData(block.blockEntityData); const data = { ...current, decorations: { ...current.decorations, [side]: normalizeDecoratedPotSherd(sherd) } };
+      if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || !isPotSide(side) || !isDecoratedPotSherd(sherd) || hasLockedMembership(block, project.groups)) return undefined;
+      const current = decoratedPotData(block.blockEntityData); const data = { ...current, decorations: { ...current.decorations, [side]: sherd } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+    });
+  }
+  setDecoratedPotItem(position: VoxelCoordinate, stack: ItemStackData | undefined): boolean {
+    return this.history.execute('Decorated Pot item edit', (project) => {
+      const block = this.find(project, position);
+      if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups) || (stack !== undefined && !validItemStack(stack))) return undefined;
+      const current = decoratedPotData(block.blockEntityData);
+      const data = { ...current, ...(stack ? { item: stack } : { item: undefined }) };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   setBlockItemSlot(position: VoxelCoordinate, slot: number, stack: ItemStackData | undefined): boolean {
     return this.history.execute('Item slot edit', (project) => {
-      const block = this.find(project, position); const capability = itemHostCapability(block ? this.library.get(block.id) : undefined);
-      if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups)) return undefined;
+      const block = this.find(project, position); const capability = block ? itemHostCapability(this.library.get(block.id), block.id) : undefined;
+      if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups) || (stack !== undefined && !validItemStack(stack))) return undefined;
       const data = setItemContainerSlot(block.blockEntityData, capability.kind, capability.slotCount, slot, stack);
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
@@ -224,9 +234,16 @@ export function isSignId(id: string): boolean {
 function isSignBlock(block: PlacedBlock, definition: ReturnType<BlockLibraryService['get']>): boolean { return isSignDefinition(definition) || isSignId(block.id); }
 function isBlockEntity(definition: ReturnType<BlockLibraryService['get']>, kind: BlockEntityKind): boolean { return blockCapability(definition, 'block-entity')?.entityKind === kind; }
 function blockEntityKind(definition: ReturnType<BlockLibraryService['get']>): BlockEntityKind | undefined { return blockCapability(definition, 'block-entity')?.entityKind; }
-function itemHostCapability(definition: ReturnType<BlockLibraryService['get']>): Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'item-display' | 'item-storage-display' }> | undefined {
-  return blockCapability(definition, 'item-storage-display') ?? blockCapability(definition, 'item-display');
+type EditableItemHostCapability = Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'item-display' | 'item-storage-display' }> | (Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'inventory-storage' }> & { readonly slotCount: number });
+function itemHostCapability(definition: ReturnType<BlockLibraryService['get']>, blockId = definition?.id): EditableItemHostCapability | undefined {
+  const display = blockCapability(definition, 'item-storage-display') ?? blockCapability(definition, 'item-display');
+  if (display) return display;
+  const inventory = blockId ? verifiedInventoryContainerSchema(blockId) : undefined;
+  return inventory?.editable ? { kind: 'inventory-storage', slotCount: inventory.slotCount, evidence: 'verified' } : undefined;
 }
+function isDecoratedPotBlock(block: PlacedBlock, definition: ReturnType<BlockLibraryService['get']>): boolean { return block.id === 'minecraft:decorated_pot' || isBlockEntity(definition, 'decorated-pot'); }
+function validItemStack(stack: ItemStackData): boolean { return typeof stack.id === 'string' && stack.id.length > 0 && Number.isInteger(stack.count) && stack.count >= 1; }
+function isPotSide(value: string): value is 'back' | 'left' | 'right' | 'front' { return value === 'back' || value === 'left' || value === 'right' || value === 'front'; }
 export function isSignDefinition(definition: ReturnType<BlockLibraryService['get']>): boolean { return blockCapability(definition, 'block-entity')?.entityKind === 'sign'; }
 export function defaultSignData(): SignBlockEntityData { const side: SignSide = { lines: ['', '', '', ''], color: 'black', glowing: false }; return { kind: 'sign', front: side, back: { ...side, lines: [...side.lines] as SignSide['lines'] }, waxed: false }; }
 export function signData(value: unknown): SignBlockEntityData {

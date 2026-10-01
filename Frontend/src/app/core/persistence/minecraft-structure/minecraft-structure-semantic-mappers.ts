@@ -6,6 +6,7 @@ import { decorationAabb, paintingEntityPosition } from '../../decorations/placem
 import { paintingVariant, type DecorationFacing, type PlacedDecoration } from '../../decorations/decoration.types';
 import type { MinecraftStructureDiagnostic } from './minecraft-structure-contract';
 import type { MinecraftNbtCompound, MinecraftNbtList, MinecraftNbtTag } from './minecraft-structure-types';
+import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
 
 export interface SemanticMappingSuccess<T> { readonly ok: true; readonly value: T; }
 export interface SemanticMappingFailure { readonly ok: false; readonly diagnostic: MinecraftStructureDiagnostic; }
@@ -85,15 +86,9 @@ function mapPot(blockId: string, data: DecoratedPotBlockEntityData, index: numbe
   return { ok: true, value: compound(fields) };
 }
 
-const verifiedContainerSchemas: Readonly<Record<string, { readonly id: string; readonly slotCount: number }>> = {
-  'minecraft:chest': { id: 'minecraft:chest', slotCount: 27 },
-  'minecraft:barrel': { id: 'minecraft:barrel', slotCount: 27 },
-  'minecraft:hopper': { id: 'minecraft:hopper', slotCount: 5 },
-};
-
 function mapContainer(blockId: string, data: ItemContainerBlockEntityData, index: number): SemanticMappingResult<MinecraftNbtCompound> {
-  const schema = verifiedContainerSchemas[blockId];
-  if (blockId === 'minecraft:furnace') return failure('unsupported-block-entity', 'Furnace export is deferred because the current semantic model cannot represent its operational NBT (burn/cook timers and recipe-use data) losslessly.', `blocks.${index}.blockEntityData`);
+  const schema = verifiedInventoryContainerSchema(blockId);
+  if (schema && !schema.nbtSupported) return failure('unsupported-block-entity', 'Furnace export is deferred because the current semantic model cannot represent its operational NBT (burn/cook timers and recipe-use data) losslessly.', `blocks.${index}.blockEntityData`);
   if (!schema) return failure('unsupported-block-entity', 'Inventory block entity data is only supported for verified vanilla container IDs.', `blocks.${index}.id`);
   if (!isRecord(data) || data['kind'] !== 'item-container' || data['hostKind'] !== 'inventory-storage' || !Array.isArray(data['slots'])) return failure('invalid-block-entity', 'Inventory container data must use the inventory-storage host and a slot array.', `blocks.${index}.blockEntityData`);
   const rawValidation = validateContainerRaw(data['raw'], schema.slotCount, `blocks.${index}.blockEntityData.raw`);
@@ -106,7 +101,7 @@ function mapContainer(blockId: string, data: ItemContainerBlockEntityData, index
     if (!item.ok) return item;
     mappedItems.push(item.value);
   }
-  const fields: Record<string, MinecraftNbtTag> = { id: stringTag(schema.id), Items: list('compound', mappedItems as MinecraftNbtCompound[]) };
+  const fields: Record<string, MinecraftNbtTag> = { id: stringTag(schema.nbtId), Items: list('compound', mappedItems as MinecraftNbtCompound[]) };
   if (blockId === 'minecraft:hopper') fields['TransferCooldown'] = intTag(0);
   return { ok: true, value: compound(fields) };
 }

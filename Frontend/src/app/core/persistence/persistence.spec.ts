@@ -32,6 +32,8 @@ describe('local persistence helpers', () => {
       ...project,
       blocks: [
         { ...block('minecraft:chest', 0, 0, 0), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 1 } }] } },
+        { ...block('minecraft:barrel', 2, 0, 0), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 26, stack: { id: 'minecraft:stone', count: 7 } }] } },
+        { ...block('minecraft:hopper', 3, 0, 0), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 4, stack: { id: 'minecraft:apple', count: 2 } }] } },
         { ...block('minecraft:decorated_pot', 1, 0, 0), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' }, item: { id: 'minecraft:apple', count: 2 } } },
       ],
     };

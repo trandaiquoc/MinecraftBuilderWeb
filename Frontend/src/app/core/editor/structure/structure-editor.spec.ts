@@ -7,6 +7,7 @@ import { SelectionService } from '../selection/selection.service';
 import { isSignId, signLines, StructureEditorService } from './structure-editor.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
+import type { ItemStackData } from '../../items/item-stack.types';
 
 function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService } {
   const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const history = new HistoryService(workspace); const library = new BlockLibraryService(active);
@@ -165,6 +166,54 @@ describe('StructureEditorService mutations', () => {
     ] });
     expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 0, { id: 'minecraft:stone', count: 1 })).toBe(false);
     expect(workspace.project()!.blocks[0].blockEntityData).toBeUndefined();
+  });
+
+  it('edits verified chest inventory slots, counts, clears, and preserves raw data through history', () => {
+    const chestProject: ProjectDocument = { ...project, blocks: [{ kind: 'resolved', id: 'minecraft:chest', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: {}, blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [], raw: { legacy: true } } }] };
+    const { editor, workspace, history, library } = makeEditor(chestProject);
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [{ id: 'minecraft:chest', displayName: 'Chest', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'inventory-storage', slotCount: 27, evidence: 'verified' }] }] });
+    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, { id: 'minecraft:diamond', count: 3, components: { custom: true } })).toBe(true);
+    let data = workspace.project()!.blocks[0].blockEntityData as { slots: readonly { slot: number; stack?: ItemStackData }[]; raw?: unknown };
+    expect(data.slots[26].stack).toEqual({ id: 'minecraft:diamond', count: 3, components: { custom: true } }); expect(data.raw).toEqual({ legacy: true });
+    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, { id: 'minecraft:diamond', count: 5, components: { custom: true } })).toBe(true);
+    expect(editor.setBlockItemSlot({ x: 1, y: 1, z: 1 }, 26, undefined)).toBe(true);
+    expect(history.undo()).toBe(true); data = workspace.project()!.blocks[0].blockEntityData as typeof data; expect(data.slots[26].stack?.count).toBe(5);
+    expect(history.redo()).toBe(true); expect((workspace.project()!.blocks[0].blockEntityData as typeof data).slots[26].stack).toBeUndefined();
+  });
+
+  it('initializes supported containers but rejects Furnace inventory edits', () => {
+    const empty: ProjectDocument = { ...project, blocks: [] }; const { editor, workspace, library, active } = makeEditor(empty);
+    library.replaceSource({ minecraftVersion: '1.21.1', sourceId: 'example', sourceName: 'Example', blocks: [
+      { id: 'minecraft:chest', displayName: 'Chest', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'inventory-storage', slotCount: 27, evidence: 'verified' }] },
+      { id: 'minecraft:furnace', displayName: 'Furnace', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', capabilities: [{ kind: 'inventory-storage', slotCount: 3, evidence: 'verified' }] },
+    ] });
+    active.select(library.get('minecraft:chest')!); expect(editor.place({ x: 0, y: 0, z: 0 })).toBe(true);
+    expect(workspace.project()!.blocks[0].blockEntityData).toMatchObject({ kind: 'item-container', hostKind: 'inventory-storage', slots: expect.any(Array) });
+    active.select(library.get('minecraft:furnace')!); expect(editor.place({ x: 1, y: 0, z: 0 })).toBe(true);
+    expect(workspace.project()!.blocks[1].blockEntityData).toBeUndefined();
+    expect(editor.setBlockItemSlot({ x: 1, y: 0, z: 0 }, 0, { id: 'minecraft:stone', count: 1 })).toBe(false);
+  });
+
+  it('edits decorated pot sherds and stored items without normalizing invalid input', () => {
+    const pot: ProjectDocument = { ...project, blocks: [{ kind: 'resolved', id: 'minecraft:decorated_pot', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: {}, blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' }, raw: { future: true } } }] };
+    const { editor, workspace, history } = makeEditor(pot);
+    expect(editor.updateDecoratedPotDecoration({ x: 1, y: 1, z: 1 }, 'back', 'minecraft:heart_pottery_sherd')).toBe(true);
+    expect(editor.updateDecoratedPotDecoration({ x: 1, y: 1, z: 1 }, 'back', 'minecraft:not_a_sherd')).toBe(false);
+    expect(editor.setDecoratedPotItem({ x: 1, y: 1, z: 1 }, { id: 'minecraft:diamond', count: 2, components: { custom: true } })).toBe(true);
+    const data = workspace.project()!.blocks[0].blockEntityData as { decorations: { back: string }; item?: ItemStackData; raw?: unknown };
+    expect(data.decorations.back).toBe('minecraft:heart_pottery_sherd'); expect(data.item).toEqual({ id: 'minecraft:diamond', count: 2, components: { custom: true } }); expect(data.raw).toEqual({ future: true });
+    expect(history.undo()).toBe(true); expect((workspace.project()!.blocks[0].blockEntityData as typeof data).item).toBeUndefined(); expect(history.redo()).toBe(true);
+  });
+
+  it('rejects decorated pot and inventory mutations for locked memberships', () => {
+    const locked: ProjectDocument = { ...project, groups: [{ id: 'locked', name: 'Locked', visible: true, locked: true }], blocks: [
+      { kind: 'resolved', id: 'minecraft:decorated_pot', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: {}, groupIds: ['locked'], blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' } } },
+      { kind: 'resolved', id: 'minecraft:chest', namespace: 'minecraft', position: { x: 2, y: 1, z: 1 }, state: {}, groupIds: ['locked'], blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [] } },
+    ] };
+    const { editor } = makeEditor(locked);
+    expect(editor.updateDecoratedPotDecoration({ x: 1, y: 1, z: 1 }, 'front', 'minecraft:heart_pottery_sherd')).toBe(false);
+    expect(editor.setDecoratedPotItem({ x: 1, y: 1, z: 1 }, { id: 'minecraft:stone', count: 1 })).toBe(false);
+    expect(editor.setBlockItemSlot({ x: 2, y: 1, z: 1 }, 0, { id: 'minecraft:stone', count: 1 })).toBe(false);
   });
 });
 

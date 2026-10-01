@@ -23,6 +23,7 @@ export class ItemStackPickerComponent implements OnChanges {
   @Input() visualUnsupportedLabel = 'Visual unavailable';
   @Input() visualMissingLabel = 'Missing visual resource';
   @Input() visualLoadingLabel = 'Loading visual';
+  @Input() disabled = false;
   @Input() sourceId?: string;
   @Output() readonly stackChange = new EventEmitter<ItemStackData | undefined>();
 
@@ -77,6 +78,7 @@ export class ItemStackPickerComponent implements OnChanges {
   }
 
   protected choose(id: string): void {
+    if (this.disabled) return;
     const selected = this.selectedStack;
     if (!id) { this.stackChange.emit(undefined); return; }
     if (selected?.id === id) { this.stackChange.emit(selected); return; }

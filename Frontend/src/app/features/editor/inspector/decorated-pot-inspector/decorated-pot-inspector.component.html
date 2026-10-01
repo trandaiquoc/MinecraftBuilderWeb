@@ -1,0 +1,13 @@
+<section class="pot-inspector">
+  <h3>{{ i18n.t('decoratedPot') }}</h3>
+  @if (hasRaw()) { <p class="muted raw-warning">{{ i18n.t('rawDataWarning') }}</p> }
+  <h4>{{ i18n.t('potteryPattern') }}</h4>
+  <div class="pot-patterns">
+    @for (side of ['back', 'left', 'right', 'front']; track side) {
+      <label><span>{{ sideLabel($any(side)) }}</span><app-searchable-dropdown [options]="sherdOptions()" [selectedId]="selectedSherd($any(side))" [placeholder]="i18n.t('potteryPattern')" [ariaLabel]="sideLabel($any(side))" [emptyLabel]="''" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" [disabled]="locked" (selectionChange)="selectSherd($any(side), $event)" /></label>
+    }
+  </div>
+  <h4>{{ i18n.t('storedItem') }}</h4>
+  <app-item-stack-picker [entries]="catalog.all()" [selectedStack]="data().item" [placeholder]="i18n.t('searchItems')" [emptyLabel]="i18n.t('emptySlot')" [ariaLabel]="i18n.t('storedItem')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" [sourceLabel]="i18n.t('contentSource')" [allSourcesLabel]="i18n.t('allSources')" [disabled]="locked" (stackChange)="setItem($event)" />
+  @if (data().item; as item) { <label class="count-field"><span>{{ i18n.t('itemCount') }}</span><input type="number" min="1" step="1" [value]="item.count" [disabled]="locked" (change)="changeCount($event)" /></label><button type="button" [disabled]="locked" (click)="clearItem()">{{ i18n.t('clearItem') }}</button> }
+</section>

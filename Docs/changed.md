@@ -1875,7 +1875,7 @@ blocks (274 Air), six block entities (sign, decorated pot, hanging sign,
 chest, barrel, hopper),
 and painting/item-frame/glow-item-frame entities. A permanent test reads this
 committed ZIP and decodes it with the production NBT codec. Manual Minecraft
-Java 1.21.1 datapack verification is still pending.
+Java 1.21.1 datapack verification is **PASS** (user report).
 
 ## Prompt 15.4.2 hanging entity survival and block entity completeness
 
@@ -1913,7 +1913,7 @@ The ZIP is 1853 bytes with SHA-256
 `420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661`; its
 embedded NBT has the same 1448-byte SHA-256. Both are
 **EXPORTER/PACKAGER-GENERATED - NOT A GOLDEN**. Manual Minecraft attachment
-survival verification remains pending.
+survival verification is **PASS** (user report).
 
 The Java 1.21.1 sources used for this pass are the mappings for
 [DecoratedPotBlockEntity](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/DecoratedPotBlockEntity.html),
@@ -1926,3 +1926,14 @@ and [BlockAttachedEntity](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.3/
 references for `fixed`, `attachedBlockPos`, and `canStayAttached`, together with
 the [deobfuscated 1.21.1 ItemFrameEntity source](https://raw.githubusercontent.com/Soumeh/1.21.1-Deobfuscated/main/minecraft/src/net/minecraft/entity/decoration/ItemFrameEntity.java)
 for the exact fixed/support survival check.
+
+## Prompt 15.4.3 block entity editor UI
+
+Added compact inventory editors for verified Chest and Barrel (27 slots each)
+and Hopper (5 slots), with one shared item picker for the selected slot,
+positive-integer count editing, clear actions, and history-aware undo/redo.
+Furnace inventory remains explicitly unavailable and is never initialized as a
+generic editable container. Added Decorated Pot side sherd and stored-item
+editing using the verified sherd list. Known-field edits preserve item
+components and imported raw data; unsupported raw/components remain exporter
+diagnostics. Manual UI verification: **NOT YET MANUALLY VERIFIED IN EDITOR UI**.

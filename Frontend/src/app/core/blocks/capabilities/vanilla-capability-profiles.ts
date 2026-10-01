@@ -1,4 +1,5 @@
 import type { BlockCapability } from './block-capability.types';
+import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
 
 /**
  * Verified target contract for the 26.3 Vanilla Shelf family. The exact IDs
@@ -12,13 +13,6 @@ const VERIFIED_SHELF_IDS = new Set([
   'minecraft:pale_oak_shelf', 'minecraft:poplar_shelf', 'minecraft:spruce_shelf',
   'minecraft:warped_shelf',
 ]);
-
-const VERIFIED_STORAGE_SLOT_COUNTS: Readonly<Record<string, number>> = {
-  'minecraft:chest': 27,
-  'minecraft:barrel': 27,
-  'minecraft:hopper': 5,
-  'minecraft:furnace': 3,
-};
 
 // Verified vanilla pillar families. Placement consumes this contract instead
 // of branching on individual registry IDs in the rule engine.
@@ -38,8 +32,8 @@ const VERIFIED_PILLAR_IDS = new Set([
 
 export function verifiedVanillaCapabilityProfile(id: string): readonly BlockCapability[] {
   if (VERIFIED_SHELF_IDS.has(id)) return [{ kind: 'item-storage-display', slotCount: 3, evidence: 'verified' }];
-  const slotCount = VERIFIED_STORAGE_SLOT_COUNTS[id];
-  if (slotCount !== undefined) return [{ kind: 'inventory-storage', slotCount, evidence: 'verified' }];
+  const inventory = verifiedInventoryContainerSchema(id);
+  if (inventory) return [{ kind: 'inventory-storage', slotCount: inventory.slotCount, evidence: 'verified' }];
   if (VERIFIED_PILLAR_IDS.has(id)) return [
     { kind: 'direct-placement', evidence: 'verified' },
     { kind: 'axis-oriented', axisProperty: 'axis', evidence: 'verified' },
@@ -49,4 +43,4 @@ export function verifiedVanillaCapabilityProfile(id: string): readonly BlockCapa
 
 export function isVerifiedVanillaShelf(id: string): boolean { return VERIFIED_SHELF_IDS.has(id); }
 
-export function verifiedVanillaInventorySlotCount(id: string): number | undefined { return VERIFIED_STORAGE_SLOT_COUNTS[id]; }
+export function verifiedVanillaInventorySlotCount(id: string): number | undefined { return verifiedInventoryContainerSchema(id)?.slotCount; }

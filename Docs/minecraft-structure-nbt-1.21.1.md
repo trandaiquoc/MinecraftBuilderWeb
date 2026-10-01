@@ -353,7 +353,18 @@ was required. The committed smoke artifacts were regenerated through the
 production exporter and ZIP writer, include a support wall plus all three
 hanging entity types and Chest/Barrel/Hopper/Pot examples, and remain
 **EXPORTER-GENERATED - NOT A GOLDEN**. They have not yet been manually checked
-in Minecraft after the attachment survival timer.
+in Minecraft after the attachment survival timer. Prompt 15.4.2 manual
+Minecraft Java 1.21.1 smoke verification is **PASS** (user report).
+
+## Prompt 15.4.3 block entity editor UI
+
+The editor now exposes compact, history-aware inventory inspectors for the
+verified Chest (27 slots), Barrel (27 slots), and Hopper (5 slots) contracts.
+Furnace inventory remains unavailable because its operational NBT is not
+represented by the semantic model. Decorated Pot inspection supports the four
+canonical sherd sides and its optional stored item/count while preserving
+components and imported raw data through known-field edits. No NBT/ZIP export
+UI was added in this prompt; viewport pattern rendering remains unchanged.
 
 ## Boundary
 
