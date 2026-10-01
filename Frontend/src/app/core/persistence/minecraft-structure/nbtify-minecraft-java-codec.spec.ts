@@ -48,10 +48,26 @@ describe('nbtify Minecraft Java codec', () => {
       expect(firstBlock.value['state']).toEqual({ type: 'int', value: 0 });
     }
 
+    const chest = template.blocks.find((entry) => entry.pos.join(',') === '2,0,0')?.nbt;
+    expect(chest?.value['id']).toEqual({ type: 'string', value: 'minecraft:chest' });
+    expect(chest?.value['Items']).toMatchObject({ type: 'list', elementType: 'compound' });
+    if (chest?.value['Items']?.type === 'list' && chest.value['Items'].value[0]?.type === 'compound') {
+      expect(chest.value['Items'].value[0].value['Slot']).toEqual({ type: 'byte', value: 0 });
+      expect(chest.value['Items'].value[0].value['count']).toEqual({ type: 'int', value: 1 });
+      expect(chest.value['Items'].value[0].value['id']).toEqual({ type: 'string', value: 'minecraft:diamond' });
+    }
+
     const sign = template.blocks.find((entry) => entry.nbt?.value['id']?.type === 'string' && (entry.nbt.value['id'].value === 'minecraft:sign' || entry.nbt.value['id'].value === 'minecraft:hanging_sign'))?.nbt;
     expect(sign?.value['is_waxed']).toMatchObject({ type: 'byte' });
     expect(sign?.value['front_text']).toMatchObject({ type: 'compound' });
     if (sign?.value['front_text']?.type === 'compound') expect(sign.value['front_text'].value['messages']).toMatchObject({ type: 'list', elementType: 'string' });
+
+    const glow = template.entities.find((entry) => entry.nbt.value['id']?.type === 'string' && entry.nbt.value['id'].value === 'minecraft:glow_item_frame');
+    expect(glow?.nbt.value['Facing']).toEqual({ type: 'byte', value: 2 });
+    expect(glow?.nbt.value['ItemRotation']).toEqual({ type: 'byte', value: 3 });
+    const painting = template.entities.find((entry) => entry.nbt.value['id']?.type === 'string' && entry.nbt.value['id'].value === 'minecraft:painting');
+    expect(painting?.nbt.value['variant']).toEqual({ type: 'string', value: 'minecraft:aztec' });
+    expect(painting?.nbt.value['facing']).toEqual({ type: 'byte', value: 1 });
   });
 
   it('round-trips the decoded typed root without losing tag types', async () => {

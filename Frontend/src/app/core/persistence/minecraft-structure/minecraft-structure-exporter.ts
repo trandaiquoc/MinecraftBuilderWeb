@@ -2,7 +2,9 @@ import { MINECRAFT_JAVA_1_21_1_DATA_VERSION, canonicalProperties, structureState
 import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
 import type { MinecraftJavaNbtCodec } from './minecraft-structure-codec';
 import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/project.types';
-import type { MinecraftStructurePaletteEntry, MinecraftStructureTemplate } from './minecraft-structure-types';
+import { validateCoordinate } from '../../domain/validation';
+import type { MinecraftNbtCompound, MinecraftStructurePaletteEntry, MinecraftStructureTemplate } from './minecraft-structure-types';
+import { mapBlockEntity, mapDecoration } from './minecraft-structure-semantic-mappers';
 
 export interface MinecraftStructureExportSuccess {
   readonly ok: true;
@@ -21,8 +23,8 @@ export type MinecraftStructureExportResult = MinecraftStructureExportSuccess | M
 
 /**
  * Exports only the verified core StructureTemplate fields. Empty ProjectDocument
- * coordinates become explicit Air; unsupported block entities/decorations fail
- * before any binary output is produced.
+ * coordinates become explicit Air; unsupported semantic data fails before any
+ * binary output is produced.
  */
 export async function exportMinecraftStructure(
   project: ProjectDocument,
@@ -30,13 +32,22 @@ export async function exportMinecraftStructure(
   adapter = new MinecraftJavaStructureAdapter(),
 ): Promise<MinecraftStructureExportResult> {
   const validation = validateMinecraftStructureProject(project);
-  const diagnostics = validation.diagnostics.filter((diagnostic) => diagnostic.code !== 'unsupported-raw-nbt');
+  const diagnostics = [...validation.diagnostics];
+  const blockEntities = new Map<string, MinecraftNbtCompound>();
   project.blocks.forEach((block, index) => {
-    if (block.blockEntityData !== undefined) diagnostics.push({ code: 'unsupported-block-entity', message: 'Block entity data is not supported by the core 15.2 exporter.', path: `blocks.${index}.blockEntityData` });
+    const mapped = mapBlockEntity(block, index);
+    if (!mapped.ok) diagnostics.push(mapped.diagnostic);
+    else if (mapped.value) blockEntities.set(coordinateKey(block.position), mapped.value);
   });
-  if (project.decorations && project.decorations.length > 0) diagnostics.push({ code: 'unsupported-decoration', message: 'Decorations/entities require the later semantic entity exporter.', path: 'decorations' });
   diagnostics.push(...invalidStateDiagnostics(project.blocks));
   diagnostics.push(...duplicateCoordinateDiagnostics(project.blocks));
+  diagnostics.push(...invalidDecorationAnchorDiagnostics(project.decorations ?? [], project.size));
+  const mappedEntities = (project.decorations ?? []).slice().sort(compareDecorations).map((decoration, index) => mapDecoration(decoration, index));
+  const entities = [];
+  for (const mapped of mappedEntities) {
+    if (!mapped.ok) diagnostics.push(mapped.diagnostic);
+    else entities.push(mapped.value);
+  }
   if (diagnostics.length > 0) return { ok: false, diagnostics };
 
   const occupied = new Map<string, PlacedBlock>();
@@ -62,11 +73,12 @@ export async function exportMinecraftStructure(
         const block = occupied.get(`${x},${y},${z}`);
         const state = block ? paletteIndexes.get(structureStateIdentity(block.id, block.state)) : airIndex;
         if (state === undefined) throw new Error('Exporter palette construction lost a voxel state.');
-        blocks.push({ pos: [x, y, z] as const, state });
+        const nbt = blockEntities.get(`${x},${y},${z}`);
+        blocks.push({ pos: [x, y, z] as const, state, ...(nbt ? { nbt } : {}) });
       }
     }
   }
-  const template: MinecraftStructureTemplate = { dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION, size: project.size, palette, blocks, entities: [] };
+  const template: MinecraftStructureTemplate = { dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION, size: project.size, palette, blocks, entities };
   const templateValidation = validateStructureTemplate(template);
   if (!templateValidation.valid) return { ok: false, diagnostics: templateValidation.diagnostics };
   const bytes = await codec.encode(adapter.encodeStructure(template));
@@ -95,3 +107,15 @@ function duplicateCoordinateDiagnostics(blocks: readonly PlacedBlock[]): Minecra
 
 function coordinateKey(position: { readonly x: number; readonly y: number; readonly z: number }): string { return `${position.x},${position.y},${position.z}`; }
 function volume(size: ProjectSize): number { return size.x * size.y * size.z; }
+
+function invalidDecorationAnchorDiagnostics(decorations: NonNullable<ProjectDocument['decorations']>, size: ProjectSize): MinecraftStructureDiagnostic[] {
+  const diagnostics: MinecraftStructureDiagnostic[] = [];
+  decorations.forEach((decoration, index) => {
+    for (const issue of validateCoordinate(decoration.anchor, size)) diagnostics.push({ code: issue.code === 'out-of-bounds' ? 'out-of-bounds' : 'invalid-coordinate', message: issue.message, path: `decorations.${index}.anchor` });
+  });
+  return diagnostics;
+}
+
+function compareDecorations(left: NonNullable<ProjectDocument['decorations']>[number], right: NonNullable<ProjectDocument['decorations']>[number]): number {
+  return left.anchor.x - right.anchor.x || left.anchor.y - right.anchor.y || left.anchor.z - right.anchor.z || left.kind.localeCompare(right.kind) || left.facing.localeCompare(right.facing) || (left.variantId ?? left.item?.id ?? '').localeCompare(right.variantId ?? right.item?.id ?? '') || (left.rotation ?? 0) - (right.rotation ?? 0) || left.instanceId.localeCompare(right.instanceId);
+}

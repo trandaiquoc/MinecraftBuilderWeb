@@ -172,13 +172,81 @@ canonical sorted order as well as being used for identity.
 The exporter smoke fixture
 `Frontend/src/app/core/persistence/minecraft-structure/fixtures/exporter_smoke_1_21_1.nbt`
 is a small exporter-generated file for manual Structure Block loading. It is
-not a golden fixture and remains pending independent Minecraft verification.
+not a golden fixture. Manual Minecraft verification is **PASS (user report)**.
 Its current integrity record is: 268 bytes, SHA-256
 `9a32ab8c86687320396d8f24913dd0c5ad025632c8718958efacc44d729894cf`, gzip
 compression, DataVersion `3955`, size `[3,2,3]`, three palette entries, and
 18 block entries. Sixteen entries reference Air; the non-Air entries are Stone
 and Oak Stairs with `facing=north`, `half=bottom`, `shape=straight`, and
 `waterlogged=false`.
+
+## Prompt 15.3 semantic block entities and entities
+
+The exporter now maps only verified semantic data. The export menu, download
+flow, ZIP/datapack packaging, and arbitrary raw-NBT preservation remain
+disabled/deferred.
+
+### Supported block entities
+
+- Vanilla Sign-family blocks map to `minecraft:sign` or
+  `minecraft:hanging_sign` with typed `front_text`, `back_text`, and
+  `is_waxed` tags. Each side has exactly four String `messages`, String
+  `color`, and Byte `has_glowing_text`; supplied `filtered_messages` are
+  preserved as four String tags. Invalid colors, malformed lines, a
+  sign/block mismatch, or non-empty raw data fail the export explicitly.
+- `minecraft:decorated_pot` maps to the `minecraft:decorated_pot` Compound
+  and preserves the semantic `back,left,right,front` sherd order. Valid
+  namespaced IDs, including modded IDs, are retained. The `sherds` list is
+  omitted for an all-`minecraft:brick` pot; invalid IDs and non-empty raw data
+  fail explicitly. The older editor display helper may still normalize for
+  visual editing, but the exporter never uses that lossy fallback.
+- The current ProjectDocument has no persisted Conduit payload. Conduit is
+  therefore UNSUPPORTED in this exporter rather than receiving guessed runtime
+  fields or an invented block-entity record.
+- The current generic `item-container` model represents item-display/storage
+  display capabilities, not a verified Java Chest (or other container) block
+  entity. It is UNSUPPORTED for Structure NBT until a block-specific ID,
+  capacity, and typed item schema are modeled. The golden Chest remains a
+  regression reference, not an inferred generic mapping.
+
+### Supported top-level entities
+
+Painting, Item Frame, and Glow Item Frame are emitted as StructureTemplate
+`entities[]` entries. Each entry has typed Double `pos`, Int `blockPos`, and a
+typed Compound `nbt`. Painting variants must be present in the active catalog
+with verified dimensions; there is no missing-variant `kebab` or 1x1 fallback.
+Painting facing uses the verified horizontal byte mapping south=0, west=1,
+north=2, east=3. Item Frame and Glow Item Frame use the verified Facing
+mapping down=0, up=1, north=2, south=3, west=4, east=5, plus typed Pos,
+TileX/Y/Z, ItemRotation Byte, ItemDropChance Float, Fixed Byte, Invisible Byte,
+and an optional typed item stack (`id` String, `count` Int). Item components
+and invalid item IDs/counts fail explicitly. Decorations are sorted by anchor,
+kind, facing, variant/item ID, rotation, and instance ID before export.
+
+### Golden and smoke status
+
+The immutable `golden_1_21_1.nbt` regression now asserts the observed Java
+1.21.1 Chest `Items` list (Slot Byte, count Int, id String), Sign/Hanging Sign
+compound shapes, Glow Item Frame Facing/ItemRotation bytes, and Painting
+variant/facing tags. The generated fixture below is self-verified through the
+production codec only; it is not independent Minecraft compatibility proof.
+
+`exporter_be_entity_smoke_1_21_1.nbt` contains dimensions `6 x 2 x 6`, 72
+explicit blocks (65 Air), Sign and Hanging Sign block entities, a non-default
+Decorated Pot, and Painting, Item Frame, and Glow Item Frame entities. Its
+current integrity record is 818 bytes, SHA-256
+`33a5794b7ff94d86b776e38070abae6180a8880a0faef24f42eea1fbf2cd5407`.
+
+### Sources
+
+- [Minecraft 1.21.1 SignBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/SignBlockEntity.html)
+- [Minecraft 1.21.1 DecoratedPotBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/DecoratedPotBlockEntity.html)
+- [Minecraft 1.21.1 ConduitBlockEntity mappings](https://mappings.dev/1.21.1/net/minecraft/world/level/block/entity/ConduitBlockEntity.html)
+- [Yarn ItemFrameEntity reference](https://maven.fabricmc.net/docs/yarn/1.21.9%2Bbuild.1/net/minecraft/entity/decoration/ItemFrameEntity.html) (field-name cross-check; native 1.21.1 tags are locked by the golden fixture)
+- [Minecraft 1.21.1 Painting mappings](https://mappings.dev/1.21.1/net/minecraft/world/entity/decoration/Painting.html)
+- [Java 1.21.1 StructureTemplate mappings](https://maven.fabricmc.net/docs/yarn-1.21.1%2Bbuild.1/net/minecraft/structure/StructureTemplate.html)
+- The independent Minecraft-generated `golden_1_21_1.nbt` fixture is the
+  primary source for observed native tag types and wrapper shape.
 
 ## Boundary
 

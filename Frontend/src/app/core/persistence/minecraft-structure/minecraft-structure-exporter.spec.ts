@@ -100,7 +100,7 @@ describe('core Minecraft Structure NBT exporter', () => {
     if (first.ok && second.ok) expect(second.template).toEqual(first.template);
   });
 
-  it('rejects duplicate coordinates, invalid versions, bounds, block entities, and decorations', async () => {
+  it('rejects duplicate coordinates, invalid versions, bounds, and unsupported semantic data', async () => {
     const duplicate = await exported(project({ x: 1, y: 1, z: 1 }, [block('minecraft:stone', { x: 0, y: 0, z: 0 }), block('minecraft:dirt', { x: 0, y: 0, z: 0 })]));
     expect(duplicate.ok).toBe(false);
     if (!duplicate.ok) expect(duplicate.diagnostics.map((entry) => entry.code)).toContain('duplicate-coordinate');
@@ -119,7 +119,7 @@ describe('core Minecraft Structure NBT exporter', () => {
 
     const entity = await exported(project({ x: 1, y: 1, z: 1 }, [{ ...block('minecraft:chest', { x: 0, y: 0, z: 0 }), blockEntityData: { kind: 'unknown' } }]));
     expect(entity.ok).toBe(false);
-    if (!entity.ok) expect(entity.diagnostics.map((entry) => entry.code)).toContain('unsupported-block-entity');
+    if (!entity.ok) expect(entity.diagnostics.map((entry) => entry.code)).toContain('unsupported-raw-nbt');
 
     const sign = await exported(project({ x: 1, y: 1, z: 1 }, [{
       ...block('minecraft:oak_sign', { x: 0, y: 0, z: 0 }),
@@ -130,19 +130,26 @@ describe('core Minecraft Structure NBT exporter', () => {
         back: { lines: ['', '', '', ''] as const, color: 'black', glowing: false },
       },
     }]));
-    expect(sign.ok).toBe(false);
-    if (!sign.ok) expect(sign.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'unsupported-block-entity', path: 'blocks.0.blockEntityData' })]));
+    expect(sign.ok).toBe(true);
+    if (sign.ok) expect(sign.template.blocks[0].nbt?.value['id']).toEqual({ type: 'string', value: 'minecraft:sign' });
 
     const decoratedPot = await exported(project({ x: 1, y: 1, z: 1 }, [{
       ...block('minecraft:decorated_pot', { x: 0, y: 0, z: 0 }),
-      blockEntityData: { kind: 'decorated-pot', decorations: { back: 'brick', left: 'brick', right: 'brick', front: 'brick' } },
+      blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:angler_pottery_sherd' } },
     }]));
-    expect(decoratedPot.ok).toBe(false);
-    if (!decoratedPot.ok) expect(decoratedPot.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'unsupported-block-entity', path: 'blocks.0.blockEntityData' })]));
+    expect(decoratedPot.ok).toBe(true);
+    if (decoratedPot.ok) expect(decoratedPot.template.blocks[0].nbt?.value['sherds']).toMatchObject({ type: 'list', elementType: 'string' });
 
     const decoration = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'painting-1', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
-    expect(decoration.ok).toBe(false);
-    if (!decoration.ok) expect(decoration.diagnostics.map((entry) => entry.code)).toContain('unsupported-decoration');
+    expect(decoration.ok).toBe(true);
+
+    const mismatchedDecoration = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'painting-2', kind: 'painting', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
+    expect(mismatchedDecoration.ok).toBe(false);
+    if (!mismatchedDecoration.ok) expect(mismatchedDecoration.diagnostics.map((entry) => entry.code)).toContain('invalid-decoration');
+
+    const outsideDecoration = await exported(project({ x: 1, y: 1, z: 1 }, [], { decorations: [{ instanceId: 'painting-3', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 1, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] }));
+    expect(outsideDecoration.ok).toBe(false);
+    if (!outsideDecoration.ok) expect(outsideDecoration.diagnostics.map((entry) => entry.code)).toContain('out-of-bounds');
   });
 
   it('round-trips a supported exported structure through the typed adapter and codec', async () => {

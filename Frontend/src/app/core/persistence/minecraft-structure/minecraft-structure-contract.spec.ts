@@ -67,4 +67,21 @@ describe('Minecraft Java Structure NBT contract boundary', () => {
     expect(validateStructureTemplate(document).valid).toBe(true);
     expect(validateStructureTemplate({ ...document, blocks: [{ pos: [1, 0, 0] as const, state: 0 }] }).diagnostics.map((diagnostic) => diagnostic.code)).toContain('out-of-bounds');
   });
+
+  it('validates typed block/entity NBT and entity coordinate shapes before encoding', () => {
+    const valid = {
+      dataVersion: 3955,
+      size: { x: 1, y: 1, z: 1 },
+      palette: [{ name: 'minecraft:stone' }],
+      blocks: [{ pos: [0, 0, 0] as const, state: 0, nbt: { type: 'compound' as const, value: { id: { type: 'string' as const, value: 'minecraft:sign' } } } }],
+      entities: [{ pos: [0.5, 0.5, 0.5] as const, blockPos: [0, 0, 0] as const, nbt: { type: 'compound' as const, value: { id: { type: 'string' as const, value: 'minecraft:painting' } } } }],
+    };
+    expect(validateStructureTemplate(valid).valid).toBe(true);
+    const invalid = validateStructureTemplate({
+      ...valid,
+      blocks: [{ ...valid.blocks[0], nbt: { type: 'compound', value: { id: 'minecraft:sign' } } as never }],
+      entities: [{ ...valid.entities[0], pos: [Number.NaN, 0, 0] as never, blockPos: [0, 0.5, 0] as never, nbt: { type: 'compound', value: { id: 'minecraft:painting' } } as never }],
+    });
+    expect(invalid.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining(['invalid-block-entity', 'invalid-coordinate', 'unsupported-entity']));
+  });
 });

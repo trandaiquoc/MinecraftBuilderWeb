@@ -1792,3 +1792,29 @@ An exporter-generated smoke file is committed at
 It is intentionally not a golden fixture. Automated production-codec decode
 checks pass; manual Minecraft 1.21.1 Structure Block loading is not yet
 verified.
+
+## Prompt 15.3 semantic block entities and top-level entities
+
+Structure NBT export now has a capability-aware semantic boundary. Verified
+Sign/Hanging Sign and Decorated Pot data become typed `blocks[].nbt`; invalid
+colors, malformed text, invalid sherd ResourceLocations, and non-empty raw
+payloads fail explicitly. The exporter does not use the editor's lossy
+unknown-color or unknown-sherd display fallbacks.
+
+Painting, Item Frame, and Glow Item Frame decorations become typed top-level
+StructureTemplate entities with deterministic ordering, verified facing/position
+fields, and typed item stacks where the current domain can represent them.
+Unknown painting dimensions, mismatched entity kinds, invalid item data, and
+unsupported components fail explicitly. Conduit and the generic item-container
+model remain unsupported because the current ProjectDocument does not provide
+a verified Java 1.21.1 persisted schema for them; no data is guessed or
+silently dropped.
+
+Golden regression coverage now checks actual Chest, Sign/Hanging Sign,
+Painting, and Glow Item Frame native tag shapes from `golden_1_21_1.nbt`.
+The exporter-generated
+`exporter_be_entity_smoke_1_21_1.nbt` fixture is self-decoded through the
+production codec and is explicitly **NOT A GOLDEN**. The previous
+`exporter_smoke_1_21_1.nbt` has manual Minecraft Structure Block verification
+PASS (user report). UI export/download, ZIP/datapack packaging, and arbitrary
+raw-NBT preservation remain deferred.
