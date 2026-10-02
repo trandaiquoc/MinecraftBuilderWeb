@@ -37,6 +37,11 @@ export interface RendererCounters {
   readonly cameraMovementRenderCalls: number;
   readonly cameraChangeEventsDuringMovement: number;
   readonly cameraRenderRequestsSuppressed: number;
+  readonly hoverRaycasts: number;
+  readonly hoverRaycastsSuppressedDuringCamera: number;
+  readonly hoverPointerMovesCoalesced: number;
+  readonly interiorCullingChecks: number;
+  readonly interiorBlocksCulled: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -78,6 +83,11 @@ const EMPTY_COUNTERS: RendererCounters = {
   cameraMovementRenderCalls: 0,
   cameraChangeEventsDuringMovement: 0,
   cameraRenderRequestsSuppressed: 0,
+  hoverRaycasts: 0,
+  hoverRaycastsSuppressedDuringCamera: 0,
+  hoverPointerMovesCoalesced: 0,
+  interiorCullingChecks: 0,
+  interiorBlocksCulled: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

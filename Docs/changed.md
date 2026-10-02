@@ -2070,3 +2070,18 @@ the custom/mature tree exception.
 Structure export keeps NBT and ZIP generation unchanged. Standalone NBT no
 longer renders an empty package section, and installation guidance is now a
 full-width vertical flow with readable wrapping and raw copy actions.
+
+## Large viewport performance foundation
+
+The 3D and Y-Layer viewport now coalesce hover raycasts to animation frames and
+cancel hover work while OrbitControls is actively orbiting or panning. Click,
+placement, deletion, picking, and selection hit tests remain synchronous.
+
+Rendering may conservatively omit only normal-role voxels whose six visible
+neighbors are explicitly classified as opaque full cubes. Reference, missing,
+unknown, hidden, and unsupported visuals never occlude one another; omitted
+voxels remain in the ProjectDocument and can return to the render projection
+when a dirty voxel or neighbor changes. Hydration queues use head-index dequeue
+without changing their generation or ownership guards. Renderer diagnostics
+expose hover and interior-culling counters, and the status bar reports project
+dimensions as X/Y/Z values.

@@ -6,6 +6,7 @@
     <span [attr.data-status]="autosave.status() === 'error' ? 'invalid' : autosave.status() === 'saved' ? 'valid' : 'warning'" [attr.title]="autosave.error()">{{ saveStatusLabel() }}</span>
     @if (mode.mode() === 'y-layer') { <span>{{ i18n.t('currentLayer') }}: {{ workspace.project()?.editorSettings?.currentY ?? 0 }}</span> }
     @if (selectionCount() > 1) { <span>{{ selectionSummaryLabel() }}</span> }
+    @if (workspace.project(); as project) { <span class="project-size-status" [attr.aria-label]="projectSizeLabel()">{{ projectSizeLabel() }}</span> }
   </div>
   <div class="status-right">
     @if (assetStatus(); as asset) {

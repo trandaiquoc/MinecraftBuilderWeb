@@ -2,8 +2,51 @@ import { describe, expect, it } from 'vitest';
 import { ThreeViewportEngine } from '../engine/three-viewport-engine';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from './renderer-benchmark-fixtures';
+import { interiorOpaqueFullCubeKeys } from '../visibility/interior-occlusion';
+import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 
 describe('renderer incremental baseline', () => {
+  it('benchmarks conservative interior culling for a deterministic 48 cubed stone volume', () => {
+    const size = 48;
+    const blocks = Array.from({ length: size * size * size }, (_, index) => {
+      const x = index % size;
+      const y = Math.floor(index / (size * size));
+      const z = Math.floor(index / size) % size;
+      return { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} };
+    });
+    const definition = { id: 'minecraft:stone', behavior: { kind: 'solid' }, visualClassification: 'standard-json', visualSupport: 'real' } as unknown as BlockDefinition;
+    const entries = blocks.map((block) => ({ block, role: 'normal' as const }));
+    const culled = interiorOpaqueFullCubeKeys(entries, (id) => id === definition.id ? definition : undefined);
+    expect(blocks).toHaveLength(110_592);
+    expect(culled.size).toBe(97_336);
+    expect(blocks.length - culled.size).toBe(13_256);
+  });
+
+  it('does not let reference or missing voxels become occlusion evidence', () => {
+    const block = (kind: 'resolved' | 'missing', x: number, y: number, z: number) => ({ kind, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} } as const);
+    const definition = { id: 'minecraft:stone', behavior: { kind: 'solid' }, visualClassification: 'standard-json', visualSupport: 'real' } as unknown as BlockDefinition;
+    const entries: import('../visibility/interior-occlusion').OcclusionEntry[] = [
+      ...Array.from({ length: 27 }, (_, index) => ({ block: block('resolved', index % 3, Math.floor(index / 9), Math.floor(index / 3) % 3), role: 'normal' as const })),
+    ];
+    entries[12] = { block: block('resolved', 0, 1, 1), role: 'reference' };
+    entries[4] = { block: block('missing', 1, 0, 1), role: 'missing' };
+    const culled = interiorOpaqueFullCubeKeys(entries, (id) => id === definition.id ? definition : undefined);
+    expect(culled.size).toBe(0);
+  });
+
+  it('keeps interior culling render-only in the viewport engine', () => {
+    const blocks = Array.from({ length: 27 }, (_, index) => ({ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: index % 3, y: Math.floor(index / 9), z: Math.floor(index / 3) % 3 }, state: {} }));
+    const project = { ...rendererBenchmarkProject('small'), size: { x: 3, y: 3, z: 3 }, blocks, decorations: [] };
+    const definition = { id: 'minecraft:stone', behavior: { kind: 'solid' }, visualClassification: 'standard-json', visualSupport: 'real' } as unknown as BlockDefinition;
+    const engine = new ThreeViewportEngine();
+    engine.setBlockDefinitionResolver((id) => id === definition.id ? definition : undefined);
+    engine.update(project, undefined);
+    expect(engine.performanceEvidence().interiorBlocksCulled).toBe(1);
+    expect(engine.visibleSceneDiagnostics().expectedVisibleVoxelCount).toBe(27);
+    expect(engine.visibleSceneDiagnostics().placeholderVoxelCount).toBe(26);
+    engine.dispose();
+  });
+
   it('keeps the normal benchmark test small and deterministic', () => {
     expect(rendererBenchmarkProject('small').blocks).toHaveLength(256);
     expect(rendererBenchmarkProject('medium').blocks).toHaveLength(2048);

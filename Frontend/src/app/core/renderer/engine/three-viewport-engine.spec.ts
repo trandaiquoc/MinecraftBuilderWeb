@@ -99,6 +99,21 @@ describe('camera movement input contract', () => {
     expect(combined.z).toBeCloseTo(horizontal.z);
   });
 
+  it('coalesces hover pointer moves and suppresses them during camera gestures', async () => {
+    const engine = new ThreeViewportEngine();
+    const pointer = (clientX: number) => ({ clientX, clientY: 10 } as PointerEvent);
+    const hits: number[] = [];
+    engine.hover(pointer(1), undefined, undefined, undefined, false, () => hits.push(1));
+    engine.hover(pointer(2), undefined, undefined, undefined, false, () => hits.push(2));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(hits).toEqual([2]);
+    const internal = engine as unknown as { cameraGestureInProgress: boolean };
+    internal.cameraGestureInProgress = true;
+    engine.hover(pointer(3), undefined, undefined, undefined, false, () => hits.push(3));
+    expect(engine.rendererCounters()).toMatchObject({ hoverRaycasts: 1, hoverPointerMovesCoalesced: 1, hoverRaycastsSuppressedDuringCamera: 1 });
+    engine.dispose();
+  });
+
   it('keeps camera movement pure with respect to the project document', () => {
     const project = rendererBenchmarkProject('small');
     const before = JSON.stringify(project);
