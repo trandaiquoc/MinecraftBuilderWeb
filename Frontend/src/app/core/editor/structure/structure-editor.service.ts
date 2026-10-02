@@ -22,6 +22,7 @@ import { defaultItemContainerData, setItemContainerSlot } from '../../block-enti
 import type { ItemStackData } from '../../items/item-stack.types';
 import { validateItemStack } from '../../items/item-stack-validation';
 import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
+import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -161,9 +162,9 @@ export class StructureEditorService {
   }
 
   validation(): RuleValidation | undefined { return this.lastValidation; }
-  planPlacement(position: VoxelCoordinate, context?: PlacementContext): PlacementPlan | undefined {
+  planPlacement(position: VoxelCoordinate, context?: PlacementContext, lookup?: ReadonlyBlockLookup): PlacementPlan | undefined {
     const project = this.workspace.project(); const active = this.activeBlock.active();
-    return project && active ? planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id)) : undefined;
+    return project && active ? planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id), lookup) : undefined;
   }
   updateSignText(position: VoxelCoordinate, side: 'front' | 'back', value: string): boolean {
     return this.history.execute('Sign text edit', (project) => {

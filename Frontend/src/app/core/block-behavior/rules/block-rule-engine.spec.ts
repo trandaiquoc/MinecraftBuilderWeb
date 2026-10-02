@@ -11,6 +11,7 @@ import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { BlockRuleEngine, minecraftPlayerFacing, minecraftSkullRotation } from './block-rule-engine';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { VanillaBehaviorRegistry } from '../vanilla/vanilla-behavior-registry';
+import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-index';
 
 const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
 const engine = new BlockRuleEngine((id) => catalog.get(id));
@@ -39,6 +40,15 @@ describe('BlockRuleEngine', () => {
     expect(second.blocks.map((entry) => entry.state)).toEqual(expect.arrayContaining([expect.objectContaining({ east: 'true' }), expect.objectContaining({ west: 'true' })]));
     const removed = engine.delete(second, { x: 3, y: 1, z: 2 }).project!;
     expect(removed.blocks[0].state['east']).toBe('false');
+  });
+
+  it('preview uses the shared spatial lookup and matches commit placement', () => {
+    const project = { ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 })] };
+    const request = block('minecraft:oak_fence', { x: 2, y: 1, z: 2 });
+    const preview = engine.preview(project, request, undefined, new ProjectBlockSpatialIndex(project.blocks));
+    const committed = engine.place(project, request).project;
+    expect(preview.validation.status).toBe(committed ? 'valid' : 'invalid');
+    expect(preview.plannedBlocks?.map((entry) => ({ position: entry.position, state: entry.state }))).toEqual([{ position: request.position, state: request.state }]);
   });
 
   it('normalizes a resource-selected upper half before placing a double-height object', () => {

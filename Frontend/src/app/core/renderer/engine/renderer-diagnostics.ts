@@ -58,6 +58,22 @@ export interface RendererCounters {
   readonly hoverPointerMovesCoalesced: number;
   readonly interiorCullingChecks: number;
   readonly interiorBlocksCulled: number;
+  readonly hoverPickMs: number;
+  readonly ddaPickCount: number;
+  readonly ddaVisitedVoxels: number;
+  readonly ddaFullCubeHits: number;
+  readonly precisePickFallbacks: number;
+  readonly placementPreviewMs: number;
+  readonly placementPreviewFullProjectScans: number;
+  readonly duplicatePlacementValidations: number;
+  readonly spatialIndexBuilds: number;
+  readonly spatialIndexLookups: number;
+  readonly ghostVisualRebuilds: number;
+  readonly ghostVisualReuses: number;
+  readonly structuralReconciles: number;
+  readonly overlayOnlyUpdates: number;
+  readonly projectBoundsRebuilds: number;
+  readonly fullProjectScansDuringHover: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -120,6 +136,22 @@ const EMPTY_COUNTERS: RendererCounters = {
   hoverPointerMovesCoalesced: 0,
   interiorCullingChecks: 0,
   interiorBlocksCulled: 0,
+  hoverPickMs: 0,
+  ddaPickCount: 0,
+  ddaVisitedVoxels: 0,
+  ddaFullCubeHits: 0,
+  precisePickFallbacks: 0,
+  placementPreviewMs: 0,
+  placementPreviewFullProjectScans: 0,
+  duplicatePlacementValidations: 0,
+  spatialIndexBuilds: 0,
+  spatialIndexLookups: 0,
+  ghostVisualRebuilds: 0,
+  ghostVisualReuses: 0,
+  structuralReconciles: 0,
+  overlayOnlyUpdates: 0,
+  projectBoundsRebuilds: 0,
+  fullProjectScansDuringHover: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

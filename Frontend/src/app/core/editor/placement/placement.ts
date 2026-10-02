@@ -1,5 +1,6 @@
 import { isWithinBounds } from '../../domain/coordinates';
 import { PlacedBlock, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 
 export type PlacementStatus = 'valid' | 'warning' | 'invalid' | 'unknown';
@@ -42,13 +43,13 @@ export function normalizeVoxelCoordinate(position: VoxelCoordinate): VoxelCoordi
   return { x: Math.trunc(position.x), y: Math.trunc(position.y), z: Math.trunc(position.z) };
 }
 
-export function lanternChainAttachmentTarget(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, blocks: readonly PlacedBlock[]): VoxelCoordinate | undefined {
+export function lanternChainAttachmentTarget(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, blocks: readonly PlacedBlock[] | ReadonlyBlockLookup): VoxelCoordinate | undefined {
   return resolveAttachmentPlacement(activeBlockId, hitPosition, undefined, blocks)?.target;
 }
 
 /** Reusable attachment policy; bounds/occupancy are deliberately validated by the normal placement flow. */
-export function resolveAttachmentPlacement(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, hitPoint: { readonly y: number } | undefined, blocks: readonly PlacedBlock[], definition?: (id: string) => BlockDefinition | undefined): AttachmentPlacementResult | undefined {
-  const hit = blocks.find((block) => block.position.x === hitPosition.x && block.position.y === hitPosition.y && block.position.z === hitPosition.z);
+export function resolveAttachmentPlacement(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, hitPoint: { readonly y: number } | undefined, blocks: readonly PlacedBlock[] | ReadonlyBlockLookup, definition?: (id: string) => BlockDefinition | undefined): AttachmentPlacementResult | undefined {
+  const hit = blockAt(blocks, hitPosition);
   const activeBehavior = activeBlockId ? definition?.(activeBlockId)?.behavior : undefined;
   const isHangingSign = activeBehavior?.kind === 'hanging-sign' || (!definition && !!activeBlockId && activeBlockId.startsWith('minecraft:') && activeBlockId.endsWith('_hanging_sign') && !activeBlockId.includes('_wall_hanging_sign'));
   const hitBehavior = hit ? definition?.(hit.id)?.behavior : undefined;
@@ -65,6 +66,10 @@ export function resolveAttachmentPlacement(activeBlockId: string | undefined, hi
   }
   if (activeBehavior?.kind === 'lantern-placement' || (!definition && (activeBlockId === 'minecraft:lantern' || activeBlockId === 'minecraft:soul_lantern'))) return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: { hanging: 'true' }, snapType: 'chain-lantern' };
   return undefined;
+}
+
+function blockAt(source: readonly PlacedBlock[] | ReadonlyBlockLookup, position: VoxelCoordinate): PlacedBlock | undefined {
+  return 'get' in source ? source.get(position) : source.find((block) => block.position.x === position.x && block.position.y === position.y && block.position.z === position.z);
 }
 
 export function placementStatus(target: VoxelCoordinate | undefined, size: ProjectSize, support: 'full' | 'partial' | 'fallback' | 'unknown' = 'full'): PlacementStatus {

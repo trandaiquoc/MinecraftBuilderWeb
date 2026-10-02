@@ -5,12 +5,14 @@ import { isBlockLocked } from '../../editor/groups/group-membership';
 import { PlacementContext } from '../../editor/placement/placement';
 import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../logical-objects/logical-object';
 import { blockCapability, hasBlockCapability } from '../../blocks/capabilities/block-capability-resolver';
+import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 
 export type RuleStatus = 'valid' | 'warning' | 'invalid' | 'unknown';
 export type RuleReason = 'ok' | 'unknown-behavior' | 'out-of-bounds' | 'occupied' | 'missing-support' | 'locked-affected-block' | 'unstable-neighbor-update';
 export interface RuleValidation { readonly status: RuleStatus; readonly reason: RuleReason; readonly affectedPositions: readonly VoxelCoordinate[]; readonly diagnostics?: readonly string[]; }
-export interface RuleMutationResult { readonly validation: RuleValidation; readonly project?: ProjectDocument; }
+export interface RuleMutationResult { readonly validation: RuleValidation; readonly project?: ProjectDocument; readonly plannedBlocks?: readonly PlacedBlock[]; }
 export type BlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
+type BlockSource = readonly PlacedBlock[] | ReadonlyBlockLookup;
 
 /** Returns the next canonical state when the active candle can stack in-place. */
 export function nextCandleState(existing: PlacedBlock, activeId: string, definition: BlockDefinitionLookup): Readonly<Record<string, string>> | undefined {
@@ -30,10 +32,11 @@ const sixOffsets: readonly VoxelCoordinate[] = [...horizontalDirections.map((ent
 export class BlockRuleEngine {
   constructor(private readonly definition: BlockDefinitionLookup) {}
 
-  place(project: ProjectDocument, requestedBlock: PlacedBlock, context?: PlacementContext): RuleMutationResult {
+  place(project: ProjectDocument, requestedBlock: PlacedBlock, context?: PlacementContext, lookup?: ReadonlyBlockLookup): RuleMutationResult {
     const prepared = this.preparePlacement(requestedBlock, context);
     if (!prepared) return invalid('missing-support', [requestedBlock.position]);
-    const block = this.prepareContextualPlacement(project, prepared, context);
+    const source = lookup ?? project.blocks;
+    const block = this.prepareContextualPlacement(project, prepared, context, source);
     const definition = this.definition(block.id);
     const behavior = definition?.behavior;
     const targets = behavior?.kind === 'double-height'
@@ -42,20 +45,43 @@ export class BlockRuleEngine {
         ? [block.position, add(block.position, directionOffset(block.state[behavior.facingProperty] ?? 'north'))]
         : [block.position];
     if (targets.some((position) => !inBounds(position, project))) return invalid('out-of-bounds', targets);
-    if (targets.some((position) => find(project.blocks, position))) return invalid('occupied', targets);
-    const support = this.validateSupport(project, block, definition);
+    if (targets.some((position) => find(source, position))) return invalid('occupied', targets);
+    const support = this.validateSupport(project, block, definition, source);
     if (support.status === 'invalid') return { validation: support };
-    const placed = behavior?.kind === 'double-height'
-      ? [withState(block, { ...block.state, half: 'lower' }, block.position), withState(block, { ...block.state, half: 'upper' }, targets[1])]
-      : behavior?.kind === 'paired-horizontal'
-        ? [withState(block, { ...block.state, [behavior.partProperty]: behavior.firstPart, occupied: 'false' }, block.position), withState(block, { ...block.state, [behavior.partProperty]: behavior.secondPart, occupied: 'false' }, targets[1])]
-      : [block];
+    const placed = placedBlocksForBehavior(block, behavior, targets);
     const refreshed = this.refresh({ ...project, blocks: [...project.blocks, ...placed] }, targets);
     if (!refreshed.project) return refreshed;
     const knownPlacement = !!definition?.behavior || hasBlockCapability(definition, 'direct-placement');
     const directPlacementOnly = !definition?.behavior && hasBlockCapability(definition, 'direct-placement');
     const status = support.status === 'unknown' ? (directPlacementOnly ? 'valid' : 'unknown') : support.status === 'valid' && !knownPlacement ? 'unknown' : support.status;
     return { validation: { status, reason: status === 'valid' ? 'ok' : 'unknown-behavior', affectedPositions: refreshed.validation.affectedPositions }, project: touch(refreshed.project) };
+  }
+
+  /** Evaluates the same placement preparation/rules without cloning the project. */
+  preview(project: ProjectDocument, requestedBlock: PlacedBlock, context: PlacementContext | undefined, lookup: ReadonlyBlockLookup): RuleMutationResult {
+    const prepared = this.preparePlacement(requestedBlock, context);
+    if (!prepared) return invalid('missing-support', [requestedBlock.position]);
+    const block = this.prepareContextualPlacement(project, prepared, context, lookup);
+    const definition = this.definition(block.id);
+    const behavior = definition?.behavior;
+    const targets = behavior?.kind === 'double-height'
+      ? [block.position, add(block.position, { x: 0, y: 1, z: 0 })]
+      : behavior?.kind === 'paired-horizontal'
+        ? [block.position, add(block.position, directionOffset(block.state[behavior.facingProperty] ?? 'north'))]
+        : [block.position];
+    if (targets.some((position) => !inBounds(position, project))) return invalid('out-of-bounds', targets);
+    if (targets.some((position) => find(lookup, position))) return invalid('occupied', targets);
+    const support = this.validateSupport(project, block, definition, lookup);
+    if (support.status === 'invalid') return { validation: support };
+    const placed = placedBlocksForBehavior(block, behavior, targets);
+    const overlay = new PreviewBlockLookup(lookup);
+    for (const entry of placed) overlay.set(entry);
+    const refreshed = this.refreshPreview(project, overlay, targets);
+    if (refreshed.status === 'invalid') return { validation: refreshed };
+    const knownPlacement = !!definition?.behavior || hasBlockCapability(definition, 'direct-placement');
+    const directPlacementOnly = !definition?.behavior && hasBlockCapability(definition, 'direct-placement');
+    const status = support.status === 'unknown' ? (directPlacementOnly ? 'valid' : 'unknown') : support.status === 'valid' && !knownPlacement ? 'unknown' : support.status;
+    return { validation: { status, reason: status === 'valid' ? 'ok' : 'unknown-behavior', affectedPositions: refreshed.affectedPositions }, plannedBlocks: placed };
   }
 
   delete(project: ProjectDocument, position: VoxelCoordinate): RuleMutationResult {
@@ -184,21 +210,21 @@ export class BlockRuleEngine {
     return { ...block, state: { ...block.state, ...(context?.facing ? { facing: context.facing } : {}), half } };
   }
 
-  private prepareContextualPlacement(project: ProjectDocument, block: PlacedBlock, context: PlacementContext | undefined): PlacedBlock {
+  private prepareContextualPlacement(project: ProjectDocument, block: PlacedBlock, context: PlacementContext | undefined, source: BlockSource = project.blocks): PlacedBlock {
     const behavior = this.definition(block.id)?.behavior;
     if (behavior?.kind === 'hanging-sign') {
-      const above = find(project.blocks, add(block.position, { x: 0, y: 1, z: 0 }));
+      const above = find(source, add(block.position, { x: 0, y: 1, z: 0 }));
       const attached = !!above && this.isSupportBlock(above.id);
       return { ...block, state: { ...block.state, [behavior.attachedProperty]: attached ? 'true' : 'false' } };
     }
     if (behavior?.kind !== 'lantern-placement') return block;
-    const above = find(project.blocks, add(block.position, { x: 0, y: 1, z: 0 }));
+    const above = find(source, add(block.position, { x: 0, y: 1, z: 0 }));
     const hanging = context?.faceNormal?.y === -1 || (!context?.faceNormal && isVerticalChain(above, behavior.chainId, this.definition));
     return { ...block, state: { ...block.state, [behavior.hangingProperty]: hanging ? 'true' : 'false' } };
   }
 
-  private validateSupport(project: ProjectDocument, block: PlacedBlock, definition: BlockDefinition | undefined): RuleValidation {
-    const contractSupport = this.validateSupportContracts(project, block, definition);
+  private validateSupport(project: ProjectDocument, block: PlacedBlock, definition: BlockDefinition | undefined, source: BlockSource = project.blocks): RuleValidation {
+    const contractSupport = this.validateSupportContracts(project, block, definition, source);
     if (contractSupport) return contractSupport;
     const behavior = definition?.behavior;
     if (!behavior) return hasBlockCapability(definition, 'direct-placement')
@@ -212,7 +238,7 @@ export class BlockRuleEngine {
       const facing = block.state[behavior.facingProperty] ?? 'north';
       const supports = [clockwise(facing), counterClockwise(facing)].map((direction) => add(block.position, directionOffset(direction)));
       const valid = supports.find((position) => {
-        const support = find(project.blocks, position);
+        const support = find(source, position);
         return this.isSupportBlock(support?.id ?? '') || compatibleWallHanging(support, facing, this.definition);
       });
       return valid
@@ -223,7 +249,7 @@ export class BlockRuleEngine {
     if (behavior.kind === 'lantern-placement') {
       const hanging = block.state[behavior.hangingProperty] === 'true';
       supportPosition = add(block.position, hanging ? { x: 0, y: 1, z: 0 } : { x: 0, y: -1, z: 0 });
-      const support = find(project.blocks, supportPosition);
+      const support = find(source, supportPosition);
       if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
       const supportBehavior = this.definition(support.id)?.behavior;
       if (hanging) return isVerticalChain(support, behavior.chainId, this.definition)
@@ -231,7 +257,7 @@ export class BlockRuleEngine {
         : supportBehavior ? { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] } : { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition] };
     }
     if (behavior.kind === 'hanging-sign') {
-      const support = find(project.blocks, supportPosition!);
+      const support = find(source, supportPosition!);
       if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition!] };
       const supportBehavior = this.definition(support.id)?.behavior;
       return this.isSupportBlock(support.id) || supportBehavior?.kind === 'vertical-chain' && support.state[supportBehavior.axisProperty] === supportBehavior.verticalAxis
@@ -242,7 +268,7 @@ export class BlockRuleEngine {
     if (behavior.kind === 'double-height' && behavior.requiresFloor && block.state[behavior.halfProperty] !== 'upper') supportPosition = add(block.position, { x: 0, y: -1, z: 0 });
     if (!supportPosition) return { status: 'valid', reason: 'ok', affectedPositions: [block.position] };
     if (supportPosition.y === -1 && block.position.y === 0 && requiresSupportBelow(behavior)) return { status: 'valid', reason: 'ok', affectedPositions: [block.position, supportPosition] };
-    const support = find(project.blocks, supportPosition);
+    const support = find(source, supportPosition);
     if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
     const supportBehavior = this.definition(support.id)?.behavior;
     if (!supportBehavior && !this.isSupportBlock(support.id)) return { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition] };
@@ -251,7 +277,7 @@ export class BlockRuleEngine {
       : { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
   }
 
-  private validateSupportContracts(project: ProjectDocument, block: PlacedBlock, definition: BlockDefinition | undefined): RuleValidation | undefined {
+  private validateSupportContracts(project: ProjectDocument, block: PlacedBlock, definition: BlockDefinition | undefined, source: BlockSource = project.blocks): RuleValidation | undefined {
     const requirements = definition?.supportRequirements;
     if (!requirements?.length) return undefined;
     const affected = [block.position];
@@ -259,7 +285,7 @@ export class BlockRuleEngine {
     for (const requirement of requirements) {
       const offset = requirement.direction === 'below' ? { x: 0, y: -1, z: 0 } : requirement.direction === 'above' ? { x: 0, y: 1, z: 0 } : directionOffset(requirement.direction);
       const position = add(block.position, offset); affected.push(position);
-      const support = find(project.blocks, position);
+      const support = find(source, position);
       if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: affected };
       const supportDefinition = this.definition(support.id);
       if (!supportDefinition) { unknown = true; continue; }
@@ -270,7 +296,31 @@ export class BlockRuleEngine {
     return unknown ? { status: 'unknown', reason: 'unknown-behavior', affectedPositions: affected } : { status: 'valid', reason: 'ok', affectedPositions: affected };
   }
 
-  private derivedState(block: PlacedBlock, blocks: readonly PlacedBlock[]): Readonly<Record<string, string>> | undefined {
+  private refreshPreview(project: ProjectDocument, source: PreviewBlockLookup, changed: readonly VoxelCoordinate[]): RuleValidation {
+    const queue = new Map<string, VoxelCoordinate>();
+    const affected = new Map<string, VoxelCoordinate>();
+    for (const position of changed) for (const candidate of [position, ...sixOffsets.map((offset) => add(position, offset))]) queue.set(coordinateKey(candidate), candidate);
+    const guard = Math.max(64, changed.length * 24);
+    let iterations = 0;
+    while (queue.size) {
+      if (++iterations > guard) return { status: 'invalid', reason: 'unstable-neighbor-update', affectedPositions: [...affected.values()] };
+      const [key, position] = queue.entries().next().value as [string, VoxelCoordinate]; queue.delete(key);
+      const block = source.get(position); if (!block) continue;
+      const nextState = this.derivedState(block, source);
+      if (!nextState || equalState(block.state, nextState)) continue;
+      if (isBlockLocked(block, project.groups)) return { status: 'invalid', reason: 'locked-affected-block', affectedPositions: [position] };
+      source.set({ ...block, state: nextState });
+      affected.set(key, position);
+      for (const offset of sixOffsets) { const neighbor = add(position, offset); queue.set(coordinateKey(neighbor), neighbor); }
+    }
+    for (const position of queueCandidates(changed).values()) {
+      const block = source.get(position);
+      if (block && this.validateSupport(project, block, this.definition(block.id), source).status === 'invalid') return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position] };
+    }
+    return { status: 'valid', reason: 'ok', affectedPositions: [...affected.values()] };
+  }
+
+  private derivedState(block: PlacedBlock, blocks: BlockSource): Readonly<Record<string, string>> | undefined {
     const behavior = this.definition(block.id)?.behavior;
     if (behavior?.kind === 'horizontal-connect') {
       const state = { ...block.state };
@@ -311,7 +361,7 @@ function isVerticalChain(block: PlacedBlock | undefined, chainId: string, defini
   return !!block && block.id === chainId && definition(block.id)?.behavior?.kind === 'vertical-chain' && block.state['axis'] === 'y';
 }
 
-function stairShape(block: PlacedBlock, blocks: readonly PlacedBlock[], definition: BlockDefinitionLookup): string {
+function stairShape(block: PlacedBlock, blocks: BlockSource, definition: BlockDefinitionLookup): string {
   const facing = block.state['facing'] ?? 'north'; const half = block.state['half'];
   const front = find(blocks, add(block.position, directionOffset(facing)));
   if (isCompatibleStair(front, half, definition) && axis(front!.state['facing']) !== axis(facing) && differentOrientation(block, blocks, opposite(front!.state['facing'] ?? 'north'), definition)) return front!.state['facing'] === rotateCounterClockwise(facing) ? 'outer_left' : 'outer_right';
@@ -319,7 +369,7 @@ function stairShape(block: PlacedBlock, blocks: readonly PlacedBlock[], definiti
   if (isCompatibleStair(back, half, definition) && axis(back!.state['facing']) !== axis(facing) && differentOrientation(block, blocks, back!.state['facing'] ?? 'north', definition)) return back!.state['facing'] === rotateCounterClockwise(facing) ? 'inner_left' : 'inner_right';
   return 'straight';
 }
-function differentOrientation(block: PlacedBlock, blocks: readonly PlacedBlock[], direction: string, definition: BlockDefinitionLookup): boolean { const neighbor = find(blocks, add(block.position, directionOffset(direction))); return !isCompatibleStair(neighbor, block.state['half'], definition) || neighbor?.state['facing'] !== block.state['facing']; }
+function differentOrientation(block: PlacedBlock, blocks: BlockSource, direction: string, definition: BlockDefinitionLookup): boolean { const neighbor = find(blocks, add(block.position, directionOffset(direction))); return !isCompatibleStair(neighbor, block.state['half'], definition) || neighbor?.state['facing'] !== block.state['facing']; }
 function isCompatibleStair(block: PlacedBlock | undefined, half: string | undefined, definition: BlockDefinitionLookup): boolean { return !!block && definition(block.id)?.behavior?.kind === 'stairs' && block.state['half'] === half; }
 function axis(direction: string | undefined): 'x' | 'z' { return direction === 'east' || direction === 'west' ? 'x' : 'z'; }
 function rotateCounterClockwise(direction: string): string { return ({ north: 'west', west: 'south', south: 'east', east: 'north' } as Record<string, string>)[direction] ?? direction; }
@@ -372,7 +422,19 @@ function stairHalfFromContext(context: PlacementContext | undefined, fallback: s
   return localY > 0.5 ? 'top' : 'bottom';
 }
 function add(a: VoxelCoordinate, b: VoxelCoordinate): VoxelCoordinate { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
-function find(blocks: readonly PlacedBlock[], position: VoxelCoordinate): PlacedBlock | undefined { const key = coordinateKey(position); return blocks.find((block) => coordinateKey(block.position) === key); }
+function find(blocks: BlockSource, position: VoxelCoordinate): PlacedBlock | undefined { return 'get' in blocks ? blocks.get(position) : blocks.find((block) => coordinateKey(block.position) === coordinateKey(position)); }
+function placedBlocksForBehavior(block: PlacedBlock, behavior: BlockDefinition['behavior'] | undefined, targets: readonly VoxelCoordinate[]): readonly PlacedBlock[] {
+  if (behavior?.kind === 'double-height') return [withState(block, { ...block.state, [behavior.halfProperty]: 'lower' }, targets[0]), withState(block, { ...block.state, [behavior.halfProperty]: 'upper' }, targets[1])];
+  if (behavior?.kind === 'paired-horizontal') return [withState(block, { ...block.state, [behavior.partProperty]: behavior.firstPart, occupied: 'false' }, targets[0]), withState(block, { ...block.state, [behavior.partProperty]: behavior.secondPart, occupied: 'false' }, targets[1])];
+  return [block];
+}
+class PreviewBlockLookup implements ReadonlyBlockLookup {
+  private readonly overlay = new Map<string, PlacedBlock>();
+  constructor(private readonly base: ReadonlyBlockLookup) {}
+  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.overlay.get(coordinateKey(position)) ?? this.base.get(position); }
+  has(position: VoxelCoordinate): boolean { return this.get(position) !== undefined; }
+  set(block: PlacedBlock): void { this.overlay.set(coordinateKey(block.position), block); }
+}
 function withState(block: PlacedBlock, state: Readonly<Record<string, string>>, position: VoxelCoordinate): PlacedBlock { return { ...block, position: { ...position }, state }; }
 function equalState(a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): boolean { const aKeys = Object.keys(a); return aKeys.length === Object.keys(b).length && aKeys.every((key) => a[key] === b[key]); }
 function inBounds(position: VoxelCoordinate, project: ProjectDocument): boolean { return Number.isInteger(position.x) && Number.isInteger(position.y) && Number.isInteger(position.z) && position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < project.size.x && position.y < project.size.y && position.z < project.size.z; }

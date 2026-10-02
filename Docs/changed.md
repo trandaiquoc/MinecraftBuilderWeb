@@ -2139,3 +2139,21 @@ Y-Layer does not enable this path. Project data, chunk size, placement rules,
 and the existing whole-block interior culling remain unchanged. Diagnostics
 report fast-path block count, exposed face instances, neighbor faces culled,
 surface-face batches, and surface-face InstancedMesh count.
+
+## Large viewport performance pass 5
+
+3D Edit now maintains a runtime-only `Map`-backed voxel index for spatial
+lookups. The index is rebuilt only when the project block snapshot changes and
+is never persisted; `ProjectDocument` remains authoritative. Placement preview
+uses the same rule preparation/support/neighbor helpers as commit without
+cloning the complete project, while commit remains the authoritative mutation
+path. Y-Layer keeps its existing placement and validation path.
+
+Confirmed normal, visible, opaque full-cube unit blocks use a conservative
+Amanatides-Woo voxel traversal for 3D picking. Partial, special, missing,
+unknown, hidden, and modded fallback visuals continue through precise scene
+raycasting, and decorations retain distance-based ownership. Ghost model keys
+use relative planned geometry/state and provider generation, so moving a ghost
+reuses its visual. Structural reconciliation, visible selection filtering, and
+project bounds are cached separately from overlay updates. Runtime diagnostics
+expose index, DDA, preview, ghost, reconcile, and hover-scan counters.

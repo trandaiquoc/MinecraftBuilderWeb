@@ -77,7 +77,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private pickConsumed = false;
   private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
   private freeSpaceDragStart?: { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane };
-  private readonly sync = effect(() => { this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
+  private readonly onNativePointerMove = (event: PointerEvent) => this.pointerMove(event);
+  private readonly sync = effect(() => { this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
+  private readonly toolSync = effect(() => { this.tool.active(); this.engine.clearGhost(); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
@@ -88,8 +90,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       this.engine.setRuntimeDiagnosticsEnabled(true);
       window.__mbViewportDiagnostics = this.runtimeDiagnosticsCommand;
     }
-    this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context));
+    this.engine.setPlacementPlanProvider((_project, _active, target, context, lookup) => this.editor.planPlacement(target, context, lookup));
     this.engine.mount(this.host().nativeElement);
+    this.host().nativeElement.addEventListener('pointermove', this.onNativePointerMove, { passive: true });
     this.engine.restoreCamera(this.cameraState.get('3d'));
     const project = this.workspace.project(); const renderSelection = this.selection.renderState(project);
     this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() });
@@ -99,7 +102,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (isDevMode() && typeof window !== 'undefined' && window.__mbViewportDiagnostics === this.runtimeDiagnosticsCommand) delete window.__mbViewportDiagnostics;
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
-    this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.toolSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }
@@ -118,7 +121,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected resize(): void { this.engine.resize(); }
   protected statusLabel(): string { return this.i18n.t(this.status()); }
   protected pointerMove(event: PointerEvent): void { this.engine.hover(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }
-  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const status = activeDecoration ? (hit.decorationPlan?.status === 'valid' ? 'valid' : 'invalid') : hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const status = activeDecoration ? (hit.decorationPlan?.status === 'valid' ? 'valid' : 'invalid') : hit.status; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
   protected pointerDown(event: PointerEvent): void {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
@@ -201,7 +204,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (activeDecoration && hit.block && this.tool.active() === 'select') { this.decorations.select(undefined); }
-    const status = activeDecoration ? hit.decorationPlan?.status ?? hit.status : hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status;
+    const status = activeDecoration ? hit.decorationPlan?.status ?? hit.status : hit.status;
     if (this.tool.active() === 'place' && gestureAction === 'primary-action' && hit.block && this.editor.canStackCandle(hit.block)) {
       this.editor.stackCandle(hit.block);
       return;

@@ -4,6 +4,7 @@ import type { PlaceableItemDefinition } from '../../blocks/placement-palette/pla
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacementContext } from '../../editor/placement/placement';
+import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import { BlockRuleEngine, minecraftPlayerFacing, RuleValidation } from '../rules/block-rule-engine';
 
 export interface PlacementPlan {
@@ -20,9 +21,10 @@ export function placementRequestForActive(active: ActiveBlock, position: VoxelCo
   return { ...block, kind: active.support === 'unknown' ? 'missing' : 'resolved' };
 }
 
-export function planPlacement(project: ProjectDocument, active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined, item?: PlaceableItemDefinition): PlacementPlan {
+export function planPlacement(project: ProjectDocument, active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined, item?: PlaceableItemDefinition, lookup?: ReadonlyBlockLookup): PlacementPlan {
   const request = placementRequestForActive(active, position, context, item, definition);
-  const result = new BlockRuleEngine(definition).place(project, request, context);
+  const result = lookup ? new BlockRuleEngine(definition).preview(project, request, context, lookup) : new BlockRuleEngine(definition).place(project, request, context);
+  if (lookup) return { request, blocks: result.plannedBlocks ?? attemptedBlocks(request, context, definition), validation: result.validation };
   const original = new Set(project.blocks.map((block) => key(block.position)));
   const blocks = result.project
     ? result.project.blocks.filter((block) => !original.has(key(block.position)))

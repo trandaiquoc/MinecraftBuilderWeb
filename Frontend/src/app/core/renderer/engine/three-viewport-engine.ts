@@ -32,10 +32,13 @@ import { structureBlockGuidePosition } from './structure-block-guide';
 import { coordinateNeighbors, hasConfirmedOpaqueNeighbors } from '../visibility/interior-occlusion';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
+import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-index';
+import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
+import { ddaVoxelPick } from '../interaction/voxel-raycast';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 export type ViewportHoverListener = (hit: ViewportHit) => void;
-type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
+type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined, lookup?: ReadonlyBlockLookup) => PlacementPlan | undefined;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
 export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
 export interface ViewportHydrationProgress {
@@ -103,6 +106,22 @@ export interface ViewportPerformanceEvidence {
   readonly neighborFacesCulled: number;
   readonly surfaceFaceBatches: number;
   readonly surfaceFaceInstancedMeshes: number;
+  readonly hoverPickMs: number;
+  readonly ddaPickCount: number;
+  readonly ddaVisitedVoxels: number;
+  readonly ddaFullCubeHits: number;
+  readonly precisePickFallbacks: number;
+  readonly placementPreviewMs: number;
+  readonly placementPreviewFullProjectScans: number;
+  readonly duplicatePlacementValidations: number;
+  readonly spatialIndexBuilds: number;
+  readonly spatialIndexLookups: number;
+  readonly ghostVisualRebuilds: number;
+  readonly ghostVisualReuses: number;
+  readonly structuralReconciles: number;
+  readonly overlayOnlyUpdates: number;
+  readonly projectBoundsRebuilds: number;
+  readonly fullProjectScansDuringHover: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -427,6 +446,7 @@ export class ThreeViewportEngine {
   };
   private ghostModel?: THREE.Group;
   private ghostModelKey = '';
+  private ghostPlan?: PlacementPlan;
   private ghostTarget?: VoxelCoordinate;
   private readonly ghostBoundsCenter = new THREE.Vector3(.5, .5, .5);
   private renderer?: THREE.WebGLRenderer;
@@ -439,6 +459,21 @@ export class ThreeViewportEngine {
   private container?: HTMLElement;
   private resizeObserver?: ResizeObserver;
   private project?: ProjectDocument;
+  private spatialIndex?: ProjectBlockSpatialIndex;
+  private spatialIndexProject?: ProjectDocument;
+  private spatialIndexBlocksReference?: readonly ProjectDocument['blocks'][number][];
+  private cachedVisibleEntries: readonly VisibleBlockEntry[] = [];
+  private cachedVisibleMap = new Map<string, VisibleBlockEntry>();
+  private cachedVisibleKey = '';
+  private cachedVisibleProject?: ProjectDocument;
+  private structuralSpecialVisualIds = new Set<string>();
+  private cachedBoundsKey = '';
+  private observedSpatialIndexLookups = 0;
+  private lastActiveGroupProject?: ProjectDocument;
+  private lastActiveGroupId?: string;
+  private lastActiveGroupPositions?: readonly VoxelCoordinate[];
+  private lastIsolatedGroupId?: string;
+  private lastIsolatedGroupPositions?: readonly VoxelCoordinate[];
   private activeBlock?: ActiveBlock;
   private showStructureBlockGuide = true;
   private renderOptions: ViewportRenderOptions = {};
@@ -834,8 +869,19 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
+  private ensureSpatialIndex(project: ProjectDocument | undefined, force = false): void {
+    if (!project) { this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.structuralSpecialVisualIds.clear(); this.observedSpatialIndexLookups = 0; return; }
+    if (!force && this.spatialIndexProject === project && this.spatialIndexBlocksReference === project.blocks && this.spatialIndex) return;
+    this.spatialIndex = new ProjectBlockSpatialIndex(project.blocks);
+    this.spatialIndexProject = project;
+    this.spatialIndexBlocksReference = project.blocks;
+    this.observedSpatialIndexLookups = 0;
+    this.structuralSpecialVisualIds = new Set(project.blocks.map((block) => block.id));
+    this.instrumentation.record('spatialIndexBuilds');
+  }
+
   private collectSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): readonly NormalizedSpecialVisualDescriptor[] {
-    const ids = new Set([...(this.project?.blocks ?? []).map((block) => block.id), ...(this.activeBlock ? [this.activeBlock.id] : []), ...plannedBlocks.map((block) => block.id)]);
+    const ids = new Set([...this.structuralSpecialVisualIds, ...(this.activeBlock ? [this.activeBlock.id] : []), ...plannedBlocks.map((block) => block.id)]);
     return [...ids].flatMap((id) => { const descriptor = this.specialVisualResolver?.(id); return descriptor ? [{ ...descriptor, contentId: id }] : []; });
   }
   private syncSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): boolean {
@@ -851,13 +897,14 @@ export class ThreeViewportEngine {
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
+    const inPlaceBlockMutation = project === this.syncedProject && project !== undefined && (project.blocks !== this.syncedBlocksReference || project.blocks.length !== this.syncedBlockCount);
+    this.ensureSpatialIndex(project, inPlaceBlockMutation);
     this.syncSpecialVisualDescriptors();
     const syncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}|${this.providerGeneration}` : 'empty';
     const blockInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
     const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
     const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
     const full = syncKey !== this.structureSyncKey;
-    const inPlaceBlockMutation = project === this.syncedProject && project !== undefined && (project.blocks !== this.syncedBlocksReference || project.blocks.length !== this.syncedBlockCount);
     if (blockInputChanged || inPlaceBlockMutation) {
       const projectIdentityChanged = project !== this.syncedProject;
       const incrementalProjectChange = projectIdentityChanged && !full && this.renderedBlocks.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
@@ -875,6 +922,7 @@ export class ThreeViewportEngine {
       this.reconcileDecorations(project, options, false);
       this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.queuedDecorationHydrationJobs());
     }
+    if (!blockInputChanged && !inPlaceBlockMutation && !decorationInputChanged) this.instrumentation.record('overlayOnlyUpdates');
     this.setProjectBounds(project);
     this.updateStructureBlockGuide(project, options);
     this.setEditingPlane(options.layerY, project);
@@ -882,7 +930,7 @@ export class ThreeViewportEngine {
     this.updateSelection(visualSelection.selected, visualSelection.positions, visualSelection.kind, visualSelection.count, visualSelection.bounds, visualSelection.box);
     this.updateActiveGroup(project, options.activeGroupId, options.activeGroupPositions);
     this.updateMovePreview(project, options.groupMovePreview);
-    this.updateGhostModel(active, undefined);
+    this.updateGhostModel(active, this.ghostPlan);
     this.clearDecorationGhost();
     this.updateDecorationSelection(options.selectedDecorationId);
     if (options.selectedDecorationId) {
@@ -899,6 +947,13 @@ export class ThreeViewportEngine {
       if (this.emptyTransitionSnapshots.length > 2) this.emptyTransitionSnapshots.shift();
     }
     this.runtimeObservedProjectBlockCount = projectBlockCount;
+    this.recordSpatialLookupDelta();
+  }
+
+  private recordSpatialLookupDelta(): void {
+    const total = this.spatialIndex?.lookups ?? 0;
+    if (total > this.observedSpatialIndexLookups) this.instrumentation.record('spatialIndexLookups', total - this.observedSpatialIndexLookups);
+    this.observedSpatialIndexLookups = total;
   }
 
   setRuntimeDiagnosticsEnabled(enabled: boolean): void {
@@ -917,6 +972,7 @@ export class ThreeViewportEngine {
   }
 
   private reconcileStructure(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
+    this.instrumentation.record('structuralReconciles');
     if (!project) {
       this.clearPersistentVisuals();
       this.culledBlockKeys.clear();
@@ -925,9 +981,12 @@ export class ThreeViewportEngine {
       return;
     }
     this.compactHydrationQueues();
-    const worldBlocks = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
-    const worldContext = { getBlock: (position: VoxelCoordinate) => worldBlocks.get(coordinateKey(position)) };
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const visible = this.visibleBlocks(project, options);
+    this.cachedVisibleEntries = visible;
+    this.cachedVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
+    this.cachedVisibleKey = renderFilterKey(options);
+    this.cachedVisibleProject = project;
     const allVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     const changed = new Set<string>();
     for (const [key, entry] of this.renderedBlocks) {
@@ -1077,8 +1136,8 @@ export class ThreeViewportEngine {
 
   private visibleSelection(project: ProjectDocument | undefined, options: ViewportRenderOptions): { readonly selected?: VoxelCoordinate; readonly positions?: readonly VoxelCoordinate[]; readonly kind?: string; readonly count?: number; readonly bounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly box?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } } {
     if (!project) return { selected: options.selected, positions: options.selectedPositions, kind: options.selectionKind, count: options.selectionCount, bounds: options.selectionBounds, box: options.selectionBox };
-    const visible = this.visibleBlocks(project, options);
-    const visibleKeys = new Set(visible.map((entry) => coordinateKey(entry.block.position)));
+    const visible = this.cachedVisibleProject === project && this.cachedVisibleKey === renderFilterKey(options) ? this.cachedVisibleEntries : this.visibleBlocks(project, options);
+    const visibleKeys = this.cachedVisibleProject === project && this.cachedVisibleKey === renderFilterKey(options) ? this.cachedVisibleMap : new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     const positions = (options.selectedPositions ?? []).filter((position) => visibleKeys.has(coordinateKey(position)));
     const selected = options.selected && visibleKeys.has(coordinateKey(options.selected)) ? options.selected : undefined;
     const inBounds = (position: VoxelCoordinate, bounds: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }): boolean => position.x >= bounds.min.x && position.x <= bounds.max.x && position.y >= bounds.min.y && position.y <= bounds.max.y && position.z >= bounds.min.z && position.z <= bounds.max.z;
@@ -1837,7 +1896,7 @@ export class ThreeViewportEngine {
     delete template.geometry.userData['mergedInstanceTemplateGeometry'];
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -1917,22 +1976,52 @@ export class ThreeViewportEngine {
     this.pendingHover = undefined;
   }
 
+  private ddaPick(project: ProjectDocument): { readonly position: VoxelCoordinate; readonly normal: FaceNormal; readonly point: THREE.Vector3; readonly distance: number } | undefined {
+    if (!this.spatialIndex) return undefined;
+    this.instrumentation.record('ddaPickCount');
+    const result = ddaVoxelPick(
+      { origin: this.raycaster.ray.origin, direction: this.raycaster.ray.direction },
+      project.size,
+      (position) => {
+        const key = coordinateKey(position);
+        const entry = this.cachedVisibleMap.get(key);
+        if (!entry || this.culledBlockKeys.has(key)) return 'skip';
+        if (entry.role === 'normal' && entry.occlusionClass === 'opaque-full-cube') return 'hit';
+        return 'fallback';
+      },
+    );
+    if (!result || 'fallback' in result) {
+      if (result && 'fallback' in result) this.instrumentation.record('precisePickFallbacks');
+      return undefined;
+    }
+    this.instrumentation.record('ddaVisitedVoxels', result.visitedVoxels);
+    this.instrumentation.record('ddaFullCubeHits');
+    return { position: result.position, normal: result.normal, point: new THREE.Vector3(result.point.x, result.point.y, result.point.z), distance: result.distance };
+  }
+
   private performHit(clientX: number, clientY: number, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
+    const started = typeof performance !== 'undefined' ? performance.now() : 0;
     if (!this.renderer || !this.container || !project) return { status: 'invalid' };
     this.flushInstanceBatchBounds();
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const decorationHit = this.raycaster.intersectObjects(this.decorationsGroup.children, true)[0];
-    const blockHit = this.raycaster.intersectObjects(this.blocksGroup.children, true)[0];
+    const ddaHit = planeY === undefined ? this.ddaPick(project) : undefined;
+    const blockHit = ddaHit ? undefined : this.raycaster.intersectObjects(this.blocksGroup.children, true)[0];
     const decoration = decorationHit?.object.userData['decoration'] as PlacedDecoration | undefined;
     let target: VoxelCoordinate | undefined;
     let block: VoxelCoordinate | undefined;
     let faceNormal: FaceNormal | undefined;
     let hitPoint: THREE.Vector3 | undefined;
+    let attachment: ReturnType<typeof resolveAttachmentPlacement>;
     if (planeY !== undefined && this.editingPlane) {
       const planeHit = this.raycaster.intersectObject(this.editingPlane, false)[0];
       if (planeHit) { target = targetFromEditingPlaneHit(planeHit.point, planeY, project.size); faceNormal = { x: 0, y: 1, z: 0 }; hitPoint = planeHit.point; }
+    } else if (ddaHit) {
+      block = ddaHit.position;
+      faceNormal = ddaHit.normal;
+      hitPoint = ddaHit.point;
     } else if (blockHit) {
       block = blockCoordinateFromHit(blockHit);
       if (block) {
@@ -1940,9 +2029,6 @@ export class ThreeViewportEngine {
         const normal = surfaceDirection ? surfaceFaceNormal(surfaceDirection) : (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
         faceNormal = { x: normal.x, y: normal.y, z: normal.z };
         hitPoint = blockHit.point;
-        const attachment = resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver);
-        target = attachment?.target ?? targetFromBlockFace(block, normal as FaceNormal);
-        if (attachment) faceNormal = { x: 0, y: attachment.snapType === 'chain-extension' ? 1 : -1, z: 0 };
       }
     } else if (this.ground) {
       const groundHit = this.raycaster.intersectObject(this.ground, false)[0];
@@ -1953,17 +2039,26 @@ export class ThreeViewportEngine {
       if (hitVoxel && (planeY === undefined || hitVoxel.y === planeY)) block = hitVoxel;
     }
     const facing = active?.state['facing'];
-    const attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver) : undefined;
+    attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, this.spatialIndex ?? project.blocks, this.definitionResolver) : undefined;
+    if (attachment) {
+      if (!target) target = attachment.target;
+      faceNormal = { x: 0, y: attachment.snapType === 'chain-extension' ? 1 : -1, z: 0 };
+    } else if (!target && block && faceNormal) target = targetFromBlockFace(block, faceNormal);
     const placementContext = faceNormal ? { faceNormal, hitPoint: hitPoint ? { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z } : undefined, facing: isHorizontalDirection(facing) ? facing : undefined, yaw: cameraYaw(this.camera), stateOverride: attachment?.stateOverride } : undefined;
-    const plan = target && active && this.placementPlanProvider ? this.placementPlanProvider(project, active, target, placementContext) : undefined;
+    const previewStarted = typeof performance !== 'undefined' ? performance.now() : 0;
+    const plan = target && active && this.placementPlanProvider ? this.placementPlanProvider(project, active, target, placementContext, this.spatialIndex) : undefined;
+    if (previewStarted) this.instrumentation.record('placementPreviewMs', Math.max(0, performance.now() - previewStarted));
     this.syncSpecialVisualDescriptors(plan?.blocks ?? []);
     const decorationPlan = this.renderOptions.activeDecoration && block && faceNormal ? planDecorationPlacement(project, this.renderOptions.activeDecoration, block, facingFromNormal(faceNormal) ?? 'up') : undefined;
     const status = decorationPlan?.status === 'invalid' ? 'invalid' : plan?.validation.status ?? placementStatus(target, project.size, active?.support ?? 'unknown');
+    this.ghostPlan = plan;
     this.updateGhostModel(active, plan);
     this.updateGhost(showGhost ? target : undefined, project, active, status, plan);
     if (showGhost && this.renderOptions.activeDecoration && decorationPlan?.decoration) this.updateDecorationGhost(decorationPlan.decoration, decorationPlan.status);
     this.render();
-    return { target, block, status, faceNormal, placementContext, decoration, decorationPlan, decorationDistance: decorationHit?.distance, blockDistance: blockHit?.distance };
+    if (started) this.instrumentation.record('hoverPickMs', Math.max(0, performance.now() - started));
+    this.recordSpatialLookupDelta();
+    return { target, block, status, faceNormal, placementContext, decoration, decorationPlan, decorationDistance: decorationHit?.distance, blockDistance: ddaHit?.distance ?? blockHit?.distance };
   }
 
   /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
@@ -2497,6 +2592,22 @@ export class ThreeViewportEngine {
       neighborFacesCulled: counters.neighborFacesCulled,
       surfaceFaceBatches: this.surfaceFaceBatches.size,
       surfaceFaceInstancedMeshes: this.surfaceFaceBatches.size,
+      hoverPickMs: counters.hoverPickMs,
+      ddaPickCount: counters.ddaPickCount,
+      ddaVisitedVoxels: counters.ddaVisitedVoxels,
+      ddaFullCubeHits: counters.ddaFullCubeHits,
+      precisePickFallbacks: counters.precisePickFallbacks,
+      placementPreviewMs: counters.placementPreviewMs,
+      placementPreviewFullProjectScans: counters.placementPreviewFullProjectScans,
+      duplicatePlacementValidations: counters.duplicatePlacementValidations,
+      spatialIndexBuilds: counters.spatialIndexBuilds,
+      spatialIndexLookups: Math.max(counters.spatialIndexLookups, this.spatialIndex?.lookups ?? 0),
+      ghostVisualRebuilds: counters.ghostVisualRebuilds,
+      ghostVisualReuses: counters.ghostVisualReuses,
+      structuralReconciles: counters.structuralReconciles,
+      overlayOnlyUpdates: counters.overlayOnlyUpdates,
+      projectBoundsRebuilds: counters.projectBoundsRebuilds,
+      fullProjectScansDuringHover: counters.fullProjectScansDuringHover,
     };
   }
 
@@ -2650,6 +2761,10 @@ export class ThreeViewportEngine {
 
   private setProjectBounds(project: ProjectDocument | undefined): void {
     const size = project?.size ?? VIEWPORT_BOOTSTRAP_SIZE;
+    const boundsKey = `${size.x},${size.y},${size.z}`;
+    if (boundsKey === this.cachedBoundsKey) return;
+    this.cachedBoundsKey = boundsKey;
+    this.instrumentation.record('projectBoundsRebuilds');
     const bounds = projectGridBounds(size);
     this.projectGrid?.geometry.dispose();
     (this.projectGrid?.material as THREE.Material | undefined)?.dispose();
@@ -2698,6 +2813,12 @@ export class ThreeViewportEngine {
   }
 
   private updateActiveGroup(project: ProjectDocument | undefined, activeGroupId: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void {
+    if (project === this.lastActiveGroupProject && activeGroupId === this.lastActiveGroupId && positions === this.lastActiveGroupPositions && this.renderOptions.isolatedGroupId === this.lastIsolatedGroupId && this.renderOptions.isolatedGroupPositions === this.lastIsolatedGroupPositions) return;
+    this.lastActiveGroupProject = project;
+    this.lastActiveGroupId = activeGroupId;
+    this.lastActiveGroupPositions = positions;
+    this.lastIsolatedGroupId = this.renderOptions.isolatedGroupId;
+    this.lastIsolatedGroupPositions = this.renderOptions.isolatedGroupPositions;
     for (const child of [...this.scene.children]) {
       if (child.userData['groupHighlight']) { child.traverse((object) => { if (object instanceof THREE.LineSegments && !object.userData['sharedGroupHighlight']) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.scene.remove(child); }
     }
@@ -2718,7 +2839,11 @@ export class ThreeViewportEngine {
     }
     const positionKeys = new Set(positions?.map((position) => `${position.x},${position.y},${position.z}`));
     const isolatedKeys = new Set(this.renderOptions.isolatedGroupPositions?.map((position) => `${position.x},${position.y},${position.z}`));
-    for (const block of aggregateGroup ? [] : project.blocks.filter((entry) => positionKeys.has(`${entry.position.x},${entry.position.y},${entry.position.z}`) && isBlockVisible(entry, project.groups) && (!this.renderOptions.isolatedGroupId || isolatedKeys.has(`${entry.position.x},${entry.position.y},${entry.position.z}`)))) {
+    for (const position of aggregateGroup ? [] : visiblePositions) {
+      const key = `${position.x},${position.y},${position.z}`;
+      if (!positionKeys.has(key) || !this.cachedVisibleMap.has(key) || (this.renderOptions.isolatedGroupId && !isolatedKeys.has(key))) continue;
+      const block = this.spatialIndex?.get(position);
+      if (!block || !isBlockVisible(block, project.groups)) continue;
       const outline = new THREE.LineSegments(this.groupHighlightGeometry, this.groupHighlightMaterial);
       outline.position.set(block.position.x + .5, block.position.y + .5, block.position.z + .5);
       outline.userData['groupHighlight'] = true;
@@ -2800,7 +2925,10 @@ export class ThreeViewportEngine {
     if (!project || !preview || !preview.offset.x && !preview.offset.y && !preview.offset.z) return;
     const color = preview.valid ? this.palette.valid : this.palette.invalid;
     const movingKeys = new Set(preview.positions.map((position) => `${position.x},${position.y},${position.z}`));
-    for (const block of project.blocks.filter((entry) => movingKeys.has(`${entry.position.x},${entry.position.y},${entry.position.z}`))) {
+    for (const position of preview.positions) {
+      if (!movingKeys.has(`${position.x},${position.y},${position.z}`)) continue;
+      const block = this.spatialIndex?.get(position);
+      if (!block) continue;
       const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .42, wireframe: true, depthTest: false });
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
       mesh.position.set(block.position.x + preview.offset.x + .5, block.position.y + preview.offset.y + .5, block.position.z + preview.offset.z + .5);
@@ -2848,15 +2976,17 @@ export class ThreeViewportEngine {
   }
 
   private updateGhostModel(active: ActiveBlock | undefined, plan?: PlacementPlan): void {
-    const key = active ? `${active.id}|${JSON.stringify(active.state)}|${plan?.blocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${JSON.stringify(block.state)}`).join(';') ?? ''}` : '';
-    if (key === this.ghostModelKey) return;
+    const request = plan?.request.position ?? { x: 0, y: 0, z: 0 };
+    const relativeBlocks = plan?.blocks.map((block) => `${block.id}@${block.position.x - request.x},${block.position.y - request.y},${block.position.z - request.z}|${JSON.stringify(block.state)}`).join(';') ?? '';
+    const key = active ? `${this.providerGeneration}|${active.id}|${JSON.stringify(active.state)}|${relativeBlocks}` : '';
+    if (key === this.ghostModelKey) { if (active) this.instrumentation.record('ghostVisualReuses'); return; }
+    if (this.ghostModelKey && active) this.instrumentation.record('ghostVisualRebuilds');
     this.ghostModelKey = key; const generation = ++this.ghostGeneration;
     if (this.ghostModel) { this.scene.remove(this.ghostModel); disposeObject(this.ghostModel); this.ghostModel = undefined; }
     this.setGhostOutlineBounds();
     if (!active || !this.visualProvider) return;
     const blocks = plan?.blocks.length ? plan.blocks : active ? [{ kind: 'resolved' as const, id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: active.state }] : [];
-    const worldBlocks = this.project ? new Map(this.project.blocks.map((entry) => [coordinateKey(entry.position), entry] as const)) : undefined;
-    const worldContext = worldBlocks ? { getBlock: (position: VoxelCoordinate) => worldBlocks.get(coordinateKey(position)) } : undefined;
+    const worldContext = this.spatialIndex ? { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) } : undefined;
     void Promise.all(blocks.map(async (block) => ({ block, visual: await this.visualProvider!.create({ ...block, position: { x: 0, y: 0, z: 0 } }, worldContext) }))).then((results) => {
       if (generation !== this.ghostGeneration || !results.length) return;
       const root = new THREE.Group();
