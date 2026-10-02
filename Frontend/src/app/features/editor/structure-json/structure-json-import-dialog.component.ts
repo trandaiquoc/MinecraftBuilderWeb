@@ -15,7 +15,7 @@ import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.direct
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
 import { buildExternalAiPrompt, externalAiInstructionSections, resolveModSelections, selectedExternalAiTotals } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
-import type { ExternalAiModContentCategory, ExternalAiModContentSelection, ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
+import type { ExternalAiModContentCategory, ExternalAiModContentSelection, ExternalAiPromptLocale, ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
 import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
 import { ReadonlyCodeViewerComponent } from '../../../shared/ui/readonly-code-viewer/readonly-code-viewer.component';
 
@@ -62,6 +62,7 @@ export class StructureJsonImportDialogComponent {
   protected readonly effectiveModSelections = computed(() => resolveModSelections(this.aiSnapshot(), this.modSelections()));
   protected readonly selectedTotals = computed(() => selectedExternalAiTotals(this.aiSnapshot(), this.modSelections()));
   protected readonly aiPromptOptions = computed<ExternalAiPromptOptions>(() => ({
+    locale: this.currentAiLocale(),
     includeGuidance: this.includeAiGuidance(),
     includeAvailableContent: this.includeAvailableContent(),
     includeExample: this.includeJsonExample(),
@@ -69,7 +70,7 @@ export class StructureJsonImportDialogComponent {
   }));
   protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot(), this.aiPromptOptions()));
   protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
-  protected readonly aiGuidance = computed(() => externalAiInstructionSections(this.aiSnapshot().minecraftVersion));
+  protected readonly aiGuidance = computed(() => externalAiInstructionSections(this.aiSnapshot().minecraftVersion, this.currentAiLocale(), this.aiSnapshot().projectContext));
   protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
   protected readonly aiDescriptionInvalid = signal(false);
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
@@ -89,7 +90,6 @@ export class StructureJsonImportDialogComponent {
   protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
   protected setAiTab(tab: AiWorkspaceTab): void { this.activeAiTab.set(tab); }
   protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
-  protected aiGuidanceTitle(id: 'contract' | 'content' | 'geometry' | 'output'): string { return this.i18n.t(({ contract: 'structureJsonAiGuidanceContract', content: 'structureJsonAiGuidanceSpatial', geometry: 'structureJsonAiGuidanceResearch', output: 'structureJsonAiGuidanceOutput' } as const)[id]); }
   protected aiGuidanceLines(section: { readonly lines: readonly string[] }): readonly string[] { return section.lines; }
   protected onAiTabKeydown(event: KeyboardEvent): void {
     const current = this.aiTabs.indexOf(this.activeAiTab());
@@ -140,6 +140,7 @@ export class StructureJsonImportDialogComponent {
     return sections.join('\n\n');
   }
   protected lineCountLabel(value: string): string { return this.i18n.t('structureJsonAiLineCount').replace('{count}', String(value === '' ? 0 : value.split('\n').length)); }
+  private currentAiLocale(): ExternalAiPromptLocale { return typeof this.i18n.locale === 'function' ? this.i18n.locale() : 'en'; }
   protected aiPromptSummary(): string {
     const parts = [this.i18n.t('structureJsonAiSummaryDescription')];
     if (this.includeAiGuidance()) parts.push(this.i18n.t('structureJsonAiSummaryGuidance'));

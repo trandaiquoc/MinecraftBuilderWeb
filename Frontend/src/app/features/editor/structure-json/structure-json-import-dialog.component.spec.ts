@@ -12,6 +12,7 @@ import { ExternalAiPromptContextService } from '../../../core/persistence/struct
 import { StructureJsonImportDialogComponent } from './structure-json-import-dialog.component';
 
 const project: ProjectDocument = { schemaVersion: 3, id: 'project', metadata: { name: 'Import Demo', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 2, y: 2, z: 2 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 } };
+const projectContext = { currentSize: project.size, resizeSupported: true, maximumSize: { x: 512, y: 512, z: 512 }, vanillaStructureBlockLimit: 48 } as const;
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
 
 describe('StructureJsonImportDialogComponent', () => {
@@ -21,7 +22,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
-        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [] }) } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [] }) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -43,7 +44,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
-        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [] }) } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [] }) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -67,7 +68,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
-        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [{ sourceId: 'source-example', id: 'example', name: 'Example', version: '1.0.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:block'], items: [{ id: 'example:item' }], decorations: [{ id: 'example:painting', kind: 'painting' }] }] }) } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [{ sourceId: 'source-example', id: 'example', name: 'Example', version: '1.0.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:block'], items: [{ id: 'example:item' }], decorations: [{ id: 'example:painting', kind: 'painting' }] }] }) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -88,7 +89,7 @@ describe('StructureJsonImportDialogComponent', () => {
     instance.setModCategory('source-example', 'items', true);
     expect(instance.aiPrompt()).toContain('example:item');
     instance.setIncludeAvailableContent(false);
-    expect(instance.aiPrompt()).not.toContain('AVAILABLE_CONTENT_JSON');
+    expect(instance.aiPrompt()).not.toContain('example:block');
     instance.setIncludeGuidance(false);
     expect(instance.aiPrompt()).not.toContain('MINECRAFTBUILDER STRUCTURE JSON');
     instance.setIncludeJsonExample(true);
@@ -99,7 +100,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const snapshot = {
       minecraftVersion: '1.21.1',
       vanillaSource: 'test',
-      projectBounds: project.size,
+      projectContext,
       mods: [
         { sourceId: 'source-a', id: 'a', name: 'Mod A', version: '1.0', loader: 'fabric', namespaces: ['a'], blocks: ['a:block'], items: [{ id: 'a:item' }], decorations: [{ id: 'a:painting', kind: 'painting' }] },
         { sourceId: 'source-b', id: 'b', name: 'Mod B', version: '2.0', loader: 'fabric', namespaces: ['b'], blocks: ['b:block'], items: [{ id: 'b:item' }], decorations: [] },

@@ -3,6 +3,7 @@ import { BlockLibraryService } from '../../blocks/catalog/block-library.service'
 import { ItemCatalogService } from '../../items/catalog/item-catalog.service';
 import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
 import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.service';
+import { HUGE_STRUCTURE_BLOCKS_MAX_AXIS, VANILLA_STRUCTURE_BLOCK_MAX_AXIS } from '../../domain/structure-size-policy';
 import type { ProjectDocument } from '../../domain/project.types';
 import type { ExternalAiDecorationContext, ExternalAiItemContext, ExternalAiModContext, ExternalAiPromptContext } from './external-ai-prompt-builder';
 
@@ -52,7 +53,12 @@ export class ExternalAiPromptContextService {
     return {
       minecraftVersion: project.metadata.minecraftVersion || assets.activeVersion(),
       vanillaSource: assets.sourceName() || 'local Minecraft Java assets',
-      projectBounds: project.size,
+      projectContext: {
+        currentSize: project.size,
+        resizeSupported: true,
+        maximumSize: { x: HUGE_STRUCTURE_BLOCKS_MAX_AXIS, y: HUGE_STRUCTURE_BLOCKS_MAX_AXIS, z: HUGE_STRUCTURE_BLOCKS_MAX_AXIS },
+        vanillaStructureBlockLimit: VANILLA_STRUCTURE_BLOCK_MAX_AXIS,
+      },
       mods,
     };
   }

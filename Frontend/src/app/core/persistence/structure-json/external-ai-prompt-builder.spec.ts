@@ -1,31 +1,66 @@
 import { describe, expect, it } from 'vitest';
-import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections, selectedExternalAiTotals } from './external-ai-prompt-builder';
+import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections, selectedExternalAiTotals, type ExternalAiPromptContext } from './external-ai-prompt-builder';
 
-const context = {
+const context: ExternalAiPromptContext = {
   minecraftVersion: '1.21.1',
   vanillaSource: 'local cache',
-  projectBounds: { x: 32, y: 24, z: 32 },
+  projectContext: {
+    currentSize: { x: 47, y: 31, z: 47 },
+    resizeSupported: true,
+    maximumSize: { x: 512, y: 512, z: 512 },
+    vanillaStructureBlockLimit: 48,
+  },
   mods: [
     { sourceId: 'source-a', id: 'example', name: 'Example Mod', version: '1.2.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:z_block', 'example:a_block'], items: [{ id: 'example:gem', maxStackSize: 16 }], decorations: [{ id: 'example:poster', kind: 'painting' }] },
     { sourceId: 'source-b', id: 'other', name: 'Other Mod', version: '2.0.0', loader: 'fabric', namespaces: ['other'], blocks: ['other:block'], items: [{ id: 'other:gear' }, { id: 'other:tool', maxStackSize: 1 }], decorations: [] },
   ],
-} as const;
+};
 
 describe('external Structure JSON AI prompt', () => {
-  it('keeps the self-contained guidance and puts the exact user request last', () => {
-    const prompt = buildExternalAiPrompt('Build a crescent moon above a grass clearing.', context, { includeAvailableContent: true });
-    expect(prompt.indexOf('Return JSON only')).toBeLessThan(prompt.indexOf('AVAILABLE_CONTENT_JSON'));
+  it('keeps the self-contained English guidance and exact user request last', () => {
+    const prompt = buildExternalAiPrompt('Build a crescent moon above a grass clearing.', context, { includeAvailableContent: true, locale: 'en' });
+    expect(prompt.indexOf('OUTPUT')).toBeLessThan(prompt.indexOf('AVAILABLE_CONTENT_JSON'));
     expect(prompt.indexOf('AVAILABLE_CONTENT_JSON')).toBeLessThan(prompt.indexOf('USER REQUEST'));
     expect(prompt).toContain('minecraftbuilder-structure');
-    expect(prompt).toContain('Do not output `formatVersion`');
+    expect(prompt).toContain('one `.json` file');
+    expect(prompt).toContain('exactly one Markdown code block marked `json`');
     expect(prompt).toContain('meaningful depth across X, Y, and Z');
     expect(prompt).toContain('sapling');
     expect(prompt).toContain('open space');
     expect(prompt).toContain('custom, mature');
     expect(prompt).toContain('Java 1.21.1 growth requirements');
-    expect(prompt).toContain('research would improve the result');
-    expect(prompt).not.toContain('for the requested crescent moon');
+    expect(prompt).toContain('recognizable building');
+    expect(prompt).toContain('current project size (47 × 31 × 47)');
+    expect(prompt).toContain('up to 512 × 512 × 512');
+    expect(prompt).toContain('larger than 48 blocks');
+    expect(prompt).not.toContain('formatVersion');
     expect(prompt).not.toContain('Cresselia');
+  });
+
+  it('localizes machine guidance while preserving the exact user description', () => {
+    const description = 'Thiết kế đền cho pokemon Cresselia như ảnh';
+    const prompt = buildExternalAiPrompt(description, context, { includeAvailableContent: false, locale: 'vi' });
+    expect(prompt).toContain('Bạn đang tạo');
+    expect(prompt).toContain('KÍCH THƯỚC CẤU TRÚC');
+    expect(prompt).toContain('YÊU CẦU NGƯỜI DÙNG');
+    expect(prompt).toContain(description);
+    expect(prompt).not.toContain('You are generating a MinecraftBuilder Structure JSON document');
+    expect(prompt).not.toContain('formatVersion');
+  });
+
+  it('serializes current project sizing without treating it as a hard bound', () => {
+    const text = buildContentContextText(context);
+    expect(text).toContain('"currentSize"');
+    expect(text).toContain('"x": 47');
+    expect(text).toContain('"y": 31');
+    expect(text).toContain('"z": 47');
+    expect(text).toContain('"resizeSupported": true');
+    expect(text).toContain('"maximumSize"');
+    expect(text).toContain('"x": 512');
+    expect(text).toContain('"vanillaStructureBlockLimit": 48');
+    const largeContext = { ...context, projectContext: { ...context.projectContext, currentSize: { x: 128, y: 64, z: 96 } } };
+    expect(buildContentContextText(largeContext)).toContain('"x": 128');
+    expect(buildContentContextText(largeContext)).not.toContain('"x": 48');
   });
 
   it('serializes only the selected categories for each exact source', () => {
@@ -38,7 +73,7 @@ describe('external Structure JSON AI prompt', () => {
     expect(text).toContain('example:poster');
     expect(text).not.toContain('other:block');
     expect(text).toContain('other:gear');
-    expect(text).not.toContain('other:tool (max 1)');
+    expect(text).toContain('other:tool');
     expect(text).toContain('"maxStackSize": 1');
   });
 
@@ -52,20 +87,28 @@ describe('external Structure JSON AI prompt', () => {
     expect(selectedExternalAiTotals(context, undefined)).toEqual({ mods: 2, blocks: 3, items: 0, decorations: 1 });
   });
 
-  it('supports the master content toggle without changing selection data', () => {
-    const selection = [{ sourceId: 'source-a', includeBlocks: false, includeItems: true, includeDecorations: false }] as const;
-    expect(buildContentContextText(context, { includeAvailableContent: false, modSelections: selection })).toBe('');
-    const restored = buildContentContextText(context, { includeAvailableContent: true, modSelections: selection });
-    expect(restored).not.toContain('example:a_block');
-    expect(restored).toContain('example:gem');
+  it('keeps guidance-off framing localized and free of historical fields', () => {
+    const prompt = buildExternalAiPrompt('Tạo một tháp.', context, { includeGuidance: false, includeAvailableContent: false, locale: 'vi' });
+    expect(prompt).toContain('Nếu có thể tạo file');
+    expect(prompt).toContain('code block');
+    expect(prompt).toContain('YÊU CẦU NGƯỜI DÙNG');
+    expect(prompt).not.toContain('MINECRAFTBUILDER STRUCTURE JSON\nKẾT QUẢ');
+    expect(prompt).not.toContain('formatVersion');
   });
 
-  it('keeps guidance sections canonical and concise', () => {
-    const sections = externalAiInstructionSections('1.21.1');
-    const guidance = sections.flatMap((section) => section.lines).join('\n');
-    expect(guidance).toContain('sapling');
-    expect(guidance).toContain('web tools are available');
-    expect(guidance).not.toContain('Cresselia');
-    expect(sections.map((section) => section.id)).toEqual(['contract', 'content', 'geometry', 'output']);
+  it('keeps guidance sections ordered and semantically equivalent in both locales', () => {
+    const english = externalAiInstructionSections('1.21.1', 'en', context.projectContext);
+    const vietnamese = externalAiInstructionSections('1.21.1', 'vi', context.projectContext);
+    expect(english.map((section) => section.id)).toEqual(['output', 'contract', 'geometry', 'size', 'content', 'research', 'data', 'final']);
+    expect(vietnamese.map((section) => section.id)).toEqual(english.map((section) => section.id));
+    const englishText = english.flatMap((section) => section.lines).join('\n');
+    const vietnameseText = vietnamese.flatMap((section) => section.lines).join('\n');
+    for (const text of ['sapling', 'research', 'AVAILABLE_CONTENT_JSON']) expect(englishText.toLowerCase()).toContain(text.toLowerCase());
+    expect(vietnameseText).toContain('sapling');
+    expect(vietnameseText).toContain('AVAILABLE_CONTENT_JSON');
+    expect(englishText).not.toContain('Cresselia');
+    expect(vietnameseText).not.toContain('Cresselia');
+    expect(englishText).not.toContain('formatVersion');
+    expect(vietnameseText).not.toContain('formatVersion');
   });
 });
