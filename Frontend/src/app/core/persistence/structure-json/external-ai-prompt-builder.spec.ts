@@ -30,7 +30,9 @@ describe('external Structure JSON AI prompt', () => {
     expect(prompt).toContain('custom, mature');
     expect(prompt).toContain('Java 1.21.1 growth requirements');
     expect(prompt).toContain('recognizable building');
-    expect(prompt).toContain('current project size (47 × 31 × 47)');
+    expect(prompt).not.toContain('current project size');
+    expect(prompt).not.toContain('preferred starting size');
+    expect(prompt).not.toContain('project hiện tại');
     expect(prompt).toContain('up to 512 × 512 × 512');
     expect(prompt).toContain('larger than 48 blocks');
     expect(prompt).not.toContain('formatVersion');
@@ -48,19 +50,20 @@ describe('external Structure JSON AI prompt', () => {
     expect(prompt).not.toContain('formatVersion');
   });
 
-  it('serializes current project sizing without treating it as a hard bound', () => {
+  it('serializes only supported structure limits for external AI', () => {
     const text = buildContentContextText(context);
-    expect(text).toContain('"currentSize"');
-    expect(text).toContain('"x": 47');
-    expect(text).toContain('"y": 31');
-    expect(text).toContain('"z": 47');
-    expect(text).toContain('"resizeSupported": true');
+    expect(text).toContain('"structureLimits"');
     expect(text).toContain('"maximumSize"');
     expect(text).toContain('"x": 512');
+    expect(text).toContain('"y": 512');
+    expect(text).toContain('"z": 512');
     expect(text).toContain('"vanillaStructureBlockLimit": 48');
+    expect(text).not.toContain('"currentSize"');
+    expect(text).not.toContain('"resizeSupported"');
+    expect(text).not.toContain('47');
     const largeContext = { ...context, projectContext: { ...context.projectContext, currentSize: { x: 128, y: 64, z: 96 } } };
-    expect(buildContentContextText(largeContext)).toContain('"x": 128');
-    expect(buildContentContextText(largeContext)).not.toContain('"x": 48');
+    expect(buildContentContextText(largeContext)).not.toContain('128');
+    expect(buildContentContextText(largeContext)).toContain('"x": 512');
   });
 
   it('serializes only the selected categories for each exact source', () => {
@@ -106,6 +109,8 @@ describe('external Structure JSON AI prompt', () => {
     for (const text of ['sapling', 'research', 'AVAILABLE_CONTENT_JSON']) expect(englishText.toLowerCase()).toContain(text.toLowerCase());
     expect(vietnameseText).toContain('sapling');
     expect(vietnameseText).toContain('AVAILABLE_CONTENT_JSON');
+    expect(vietnameseText).toContain('512 × 512 × 512');
+    expect(vietnameseText).toContain('48 block');
     expect(englishText).not.toContain('Cresselia');
     expect(vietnameseText).not.toContain('Cresselia');
     expect(englishText).not.toContain('formatVersion');

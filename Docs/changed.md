@@ -2042,10 +2042,10 @@ The canonical external guidance is concise, localized to the active English or
 Vietnamese UI locale, and self-contained: it states the current top-level
 Structure JSON contract, requires explicit voxel geometry with meaningful
 three-dimensional depth, preserves spatial intent and intentional air gaps,
-explains the current project size as a preferred starting size with resize
-support up to 512 blocks per axis, and validates IDs, coordinates, states,
-decorations, and item counts. It prefers a downloadable `.json` file and uses
-one JSON Markdown code block as the fallback without surrounding prose. When
+explains the supported 512-block-per-axis maximum and the Vanilla 48-block
+loading threshold, and validates IDs, coordinates, states, decorations, and
+item counts. It prefers a downloadable `.json` file and uses one JSON Markdown
+code block as the fallback without surrounding prose. When
 an external AI has web/search access it is asked to research relevant
 Minecraft techniques and reliable subject references without copying a single
 build or treating online research as authorization for unlisted mod IDs. The
