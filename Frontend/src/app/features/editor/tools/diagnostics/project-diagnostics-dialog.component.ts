@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, output, signal } from '@angular/core';
+import { Component, computed, inject, input, OnDestroy, output, signal } from '@angular/core';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { LucideX } from '@lucide/angular';
 import { auditVanillaAssets, VanillaAssetCoverageReport, VanillaAssetAuditRecord } from '../../../../core/assets/vanilla/vanilla-asset-audit';
@@ -8,6 +8,7 @@ import { WorkspaceStateService } from '../../../../core/workspace/workspace-stat
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.component';
+import type { ViewportPerformanceEvidence } from '../../../../core/renderer/engine/three-viewport-engine';
 
 type DiagnosticSeverity = 'error' | 'warning' | 'info';
 interface ProjectIssue { readonly severity: DiagnosticSeverity; readonly title: string; readonly detail: string; readonly id?: string; }
@@ -19,7 +20,9 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   private readonly library = inject(BlockLibraryService);
   protected readonly assets = inject(VanillaAssetsService);
   readonly closed = output<void>();
+  readonly rendererEvidence = input<ViewportPerformanceEvidence | undefined>();
   protected readonly query = signal('');
+  protected readonly logicalBlockCount = computed(() => this.workspace.project()?.blocks.length ?? 0);
   protected readonly audit = signal<VanillaAssetCoverageReport | undefined>(undefined);
   protected readonly auditProgress = signal(0);
   protected readonly auditing = signal(false);

@@ -31,6 +31,10 @@ export interface RendererCounters {
   readonly instancedBoundsComputations: number;
   readonly reusableTemplateCreations: number;
   readonly reusableTemplateCacheHits: number;
+  readonly rawInstanceTemplateParts: number;
+  readonly mergedInstanceTemplateParts: number;
+  readonly templateMergeOperations: number;
+  readonly templatePartsEliminated: number;
   readonly fallbackMeshCreations: number;
   readonly cachedTemplateInsertions: number;
   readonly cameraMovementFrames: number;
@@ -86,6 +90,10 @@ const EMPTY_COUNTERS: RendererCounters = {
   instancedBoundsComputations: 0,
   reusableTemplateCreations: 0,
   reusableTemplateCacheHits: 0,
+  rawInstanceTemplateParts: 0,
+  mergedInstanceTemplateParts: 0,
+  templateMergeOperations: 0,
+  templatePartsEliminated: 0,
   fallbackMeshCreations: 0,
   cachedTemplateInsertions: 0,
   cameraMovementFrames: 0,

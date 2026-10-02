@@ -2107,3 +2107,18 @@ blocks, and unknown mod content are not treated as positive occlusion evidence
 without that proof. Renderer diagnostics now expose camera coalescing,
 interactive resolution, hydration pause, render CPU time, draw-call, triangle,
 instance-batch, and renderable-block metrics.
+
+## Large viewport performance pass 3
+
+Compatible reusable block template parts are now merged after their local
+transforms and before instance signature generation. Opaque parts are grouped
+only when their material and BufferGeometry attribute semantics match; UVs,
+normals, positions, and renderer-used custom attributes are preserved. This
+reduces InstancedMesh/draw-call fragmentation inside the existing chunk batches
+without adding world meshing or changing the chunk size, culling, picking, or
+ProjectDocument.
+
+Merged geometry and cloned reusable materials have explicit renderer ownership
+and are released with the reusable template cache. Project Diagnostics exposes
+the raw, merged, and eliminated template-part counters alongside the existing
+draw-call, triangle, batch, hydration, and CPU submission metrics.

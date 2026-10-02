@@ -43,6 +43,7 @@ import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
+import type { ViewportPerformanceEvidence } from '../../../core/renderer/engine/three-viewport-engine';
 
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
@@ -145,6 +146,7 @@ export class EditorShellComponent implements OnDestroy {
   protected focusSelection(): void { this.currentViewport()?.focusSelection(); }
   protected resetCamera(): void { this.currentViewport()?.resetCamera(); }
   protected setCameraPreset(preset: CameraPreset): void { this.currentViewport()?.setCameraPreset(preset); }
+  protected currentViewportPerformanceEvidence(): ViewportPerformanceEvidence | undefined { return this.currentViewport()?.performanceEvidence(); }
   protected presetLabel(preset: CameraPreset): string { return this.i18n.t(({ perspective: 'cameraPerspective', top: 'cameraTop', front: 'cameraFront', back: 'cameraBack', left: 'cameraLeft', right: 'cameraRight' } as const)[preset]); }
   protected deleteSelectedDecoration(): void { const decoration = this.selectedDecoration(); if (decoration) this.decorations.delete(decoration.instanceId); }
   protected handleSidebarTabKeydown(event: KeyboardEvent, index: number): void {

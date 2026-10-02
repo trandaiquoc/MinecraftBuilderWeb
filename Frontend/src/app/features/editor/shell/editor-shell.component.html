@@ -340,7 +340,7 @@
     <app-asset-manager-dialog (closed)="assetManagerOpen.set(false)"></app-asset-manager-dialog>
   }
   @if (diagnosticsOpen()) {
-    <app-project-diagnostics-dialog (closed)="diagnosticsOpen.set(false)"></app-project-diagnostics-dialog>
+    <app-project-diagnostics-dialog [rendererEvidence]="currentViewportPerformanceEvidence()" (closed)="diagnosticsOpen.set(false)"></app-project-diagnostics-dialog>
   }
   @if (structureJsonExportOpen() && workspace.project(); as project) {
     <app-structure-json-export-dialog [project]="project" (closed)="closeStructureJsonExport()"></app-structure-json-export-dialog>

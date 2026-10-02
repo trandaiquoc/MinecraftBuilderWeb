@@ -3,6 +3,27 @@
     <header><h2>{{ i18n.t('diagnosticsTitle') }}</h2><button type="button" class="ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="closed.emit()"><svg lucideX aria-hidden="true"></svg></button></header>
     <div class="tool-dialog-body">
       <section class="diagnostic-summary"><strong>{{ issues().length }}</strong><span>{{ i18n.t('diagnosticsTitle') }}</span></section>
+      @if (rendererEvidence(); as renderer) {
+        <section class="renderer-performance" aria-labelledby="renderer-performance-title">
+          <div class="performance-heading"><h3 id="renderer-performance-title">{{ i18n.t('rendererPerformance') }}</h3><small>{{ i18n.t('renderCpuHint') }}</small></div>
+          <div class="performance-grid">
+            <span><small>{{ i18n.t('logicalBlocks') }}</small><b>{{ logicalBlockCount() }}</b></span>
+            <span><small>{{ i18n.t('renderableBlocks') }}</small><b>{{ renderer.renderableBlocks }}</b></span>
+            <span><small>{{ i18n.t('culledInteriorBlocks') }}</small><b>{{ renderer.interiorBlocksCulled }}</b></span>
+            <span><small>{{ i18n.t('drawCalls') }}</small><b>{{ renderer.drawCalls }}</b></span>
+            <span><small>{{ i18n.t('triangles') }}</small><b>{{ renderer.triangles }}</b></span>
+            <span><small>{{ i18n.t('instanceBatches') }}</small><b>{{ renderer.instanceBatches }}</b></span>
+            <span><small>{{ i18n.t('instancedMeshes') }}</small><b>{{ renderer.instancedMeshCount }}</b></span>
+            <span><small>{{ i18n.t('nonInstancedMeshes') }}</small><b>{{ renderer.nonInstancedMeshCount }}</b></span>
+            <span><small>{{ i18n.t('rawTemplateParts') }}</small><b>{{ renderer.rawInstanceTemplateParts }}</b></span>
+            <span><small>{{ i18n.t('mergedTemplateParts') }}</small><b>{{ renderer.mergedInstanceTemplateParts }}</b></span>
+            <span><small>{{ i18n.t('templatePartsEliminated') }}</small><b>{{ renderer.templatePartsEliminated }}</b></span>
+            <span><small>{{ i18n.t('renderCpu') }}</small><b>{{ renderer.renderCpuMs.toFixed(1) }} ms</b></span>
+            <span><small>{{ i18n.t('hydrationQueue') }}</small><b>{{ renderer.hydrationQueue }}</b></span>
+            <span><small>{{ i18n.t('hydrationRunning') }}</small><b>{{ renderer.hydrationRunning }}</b></span>
+          </div>
+        </section>
+      }
       <input type="search" [value]="query()" [placeholder]="i18n.t('diagnosticsSearch')" [attr.aria-label]="i18n.t('diagnosticsSearch')" (input)="setQuery($event)" />
       @if (issues().length) { <div class="issue-list">@for (issue of issues(); track $index) { <article class="issue" [attr.data-severity]="issue.severity"><div><strong>{{ issue.title }}</strong><small>{{ severityLabel(issue.severity) }}</small></div><p>{{ issue.detail }}</p>@if (issue.id) { <code>{{ issue.id }}</code> }</article> }</div> } @else { <p class="empty-diagnostics">{{ i18n.t('diagnosticsEmpty') }}</p> }
       <section class="asset-audit-section"><div class="audit-heading"><h3>{{ i18n.t('auditSummary') }}</h3><div><button type="button" class="ui-button ui-button--primary ui-button--sm" [disabled]="auditing() || assets.status() !== 'ready'" (click)="runAudit()">{{ auditing() ? i18n.t('auditRunning') : i18n.t('runAssetAudit') }}</button>@if (auditing()) { <button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="cancelAudit()">{{ i18n.t('cancelAssetAudit') }}</button> }</div></div>@if (auditing()) { <app-ui-progress [value]="auditProgress()" [max]="1" [label]="i18n.t('auditRunning')" /> } @if (audit(); as report) { <div class="audit-grid"><span>{{ i18n.t('auditEntries') }} <b>{{ report.summary.totalEntries }}</b></span><span>{{ i18n.t('auditReal') }} <b>{{ report.summary.visual.real }}</b></span><span>{{ i18n.t('auditPartial') }} <b>{{ report.summary.visual.partial }}</b></span><span>{{ i18n.t('auditFallback') }} <b>{{ report.summary.visual.fallback }}</b></span><span>{{ i18n.t('auditBehaviorFull') }} <b>{{ report.summary.behavior.full }}</b></span><span>{{ i18n.t('auditBehaviorPartial') }} <b>{{ report.summary.behavior.partial }}</b></span><span>{{ i18n.t('auditBehaviorUnknown') }} <b>{{ report.summary.behavior.unknown }}</b></span><span>{{ i18n.t('auditThumbnails') }} <b>{{ report.summary.thumbnail.real }}</b></span></div><div class="audit-records">@for (record of report.records; track record.registryId) {@if (recordMatches(record)) { <div><strong>{{ record.catalog.displayName }}</strong><code>{{ record.registryId }}</code><small>{{ record.render.renderMode }}</small></div> }}</div> }</section>

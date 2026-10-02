@@ -12,6 +12,7 @@ import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
+import type { ViewportPerformanceEvidence } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
 import { VoxelCoordinate } from '../../../../core/domain/project.types';
@@ -83,6 +84,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
+  performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }
   focusSelection(): void {
     const decoration = this.decorations.selected();
     if (decoration) { const bounds = decorationAabb(decoration); this.engine.focusBounds(bounds); return; }
