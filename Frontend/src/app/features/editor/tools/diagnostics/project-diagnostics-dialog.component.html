@@ -19,12 +19,29 @@
             <span><small>{{ i18n.t('mergedTemplateParts') }}</small><b>{{ renderer.mergedInstanceTemplateParts }}</b></span>
             <span><small>{{ i18n.t('templatePartsEliminated') }}</small><b>{{ renderer.templatePartsEliminated }}</b></span>
             <span><small>{{ i18n.t('renderCpu') }}</small><b>{{ renderer.renderCpuMs.toFixed(1) }} ms</b></span>
+            <span><small>{{ i18n.t('frameInterval') }}</small><b>{{ renderer.frameDurationMs.toFixed(1) }} ms</b></span>
+            <span><small>{{ i18n.t('hoverPickTotal') }}</small><b>{{ renderer.hoverPickMs.toFixed(1) }} ms</b></span>
+            <span><small>{{ i18n.t('hoverPickAverage') }}</small><b>{{ renderer.hoverPickCount ? (renderer.hoverPickMs / renderer.hoverPickCount).toFixed(2) : '0.00' }} ms</b></span>
+            <span><small>{{ i18n.t('hoverPickMax') }}</small><b>{{ renderer.hoverPickMaxMs.toFixed(1) }} ms</b></span>
+            <span><small>{{ i18n.t('hoverRaycasts') }}</small><b>{{ renderer.hoverRaycasts }}</b></span>
+            <span><small>{{ i18n.t('hoverRaycastsCoalesced') }}</small><b>{{ renderer.hoverPointerMovesCoalesced }}</b></span>
+            <span><small>{{ i18n.t('ddaVisited') }}</small><b>{{ renderer.ddaVisitedVoxels }}</b></span>
+            <span><small>{{ i18n.t('ddaFullHits') }}</small><b>{{ renderer.ddaFullCubeHits }}</b></span>
+            <span><small>{{ i18n.t('preciseFallbacks') }}</small><b>{{ renderer.precisePickFallbacks }}</b></span>
+            <span><small>{{ i18n.t('placementPreviewTotal') }}</small><b>{{ renderer.placementPreviewMs.toFixed(1) }} ms</b></span>
             <span><small>{{ i18n.t('hydrationQueue') }}</small><b>{{ renderer.hydrationQueue }}</b></span>
             <span><small>{{ i18n.t('hydrationRunning') }}</small><b>{{ renderer.hydrationRunning }}</b></span>
             <span><small>{{ i18n.t('surfaceFastPathBlocks') }}</small><b>{{ renderer.surfaceFastPathBlocks }}</b></span>
             <span><small>{{ i18n.t('exposedFaceInstances') }}</small><b>{{ renderer.exposedFaceInstances }}</b></span>
             <span><small>{{ i18n.t('neighborFacesCulled') }}</small><b>{{ renderer.neighborFacesCulled }}</b></span>
             <span><small>{{ i18n.t('surfaceFaceBatches') }}</small><b>{{ renderer.surfaceFaceBatches }}</b></span>
+            <span><small>{{ i18n.t('spatialIndexBuilds') }}</small><b>{{ renderer.spatialIndexBuilds }}</b></span>
+            <span><small>{{ i18n.t('spatialIndexLookups') }}</small><b>{{ renderer.spatialIndexLookups }}</b></span>
+            <span><small>{{ i18n.t('ghostRebuilds') }}</small><b>{{ renderer.ghostVisualRebuilds }}</b></span>
+            <span><small>{{ i18n.t('ghostReuses') }}</small><b>{{ renderer.ghostVisualReuses }}</b></span>
+            <span><small>{{ i18n.t('renderInvalidations') }}</small><b>{{ renderer.renderInvalidations }}</b></span>
+            <span><small>{{ i18n.t('renderInvalidationsCoalesced') }}</small><b>{{ renderer.renderInvalidationsCoalesced }}</b></span>
+            <span><small>{{ i18n.t('actualSceneRenders') }}</small><b>{{ renderer.actualSceneRenders }}</b></span>
           </div>
         </section>
       }

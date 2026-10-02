@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ddaVoxelPick } from './voxel-raycast';
+import { ddaVoxelCandidates, ddaVoxelPick } from './voxel-raycast';
 
 const size = { x: 8, y: 8, z: 8 };
 const ray = (origin: { x: number; y: number; z: number }, direction: { x: number; y: number; z: number }) => ({ origin, direction });
@@ -35,5 +35,20 @@ describe('ddaVoxelPick', () => {
 
   it('misses a ray that does not intersect the project bounds', () => {
     expect(pick(ray({ x: -1, y: 20, z: 0 }, { x: 1, y: 0, z: 0 }), new Set(['2,2,2']))).toBeUndefined();
+  });
+
+  it('retains ordered partial-shape candidates before a later full cube', () => {
+    const result = ddaVoxelCandidates(ray({ x: -1, y: 1.5, z: 1.5 }, { x: 1, y: 0, z: 0 }), size, (position) => {
+      if (position.x === 1) return 'fallback';
+      if (position.x === 4) return 'hit';
+      return 'skip';
+    });
+    expect(result).toMatchObject({ fullCubeHit: { position: { x: 4, y: 1, z: 1 } }, candidates: [{ position: { x: 1, y: 1, z: 1 } }] });
+  });
+
+  it('limits precise candidates without falling back to the whole scene', () => {
+    const result = ddaVoxelCandidates(ray({ x: -1, y: 1.5, z: 1.5 }, { x: 1, y: 0, z: 0 }), size, (position) => position.x >= 1 ? 'fallback' : 'skip', 2);
+    expect(result?.candidates).toHaveLength(2);
+    expect(result?.fullCubeHit).toBeUndefined();
   });
 });

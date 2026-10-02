@@ -110,7 +110,11 @@ export class SelectionService {
   renderState(project?: ProjectDocument): SelectionRenderState {
     const kind = this.kind();
     const positions = kind === 'all' ? [] : this.logicalPositions();
-    return { kind, count: this.count(project), positions, bounds: this.bounds(project) };
+    if (!project) return { kind, count: this.count(), positions, bounds: this.bounds() };
+    if (kind === 'all') return { kind, count: project.blocks.length, positions, bounds: this.allBounds() ?? boundsOf(project.blocks) };
+    const selected = this.selectedBlocks(project);
+    const box = kind === 'box' ? this.box() : undefined;
+    return { kind, count: selected.length, positions, bounds: box && !this.logicalPositions().length ? box : boundsOf(selected) };
   }
 }
 

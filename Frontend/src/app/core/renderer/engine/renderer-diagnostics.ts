@@ -23,6 +23,9 @@ export interface RendererCounters {
   readonly hydrationBatches: number;
   readonly maxPendingVisualJobs: number;
   readonly coalescedRenderRequests: number;
+  readonly renderInvalidations: number;
+  readonly renderInvalidationsCoalesced: number;
+  readonly actualSceneRenders: number;
   readonly instancedBatchCreations: number;
   readonly instancedBlockAdds: number;
   readonly instancedBlockRemovals: number;
@@ -59,11 +62,15 @@ export interface RendererCounters {
   readonly interiorCullingChecks: number;
   readonly interiorBlocksCulled: number;
   readonly hoverPickMs: number;
+  readonly hoverPickCount: number;
+  readonly hoverPickMaxMs: number;
   readonly ddaPickCount: number;
   readonly ddaVisitedVoxels: number;
   readonly ddaFullCubeHits: number;
   readonly precisePickFallbacks: number;
   readonly placementPreviewMs: number;
+  readonly placementPreviewCount: number;
+  readonly placementPreviewMaxMs: number;
   readonly placementPreviewFullProjectScans: number;
   readonly duplicatePlacementValidations: number;
   readonly spatialIndexBuilds: number;
@@ -101,6 +108,9 @@ const EMPTY_COUNTERS: RendererCounters = {
   hydrationBatches: 0,
   maxPendingVisualJobs: 0,
   coalescedRenderRequests: 0,
+  renderInvalidations: 0,
+  renderInvalidationsCoalesced: 0,
+  actualSceneRenders: 0,
   instancedBatchCreations: 0,
   instancedBlockAdds: 0,
   instancedBlockRemovals: 0,
@@ -137,11 +147,15 @@ const EMPTY_COUNTERS: RendererCounters = {
   interiorCullingChecks: 0,
   interiorBlocksCulled: 0,
   hoverPickMs: 0,
+  hoverPickCount: 0,
+  hoverPickMaxMs: 0,
   ddaPickCount: 0,
   ddaVisitedVoxels: 0,
   ddaFullCubeHits: 0,
   precisePickFallbacks: 0,
   placementPreviewMs: 0,
+  placementPreviewCount: 0,
+  placementPreviewMaxMs: 0,
   placementPreviewFullProjectScans: 0,
   duplicatePlacementValidations: 0,
   spatialIndexBuilds: 0,
