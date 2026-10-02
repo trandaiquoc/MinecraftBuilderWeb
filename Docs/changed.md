@@ -2122,3 +2122,20 @@ Merged geometry and cloned reusable materials have explicit renderer ownership
 and are released with the reusable template cache. Project Diagnostics exposes
 the raw, merged, and eliminated template-part counters alongside the existing
 draw-call, triangle, batch, hydration, and CPU submission metrics.
+
+## Large viewport performance pass 4
+
+3D Edit can opt into an exposed-face fast path for confirmed normal,
+resolved, opaque full-cube blocks. The six ordinary model faces are extracted
+from the existing resolved visual, canonicalized into reusable face templates,
+and submitted through chunk-local InstancedMesh batches. Each instance keeps
+the original face transform and voxel ownership, so ray picking continues to
+resolve both the voxel and the hit face. A direct neighbor hides a face only
+when that neighbor is independently confirmed as the safe opaque-full-cube
+class; transparent, partial, unknown, missing, reference, and special visuals
+never act as occluders.
+
+Y-Layer does not enable this path. Project data, chunk size, placement rules,
+and the existing whole-block interior culling remain unchanged. Diagnostics
+report fast-path block count, exposed face instances, neighbor faces culled,
+surface-face batches, and surface-face InstancedMesh count.

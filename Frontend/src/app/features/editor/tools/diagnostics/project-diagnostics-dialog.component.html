@@ -21,6 +21,10 @@
             <span><small>{{ i18n.t('renderCpu') }}</small><b>{{ renderer.renderCpuMs.toFixed(1) }} ms</b></span>
             <span><small>{{ i18n.t('hydrationQueue') }}</small><b>{{ renderer.hydrationQueue }}</b></span>
             <span><small>{{ i18n.t('hydrationRunning') }}</small><b>{{ renderer.hydrationRunning }}</b></span>
+            <span><small>{{ i18n.t('surfaceFastPathBlocks') }}</small><b>{{ renderer.surfaceFastPathBlocks }}</b></span>
+            <span><small>{{ i18n.t('exposedFaceInstances') }}</small><b>{{ renderer.exposedFaceInstances }}</b></span>
+            <span><small>{{ i18n.t('neighborFacesCulled') }}</small><b>{{ renderer.neighborFacesCulled }}</b></span>
+            <span><small>{{ i18n.t('surfaceFaceBatches') }}</small><b>{{ renderer.surfaceFaceBatches }}</b></span>
           </div>
         </section>
       }

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, compileInstanceTemplates, translateVisualToVoxel } from './three-viewport-engine';
+import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, compileInstanceTemplates, surfaceFaceDirectionFromHit, surfaceFaceNormal, translateVisualToVoxel } from './three-viewport-engine';
 import type { InstancePartTemplate } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import type { BlockVisualProvider } from '../geometry/block-model-geometry';
-import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
+import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from '../benchmark/renderer-benchmark-fixtures';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
@@ -1229,6 +1229,38 @@ describe('reusable instance template compilation', () => {
     const compiled = compileInstanceTemplates(cubeFaceTemplates([opaque, opaque, opaque, opaque, opaque, transparent]));
     expect(compiled.templates).toHaveLength(2);
     disposeTemplateFixture([], compiled.templates, opaque, transparent);
+  });
+});
+
+describe('3D exposed surface batches', () => {
+  it('keeps voxel ownership and explicit face direction for surface picking', () => {
+    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial(), 1);
+    mesh.userData['surfaceFaceBatch'] = true;
+    mesh.userData['instanceVoxels'] = [{ x: 4, y: 5, z: 6 }];
+    mesh.userData['instanceFaceDirections'] = ['north'];
+    const hit = { object: mesh, instanceId: 0 } as unknown as THREE.Intersection;
+    expect(blockCoordinateFromHit(hit)).toEqual({ x: 4, y: 5, z: 6 });
+    expect(surfaceFaceDirectionFromHit(hit)).toBe('north');
+    expect(surfaceFaceNormal('north').toArray()).toEqual([0, 0, -1]);
+    mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose();
+  });
+
+  it('renders only exposed faces and reveals the neighbor face after deletion across a chunk boundary', async () => {
+    const base = rendererBenchmarkProject('small');
+    const stone = (x: number) => ({ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state: {} });
+    const project = { ...base, size: { x: 32, y: 1, z: 1 }, blocks: [stone(15), stone(16)], decorations: [] };
+    const engine = new ThreeViewportEngine();
+    const provider = rendererBenchmarkVisualProvider();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await settleHydration();
+    expect(engine.performanceEvidence()).toMatchObject({ surfaceFastPathBlocks: 2, exposedFaceInstances: 10, neighborFacesCulled: 2, surfaceFaceBatches: 8, surfaceFaceInstancedMeshes: 8 });
+    const afterDelete = { ...project, blocks: [stone(16)] };
+    engine.update(afterDelete, undefined, { exposedFaceRendering: true });
+    await settleHydration();
+    expect(engine.performanceEvidence()).toMatchObject({ surfaceFastPathBlocks: 1, exposedFaceInstances: 6, neighborFacesCulled: 0, surfaceFaceBatches: 4 });
+    engine.dispose();
+    provider.dispose();
   });
 });
 

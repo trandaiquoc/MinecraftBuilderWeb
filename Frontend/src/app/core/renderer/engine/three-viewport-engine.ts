@@ -31,11 +31,12 @@ import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPl
 import { structureBlockGuidePosition } from './structure-block-guide';
 import { coordinateNeighbors, hasConfirmedOpaqueNeighbors } from '../visibility/interior-occlusion';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
+import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 export type ViewportHoverListener = (hit: ViewportHit) => void;
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined) => PlacementPlan | undefined;
-export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; }
+export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
 export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
 export interface ViewportHydrationProgress {
   readonly generation: number;
@@ -97,6 +98,11 @@ export interface ViewportPerformanceEvidence {
   readonly instancedMeshCount: number;
   readonly nonInstancedMeshCount: number;
   readonly renderableBlocks: number;
+  readonly surfaceFastPathBlocks: number;
+  readonly exposedFaceInstances: number;
+  readonly neighborFacesCulled: number;
+  readonly surfaceFaceBatches: number;
+  readonly surfaceFaceInstancedMeshes: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -283,6 +289,9 @@ interface RenderedBlockEntry {
   object?: THREE.Object3D;
   instanceBatchKey?: string;
   instanceIndex?: number;
+  surfaceFaceMemberships?: readonly SurfaceFaceMembership[];
+  surfaceExposedFaceCount?: number;
+  surfaceNeighborFacesCulled?: number;
 }
 
 interface RenderedDecorationEntry {
@@ -301,6 +310,8 @@ interface BlockHydrationJob {
   readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
   readonly options: ViewportRenderOptions;
   readonly allowInstancing: boolean;
+  readonly surfaceFastPathEligible: boolean;
+  readonly surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockEntry>;
 }
 interface DecorationHydrationJob {
   readonly token: number;
@@ -310,6 +321,15 @@ interface DecorationHydrationJob {
 }
 
 type VisibleBlockEntry = { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string; readonly occlusionClass: OcclusionClass };
+export interface SurfaceFaceTemplate {
+  readonly geometry: THREE.BufferGeometry;
+  readonly material: THREE.Material;
+  readonly direction: SurfaceFaceDirection;
+  /** Maps the canonical face plane back to this face's original local position/orientation. */
+  readonly matrix: THREE.Matrix4;
+}
+interface SurfaceFaceBatch { readonly key: string; readonly capacity: number; readonly template: SurfaceFaceTemplate; readonly mesh: THREE.InstancedMesh; readonly keys: string[]; readonly positions: VoxelCoordinate[]; readonly directions: SurfaceFaceDirection[]; }
+interface SurfaceFaceMembership { readonly batchKey: string; readonly index: number; }
 interface HoverRequest {
   readonly clientX: number;
   readonly clientY: number;
@@ -491,6 +511,9 @@ export class ThreeViewportEngine {
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
   private readonly instanceBatches = new Map<string, InstanceBatch>();
+  private readonly surfaceFaceBatches = new Map<string, SurfaceFaceBatch>();
+  private readonly surfaceFaceOwnership = new Map<string, SurfaceFaceMembership[]>();
+  private readonly surfaceTemplateCache = new Map<string, readonly SurfaceFaceTemplate[]>();
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
   private readonly instanceTransformedMatrix = new THREE.Matrix4();
   /** Derived lookup index; batch.keys remains the physical source of truth. */
@@ -661,6 +684,7 @@ export class ThreeViewportEngine {
     for (const material of Object.values(this.placeholderMaterials)) applyBlockBrightnessToMaterial(material, this.blockBrightness);
     applyBlockBrightnessToObject(this.blocksGroup, this.blockBrightness);
     for (const compiled of this.reusableInstanceTemplates.values()) for (const template of compiled.templates) applyBlockBrightnessToMaterial(template.material, this.blockBrightness);
+    for (const templates of this.surfaceTemplateCache.values()) for (const template of templates) applyBlockBrightnessToMaterial(template.material, this.blockBrightness);
   }
 
   setControlConfiguration(configuration: ViewportControlConfiguration): void {
@@ -746,6 +770,7 @@ export class ThreeViewportEngine {
     const previousProvider = this.visualProvider;
     this.visualProvider = provider;
     this.clearReusableInstanceTemplates();
+    this.clearSurfaceFaceResources();
     this.visualProvider?.retain?.();
     this.providerStats = undefined;
     this.providerGeneration += 1;
@@ -982,7 +1007,7 @@ export class ThreeViewportEngine {
         continue;
       }
       this.placeholderSignatures.delete(key);
-      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing });
+      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && next.role === 'normal' && next.occlusionClass === 'opaque-full-cube', surfaceVisibleEntries: allVisibleMap });
     }
     const normalJobs: BlockHydrationJob[] = [];
     const referenceJobs: BlockHydrationJob[] = [];
@@ -1240,7 +1265,7 @@ export class ThreeViewportEngine {
       this.hydrationRunningByGeneration.set(job.token, (this.hydrationRunningByGeneration.get(job.token) ?? 0) + 1);
       const complete = () => this.completeHydrationJob(job);
       try {
-        this.createBlockEntry(job.block, job.signature, job.role, job.worldContext, job.options, job.allowInstancing, complete);
+        this.createBlockEntry(job.block, job.signature, job.role, job.worldContext, job.options, job.allowInstancing, job.surfaceFastPathEligible, job.surfaceVisibleEntries, complete);
       } catch (error: unknown) {
         // Cached/template insertion is synchronous and can fail before a
         // provider promise exists. Convert that failure into a final fallback
@@ -1282,6 +1307,7 @@ export class ThreeViewportEngine {
   }
 
   private rollbackPartialInstanceVisual(key: string): void {
+    this.removeSurfaceFaceVisual(key, this.renderedBlocks.get(key));
     this.removeOrphanedInstanceMemberships(key, 'rollback');
   }
 
@@ -1425,7 +1451,7 @@ export class ThreeViewportEngine {
     this.placeholderIndices.clear();
   }
 
-  private createBlockEntry(block: ProjectDocument['blocks'][number], signature: string, role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, onComplete?: () => void): void {
+  private createBlockEntry(block: ProjectDocument['blocks'][number], signature: string, role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, surfaceFastPathEligible: boolean, surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockEntry>, onComplete?: () => void): void {
     const key = coordinateKey(block.position);
     const existing = this.renderedBlocks.get(key);
     if (existing) this.removeBlockEntry(key, existing);
@@ -1435,9 +1461,20 @@ export class ThreeViewportEngine {
     this.renderedBlocks.set(entry.key, entry);
     const providerAvailable = !!this.visualProvider && block.kind !== 'missing';
     const provider = this.visualProvider;
-    const reusableKey = providerAvailable && allowInstancing && role === 'normal' ? provider?.reusableVisualKey?.(block, worldContext) : undefined;
+    const reusableKey = providerAvailable && (allowInstancing || surfaceFastPathEligible) && role === 'normal' ? provider?.reusableVisualKey?.(block, worldContext) : undefined;
     const cachedTemplates = reusableKey ? this.reusableInstanceTemplates.get(reusableKey) : undefined;
-    if (providerAvailable && cachedTemplates) {
+    const cachedSurfaceTemplates = surfaceFastPathEligible && reusableKey ? this.surfaceTemplateCache.get(reusableKey) : undefined;
+    if (providerAvailable && cachedSurfaceTemplates) {
+      const memberships = this.addSurfaceFaceVisual(block, entry.key, cachedSurfaceTemplates, surfaceVisibleEntries);
+      if (memberships) {
+        entry.surfaceFaceMemberships = memberships;
+        entry.surfaceExposedFaceCount = memberships.length;
+        entry.surfaceNeighborFacesCulled = 6 - memberships.length;
+        entry.object = memberships.length ? this.surfaceFaceBatches.get(memberships[0].batchKey)?.mesh : undefined;
+        onComplete?.(); this.scheduleRender(); return;
+      }
+    }
+    if (providerAvailable && cachedTemplates && !surfaceFastPathEligible) {
       const instance = this.addInstanceVisualFromTemplates(cachedTemplates.templates, block, entry.key, 'cached-template', cachedTemplates);
       if (instance) {
         this.instrumentation.record('reusableTemplateCacheHits');
@@ -1462,9 +1499,19 @@ export class ThreeViewportEngine {
         const object = visual.object; object.userData['realModel'] = true; applyBlockBrightnessToObject(object, this.blockBrightness); translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
         object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh && isReference) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = options.referenceOpacity ?? .28; } } });
-        const instance = allowInstancing && role === 'normal' ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async') : undefined;
+        let surfaceMemberships: readonly SurfaceFaceMembership[] | undefined;
+        if (surfaceFastPathEligible && reusableKey) {
+          const cachedSurface = this.surfaceTemplateCache.get(reusableKey);
+          const templates = cachedSurface ?? extractSurfaceFaceTemplates(object);
+          if (templates) {
+            if (!cachedSurface) this.surfaceTemplateCache.set(reusableKey, templates);
+            surfaceMemberships = this.addSurfaceFaceVisual(block, entry.key, templates, surfaceVisibleEntries);
+          }
+        }
+        const instance = surfaceMemberships === undefined && allowInstancing && role === 'normal' ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async') : undefined;
         this.blocksGroup.remove(fallback);
-        if (instance) { entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0]; disposeObject(object); }
+        if (surfaceMemberships !== undefined) { entry.surfaceFaceMemberships = surfaceMemberships; entry.surfaceExposedFaceCount = surfaceMemberships.length; entry.surfaceNeighborFacesCulled = 6 - surfaceMemberships.length; entry.object = surfaceMemberships.length ? this.surfaceFaceBatches.get(surfaceMemberships[0].batchKey)?.mesh : undefined; disposeObject(object); }
+        else if (instance) { entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0]; disposeObject(object); }
         else { this.blocksGroup.add(object); entry.object = object; }
         this.recordProviderCacheStats(); this.scheduleRender();
       }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; this.rollbackPartialInstanceVisual(entry.key); fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
@@ -1486,6 +1533,104 @@ export class ThreeViewportEngine {
     this.blocksGroup.add(fallback);
     this.instrumentation.record('fallbackMeshCreations');
     return fallback;
+  }
+
+  private addSurfaceFaceVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockEntry>): readonly SurfaceFaceMembership[] | undefined {
+    if (templates.length !== 6) return undefined;
+    const visibleEntry = visible.get(key);
+    if (!visibleEntry) return undefined;
+    const exposed = new Set(exposedFaceDirections(visibleEntry, visible));
+    const memberships: SurfaceFaceMembership[] = [];
+    for (const template of templates) {
+      if (!exposed.has(template.direction)) continue;
+      const batchKey = `${chunkKey(block.position)}|surface|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
+      let batch = this.surfaceFaceBatches.get(batchKey);
+      if (!batch) {
+        const mesh = new THREE.InstancedMesh(template.geometry, template.material.clone(), VIEWPORT_INSTANCE_CHUNK_SIZE ** 3);
+        mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.userData['instanceVoxels'] = []; mesh.userData['instanceKeys'] = []; mesh.userData['instanceFaceDirections'] = [];
+        mesh.userData['surfaceFaceBatch'] = true; mesh.userData['realModel'] = true; mesh.userData['instanceBatchKey'] = batchKey;
+        this.blocksGroup.add(mesh);
+        setStableMeshBounds(mesh, stableChunkBounds(chunkKey(block.position), unitVoxelEnvelope()));
+        batch = { key: batchKey, capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3, template, mesh, keys: [], positions: [], directions: [] };
+        this.surfaceFaceBatches.set(batchKey, batch);
+        this.instrumentation.record('instancedBoundsComputations');
+      }
+      if (batch.keys.length >= batch.capacity) return undefined;
+      const index = batch.keys.length;
+      const position = { ...block.position };
+      batch.keys.push(key); batch.positions.push(position); batch.directions.push(template.direction);
+      this.instanceTranslationMatrix.makeTranslation(position.x, position.y, position.z).multiply(template.matrix);
+      batch.mesh.setMatrixAt(index, this.instanceTranslationMatrix);
+      batch.mesh.count = index + 1; batch.mesh.instanceMatrix.needsUpdate = true;
+      (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
+      (batch.mesh.userData['instanceKeys'] as string[]).push(key);
+      (batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[]).push(template.direction);
+      memberships.push({ batchKey, index });
+    }
+    this.surfaceFaceOwnership.set(key, memberships);
+    this.instrumentation.record('surfaceFastPathBlocks');
+    this.instrumentation.record('exposedFaceInstances', memberships.length);
+    this.instrumentation.record('neighborFacesCulled', 6 - memberships.length);
+    return memberships;
+  }
+
+  private removeSurfaceFaceVisual(key: string, entry?: RenderedBlockEntry): void {
+    const memberships = this.surfaceFaceOwnership.get(key) ?? entry?.surfaceFaceMemberships ?? [];
+    for (const membership of [...memberships].sort((left, right) => right.index - left.index)) this.removeSurfaceFaceMembership(membership.batchKey, membership.index, key);
+    this.surfaceFaceOwnership.delete(key);
+    if (entry?.surfaceFaceMemberships !== undefined) {
+      this.instrumentation.record('surfaceFastPathBlocks', -1);
+      this.instrumentation.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? memberships.length));
+      this.instrumentation.record('neighborFacesCulled', -(entry.surfaceNeighborFacesCulled ?? 6 - memberships.length));
+      entry.surfaceFaceMemberships = undefined;
+      entry.surfaceExposedFaceCount = undefined;
+      entry.surfaceNeighborFacesCulled = undefined;
+    }
+  }
+
+  private removeSurfaceFaceMembership(batchKey: string, requestedIndex: number, expectedKey: string): void {
+    const batch = this.surfaceFaceBatches.get(batchKey);
+    if (!batch) return;
+    const index = requestedIndex >= 0 && requestedIndex < batch.keys.length && batch.keys[requestedIndex] === expectedKey ? requestedIndex : batch.keys.indexOf(expectedKey);
+    if (index < 0) return;
+    const last = batch.keys.length - 1;
+    if (index !== last) {
+      const movedKey = batch.keys[last];
+      const movedPosition = batch.positions[last];
+      const movedDirection = batch.directions[last];
+      batch.keys[index] = movedKey; batch.positions[index] = movedPosition; batch.directions[index] = movedDirection;
+      const voxels = batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[];
+      const keys = batch.mesh.userData['instanceKeys'] as string[];
+      const directions = batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[];
+      voxels[index] = movedPosition; keys[index] = movedKey; directions[index] = movedDirection;
+      const movedMemberships = this.surfaceFaceOwnership.get(movedKey);
+      const movedMembershipIndex = movedMemberships?.findIndex((membership) => membership.batchKey === batchKey && membership.index === last) ?? -1;
+      if (movedMemberships && movedMembershipIndex >= 0) movedMemberships[movedMembershipIndex] = { batchKey, index };
+      const movedEntry = this.renderedBlocks.get(movedKey);
+      if (movedEntry?.surfaceFaceMemberships) movedEntry.surfaceFaceMemberships = movedMemberships;
+    }
+    batch.keys.pop(); batch.positions.pop(); batch.directions.pop();
+    (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
+    (batch.mesh.userData['instanceKeys'] as string[]).pop();
+    (batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[]).pop();
+    batch.mesh.count = batch.keys.length; batch.mesh.instanceMatrix.needsUpdate = true;
+    if (!batch.keys.length) {
+      this.blocksGroup.remove(batch.mesh); (batch.mesh.material as THREE.Material).dispose(); this.surfaceFaceBatches.delete(batchKey);
+    }
+  }
+
+  private clearSurfaceFaceResources(): void {
+    for (const entry of this.renderedBlocks.values()) if (entry.surfaceFaceMemberships !== undefined) {
+      this.instrumentation.record('surfaceFastPathBlocks', -1);
+      this.instrumentation.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? entry.surfaceFaceMemberships.length));
+      this.instrumentation.record('neighborFacesCulled', -(entry.surfaceNeighborFacesCulled ?? 6 - entry.surfaceFaceMemberships.length));
+    }
+    for (const batch of this.surfaceFaceBatches.values()) { this.blocksGroup.remove(batch.mesh); (batch.mesh.material as THREE.Material).dispose(); }
+    this.surfaceFaceBatches.clear(); this.surfaceFaceOwnership.clear();
+    for (const templates of this.surfaceTemplateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
+    this.surfaceTemplateCache.clear();
+    for (const entry of this.renderedBlocks.values()) { entry.surfaceFaceMemberships = undefined; entry.surfaceExposedFaceCount = undefined; entry.surfaceNeighborFacesCulled = undefined; }
   }
 
   private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
@@ -1659,8 +1804,10 @@ export class ThreeViewportEngine {
 
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
     entry.revision += 1;
+    const hasSurfaceVisual = entry.surfaceFaceMemberships !== undefined || this.surfaceFaceOwnership.has(key);
+    if (hasSurfaceVisual) this.removeSurfaceFaceVisual(key, entry);
     if (entry.instanceBatchKey || this.instanceOwnershipIndex.has(key) || this.runtimeDiagnosticsEnabled && this.instanceMemberships(key, true).length) this.removeInstanceVisual(key, entry);
-    else {
+    else if (!hasSurfaceVisual) {
       if (entry.object?.parent === this.blocksGroup) this.blocksGroup.remove(entry.object);
       if (entry.object && entry.object !== entry.fallback) disposeObject(entry.object);
       if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
@@ -1690,7 +1837,7 @@ export class ThreeViewportEngine {
     delete template.geometry.userData['mergedInstanceTemplateGeometry'];
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -1789,7 +1936,8 @@ export class ThreeViewportEngine {
     } else if (blockHit) {
       block = blockCoordinateFromHit(blockHit);
       if (block) {
-        const normal = (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
+        const surfaceDirection = surfaceFaceDirectionFromHit(blockHit);
+        const normal = surfaceDirection ? surfaceFaceNormal(surfaceDirection) : (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
         faceNormal = { x: normal.x, y: normal.y, z: normal.z };
         hitPoint = blockHit.point;
         const attachment = resolveAttachmentPlacement(active?.id, block, hitPoint, project.blocks, this.definitionResolver);
@@ -1882,6 +2030,7 @@ export class ThreeViewportEngine {
     if (this.renderTimer !== undefined) { clearTimeout(this.renderTimer); this.renderTimer = undefined; this.renderScheduled = false; }
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
+    this.clearSurfaceFaceResources();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
     this.instanceBatches.clear(); this.instanceOwnershipIndex.clear();
@@ -2343,6 +2492,11 @@ export class ThreeViewportEngine {
       instancedMeshCount: instanceMeshCount,
       nonInstancedMeshCount: Math.max(0, meshCount - instanceMeshCount),
       renderableBlocks: this.renderedBlocks.size,
+      surfaceFastPathBlocks: counters.surfaceFastPathBlocks,
+      exposedFaceInstances: counters.exposedFaceInstances,
+      neighborFacesCulled: counters.neighborFacesCulled,
+      surfaceFaceBatches: this.surfaceFaceBatches.size,
+      surfaceFaceInstancedMeshes: this.surfaceFaceBatches.size,
     };
   }
 
@@ -2360,7 +2514,7 @@ export class ThreeViewportEngine {
         const key = coordinateKey(entry.block.position);
         if (this.culledBlockKeys.has(key)) continue;
         const rendered = this.renderedBlocks.get(key);
-        const isFinal = !!rendered && (rendered.object !== undefined && rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback?.userData['renderMode'] !== undefined);
+      const isFinal = !!rendered && (rendered.surfaceFaceMemberships !== undefined || rendered.object !== undefined && rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback?.userData['renderMode'] !== undefined);
         if (entry.block.kind === 'missing' || isFinal || queuedKeys.has(key) || this.runningHydrationKeys.get(key) === this.hydrationGeneration) continue;
         if (this.pendingHydrationSignatures.has(key) || this.placeholderSignatures.has(key) || this.placeholderIndices.has(key) || !!rendered) {
           orphanedHydrationCount += 1;
@@ -2883,7 +3037,7 @@ function compareEmptySnapshots(firstEmpty: ViewportGhostSceneSnapshot, secondEmp
   };
 }
 function renderFilterKey(options: ViewportRenderOptions): string {
-  return stableValue({ layerY: options.layerY, visibility: options.visibility, referenceOpacity: options.referenceOpacity, isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions });
+  return stableValue({ layerY: options.layerY, visibility: options.visibility, referenceOpacity: options.referenceOpacity, isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions, exposedFaceRendering: options.exposedFaceRendering === true });
 }
 function isHorizontalDirection(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
 export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE.Camera): THREE.Vector3 {
@@ -2916,6 +3070,65 @@ export function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate
   const instanceId = hit.instanceId;
   if (instanceId === undefined) return undefined;
   return (hit.object.userData['instanceVoxels'] as VoxelCoordinate[] | undefined)?.[instanceId];
+}
+
+export function surfaceFaceDirectionFromHit(hit: THREE.Intersection): SurfaceFaceDirection | undefined {
+  if (hit.instanceId === undefined || hit.object.userData['surfaceFaceBatch'] !== true) return undefined;
+  return (hit.object.userData['instanceFaceDirections'] as SurfaceFaceDirection[] | undefined)?.[hit.instanceId];
+}
+
+export function surfaceFaceNormal(direction: SurfaceFaceDirection): THREE.Vector3 {
+  switch (direction) {
+    case 'north': return new THREE.Vector3(0, 0, -1);
+    case 'south': return new THREE.Vector3(0, 0, 1);
+    case 'east': return new THREE.Vector3(1, 0, 0);
+    case 'west': return new THREE.Vector3(-1, 0, 0);
+    case 'up': return new THREE.Vector3(0, 1, 0);
+    case 'down': return new THREE.Vector3(0, -1, 0);
+  }
+}
+
+function extractSurfaceFaceTemplates(object: THREE.Object3D): readonly SurfaceFaceTemplate[] | undefined {
+  object.updateMatrixWorld(true);
+  const rootInverse = object.matrixWorld.clone().invert();
+  const templates = new Map<SurfaceFaceDirection, SurfaceFaceTemplate>();
+  let valid = true;
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) || !valid) return;
+    const face = child.userData['face'];
+    const cullface = child.userData['cullface'];
+    const direction = (typeof cullface === 'string' ? cullface : face) as SurfaceFaceDirection;
+    if (!['north', 'south', 'east', 'west', 'up', 'down'].includes(direction) || typeof face === 'string' && typeof cullface === 'string' && face !== cullface || templates.has(direction)) { valid = false; return; }
+    if (Array.isArray(child.material) || child.material.transparent || child.material.depthWrite === false || child.morphTargetInfluences || child.type === 'SkinnedMesh') { valid = false; return; }
+    const matrix = rootInverse.clone().multiply(child.matrixWorld);
+    const geometry = child.geometry.clone().applyMatrix4(matrix);
+    const canonicalTransform = canonicalizeSurfaceFaceGeometry(geometry, direction);
+    geometry.computeBoundingBox(); geometry.computeBoundingSphere(); geometry.userData['surfaceOwnedGeometry'] = true;
+    templates.set(direction, { geometry, material: child.material.clone(), direction, matrix: canonicalTransform.clone().invert() });
+  });
+  if (!valid || templates.size !== 6) {
+    for (const template of templates.values()) { template.geometry.dispose(); template.material.dispose(); }
+    return undefined;
+  }
+  return (['north', 'south', 'east', 'west', 'up', 'down'] as const).map((direction) => templates.get(direction)!);
+}
+
+function canonicalizeSurfaceFaceGeometry(geometry: THREE.BufferGeometry, direction: SurfaceFaceDirection): THREE.Matrix4 {
+  const transform = new THREE.Matrix4();
+  switch (direction) {
+    case 'north': transform.set(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1); break;
+    case 'south': transform.set(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1, 0, 0, 0, 1); break;
+    case 'east': transform.set(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1); break;
+    case 'west': transform.set(0, 0, -1, 1, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1); break;
+    case 'up': transform.set(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 0, 0, 1); break;
+    case 'down': transform.set(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1); break;
+  }
+  geometry.applyMatrix4(transform);
+  return transform;
+}
+
+function surfaceFaceGeometrySignature(geometry: THREE.BufferGeometry): string {
+  return Object.entries(geometry.attributes).sort(([left], [right]) => left.localeCompare(right)).map(([name, attribute]) => `${name}:${attribute.itemSize}:${attribute.normalized}:${Array.from(attribute.array).join(',')}`).join('|');
 }
 function instanceTemplateEnvelope(templates: readonly InstancePartTemplate[]): THREE.Box3 {
   const envelope = new THREE.Box3();

@@ -35,6 +35,9 @@ export interface RendererCounters {
   readonly mergedInstanceTemplateParts: number;
   readonly templateMergeOperations: number;
   readonly templatePartsEliminated: number;
+  readonly surfaceFastPathBlocks: number;
+  readonly exposedFaceInstances: number;
+  readonly neighborFacesCulled: number;
   readonly fallbackMeshCreations: number;
   readonly cachedTemplateInsertions: number;
   readonly cameraMovementFrames: number;
@@ -94,6 +97,9 @@ const EMPTY_COUNTERS: RendererCounters = {
   mergedInstanceTemplateParts: 0,
   templateMergeOperations: 0,
   templatePartsEliminated: 0,
+  surfaceFastPathBlocks: 0,
+  exposedFaceInstances: 0,
+  neighborFacesCulled: 0,
   fallbackMeshCreations: 0,
   cachedTemplateInsertions: 0,
   cameraMovementFrames: 0,
