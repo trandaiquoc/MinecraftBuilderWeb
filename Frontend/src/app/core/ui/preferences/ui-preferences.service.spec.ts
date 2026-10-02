@@ -169,6 +169,20 @@ describe('UiPreferencesService', () => {
     expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([]);
   });
 
+  it('keeps the external AI material policy disabled by default and preserves an explicit toggle', () => {
+    expect(new UiPreferencesService().preferences().externalAiMaterialPolicyEnabled).toBe(false);
+    localStorage.setItem(key, JSON.stringify({ externalAiMaterialPolicyEnabled: true, externalAiMaterialRules: [] }));
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(true);
+    preferences.setExternalAiMaterialPolicyEnabled(false);
+    expect(new UiPreferencesService().preferences().externalAiMaterialPolicyEnabled).toBe(false);
+    preferences.setExternalAiMaterialPolicyEnabled(true);
+    preferences.resetExternalAiMaterialRules();
+    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(true);
+    preferences.reset();
+    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(false);
+  });
+
   it('normalizes, deduplicates and persists material rules without resetting unrelated preferences', () => {
     localStorage.setItem(key, JSON.stringify({ locale: 'vi', externalAiMaterialRules: [
       { targetId: 'minecraft:netherite_block', maxCount: 8 },
@@ -184,5 +198,16 @@ describe('UiPreferencesService', () => {
     expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([{ targetId: 'minecraft:dragon_egg', maxCount: 0 }]);
     preferences.resetExternalAiMaterialRules();
     expect(preferences.preferences().externalAiMaterialRules).toEqual(DEFAULT_EXTERNAL_AI_MATERIAL_RULES);
+  });
+
+  it('preserves unavailable item and decoration policy entries as configuration', () => {
+    localStorage.setItem(key, JSON.stringify({ externalAiMaterialRules: [
+      { category: 'items', targetId: 'missing:item', maxCount: 2 },
+      { category: 'decorations', targetId: 'missing:painting', maxCount: 1 },
+    ] }));
+    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([
+      { category: 'decorations', targetId: 'missing:painting', maxCount: 1 },
+      { category: 'items', targetId: 'missing:item', maxCount: 2 },
+    ]);
   });
 });

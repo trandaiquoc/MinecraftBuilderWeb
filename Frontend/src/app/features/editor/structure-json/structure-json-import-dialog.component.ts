@@ -2,7 +2,10 @@ import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideCopy, LucideTriangleAlert, LucideUpload, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
-import { canonicalPlaceableItemId, placementItemSearch, PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
+import { canonicalPlaceableItemId, PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
+import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
+import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
+import type { PaintingVariant } from '../../../core/decorations/decoration.types';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
@@ -17,14 +20,14 @@ import { ViewportHydrationStatusService } from '../../../core/editor/state/viewp
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
 import { buildExternalAiPrompt, externalAiInstructionSections, resolveModSelections, selectedExternalAiTotals } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
 import type { ExternalAiModContentCategory, ExternalAiModContentSelection, ExternalAiPromptLocale, ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
-import { ExternalAiMaterialRule, materialRuleMode, resolveExternalAiMaterialPolicy } from '../../../core/persistence/structure-json/external-ai-material-policy';
+import { ExternalAiMaterialRule, ExternalAiMaterialPolicyEntry, ExternalAiPolicyCategory, ExternalAiPolicyCatalogEntry, materialRuleMode, resolveExternalAiMaterialPolicy, serializeExternalAiMaterialPolicy } from '../../../core/persistence/structure-json/external-ai-material-policy';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
 import { ReadonlyCodeViewerComponent } from '../../../shared/ui/readonly-code-viewer/readonly-code-viewer.component';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
 type ImportDialogTab = 'import' | 'ai';
-type AiWorkspaceTab = 'description' | 'content' | 'guidance' | 'example';
+type AiWorkspaceTab = 'description' | 'content' | 'policy' | 'guidance' | 'example';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
@@ -36,12 +39,14 @@ type AiWorkspaceTab = 'description' | 'content' | 'guidance' | 'example';
 export class StructureJsonImportDialogComponent {
   protected readonly i18n = inject(I18nService);
   private readonly library = inject(BlockLibraryService);
+  private readonly itemCatalog = inject(ItemCatalogService);
+  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly history = inject(HistoryService);
   private readonly selection = inject(SelectionService);
   private readonly dialogs = inject(DialogService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
   private readonly aiContext = inject(ExternalAiPromptContextService);
-  private readonly preferences = inject(UiPreferencesService);
+  protected readonly preferences = inject(UiPreferencesService);
   readonly project = input.required<ProjectDocument>();
   readonly closed = output<void>();
   protected readonly draftJson = signal('');
@@ -63,7 +68,7 @@ export class StructureJsonImportDialogComponent {
   protected readonly modSelections = signal<readonly ExternalAiModContentSelection[]>([]);
   protected readonly modContentOpen = signal(false);
   protected readonly materialSearch = signal('');
-  protected readonly materialSelectorOpen = signal(false);
+  protected readonly materialCategory = signal<ExternalAiPolicyCategory>('blocks');
   protected readonly includeAvailableContent = computed(() => this.includeAvailableContentOverride() ?? this.hasExternalContent());
   protected readonly effectiveModSelections = computed(() => resolveModSelections(this.aiSnapshot(), this.modSelections()));
   protected readonly selectedTotals = computed(() => selectedExternalAiTotals(this.aiSnapshot(), this.modSelections()));
@@ -73,14 +78,21 @@ export class StructureJsonImportDialogComponent {
     includeAvailableContent: this.includeAvailableContent(),
     includeExample: this.includeJsonExample(),
     modSelections: this.modSelections(),
-    materialPolicy: resolveExternalAiMaterialPolicy(this.preferences.preferences().externalAiMaterialRules, this.placeableItems()),
+    materialPolicy: resolveExternalAiMaterialPolicy(this.preferences.preferences().externalAiMaterialRules, this.placeableItems(), this.policyCatalogEntries()),
+    materialPolicyEnabled: this.preferences.preferences().externalAiMaterialPolicyEnabled,
   }));
-  protected readonly materialRuleRows = computed(() => resolveExternalAiMaterialPolicy(this.preferences.preferences().externalAiMaterialRules, this.placeableItems()));
+  protected readonly policyCatalogEntries = computed<readonly ExternalAiPolicyCatalogEntry[]>(() => {
+    const blocks = this.placeableItems().map((item) => ({ category: 'blocks' as const, id: item.itemId, displayName: item.displayName, sourceId: item.sourceId ?? item.namespace, sourceName: item.sourceName, blockIds: item.concreteBlockIds, available: true }));
+    const items = this.itemCatalog.all().map((item) => ({ category: 'items' as const, id: item.id, displayName: item.displayName, sourceId: item.sourceId, sourceName: item.sourceName, available: true }));
+    const decorations = this.paintingCatalog.placeable().map((painting) => ({ category: 'decorations' as const, id: namespacedDecorationId(painting), displayName: paintingDisplayName(painting), sourceId: painting.sourceId ?? 'vanilla', sourceName: painting.sourceName, available: true }));
+    return [...blocks, ...items, ...decorations];
+  });
+  protected readonly materialRuleRows = computed(() => resolveExternalAiMaterialPolicy(this.preferences.preferences().externalAiMaterialRules, this.placeableItems(), this.policyCatalogEntries()));
+  protected readonly materialPolicyJson = computed(() => serializeExternalAiMaterialPolicy(this.materialRuleRows()));
   protected readonly materialCandidates = computed(() => {
     const query = this.materialSearch();
-    const items = this.searchPlaceableItems(query);
-    const existing = new Set(this.preferences.preferences().externalAiMaterialRules.map((rule) => canonicalPlaceableItemId(rule.targetId, this.placeableItems())));
-    return items.filter((item) => !existing.has(canonicalPlaceableItemId(item.itemId, this.placeableItems()))).slice(0, 40);
+    const normalized = query.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim();
+    return this.policyCatalogEntries().filter((entry) => entry.category === this.materialCategory() && (!normalized || `${entry.displayName ?? ''} ${entry.id} ${entry.sourceName ?? ''}`.toLocaleLowerCase().includes(normalized))).slice(0, 40);
   });
   protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot(), this.aiPromptOptions()));
   protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
@@ -88,7 +100,8 @@ export class StructureJsonImportDialogComponent {
   protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
   protected readonly aiDescriptionInvalid = signal(false);
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
-  protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'guidance', 'example'];
+  protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'policy', 'guidance', 'example'];
+  protected readonly policyCategories: readonly ExternalAiPolicyCategory[] = ['blocks', 'items', 'decorations'];
   protected readonly modCategories: readonly ExternalAiModContentCategory[] = ['blocks', 'items', 'decorations'];
   private validationGeneration = 0;
   private readonly modePlanCache = new Map<StructureJsonImportMode, StructureJsonImportPlan>();
@@ -103,7 +116,7 @@ export class StructureJsonImportDialogComponent {
   }
   protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
   protected setAiTab(tab: AiWorkspaceTab): void { this.activeAiTab.set(tab); }
-  protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
+  protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', policy: 'structureJsonAiTabPolicy', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
   protected aiGuidanceLines(section: { readonly lines: readonly string[] }): readonly string[] { return section.lines; }
   protected onAiTabKeydown(event: KeyboardEvent): void {
     const current = this.aiTabs.indexOf(this.activeAiTab());
@@ -132,58 +145,70 @@ export class StructureJsonImportDialogComponent {
     this.modSelections.set(this.aiSnapshot().mods.map((mod) => ({ sourceId: mod.sourceId, includeBlocks: false, includeItems: false, includeDecorations: false })));
     this.aiCopyStatus.set('idle');
   }
-  protected setMaterialSearch(value: string): void { this.materialSearch.set(value); this.materialSelectorOpen.set(true); }
-  protected toggleMaterialSelector(): void { this.materialSelectorOpen.update((open) => !open); }
-  protected addMaterial(item: PlaceableItemDefinition): void {
-    const targetId = canonicalPlaceableItemId(item.itemId, this.placeableItems());
-    const rules = this.preferences.preferences().externalAiMaterialRules;
-    if (rules.some((rule) => rule.targetId === targetId)) return;
-    this.preferences.setExternalAiMaterialRules([...rules, { targetId, maxCount: 1 }]);
-    this.materialSearch.set(''); this.materialSelectorOpen.set(false); this.aiCopyStatus.set('idle');
+  protected setMaterialSearch(value: string): void { this.materialSearch.set(value); }
+  protected setMaterialCategory(category: ExternalAiPolicyCategory): void { this.materialCategory.set(category); this.materialSearch.set(''); }
+  protected setMaterialPolicyEnabled(value: boolean): void { this.preferences.setExternalAiMaterialPolicyEnabled(value); this.aiCopyStatus.set('idle'); }
+  protected materialCandidateSelected(candidate: ExternalAiPolicyCatalogEntry): boolean { return !!this.findRule(candidate.category, candidate.id); }
+  protected toggleMaterialCandidate(candidate: ExternalAiPolicyCatalogEntry, selected: boolean): void {
+    if (selected) this.addPolicyCandidate(candidate);
+    else this.removePolicyRule({ category: candidate.category, targetId: candidate.id });
   }
-  protected materialMode(targetId: string): 'unlimited' | 'forbidden' | 'maximum' { return materialRuleMode(this.materialRule(targetId)); }
-  protected setMaterialMode(targetId: string, mode: 'unlimited' | 'forbidden' | 'maximum'): void {
+  protected addMaterial(item: PlaceableItemDefinition): void {
+    const candidate = this.policyCatalogEntries().find((entry) => entry.category === 'blocks' && entry.id === canonicalPlaceableItemId(item.itemId, this.placeableItems()));
+    if (candidate) this.addPolicyCandidate(candidate);
+  }
+  private addPolicyCandidate(candidate: ExternalAiPolicyCatalogEntry): void {
+    const targetId = candidate.category === 'blocks' ? canonicalPlaceableItemId(candidate.id, this.placeableItems()) : candidate.id;
     const rules = this.preferences.preferences().externalAiMaterialRules;
-    if (mode === 'unlimited') {
-      this.removeMaterial(targetId);
-      return;
-    }
-    const current = rules.find((rule) => rule.targetId === targetId);
-    const maxCount = mode === 'forbidden' ? 0 : current && current.maxCount > 0 ? current.maxCount : 1;
-    this.preferences.setExternalAiMaterialRules([...rules.filter((rule) => rule.targetId !== targetId), { targetId, maxCount }]);
+    if (this.findRule(candidate.category, targetId)) return;
+    this.preferences.setExternalAiMaterialRules([...rules, { ...(candidate.category === 'blocks' ? {} : { category: candidate.category }), targetId, maxCount: 1 }]);
     this.aiCopyStatus.set('idle');
   }
-  protected setMaterialMaximum(targetId: string, rawValue: string): void {
+  protected materialMode(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId' | 'maxCount'>): 'unlimited' | 'forbidden' | 'maximum' { return materialRuleMode(this.findRule(row.category, row.targetId) ?? row); }
+  protected setMaterialMode(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId' | 'maxCount'>, mode: 'unlimited' | 'forbidden' | 'maximum'): void {
+    if (mode === 'unlimited') { this.removePolicyRule(row); return; }
+    const rules = this.preferences.preferences().externalAiMaterialRules;
+    const category = row.category;
+    const current = this.findRule(category, row.targetId);
+    const maxCount = mode === 'forbidden' ? 0 : current && current.maxCount > 0 ? current.maxCount : 1;
+    this.setRule({ category, targetId: row.targetId, maxCount }, rules);
+  }
+  protected setMaterialMaximum(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId'>, rawValue: string): void {
     if (!/^\d+$/.test(rawValue)) return;
     const maxCount = Number(rawValue);
     if (!Number.isSafeInteger(maxCount) || maxCount < 1) return;
-    const rules = this.preferences.preferences().externalAiMaterialRules;
-    this.preferences.setExternalAiMaterialRules([...rules.filter((rule) => rule.targetId !== targetId), { targetId, maxCount }]);
-    this.aiCopyStatus.set('idle');
+    this.setRule({ category: row.category, targetId: row.targetId, maxCount }, this.preferences.preferences().externalAiMaterialRules);
   }
-  protected removeMaterial(targetId: string): void {
-    this.preferences.setExternalAiMaterialRules(this.preferences.preferences().externalAiMaterialRules.filter((rule) => rule.targetId !== targetId));
+  protected removePolicyRule(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId'>): void {
+    const category = row.category;
+    this.preferences.setExternalAiMaterialRules(this.preferences.preferences().externalAiMaterialRules.filter((rule) => !this.ruleTargetMatches(rule, category, row.targetId)));
     this.aiCopyStatus.set('idle');
   }
   protected clearMaterialRules(): void { this.preferences.setExternalAiMaterialRules([]); this.aiCopyStatus.set('idle'); }
   protected resetMaterialRules(): void { this.preferences.resetExternalAiMaterialRules(); this.aiCopyStatus.set('idle'); }
+  protected policyCategoryLabel(category: ExternalAiPolicyCategory): string { return this.i18n.t(({ blocks: 'structureJsonAiPolicyBlocks', items: 'structureJsonAiPolicyItems', decorations: 'structureJsonAiPolicyDecorations' } as const)[category]); }
   protected materialPolicyLabel(row: { readonly maxCount: number }): string {
     return row.maxCount === 0 ? this.i18n.t('structureJsonAiMaterialForbidden') : `${this.i18n.t('structureJsonAiMaterialMaximum')} ${row.maxCount}`;
   }
-  private materialRule(targetId: string): ExternalAiMaterialRule | undefined {
-    const canonical = canonicalPlaceableItemId(targetId, this.placeableItems());
-    return this.preferences.preferences().externalAiMaterialRules.find((rule) => canonicalPlaceableItemId(rule.targetId, this.placeableItems()) === canonical);
+  private findRule(category: ExternalAiPolicyCategory, targetId: string): ExternalAiMaterialRule | undefined {
+    const canonical = category === 'blocks' ? canonicalPlaceableItemId(targetId, this.placeableItems()) : targetId;
+    return this.preferences.preferences().externalAiMaterialRules.find((rule) => (rule.category ?? 'blocks') === category && (category === 'blocks' ? canonicalPlaceableItemId(rule.targetId, this.placeableItems()) : rule.targetId) === canonical);
+  }
+  private setRule(rule: ExternalAiMaterialRule, rules: readonly ExternalAiMaterialRule[]): void {
+    const category = rule.category ?? 'blocks';
+    const targetId = category === 'blocks' ? canonicalPlaceableItemId(rule.targetId, this.placeableItems()) : rule.targetId;
+    this.preferences.setExternalAiMaterialRules([...rules.filter((entry) => !this.ruleTargetMatches(entry, category, targetId)), { ...rule, ...(category === 'blocks' ? {} : { category }) }]);
+    this.aiCopyStatus.set('idle');
+  }
+  private ruleTargetMatches(rule: ExternalAiMaterialRule, category: ExternalAiPolicyCategory, targetId: string): boolean {
+    if ((rule.category ?? 'blocks') !== category) return false;
+    return category === 'blocks' ? canonicalPlaceableItemId(rule.targetId, this.placeableItems()) === canonicalPlaceableItemId(targetId, this.placeableItems()) : rule.targetId === targetId;
   }
   private placeableItems(): readonly PlaceableItemDefinition[] {
     const source = (this.library as unknown as { readonly allPlaceableItems?: () => readonly PlaceableItemDefinition[] }).allPlaceableItems;
     if (typeof source === 'function') return source();
     const fallback = (this.library as unknown as { readonly allItems?: () => readonly PlaceableItemDefinition[] }).allItems;
     return typeof fallback === 'function' ? fallback() : [];
-  }
-  private searchPlaceableItems(query: string): readonly PlaceableItemDefinition[] {
-    const search = (this.library as unknown as { readonly searchPlaceableItems?: (value: string) => readonly PlaceableItemDefinition[] }).searchPlaceableItems;
-    if (typeof search === 'function') return search.call(this.library, query);
-    return placementItemSearch(this.placeableItems(), query);
   }
   protected modContentSummary(): string {
     const totals = this.selectedTotals();
@@ -364,4 +389,6 @@ function categoryKey(category: ExternalAiModContentCategory): 'includeBlocks' | 
   return category === 'blocks' ? 'includeBlocks' : category === 'items' ? 'includeItems' : 'includeDecorations';
 }
 
+function namespacedDecorationId(entry: PaintingVariant): string { return entry.id.includes(':') ? entry.id : `minecraft:${entry.id}`; }
+function paintingDisplayName(entry: PaintingVariant): string { return entry.id.split(':').at(-1)!.split('_').filter(Boolean).map((part) => part[0]!.toUpperCase() + part.slice(1)).join(' '); }
 function formatProjectSize(size: ProjectDocument['size']): string { return `${size.x} × ${size.y} × ${size.z}`; }

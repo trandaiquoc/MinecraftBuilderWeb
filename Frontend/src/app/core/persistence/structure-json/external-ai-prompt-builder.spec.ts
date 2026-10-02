@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections, selectedExternalAiTotals, type ExternalAiPromptContext } from './external-ai-prompt-builder';
-import { resolveExternalAiMaterialPolicy } from './external-ai-material-policy';
+import { resolveExternalAiMaterialPolicy, serializeExternalAiMaterialPolicy } from './external-ai-material-policy';
 
 const context: ExternalAiPromptContext = {
   minecraftVersion: '1.21.1',
@@ -158,10 +158,10 @@ describe('external Structure JSON AI prompt', () => {
 
   it('serializes deterministic hard material limits independently of optional sections', () => {
     const policy = [
-      { targetId: 'minecraft:dragon_head', blockIds: ['minecraft:dragon_wall_head', 'minecraft:dragon_head'], maxCount: 1, available: true },
-      { targetId: 'minecraft:dragon_egg', blockIds: ['minecraft:dragon_egg'], maxCount: 0, available: true },
+      { category: 'blocks', targetId: 'minecraft:dragon_head', blockIds: ['minecraft:dragon_wall_head', 'minecraft:dragon_head'], maxCount: 1, available: true },
+      { category: 'blocks', targetId: 'minecraft:dragon_egg', blockIds: ['minecraft:dragon_egg'], maxCount: 0, available: true },
     ] as const;
-    const prompt = buildExternalAiPrompt('Use a dragon head.', context, { includeGuidance: false, includeAvailableContent: false, includeExample: false, materialPolicy: policy });
+    const prompt = buildExternalAiPrompt('Use a dragon head.', context, { includeGuidance: false, includeAvailableContent: false, includeExample: false, materialPolicyEnabled: true, materialPolicy: policy });
     expect(prompt).toContain('MATERIAL_POLICY_JSON');
     expect(prompt).toContain('higher priority');
     expect(prompt).toContain('"maxCount": 0');
@@ -171,10 +171,33 @@ describe('external Structure JSON AI prompt', () => {
     expect(prompt).not.toContain('formatVersion');
   });
 
+  it('keeps material policy out of the prompt until explicitly enabled', () => {
+    const policy = [
+      { category: 'blocks', targetId: 'minecraft:stone', blockIds: ['minecraft:stone'], maxCount: 4, available: true },
+      { category: 'items', targetId: 'example:gem', maxCount: 2, available: true },
+      { category: 'decorations', targetId: 'minecraft:poster', maxCount: 1, available: true },
+    ] as const;
+    const options = { includeGuidance: false, includeAvailableContent: false, includeExample: false, materialPolicy: policy };
+    const disabled = buildExternalAiPrompt('Build a shrine.', context, options);
+    expect(disabled).not.toContain('MATERIAL_POLICY_JSON');
+    const enabled = buildExternalAiPrompt('Build a shrine.', context, { ...options, materialPolicyEnabled: true });
+    expect(enabled).toContain('MATERIAL_POLICY_JSON');
+    expect(enabled).toContain('"blocks"');
+    expect(enabled).toContain('"items"');
+    expect(enabled).toContain('"decorations"');
+    expect(enabled.indexOf('MATERIAL_POLICY_JSON')).toBeLessThan(enabled.indexOf('USER REQUEST'));
+    expect(enabled.slice(enabled.indexOf('USER REQUEST'))).toContain('Build a shrine.');
+    expect(serializeExternalAiMaterialPolicy(policy as any)).toBe(JSON.stringify({
+      blocks: [{ targetId: 'minecraft:stone', maxCount: 4, blockIds: ['minecraft:stone'] }],
+      items: [{ targetId: 'example:gem', maxCount: 2 }],
+      decorations: [{ targetId: 'minecraft:poster', maxCount: 1 }],
+    }, null, 2));
+  });
+
   it('does not let stale mod rules authorize missing IDs', () => {
-    const prompt = buildExternalAiPrompt('Build a mod shrine.', context, { includeAvailableContent: false, includeExample: false, materialPolicy: [
-      { targetId: 'missing:crystal', blockIds: ['missing:crystal'], maxCount: 2, sourceId: 'missing-source', available: false },
-      { targetId: 'minecraft:ancient_debris', blockIds: ['minecraft:ancient_debris'], maxCount: 8, available: true },
+    const prompt = buildExternalAiPrompt('Build a mod shrine.', context, { includeAvailableContent: false, includeExample: false, materialPolicyEnabled: true, materialPolicy: [
+      { category: 'blocks', targetId: 'missing:crystal', blockIds: ['missing:crystal'], maxCount: 2, sourceId: 'missing-source', available: false },
+      { category: 'blocks', targetId: 'minecraft:ancient_debris', blockIds: ['minecraft:ancient_debris'], maxCount: 8, available: true },
     ] });
     expect(prompt).toContain('minecraft:ancient_debris');
     expect(prompt).not.toContain('missing:crystal');

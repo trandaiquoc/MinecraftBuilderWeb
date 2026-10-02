@@ -20,7 +20,6 @@ import { isEditableKeyboardTarget, isMovementAction, KeyboardAction, MovementAct
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
-import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
@@ -36,10 +35,7 @@ import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help/shortcu
 import { AssetManagerDialogComponent } from '../tools/asset-manager/asset-manager-dialog.component';
 import { ProjectDiagnosticsDialogComponent } from '../tools/diagnostics/project-diagnostics-dialog.component';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
-import { ProjectPackageImportService } from '../../../core/persistence/project-package/project-package-import.service';
-import { ProjectImportStatusComponent } from '../project-import/project-import-status.component';
 import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-assets.service';
-import { sanitizeFilename } from '../../../core/persistence/file-name';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
@@ -49,7 +45,7 @@ export function hasEditorSelectionState(decorationSelected: boolean, logicalCoun
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, ProjectImportStatusComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -68,9 +64,6 @@ export class EditorShellComponent implements OnDestroy {
   private readonly assets = inject(VanillaAssetsService);
   private readonly editor = inject(StructureEditorService);
   private readonly router = inject(Router);
-  private readonly persistence = new ProjectPersistenceService(new IndexedDbProjectStore());
-  protected readonly importCoordinator = new ProjectPackageImportService(this.persistence);
-  protected readonly importState = this.importCoordinator.state;
   private readonly library = inject(BlockLibraryService);
   private readonly session = inject(EditorSessionService);
   private readonly threeDViewport = viewChild(ViewportComponent);
@@ -241,34 +234,8 @@ export class EditorShellComponent implements OnDestroy {
       this.deletingProject.set(false);
     }
   }
-  protected triggerProjectImport(input: HTMLInputElement): void { if (this.importState().stage !== 'idle' && this.importState().stage !== 'success' && this.importState().stage !== 'error') return; this.closeMenus(); input.value = ''; input.click(); }
   protected openStructureJsonImport(): void { this.closeMenus(); this.structureJsonImportOpen.set(true); }
   protected closeStructureJsonImport(): void { this.structureJsonImportOpen.set(false); }
-  protected async importProjectPackage(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    input.value = '';
-    await this.importCoordinator.import(
-      file,
-      () => this.autosave.flush(),
-      (project) => { this.session.resetForProjectChange(project.id, true); this.workspace.activate(project); },
-    );
-  }
-  protected exportProjectPackage(): void {
-    this.closeMenus();
-    const project = this.workspace.project();
-    if (!project) return;
-    try {
-      const blob = new Blob([this.persistence.exportPackage(project)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `${sanitizeFilename(project.metadata.name)}.minecraftbuilder.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch { void this.dialogs.error(this.i18n.t('exportProjectError'), this.i18n.t('exportProjectError')); }
-  }
   protected showUnavailableFeature(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('featureUnavailable'), this.i18n.t('featureUnavailable')); }
   protected openStructureNbtExport(): void { this.closeMenus(); this.structureNbtExportOpen.set(true); }
   protected closeStructureNbtExport(): void { this.structureNbtExportOpen.set(false); }

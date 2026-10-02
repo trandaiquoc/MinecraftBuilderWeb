@@ -44,6 +44,7 @@ export interface UiPreferences {
   readonly shortcuts: Readonly<Record<KeyboardAction, string>>;
   readonly mouseBindings: Readonly<Record<MouseAction, string>>;
   readonly externalAiMaterialRules: readonly ExternalAiMaterialRule[];
+  readonly externalAiMaterialPolicyEnabled: boolean;
   readonly layout: {
     readonly editorToolbarVisible: boolean;
     readonly leftSidebarVisible: boolean;
@@ -72,6 +73,7 @@ const defaults: UiPreferences = {
   shortcuts: DEFAULT_KEYBINDINGS,
   mouseBindings: DEFAULT_MOUSE_BINDINGS,
   externalAiMaterialRules: DEFAULT_EXTERNAL_AI_MATERIAL_RULES,
+  externalAiMaterialPolicyEnabled: false,
   layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 260, rightSidebarWidth: 230 },
 };
 
@@ -126,6 +128,10 @@ export class UiPreferencesService {
 
   resetExternalAiMaterialRules(): void {
     this.commit({ ...this.preferences(), externalAiMaterialRules: DEFAULT_EXTERNAL_AI_MATERIAL_RULES });
+  }
+
+  setExternalAiMaterialPolicyEnabled(enabled: boolean): void {
+    this.commit({ ...this.preferences(), externalAiMaterialPolicyEnabled: enabled });
   }
 
   setLayout(patch: Partial<UiPreferences['layout']>): void {
@@ -192,6 +198,7 @@ function normalize(value: unknown): UiPreferences {
     shortcuts,
     mouseBindings,
     externalAiMaterialRules: hasMaterialRules ? normalizeExternalAiMaterialRules((candidate as { readonly externalAiMaterialRules?: unknown }).externalAiMaterialRules) : DEFAULT_EXTERNAL_AI_MATERIAL_RULES,
+    externalAiMaterialPolicyEnabled: typeof (candidate as { readonly externalAiMaterialPolicyEnabled?: unknown }).externalAiMaterialPolicyEnabled === 'boolean' ? (candidate as { readonly externalAiMaterialPolicyEnabled: boolean }).externalAiMaterialPolicyEnabled : defaults.externalAiMaterialPolicyEnabled,
     layout: {
       ...defaults.layout,
       ...layout,

@@ -10,18 +10,25 @@ import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { I18nService, supplementalTranslations } from '../../../core/ui/localization/i18n.service';
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
+import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
+import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
 import { StructureJsonImportDialogComponent } from './structure-json-import-dialog.component';
 
 const project: ProjectDocument = { schemaVersion: 3, id: 'project', metadata: { name: 'Import Demo', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 2, y: 2, z: 2 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 } };
 const projectContext = { currentSize: project.size, resizeSupported: true, maximumSize: { x: 512, y: 512, z: 512 }, vanillaStructureBlockLimit: 48 } as const;
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
+const catalogProviders = [
+  { provide: ItemCatalogService, useValue: { all: () => [] } },
+  { provide: PaintingVariantCatalogService, useValue: { placeable: () => [] } },
+] as const;
 
 describe('StructureJsonImportDialogComponent', () => {
   it('supports editing, explicit validation, and stale preview clearing', async () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [] }) } },
@@ -44,6 +51,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [] }) } },
@@ -52,7 +60,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void; setAiTab: (tab: 'description' | 'content' | 'guidance' | 'example') => void };
+    const instance = fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void; setAiTab: (tab: 'description' | 'content' | 'policy' | 'guidance' | 'example') => void };
     instance.setTab('ai'); instance.setAiTab('example'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.structure-json-layout.ai-mode')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.structure-json-ai-workspace')).toBeTruthy();
@@ -62,12 +70,17 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(viewer.querySelector('.readonly-code-viewer-code')?.textContent).toContain('minecraftbuilder-structure');
     instance.setAiTab('description'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.ai-preview app-readonly-code-viewer')).toBeTruthy();
+    instance.setAiTab('policy'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.ai-policy-workspace')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.ai-policy-json pre')).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('.ai-inner-tabs [role="tab"]').length).toBe(5);
   });
 
   it('keeps prompt inclusion controls independent from the viewing tabs', async () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [{ sourceId: 'source-example', id: 'example', name: 'Example', version: '1.0.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:block'], items: [{ id: 'example:item' }], decorations: [{ id: 'example:painting', kind: 'painting' }] }] }) } },
@@ -111,6 +124,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => snapshot } },
@@ -138,6 +152,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: UiPreferencesService, useValue: preferences },
         { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [item], searchPlaceableItems: () => [item] } },
@@ -145,21 +160,37 @@ describe('StructureJsonImportDialogComponent', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent); fixture.componentRef.setInput('project', project); fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { addMaterial: (value: PlaceableItemDefinition) => void; setMaterialMode: (id: string, mode: 'unlimited' | 'forbidden' | 'maximum') => void; setMaterialMaximum: (id: string, value: string) => void; clearMaterialRules: () => void; resetMaterialRules: () => void; materialRuleRows: () => readonly { targetId: string; available: boolean }[]; aiPrompt: () => string };
+    const instance = fixture.componentInstance as unknown as {
+      addMaterial: (value: PlaceableItemDefinition) => void;
+      setMaterialPolicyEnabled: (value: boolean) => void;
+      setMaterialMode: (row: { category: 'blocks'; targetId: string; maxCount: number }, mode: 'unlimited' | 'forbidden' | 'maximum') => void;
+      setMaterialMaximum: (row: { category: 'blocks'; targetId: string }, value: string) => void;
+      clearMaterialRules: () => void;
+      resetMaterialRules: () => void;
+      materialRuleRows: () => readonly { targetId: string; available: boolean }[];
+      materialPolicyJson: () => string;
+      aiPrompt: () => string;
+    };
+    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(false);
     expect(instance.materialRuleRows()).toMatchObject([{ targetId: 'missing:old_block', available: false }]);
-    instance.addMaterial(item); instance.setMaterialMaximum('example:crystal', '3');
+    instance.addMaterial(item); instance.setMaterialMaximum({ category: 'blocks', targetId: 'example:crystal' }, '3');
     expect(preferences.preferences().externalAiMaterialRules).toContainEqual({ targetId: 'example:crystal', maxCount: 3 });
-    instance.setMaterialMode('example:crystal', 'forbidden');
+    expect(instance.materialPolicyJson()).toContain('"blocks"');
+    instance.setMaterialMode({ category: 'blocks', targetId: 'example:crystal', maxCount: 3 }, 'forbidden');
     expect(preferences.preferences().externalAiMaterialRules).toContainEqual({ targetId: 'example:crystal', maxCount: 0 });
+    instance.setMaterialPolicyEnabled(true);
+    expect(instance.aiPrompt()).toContain('MATERIAL_POLICY_JSON');
     expect(instance.aiPrompt()).toContain('example:crystal_block');
     instance.clearMaterialRules(); expect(preferences.preferences().externalAiMaterialRules).toEqual([]);
     instance.resetMaterialRules(); expect(preferences.preferences().externalAiMaterialRules).toHaveLength(4);
+    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(true);
   });
 
   it('translates structured diagnostic codes while keeping technical fields separate', async () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
       ],
@@ -177,6 +208,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => (supplementalTranslations.vi as Record<string, string>)[key] ?? key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
       ],
@@ -196,6 +228,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
         { provide: DialogService, useValue: dialogs },
@@ -224,6 +257,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
         { provide: DialogService, useValue: dialogs },
@@ -246,6 +280,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
         { provide: DialogService, useValue: dialogs },
@@ -266,6 +301,7 @@ describe('StructureJsonImportDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
+        ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
         { provide: DialogService, useValue: dialogs },

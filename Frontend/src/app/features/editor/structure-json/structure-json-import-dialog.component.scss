@@ -97,22 +97,19 @@
 .ai-mod-catalog-list article header strong { min-width: 0; overflow-wrap: anywhere; }
 .ai-mod-catalog-list article p { margin: 0; color: var(--text-muted); font: .7rem/1.35 var(--font-readable); }
 
-.ai-material-policy { padding: .75rem; border-radius: var(--radius-md); background: var(--surface-raised); }
 .ai-material-actions, .ai-material-rule-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
-.ai-material-selector { display: grid; gap: .35rem; padding: .6rem; border-radius: var(--radius-sm); background: var(--surface-muted); }
-.ai-material-selector label, .ai-material-rule-controls label { display: grid; gap: .2rem; min-width: 8rem; font-size: .72rem; font-weight: 650; }
-.ai-material-selector input, .ai-material-rule-controls input, .ai-material-rule-controls select { min-height: 2rem; padding: .3rem .45rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: .75rem/1.2 var(--font-ui); }
-.ai-material-candidates { display: grid; gap: .2rem; max-height: 15rem; overflow: auto; }
-.ai-material-candidates button { display: grid; width: 100%; padding: .45rem; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-.ai-material-candidates button:hover, .ai-material-candidates button:focus-visible { background: var(--surface-raised); }
-.ai-material-candidates button span, .ai-material-rule-heading > div { display: grid; gap: .15rem; min-width: 0; }
-.ai-material-candidates small, .ai-material-rule-heading small, .ai-material-ids { color: var(--text-muted); font: .66rem/1.25 var(--font-readable); overflow-wrap: anywhere; }
-.ai-material-rules { display: grid; gap: .45rem; }
-.ai-material-rule { display: grid; gap: .45rem; padding: .6rem; border-radius: var(--radius-sm); background: var(--surface-muted); }
-.ai-material-rule.unavailable { opacity: .78; }
-.ai-material-rule-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
-.ai-material-rule-heading code { color: var(--text-muted); font-size: .68rem; overflow-wrap: anywhere; }
-.ai-material-policy-label { color: var(--accent); font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.ai-policy-workspace { display: grid; grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr); gap: .75rem; min-height: 0; }
+.ai-policy-controls, .ai-policy-json { display: grid; align-content: start; gap: .6rem; min-width: 0; padding: .75rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); }
+.ai-policy-enabled { justify-content: flex-start; }
+.ai-policy-field { display: grid; gap: .25rem; font-size: .72rem; font-weight: 650; }
+.ai-policy-field input, .ai-policy-field select { min-height: 2rem; padding: .3rem .45rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: .75rem/1.2 var(--font-ui); }
+.ai-material-candidates { display: grid; gap: .2rem; max-height: min(23rem, 42vh); overflow: auto; }
+.ai-material-candidate { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .45rem; align-items: start; padding: .45rem; border-radius: var(--radius-sm); background: var(--surface-muted); cursor: pointer; }
+.ai-material-candidate:hover, .ai-material-candidate:has(input:focus-visible) { background: var(--surface-hover); }
+.ai-material-candidate input { margin-top: .15rem; accent-color: var(--accent); }
+.ai-material-candidate span { display: grid; gap: .12rem; min-width: 0; }
+.ai-material-candidate small, .ai-material-ids { color: var(--text-muted); font: .66rem/1.25 var(--font-readable); overflow-wrap: anywhere; }
+.ai-policy-json pre { min-height: 20rem; max-height: min(48rem, 60vh); margin: 0; overflow: auto; padding: .7rem; border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text); font: .7rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
 .ai-material-empty { margin: 0; padding: .6rem; color: var(--text-muted); font: .75rem/1.35 var(--font-readable); }
 .structure-json-footer .muted { margin-right: auto; }
 .muted, .progress-status { color: var(--text-muted); font: .76rem/1.4 var(--font-readable); }
@@ -171,4 +168,5 @@
   .ai-heading, .ai-panel-heading { flex-direction: column; }
   .ai-privacy-note { max-width: none; text-align: left; }
   .ai-content-summary { grid-template-columns: 1fr; }
+  .ai-policy-workspace { grid-template-columns: 1fr; }
 }

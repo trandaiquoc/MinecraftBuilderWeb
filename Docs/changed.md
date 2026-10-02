@@ -2071,6 +2071,14 @@ Structure export keeps NBT and ZIP generation unchanged. Standalone NBT no
 longer renders an empty package section, and installation guidance is now a
 full-width vertical flow with readable wrapping and raw copy actions.
 
+The external-AI material policy now lives in its own Policy tab with Blocks,
+Items, and Decorations selectors plus a deterministic read-only JSON preview.
+The policy configuration remains persisted locally, but inclusion in copied
+prompts is explicitly opt-in and independent from guidance or available-content
+toggles. Project Backup import/export actions were removed from the File menu;
+normal project persistence, autosave/recovery, Structure JSON, and NBT workflows
+remain available.
+
 ## Large viewport performance foundation
 
 The 3D and Y-Layer viewport now coalesce hover raycasts to animation frames and

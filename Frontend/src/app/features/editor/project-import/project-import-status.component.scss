@@ -1,6 +1,0 @@
-:host { position: fixed; inset: 0; z-index: var(--z-toast); display: grid; place-items: center; pointer-events: none; }
-.project-import-status { width: min(28rem, calc(100vw - 2rem)); padding: 1.2rem; border-radius: .5rem; background: var(--surface-raised, var(--surface)); color: var(--text); box-shadow: 0 18px 60px rgba(0,0,0,.3); pointer-events: auto; }
-.import-progress { display: block; }
-.import-stage { margin: .8rem 0 .25rem; font-weight: 650; }
-.import-file, .import-summary, details { margin: .25rem 0; color: var(--text-muted); font-size: .85rem; overflow-wrap: anywhere; }
-.project-import-status > .ui-button { margin-top: .8rem; }

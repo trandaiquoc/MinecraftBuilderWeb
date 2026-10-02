@@ -1,7 +1,7 @@
 import { HUGE_STRUCTURE_BLOCKS_MAX_AXIS, VANILLA_STRUCTURE_BLOCK_MAX_AXIS } from '../../domain/structure-size-policy';
 import { createStructureJsonExample, serializeStructureJsonValue } from './structure-json';
 import type { ExternalAiMaterialPolicyEntry } from './external-ai-material-policy';
-import { isMaterialRuleForAvailableContent } from './external-ai-material-policy';
+import { isMaterialRuleForAvailableContent, serializeExternalAiMaterialPolicy } from './external-ai-material-policy';
 
 export type ExternalAiPromptLocale = 'en' | 'vi';
 
@@ -64,6 +64,7 @@ export interface ExternalAiPromptOptions {
   readonly includeExample?: boolean;
   readonly modSelections?: readonly ExternalAiModContentSelection[];
   readonly materialPolicy?: readonly ExternalAiMaterialPolicyEntry[];
+  readonly materialPolicyEnabled?: boolean;
 }
 
 export type { ExternalAiMaterialPolicyEntry } from './external-ai-material-policy';
@@ -105,7 +106,7 @@ export function buildExternalAiPrompt(
     sections.push(`${locale === 'vi' ? 'Ví dụ cú pháp JSON nhỏ (dùng để tham khảo hình dạng; không sao chép nội dung nếu không được yêu cầu):' : 'Small JSON syntax example (follow the contract; do not copy content unless requested):'}\n${serializeStructureJsonValue(example)}`);
   }
   sections.push(`${locale === 'vi' ? 'YÊU CẦU NGƯỜI DÙNG' : 'USER REQUEST'}\n${description}`);
-  const materialPolicy = buildMaterialPolicyText(context, resolved.materialPolicy ?? [], locale);
+  const materialPolicy = resolved.materialPolicyEnabled ? buildMaterialPolicyText(context, resolved.materialPolicy ?? [], locale) : '';
   if (materialPolicy) sections.splice(Math.max(0, sections.length - 1), 0, materialPolicy);
   return sections.filter((section) => section.length > 0).join('\n\n');
 }
@@ -277,6 +278,7 @@ function resolvePromptOptions(context: ExternalAiPromptContext, options: Externa
     includeExample: options.includeExample ?? true,
     modSelections: resolveModSelections(context, options.modSelections),
     materialPolicy: options.materialPolicy ?? [],
+    materialPolicyEnabled: options.materialPolicyEnabled ?? false,
   };
 }
 
@@ -288,7 +290,7 @@ function buildMaterialPolicyText(
   const availableSources = new Set(context.mods.map((mod) => mod.sourceId));
   const active = entries
     .filter((entry) => isMaterialRuleForAvailableContent(entry, availableSources))
-    .map(({ targetId, blockIds, maxCount }) => ({ targetId, blockIds: uniqueSorted(blockIds), maxCount }))
+    .map((entry) => ({ ...entry, ...(entry.category === 'blocks' ? { blockIds: uniqueSorted(entry.blockIds ?? [entry.targetId]) } : {}) }))
     .sort((left, right) => left.targetId.localeCompare(right.targetId));
   if (!active.length) return '';
   const heading = locale === 'vi' ? 'RÀNG BUỘC VẬT LIỆU (BẮT BUỘC)' : 'MATERIAL POLICY (HARD CONSTRAINT)';
@@ -298,7 +300,7 @@ function buildMaterialPolicyText(
   const audit = locale === 'vi'
     ? 'Kiểm tra cuối: vật liệu Forbidden phải có count = 0, Maximum không được vượt quá giới hạn, và rule mod không cho phép ID không có trong AVAILABLE_CONTENT_JSON.'
     : 'Final material audit: every Forbidden rule must have count 0, every Maximum total must stay within its limit, and stale mod rules must never authorize IDs absent from AVAILABLE_CONTENT_JSON.';
-  return `${heading}\n${explanation}\nMATERIAL_POLICY_JSON\n${JSON.stringify(active, null, 2)}\n${audit}`;
+  return `${heading}\n${explanation}\nMATERIAL_POLICY_JSON\n${serializeExternalAiMaterialPolicy(active)}\n${audit}`;
 }
 
 function defaultSelectionFor(mod: ExternalAiModContext): ExternalAiModContentSelection {
