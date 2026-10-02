@@ -256,7 +256,7 @@ function resolvePromptOptions(context: ExternalAiPromptContext, options: Externa
     locale: options.locale ?? 'en',
     includeGuidance: options.includeGuidance ?? true,
     includeAvailableContent: options.includeAvailableContent ?? hasContent,
-    includeExample: options.includeExample ?? false,
+    includeExample: options.includeExample ?? true,
     modSelections: resolveModSelections(context, options.modSelections),
   };
 }

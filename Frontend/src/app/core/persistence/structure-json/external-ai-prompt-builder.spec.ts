@@ -22,6 +22,11 @@ describe('external Structure JSON AI prompt', () => {
     expect(prompt.indexOf('OUTPUT')).toBeLessThan(prompt.indexOf('AVAILABLE_CONTENT_JSON'));
     expect(prompt.indexOf('AVAILABLE_CONTENT_JSON')).toBeLessThan(prompt.indexOf('USER REQUEST'));
     expect(prompt).toContain('minecraftbuilder-structure');
+    expect(prompt).toContain('Small JSON syntax example');
+    expect(prompt).toContain('"blocks"');
+    expect(prompt).toContain('"blockEntity"');
+    expect(prompt).toContain('"kind": "container"');
+    expect(prompt).toContain('"decorations"');
     expect(prompt).toContain('one `.json` file');
     expect(prompt).toContain('exactly one Markdown code block marked `json`');
     expect(prompt).toContain('meaningful depth across X, Y, and Z');
@@ -97,6 +102,14 @@ describe('external Structure JSON AI prompt', () => {
     expect(prompt).toContain('YÊU CẦU NGƯỜI DÙNG');
     expect(prompt).not.toContain('MINECRAFTBUILDER STRUCTURE JSON\nKẾT QUẢ');
     expect(prompt).not.toContain('formatVersion');
+  });
+
+  it('allows the real JSON example to be disabled explicitly', () => {
+    const prompt = buildExternalAiPrompt('Make a tower.', context, { includeExample: false, includeAvailableContent: false });
+    expect(prompt).not.toContain('Small JSON syntax example');
+    expect(prompt).not.toContain('"blockEntity"');
+    expect(prompt).not.toContain('"kind": "container"');
+    expect(prompt).toContain('USER REQUEST');
   });
 
   it('keeps guidance sections ordered and semantically equivalent in both locales', () => {

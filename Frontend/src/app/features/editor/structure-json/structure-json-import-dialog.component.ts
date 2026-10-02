@@ -55,7 +55,7 @@ export class StructureJsonImportDialogComponent {
   protected readonly hasExternalContent = computed(() => this.aiSnapshot().mods.some((mod) => mod.blocks.length > 0 || mod.items.length > 0 || mod.decorations.length > 0));
   protected readonly includeAiGuidance = signal(true);
   protected readonly includeAvailableContentOverride = signal<boolean | undefined>(undefined);
-  protected readonly includeJsonExample = signal(false);
+  protected readonly includeJsonExample = signal(true);
   protected readonly modSelections = signal<readonly ExternalAiModContentSelection[]>([]);
   protected readonly modContentOpen = signal(false);
   protected readonly includeAvailableContent = computed(() => this.includeAvailableContentOverride() ?? this.hasExternalContent());
