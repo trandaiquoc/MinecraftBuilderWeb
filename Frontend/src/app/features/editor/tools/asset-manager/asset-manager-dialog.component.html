@@ -2,7 +2,6 @@
 <div
   class="tool-dialog-backdrop"
   role="presentation"
-  (click)="$event.target === $event.currentTarget && closeFromEscape()"
 >
   <section
     class="tool-dialog"
@@ -637,7 +636,6 @@
     [cdkConnectedOverlayHasBackdrop]="true"
     cdkConnectedOverlayBackdropClass="ui-dialog-backdrop"
     [cdkConnectedOverlayPositions]="centeredOverlayPositions"
-    (backdropClick)="closeDetails()"
     (detach)="closeDetails()"
   >
     <section
@@ -846,7 +844,6 @@
     [cdkConnectedOverlayHasBackdrop]="true"
     cdkConnectedOverlayBackdropClass="ui-dialog-backdrop"
     [cdkConnectedOverlayPositions]="centeredOverlayPositions"
-    (backdropClick)="closeDiagnostics()"
     (detach)="closeDiagnostics()"
   >
     <section

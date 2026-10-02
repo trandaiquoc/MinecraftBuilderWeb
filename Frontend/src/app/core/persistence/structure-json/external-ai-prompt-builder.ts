@@ -19,6 +19,12 @@ export interface ExternalAiPromptContext {
   readonly paintingIds: readonly string[];
 }
 
+export interface ExternalAiInstructionSection {
+  readonly id: 'contract' | 'content' | 'geometry' | 'output';
+  readonly title: string;
+  readonly lines: readonly string[];
+}
+
 /** Builds the copy-ready prompt without translation or network access. */
 export function buildExternalAiPrompt(description: string, context: ExternalAiPromptContext, example = createStructureJsonExample()): string {
   const exactDescription = description;
@@ -55,16 +61,28 @@ export function buildContentContextText(context: ExternalAiPromptContext): strin
   return lines.join('\n');
 }
 
-function canonicalInstructions(minecraftVersion: string): string {
+export function externalAiInstructionSections(minecraftVersion: string): readonly ExternalAiInstructionSection[] {
   return [
-    'You are creating a MinecraftBuilder Structure JSON document.',
-    'Return JSON only, with no Markdown fences, comments, or prose.',
-    'Use exactly this top-level contract: format="minecraftbuilder-structure", minecraftVersion="' + minecraftVersion + '", optional name, blocks array, decorations array. Do not add formatVersion.',
-    'Use canonical namespaced Minecraft IDs and canonical raw BlockState values. Coordinates x, y, z must be integers inside the requested project bounds.',
-    'Model the requested structure as only the blocks and decorations that are actually present. Air is an empty voxel: preserve intentional gaps and never invent support pillars, chains, floors, or hidden scaffolding to make a shape look supported.',
-    'Respect verified Minecraft attachment, gravity, and multi-block exceptions only when the requested object needs them. Keep multi-block parts atomic and preserve exact IDs, states, item counts, and decoration data.',
-    'For the requested crescent moon, use a voxel outline/solid form with an intentional inner cut-out; do not fill the cut-out with air entries or add an unrelated support structure.',
-    'Keep every block position integer and in bounds. Use item counts only when meaningful and never exceed the item max stack size; preserve count 1 by omission when possible.',
-    'Return a document that MinecraftBuilder can validate directly. Do not include NBT, project metadata, groups, editor settings, or unsupported fields.',
-  ].join('\n');
+    { id: 'contract', title: 'Output contract', lines: [
+      'You are creating a MinecraftBuilder Structure JSON document.',
+      'Return JSON only, with no Markdown fences, comments, or prose.',
+      'Use exactly this top-level contract: format="minecraftbuilder-structure", minecraftVersion="' + minecraftVersion + '", optional name, blocks array, decorations array. Do not add formatVersion.',
+    ] },
+    { id: 'content', title: 'Canonical content', lines: [
+      'Use canonical namespaced Minecraft IDs and canonical raw BlockState values. Coordinates x, y, z must be integers inside the requested project bounds.',
+      'Model the requested structure as only the blocks and decorations that are actually present. Air is an empty voxel: preserve intentional gaps and never invent support pillars, chains, floors, or hidden scaffolding to make a shape look supported.',
+      'Respect verified Minecraft attachment, gravity, and multi-block exceptions only when the requested object needs them. Keep multi-block parts atomic and preserve exact IDs, states, item counts, and decoration data.',
+    ] },
+    { id: 'geometry', title: 'Shape guidance', lines: [
+      'For the requested crescent moon, use a voxel outline/solid form with an intentional inner cut-out; do not fill the cut-out with air entries or add an unrelated support structure.',
+    ] },
+    { id: 'output', title: 'Validation', lines: [
+      'Keep every block position integer and in bounds. Use item counts only when meaningful and never exceed the item max stack size; preserve count 1 by omission when possible.',
+      'Return a document that MinecraftBuilder can validate directly. Do not include NBT, project metadata, groups, editor settings, or unsupported fields.',
+    ] },
+  ];
+}
+
+function canonicalInstructions(minecraftVersion: string): string {
+  return externalAiInstructionSections(minecraftVersion).flatMap((section) => section.lines).join('\n');
 }

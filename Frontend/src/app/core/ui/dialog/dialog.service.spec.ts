@@ -40,6 +40,17 @@ describe('DialogService', () => {
     await expect(escaped).resolves.toBe(false);
   });
 
+  it('keeps an alert open when the modal backdrop is clicked', async () => {
+    let settled = false;
+    const pending = service.confirm({ title: 'Confirm', confirmButtonText: 'OK' }).then(() => { settled = true; });
+    await Promise.resolve();
+    (overlayContainer.getContainerElement().querySelector('.cdk-overlay-backdrop') as HTMLElement).click();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    (overlayContainer.getContainerElement().querySelector('.ui-alert-dialog .ui-button') as HTMLButtonElement).click();
+    await expect(pending).resolves.toBeUndefined();
+  });
+
   it('resolves a typed choice and uses undefined for Escape', async () => {
     const result = service.choice({ title: 'Choose', options: [{ id: 'resize', label: 'Resize', value: 'resize', kind: 'primary' }, { id: 'keep', label: 'Keep', value: 'keep', kind: 'secondary' }] as const });
     await Promise.resolve();

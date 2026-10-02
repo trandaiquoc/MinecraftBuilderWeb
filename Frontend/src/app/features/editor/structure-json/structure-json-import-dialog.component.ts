@@ -14,11 +14,12 @@ import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
-import { buildContentContextText, buildExternalAiPrompt } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
+import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
 import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
 type ImportDialogTab = 'import' | 'ai';
+type AiWorkspaceTab = 'description' | 'content' | 'guidance' | 'example';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
@@ -46,19 +47,42 @@ export class StructureJsonImportDialogComponent {
   protected readonly importModes: readonly StructureJsonImportMode[] = ['replace', 'merge', 'new-group'];
   protected readonly fileInput = signal<HTMLInputElement | undefined>(undefined);
   protected readonly activeTab = signal<ImportDialogTab>('import');
+  protected readonly activeAiTab = signal<AiWorkspaceTab>('description');
   protected readonly aiDescription = signal('');
-  protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiContext.snapshot(this.project())));
-  protected readonly aiContextText = computed(() => buildContentContextText(this.aiContext.snapshot(this.project())));
+  protected readonly aiSnapshot = computed(() => this.aiContext.snapshot(this.project()));
+  protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot()));
+  protected readonly aiContextText = computed(() => buildContentContextText(this.aiSnapshot()));
   protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
+  protected readonly aiGuidance = computed(() => externalAiInstructionSections(this.aiSnapshot().minecraftVersion));
+  protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
+  protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'guidance', 'example'];
   private validationGeneration = 0;
   private readonly modePlanCache = new Map<StructureJsonImportMode, StructureJsonImportPlan>();
 
   protected close(): void { this.validationGeneration += 1; this.closed.emit(); }
   protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
-  protected setAiDescription(value: string): void { this.aiDescription.set(value); }
+  protected setAiTab(tab: AiWorkspaceTab): void { this.activeAiTab.set(tab); }
+  protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
+  protected aiGuidanceTitle(id: 'contract' | 'content' | 'geometry' | 'output'): string { return this.i18n.t(({ contract: 'structureJsonAiGuidanceContract', content: 'structureJsonAiGuidanceContent', geometry: 'structureJsonAiGuidanceGeometry', output: 'structureJsonAiGuidanceOutput' } as const)[id]); }
+  protected aiGuidanceLines(section: { readonly id: 'contract' | 'content' | 'geometry' | 'output'; readonly lines: readonly string[] }): readonly string[] {
+    const keys = {
+      contract: ['structureJsonAiGuidanceLine1', 'structureJsonAiGuidanceLine2', 'structureJsonAiGuidanceLine3'],
+      content: ['structureJsonAiGuidanceLine4', 'structureJsonAiGuidanceLine5', 'structureJsonAiGuidanceLine6'],
+      geometry: ['structureJsonAiGuidanceLine7'],
+      output: ['structureJsonAiGuidanceLine8', 'structureJsonAiGuidanceLine9'],
+    } as const;
+    return section.lines.map((line, index) => { const key = keys[section.id][index]; const translated = key ? this.i18n.t(key) : line; return translated.replace('{version}', this.aiSnapshot().minecraftVersion); });
+  }
+  protected onAiTabKeydown(event: KeyboardEvent): void {
+    const current = this.aiTabs.indexOf(this.activeAiTab());
+    const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (current + 1) % this.aiTabs.length : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (current - 1 + this.aiTabs.length) % this.aiTabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? this.aiTabs.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault(); this.setAiTab(this.aiTabs[next]);
+  }
+  protected setAiDescription(value: string): void { this.aiDescription.set(value); this.aiCopyStatus.set('idle'); }
   protected async copyAiPrompt(): Promise<void> { await this.copyText(this.aiPrompt()); }
-  protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) this.close(); }
+  protected async copyAiExample(): Promise<void> { await this.copyText(this.aiExample()); }
   protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.importPlan.set(undefined); this.modePlanCache.clear(); this.importMode.set('replace'); this.progress.set('idle'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1; }
   protected async loadFile(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = '';
@@ -194,7 +218,7 @@ export class StructureJsonImportDialogComponent {
     return buildStructureJsonImportPlan(source, validation, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'));
   }
   private async copyText(value: string): Promise<void> {
-    try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); } catch { /* The prompt remains visible for manual copy. */ }
+    try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); this.aiCopyStatus.set('copied'); } catch { this.aiCopyStatus.set('failed'); }
   }
 }
 

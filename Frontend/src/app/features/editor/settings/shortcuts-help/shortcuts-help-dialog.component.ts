@@ -24,7 +24,6 @@ export class ShortcutsHelpDialogComponent {
   });
 
   protected close(): void { this.closed.emit(); }
-  protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) this.close(); }
   protected keyboardLabel(action: KeyboardAction): string {
     const key = ({
       'move-forward': 'shortcutMoveForward', 'move-backward': 'shortcutMoveBackward', 'move-left': 'shortcutMoveLeft', 'move-right': 'shortcutMoveRight', 'move-up': 'shortcutMoveUp', 'move-down': 'shortcutMoveDown',

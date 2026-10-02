@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildContentContextText, buildExternalAiPrompt } from './external-ai-prompt-builder';
+import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections } from './external-ai-prompt-builder';
 
 const context = { minecraftVersion: '1.21.1', vanillaSource: 'local cache', mods: [{ id: 'example', name: 'Example Mod', version: '1.2.0', loader: 'fabric', namespaces: ['example'] }], blockIds: ['example:z_block', 'example:a_block'], itemIds: ['example:gem'], paintingIds: ['example:poster'] } as const;
 
@@ -22,5 +22,13 @@ describe('external Structure JSON AI prompt', () => {
     expect(text.indexOf('example:a_block')).toBeLessThan(text.indexOf('example:z_block'));
     expect(text.match(/example:z_block/g)?.length).toBe(1);
     expect(text).not.toContain('minecraft:stone');
+  });
+
+  it('exposes the same canonical guidance sections used by the copied prompt', () => {
+    const sections = externalAiInstructionSections('1.21.1');
+    const guidance = sections.flatMap((section) => section.lines).join('\n');
+    expect(guidance).toContain('Do not add formatVersion');
+    expect(buildExternalAiPrompt('test', context)).toContain(guidance);
+    expect(sections.map((section) => section.id)).toEqual(['contract', 'content', 'geometry', 'output']);
   });
 });

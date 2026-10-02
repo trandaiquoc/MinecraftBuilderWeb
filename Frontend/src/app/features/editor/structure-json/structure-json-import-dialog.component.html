@@ -1,4 +1,4 @@
-<div class="structure-json-backdrop" role="presentation" (click)="onBackdropClick($event)">
+<div class="structure-json-backdrop" role="presentation">
   <section class="structure-json-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('importStructureJson')" tabindex="-1" autofocus>
     <header class="structure-json-header"><div><p class="eyebrow">MinecraftBuilder</p><h2>{{ i18n.t('importStructureJson') }}</h2><p>{{ i18n.t('structureJsonImportDescription') }}</p></div><button type="button" class="ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button></header>
     <div class="structure-json-tabs" role="tablist" [attr.aria-label]="i18n.t('structureJsonImportTabs')">
@@ -6,7 +6,8 @@
         <button type="button" role="tab" [attr.aria-selected]="activeTab() === item" [class.active]="activeTab() === item" (click)="setTab(item)">{{ item === 'import' ? i18n.t('structureJsonImportTab') : i18n.t('structureJsonImportAiTab') }}</button>
       }
     </div>
-    <div class="structure-json-layout">
+    <div class="structure-json-layout" [class.ai-mode]="activeTab() === 'ai'">
+      @if (activeTab() === 'import') {
       <aside class="structure-json-info">
         <h3>{{ i18n.t('structureJsonValidationPreview') }}</h3>
         @if (preview(); as result) {
@@ -58,6 +59,7 @@
           }
         } @else { <p class="muted">{{ i18n.t('structureJsonValidatePrompt') }}</p> }
       </aside>
+      }
       <section class="structure-json-workspace">
         @if (activeTab() === 'import') {
         <div class="import-toolbar"><strong>{{ i18n.t('structureJsonSource') }}</strong><div><input #jsonFile type="file" accept="application/json,.json" hidden (change)="loadFile($event)" /><button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="jsonFile.click()"><svg lucideUpload aria-hidden="true"></svg>{{ i18n.t('chooseJsonFile') }}</button><button type="button" class="ui-button ui-button--primary ui-button--sm" (click)="validate()"><svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('validateStructureJson') }}</button></div></div>
@@ -66,15 +68,25 @@
         @if (progress() === 'complete') { <p class="progress-status complete" role="status">{{ i18n.t('structureJsonProgressComplete') }}</p> }
         } @else {
           <div class="ai-workspace structure-json-ai-workspace">
-            <div class="ai-workflow">
-              <h3>{{ i18n.t('structureJsonImportAiTab') }}</h3>
-              <label for="structure-json-ai-description">{{ i18n.t('structureJsonAiDescriptionLabel') }}</label>
-              <textarea id="structure-json-ai-description" class="structure-json-editor ai-description-editor" [value]="aiDescription()" (input)="setAiDescription($any($event.target).value)" [attr.placeholder]="i18n.t('structureJsonAiDescriptionPlaceholder')"></textarea>
-              <button type="button" class="ui-button ui-button--primary" (click)="copyAiPrompt()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('structureJsonCopyAll') }}</button>
+            <div class="ai-heading"><div><p class="eyebrow">{{ i18n.t('structureJsonImportAiTab') }}</p><h3>{{ i18n.t('structureJsonAiWorkspaceTitle') }}</h3></div><span class="ai-privacy-note">{{ i18n.t('structureJsonAiPrivacyNote') }}</span></div>
+            <div class="ai-inner-tabs" role="tablist" [attr.aria-label]="i18n.t('structureJsonAiTabs')" (keydown)="onAiTabKeydown($event)">
+              @for (tab of aiTabs; track tab) { <button type="button" role="tab" [attr.aria-selected]="activeAiTab() === tab" [class.active]="activeAiTab() === tab" (click)="setAiTab(tab)">{{ aiTabLabel(tab) }}</button> }
             </div>
-            <details open><summary>{{ i18n.t('structureJsonAiPrompt') }}</summary><textarea class="structure-json-editor reference-editor prose-editor" [value]="aiPrompt()" readonly [attr.aria-label]="i18n.t('structureJsonAiPrompt')" spellcheck="false"></textarea></details>
-            <details><summary>{{ i18n.t('structureJsonAiContext') }}</summary><pre>{{ aiContextText() }}</pre></details>
-            <details><summary>{{ i18n.t('structureJsonAiExample') }}</summary><textarea class="structure-json-editor reference-editor" [value]="aiExample()" readonly [attr.aria-label]="i18n.t('structureJsonAiExample')" spellcheck="false"></textarea></details>
+            @if (activeAiTab() === 'description') {
+              <section class="ai-panel" role="tabpanel">
+                <label for="structure-json-ai-description">{{ i18n.t('structureJsonAiDescriptionLabel') }}</label>
+                <p class="ai-helper">{{ i18n.t('structureJsonAiDescriptionHelper') }}</p>
+                <textarea id="structure-json-ai-description" class="structure-json-editor ai-description-editor" [value]="aiDescription()" (input)="setAiDescription($any($event.target).value)" [attr.placeholder]="i18n.t('structureJsonAiDescriptionPlaceholder')"></textarea>
+                <div class="ai-actions"><button type="button" class="ui-button ui-button--primary" [disabled]="!aiDescription().trim()" (click)="copyAiPrompt()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('structureJsonAiCopyPrompt') }}</button>@if (aiCopyStatus() === 'copied') { <span class="status-success" role="status">{{ i18n.t('structureJsonAiCopied') }}</span> } @if (aiCopyStatus() === 'failed') { <span class="status-error" role="status">{{ i18n.t('structureJsonAiCopyFailed') }}</span> }</div>
+                <details class="ai-preview"><summary>{{ i18n.t('structureJsonAiPromptPreview') }}</summary><textarea class="structure-json-editor reference-editor prose-editor" [value]="aiPrompt()" readonly [attr.aria-label]="i18n.t('structureJsonAiPromptPreview')" spellcheck="false"></textarea></details>
+              </section>
+            } @else if (activeAiTab() === 'content') {
+              <section class="ai-panel" role="tabpanel"><h4>{{ i18n.t('structureJsonAiAvailableTitle') }}</h4><p class="ai-helper">{{ i18n.t('structureJsonAiAvailableSummary') }}</p><dl class="ai-content-summary"><div><dt>{{ i18n.t('structureJsonAiMinecraft') }}</dt><dd>{{ aiSnapshot().minecraftVersion }}</dd></div><div><dt>{{ i18n.t('structureJsonAiMods') }}</dt><dd>{{ aiSnapshot().mods.length }}</dd></div><div><dt>{{ i18n.t('structureJsonAiExternalBlocks') }}</dt><dd>{{ aiSnapshot().blockIds.length }}</dd></div><div><dt>{{ i18n.t('structureJsonAiExternalItems') }}</dt><dd>{{ aiSnapshot().itemIds.length }}</dd></div><div><dt>{{ i18n.t('structureJsonAiExternalPaintings') }}</dt><dd>{{ aiSnapshot().paintingIds.length }}</dd></div></dl><details class="ai-exact-ids"><summary>{{ i18n.t('structureJsonAiViewExactIds') }}</summary><pre>{{ aiContextText() }}</pre></details></section>
+            } @else if (activeAiTab() === 'guidance') {
+              <section class="ai-panel" role="tabpanel"><h4>{{ i18n.t('structureJsonAiGuidanceTitle') }}</h4><div class="ai-guidance-list">@for (section of aiGuidance(); track section.id) { <article><h5>{{ aiGuidanceTitle(section.id) }}</h5><ul>@for (line of aiGuidanceLines(section); track line) { <li>{{ line }}</li> }</ul></article> }</div></section>
+            } @else {
+              <section class="ai-panel" role="tabpanel"><div class="ai-panel-heading"><div><h4>{{ i18n.t('structureJsonAiExampleTitle') }}</h4><p class="ai-helper">{{ i18n.t('structureJsonAiExampleHelper') }}</p></div><button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="copyAiExample()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('structureJsonAiCopyExample') }}</button></div><textarea class="structure-json-editor reference-editor" [value]="aiExample()" readonly [attr.aria-label]="i18n.t('structureJsonAiExample')" spellcheck="false"></textarea></section>
+            }
           </div>
         }
       </section>

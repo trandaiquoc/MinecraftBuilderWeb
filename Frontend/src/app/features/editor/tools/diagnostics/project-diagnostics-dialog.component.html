@@ -1,4 +1,4 @@
-<div class="tool-dialog-backdrop" role="presentation" (click)="$event.target === $event.currentTarget && closed.emit()">
+<div class="tool-dialog-backdrop" role="presentation">
   <section class="tool-dialog diagnostics-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" tabindex="-1" autofocus [attr.aria-label]="i18n.t('diagnosticsTitle')">
     <header><h2>{{ i18n.t('diagnosticsTitle') }}</h2><button type="button" class="ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="closed.emit()"><svg lucideX aria-hidden="true"></svg></button></header>
     <div class="tool-dialog-body">

@@ -80,7 +80,7 @@
     </section>
   </section>
   @if (structureJsonImportOpen()) {
-    <div class="project-import-backdrop" role="presentation" (click)="$event.target === $event.currentTarget && closeStructureJsonImport()">
+    <div class="project-import-backdrop" role="presentation">
       <section class="project-import-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" tabindex="-1" autofocus [attr.aria-label]="i18n.t('createFromStructureJson')">
         <header class="project-import-header">
           <div><p class="eyebrow">{{ i18n.t('structureJsonFormat') }}</p><h2>{{ i18n.t('createFromStructureJson') }}</h2><p>{{ i18n.t('createFromStructureJsonDescription') }}</p></div>

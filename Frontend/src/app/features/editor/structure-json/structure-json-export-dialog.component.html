@@ -1,4 +1,4 @@
-<div class="structure-json-backdrop" role="presentation" (click)="onBackdropClick($event)">
+<div class="structure-json-backdrop" role="presentation">
   <section class="structure-json-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('exportStructureJson')" tabindex="-1" autofocus>
     <header class="structure-json-header">
       <div><p class="eyebrow">MinecraftBuilder</p><h2>{{ i18n.t('exportStructureJson') }}</h2><p>{{ i18n.t('exportStructureJsonDescription') }}</p></div>
@@ -36,6 +36,6 @@
       </section>
     </div>
     <footer class="structure-json-footer"><button type="button" class="ui-button ui-button--ghost" (click)="close()">{{ i18n.t('cancel') }}</button><div><button type="button" class="ui-button ui-button--secondary" (click)="copyJson()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('copyJson') }}</button><button type="button" class="ui-button ui-button--primary" (click)="download()"><svg lucideDownload aria-hidden="true"></svg>{{ i18n.t('downloadJson') }}</button></div></footer>
-    @if (downloadGuardOpen()) { <div class="download-guard-backdrop" role="presentation" (click)="$event.stopPropagation()"><section class="download-guard" role="alertdialog" aria-modal="true" [attr.aria-label]="i18n.t('structureJsonDownloadGuardTitle')"><h3>{{ i18n.t('structureJsonDownloadGuardTitle') }}</h3><p>{{ i18n.t('structureJsonDownloadGuardText') }}</p><div><button type="button" class="ui-button ui-button--ghost" (click)="downloadGuardOpen.set(false)">{{ i18n.t('structureJsonDownloadCancel') }}</button><button type="button" class="ui-button ui-button--secondary" (click)="downloadSaved()">{{ i18n.t('structureJsonDownloadSaved') }}</button><button type="button" class="ui-button ui-button--primary" (click)="saveAndDownload()">{{ i18n.t('structureJsonSaveAndDownload') }}</button></div></section></div> }
+    @if (downloadGuardOpen()) { <div class="download-guard-backdrop" role="presentation"><section class="download-guard" role="alertdialog" aria-modal="true" [attr.aria-label]="i18n.t('structureJsonDownloadGuardTitle')"><h3>{{ i18n.t('structureJsonDownloadGuardTitle') }}</h3><p>{{ i18n.t('structureJsonDownloadGuardText') }}</p><div><button type="button" class="ui-button ui-button--ghost" (click)="downloadGuardOpen.set(false)">{{ i18n.t('structureJsonDownloadCancel') }}</button><button type="button" class="ui-button ui-button--secondary" (click)="downloadSaved()">{{ i18n.t('structureJsonDownloadSaved') }}</button><button type="button" class="ui-button ui-button--primary" (click)="saveAndDownload()">{{ i18n.t('structureJsonSaveAndDownload') }}</button></div></section></div> }
   </section>
 </div>

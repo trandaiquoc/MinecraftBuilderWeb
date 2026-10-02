@@ -155,7 +155,6 @@ export class SettingsDialogComponent implements OnDestroy {
     const confirmed = await this.dialogs.confirm({ title: this.i18n.t('discardChangesTitle'), text: this.i18n.t('discardChangesText'), confirmButtonText: this.i18n.t('discardChanges'), cancelButtonText: this.i18n.t('cancel') });
     if (confirmed) { this.preferences.clearAccessibilityPreview(); this.closed.emit(); }
   }
-  protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) void this.requestClose(); }
   protected sectionLabel(section: SettingsSection): string {
     return ({ general: this.i18n.t('generalSettings'), appearance: this.i18n.t('appearanceSettings'), controls: this.i18n.t('controlsSettings'), shortcuts: this.i18n.t('shortcutsSettings'), accessibility: this.i18n.t('accessibilitySettings') } as const)[section];
   }

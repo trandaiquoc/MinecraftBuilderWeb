@@ -33,6 +33,11 @@ export class StructureNbtExportDialogComponent {
   protected readonly canDownload = computed(() => !this.busy() && !!this.workspace.project() && this.preflight().ok);
   protected readonly sizeWarning = computed(() => this.metadata()?.sizeClass === 'huge');
   protected readonly projectName = computed(() => this.workspace.project()?.metadata.name ?? '');
+  protected readonly compatibilityKey = computed(() => {
+    const details = this.metadata();
+    return details?.sizeClass === 'huge' ? 'structureExportHugeBlocksWarning' : details?.sizeClass === 'unsupported' ? 'structureExportTooLarge' : 'structureExportVanillaCompatible';
+  });
+  protected readonly copyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
 
   ngOnInit(): void {
     const defaults = this.exporter.defaults();
@@ -45,7 +50,6 @@ export class StructureNbtExportDialogComponent {
 
   protected onEscape(): void { if (!this.busy()) this.close(); }
   protected close(): void { this.closed.emit(); }
-  protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget && !this.busy()) this.close(); }
   protected setMode(mode: StructureExportMode): void { if (this.busy()) return; this.mode.set(mode); this.result.set(undefined); this.errorDiagnostics.set([]); }
   protected setField(field: 'namespace' | 'structurePath' | 'archiveName' | 'description', event: Event): void {
     const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value;
@@ -64,6 +68,12 @@ export class StructureNbtExportDialogComponent {
       if (result.ok) this.result.set(result);
       else this.errorDiagnostics.set(result.diagnostics);
     } finally { this.busy.set(false); }
+  }
+  protected async copyValue(value: string): Promise<void> {
+    try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); this.copyStatus.set('copied'); } catch { this.copyStatus.set('failed'); }
+  }
+  protected copyStatusText(): string {
+    return this.copyStatus() === 'copied' ? this.i18n.t('structureExportCopied') : this.i18n.t('structureExportCopyFailed');
   }
   protected diagnosticText(diagnostic: StructurePackagingDiagnostic): string { return diagnostic.path ? `${diagnostic.message} (${diagnostic.path})` : diagnostic.message; }
 }

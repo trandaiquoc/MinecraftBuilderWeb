@@ -1991,3 +1991,21 @@ single Structure JSON tab; Example/AI reference tabs are intentionally import
 workflow concerns. Existing exporter artifacts remain unchanged: ZIP SHA-256
 `420e4462c46d22f3ca71cc9870d856310e06855807f03d03c519f733cb47b661` and NBT
 SHA-256 `db755a1c655ce46bcc906b18ed30bc3ee099b7844d81c9e3fab5ad92412ede83`.
+
+## POST-15 workflow UI and modal policy
+
+Structure NBT export now groups structure identity, package metadata, compatibility,
+and install guidance into a responsive workflow. ResourceLocations can be copied,
+the download action names the selected artifact, and compatibility messaging is
+kept separate from file size. The export bytes, validation, cache, and HSB rules
+are unchanged.
+
+Create with AI keeps the existing local prompt semantics while presenting a
+description-first workspace with local content, canonical guidance, and JSON
+example tabs. Guidance is generated from the same canonical sections used by the
+copy-ready prompt; no AI service or network call was added.
+
+Actual modal dialogs no longer close from a backdrop click. Escape, explicit close
+controls, cancel actions, and existing dirty/busy guards remain responsible for
+closing. Searchable dropdowns, themed selects, and the Asset Manager Help popover
+remain non-modal and retain outside-click dismissal.

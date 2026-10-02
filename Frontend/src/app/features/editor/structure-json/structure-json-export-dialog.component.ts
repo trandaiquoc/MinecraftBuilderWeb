@@ -41,7 +41,6 @@ export class StructureJsonExportDialogComponent {
 
   protected onEscape(): void { if (this.downloadGuardOpen()) this.downloadGuardOpen.set(false); else this.close(); }
   protected close(): void { this.closed.emit(); }
-  protected onBackdropClick(event: MouseEvent): void { if (event.target === event.currentTarget) this.close(); }
   protected projectName(): string { return this.project().metadata.name; }
   protected blockCount(): number { return this.project().blocks.length; }
   protected decorationCount(): number { return this.project().decorations?.length ?? 0; }

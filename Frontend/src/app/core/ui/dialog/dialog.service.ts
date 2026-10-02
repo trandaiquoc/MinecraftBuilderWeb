@@ -64,7 +64,6 @@ export class DialogService {
       };
       component.instance.configure(model, finish);
       component.changeDetectorRef.detectChanges();
-      ref.backdropClick().subscribe(() => finish(model.cancelValue));
       ref.keydownEvents().subscribe((event) => { if (event.key === 'Escape') { event.preventDefault(); finish(model.cancelValue); } });
     });
   }
