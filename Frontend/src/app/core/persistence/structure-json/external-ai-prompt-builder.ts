@@ -1,7 +1,7 @@
 import { HUGE_STRUCTURE_BLOCKS_MAX_AXIS, VANILLA_STRUCTURE_BLOCK_MAX_AXIS } from '../../domain/structure-size-policy';
 import { createStructureJsonExample, serializeStructureJsonValue } from './structure-json';
-import type { ExternalAiMaterialPolicyEntry } from './external-ai-material-policy';
-import { isMaterialRuleForAvailableContent, serializeExternalAiMaterialPolicy } from './external-ai-material-policy';
+import type { ExternalAiContentLimits } from './external-ai-content-limits';
+import { isExternalAiContentLimitAvailable, serializeExternalAiContentLimits } from './external-ai-content-limits';
 
 export type ExternalAiPromptLocale = 'en' | 'vi';
 
@@ -63,11 +63,11 @@ export interface ExternalAiPromptOptions {
   readonly includeAvailableContent?: boolean;
   readonly includeExample?: boolean;
   readonly modSelections?: readonly ExternalAiModContentSelection[];
-  readonly materialPolicy?: readonly ExternalAiMaterialPolicyEntry[];
-  readonly materialPolicyEnabled?: boolean;
+  readonly contentLimits?: ExternalAiContentLimits;
+  readonly contentLimitsEnabled?: boolean;
 }
 
-export type { ExternalAiMaterialPolicyEntry } from './external-ai-material-policy';
+export type { ExternalAiContentLimits } from './external-ai-content-limits';
 
 export type ExternalAiInstructionSectionId = 'output' | 'contract' | 'geometry' | 'size' | 'content' | 'research' | 'data' | 'final';
 
@@ -106,8 +106,8 @@ export function buildExternalAiPrompt(
     sections.push(`${locale === 'vi' ? 'Ví dụ cú pháp JSON nhỏ (dùng để tham khảo hình dạng; không sao chép nội dung nếu không được yêu cầu):' : 'Small JSON syntax example (follow the contract; do not copy content unless requested):'}\n${serializeStructureJsonValue(example)}`);
   }
   sections.push(`${locale === 'vi' ? 'YÊU CẦU NGƯỜI DÙNG' : 'USER REQUEST'}\n${description}`);
-  const materialPolicy = resolved.materialPolicyEnabled ? buildMaterialPolicyText(context, resolved.materialPolicy ?? [], locale) : '';
-  if (materialPolicy) sections.splice(Math.max(0, sections.length - 1), 0, materialPolicy);
+  const contentLimits = resolved.contentLimitsEnabled ? buildContentLimitsText(context, resolved.contentLimits ?? { blocks: [], items: [], decorations: [] }, locale) : '';
+  if (contentLimits) sections.splice(Math.max(0, sections.length - 1), 0, contentLimits);
   return sections.filter((section) => section.length > 0).join('\n\n');
 }
 
@@ -253,7 +253,7 @@ export function externalAiInstructionSections(
       ] },
       { id: 'final', title: 'FINAL CHECK', lines: [
       'Before returning JSON, audit integer and non-negative coordinates, normal origin normalization to minX = 0, minY = 0, minZ = 0, accidental floating, sensible architectural grounding, tree/sapling grounding, known attachment support, intentional floating exceptions, valid IDs/states, valid item counts, supported size, exact schema, and the OUTPUT policy.',
-      'If MATERIAL_POLICY_JSON is present, audit every forbidden material at count 0 and every maximum across all listed concrete block IDs; never bypass a logical material rule by switching standing and wall variants, and use unrestricted substitutes when needed.',
+      'If CONTENT_LIMITS_JSON is present, never use any listed ID in blocks, items, or decorations; logical block limits also cover their equivalent placement variants, and use unrestricted substitutes when needed.',
     ] },
   ];
 }
@@ -277,30 +277,31 @@ function resolvePromptOptions(context: ExternalAiPromptContext, options: Externa
     includeAvailableContent: options.includeAvailableContent ?? hasContent,
     includeExample: options.includeExample ?? true,
     modSelections: resolveModSelections(context, options.modSelections),
-    materialPolicy: options.materialPolicy ?? [],
-    materialPolicyEnabled: options.materialPolicyEnabled ?? false,
+    contentLimits: options.contentLimits ?? { blocks: [], items: [], decorations: [] },
+    contentLimitsEnabled: options.contentLimitsEnabled ?? false,
   };
 }
 
-function buildMaterialPolicyText(
+function buildContentLimitsText(
   context: ExternalAiPromptContext,
-  entries: readonly ExternalAiMaterialPolicyEntry[],
+  limits: ExternalAiContentLimits,
   locale: ExternalAiPromptLocale,
 ): string {
-  const availableSources = new Set(context.mods.map((mod) => mod.sourceId));
-  const active = entries
-    .filter((entry) => isMaterialRuleForAvailableContent(entry, availableSources))
-    .map((entry) => ({ ...entry, ...(entry.category === 'blocks' ? { blockIds: uniqueSorted(entry.blockIds ?? [entry.targetId]) } : {}) }))
-    .sort((left, right) => left.targetId.localeCompare(right.targetId));
-  if (!active.length) return '';
-  const heading = locale === 'vi' ? 'RÀNG BUỘC VẬT LIỆU (BẮT BUỘC)' : 'MATERIAL POLICY (HARD CONSTRAINT)';
+  const availableNamespaces = new Set(context.mods.flatMap((mod) => mod.namespaces));
+  const active: ExternalAiContentLimits = {
+    blocks: limits.blocks.filter((id) => isExternalAiContentLimitAvailable(id, availableNamespaces)),
+    items: limits.items.filter((id) => isExternalAiContentLimitAvailable(id, availableNamespaces)),
+    decorations: limits.decorations.filter((id) => isExternalAiContentLimitAvailable(id, availableNamespaces)),
+  };
+  if (!active.blocks.length && !active.items.length && !active.decorations.length) return '';
+  const heading = locale === 'vi' ? 'GIỚI HẠN NỘI DUNG (RÀNG BUỘC BẮT BUỘC)' : 'CONTENT LIMITS (HARD CONSTRAINT)';
   const explanation = locale === 'vi'
-    ? 'MATERIAL_POLICY_JSON là luật bắt buộc có độ ưu tiên cao hơn yêu cầu tự nhiên. maxCount = 0 có nghĩa không được xuất hiện; maxCount > 0 giới hạn tổng số block trong blocks[] trên toàn bộ concrete blockIds. Không được lách luật bằng variant đứng/tường, hãy dùng vật liệu thay thế không bị giới hạn khi cần. Chỉ đếm Structure JSON blocks[], không đếm inventory, item cầm, vật phẩm trong decorated pot, sign text hay metadata decoration.'
-    : 'MATERIAL_POLICY_JSON is mandatory and has higher priority than the natural-language user request. maxCount = 0 means none may appear; maxCount > 0 limits the total count in Structure JSON blocks[] across every concrete blockId listed in one rule. Never bypass a rule by switching standing/wall variants; use unrestricted substitute materials when needed. Count only blocks[], not inventories, held items, decorated-pot items, sign text, or decoration metadata.';
-  const audit = locale === 'vi'
-    ? 'Kiểm tra cuối: vật liệu Forbidden phải có count = 0, Maximum không được vượt quá giới hạn, và rule mod không cho phép ID không có trong AVAILABLE_CONTENT_JSON.'
-    : 'Final material audit: every Forbidden rule must have count 0, every Maximum total must stay within its limit, and stale mod rules must never authorize IDs absent from AVAILABLE_CONTENT_JSON.';
-  return `${heading}\n${explanation}\nMATERIAL_POLICY_JSON\n${serializeExternalAiMaterialPolicy(active)}\n${audit}`;
+    ? 'Các ID trong CONTENT_LIMITS_JSON bị cấm trong Structure JSON. Hãy dùng lựa chọn thay thế không bị giới hạn. Danh sách chỉ hạn chế nội dung; không cấp quyền dùng ID mod không có trong AVAILABLE_CONTENT_JSON.'
+    : 'IDs listed in CONTENT_LIMITS_JSON are forbidden in the generated Structure JSON. Use appropriate unrestricted alternatives. This list restricts content; it never authorizes unavailable mod IDs.';
+  const variantNote = locale === 'vi'
+    ? 'Block logic đã chọn cũng bao gồm các biến thể đặt tương đương theo semantics của MinecraftBuilder.'
+    : 'A selected logical block also forbids its equivalent placement variants according to MinecraftBuilder semantics.';
+  return `${heading}\n${explanation}\nCONTENT_LIMITS_JSON\n${serializeExternalAiContentLimits(active)}\n${variantNote}`;
 }
 
 function defaultSelectionFor(mod: ExternalAiModContext): ExternalAiModContentSelection {

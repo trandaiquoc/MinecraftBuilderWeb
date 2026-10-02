@@ -20,14 +20,14 @@ import { ViewportHydrationStatusService } from '../../../core/editor/state/viewp
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
 import { buildExternalAiPrompt, externalAiInstructionSections, resolveModSelections, selectedExternalAiTotals } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
 import type { ExternalAiModContentCategory, ExternalAiModContentSelection, ExternalAiPromptLocale, ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
-import { ExternalAiMaterialRule, ExternalAiMaterialPolicyEntry, ExternalAiPolicyCategory, ExternalAiPolicyCatalogEntry, materialRuleMode, resolveExternalAiMaterialPolicy, serializeExternalAiMaterialPolicy } from '../../../core/persistence/structure-json/external-ai-material-policy';
+import { ExternalAiContentCategory, ExternalAiContentLimits, normalizeExternalAiContentLimits, serializeExternalAiContentLimits } from '../../../core/persistence/structure-json/external-ai-content-limits';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
 import { ReadonlyCodeViewerComponent } from '../../../shared/ui/readonly-code-viewer/readonly-code-viewer.component';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
 type ImportDialogTab = 'import' | 'ai';
-type AiWorkspaceTab = 'description' | 'content' | 'policy' | 'guidance' | 'example';
+type AiWorkspaceTab = 'description' | 'content' | 'limits' | 'guidance' | 'example';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
@@ -67,8 +67,8 @@ export class StructureJsonImportDialogComponent {
   protected readonly includeJsonExample = signal(true);
   protected readonly modSelections = signal<readonly ExternalAiModContentSelection[]>([]);
   protected readonly modContentOpen = signal(false);
-  protected readonly materialSearch = signal('');
-  protected readonly materialCategory = signal<ExternalAiPolicyCategory>('blocks');
+  protected readonly contentSearch = signal('');
+  protected readonly contentLimitsCategory = signal<ExternalAiContentCategory>('blocks');
   protected readonly includeAvailableContent = computed(() => this.includeAvailableContentOverride() ?? this.hasExternalContent());
   protected readonly effectiveModSelections = computed(() => resolveModSelections(this.aiSnapshot(), this.modSelections()));
   protected readonly selectedTotals = computed(() => selectedExternalAiTotals(this.aiSnapshot(), this.modSelections()));
@@ -78,21 +78,21 @@ export class StructureJsonImportDialogComponent {
     includeAvailableContent: this.includeAvailableContent(),
     includeExample: this.includeJsonExample(),
     modSelections: this.modSelections(),
-    materialPolicy: resolveExternalAiMaterialPolicy(this.preferences.preferences().externalAiMaterialRules, this.placeableItems(), this.policyCatalogEntries()),
-    materialPolicyEnabled: this.preferences.preferences().externalAiMaterialPolicyEnabled,
+    contentLimits: this.contentLimits(),
+    contentLimitsEnabled: this.preferences.preferences().externalAiContentLimitsEnabled,
   }));
-  protected readonly policyCatalogEntries = computed<readonly ExternalAiPolicyCatalogEntry[]>(() => {
-    const blocks = this.placeableItems().map((item) => ({ category: 'blocks' as const, id: item.itemId, displayName: item.displayName, sourceId: item.sourceId ?? item.namespace, sourceName: item.sourceName, blockIds: item.concreteBlockIds, available: true }));
-    const items = this.itemCatalog.all().map((item) => ({ category: 'items' as const, id: item.id, displayName: item.displayName, sourceId: item.sourceId, sourceName: item.sourceName, available: true }));
-    const decorations = this.paintingCatalog.placeable().map((painting) => ({ category: 'decorations' as const, id: namespacedDecorationId(painting), displayName: paintingDisplayName(painting), sourceId: painting.sourceId ?? 'vanilla', sourceName: painting.sourceName, available: true }));
+  protected readonly contentCatalogEntries = computed<readonly { category: ExternalAiContentCategory; id: string; displayName?: string; sourceId?: string; sourceName?: string }[]>(() => {
+    const blocks = this.placeableItems().map((item) => ({ category: 'blocks' as const, id: item.itemId, displayName: item.displayName, sourceId: item.sourceId ?? item.namespace, sourceName: item.sourceName }));
+    const items = this.itemCatalog.all().map((item) => ({ category: 'items' as const, id: item.id, displayName: item.displayName, sourceId: item.sourceId, sourceName: item.sourceName }));
+    const decorations = this.paintingCatalog.placeable().map((painting) => ({ category: 'decorations' as const, id: namespacedDecorationId(painting), displayName: paintingDisplayName(painting), sourceId: painting.sourceId ?? 'vanilla', sourceName: painting.sourceName }));
     return [...blocks, ...items, ...decorations];
   });
-  protected readonly materialRuleRows = computed(() => resolveExternalAiMaterialPolicy(this.preferences.preferences().externalAiMaterialRules, this.placeableItems(), this.policyCatalogEntries()));
-  protected readonly materialPolicyJson = computed(() => serializeExternalAiMaterialPolicy(this.materialRuleRows()));
-  protected readonly materialCandidates = computed(() => {
-    const query = this.materialSearch();
+  protected readonly contentLimits = computed<ExternalAiContentLimits>(() => normalizeExternalAiContentLimits(this.preferences.preferences().externalAiContentLimits, this.placeableItems()));
+  protected readonly contentLimitsJson = computed(() => serializeExternalAiContentLimits(this.contentLimits()));
+  protected readonly contentCandidates = computed(() => {
+    const query = this.contentSearch();
     const normalized = query.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim();
-    return this.policyCatalogEntries().filter((entry) => entry.category === this.materialCategory() && (!normalized || `${entry.displayName ?? ''} ${entry.id} ${entry.sourceName ?? ''}`.toLocaleLowerCase().includes(normalized))).slice(0, 40);
+    return this.contentCatalogEntries().filter((entry) => entry.category === this.contentLimitsCategory() && (!normalized || `${entry.displayName ?? ''} ${entry.id} ${entry.sourceName ?? ''}`.toLocaleLowerCase().includes(normalized))).slice(0, 40);
   });
   protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot(), this.aiPromptOptions()));
   protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
@@ -100,8 +100,8 @@ export class StructureJsonImportDialogComponent {
   protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
   protected readonly aiDescriptionInvalid = signal(false);
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
-  protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'policy', 'guidance', 'example'];
-  protected readonly policyCategories: readonly ExternalAiPolicyCategory[] = ['blocks', 'items', 'decorations'];
+  protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'limits', 'guidance', 'example'];
+  protected readonly contentCategories: readonly ExternalAiContentCategory[] = ['blocks', 'items', 'decorations'];
   protected readonly modCategories: readonly ExternalAiModContentCategory[] = ['blocks', 'items', 'decorations'];
   private validationGeneration = 0;
   private readonly modePlanCache = new Map<StructureJsonImportMode, StructureJsonImportPlan>();
@@ -116,7 +116,7 @@ export class StructureJsonImportDialogComponent {
   }
   protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
   protected setAiTab(tab: AiWorkspaceTab): void { this.activeAiTab.set(tab); }
-  protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', policy: 'structureJsonAiTabPolicy', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
+  protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', limits: 'structureJsonAiTabContentLimits', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
   protected aiGuidanceLines(section: { readonly lines: readonly string[] }): readonly string[] { return section.lines; }
   protected onAiTabKeydown(event: KeyboardEvent): void {
     const current = this.aiTabs.indexOf(this.activeAiTab());
@@ -145,65 +145,23 @@ export class StructureJsonImportDialogComponent {
     this.modSelections.set(this.aiSnapshot().mods.map((mod) => ({ sourceId: mod.sourceId, includeBlocks: false, includeItems: false, includeDecorations: false })));
     this.aiCopyStatus.set('idle');
   }
-  protected setMaterialSearch(value: string): void { this.materialSearch.set(value); }
-  protected setMaterialCategory(category: ExternalAiPolicyCategory): void { this.materialCategory.set(category); this.materialSearch.set(''); }
-  protected setMaterialPolicyEnabled(value: boolean): void { this.preferences.setExternalAiMaterialPolicyEnabled(value); this.aiCopyStatus.set('idle'); }
-  protected materialCandidateSelected(candidate: ExternalAiPolicyCatalogEntry): boolean { return !!this.findRule(candidate.category, candidate.id); }
-  protected toggleMaterialCandidate(candidate: ExternalAiPolicyCatalogEntry, selected: boolean): void {
-    if (selected) this.addPolicyCandidate(candidate);
-    else this.removePolicyRule({ category: candidate.category, targetId: candidate.id });
+  protected setContentSearch(value: string): void { this.contentSearch.set(value); }
+  protected setContentLimitsCategory(category: ExternalAiContentCategory): void { this.contentLimitsCategory.set(category); this.contentSearch.set(''); }
+  protected setContentLimitsEnabled(value: boolean): void { this.preferences.setExternalAiContentLimitsEnabled(value); this.aiCopyStatus.set('idle'); }
+  protected contentLimitSelected(candidate: { readonly category: ExternalAiContentCategory; readonly id: string }): boolean {
+    return this.contentLimits()[candidate.category].includes(this.canonicalContentId(candidate.category, candidate.id));
   }
-  protected addMaterial(item: PlaceableItemDefinition): void {
-    const candidate = this.policyCatalogEntries().find((entry) => entry.category === 'blocks' && entry.id === canonicalPlaceableItemId(item.itemId, this.placeableItems()));
-    if (candidate) this.addPolicyCandidate(candidate);
-  }
-  private addPolicyCandidate(candidate: ExternalAiPolicyCatalogEntry): void {
-    const targetId = candidate.category === 'blocks' ? canonicalPlaceableItemId(candidate.id, this.placeableItems()) : candidate.id;
-    const rules = this.preferences.preferences().externalAiMaterialRules;
-    if (this.findRule(candidate.category, targetId)) return;
-    this.preferences.setExternalAiMaterialRules([...rules, { ...(candidate.category === 'blocks' ? {} : { category: candidate.category }), targetId, maxCount: 1 }]);
+  protected toggleContentLimit(candidate: { readonly category: ExternalAiContentCategory; readonly id: string }, selected: boolean): void {
+    const category = candidate.category;
+    const id = this.canonicalContentId(category, candidate.id);
+    const next = { ...this.contentLimits(), [category]: selected ? [...this.contentLimits()[category], id] : this.contentLimits()[category].filter((entry) => entry !== id) };
+    this.preferences.setExternalAiContentLimits(next);
     this.aiCopyStatus.set('idle');
   }
-  protected materialMode(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId' | 'maxCount'>): 'unlimited' | 'forbidden' | 'maximum' { return materialRuleMode(this.findRule(row.category, row.targetId) ?? row); }
-  protected setMaterialMode(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId' | 'maxCount'>, mode: 'unlimited' | 'forbidden' | 'maximum'): void {
-    if (mode === 'unlimited') { this.removePolicyRule(row); return; }
-    const rules = this.preferences.preferences().externalAiMaterialRules;
-    const category = row.category;
-    const current = this.findRule(category, row.targetId);
-    const maxCount = mode === 'forbidden' ? 0 : current && current.maxCount > 0 ? current.maxCount : 1;
-    this.setRule({ category, targetId: row.targetId, maxCount }, rules);
-  }
-  protected setMaterialMaximum(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId'>, rawValue: string): void {
-    if (!/^\d+$/.test(rawValue)) return;
-    const maxCount = Number(rawValue);
-    if (!Number.isSafeInteger(maxCount) || maxCount < 1) return;
-    this.setRule({ category: row.category, targetId: row.targetId, maxCount }, this.preferences.preferences().externalAiMaterialRules);
-  }
-  protected removePolicyRule(row: Pick<ExternalAiMaterialPolicyEntry, 'category' | 'targetId'>): void {
-    const category = row.category;
-    this.preferences.setExternalAiMaterialRules(this.preferences.preferences().externalAiMaterialRules.filter((rule) => !this.ruleTargetMatches(rule, category, row.targetId)));
-    this.aiCopyStatus.set('idle');
-  }
-  protected clearMaterialRules(): void { this.preferences.setExternalAiMaterialRules([]); this.aiCopyStatus.set('idle'); }
-  protected resetMaterialRules(): void { this.preferences.resetExternalAiMaterialRules(); this.aiCopyStatus.set('idle'); }
-  protected policyCategoryLabel(category: ExternalAiPolicyCategory): string { return this.i18n.t(({ blocks: 'structureJsonAiPolicyBlocks', items: 'structureJsonAiPolicyItems', decorations: 'structureJsonAiPolicyDecorations' } as const)[category]); }
-  protected materialPolicyLabel(row: { readonly maxCount: number }): string {
-    return row.maxCount === 0 ? this.i18n.t('structureJsonAiMaterialForbidden') : `${this.i18n.t('structureJsonAiMaterialMaximum')} ${row.maxCount}`;
-  }
-  private findRule(category: ExternalAiPolicyCategory, targetId: string): ExternalAiMaterialRule | undefined {
-    const canonical = category === 'blocks' ? canonicalPlaceableItemId(targetId, this.placeableItems()) : targetId;
-    return this.preferences.preferences().externalAiMaterialRules.find((rule) => (rule.category ?? 'blocks') === category && (category === 'blocks' ? canonicalPlaceableItemId(rule.targetId, this.placeableItems()) : rule.targetId) === canonical);
-  }
-  private setRule(rule: ExternalAiMaterialRule, rules: readonly ExternalAiMaterialRule[]): void {
-    const category = rule.category ?? 'blocks';
-    const targetId = category === 'blocks' ? canonicalPlaceableItemId(rule.targetId, this.placeableItems()) : rule.targetId;
-    this.preferences.setExternalAiMaterialRules([...rules.filter((entry) => !this.ruleTargetMatches(entry, category, targetId)), { ...rule, ...(category === 'blocks' ? {} : { category }) }]);
-    this.aiCopyStatus.set('idle');
-  }
-  private ruleTargetMatches(rule: ExternalAiMaterialRule, category: ExternalAiPolicyCategory, targetId: string): boolean {
-    if ((rule.category ?? 'blocks') !== category) return false;
-    return category === 'blocks' ? canonicalPlaceableItemId(rule.targetId, this.placeableItems()) === canonicalPlaceableItemId(targetId, this.placeableItems()) : rule.targetId === targetId;
-  }
+  protected clearContentLimits(): void { this.preferences.setExternalAiContentLimits({ blocks: [], items: [], decorations: [] }); this.aiCopyStatus.set('idle'); }
+  protected resetContentLimits(): void { this.preferences.resetExternalAiContentLimits(); this.aiCopyStatus.set('idle'); }
+  protected contentCategoryLabel(category: ExternalAiContentCategory): string { return this.i18n.t(({ blocks: 'structureJsonAiContentLimitsBlocks', items: 'structureJsonAiContentLimitsItems', decorations: 'structureJsonAiContentLimitsDecorations' } as const)[category]); }
+  private canonicalContentId(category: ExternalAiContentCategory, id: string): string { return category === 'blocks' ? canonicalPlaceableItemId(id, this.placeableItems()) : id; }
   private placeableItems(): readonly PlaceableItemDefinition[] {
     const source = (this.library as unknown as { readonly allPlaceableItems?: () => readonly PlaceableItemDefinition[] }).allPlaceableItems;
     if (typeof source === 'function') return source();
@@ -237,6 +195,7 @@ export class StructureJsonImportDialogComponent {
     const parts = [this.i18n.t('structureJsonAiSummaryDescription')];
     if (this.includeAiGuidance()) parts.push(this.i18n.t('structureJsonAiSummaryGuidance'));
     if (this.includeAvailableContent() && this.selectedTotals().mods > 0) parts.push(this.modContentSummary());
+    if (this.preferences.preferences().externalAiContentLimitsEnabled && (this.contentLimits().blocks.length || this.contentLimits().items.length || this.contentLimits().decorations.length)) parts.push(this.i18n.t('structureJsonAiIncludeContentLimits'));
     if (this.includeJsonExample()) parts.push(this.i18n.t('structureJsonAiSummaryExample'));
     return `${this.i18n.t('structureJsonAiIncludes')}: ${parts.join(' + ')}`;
   }

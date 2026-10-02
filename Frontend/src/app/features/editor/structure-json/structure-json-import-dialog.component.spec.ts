@@ -60,7 +60,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void; setAiTab: (tab: 'description' | 'content' | 'policy' | 'guidance' | 'example') => void };
+    const instance = fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void; setAiTab: (tab: 'description' | 'content' | 'limits' | 'guidance' | 'example') => void };
     instance.setTab('ai'); instance.setAiTab('example'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.structure-json-layout.ai-mode')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.structure-json-ai-workspace')).toBeTruthy();
@@ -70,9 +70,11 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(viewer.querySelector('.readonly-code-viewer-code')?.textContent).toContain('minecraftbuilder-structure');
     instance.setAiTab('description'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.ai-preview app-readonly-code-viewer')).toBeTruthy();
-    instance.setAiTab('policy'); fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.ai-policy-workspace')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('.ai-policy-json pre')).toBeTruthy();
+    instance.setAiTab('limits'); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.ai-content-limits-workspace')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.ai-content-limits-json pre')).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('.ai-prompt-toggles .ai-toggle').length).toBe(5);
+    expect(fixture.nativeElement.querySelectorAll('.ai-content-limits-controls .ai-toggle').length).toBe(0);
     expect(fixture.nativeElement.querySelectorAll('.ai-inner-tabs [role="tab"]').length).toBe(5);
   });
 
@@ -146,9 +148,9 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(instance.aiPrompt()).not.toContain('a:item');
   });
 
-  it('edits persisted material policy rules and preserves unavailable saved rules', async () => {
+  it('edits persisted content limits and preserves unavailable saved IDs', async () => {
     const item = { itemId: 'example:crystal', displayBlockId: 'example:crystal_block', namespace: 'example', displayName: 'Crystal', sourceId: 'source-example', concreteBlockIds: ['example:crystal_block'], defaultState: {}, placementKind: 'direct', previewRecipe: 'single', support: 'full', visualSupport: 'real', capabilities: { capabilities: [] }, previewBlocks: [] } as unknown as PlaceableItemDefinition;
-    const preferences = new UiPreferencesService(); preferences.setExternalAiMaterialRules([{ targetId: 'missing:old_block', maxCount: 2 }]);
+    const preferences = new UiPreferencesService(); preferences.setExternalAiContentLimits({ blocks: ['missing:old_block'], items: [], decorations: [] });
     await TestBed.configureTestingModule({
       imports: [StructureJsonImportDialogComponent],
       providers: [
@@ -161,29 +163,28 @@ describe('StructureJsonImportDialogComponent', () => {
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent); fixture.componentRef.setInput('project', project); fixture.detectChanges();
     const instance = fixture.componentInstance as unknown as {
-      addMaterial: (value: PlaceableItemDefinition) => void;
-      setMaterialPolicyEnabled: (value: boolean) => void;
-      setMaterialMode: (row: { category: 'blocks'; targetId: string; maxCount: number }, mode: 'unlimited' | 'forbidden' | 'maximum') => void;
-      setMaterialMaximum: (row: { category: 'blocks'; targetId: string }, value: string) => void;
-      clearMaterialRules: () => void;
-      resetMaterialRules: () => void;
-      materialRuleRows: () => readonly { targetId: string; available: boolean }[];
-      materialPolicyJson: () => string;
+      setContentLimitsEnabled: (value: boolean) => void;
+      contentLimitsJson: () => string;
+      contentLimitSelected: (candidate: { category: 'blocks'; id: string }) => boolean;
+      toggleContentLimit: (candidate: { category: 'blocks'; id: string }, selected: boolean) => void;
+      clearContentLimits: () => void;
+      resetContentLimits: () => void;
       aiPrompt: () => string;
     };
-    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(false);
-    expect(instance.materialRuleRows()).toMatchObject([{ targetId: 'missing:old_block', available: false }]);
-    instance.addMaterial(item); instance.setMaterialMaximum({ category: 'blocks', targetId: 'example:crystal' }, '3');
-    expect(preferences.preferences().externalAiMaterialRules).toContainEqual({ targetId: 'example:crystal', maxCount: 3 });
-    expect(instance.materialPolicyJson()).toContain('"blocks"');
-    instance.setMaterialMode({ category: 'blocks', targetId: 'example:crystal', maxCount: 3 }, 'forbidden');
-    expect(preferences.preferences().externalAiMaterialRules).toContainEqual({ targetId: 'example:crystal', maxCount: 0 });
-    instance.setMaterialPolicyEnabled(true);
-    expect(instance.aiPrompt()).toContain('MATERIAL_POLICY_JSON');
-    expect(instance.aiPrompt()).toContain('example:crystal_block');
-    instance.clearMaterialRules(); expect(preferences.preferences().externalAiMaterialRules).toEqual([]);
-    instance.resetMaterialRules(); expect(preferences.preferences().externalAiMaterialRules).toHaveLength(4);
-    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(true);
+    expect(preferences.preferences().externalAiContentLimitsEnabled).toBe(false);
+    expect(instance.contentLimitsJson()).toContain('missing:old_block');
+    expect(instance.contentLimitSelected({ category: 'blocks', id: item.itemId })).toBe(false);
+    instance.toggleContentLimit({ category: 'blocks', id: item.itemId }, true);
+    expect(preferences.preferences().externalAiContentLimits.blocks).toContain('example:crystal');
+    expect(instance.contentLimitsJson()).toContain('example:crystal');
+    instance.setContentLimitsEnabled(true);
+    expect(instance.aiPrompt()).toContain('CONTENT_LIMITS_JSON');
+    expect(instance.aiPrompt()).toContain('example:crystal');
+    instance.toggleContentLimit({ category: 'blocks', id: item.itemId }, false);
+    expect(preferences.preferences().externalAiContentLimits.blocks).not.toContain('example:crystal');
+    instance.clearContentLimits(); expect(preferences.preferences().externalAiContentLimits).toEqual({ blocks: [], items: [], decorations: [] });
+    instance.resetContentLimits(); expect(preferences.preferences().externalAiContentLimits.blocks).toHaveLength(4);
+    expect(preferences.preferences().externalAiContentLimitsEnabled).toBe(true);
   });
 
   it('translates structured diagnostic codes while keeping technical fields separate', async () => {

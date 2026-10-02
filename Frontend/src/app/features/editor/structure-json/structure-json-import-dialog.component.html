@@ -76,6 +76,7 @@
                 <label class="ai-toggle"><input type="checkbox" [checked]="includeAiGuidance()" (change)="setIncludeGuidance($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeGuidance') }}</span></label>
                 <label class="ai-toggle"><input type="checkbox" [checked]="includeAvailableContent()" [disabled]="!hasExternalContent()" (change)="setIncludeAvailableContent($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeContent') }}</span></label>
                 <label class="ai-toggle"><input type="checkbox" [checked]="includeJsonExample()" (change)="setIncludeJsonExample($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeExample') }}</span></label>
+                <label class="ai-toggle"><input type="checkbox" [checked]="preferences.preferences().externalAiContentLimitsEnabled" (change)="setContentLimitsEnabled($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeContentLimits') }}</span></label>
               </div>
               @if (hasExternalContent()) {
                 <div class="ai-mod-content-selector">
@@ -113,21 +114,20 @@
               </section>
             } @else if (activeAiTab() === 'content') {
               <section class="ai-panel" role="tabpanel"><h4>{{ i18n.t('structureJsonAiAvailableTitle') }}</h4><p class="ai-helper">{{ i18n.t('structureJsonAiAvailableSummary') }}</p><dl class="ai-content-summary"><div><dt>{{ i18n.t('structureJsonAiMinecraft') }}</dt><dd>{{ aiSnapshot().minecraftVersion }}</dd></div><div><dt>{{ i18n.t('structureJsonAiMods') }}</dt><dd>{{ aiSnapshot().mods.length }}</dd></div><div><dt>{{ i18n.t('structureJsonAiExternalBlocks') }}</dt><dd>{{ selectedTotals().blocks }}</dd></div><div><dt>{{ i18n.t('structureJsonAiExternalItems') }}</dt><dd>{{ selectedTotals().items }}</dd></div><div><dt>{{ i18n.t('structureJsonAiExternalDecorations') }}</dt><dd>{{ selectedTotals().decorations }}</dd></div></dl><div class="ai-mod-catalog-list">@for (mod of aiSnapshot().mods; track mod.sourceId) { <article><header><strong>{{ mod.name }}</strong><span>{{ mod.version }} · {{ mod.namespaces.join(', ') }}</span></header><p>{{ mod.blocks.length }} {{ i18n.t('structureJsonAiIncludeBlocks') }} · {{ mod.items.length }} {{ i18n.t('structureJsonAiIncludeItems') }} · {{ mod.decorations.length }} {{ i18n.t('structureJsonAiIncludeDecorations') }}</p><details><summary>{{ i18n.t('structureJsonAiViewExactIds') }}</summary><pre>{{ modContentText(mod) }}</pre></details></article>}</div></section>
-            } @else if (activeAiTab() === 'policy') {
-              <section class="ai-policy-workspace" role="tabpanel" aria-labelledby="structure-json-ai-policy-title">
-                <div class="ai-policy-controls">
-                  <div class="ai-panel-heading"><div><h4 id="structure-json-ai-policy-title">{{ i18n.t('structureJsonAiMaterialTitle') }}</h4><p class="ai-helper">{{ i18n.t('structureJsonAiMaterialHelper') }}</p></div></div>
-                  <label class="ai-toggle ai-policy-enabled"><input type="checkbox" [checked]="preferences.preferences().externalAiMaterialPolicyEnabled" (change)="setMaterialPolicyEnabled($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiPolicyEnabled') }}</span></label>
-                  <label class="ai-policy-field"><span>{{ i18n.t('structureJsonAiPolicyCategory') }}</span><select [value]="materialCategory()" (change)="setMaterialCategory($any($event.target).value)">@for (category of policyCategories; track category) { <option [value]="category">{{ policyCategoryLabel(category) }}</option> }</select></label>
-                  <label class="ai-policy-field"><span>{{ i18n.t('structureJsonAiMaterialSearch') }}</span><input type="search" [value]="materialSearch()" (input)="setMaterialSearch($any($event.target).value)" [attr.placeholder]="i18n.t('structureJsonAiMaterialSearch')" autocomplete="off" /></label>
-                  <div class="ai-material-candidates" role="listbox" [attr.aria-label]="i18n.t('structureJsonAiMaterialSearch')">
-                    @for (candidate of materialCandidates(); track candidate.category + ':' + candidate.id) {
-                      <label class="ai-material-candidate"><input type="checkbox" [checked]="materialCandidateSelected(candidate)" (change)="toggleMaterialCandidate(candidate, $any($event.target).checked)" /><span><strong>{{ candidate.displayName || candidate.id }}</strong><small>{{ candidate.id }} · {{ candidate.sourceName || candidate.sourceId }}</small></span></label>
-                    } @empty { <p class="ai-material-empty">{{ i18n.t('structureJsonAiMaterialNoMatches') }}</p> }
+            } @else if (activeAiTab() === 'limits') {
+              <section class="ai-content-limits-workspace" role="tabpanel" aria-labelledby="structure-json-ai-content-limits-title">
+                <div class="ai-content-limits-controls">
+                  <div class="ai-panel-heading"><div><h4 id="structure-json-ai-content-limits-title">{{ i18n.t('structureJsonAiContentLimitsTitle') }}</h4><p class="ai-helper">{{ i18n.t('structureJsonAiContentLimitsHelper') }}</p></div></div>
+                  <label class="ai-content-limits-field"><span>{{ i18n.t('structureJsonAiContentLimitsCategory') }}</span><select [value]="contentLimitsCategory()" (change)="setContentLimitsCategory($any($event.target).value)">@for (category of contentCategories; track category) { <option [value]="category">{{ contentCategoryLabel(category) }}</option> }</select></label>
+                  <label class="ai-content-limits-field"><span>{{ i18n.t('structureJsonAiContentLimitsSearch') }}</span><input type="search" [value]="contentSearch()" (input)="setContentSearch($any($event.target).value)" [attr.placeholder]="i18n.t('structureJsonAiContentLimitsSearch')" autocomplete="off" /></label>
+                  <div class="ai-content-limits-candidates" role="listbox" [attr.aria-label]="i18n.t('structureJsonAiContentLimitsSearch')">
+                    @for (candidate of contentCandidates(); track candidate.category + ':' + candidate.id) {
+                      <label class="ai-content-limits-candidate"><input type="checkbox" [checked]="contentLimitSelected(candidate)" (change)="toggleContentLimit(candidate, $any($event.target).checked)" /><span><strong>{{ candidate.displayName || candidate.id }}</strong><small>{{ candidate.id }} · {{ candidate.sourceName || candidate.sourceId }}</small></span></label>
+                    } @empty { <p class="ai-content-limits-empty">{{ i18n.t('structureJsonAiContentLimitsNoMatches') }}</p> }
                   </div>
-                  <div class="ai-material-actions"><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="resetMaterialRules()">{{ i18n.t('structureJsonAiMaterialReset') }}</button><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="clearMaterialRules()">{{ i18n.t('structureJsonAiMaterialClear') }}</button></div>
+                  <div class="ai-content-limits-actions"><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="resetContentLimits()">{{ i18n.t('structureJsonAiContentLimitsReset') }}</button><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="clearContentLimits()">{{ i18n.t('structureJsonAiContentLimitsClear') }}</button></div>
                 </div>
-                <div class="ai-policy-json"><div class="ai-panel-heading"><div><h4>{{ i18n.t('structureJsonAiPolicyJsonTitle') }}</h4><p class="ai-helper">{{ i18n.t('structureJsonAiPolicyJsonHelper') }}</p></div></div><pre aria-label="MATERIAL_POLICY_JSON">{{ materialPolicyJson() }}</pre></div>
+                <div class="ai-content-limits-json"><div class="ai-panel-heading"><div><h4>{{ i18n.t('structureJsonAiContentLimitsJsonTitle') }}</h4><p class="ai-helper">{{ i18n.t('structureJsonAiContentLimitsJsonHelper') }}</p></div></div><pre aria-label="CONTENT_LIMITS_JSON">{{ contentLimitsJson() }}</pre></div>
               </section>
             } @else if (activeAiTab() === 'guidance') {
               <section class="ai-panel" role="tabpanel"><h4>{{ i18n.t('structureJsonAiGuidanceTitle') }}</h4><div class="ai-guidance-list">@for (section of aiGuidance(); track section.id) { <article><h5>{{ section.title }}</h5><ul>@for (line of aiGuidanceLines(section); track line) { <li>{{ line }}</li> }</ul></article> }</div></section>
@@ -138,6 +138,6 @@
         }
       </section>
     </div>
-    <footer class="structure-json-footer"><span class="muted">{{ i18n.t('structureJsonImportReadOnly') }}</span>@if (importPlan(); as plan) { <button type="button" class="ui-button ui-button--primary" [disabled]="!canApplyImport()" (click)="applyImport()"><svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('structureJsonApplyImport') }}</button> }<button type="button" class="ui-button ui-button--ghost" (click)="close()">{{ i18n.t('cancel') }}</button></footer>
+    <footer class="structure-json-footer"><span class="muted">{{ i18n.t('structureJsonImportReadOnly') }}</span>@if (importPlan(); as plan) { <button type="button" class="ui-button ui-button--primary" [disabled]="!canApplyImport()" (click)="applyImport()"><svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('structureJsonApplyImport') }}</button> }</footer>
   </section>
 </div>

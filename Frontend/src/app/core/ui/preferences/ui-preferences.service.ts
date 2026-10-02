@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, normalizeBindings } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, normalizeMouseBindings } from '../../editor/input/mouse-bindings';
-import { DEFAULT_EXTERNAL_AI_MATERIAL_RULES, ExternalAiMaterialRule, normalizeExternalAiMaterialRules } from '../../persistence/structure-json/external-ai-material-policy';
+import { DEFAULT_EXTERNAL_AI_CONTENT_LIMITS, ExternalAiContentLimits, normalizeExternalAiContentLimits } from '../../persistence/structure-json/external-ai-content-limits';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
@@ -43,8 +43,8 @@ export interface UiPreferences {
   };
   readonly shortcuts: Readonly<Record<KeyboardAction, string>>;
   readonly mouseBindings: Readonly<Record<MouseAction, string>>;
-  readonly externalAiMaterialRules: readonly ExternalAiMaterialRule[];
-  readonly externalAiMaterialPolicyEnabled: boolean;
+  readonly externalAiContentLimits: ExternalAiContentLimits;
+  readonly externalAiContentLimitsEnabled: boolean;
   readonly layout: {
     readonly editorToolbarVisible: boolean;
     readonly leftSidebarVisible: boolean;
@@ -72,8 +72,8 @@ const defaults: UiPreferences = {
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,
   mouseBindings: DEFAULT_MOUSE_BINDINGS,
-  externalAiMaterialRules: DEFAULT_EXTERNAL_AI_MATERIAL_RULES,
-  externalAiMaterialPolicyEnabled: false,
+  externalAiContentLimits: DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
+  externalAiContentLimitsEnabled: false,
   layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 260, rightSidebarWidth: 230 },
 };
 
@@ -122,16 +122,16 @@ export class UiPreferencesService {
     this.commit({ ...this.preferences(), structureExport: { ...this.preferences().structureExport, ...patch } });
   }
 
-  setExternalAiMaterialRules(rules: readonly ExternalAiMaterialRule[]): void {
-    this.commit({ ...this.preferences(), externalAiMaterialRules: normalizeExternalAiMaterialRules(rules) });
+  setExternalAiContentLimits(limits: ExternalAiContentLimits): void {
+    this.commit({ ...this.preferences(), externalAiContentLimits: normalizeExternalAiContentLimits(limits) });
   }
 
-  resetExternalAiMaterialRules(): void {
-    this.commit({ ...this.preferences(), externalAiMaterialRules: DEFAULT_EXTERNAL_AI_MATERIAL_RULES });
+  resetExternalAiContentLimits(): void {
+    this.commit({ ...this.preferences(), externalAiContentLimits: DEFAULT_EXTERNAL_AI_CONTENT_LIMITS });
   }
 
-  setExternalAiMaterialPolicyEnabled(enabled: boolean): void {
-    this.commit({ ...this.preferences(), externalAiMaterialPolicyEnabled: enabled });
+  setExternalAiContentLimitsEnabled(enabled: boolean): void {
+    this.commit({ ...this.preferences(), externalAiContentLimitsEnabled: enabled });
   }
 
   setLayout(patch: Partial<UiPreferences['layout']>): void {
@@ -150,7 +150,11 @@ export class UiPreferencesService {
   private read(): UiPreferences {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return normalize(JSON.parse(raw));
+      if (raw) {
+        const normalized = normalize(JSON.parse(raw));
+        localStorage.setItem(KEY, JSON.stringify(normalized));
+        return normalized;
+      }
       const legacy = localStorage.getItem(LEGACY_LAYOUT_KEY);
       const layout = legacy ? normalizeLayout(JSON.parse(legacy)) : defaults.layout;
       const migrated = { ...defaults, layout };
@@ -168,7 +172,18 @@ function normalize(value: unknown): UiPreferences {
   const shortcuts = normalizeBindings(candidate.shortcuts);
   const mouseBindings = normalizeMouseBindings(candidate.mouseBindings);
   const layout = candidate.layout && typeof candidate.layout === 'object' ? candidate.layout : {};
-  const hasMaterialRules = Object.prototype.hasOwnProperty.call(candidate, 'externalAiMaterialRules');
+  const hasContentLimits = Object.prototype.hasOwnProperty.call(candidate, 'externalAiContentLimits');
+  const hasLegacyMaterialRules = Object.prototype.hasOwnProperty.call(candidate, 'externalAiMaterialRules');
+  const contentLimitsValue = hasContentLimits
+    ? (candidate as { readonly externalAiContentLimits?: unknown }).externalAiContentLimits
+    : hasLegacyMaterialRules
+      ? (candidate as { readonly externalAiMaterialRules?: unknown }).externalAiMaterialRules
+      : undefined;
+  const legacyContentLimitsEnabled = typeof (candidate as { readonly externalAiMaterialPolicyEnabled?: unknown }).externalAiMaterialPolicyEnabled === 'boolean'
+    ? (candidate as { readonly externalAiMaterialPolicyEnabled: boolean }).externalAiMaterialPolicyEnabled
+    : undefined;
+  delete (candidate as Record<string, unknown>)['externalAiMaterialRules'];
+  delete (candidate as Record<string, unknown>)['externalAiMaterialPolicyEnabled'];
   return {
     ...defaults,
     ...candidate,
@@ -197,8 +212,12 @@ function normalize(value: unknown): UiPreferences {
     },
     shortcuts,
     mouseBindings,
-    externalAiMaterialRules: hasMaterialRules ? normalizeExternalAiMaterialRules((candidate as { readonly externalAiMaterialRules?: unknown }).externalAiMaterialRules) : DEFAULT_EXTERNAL_AI_MATERIAL_RULES,
-    externalAiMaterialPolicyEnabled: typeof (candidate as { readonly externalAiMaterialPolicyEnabled?: unknown }).externalAiMaterialPolicyEnabled === 'boolean' ? (candidate as { readonly externalAiMaterialPolicyEnabled: boolean }).externalAiMaterialPolicyEnabled : defaults.externalAiMaterialPolicyEnabled,
+    externalAiContentLimits: contentLimitsValue === undefined ? DEFAULT_EXTERNAL_AI_CONTENT_LIMITS : normalizeExternalAiContentLimits(contentLimitsValue),
+    externalAiContentLimitsEnabled: typeof (candidate as { readonly externalAiContentLimitsEnabled?: unknown }).externalAiContentLimitsEnabled === 'boolean'
+      ? (candidate as { readonly externalAiContentLimitsEnabled: boolean }).externalAiContentLimitsEnabled
+      : legacyContentLimitsEnabled !== undefined
+        ? legacyContentLimitsEnabled
+        : defaults.externalAiContentLimitsEnabled,
     layout: {
       ...defaults.layout,
       ...layout,
@@ -257,5 +276,5 @@ function normalizeStructureExport(value: unknown): StructureExportPreferences {
 }
 
 function clonePreferences(value: UiPreferences): UiPreferences {
-  return { ...value, appearance: { ...value.appearance }, structureExport: { ...value.structureExport }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, externalAiMaterialRules: value.externalAiMaterialRules.map((rule) => ({ ...rule })), layout: { ...value.layout } };
+  return { ...value, appearance: { ...value.appearance }, structureExport: { ...value.structureExport }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, externalAiContentLimits: { blocks: [...value.externalAiContentLimits.blocks], items: [...value.externalAiContentLimits.items], decorations: [...value.externalAiContentLimits.decorations] }, layout: { ...value.layout } };
 }

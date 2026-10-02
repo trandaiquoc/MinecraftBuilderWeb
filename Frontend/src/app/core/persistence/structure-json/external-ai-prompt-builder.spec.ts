@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections, selectedExternalAiTotals, type ExternalAiPromptContext } from './external-ai-prompt-builder';
-import { resolveExternalAiMaterialPolicy, serializeExternalAiMaterialPolicy } from './external-ai-material-policy';
+import { normalizeExternalAiContentLimits, serializeExternalAiContentLimits } from './external-ai-content-limits';
 
 const context: ExternalAiPromptContext = {
   minecraftVersion: '1.21.1',
@@ -156,55 +156,35 @@ describe('external Structure JSON AI prompt', () => {
     expect(vietnamese).not.toContain('Block ổn định thông thường có thể đặt giữa không trung');
   });
 
-  it('serializes deterministic hard material limits independently of optional sections', () => {
-    const policy = [
-      { category: 'blocks', targetId: 'minecraft:dragon_head', blockIds: ['minecraft:dragon_wall_head', 'minecraft:dragon_head'], maxCount: 1, available: true },
-      { category: 'blocks', targetId: 'minecraft:dragon_egg', blockIds: ['minecraft:dragon_egg'], maxCount: 0, available: true },
-    ] as const;
-    const prompt = buildExternalAiPrompt('Use a dragon head.', context, { includeGuidance: false, includeAvailableContent: false, includeExample: false, materialPolicyEnabled: true, materialPolicy: policy });
-    expect(prompt).toContain('MATERIAL_POLICY_JSON');
-    expect(prompt).toContain('higher priority');
-    expect(prompt).toContain('"maxCount": 0');
-    expect(prompt).toContain('minecraft:dragon_wall_head');
-    expect(prompt.indexOf('MATERIAL_POLICY_JSON')).toBeLessThan(prompt.indexOf('USER REQUEST'));
-    expect(prompt.slice(prompt.indexOf('USER REQUEST'))).toContain('Use a dragon head.');
-    expect(prompt).not.toContain('formatVersion');
-  });
-
-  it('keeps material policy out of the prompt until explicitly enabled', () => {
-    const policy = [
-      { category: 'blocks', targetId: 'minecraft:stone', blockIds: ['minecraft:stone'], maxCount: 4, available: true },
-      { category: 'items', targetId: 'example:gem', maxCount: 2, available: true },
-      { category: 'decorations', targetId: 'minecraft:poster', maxCount: 1, available: true },
-    ] as const;
-    const options = { includeGuidance: false, includeAvailableContent: false, includeExample: false, materialPolicy: policy };
+  it('keeps content limits out of the prompt until explicitly enabled', () => {
+    const limits = { blocks: ['minecraft:dragon_head', 'minecraft:dragon_head'], items: ['example:gem'], decorations: ['minecraft:poster'] } as const;
+    const options = { includeGuidance: false, includeAvailableContent: false, includeExample: false, contentLimits: limits };
     const disabled = buildExternalAiPrompt('Build a shrine.', context, options);
-    expect(disabled).not.toContain('MATERIAL_POLICY_JSON');
-    const enabled = buildExternalAiPrompt('Build a shrine.', context, { ...options, materialPolicyEnabled: true });
-    expect(enabled).toContain('MATERIAL_POLICY_JSON');
+    expect(disabled).not.toContain('CONTENT_LIMITS_JSON');
+    const enabled = buildExternalAiPrompt('Build a shrine.', context, { ...options, contentLimitsEnabled: true });
+    expect(enabled).toContain('CONTENT_LIMITS_JSON');
     expect(enabled).toContain('"blocks"');
     expect(enabled).toContain('"items"');
     expect(enabled).toContain('"decorations"');
-    expect(enabled.indexOf('MATERIAL_POLICY_JSON')).toBeLessThan(enabled.indexOf('USER REQUEST'));
+    expect(enabled).not.toContain('maxCount');
+    expect(enabled).not.toContain('targetId');
+    expect(enabled).not.toContain('blockIds');
+    expect(enabled.indexOf('CONTENT_LIMITS_JSON')).toBeLessThan(enabled.indexOf('USER REQUEST'));
     expect(enabled.slice(enabled.indexOf('USER REQUEST'))).toContain('Build a shrine.');
-    expect(serializeExternalAiMaterialPolicy(policy as any)).toBe(JSON.stringify({
-      blocks: [{ targetId: 'minecraft:stone', maxCount: 4, blockIds: ['minecraft:stone'] }],
-      items: [{ targetId: 'example:gem', maxCount: 2 }],
-      decorations: [{ targetId: 'minecraft:poster', maxCount: 1 }],
-    }, null, 2));
+    expect(enabled).not.toContain('formatVersion');
+    expect(serializeExternalAiContentLimits(normalizeExternalAiContentLimits(limits))).toContain('minecraft:dragon_head');
   });
 
-  it('does not let stale mod rules authorize missing IDs', () => {
-    const prompt = buildExternalAiPrompt('Build a mod shrine.', context, { includeAvailableContent: false, includeExample: false, materialPolicyEnabled: true, materialPolicy: [
-      { category: 'blocks', targetId: 'missing:crystal', blockIds: ['missing:crystal'], maxCount: 2, sourceId: 'missing-source', available: false },
-      { category: 'blocks', targetId: 'minecraft:ancient_debris', blockIds: ['minecraft:ancient_debris'], maxCount: 8, available: true },
-    ] });
+  it('does not authorize unavailable mod IDs and preserves them in saved limits', () => {
+    const limits = { blocks: ['missing:crystal', 'minecraft:ancient_debris'], items: [], decorations: [] } as const;
+    const prompt = buildExternalAiPrompt('Build a mod shrine.', context, { includeAvailableContent: false, includeExample: false, contentLimitsEnabled: true, contentLimits: limits });
     expect(prompt).toContain('minecraft:ancient_debris');
     expect(prompt).not.toContain('missing:crystal');
+    expect(normalizeExternalAiContentLimits(limits)).toEqual({ blocks: ['minecraft:ancient_debris', 'missing:crystal'], items: [], decorations: [] });
   });
 
-  it('resolves one logical dragon head policy across standing and wall variants', () => {
+  it('canonicalizes a standing/wall logical block when the placeable catalog knows the mapping', () => {
     const item = { itemId: 'minecraft:dragon_head', concreteBlockIds: ['minecraft:dragon_head', 'minecraft:dragon_wall_head'] } as any;
-    expect(resolveExternalAiMaterialPolicy([{ targetId: 'minecraft:dragon_wall_head', maxCount: 1 }], [item])).toMatchObject([{ targetId: 'minecraft:dragon_head', blockIds: ['minecraft:dragon_head', 'minecraft:dragon_wall_head'], maxCount: 1 }]);
+    expect(normalizeExternalAiContentLimits({ blocks: ['minecraft:dragon_wall_head'], items: [], decorations: [] }, [item])).toEqual({ blocks: ['minecraft:dragon_head'], items: [], decorations: [] });
   });
 });

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { blockBrightnessStopPercent, UiPreferencesService } from './ui-preferences.service';
-import { DEFAULT_EXTERNAL_AI_MATERIAL_RULES } from '../../persistence/structure-json/external-ai-material-policy';
+import { DEFAULT_EXTERNAL_AI_CONTENT_LIMITS } from '../../persistence/structure-json/external-ai-content-limits';
 
 const key = 'minecraft-builder.ui-preferences';
 const legacyKey = 'minecraft-builder.editor-layout';
@@ -162,52 +162,51 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().mouseBindings['primary-action']).toBe('LeftClick');
   });
 
-  it('seeds exactly the rare material defaults only when the field is missing', () => {
+  it('seeds exactly the rare content-limit defaults only when the field is missing', () => {
     localStorage.setItem(key, JSON.stringify({ locale: 'vi' }));
-    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual(DEFAULT_EXTERNAL_AI_MATERIAL_RULES);
-    localStorage.setItem(key, JSON.stringify({ externalAiMaterialRules: [] }));
-    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([]);
+    expect(new UiPreferencesService().preferences().externalAiContentLimits).toEqual(DEFAULT_EXTERNAL_AI_CONTENT_LIMITS);
+    localStorage.setItem(key, JSON.stringify({ externalAiContentLimits: { blocks: [], items: [], decorations: [] } }));
+    expect(new UiPreferencesService().preferences().externalAiContentLimits).toEqual({ blocks: [], items: [], decorations: [] });
   });
 
-  it('keeps the external AI material policy disabled by default and preserves an explicit toggle', () => {
-    expect(new UiPreferencesService().preferences().externalAiMaterialPolicyEnabled).toBe(false);
-    localStorage.setItem(key, JSON.stringify({ externalAiMaterialPolicyEnabled: true, externalAiMaterialRules: [] }));
+  it('keeps content limits disabled by default and preserves an explicit toggle', () => {
+    expect(new UiPreferencesService().preferences().externalAiContentLimitsEnabled).toBe(false);
+    localStorage.setItem(key, JSON.stringify({ externalAiContentLimitsEnabled: true, externalAiContentLimits: { blocks: [], items: [], decorations: [] } }));
     const preferences = new UiPreferencesService();
-    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(true);
-    preferences.setExternalAiMaterialPolicyEnabled(false);
-    expect(new UiPreferencesService().preferences().externalAiMaterialPolicyEnabled).toBe(false);
-    preferences.setExternalAiMaterialPolicyEnabled(true);
-    preferences.resetExternalAiMaterialRules();
-    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(true);
+    expect(preferences.preferences().externalAiContentLimitsEnabled).toBe(true);
+    preferences.setExternalAiContentLimitsEnabled(false);
+    expect(new UiPreferencesService().preferences().externalAiContentLimitsEnabled).toBe(false);
+    preferences.setExternalAiContentLimitsEnabled(true);
+    preferences.resetExternalAiContentLimits();
+    expect(preferences.preferences().externalAiContentLimitsEnabled).toBe(true);
     preferences.reset();
-    expect(preferences.preferences().externalAiMaterialPolicyEnabled).toBe(false);
+    expect(preferences.preferences().externalAiContentLimitsEnabled).toBe(false);
   });
 
-  it('normalizes, deduplicates and persists material rules without resetting unrelated preferences', () => {
-    localStorage.setItem(key, JSON.stringify({ locale: 'vi', externalAiMaterialRules: [
-      { targetId: 'minecraft:netherite_block', maxCount: 8 },
-      { targetId: 'minecraft:netherite_block', maxCount: 4 },
-      { targetId: 'minecraft:ancient_debris', maxCount: -1 },
-      { targetId: 'minecraft:dragon_egg', maxCount: 0.5 },
-      { targetId: 'bad id', maxCount: 1 },
-    ] }));
+  it('normalizes, deduplicates and persists content IDs without resetting unrelated preferences', () => {
+    localStorage.setItem(key, JSON.stringify({ locale: 'vi', externalAiContentLimits: {
+      blocks: ['minecraft:netherite_block', 'minecraft:netherite_block', 'bad id'],
+      items: ['example:gem', 'example:gem'],
+      decorations: ['minecraft:poster'],
+    } }));
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('vi');
-    expect(preferences.preferences().externalAiMaterialRules).toEqual([{ targetId: 'minecraft:netherite_block', maxCount: 4 }]);
-    preferences.setExternalAiMaterialRules([{ targetId: 'minecraft:dragon_egg', maxCount: 0 }]);
-    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([{ targetId: 'minecraft:dragon_egg', maxCount: 0 }]);
-    preferences.resetExternalAiMaterialRules();
-    expect(preferences.preferences().externalAiMaterialRules).toEqual(DEFAULT_EXTERNAL_AI_MATERIAL_RULES);
+    expect(preferences.preferences().externalAiContentLimits).toEqual({ blocks: ['minecraft:netherite_block'], items: ['example:gem'], decorations: ['minecraft:poster'] });
+    preferences.setExternalAiContentLimits({ blocks: ['minecraft:dragon_egg'], items: [], decorations: [] });
+    expect(new UiPreferencesService().preferences().externalAiContentLimits).toEqual({ blocks: ['minecraft:dragon_egg'], items: [], decorations: [] });
+    preferences.resetExternalAiContentLimits();
+    expect(preferences.preferences().externalAiContentLimits).toEqual(DEFAULT_EXTERNAL_AI_CONTENT_LIMITS);
   });
 
-  it('preserves unavailable item and decoration policy entries as configuration', () => {
-    localStorage.setItem(key, JSON.stringify({ externalAiMaterialRules: [
+  it('migrates old max-count rules to ID-only content limits', () => {
+    localStorage.setItem(key, JSON.stringify({ externalAiMaterialPolicyEnabled: true, externalAiMaterialRules: [
+      { targetId: 'minecraft:netherite_block', maxCount: 4 },
       { category: 'items', targetId: 'missing:item', maxCount: 2 },
-      { category: 'decorations', targetId: 'missing:painting', maxCount: 1 },
     ] }));
-    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([
-      { category: 'decorations', targetId: 'missing:painting', maxCount: 1 },
-      { category: 'items', targetId: 'missing:item', maxCount: 2 },
-    ]);
+    expect(new UiPreferencesService().preferences().externalAiContentLimits).toEqual({ blocks: ['minecraft:netherite_block'], items: ['missing:item'], decorations: [] });
+    expect(new UiPreferencesService().preferences().externalAiContentLimitsEnabled).toBe(true);
+    const saved = JSON.parse(localStorage.getItem(key) ?? '{}');
+    expect(saved.externalAiContentLimits).toEqual({ blocks: ['minecraft:netherite_block'], items: ['missing:item'], decorations: [] });
+    expect(saved.externalAiMaterialRules).toBeUndefined();
   });
 });
