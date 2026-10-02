@@ -1,0 +1,9 @@
+<section class="readonly-code-viewer" [attr.aria-label]="label()">
+  <div class="readonly-code-viewer-meta" aria-live="polite">{{ lineCountLabel() }}</div>
+  <div class="readonly-code-viewer-scroll" tabindex="0">
+    <div class="readonly-code-viewer-content">
+      <div class="readonly-code-viewer-gutter" aria-hidden="true">@for (line of lines(); track $index) { <span>{{ $index + 1 }}</span> }</div>
+      <pre class="readonly-code-viewer-code"><code>{{ value() }}</code></pre>
+    </div>
+  </div>
+</section>

@@ -68,4 +68,30 @@ describe('StructureNbtExportDialogComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.tone-namespace')?.textContent).toContain('custom');
   });
+
+  it('omits the package section in standalone mode and keeps a readable install flow', () => {
+    const workspace = { project: signal(project) };
+    const exporter = {
+      defaults: () => ({ namespace: 'minecraftbuilder', structurePath: 'sanctuary', archiveName: 'sanctuary', archiveFilename: 'sanctuary.zip', description: '' }),
+      preflight: (mode: 'datapack' | 'standalone', form: { namespace: string; structurePath: string; archiveName: string; description: string }) => preflightStructureExport(project, mode, form),
+      download: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      imports: [StructureNbtExportDialogComponent],
+      providers: [
+        { provide: I18nService, useValue: { t: (key: string) => key } },
+        { provide: WorkspaceStateService, useValue: workspace },
+        { provide: MinecraftStructureExportService, useValue: exporter },
+      ],
+    });
+    const fixture = TestBed.createComponent(StructureNbtExportDialogComponent);
+    fixture.detectChanges();
+    const instance = fixture.componentInstance as unknown as { setMode: (mode: 'datapack' | 'standalone') => void };
+    instance.setMode('standalone');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-tone="package"].export-section')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.summary-card[data-tone="package"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('.install-step').length).toBe(3);
+    expect(fixture.nativeElement.querySelector('.install-flow-steps')).toBeTruthy();
+  });
 });

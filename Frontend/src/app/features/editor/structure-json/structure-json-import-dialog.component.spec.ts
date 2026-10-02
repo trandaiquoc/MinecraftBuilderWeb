@@ -21,7 +21,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
-        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [], blockIds: [], itemIds: [], paintingIds: [] }) } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [] }) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -43,7 +43,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
-        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [], blockIds: [], itemIds: [], paintingIds: [] }) } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [] }) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -53,12 +53,12 @@ describe('StructureJsonImportDialogComponent', () => {
     instance.setTab('ai'); instance.setAiTab('example'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.structure-json-layout.ai-mode')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.structure-json-ai-workspace')).toBeTruthy();
-    const viewer = fixture.nativeElement.querySelector('.structure-json-ai-workspace .reference-editor') as HTMLTextAreaElement;
+    const viewer = fixture.nativeElement.querySelector('.structure-json-ai-workspace app-readonly-code-viewer');
     expect(viewer).toBeTruthy();
-    expect(viewer.classList.contains('reference-editor')).toBe(true);
-    expect(viewer.value).toContain('minecraftbuilder-structure');
+    expect(viewer.querySelector('.readonly-code-viewer-gutter')?.textContent).toContain('1');
+    expect(viewer.querySelector('.readonly-code-viewer-code')?.textContent).toContain('minecraftbuilder-structure');
     instance.setAiTab('description'); fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.ai-preview .reference-editor')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.ai-preview app-readonly-code-viewer')).toBeTruthy();
   });
 
   it('keeps prompt inclusion controls independent from the viewing tabs', async () => {
@@ -67,7 +67,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: BlockLibraryService, useValue: { get: () => undefined } },
-        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [{ id: 'example', name: 'Example', version: '1.0.0', loader: 'fabric', namespaces: ['example'] }], blockIds: ['example:block'], itemIds: ['example:item'], paintingIds: ['example:painting'] }) } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectBounds: project.size, mods: [{ sourceId: 'source-example', id: 'example', name: 'Example', version: '1.0.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:block'], items: [{ id: 'example:item' }], decorations: [{ id: 'example:painting', kind: 'painting' }] }] }) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -75,7 +75,7 @@ describe('StructureJsonImportDialogComponent', () => {
     fixture.detectChanges();
     const instance = fixture.componentInstance as unknown as {
       setAiDescription: (value: string) => void;
-      setIncludeItems: (value: boolean) => void;
+      setModCategory: (sourceId: string, category: 'blocks' | 'items' | 'decorations', value: boolean) => void;
       setIncludeAvailableContent: (value: boolean) => void;
       setIncludeGuidance: (value: boolean) => void;
       setIncludeJsonExample: (value: boolean) => void;
@@ -85,7 +85,7 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(instance.aiPrompt()).toContain('example:block');
     expect(instance.aiPrompt()).toContain('example:painting');
     expect(instance.aiPrompt()).not.toContain('example:item');
-    instance.setIncludeItems(true);
+    instance.setModCategory('source-example', 'items', true);
     expect(instance.aiPrompt()).toContain('example:item');
     instance.setIncludeAvailableContent(false);
     expect(instance.aiPrompt()).not.toContain('AVAILABLE_CONTENT_JSON');
@@ -93,6 +93,40 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(instance.aiPrompt()).not.toContain('MINECRAFTBUILDER STRUCTURE JSON');
     instance.setIncludeJsonExample(true);
     expect(instance.aiPrompt()).toContain('Small JSON syntax example');
+  });
+
+  it('keeps mod content selection independent and exposes the non-modal selector', async () => {
+    const snapshot = {
+      minecraftVersion: '1.21.1',
+      vanillaSource: 'test',
+      projectBounds: project.size,
+      mods: [
+        { sourceId: 'source-a', id: 'a', name: 'Mod A', version: '1.0', loader: 'fabric', namespaces: ['a'], blocks: ['a:block'], items: [{ id: 'a:item' }], decorations: [{ id: 'a:painting', kind: 'painting' }] },
+        { sourceId: 'source-b', id: 'b', name: 'Mod B', version: '2.0', loader: 'fabric', namespaces: ['b'], blocks: ['b:block'], items: [{ id: 'b:item' }], decorations: [] },
+      ],
+    } as const;
+    await TestBed.configureTestingModule({
+      imports: [StructureJsonImportDialogComponent],
+      providers: [
+        { provide: I18nService, useValue: { t: (key: string) => key } },
+        { provide: BlockLibraryService, useValue: { get: () => undefined } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => snapshot } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
+    fixture.componentRef.setInput('project', project);
+    fixture.detectChanges();
+    const instance = fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void; toggleModContent: () => void; clearAllModContent: () => void; setModCategory: (sourceId: string, category: 'blocks' | 'items' | 'decorations', value: boolean) => void; aiPrompt: () => string };
+    instance.setTab('ai'); instance.toggleModContent(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[aria-haspopup="true"]')?.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.querySelectorAll('.ai-mod-content-row').length).toBe(2);
+    instance.setModCategory('source-a', 'items', true);
+    instance.setModCategory('source-b', 'blocks', false);
+    expect(instance.aiPrompt()).toContain('a:item');
+    expect(instance.aiPrompt()).not.toContain('b:block');
+    instance.clearAllModContent();
+    expect(instance.aiPrompt()).not.toContain('a:block');
+    expect(instance.aiPrompt()).not.toContain('a:item');
   });
 
   it('translates structured diagnostic codes while keeping technical fields separate', async () => {

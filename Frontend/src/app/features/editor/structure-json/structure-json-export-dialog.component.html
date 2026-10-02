@@ -27,7 +27,7 @@
         <div class="structure-json-panel" role="tabpanel" [id]="'structure-json-panel-' + tab()" [attr.aria-labelledby]="'structure-json-tab-' + tab()">
           @if (tab() === 'structure') {
             <div class="editor-heading"><div><strong>{{ i18n.t('structureJsonTab') }}</strong>@if (dirty()) { <span class="dirty-status">{{ i18n.t('structureJsonDirty') }}</span> } @else { <span class="saved-status">{{ i18n.t('structureJsonSaved') }}</span> }</div><div class="editor-actions"><button type="button" class="ui-button ui-button--secondary ui-button--sm" [disabled]="!dirty()" (click)="discardChanges()">{{ i18n.t('structureJsonDiscardChanges') }}</button><button type="button" class="ui-button ui-button--primary ui-button--sm" [disabled]="!dirty()" (click)="saveChanges()"><svg lucideSave aria-hidden="true"></svg>{{ i18n.t('structureJsonSaveChanges') }}</button></div></div>
-            <textarea class="structure-json-editor" [value]="draftJson()" (input)="setDraftJson($any($event.target).value)" [attr.aria-label]="i18n.t('structureJsonTab')" spellcheck="false"></textarea>
+            <textarea class="structure-json-code-editor" [value]="draftJson()" (input)="setDraftJson($any($event.target).value)" [attr.aria-label]="i18n.t('structureJsonTab')" spellcheck="false"></textarea>
             @if (validationError(); as error) { <p class="structure-json-validation" role="alert">{{ error }}</p> }
           }
           @if (feedback() === 'success') { <p class="structure-json-feedback success" role="status">{{ i18n.t('structureJsonCopySuccess') }}</p> }

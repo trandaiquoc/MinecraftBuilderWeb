@@ -2032,10 +2032,11 @@ fall back to Geist.
 
 Create with AI now separates viewing tabs from prompt inclusion. The user
 description is always copied last; AI guidance defaults on, available imported
-content defaults on only when external content exists, block IDs default on,
-item IDs default off, paintings follow availability, and the compact JSON
-example is opt-in. The prompt summary reflects the selected sections and the
-copy preview uses the same final assembled string as the clipboard action.
+content defaults on only when external content exists, and the compact JSON
+example is opt-in. Imported Blocks, Items, and Decorations are selected per
+source/mod, with Blocks and available Decorations on by default and Items off.
+The prompt summary reflects the selected source categories and the copy
+preview uses the same final assembled string as the clipboard action.
 
 The canonical external guidance is concise and self-contained: it states the
 current top-level Structure JSON contract, explicitly forbids `formatVersion`,
@@ -2046,3 +2047,23 @@ web/search access it is asked to research relevant Minecraft techniques and
 reliable subject references without copying a single build or treating online
 research as authorization for unlisted mod IDs. The app itself performs no
 network or AI request.
+
+## POST-15 AI workspace and export UX follow-up
+
+Create with AI now uses a dedicated read-only code viewer for the canonical
+JSON example and generated prompt. The viewer keeps raw copy strings intact,
+adds aligned line numbers and line counts, and owns its own vertical and
+horizontal scrolling without applying code styling to the human description
+textarea.
+
+Imported content in the external-AI context is associated with the exact
+content source ID. Blocks, items, and supported decorations can be selected
+independently for each imported mod; selected item max-stack evidence and
+painting decoration kinds remain source-specific and deterministically sorted.
+Vanilla content is not dumped into this selector. Guidance also recommends
+saplings with growth clearance for ordinary scenery trees, while preserving
+the custom/mature tree exception.
+
+Structure export keeps NBT and ZIP generation unchanged. Standalone NBT no
+longer renders an empty package section, and installation guidance is now a
+full-width vertical flow with readable wrapping and raw copy actions.

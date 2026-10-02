@@ -14,9 +14,10 @@ import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
-import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
-import type { ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
+import { buildExternalAiPrompt, externalAiInstructionSections, resolveModSelections, selectedExternalAiTotals } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
+import type { ExternalAiModContentCategory, ExternalAiModContentSelection, ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
 import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
+import { ReadonlyCodeViewerComponent } from '../../../shared/ui/readonly-code-viewer/readonly-code-viewer.component';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
 type ImportDialogTab = 'import' | 'ai';
@@ -24,10 +25,10 @@ type AiWorkspaceTab = 'description' | 'content' | 'guidance' | 'example';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
-  imports: [CdkTrapFocus, LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideCopy, LucideTriangleAlert, LucideUpload, LucideX, UiTooltipDirective],
+  imports: [CdkTrapFocus, LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideCopy, LucideTriangleAlert, LucideUpload, LucideX, UiTooltipDirective, ReadonlyCodeViewerComponent],
   templateUrl: './structure-json-import-dialog.component.html',
   styleUrl: './structure-json-import-dialog.component.scss',
-  host: { '(document:keydown.escape)': 'close()' },
+  host: { '(document:keydown.escape)': 'onEscape($event)', '(document:pointerdown)': 'onDocumentPointerDown($event)' },
 })
 export class StructureJsonImportDialogComponent {
   protected readonly i18n = inject(I18nService);
@@ -51,38 +52,40 @@ export class StructureJsonImportDialogComponent {
   protected readonly activeAiTab = signal<AiWorkspaceTab>('description');
   protected readonly aiDescription = signal('');
   protected readonly aiSnapshot = computed(() => this.aiContext.snapshot(this.project()));
-  protected readonly hasExternalContent = computed(() => {
-    const snapshot = this.aiSnapshot();
-    return snapshot.mods.length > 0 || snapshot.blockIds.length > 0 || snapshot.itemIds.length > 0 || snapshot.paintingIds.length > 0;
-  });
+  protected readonly hasExternalContent = computed(() => this.aiSnapshot().mods.some((mod) => mod.blocks.length > 0 || mod.items.length > 0 || mod.decorations.length > 0));
   protected readonly includeAiGuidance = signal(true);
   protected readonly includeAvailableContentOverride = signal<boolean | undefined>(undefined);
-  protected readonly includeBlocks = signal(true);
-  protected readonly includeItems = signal(false);
-  protected readonly includePaintingsOverride = signal<boolean | undefined>(undefined);
   protected readonly includeJsonExample = signal(false);
+  protected readonly modSelections = signal<readonly ExternalAiModContentSelection[]>([]);
+  protected readonly modContentOpen = signal(false);
   protected readonly includeAvailableContent = computed(() => this.includeAvailableContentOverride() ?? this.hasExternalContent());
-  protected readonly includePaintings = computed(() => this.includePaintingsOverride() ?? this.aiSnapshot().paintingIds.length > 0);
+  protected readonly effectiveModSelections = computed(() => resolveModSelections(this.aiSnapshot(), this.modSelections()));
+  protected readonly selectedTotals = computed(() => selectedExternalAiTotals(this.aiSnapshot(), this.modSelections()));
   protected readonly aiPromptOptions = computed<ExternalAiPromptOptions>(() => ({
     includeGuidance: this.includeAiGuidance(),
     includeAvailableContent: this.includeAvailableContent(),
-    includeBlocks: this.includeBlocks(),
-    includeItems: this.includeItems(),
-    includePaintings: this.includePaintings(),
     includeExample: this.includeJsonExample(),
+    modSelections: this.modSelections(),
   }));
   protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot(), this.aiPromptOptions()));
-  protected readonly aiContextText = computed(() => buildContentContextText(this.aiSnapshot()));
   protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
   protected readonly aiGuidance = computed(() => externalAiInstructionSections(this.aiSnapshot().minecraftVersion));
   protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
   protected readonly aiDescriptionInvalid = signal(false);
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
   protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'guidance', 'example'];
+  protected readonly modCategories: readonly ExternalAiModContentCategory[] = ['blocks', 'items', 'decorations'];
   private validationGeneration = 0;
   private readonly modePlanCache = new Map<StructureJsonImportMode, StructureJsonImportPlan>();
 
-  protected close(): void { this.validationGeneration += 1; this.closed.emit(); }
+  protected close(): void { this.validationGeneration += 1; this.modContentOpen.set(false); this.closed.emit(); }
+  protected onEscape(event: Event): void { if (this.modContentOpen()) { event.stopPropagation(); this.modContentOpen.set(false); return; } this.close(); }
+  protected onDocumentPointerDown(event: Event): void {
+    if (!this.modContentOpen()) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest('.ai-mod-content-selector')) return;
+    this.modContentOpen.set(false);
+  }
   protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
   protected setAiTab(tab: AiWorkspaceTab): void { this.activeAiTab.set(tab); }
   protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
@@ -97,20 +100,50 @@ export class StructureJsonImportDialogComponent {
   protected setAiDescription(value: string): void { this.aiDescription.set(value); this.aiCopyStatus.set('idle'); this.aiDescriptionInvalid.set(false); }
   protected setIncludeGuidance(value: boolean): void { this.includeAiGuidance.set(value); this.aiCopyStatus.set('idle'); }
   protected setIncludeAvailableContent(value: boolean): void { this.includeAvailableContentOverride.set(value); this.aiCopyStatus.set('idle'); }
-  protected setIncludeBlocks(value: boolean): void { this.includeBlocks.set(value); this.aiCopyStatus.set('idle'); }
-  protected setIncludeItems(value: boolean): void { this.includeItems.set(value); this.aiCopyStatus.set('idle'); }
-  protected setIncludePaintings(value: boolean): void { this.includePaintingsOverride.set(value); this.aiCopyStatus.set('idle'); }
   protected setIncludeJsonExample(value: boolean): void { this.includeJsonExample.set(value); this.aiCopyStatus.set('idle'); }
+  protected toggleModContent(): void { if (this.hasExternalContent() && this.includeAvailableContent()) this.modContentOpen.update((open) => !open); }
+  protected modSelection(sourceId: string): ExternalAiModContentSelection {
+    return this.effectiveModSelections().find((selection) => selection.sourceId === sourceId) ?? { sourceId, includeBlocks: false, includeItems: false, includeDecorations: false };
+  }
+  protected categoryKey(category: ExternalAiModContentCategory): 'includeBlocks' | 'includeItems' | 'includeDecorations' { return categoryKey(category); }
+  protected setModCategory(sourceId: string, category: ExternalAiModContentCategory, value: boolean): void {
+    const selections = this.effectiveModSelections().map((selection) => selection.sourceId === sourceId ? { ...selection, [categoryKey(category)]: value } : selection);
+    this.modSelections.set(selections); this.aiCopyStatus.set('idle');
+  }
+  protected selectAllModContent(): void {
+    this.modSelections.set(this.aiSnapshot().mods.map((mod) => ({ sourceId: mod.sourceId, includeBlocks: mod.blocks.length > 0, includeItems: mod.items.length > 0, includeDecorations: mod.decorations.length > 0 })));
+    this.aiCopyStatus.set('idle');
+  }
+  protected clearAllModContent(): void {
+    this.modSelections.set(this.aiSnapshot().mods.map((mod) => ({ sourceId: mod.sourceId, includeBlocks: false, includeItems: false, includeDecorations: false })));
+    this.aiCopyStatus.set('idle');
+  }
+  protected modContentSummary(): string {
+    const totals = this.selectedTotals();
+    if (!totals.mods) return this.i18n.t('structureJsonAiNoContentSelected');
+    const names = this.aiSnapshot().mods.filter((mod) => this.modSelection(mod.sourceId).includeBlocks || this.modSelection(mod.sourceId).includeItems || this.modSelection(mod.sourceId).includeDecorations).map((mod) => mod.name);
+    const label = names.length <= 2 ? names.join(' · ') : `${names[0]} +${names.length - 1}`;
+    const categories = [
+      totals.blocks > 0 ? `${totals.blocks} ${this.i18n.t('structureJsonAiSummaryBlocks')}` : '',
+      totals.items > 0 ? `${totals.items} ${this.i18n.t('structureJsonAiSummaryItems')}` : '',
+      totals.decorations > 0 ? `${totals.decorations} ${this.i18n.t('structureJsonAiSummaryDecorations')}` : '',
+    ].filter(Boolean).join(' · ');
+    return `${label} · ${categories}`;
+  }
+  protected categoryCount(mod: { readonly blocks: readonly string[]; readonly items: readonly unknown[]; readonly decorations: readonly unknown[] }, category: ExternalAiModContentCategory): number { return category === 'blocks' ? mod.blocks.length : category === 'items' ? mod.items.length : mod.decorations.length; }
+  protected categoryLabel(category: ExternalAiModContentCategory): string { return this.i18n.t(({ blocks: 'structureJsonAiIncludeBlocks', items: 'structureJsonAiIncludeItems', decorations: 'structureJsonAiIncludeDecorations' } as const)[category]); }
+  protected modContentText(mod: { readonly blocks: readonly string[]; readonly items: readonly { readonly id: string; readonly maxStackSize?: number }[]; readonly decorations: readonly { readonly id: string; readonly kind: string }[] }): string {
+    const sections: string[] = [];
+    if (mod.blocks.length) sections.push(`${this.i18n.t('structureJsonAiIncludeBlocks')}\n${[...mod.blocks].sort().join('\n')}`);
+    if (mod.items.length) sections.push(`${this.i18n.t('structureJsonAiIncludeItems')}\n${[...mod.items].sort((a, b) => a.id.localeCompare(b.id)).map((item) => item.maxStackSize === undefined ? item.id : `${item.id} (max ${item.maxStackSize})`).join('\n')}`);
+    if (mod.decorations.length) sections.push(`${this.i18n.t('structureJsonAiIncludeDecorations')}\n${[...mod.decorations].sort((a, b) => a.id.localeCompare(b.id)).map((item) => `${item.id} [${item.kind}]`).join('\n')}`);
+    return sections.join('\n\n');
+  }
+  protected lineCountLabel(value: string): string { return this.i18n.t('structureJsonAiLineCount').replace('{count}', String(value === '' ? 0 : value.split('\n').length)); }
   protected aiPromptSummary(): string {
-    const snapshot = this.aiSnapshot();
     const parts = [this.i18n.t('structureJsonAiSummaryDescription')];
     if (this.includeAiGuidance()) parts.push(this.i18n.t('structureJsonAiSummaryGuidance'));
-    if (this.includeAvailableContent()) {
-      if (this.includeBlocks() && snapshot.blockIds.length > 0) parts.push(`${snapshot.blockIds.length} ${this.i18n.t('structureJsonAiSummaryBlocks')}`);
-      if (this.includeItems() && snapshot.itemIds.length > 0) parts.push(`${snapshot.itemIds.length} ${this.i18n.t('structureJsonAiSummaryItems')}`);
-      if (this.includePaintings() && snapshot.paintingIds.length > 0) parts.push(`${snapshot.paintingIds.length} ${this.i18n.t('structureJsonAiSummaryPaintings')}`);
-      if (!snapshot.blockIds.length && !snapshot.itemIds.length && !snapshot.paintingIds.length) parts.push(this.i18n.t('structureJsonAiSummaryContent'));
-    }
+    if (this.includeAvailableContent() && this.selectedTotals().mods > 0) parts.push(this.modContentSummary());
     if (this.includeJsonExample()) parts.push(this.i18n.t('structureJsonAiSummaryExample'));
     return `${this.i18n.t('structureJsonAiIncludes')}: ${parts.join(' + ')}`;
   }
@@ -257,6 +290,10 @@ export class StructureJsonImportDialogComponent {
   private async copyText(value: string): Promise<void> {
     try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); this.aiCopyStatus.set('copied'); } catch { this.aiCopyStatus.set('failed'); }
   }
+}
+
+function categoryKey(category: ExternalAiModContentCategory): 'includeBlocks' | 'includeItems' | 'includeDecorations' {
+  return category === 'blocks' ? 'includeBlocks' : category === 'items' ? 'includeItems' : 'includeDecorations';
 }
 
 function formatProjectSize(size: ProjectDocument['size']): string { return `${size.x} × ${size.y} × ${size.z}`; }
