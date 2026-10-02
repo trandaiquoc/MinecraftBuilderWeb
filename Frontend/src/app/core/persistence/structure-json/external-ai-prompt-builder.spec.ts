@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections, selectedExternalAiTotals, type ExternalAiPromptContext } from './external-ai-prompt-builder';
+import { resolveExternalAiMaterialPolicy } from './external-ai-material-policy';
 
 const context: ExternalAiPromptContext = {
   minecraftVersion: '1.21.1',
@@ -153,5 +154,34 @@ describe('external Structure JSON AI prompt', () => {
     expect(vietnamese).toContain('Chỉ giữ cấu trúc lơ lửng khi người dùng yêu cầu rõ');
     expect(vietnamese).toContain('không có nghĩa mỗi block đều phải có block ngay bên dưới');
     expect(vietnamese).not.toContain('Block ổn định thông thường có thể đặt giữa không trung');
+  });
+
+  it('serializes deterministic hard material limits independently of optional sections', () => {
+    const policy = [
+      { targetId: 'minecraft:dragon_head', blockIds: ['minecraft:dragon_wall_head', 'minecraft:dragon_head'], maxCount: 1, available: true },
+      { targetId: 'minecraft:dragon_egg', blockIds: ['minecraft:dragon_egg'], maxCount: 0, available: true },
+    ] as const;
+    const prompt = buildExternalAiPrompt('Use a dragon head.', context, { includeGuidance: false, includeAvailableContent: false, includeExample: false, materialPolicy: policy });
+    expect(prompt).toContain('MATERIAL_POLICY_JSON');
+    expect(prompt).toContain('higher priority');
+    expect(prompt).toContain('"maxCount": 0');
+    expect(prompt).toContain('minecraft:dragon_wall_head');
+    expect(prompt.indexOf('MATERIAL_POLICY_JSON')).toBeLessThan(prompt.indexOf('USER REQUEST'));
+    expect(prompt.slice(prompt.indexOf('USER REQUEST'))).toContain('Use a dragon head.');
+    expect(prompt).not.toContain('formatVersion');
+  });
+
+  it('does not let stale mod rules authorize missing IDs', () => {
+    const prompt = buildExternalAiPrompt('Build a mod shrine.', context, { includeAvailableContent: false, includeExample: false, materialPolicy: [
+      { targetId: 'missing:crystal', blockIds: ['missing:crystal'], maxCount: 2, sourceId: 'missing-source', available: false },
+      { targetId: 'minecraft:ancient_debris', blockIds: ['minecraft:ancient_debris'], maxCount: 8, available: true },
+    ] });
+    expect(prompt).toContain('minecraft:ancient_debris');
+    expect(prompt).not.toContain('missing:crystal');
+  });
+
+  it('resolves one logical dragon head policy across standing and wall variants', () => {
+    const item = { itemId: 'minecraft:dragon_head', concreteBlockIds: ['minecraft:dragon_head', 'minecraft:dragon_wall_head'] } as any;
+    expect(resolveExternalAiMaterialPolicy([{ targetId: 'minecraft:dragon_wall_head', maxCount: 1 }], [item])).toMatchObject([{ targetId: 'minecraft:dragon_head', blockIds: ['minecraft:dragon_head', 'minecraft:dragon_wall_head'], maxCount: 1 }]);
   });
 });

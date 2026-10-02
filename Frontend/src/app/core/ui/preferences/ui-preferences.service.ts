@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { DEFAULT_KEYBINDINGS, KeyboardAction, normalizeBindings } from '../../editor/input/keyboard-bindings';
 import { DEFAULT_MOUSE_BINDINGS, MouseAction, normalizeMouseBindings } from '../../editor/input/mouse-bindings';
+import { DEFAULT_EXTERNAL_AI_MATERIAL_RULES, ExternalAiMaterialRule, normalizeExternalAiMaterialRules } from '../../persistence/structure-json/external-ai-material-policy';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
@@ -42,6 +43,7 @@ export interface UiPreferences {
   };
   readonly shortcuts: Readonly<Record<KeyboardAction, string>>;
   readonly mouseBindings: Readonly<Record<MouseAction, string>>;
+  readonly externalAiMaterialRules: readonly ExternalAiMaterialRule[];
   readonly layout: {
     readonly editorToolbarVisible: boolean;
     readonly leftSidebarVisible: boolean;
@@ -69,6 +71,7 @@ const defaults: UiPreferences = {
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,
   mouseBindings: DEFAULT_MOUSE_BINDINGS,
+  externalAiMaterialRules: DEFAULT_EXTERNAL_AI_MATERIAL_RULES,
   layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 260, rightSidebarWidth: 230 },
 };
 
@@ -117,6 +120,14 @@ export class UiPreferencesService {
     this.commit({ ...this.preferences(), structureExport: { ...this.preferences().structureExport, ...patch } });
   }
 
+  setExternalAiMaterialRules(rules: readonly ExternalAiMaterialRule[]): void {
+    this.commit({ ...this.preferences(), externalAiMaterialRules: normalizeExternalAiMaterialRules(rules) });
+  }
+
+  resetExternalAiMaterialRules(): void {
+    this.commit({ ...this.preferences(), externalAiMaterialRules: DEFAULT_EXTERNAL_AI_MATERIAL_RULES });
+  }
+
   setLayout(patch: Partial<UiPreferences['layout']>): void {
     this.commit({ ...this.preferences(), layout: { ...this.preferences().layout, ...patch } });
   }
@@ -151,6 +162,7 @@ function normalize(value: unknown): UiPreferences {
   const shortcuts = normalizeBindings(candidate.shortcuts);
   const mouseBindings = normalizeMouseBindings(candidate.mouseBindings);
   const layout = candidate.layout && typeof candidate.layout === 'object' ? candidate.layout : {};
+  const hasMaterialRules = Object.prototype.hasOwnProperty.call(candidate, 'externalAiMaterialRules');
   return {
     ...defaults,
     ...candidate,
@@ -179,6 +191,7 @@ function normalize(value: unknown): UiPreferences {
     },
     shortcuts,
     mouseBindings,
+    externalAiMaterialRules: hasMaterialRules ? normalizeExternalAiMaterialRules((candidate as { readonly externalAiMaterialRules?: unknown }).externalAiMaterialRules) : DEFAULT_EXTERNAL_AI_MATERIAL_RULES,
     layout: {
       ...defaults.layout,
       ...layout,
@@ -237,5 +250,5 @@ function normalizeStructureExport(value: unknown): StructureExportPreferences {
 }
 
 function clonePreferences(value: UiPreferences): UiPreferences {
-  return { ...value, appearance: { ...value.appearance }, structureExport: { ...value.structureExport }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, layout: { ...value.layout } };
+  return { ...value, appearance: { ...value.appearance }, structureExport: { ...value.structureExport }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, externalAiMaterialRules: value.externalAiMaterialRules.map((rule) => ({ ...rule })), layout: { ...value.layout } };
 }

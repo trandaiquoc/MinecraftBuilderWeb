@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { blockBrightnessStopPercent, UiPreferencesService } from './ui-preferences.service';
+import { DEFAULT_EXTERNAL_AI_MATERIAL_RULES } from '../../persistence/structure-json/external-ai-material-policy';
 
 const key = 'minecraft-builder.ui-preferences';
 const legacyKey = 'minecraft-builder.editor-layout';
@@ -159,5 +160,29 @@ describe('UiPreferencesService', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().shortcuts['move-forward']).toBe('E');
     expect(preferences.preferences().mouseBindings['primary-action']).toBe('LeftClick');
+  });
+
+  it('seeds exactly the rare material defaults only when the field is missing', () => {
+    localStorage.setItem(key, JSON.stringify({ locale: 'vi' }));
+    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual(DEFAULT_EXTERNAL_AI_MATERIAL_RULES);
+    localStorage.setItem(key, JSON.stringify({ externalAiMaterialRules: [] }));
+    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([]);
+  });
+
+  it('normalizes, deduplicates and persists material rules without resetting unrelated preferences', () => {
+    localStorage.setItem(key, JSON.stringify({ locale: 'vi', externalAiMaterialRules: [
+      { targetId: 'minecraft:netherite_block', maxCount: 8 },
+      { targetId: 'minecraft:netherite_block', maxCount: 4 },
+      { targetId: 'minecraft:ancient_debris', maxCount: -1 },
+      { targetId: 'minecraft:dragon_egg', maxCount: 0.5 },
+      { targetId: 'bad id', maxCount: 1 },
+    ] }));
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().locale).toBe('vi');
+    expect(preferences.preferences().externalAiMaterialRules).toEqual([{ targetId: 'minecraft:netherite_block', maxCount: 4 }]);
+    preferences.setExternalAiMaterialRules([{ targetId: 'minecraft:dragon_egg', maxCount: 0 }]);
+    expect(new UiPreferencesService().preferences().externalAiMaterialRules).toEqual([{ targetId: 'minecraft:dragon_egg', maxCount: 0 }]);
+    preferences.resetExternalAiMaterialRules();
+    expect(preferences.preferences().externalAiMaterialRules).toEqual(DEFAULT_EXTERNAL_AI_MATERIAL_RULES);
   });
 });

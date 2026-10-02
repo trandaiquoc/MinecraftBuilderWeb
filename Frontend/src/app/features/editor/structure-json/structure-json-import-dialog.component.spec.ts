@@ -9,6 +9,8 @@ import { WorkspaceStateService } from '../../../core/workspace/workspace-state.s
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { I18nService, supplementalTranslations } from '../../../core/ui/localization/i18n.service';
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
+import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
+import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
 import { StructureJsonImportDialogComponent } from './structure-json-import-dialog.component';
 
 const project: ProjectDocument = { schemaVersion: 3, id: 'project', metadata: { name: 'Import Demo', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 2, y: 2, z: 2 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 } };
@@ -128,6 +130,30 @@ describe('StructureJsonImportDialogComponent', () => {
     instance.clearAllModContent();
     expect(instance.aiPrompt()).not.toContain('a:block');
     expect(instance.aiPrompt()).not.toContain('a:item');
+  });
+
+  it('edits persisted material policy rules and preserves unavailable saved rules', async () => {
+    const item = { itemId: 'example:crystal', displayBlockId: 'example:crystal_block', namespace: 'example', displayName: 'Crystal', sourceId: 'source-example', concreteBlockIds: ['example:crystal_block'], defaultState: {}, placementKind: 'direct', previewRecipe: 'single', support: 'full', visualSupport: 'real', capabilities: { capabilities: [] }, previewBlocks: [] } as unknown as PlaceableItemDefinition;
+    const preferences = new UiPreferencesService(); preferences.setExternalAiMaterialRules([{ targetId: 'missing:old_block', maxCount: 2 }]);
+    await TestBed.configureTestingModule({
+      imports: [StructureJsonImportDialogComponent],
+      providers: [
+        { provide: I18nService, useValue: { t: (key: string) => key } },
+        { provide: UiPreferencesService, useValue: preferences },
+        { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [item], searchPlaceableItems: () => [item] } },
+        { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [{ sourceId: 'source-example', id: 'example', name: 'Example', version: '1.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:crystal_block'], items: [], decorations: [] }] }) } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(StructureJsonImportDialogComponent); fixture.componentRef.setInput('project', project); fixture.detectChanges();
+    const instance = fixture.componentInstance as unknown as { addMaterial: (value: PlaceableItemDefinition) => void; setMaterialMode: (id: string, mode: 'unlimited' | 'forbidden' | 'maximum') => void; setMaterialMaximum: (id: string, value: string) => void; clearMaterialRules: () => void; resetMaterialRules: () => void; materialRuleRows: () => readonly { targetId: string; available: boolean }[]; aiPrompt: () => string };
+    expect(instance.materialRuleRows()).toMatchObject([{ targetId: 'missing:old_block', available: false }]);
+    instance.addMaterial(item); instance.setMaterialMaximum('example:crystal', '3');
+    expect(preferences.preferences().externalAiMaterialRules).toContainEqual({ targetId: 'example:crystal', maxCount: 3 });
+    instance.setMaterialMode('example:crystal', 'forbidden');
+    expect(preferences.preferences().externalAiMaterialRules).toContainEqual({ targetId: 'example:crystal', maxCount: 0 });
+    expect(instance.aiPrompt()).toContain('example:crystal_block');
+    instance.clearMaterialRules(); expect(preferences.preferences().externalAiMaterialRules).toEqual([]);
+    instance.resetMaterialRules(); expect(preferences.preferences().externalAiMaterialRules).toHaveLength(4);
   });
 
   it('translates structured diagnostic codes while keeping technical fields separate', async () => {
