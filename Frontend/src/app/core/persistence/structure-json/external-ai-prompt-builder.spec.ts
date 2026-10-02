@@ -129,4 +129,29 @@ describe('external Structure JSON AI prompt', () => {
     expect(englishText).not.toContain('formatVersion');
     expect(vietnameseText).not.toContain('formatVersion');
   });
+
+  it('requires grounded, origin-normalized generation without banning intentional floating', () => {
+    const english = externalAiInstructionSections('1.21.1', 'en', context.projectContext).flatMap((section) => section.lines).join('\n');
+    const vietnamese = externalAiInstructionSections('1.21.1', 'vi', context.projectContext).flatMap((section) => section.lines).join('\n');
+
+    for (const text of [english, vietnamese]) {
+      expect(text).toContain('minX = 0');
+      expect(text).toContain('minY = 0');
+      expect(text).toContain('minZ = 0');
+      expect(text).toContain('y = 0');
+    }
+    expect(english).toMatch(/translate the whole design upward/i);
+    expect(english).toContain('ordinary architecture and scenery must be grounded');
+    expect(english).toContain('Intentional floating is allowed only when the user explicitly requests');
+    expect(english).toContain('every block needs another block directly below it');
+    expect(english).toContain('sapling');
+    expect(english).toContain('valid wall, floor, hanging, or other required support');
+    expect(english).toContain('accidental floating');
+    expect(english).not.toContain('Ordinary stable blocks may float');
+    expect(vietnamese).toContain('tịnh tiến toàn bộ thiết kế lên');
+    expect(vietnamese).toContain('kiến trúc và cảnh quan bình thường');
+    expect(vietnamese).toContain('Chỉ giữ cấu trúc lơ lửng khi người dùng yêu cầu rõ');
+    expect(vietnamese).toContain('không có nghĩa mỗi block đều phải có block ngay bên dưới');
+    expect(vietnamese).not.toContain('Block ổn định thông thường có thể đặt giữa không trung');
+  });
 });

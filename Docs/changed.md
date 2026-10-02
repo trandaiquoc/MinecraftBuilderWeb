@@ -2157,3 +2157,15 @@ use relative planned geometry/state and provider generation, so moving a ghost
 reuses its visual. Structural reconciliation, visible selection filtering, and
 project bounds are cached separately from overlay updates. Runtime diagnostics
 expose index, DDA, preview, ghost, reconcile, and hover-scan counters.
+
+## External AI grounding guidance
+
+The Create with AI prompt now treats grounding and contextual support as the
+default for ordinary architecture and scenery. It normalizes ordinary local
+structures to `minX = 0`, `minY = 0`, and `minZ = 0`, translates basements and
+other deep geometry upward instead of using negative coordinates, and requires
+a final audit for accidental floating, tree grounding, and known attachment
+support. Explicitly requested floating designs and their intentional Air gaps
+remain valid and are never repaired with invented pillars or scaffolding. This
+is prompt guidance only; it does not add material budgets or editor-wide
+coordinate validation.

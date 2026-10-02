@@ -176,12 +176,16 @@ export function externalAiInstructionSections(
       ] },
       { id: 'geometry', title: 'THIẾT KẾ VOXEL', lines: [
         'Mọi chi tiết nhìn thấy phải được tạo bằng block hoặc decoration được hỗ trợ. Trừ khi người dùng yêu cầu thiết kế phẳng, các vật thể chính phải có hình khối 3D rõ ràng và có chiều sâu trên X, Y và Z.',
-        'Các yêu cầu như lơ lửng, phía trên, phía dưới, bên trong, ở giữa hoặc tách rời là ràng buộc không gian. Block ổn định thông thường có thể đặt giữa không trung; không tự thêm cột chống, móng, dây xích, cầu hoặc giàn đỡ nếu người dùng không yêu cầu. Giữ các quy tắc gắn kết và trọng lực khi chúng áp dụng.',
+        'Các yêu cầu như lơ lửng, phía trên, phía dưới, bên trong, ở giữa hoặc tách rời là ràng buộc không gian. Minecraft có thể kỹ thuật cho phép nhiều block ổn định tồn tại khi không được đỡ, nhưng đó không phải mặc định thiết kế. Với kiến trúc và cảnh quan bình thường, hãy nối nhà, tường, cột, nền và lối đi vào mặt đất hoặc nền móng hợp lý theo ngữ cảnh; điều này không có nghĩa mỗi block đều phải có block ngay bên dưới.',
+        'Chỉ giữ cấu trúc lơ lửng khi người dùng yêu cầu rõ như đảo bay, lâu đài bay, đền lơ lửng, nền treo hoặc khoảng không chủ ý. Giữ khoảng Air được yêu cầu và không tự sửa bằng cột, móng, dây xích, cầu hoặc giàn đỡ.',
+        'Block gắn hoặc phụ thuộc hỗ trợ phải có hỗ trợ hợp lệ theo semantics đã biết. Không áp dụng luật trọng lực/hỗ trợ cho mọi block và không đoán behavior của block mod chưa được xác minh.',
         'Với cây hoặc thực vật có thể phát triển được và chỉ dùng làm cảnh, hãy ưu tiên sapling phù hợp và chừa khoảng trống để cây phát triển. Chỉ dựng trực tiếp cây trưởng thành khi người dùng yêu cầu cây custom, trưởng thành, điêu khắc, khổng lồ hoặc dựng chính xác; nếu có công cụ web và cần biết khoảng trống chính xác, hãy tra cứu yêu cầu phát triển trong Java 1.21.1.',
       ] },
       { id: 'size', title: 'KÍCH THƯỚC CẤU TRÚC', lines: [
         `MinecraftBuilder hỗ trợ cấu trúc tối đa ${maximumSizeText} block. Hãy chọn kích thước phù hợp với công trình và chỉ dùng không gian thực sự cần thiết; không phóng lớn công trình chỉ để tận dụng giới hạn tối đa.`,
-        `Tọa độ x, y, z phải là số nguyên không âm và cấu trúc không được vượt quá ${maximumSizeText} block trên bất kỳ trục nào.`,
+        `Tọa độ x, y, z của block và anchor decoration phải là số nguyên không âm và cấu trúc không được vượt quá ${maximumSizeText} block trên bất kỳ trục nào.`,
+        'Với cấu trúc thông thường trong không gian cục bộ, hãy chuẩn hóa phần hình học có block về minX = 0, minY = 0, minZ = 0; không thêm khoảng trống do offset tùy ý. Khoảng Air chủ ý do người dùng yêu cầu có thể khiến phần hình học bắt đầu trên y = 0, nhưng không được lấp khoảng đó bằng block hỗ trợ.',
+        'Basement, hang, hố, hồ sâu, nền móng sâu, phòng chôn hoặc đường hầm không được dùng tọa độ âm. Hãy tịnh tiến toàn bộ thiết kế lên để phần thấp nhất có y = 0; tương tự, tịnh tiến toàn bộ thiết kế theo X/Z thay vì phát ra x hoặc z âm.',
         `Công trình lớn hơn ${vanillaLimit} block trên bất kỳ trục nào cần Huge Structure Blocks khi nạp vào Minecraft.`,
       ] },
       { id: 'content', title: 'NỘI DUNG HIỆN CÓ', lines: [
@@ -195,9 +199,11 @@ export function externalAiInstructionSections(
       ] },
       { id: 'data', title: 'QUY TẮC DỮ LIỆU', lines: [
         'Tọa độ x, y, z phải là số nguyên không âm, không trùng nhau và phù hợp với kích thước đã chọn. Dùng dữ liệu blockEntity và decoration Structure JSON được hỗ trợ. Danh sách item là sparse; dùng max stack size đã xác minh khi có, nếu chưa biết thì dùng count 1.',
+        'Với attachment/support đã biết, kiểm tra wall, mặt sàn, điểm treo và hỗ trợ tương ứng trước khi trả JSON. Không suy diễn rằng mọi block đều chịu trọng lực hoặc cần block ngay bên dưới; behavior mod chưa biết phải để ở trạng thái không chắc chắn thay vì đoán.',
       ] },
       { id: 'final', title: 'KIỂM TRA CUỐI', lines: [
-        'Kiểm tra các đặc điểm người dùng yêu cầu đã tồn tại, vật thể 3D có chiều sâu, quan hệ không gian chính xác, tọa độ hợp lệ và không trùng, ID/state hợp lệ, số lượng item hợp lệ và cấu trúc không vượt quá giới hạn hỗ trợ, rồi trả đúng kết quả theo quy tắc KẾT QUẢ.',
+        'Trước khi trả kết quả, kiểm tra từng tọa độ là số nguyên và không âm; cấu trúc thông thường đã được chuẩn hóa về minX = 0, minY = 0, minZ = 0; không có phần kiến trúc vô tình lơ lửng; nhà, tường, cột, nền và lối đi có kết nối mặt đất hợp lý; cây/sapling có nền hoặc hỗ trợ phù hợp; nội dung gắn hoặc phụ thuộc hỗ trợ có hỗ trợ hợp lệ; khoảng lơ lửng được người dùng yêu cầu vẫn được giữ và không bị sửa bằng support giả.',
+        'Kiểm tra các đặc điểm người dùng yêu cầu đã tồn tại, vật thể 3D có chiều sâu, quan hệ không gian chính xác, ID/state hợp lệ, số lượng item hợp lệ, schema JSON hợp lệ và cấu trúc không vượt quá giới hạn hỗ trợ, rồi trả đúng kết quả theo quy tắc KẾT QUẢ.',
       ] },
     ];
   }
@@ -213,12 +219,15 @@ export function externalAiInstructionSections(
     ] },
     { id: 'geometry', title: 'VOXEL DESIGN', lines: [
       'Every visible requested feature must be explicit blocks or supported decorations. Unless the user explicitly requests flat art, major objects must be genuinely three-dimensional with meaningful depth across X, Y, and Z.',
-      'Words such as floating, above, below, inside, centered, between, and disconnected are spatial requirements. Preserve intentional air gaps. Ordinary stable blocks may float; do not invent supports, foundations, chains, bridges, or hidden scaffolding unless requested. Preserve attachment and gravity exceptions when they apply.',
+      'Words such as floating, above, below, inside, centered, between, and disconnected are spatial requirements. Preserve intentional air gaps. Minecraft may technically permit unsupported stable blocks, but ordinary architecture and scenery must be grounded and contextually connected: ground houses, walls, columns, foundations, platforms, and paths on sensible terrain or supports where expected. This is not a rule that every block needs another block directly below it.',
+      'Intentional floating is allowed only when the user explicitly requests a floating island, castle, levitating temple, suspended platform, disconnected object, or explicit air gap. Preserve that gap and never repair it with invented pillars, foundations, chains, bridges, or scaffolding. Unknown modded support behavior must remain unknown rather than guessed.',
       'For ordinary growable trees or vegetation used mainly as scenery, prefer an appropriate sapling with open space around and above it for normal growth. Build directly only when the user requests a custom, mature, sculpted, giant, or exact/block-built tree. If web tools are available and exact clearance matters, research Java 1.21.1 growth requirements.',
       ] },
       { id: 'size', title: 'PROJECT SIZE', lines: [
       `MinecraftBuilder supports structures up to ${maximumSizeText} blocks. Choose dimensions appropriate for the requested design and use only the space the design actually needs; do not enlarge a structure merely to use the maximum.`,
-      `Coordinates x, y, and z must be non-negative integers and the structure must not exceed ${maximumSizeText} blocks on any axis.`,
+      `Block coordinates and decoration anchors x, y, and z must be non-negative integers and the structure must not exceed ${maximumSizeText} blocks on any axis.`,
+      'For ordinary local-space generation, normalize the occupied structure to minX = 0, minY = 0, minZ = 0 instead of adding arbitrary empty offset space. A user-requested intentional air gap may place occupied geometry above y = 0; do not fill that gap with unwanted support.',
+      'Basements, caves, pits, deep lakes, deep foundations, buried rooms, and underground tunnels must not use negative coordinates. Translate the whole design upward so its lowest generated coordinate is y = 0, and translate the whole design on X/Z instead of emitting negative x or z.',
       `Structures larger than ${vanillaLimit} blocks on any axis require the Huge Structure Blocks workflow when loaded in Minecraft.`,
     ] },
     { id: 'content', title: 'AVAILABLE CONTENT', lines: [
@@ -232,9 +241,10 @@ export function externalAiInstructionSections(
     ] },
     { id: 'data', title: 'DATA RULES', lines: [
       'Use only supported Structure JSON blockEntity and decoration data. Item lists are sparse; use verified max stack sizes when supplied, and use count 1 when an item limit is unknown. Coordinates must be integer, non-negative, unique, and compatible with the chosen size.',
+      'For known attachment and support semantics, provide valid wall, floor, hanging, or other required support. Do not claim every block obeys gravity or needs a block directly below it; do not guess support rules for unknown modded content.',
       ] },
       { id: 'final', title: 'FINAL CHECK', lines: [
-      'Verify requested features exist, 3D objects have depth, spatial relationships are correct, coordinates are valid and unique, IDs and states are valid, item counts are valid, the structure stays within the supported maximum, and the result follows the OUTPUT policy.',
+      'Before returning JSON, audit integer and non-negative coordinates, normal origin normalization to minX = 0, minY = 0, minZ = 0, accidental floating, sensible architectural grounding, tree/sapling grounding, known attachment support, intentional floating exceptions, valid IDs/states, valid item counts, supported size, exact schema, and the OUTPUT policy.',
     ] },
   ];
 }
