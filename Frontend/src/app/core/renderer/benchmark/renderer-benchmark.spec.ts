@@ -3,7 +3,8 @@ import { ThreeViewportEngine } from '../engine/three-viewport-engine';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from './renderer-benchmark-fixtures';
 import { interiorOpaqueFullCubeKeys } from '../visibility/interior-occlusion';
-import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
+import type { OcclusionEntry } from '../visibility/interior-occlusion';
+import type { BlockVisualProvider } from '../geometry/block-model-geometry';
 
 describe('renderer incremental baseline', () => {
   it('benchmarks conservative interior culling for a deterministic 48 cubed stone volume', () => {
@@ -14,9 +15,8 @@ describe('renderer incremental baseline', () => {
       const z = Math.floor(index / size) % size;
       return { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} };
     });
-    const definition = { id: 'minecraft:stone', behavior: { kind: 'solid' }, visualClassification: 'standard-json', visualSupport: 'real' } as unknown as BlockDefinition;
-    const entries = blocks.map((block) => ({ block, role: 'normal' as const }));
-    const culled = interiorOpaqueFullCubeKeys(entries, (id) => id === definition.id ? definition : undefined);
+    const entries = blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const }));
+    const culled = interiorOpaqueFullCubeKeys(entries);
     expect(blocks).toHaveLength(110_592);
     expect(culled.size).toBe(97_336);
     expect(blocks.length - culled.size).toBe(13_256);
@@ -24,22 +24,38 @@ describe('renderer incremental baseline', () => {
 
   it('does not let reference or missing voxels become occlusion evidence', () => {
     const block = (kind: 'resolved' | 'missing', x: number, y: number, z: number) => ({ kind, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} } as const);
-    const definition = { id: 'minecraft:stone', behavior: { kind: 'solid' }, visualClassification: 'standard-json', visualSupport: 'real' } as unknown as BlockDefinition;
     const entries: import('../visibility/interior-occlusion').OcclusionEntry[] = [
-      ...Array.from({ length: 27 }, (_, index) => ({ block: block('resolved', index % 3, Math.floor(index / 9), Math.floor(index / 3) % 3), role: 'normal' as const })),
+      ...Array.from({ length: 27 }, (_, index) => ({ block: block('resolved', index % 3, Math.floor(index / 9), Math.floor(index / 3) % 3), role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const })),
     ];
-    entries[12] = { block: block('resolved', 0, 1, 1), role: 'reference' };
-    entries[4] = { block: block('missing', 1, 0, 1), role: 'missing' };
-    const culled = interiorOpaqueFullCubeKeys(entries, (id) => id === definition.id ? definition : undefined);
+    entries[12] = { block: block('resolved', 0, 1, 1), role: 'reference', occlusionClass: 'non-occluding' };
+    entries[4] = { block: block('missing', 1, 0, 1), role: 'missing', occlusionClass: 'non-occluding' };
+    const culled = interiorOpaqueFullCubeKeys(entries);
     expect(culled.size).toBe(0);
+  });
+
+  it.each([
+    ['glass', 'non-occluding'],
+    ['water', 'non-occluding'],
+    ['slab', 'unknown'],
+    ['stairs', 'unknown'],
+    ['unknown mod', 'unknown'],
+  ] as const)('does not cull through %s without positive full-cube evidence', (_label, replacementClass) => {
+    const block = (x: number, y: number, z: number) => ({ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+    const entries: OcclusionEntry[] = Array.from({ length: 27 }, (_, index) => ({ block: block(index % 3, Math.floor(index / 9), Math.floor(index / 3) % 3), role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const }));
+    const neighborIndex = entries.findIndex((entry) => entry.block.position.x === 1 && entry.block.position.y === 1 && entry.block.position.z === 0);
+    entries[neighborIndex] = { ...entries[neighborIndex], occlusionClass: replacementClass };
+    expect(interiorOpaqueFullCubeKeys(entries).has('1,1,1')).toBe(false);
   });
 
   it('keeps interior culling render-only in the viewport engine', () => {
     const blocks = Array.from({ length: 27 }, (_, index) => ({ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: index % 3, y: Math.floor(index / 9), z: Math.floor(index / 3) % 3 }, state: {} }));
     const project = { ...rendererBenchmarkProject('small'), size: { x: 3, y: 3, z: 3 }, blocks, decorations: [] };
-    const definition = { id: 'minecraft:stone', behavior: { kind: 'solid' }, visualClassification: 'standard-json', visualSupport: 'real' } as unknown as BlockDefinition;
     const engine = new ThreeViewportEngine();
-    engine.setBlockDefinitionResolver((id) => id === definition.id ? definition : undefined);
+    engine.setVisualProvider({
+      create: async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } }),
+      occlusionClass: () => 'opaque-full-cube' as const,
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider);
     engine.update(project, undefined);
     expect(engine.performanceEvidence().interiorBlocksCulled).toBe(1);
     expect(engine.visibleSceneDiagnostics().expectedVisibleVoxelCount).toBe(27);
@@ -51,6 +67,13 @@ describe('renderer incremental baseline', () => {
     expect(rendererBenchmarkProject('small').blocks).toHaveLength(256);
     expect(rendererBenchmarkProject('medium').blocks).toHaveLength(2048);
     expect(rendererBenchmarkProject('large').blocks).toHaveLength(8192);
+  });
+
+  it('keeps a deterministic mixed-material stress scene across multiple visual signatures', () => {
+    const project = rendererBenchmarkProject('stress');
+    const signatures = new Set(project.blocks.map((block) => `${block.id}|${Object.entries(block.state).sort().map(([key, value]) => `${key}=${value}`).join(',')}`));
+    expect(project.blocks).toHaveLength(20_000);
+    expect(signatures.size).toBeGreaterThanOrEqual(8);
   });
 
   it('updates a single structural entry without rebuilding unchanged entries', () => {

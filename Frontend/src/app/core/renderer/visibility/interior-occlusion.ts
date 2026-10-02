@@ -1,43 +1,40 @@
-import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { coordinateKey } from '../../domain/coordinates';
 
 export type OcclusionRole = 'normal' | 'reference' | 'missing';
+export type OcclusionClass = 'opaque-full-cube' | 'non-occluding' | 'unknown';
 
 export interface OcclusionEntry {
   readonly block: PlacedBlock;
   readonly role: OcclusionRole;
+  readonly occlusionClass: OcclusionClass;
 }
 
-export type BlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
-
 /**
- * Only an explicit solid behavior is sufficient evidence for whole-voxel
- * occlusion. Model names, registry-name suffixes, and fallback visuals are
- * intentionally not treated as proof because they can represent thin or
- * translucent blocks.
+ * Only a provider-backed positive visual classification is sufficient evidence
+ * for whole-voxel occlusion. Domain behavior, model names, registry-name
+ * suffixes, and fallback visuals are intentionally not treated as proof.
  */
-export function isConfirmedOpaqueFullCube(entry: OcclusionEntry, definition: BlockDefinition | undefined): boolean {
-  return entry.role === 'normal' && entry.block.kind === 'resolved' && definition?.behavior?.kind === 'solid';
+export function isConfirmedOpaqueFullCube(entry: OcclusionEntry): boolean {
+  return entry.role === 'normal' && entry.block.kind === 'resolved' && entry.occlusionClass === 'opaque-full-cube';
 }
 
 export function hasConfirmedOpaqueNeighbors(
   entry: OcclusionEntry,
   entries: ReadonlyMap<string, OcclusionEntry>,
-  definitions: BlockDefinitionLookup,
 ): boolean {
-  if (!isConfirmedOpaqueFullCube(entry, definitions(entry.block.id))) return false;
+  if (!isConfirmedOpaqueFullCube(entry)) return false;
   return coordinateNeighbors(entry.block.position).every((position) => {
     const neighbor = entries.get(coordinateKey(position));
-    return !!neighbor && isConfirmedOpaqueFullCube(neighbor, definitions(neighbor.block.id));
+    return !!neighbor && isConfirmedOpaqueFullCube(neighbor);
   });
 }
 
 /** Deterministic full-cube benchmark helper. It has no Three.js dependency. */
-export function interiorOpaqueFullCubeKeys(entries: readonly OcclusionEntry[], definitions: BlockDefinitionLookup): ReadonlySet<string> {
+export function interiorOpaqueFullCubeKeys(entries: readonly OcclusionEntry[]): ReadonlySet<string> {
   const map = new Map(entries.map((entry) => [coordinateKey(entry.block.position), entry] as const));
   return new Set(entries
-    .filter((entry) => hasConfirmedOpaqueNeighbors(entry, map, definitions))
+    .filter((entry) => hasConfirmedOpaqueNeighbors(entry, map))
     .map((entry) => coordinateKey(entry.block.position)));
 }
 

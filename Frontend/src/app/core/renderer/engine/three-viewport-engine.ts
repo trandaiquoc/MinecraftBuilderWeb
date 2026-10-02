@@ -30,6 +30,7 @@ import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, applyStru
 import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
 import { structureBlockGuidePosition } from './structure-block-guide';
 import { coordinateNeighbors, hasConfirmedOpaqueNeighbors } from '../visibility/interior-occlusion';
+import type { OcclusionClass } from '../visibility/interior-occlusion';
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 export type ViewportHoverListener = (hit: ViewportHit) => void;
@@ -68,6 +69,15 @@ export interface ViewportPerformanceEvidence {
   readonly cameraMovementRenderCalls: number;
   readonly cameraChangeEventsDuringMovement: number;
   readonly cameraRenderRequestsSuppressed: number;
+  readonly controlChangeEvents: number;
+  readonly cameraRenderRequests: number;
+  readonly cameraRendersExecuted: number;
+  readonly cameraRenderRequestsCoalesced: number;
+  readonly interactiveResolutionEntries: number;
+  readonly staticResolutionRestores: number;
+  readonly hydrationPausesForCamera: number;
+  readonly hydrationJobsStartedWhileCamera: number;
+  readonly blockSignatureComputations: number;
   readonly hoverRaycasts: number;
   readonly hoverRaycastsSuppressedDuringCamera: number;
   readonly hoverPointerMovesCoalesced: number;
@@ -75,6 +85,14 @@ export interface ViewportPerformanceEvidence {
   readonly hydrationQueue: number;
   readonly hydrationRunning: number;
   readonly frameDurationMs: number;
+  readonly renderCpuMs: number;
+  readonly drawCalls: number;
+  readonly lines: number;
+  readonly points: number;
+  readonly instanceBatches: number;
+  readonly instancedMeshCount: number;
+  readonly nonInstancedMeshCount: number;
+  readonly renderableBlocks: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -287,7 +305,7 @@ interface DecorationHydrationJob {
   readonly signature: string;
 }
 
-type VisibleBlockEntry = { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string };
+type VisibleBlockEntry = { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string; readonly occlusionClass: OcclusionClass };
 interface HoverRequest {
   readonly clientX: number;
   readonly clientY: number;
@@ -303,6 +321,9 @@ export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
 export const VIEWPORT_VISUAL_CONCURRENCY = 6;
 export const VIEWPORT_INSTANCE_CHUNK_SIZE = 16;
 export const VIEWPORT_INSTANCE_THRESHOLD = 256;
+export const VIEWPORT_HYDRATION_SYNC_BUDGET_MS = 7;
+export const VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH = 256;
+export const VIEWPORT_CAMERA_IDLE_GRACE_MS = 160;
 export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
 export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
 export const VIEWPORT_HYDRATION_COMPLETE_DISPLAY_MS = 800;
@@ -399,13 +420,14 @@ export class ThreeViewportEngine {
   private renderOptions: ViewportRenderOptions = {};
   private hasCameraFrame = false;
   private readonly renderOnControlChange = () => {
-    this.cameraInteractingUntil = performance.now() + 180;
+    this.instrumentation.record('controlChangeEvents');
+    this.markCameraInteraction();
     if (this.cameraMovementInProgress) {
       this.instrumentation.record('cameraChangeEventsDuringMovement');
       this.instrumentation.record('cameraRenderRequestsSuppressed');
       return;
     }
-    this.render();
+    this.requestCameraRender();
   };
   private cameraMovementInProgress = false;
   private cameraGestureInProgress = false;
@@ -415,9 +437,9 @@ export class ThreeViewportEngine {
     this.ghost.visible = false;
     if (this.ghostModel) this.ghostModel.visible = false;
     this.clearDecorationGhost();
-    this.render();
+    this.requestCameraRender();
   };
-  private readonly onControlEnd = () => { this.cameraGestureInProgress = false; this.render(); };
+  private readonly onControlEnd = () => { this.cameraGestureInProgress = false; this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
   private cameraMoveFrame?: number;
   private readonly pressedActions = new Set<MovementAction>();
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
@@ -500,12 +522,21 @@ export class ThreeViewportEngine {
   private hydrationRunning = 0;
   private readonly hydrationRunningByGeneration = new Map<number, number>();
   private hydrationBatchBudget = 0;
+  private hydrationBatchDeadline = 0;
   private hydrationTimer?: ReturnType<typeof setTimeout>;
   private hydrationScheduled = false;
   private cameraInteractingUntil = 0;
+  private cameraRenderFrame?: number;
+  private staticResolutionRestoreTimer?: ReturnType<typeof setTimeout>;
+  private staticPixelRatio = 1;
+  private interactivePixelRatio = 1;
+  private interactiveResolutionActive = false;
   private lastRenderTimestamp = 0;
   private frameDurationMs = 0;
+  private renderCpuMs = 0;
+  private lastRendererMetrics = { calls: 0, triangles: 0, lines: 0, points: 0, geometries: 0, textures: 0 };
   private renderScheduled = false;
+  private renderFrame?: number;
   private renderTimer?: ReturnType<typeof setTimeout>;
   private hoverFrame?: number;
   private hoverTimer?: ReturnType<typeof setTimeout>;
@@ -518,6 +549,7 @@ export class ThreeViewportEngine {
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
   private readonly culledBlockKeys = new Set<string>();
   private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
+  private readonly placeholderTranslationMatrix = new THREE.Matrix4();
 
   constructor(readonly instrumentation = new RendererDiagnostics()) {
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
@@ -534,7 +566,8 @@ export class ThreeViewportEngine {
     if (this.renderer) { this.resize(); return; }
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.updatePixelRatioTargets();
+    this.renderer.setPixelRatio(this.staticPixelRatio);
     container.appendChild(this.renderer.domElement);
     this.applyTheme(this.palette);
     this.hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x394454, 1);
@@ -637,8 +670,8 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
-  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.render(); }
+  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.markCameraInteraction(); this.startCameraMovement(); }
+  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) { this.requestCameraRender(); this.scheduleStaticResolutionRestore(); } }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -693,6 +726,8 @@ export class ThreeViewportEngine {
 
   resize(): void {
     if (!this.renderer || !this.container) return;
+    this.updatePixelRatioTargets();
+    this.applyPixelRatio(this.interactiveResolutionActive ? this.interactivePixelRatio : this.staticPixelRatio);
     const { width, height } = this.container.getBoundingClientRect();
     const size = viewportRenderSize(width, height);
     this.canvasSize = size;
@@ -924,12 +959,14 @@ export class ThreeViewportEngine {
       }
       if (!changed.has(key) && current) this.removePlaceholderVisual(key);
     }
+    const changedEntries = [...changed].map((key) => visibleMap.get(key)).filter((entry): entry is VisibleBlockEntry => !!entry);
+    if (full) this.ensurePlaceholderVisualsBulk(changedEntries);
     for (const key of changed) {
       const next = visibleMap.get(key); if (!next) continue;
       const previous = this.renderedBlocks.get(key);
       if (previous) { this.removeBlockEntry(key, previous); this.instrumentation.record('blockUpdates'); }
       else if (this.pendingHydrationSignatures.get(key) === undefined && this.placeholderSignatures.get(key) === undefined) this.instrumentation.record('blockAdds');
-      this.ensurePlaceholderVisual(key, next.block, next.role);
+      if (!full) this.ensurePlaceholderVisual(key, next.block, next.role);
       this.pendingHydrationSignatures.set(key, next.signature);
       this.instrumentation.record('blockVisualCreations');
       // A fallback-only scene has no asynchronous visual work. Keep the
@@ -943,7 +980,16 @@ export class ThreeViewportEngine {
       this.placeholderSignatures.delete(key);
       this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing });
     }
-    this.hydrationQueue.sort((left, right) => (left.role === right.role ? 0 : left.role === 'normal' ? -1 : 1));
+    const normalJobs: BlockHydrationJob[] = [];
+    const referenceJobs: BlockHydrationJob[] = [];
+    const missingJobs: BlockHydrationJob[] = [];
+    for (const job of this.hydrationQueue) {
+      if (job.role === 'normal') normalJobs.push(job);
+      else if (job.role === 'reference') referenceJobs.push(job);
+      else missingJobs.push(job);
+    }
+    this.hydrationQueue = [...normalJobs, ...referenceJobs, ...missingJobs];
+    this.hydrationQueueHead = 0;
     const previousMax = this.instrumentation.snapshot().maxPendingVisualJobs;
     if (this.queuedBlockHydrationJobs() > previousMax) this.instrumentation.record('maxPendingVisualJobs', this.queuedBlockHydrationJobs() - previousMax);
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.queuedDecorationHydrationJobs());
@@ -957,18 +1003,19 @@ export class ThreeViewportEngine {
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions): readonly VisibleBlockEntry[] {
     return visibleBlockEntries(project, options).map((block) => {
       const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
-      return { block, role, signature: `${blockRenderSignature(block)}|${role}|${options.referenceOpacity ?? .28}` };
+      this.instrumentation.record('blockSignatureComputations');
+      return { block, role, signature: `${blockRenderSignature(block)}|${role}|${options.referenceOpacity ?? .28}`, occlusionClass: this.visualProvider?.occlusionClass?.(block) ?? 'unknown' };
     });
   }
 
   private updateInteriorCulling(visible: readonly VisibleBlockEntry[], full: boolean, changed: ReadonlySet<string>): void {
-    const entries = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
+    const entries = new Map(visible.map((entry) => [coordinateKey(entry.block.position), { block: entry.block, role: entry.role, occlusionClass: entry.occlusionClass }] as const));
     if (full) {
       for (const key of this.culledBlockKeys) this.instrumentation.record('interiorBlocksCulled', -1);
       this.culledBlockKeys.clear();
       for (const entry of visible) {
         this.instrumentation.record('interiorCullingChecks');
-        this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, entries, (id) => this.definitionResolver?.(id)));
+        this.setInteriorCulled(entries.get(coordinateKey(entry.block.position))!, hasConfirmedOpaqueNeighbors(entries.get(coordinateKey(entry.block.position))!, entries));
       }
       return;
     }
@@ -987,11 +1034,11 @@ export class ThreeViewportEngine {
       const entry = entries.get(key);
       if (!entry) continue;
       this.instrumentation.record('interiorCullingChecks');
-      this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, entries, (id) => this.definitionResolver?.(id)));
+      this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, entries));
     }
   }
 
-  private setInteriorCulled(entry: VisibleBlockEntry, culled: boolean): void {
+  private setInteriorCulled(entry: { readonly block: ProjectDocument['blocks'][number] }, culled: boolean): void {
     const key = coordinateKey(entry.block.position);
     const previous = this.culledBlockKeys.has(key);
     if (culled === previous) return;
@@ -1060,12 +1107,90 @@ export class ThreeViewportEngine {
     this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 });
   }
 
+  private requestCameraRender(): void {
+    if (this.disposed) return;
+    this.instrumentation.record('cameraRenderRequests');
+    if (this.cameraRenderFrame !== undefined) { this.instrumentation.record('cameraRenderRequestsCoalesced'); return; }
+    this.cameraRenderFrame = requestViewportFrame(() => {
+      this.cameraRenderFrame = undefined;
+      if (this.disposed) return;
+      this.instrumentation.record('cameraRendersExecuted');
+      this.render();
+    });
+  }
+
+  private cancelCameraRender(): void {
+    if (this.cameraRenderFrame === undefined) return;
+    cancelViewportFrame(this.cameraRenderFrame);
+    this.cameraRenderFrame = undefined;
+  }
+
+  private isCameraInteracting(): boolean {
+    return this.cameraGestureInProgress || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil;
+  }
+
+  private markCameraInteraction(): void {
+    this.cameraInteractingUntil = performance.now() + VIEWPORT_CAMERA_IDLE_GRACE_MS;
+    this.enterInteractiveResolution();
+    this.scheduleStaticResolutionRestore();
+    if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
+  }
+
+  private updatePixelRatioTargets(): void {
+    const devicePixelRatio = typeof window === 'undefined' ? 1 : window.devicePixelRatio;
+    this.staticPixelRatio = Math.min(devicePixelRatio, 2);
+    this.interactivePixelRatio = Math.min(devicePixelRatio, 1);
+  }
+
+  private applyPixelRatio(pixelRatio: number): void {
+    if (!this.renderer || this.renderer.getPixelRatio() === pixelRatio) return;
+    this.renderer.setPixelRatio(pixelRatio);
+    if (this.canvasSize.width > 0 && this.canvasSize.height > 0) this.renderer.setSize(this.canvasSize.width, this.canvasSize.height, false);
+  }
+
+  private enterInteractiveResolution(): void {
+    if (this.interactiveResolutionActive || !this.renderer || this.staticPixelRatio <= this.interactivePixelRatio) return;
+    this.interactiveResolutionActive = true;
+    this.applyPixelRatio(this.interactivePixelRatio);
+    this.instrumentation.record('interactiveResolutionEntries');
+  }
+
+  private scheduleStaticResolutionRestore(): void {
+    if (!this.renderer || !this.interactiveResolutionActive) return;
+    if (this.staticResolutionRestoreTimer !== undefined) clearTimeout(this.staticResolutionRestoreTimer);
+    const delay = Math.max(0, this.cameraInteractingUntil - performance.now());
+    this.staticResolutionRestoreTimer = setTimeout(() => {
+      this.staticResolutionRestoreTimer = undefined;
+      if (this.cameraGestureInProgress || this.pressedActions.size || performance.now() < this.cameraInteractingUntil) {
+        this.scheduleStaticResolutionRestore();
+        return;
+      }
+      this.interactiveResolutionActive = false;
+      this.applyPixelRatio(this.staticPixelRatio);
+      this.instrumentation.record('staticResolutionRestores');
+      this.requestCameraRender();
+    }, delay);
+  }
+
+  private scheduleHydrationWakeup(): void {
+    const delay = Math.max(16, this.cameraInteractingUntil - performance.now() + 1);
+    if (this.hydrationTimer !== undefined) clearTimeout(this.hydrationTimer);
+    this.hydrationScheduled = true;
+    this.hydrationTimer = setTimeout(() => {
+      this.hydrationScheduled = false;
+      this.hydrationTimer = undefined;
+      this.processHydrationBatch();
+    }, delay);
+  }
+
   private scheduleHydrationPump(delay: boolean | number = false): void {
-    if (this.hydrationScheduled || this.disposed) return;
+    if (this.disposed) return;
+    if (this.isCameraInteracting()) { this.scheduleHydrationWakeup(); return; }
+    if (this.hydrationScheduled) return;
     this.hydrationScheduled = true;
     const run = () => { this.hydrationScheduled = false; this.hydrationTimer = undefined; this.processHydrationBatch(); };
-    if (delay) this.hydrationTimer = setTimeout(run, typeof delay === 'number' ? delay : 0);
-    else queueMicrotask(run);
+    if (!delay) queueMicrotask(run);
+    else this.hydrationTimer = setTimeout(run, typeof delay === 'number' ? delay : 0);
   }
 
   private queuedBlockHydrationJobs(): number { return this.hydrationQueue.length - this.hydrationQueueHead; }
@@ -1081,20 +1206,37 @@ export class ThreeViewportEngine {
 
   private processHydrationBatch(): void {
     const token = this.hydrationGeneration;
-    const cameraInteracting = performance.now() < this.cameraInteractingUntil;
-    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = this.adaptiveHydrationBudget(cameraInteracting);
+    if (this.isCameraInteracting()) {
+      this.instrumentation.record('hydrationPausesForCamera');
+      this.scheduleHydrationWakeup();
+      return;
+    }
+    const now = performance.now();
+    if (this.hydrationBatchDeadline <= now || this.hydrationBatchBudget <= 0) {
+      this.hydrationBatchDeadline = now + VIEWPORT_HYDRATION_SYNC_BUDGET_MS;
+      this.hydrationBatchBudget = VIEWPORT_HYDRATION_BATCH_SIZE;
+    }
+    const deadline = this.hydrationBatchDeadline;
+    let started = 0;
     this.instrumentation.record('hydrationBatches');
-    while (this.hydrationRunning < VIEWPORT_VISUAL_CONCURRENCY && this.queuedBlockHydrationJobs() && this.hydrationBatchBudget > 0) {
+    while (this.hydrationRunning < VIEWPORT_VISUAL_CONCURRENCY && this.queuedBlockHydrationJobs() && started < VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH && performance.now() < deadline) {
       const job = this.hydrationQueue[this.hydrationQueueHead++];
       if (job.token !== token || token !== this.hydrationGeneration) continue;
       this.pendingHydrationSignatures.delete(job.key);
+      started += 1;
+      if (this.isCameraInteracting()) {
+        this.instrumentation.record('hydrationPausesForCamera');
+        this.hydrationQueueHead -= 1;
+        this.pendingHydrationSignatures.set(job.key, job.signature);
+        break;
+      }
       this.hydrationBatchBudget -= 1;
       this.hydrationRunning += 1;
       this.runningHydrationKeys.set(job.key, job.token);
       this.hydrationRunningByGeneration.set(job.token, (this.hydrationRunningByGeneration.get(job.token) ?? 0) + 1);
       const complete = () => this.completeHydrationJob(job);
       try {
-        this.createBlockEntry(job.block, job.role, job.worldContext, job.options, job.allowInstancing, complete);
+        this.createBlockEntry(job.block, job.signature, job.role, job.worldContext, job.options, job.allowInstancing, complete);
       } catch (error: unknown) {
         // Cached/template insertion is synchronous and can fail before a
         // provider promise exists. Convert that failure into a final fallback
@@ -1104,9 +1246,16 @@ export class ThreeViewportEngine {
         complete();
       }
     }
-    this.processDecorationBatch(token);
-    if (this.hydrationBatchBudget <= 0) this.hydrationBatchBudget = 0;
-    if ((this.queuedBlockHydrationJobs() && this.hydrationRunning === 0) || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump(true);
+    this.processDecorationBatch(token, deadline);
+    const workRemaining = this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs();
+    if (workRemaining && this.hydrationRunning === 0) {
+      const budgetExhausted = this.hydrationBatchBudget <= 0 || performance.now() >= this.hydrationBatchDeadline;
+      if (budgetExhausted) { this.hydrationBatchBudget = 0; this.hydrationBatchDeadline = 0; this.scheduleHydrationPump(true); }
+      else this.scheduleHydrationPump(false);
+    } else if (!workRemaining && this.hydrationRunning === 0) {
+      this.hydrationBatchBudget = 0;
+      this.hydrationBatchDeadline = 0;
+    }
     this.compactConsumedHydrationQueues();
   }
 
@@ -1116,7 +1265,7 @@ export class ThreeViewportEngine {
     const generationRunning = Math.max(0, (this.hydrationRunningByGeneration.get(job.token) ?? 1) - 1);
     if (generationRunning) this.hydrationRunningByGeneration.set(job.token, generationRunning); else this.hydrationRunningByGeneration.delete(job.token);
     this.completeHydrationPart(job.token, 'block');
-    this.scheduleHydrationPump(this.hydrationBatchBudget <= 0);
+    this.scheduleHydrationPump(this.hydrationBatchBudget > 0 && performance.now() < this.hydrationBatchDeadline ? false : true);
   }
 
   private markHydrationFailure(job: BlockHydrationJob, error: unknown): void {
@@ -1132,20 +1281,9 @@ export class ThreeViewportEngine {
     this.removeOrphanedInstanceMemberships(key, 'rollback');
   }
 
-  private adaptiveHydrationBudget(cameraInteracting = false): number {
-    if (cameraInteracting) {
-      if (this.frameDurationMs >= 28) return 8;
-      if (this.frameDurationMs >= 18) return 16;
-      return 24;
-    }
-    if (this.frameDurationMs >= 28) return 24;
-    if (this.frameDurationMs >= 18) return 48;
-    return VIEWPORT_HYDRATION_BATCH_SIZE;
-  }
-
-  private processDecorationBatch(token: number): void {
+  private processDecorationBatch(token: number, deadline: number): void {
     let processed = 0;
-    while (processed < VIEWPORT_HYDRATION_BATCH_SIZE && this.queuedDecorationHydrationJobs()) {
+    while (processed < VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH && this.queuedDecorationHydrationJobs() && performance.now() < deadline) {
       const job = this.decorationHydrationQueue[this.decorationHydrationQueueHead++];
       if (job.token !== token || token !== this.hydrationGeneration) continue;
       this.pendingDecorationSignatures.delete(job.id);
@@ -1173,6 +1311,7 @@ export class ThreeViewportEngine {
     this.runningHydrationKeys.clear();
     this.cancelDecorationHydration();
     this.hydrationBatchBudget = 0;
+    this.hydrationBatchDeadline = 0;
     if (this.hydrationTimer !== undefined) { clearTimeout(this.hydrationTimer); this.hydrationTimer = undefined; }
     this.hydrationScheduled = false;
     this.resetHydrationProgress();
@@ -1188,38 +1327,63 @@ export class ThreeViewportEngine {
     if (this.renderScheduled || this.disposed) return;
     this.renderScheduled = true;
     this.instrumentation.record('coalescedRenderRequests');
-    this.renderTimer = setTimeout(() => { this.renderScheduled = false; this.renderTimer = undefined; this.render(); }, 0);
+    this.renderFrame = requestViewportFrame(() => { this.renderScheduled = false; this.renderFrame = undefined; this.render(); });
   }
 
   private ensurePlaceholderVisual(key: string, block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role']): void {
     if (this.placeholderIndices.has(key)) return;
     const batchKey = `${role}|${chunkKey(block.position)}`;
-    let batch = this.placeholderBatches.get(batchKey);
-    if (!batch) {
-      const material = this.placeholderMaterials[role];
-      const mesh = new THREE.InstancedMesh(this.placeholderGeometry, material, VIEWPORT_INSTANCE_CHUNK_SIZE ** 3);
-      mesh.count = 0;
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      mesh.userData['instanceVoxels'] = [];
-      mesh.userData['instanceKeys'] = [];
-      mesh.userData['placeholder'] = true;
-      mesh.userData['instanceBatchKey'] = batchKey;
-      this.blocksGroup.add(mesh);
-      setStableMeshBounds(mesh, stableChunkBounds(chunkKey(block.position), unitVoxelEnvelope()));
-      this.instrumentation.record('instancedBoundsComputations');
-      batch = { key: batchKey, capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3, mesh, keys: [], positions: [] };
-      this.placeholderBatches.set(batchKey, batch);
-    }
+    const batch = this.getPlaceholderBatch(batchKey, role, block.position);
     if (batch.keys.length >= batch.capacity) return;
     const index = batch.keys.length;
     const position = { ...block.position };
     batch.keys.push(key); batch.positions.push(position);
-    batch.mesh.setMatrixAt(index, new THREE.Matrix4().makeTranslation(position.x + .5, position.y + .5, position.z + .5));
+    batch.mesh.setMatrixAt(index, this.placeholderTranslationMatrix.makeTranslation(position.x + .5, position.y + .5, position.z + .5));
     batch.mesh.count = index + 1;
     (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
     (batch.mesh.userData['instanceKeys'] as string[]).push(key);
     batch.mesh.instanceMatrix.needsUpdate = true;
     this.placeholderIndices.set(key, { batchKey, index });
+  }
+
+  private getPlaceholderBatch(batchKey: string, role: RenderedBlockEntry['role'], position: VoxelCoordinate): PlaceholderBatch {
+    const existing = this.placeholderBatches.get(batchKey);
+    if (existing) return existing;
+    const material = this.placeholderMaterials[role];
+    const mesh = new THREE.InstancedMesh(this.placeholderGeometry, material, VIEWPORT_INSTANCE_CHUNK_SIZE ** 3);
+    mesh.count = 0;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.userData['instanceVoxels'] = [];
+    mesh.userData['instanceKeys'] = [];
+    mesh.userData['placeholder'] = true;
+    mesh.userData['instanceBatchKey'] = batchKey;
+    this.blocksGroup.add(mesh);
+    setStableMeshBounds(mesh, stableChunkBounds(chunkKey(position), unitVoxelEnvelope()));
+    this.instrumentation.record('instancedBoundsComputations');
+    const batch = { key: batchKey, capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3, mesh, keys: [], positions: [] };
+    this.placeholderBatches.set(batchKey, batch);
+    return batch;
+  }
+
+  private ensurePlaceholderVisualsBulk(entries: readonly VisibleBlockEntry[]): void {
+    const touched = new Set<string>();
+    for (const entry of entries) {
+      const key = coordinateKey(entry.block.position);
+      if (this.placeholderIndices.has(key)) continue;
+      const batchKey = `${entry.role}|${chunkKey(entry.block.position)}`;
+      const batch = this.getPlaceholderBatch(batchKey, entry.role, entry.block.position);
+      if (batch.keys.length >= batch.capacity) continue;
+      const index = batch.keys.length;
+      const position = { ...entry.block.position };
+      batch.keys.push(key); batch.positions.push(position);
+      batch.mesh.setMatrixAt(index, this.placeholderTranslationMatrix.makeTranslation(position.x + .5, position.y + .5, position.z + .5));
+      batch.mesh.count = index + 1;
+      (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
+      (batch.mesh.userData['instanceKeys'] as string[]).push(key);
+      this.placeholderIndices.set(key, { batchKey, index });
+      touched.add(batchKey);
+    }
+    for (const batchKey of touched) this.placeholderBatches.get(batchKey)!.mesh.instanceMatrix.needsUpdate = true;
   }
 
   private removePlaceholderVisual(key: string): void {
@@ -1237,7 +1401,7 @@ export class ThreeViewportEngine {
       const voxels = batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[];
       const keys = batch.mesh.userData['instanceKeys'] as string[];
       voxels[index] = movedPosition; keys[index] = movedKey;
-      batch.mesh.setMatrixAt(index, new THREE.Matrix4().makeTranslation(movedPosition.x + .5, movedPosition.y + .5, movedPosition.z + .5));
+      batch.mesh.setMatrixAt(index, this.placeholderTranslationMatrix.makeTranslation(movedPosition.x + .5, movedPosition.y + .5, movedPosition.z + .5));
       this.placeholderIndices.set(movedKey, { batchKey: batch.key, index });
     }
     batch.keys.pop(); batch.positions.pop();
@@ -1257,13 +1421,13 @@ export class ThreeViewportEngine {
     this.placeholderIndices.clear();
   }
 
-  private createBlockEntry(block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, onComplete?: () => void): void {
+  private createBlockEntry(block: ProjectDocument['blocks'][number], signature: string, role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, onComplete?: () => void): void {
     const key = coordinateKey(block.position);
     const existing = this.renderedBlocks.get(key);
     if (existing) this.removeBlockEntry(key, existing);
     else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
     this.removePlaceholderVisual(key);
-    const entry: RenderedBlockEntry = { key, block, signature: `${blockRenderSignature(block)}|${role}|${options.referenceOpacity ?? .28}`, role, revision: 0 };
+    const entry: RenderedBlockEntry = { key, block, signature, role, revision: 0 };
     this.renderedBlocks.set(entry.key, entry);
     const providerAvailable = !!this.visualProvider && block.kind !== 'missing';
     const provider = this.visualProvider;
@@ -1698,6 +1862,9 @@ export class ThreeViewportEngine {
     this.cancelPendingHover(false);
     this.cancelHydration();
     const provider = this.visualProvider;
+    this.cancelCameraRender();
+    if (this.staticResolutionRestoreTimer !== undefined) { clearTimeout(this.staticResolutionRestoreTimer); this.staticResolutionRestoreTimer = undefined; }
+    if (this.renderFrame !== undefined) { cancelViewportFrame(this.renderFrame); this.renderFrame = undefined; this.renderScheduled = false; }
     if (this.renderTimer !== undefined) { clearTimeout(this.renderTimer); this.renderTimer = undefined; this.renderScheduled = false; }
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
@@ -2110,14 +2277,14 @@ export class ThreeViewportEngine {
   performanceEvidence(): ViewportPerformanceEvidence {
     let object3dCount = 0;
     let meshCount = 0;
-    this.scene.traverse((object) => { object3dCount += 1; if (object instanceof THREE.Mesh) meshCount += 1; });
-    const info = this.renderer?.info;
+    let instanceMeshCount = 0;
+    this.scene.traverse((object) => { object3dCount += 1; if (object instanceof THREE.Mesh) { meshCount += 1; if (object instanceof THREE.InstancedMesh) instanceMeshCount += 1; } });
     const counters = this.instrumentation.snapshot();
     return {
-      renderCalls: info?.render.calls ?? 0,
-      triangles: info?.render.triangles ?? 0,
-      geometries: info?.memory.geometries ?? 0,
-      textures: info?.memory.textures ?? 0,
+      renderCalls: this.lastRendererMetrics.calls,
+      triangles: this.lastRendererMetrics.triangles,
+      geometries: this.lastRendererMetrics.geometries,
+      textures: this.lastRendererMetrics.textures,
       renderedBlocks: this.renderedBlocks.size,
       renderedDecorations: this.renderedDecorations.size,
       object3dCount,
@@ -2134,6 +2301,15 @@ export class ThreeViewportEngine {
       cameraMovementRenderCalls: counters.cameraMovementRenderCalls,
       cameraChangeEventsDuringMovement: counters.cameraChangeEventsDuringMovement,
       cameraRenderRequestsSuppressed: counters.cameraRenderRequestsSuppressed,
+      controlChangeEvents: counters.controlChangeEvents,
+      cameraRenderRequests: counters.cameraRenderRequests,
+      cameraRendersExecuted: counters.cameraRendersExecuted,
+      cameraRenderRequestsCoalesced: counters.cameraRenderRequestsCoalesced,
+      interactiveResolutionEntries: counters.interactiveResolutionEntries,
+      staticResolutionRestores: counters.staticResolutionRestores,
+      hydrationPausesForCamera: counters.hydrationPausesForCamera,
+      hydrationJobsStartedWhileCamera: counters.hydrationJobsStartedWhileCamera,
+      blockSignatureComputations: counters.blockSignatureComputations,
       hoverRaycasts: counters.hoverRaycasts,
       hoverRaycastsSuppressedDuringCamera: counters.hoverRaycastsSuppressedDuringCamera,
       hoverPointerMovesCoalesced: counters.hoverPointerMovesCoalesced,
@@ -2141,6 +2317,14 @@ export class ThreeViewportEngine {
       interiorBlocksCulled: this.culledBlockKeys.size,
       hydrationRunning: this.hydrationRunning,
       frameDurationMs: this.frameDurationMs,
+      renderCpuMs: this.renderCpuMs,
+      drawCalls: this.lastRendererMetrics.calls,
+      lines: this.lastRendererMetrics.lines,
+      points: this.lastRendererMetrics.points,
+      instanceBatches: this.instanceBatches.size,
+      instancedMeshCount: instanceMeshCount,
+      nonInstancedMeshCount: Math.max(0, meshCount - instanceMeshCount),
+      renderableBlocks: this.renderedBlocks.size,
     };
   }
 
@@ -2231,7 +2415,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.render();
   }
-  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelAnimationFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
+  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } this.scheduleStaticResolutionRestore(); }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
@@ -2540,6 +2724,7 @@ export class ThreeViewportEngine {
     this.controls.target.set(target.x, target.y, target.z);
     this.camera.position.set(target.x, target.y, target.z).addScaledVector(direction, distance);
     this.controls.update();
+    this.cancelCameraRender();
     this.render();
   }
 
@@ -2549,7 +2734,12 @@ export class ThreeViewportEngine {
     const now = performance.now();
     if (this.lastRenderTimestamp > 0) this.frameDurationMs = this.frameDurationMs === 0 ? now - this.lastRenderTimestamp : this.frameDurationMs * .8 + (now - this.lastRenderTimestamp) * .2;
     this.lastRenderTimestamp = now;
+    const renderStarted = performance.now();
     this.renderer.render(this.scene, this.camera);
+    const elapsed = performance.now() - renderStarted;
+    this.renderCpuMs = this.renderCpuMs === 0 ? elapsed : this.renderCpuMs * .8 + elapsed * .2;
+    const info = this.renderer.info;
+    this.lastRendererMetrics = { calls: info.render.calls, triangles: info.render.triangles, lines: info.render.lines, points: info.render.points, geometries: info.memory.geometries, textures: info.memory.textures };
     this.renderCount++;
   }
 
@@ -2565,13 +2755,13 @@ export class ThreeViewportEngine {
       const delta = Math.min(rawDeltaMs / 1000, .1);
       previous = now;
       this.moveCamera(this.pressedActions, delta);
-      if (this.pressedActions.size) this.cameraMoveFrame = requestAnimationFrame(step);
+      if (this.pressedActions.size) this.cameraMoveFrame = requestViewportFrame(step);
     };
-    this.cameraMoveFrame = requestAnimationFrame(step);
+    this.cameraMoveFrame = requestViewportFrame(step);
   }
   private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     if (!this.controls || !keys.size) return;
-    this.cameraInteractingUntil = performance.now() + 180;
+    this.markCameraInteraction();
     const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
     if (!direction.lengthSq()) return;
     this.camera.position.add(direction);
@@ -2585,6 +2775,8 @@ export class ThreeViewportEngine {
     }
     // Keyboard movement does not always produce an OrbitControls `change`
     // event, so demand rendering is driven explicitly once per movement frame.
+    this.cancelCameraRender();
+    this.instrumentation.record('cameraRendersExecuted');
     this.instrumentation.record('cameraMovementRenderCalls');
     this.render();
   }
@@ -2594,6 +2786,15 @@ function cameraYaw(camera: THREE.Camera): number {
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
   return THREE.MathUtils.radToDeg(Math.atan2(-forward.x, forward.z));
+}
+
+function requestViewportFrame(callback: FrameRequestCallback): number {
+  return typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(() => callback(performance.now()), 0) as unknown as number;
+}
+
+function cancelViewportFrame(frame: number): void {
+  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
+  else clearTimeout(frame as unknown as ReturnType<typeof setTimeout>);
 }
 
 function vectorValue(vector: THREE.Vector3): CameraVector { return { x: vector.x, y: vector.y, z: vector.z }; }

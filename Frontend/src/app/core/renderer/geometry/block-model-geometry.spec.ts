@@ -172,6 +172,16 @@ describe('block model geometry', () => {
     expect(result.trace).toMatchObject({ pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true, bounds: { min: [0, 0, 0], max: [1, 1, 1] } });
     expect(firstMaterial(result.object!).map).toBeInstanceOf(THREE.Texture);
   });
+  it('classifies only model-proven opaque full cubes as occluders', () => {
+    const provider = realLikeVisualProvider();
+    expect(provider.occlusionClass!(block('minecraft:stone', {}))).toBe('opaque-full-cube');
+    expect(provider.occlusionClass!(block('minecraft:stone_slab', { type: 'bottom' }))).toBe('unknown');
+    expect(provider.occlusionClass!(block('minecraft:glass', {}))).not.toBe('opaque-full-cube');
+    expect(provider.occlusionClass!(block('minecraft:water', { level: '0' }))).toBe('non-occluding');
+    expect(provider.occlusionClass!(block('minecraft:oak_stairs', { half: 'bottom' }))).not.toBe('opaque-full-cube');
+    expect(provider.occlusionClass!(block('example:unknown', {}))).toBe('unknown');
+    provider.dispose();
+  });
 
   it('ignores extra state when resolving a real-like bottom Stone Slab and builds half-height geometry', async () => {
     const result = await realLikeVisualProvider().create(block('minecraft:stone_slab', { type: 'bottom', waterlogged: 'false' }));
@@ -303,8 +313,11 @@ function realLikeVisualProvider(): VanillaBlockVisualProvider {
   const json = {
     'assets/minecraft/blockstates/stone.json': { variants: { '': [{ model: 'minecraft:block/stone' }, { model: 'minecraft:block/stone_mirrored' }] } },
     'assets/minecraft/blockstates/stone_slab.json': { variants: { 'type=bottom': { model: 'minecraft:block/stone_slab' }, 'type=double': { model: 'minecraft:block/stone' }, 'type=top': { model: 'minecraft:block/stone_slab_top' } } },
+    'assets/minecraft/blockstates/glass.json': { variants: { '': { model: 'minecraft:block/glass' } } },
+    'assets/minecraft/blockstates/oak_stairs.json': { variants: { 'half=bottom': { model: 'minecraft:block/stone_slab' } } },
     'assets/minecraft/models/block/stone.json': { parent: 'minecraft:block/cube_all', textures: { all: 'minecraft:block/stone' } },
     'assets/minecraft/models/block/stone_mirrored.json': { parent: 'minecraft:block/cube_all', textures: { all: 'minecraft:block/stone' } },
+    'assets/minecraft/models/block/glass.json': { parent: 'minecraft:block/cube_all', textures: { all: { sprite: 'minecraft:block/stone', force_translucent: true } } },
     'assets/minecraft/models/block/cube_all.json': { parent: 'block/cube', textures: { down: '#all', up: '#all', north: '#all', south: '#all', west: '#all', east: '#all' } },
     'assets/minecraft/models/block/cube.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: cubeFaces() }] },
     'assets/minecraft/models/block/stone_slab.json': { parent: 'minecraft:block/slab', textures: { bottom: 'minecraft:block/stone', side: 'minecraft:block/stone', top: 'minecraft:block/stone' } },

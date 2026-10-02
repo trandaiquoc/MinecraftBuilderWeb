@@ -47,10 +47,13 @@ export function rendererBenchmarkProject(size: RendererBenchmarkSize): ProjectDo
 }
 
 export function benchmarkBlock(index: number, position: VoxelCoordinate): PlacedBlock {
-  const pattern = index % 4;
-  if (pattern === 1) return { kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position, state: { facing: ['north', 'east', 'south', 'west'][index % 4], half: index % 2 ? 'top' : 'bottom', shape: 'straight', waterlogged: 'false' } };
+  const pattern = index % 8;
+  if (pattern === 1 || pattern === 5) return { kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position, state: { facing: ['north', 'east', 'south', 'west'][index % 4], half: index % 2 ? 'top' : 'bottom', shape: pattern === 1 ? 'straight' : 'inner_left', waterlogged: 'false' } };
   if (pattern === 2) return { kind: 'resolved', id: 'minecraft:oak_fence', namespace: 'minecraft', position, state: { north: 'false', east: 'false', south: 'false', west: 'false' } };
   if (pattern === 3) return { kind: 'resolved', id: 'minecraft:glass', namespace: 'minecraft', position, state: {} };
+  if (pattern === 4) return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: { axis: 'x' } };
+  if (pattern === 6) return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: { axis: 'y' } };
+  if (pattern === 7) return { kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position, state: { facing: 'south', half: 'bottom', shape: 'outer_right', waterlogged: 'false' } };
   return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: {} };
 }
 

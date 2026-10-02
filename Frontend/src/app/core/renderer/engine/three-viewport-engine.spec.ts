@@ -423,6 +423,50 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('coalesces repeated OrbitControls changes into one camera render request per frame', async () => {
+    const engine = new ThreeViewportEngine();
+    const internals = engine as unknown as { renderOnControlChange: () => void };
+    internals.renderOnControlChange(); internals.renderOnControlChange(); internals.renderOnControlChange();
+    expect(engine.rendererCounters()).toMatchObject({ controlChangeEvents: 3, cameraRenderRequests: 3, cameraRenderRequestsCoalesced: 2 });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(engine.rendererCounters().cameraRendersExecuted).toBe(1);
+    engine.dispose();
+  });
+
+  it('uses interactive pixel ratio during camera work and restores the static ratio after idle', async () => {
+    const engine = new ThreeViewportEngine();
+    const setPixelRatio = vi.fn();
+    let pixelRatio = 2;
+    const renderer = {
+      getPixelRatio: () => pixelRatio,
+      setPixelRatio: (value: number) => { pixelRatio = value; setPixelRatio(value); },
+      setSize: vi.fn(),
+      render: vi.fn(),
+      dispose: vi.fn(),
+      info: { render: { calls: 0, triangles: 0, lines: 0, points: 0 }, memory: { geometries: 0, textures: 0 } },
+      domElement: { removeEventListener: vi.fn(), remove: vi.fn() },
+    } as unknown as THREE.WebGLRenderer;
+    const internals = engine as unknown as {
+      renderer: THREE.WebGLRenderer;
+      staticPixelRatio: number;
+      interactivePixelRatio: number;
+      enterInteractiveResolution: () => void;
+      scheduleStaticResolutionRestore: () => void;
+      cameraInteractingUntil: number;
+    };
+    internals.renderer = renderer;
+    internals.staticPixelRatio = 2;
+    internals.interactivePixelRatio = 1;
+    internals.enterInteractiveResolution();
+    expect(setPixelRatio).toHaveBeenCalledWith(1);
+    internals.cameraInteractingUntil = performance.now() - 1;
+    internals.scheduleStaticResolutionRestore();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(setPixelRatio).toHaveBeenLastCalledWith(2);
+    expect(engine.rendererCounters()).toMatchObject({ interactiveResolutionEntries: 1, staticResolutionRestores: 1 });
+    engine.dispose();
+  });
+
   it('contains a synchronous cached-visual failure and continues hydration', async () => {
     let throwCachedFailure = false;
     const provider = {
@@ -1256,9 +1300,11 @@ describe('selection visualization scalability', () => {
     internal.camera.position.set(8, 6, 8);
     internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     for (let index = 0; index < 5; index += 1) internal.moveCamera(new Set(['move-forward' as const]), .05);
+    await new Promise((resolve) => setTimeout(resolve, 190));
     await settleHydration();
     expect(engine.hydrationDiagnostics().generation).toBe(generation);
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 7 });
+    expect(engine.rendererCounters().hydrationPausesForCamera).toBeGreaterThan(0);
     engine.dispose();
   });
 

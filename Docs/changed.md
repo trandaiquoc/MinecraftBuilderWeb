@@ -2085,3 +2085,25 @@ when a dirty voxel or neighbor changes. Hydration queues use head-index dequeue
 without changing their generation or ownership guards. Renderer diagnostics
 expose hover and interior-culling counters, and the status bar reports project
 dimensions as X/Y/Z values.
+
+## Large viewport performance pass 2
+
+OrbitControls changes and keyboard camera movement now request at most one
+camera render per display frame. The viewport temporarily uses a lower device
+pixel ratio while the camera is active, restores the static ratio after the
+interaction grace period, and keeps camera state unchanged during the quality
+transition.
+
+Large-project hydration pauses while the camera is moving and resumes through a
+single scheduled wake-up. Idle hydration keeps async visual work capped at six
+concurrent jobs, uses a small time budget, partitions normal/reference/missing
+work in linear time, reuses block signatures and placeholder matrices, and
+bulk-updates placeholder instance batches where possible. These are render
+projection optimizations only; the ProjectDocument remains the source of truth.
+
+Interior culling now requires provider-backed evidence for a complete opaque
+full cube. Glass, water, slabs, stairs, special visuals, missing/fallback
+blocks, and unknown mod content are not treated as positive occlusion evidence
+without that proof. Renderer diagnostics now expose camera coalescing,
+interactive resolution, hydration pause, render CPU time, draw-call, triangle,
+instance-batch, and renderable-block metrics.

@@ -37,6 +37,15 @@ export interface RendererCounters {
   readonly cameraMovementRenderCalls: number;
   readonly cameraChangeEventsDuringMovement: number;
   readonly cameraRenderRequestsSuppressed: number;
+  readonly controlChangeEvents: number;
+  readonly cameraRenderRequests: number;
+  readonly cameraRendersExecuted: number;
+  readonly cameraRenderRequestsCoalesced: number;
+  readonly interactiveResolutionEntries: number;
+  readonly staticResolutionRestores: number;
+  readonly hydrationPausesForCamera: number;
+  readonly hydrationJobsStartedWhileCamera: number;
+  readonly blockSignatureComputations: number;
   readonly hoverRaycasts: number;
   readonly hoverRaycastsSuppressedDuringCamera: number;
   readonly hoverPointerMovesCoalesced: number;
@@ -83,6 +92,15 @@ const EMPTY_COUNTERS: RendererCounters = {
   cameraMovementRenderCalls: 0,
   cameraChangeEventsDuringMovement: 0,
   cameraRenderRequestsSuppressed: 0,
+  controlChangeEvents: 0,
+  cameraRenderRequests: 0,
+  cameraRendersExecuted: 0,
+  cameraRenderRequestsCoalesced: 0,
+  interactiveResolutionEntries: 0,
+  staticResolutionRestores: 0,
+  hydrationPausesForCamera: 0,
+  hydrationJobsStartedWhileCamera: 0,
+  blockSignatureComputations: 0,
   hoverRaycasts: 0,
   hoverRaycastsSuppressedDuringCamera: 0,
   hoverPointerMovesCoalesced: 0,

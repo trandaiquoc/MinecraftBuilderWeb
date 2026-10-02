@@ -8,6 +8,7 @@ import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeabl
 import { createFluidGeometry } from '../fluids/fluid-geometry';
 import { fluidKindForBlockId, FluidWorldLookup } from '../fluids/fluid-state';
 import { resolveResourceLocation, resourcePath } from '../../content/resource-location';
+import type { OcclusionClass } from '../visibility/interior-occlusion';
 
 export type BlockRenderMode = 'real' | 'partial' | 'fallback';
 export type BlockRenderDiagnosticCode = 'MODEL_NOT_FOUND' | 'TEXTURE_NOT_FOUND' | 'TEXTURE_DECODE_FAILED' | 'GEOMETRY_BUILD_FAILED' | 'UNKNOWN_ERROR';
@@ -63,6 +64,8 @@ export function thumbnailPreviewRotationY(object: THREE.Object3D): number {
 
 export interface BlockVisualProvider {
   create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult>;
+  /** Synchronous, cached visual proof used by conservative interior culling. */
+  occlusionClass?(block: PlacedBlock): OcclusionClass;
   /** Stable key for generic, opaque visuals that may reuse an instancing template. */
   reusableVisualKey?(block: PlacedBlock, context?: BlockVisualWorldContext): string | undefined;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
@@ -84,6 +87,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   private readonly resolver: BlockModelResolver;
   private readonly resolvedCache = new Map<string, ResolvedBlockModel>();
   private readonly reusableKeyCache = new Map<string, string | undefined>();
+  private readonly occlusionClassCache = new Map<string, OcclusionClass>();
   private readonly textureCache = new Map<string, Promise<THREE.Texture | undefined>>();
   private readonly fluidTextureCache = new Map<string, THREE.Texture>();
   private readonly specialVisuals: SpecialBlockVisualRegistry;
@@ -168,6 +172,28 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     return key;
   }
 
+  occlusionClass(block: PlacedBlock): OcclusionClass {
+    const key = `occlusion-v1|${block.id}|${Object.entries(block.state).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join(',')}`;
+    const cached = this.occlusionClassCache.get(key);
+    if (cached) return cached;
+    const result = this.resolveOcclusionClass(block);
+    this.occlusionClassCache.set(key, result);
+    return result;
+  }
+
+  private resolveOcclusionClass(block: PlacedBlock): OcclusionClass {
+    if (block.kind !== 'resolved' || block.namespace !== 'minecraft' || fluidKindForBlockId(block.id) || this.specialVisuals.resolveCompatible(block)) return 'non-occluding';
+    const resolved = this.resolve(block.id, block.state);
+    if (resolved.support !== 'full' || resolved.diagnostics.length !== 0 || resolved.parts.length !== 1) return 'unknown';
+    const part = resolved.parts[0];
+    if (part.transform.x !== 0 || part.transform.y !== 0 || part.transform.z !== undefined || part.elements.length !== 1) return 'unknown';
+    const element = part.elements[0];
+    if (element.rotation || element.from.some((value) => value !== 0) || element.to.some((value) => value !== 16)) return 'unknown';
+    const requiredFaces = ['down', 'up', 'north', 'south', 'west', 'east'] as const;
+    if (requiredFaces.some((direction) => !element.faces[direction] || element.faces[direction].forceTranslucent === true)) return 'unknown';
+    return 'opaque-full-cube';
+  }
+
   private async createFluid(block: PlacedBlock, resolved: ResolvedBlockModel, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
     const kind = fluidKindForBlockId(block.id)!; const resources = kind === 'water' ? ['minecraft:block/water_still', 'minecraft:block/water_flow'] : ['minecraft:block/lava_still', 'minecraft:block/lava_flow'];
     const diagnostics: BlockRenderDiagnostic[] = []; const textures = await Promise.all(resources.map(async (resource) => {
@@ -218,7 +244,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const task = this.renderItemVisualThumbnail(itemId, components).then((result) => { if (result.quality === 'fallback' && result.retryable) this.itemVisualPreviewCache.delete(key); return result; });
     this.itemVisualPreviewCache.set(key, task); return task;
   }
-  setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); this.reusableKeyCache.clear(); }
+  setSpecialVisualDescriptors(descriptors: readonly NormalizedSpecialVisualDescriptor[]): void { this.specialVisuals.setDescriptors(descriptors); this.reusableKeyCache.clear(); this.occlusionClassCache.clear(); }
 
   retain(): void { if (!this.resourcesDisposed) this.visualLeaseCount += 1; }
   release(): void {
@@ -236,7 +262,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     this.geometryCache.clear();
     this.thumbnailRenderer?.dispose(); this.thumbnailRenderer = undefined;
     for (const url of this.thumbnailObjectUrls) URL.revokeObjectURL?.(url);
-    this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.itemVisualPreviewCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); this.reusableKeyCache.clear();
+    this.thumbnailObjectUrls.clear(); this.thumbnailCache.clear(); this.itemThumbnailCache.clear(); this.itemVisualPreviewCache.clear(); this.textureCache.clear(); this.fluidTextureCache.clear(); this.resolvedCache.clear(); this.reusableKeyCache.clear(); this.occlusionClassCache.clear();
   }
 
   cacheStats(): Readonly<VisualCacheStats> { return { ...this.stats }; }
