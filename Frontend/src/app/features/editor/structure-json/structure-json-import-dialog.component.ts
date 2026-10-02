@@ -15,6 +15,7 @@ import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.direct
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
 import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
 import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
+import type { ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
 import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
@@ -50,11 +51,32 @@ export class StructureJsonImportDialogComponent {
   protected readonly activeAiTab = signal<AiWorkspaceTab>('description');
   protected readonly aiDescription = signal('');
   protected readonly aiSnapshot = computed(() => this.aiContext.snapshot(this.project()));
-  protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot()));
+  protected readonly hasExternalContent = computed(() => {
+    const snapshot = this.aiSnapshot();
+    return snapshot.mods.length > 0 || snapshot.blockIds.length > 0 || snapshot.itemIds.length > 0 || snapshot.paintingIds.length > 0;
+  });
+  protected readonly includeAiGuidance = signal(true);
+  protected readonly includeAvailableContentOverride = signal<boolean | undefined>(undefined);
+  protected readonly includeBlocks = signal(true);
+  protected readonly includeItems = signal(false);
+  protected readonly includePaintingsOverride = signal<boolean | undefined>(undefined);
+  protected readonly includeJsonExample = signal(false);
+  protected readonly includeAvailableContent = computed(() => this.includeAvailableContentOverride() ?? this.hasExternalContent());
+  protected readonly includePaintings = computed(() => this.includePaintingsOverride() ?? this.aiSnapshot().paintingIds.length > 0);
+  protected readonly aiPromptOptions = computed<ExternalAiPromptOptions>(() => ({
+    includeGuidance: this.includeAiGuidance(),
+    includeAvailableContent: this.includeAvailableContent(),
+    includeBlocks: this.includeBlocks(),
+    includeItems: this.includeItems(),
+    includePaintings: this.includePaintings(),
+    includeExample: this.includeJsonExample(),
+  }));
+  protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot(), this.aiPromptOptions()));
   protected readonly aiContextText = computed(() => buildContentContextText(this.aiSnapshot()));
   protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
   protected readonly aiGuidance = computed(() => externalAiInstructionSections(this.aiSnapshot().minecraftVersion));
   protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
+  protected readonly aiDescriptionInvalid = signal(false);
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
   protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'guidance', 'example'];
   private validationGeneration = 0;
@@ -64,24 +86,39 @@ export class StructureJsonImportDialogComponent {
   protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
   protected setAiTab(tab: AiWorkspaceTab): void { this.activeAiTab.set(tab); }
   protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
-  protected aiGuidanceTitle(id: 'contract' | 'content' | 'geometry' | 'output'): string { return this.i18n.t(({ contract: 'structureJsonAiGuidanceContract', content: 'structureJsonAiGuidanceContent', geometry: 'structureJsonAiGuidanceGeometry', output: 'structureJsonAiGuidanceOutput' } as const)[id]); }
-  protected aiGuidanceLines(section: { readonly id: 'contract' | 'content' | 'geometry' | 'output'; readonly lines: readonly string[] }): readonly string[] {
-    const keys = {
-      contract: ['structureJsonAiGuidanceLine1', 'structureJsonAiGuidanceLine2', 'structureJsonAiGuidanceLine3'],
-      content: ['structureJsonAiGuidanceLine4', 'structureJsonAiGuidanceLine5', 'structureJsonAiGuidanceLine6'],
-      geometry: ['structureJsonAiGuidanceLine7'],
-      output: ['structureJsonAiGuidanceLine8', 'structureJsonAiGuidanceLine9'],
-    } as const;
-    return section.lines.map((line, index) => { const key = keys[section.id][index]; const translated = key ? this.i18n.t(key) : line; return translated.replace('{version}', this.aiSnapshot().minecraftVersion); });
-  }
+  protected aiGuidanceTitle(id: 'contract' | 'content' | 'geometry' | 'output'): string { return this.i18n.t(({ contract: 'structureJsonAiGuidanceContract', content: 'structureJsonAiGuidanceSpatial', geometry: 'structureJsonAiGuidanceResearch', output: 'structureJsonAiGuidanceOutput' } as const)[id]); }
+  protected aiGuidanceLines(section: { readonly lines: readonly string[] }): readonly string[] { return section.lines; }
   protected onAiTabKeydown(event: KeyboardEvent): void {
     const current = this.aiTabs.indexOf(this.activeAiTab());
     const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (current + 1) % this.aiTabs.length : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (current - 1 + this.aiTabs.length) % this.aiTabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? this.aiTabs.length - 1 : -1;
     if (next < 0) return;
     event.preventDefault(); this.setAiTab(this.aiTabs[next]);
   }
-  protected setAiDescription(value: string): void { this.aiDescription.set(value); this.aiCopyStatus.set('idle'); }
-  protected async copyAiPrompt(): Promise<void> { await this.copyText(this.aiPrompt()); }
+  protected setAiDescription(value: string): void { this.aiDescription.set(value); this.aiCopyStatus.set('idle'); this.aiDescriptionInvalid.set(false); }
+  protected setIncludeGuidance(value: boolean): void { this.includeAiGuidance.set(value); this.aiCopyStatus.set('idle'); }
+  protected setIncludeAvailableContent(value: boolean): void { this.includeAvailableContentOverride.set(value); this.aiCopyStatus.set('idle'); }
+  protected setIncludeBlocks(value: boolean): void { this.includeBlocks.set(value); this.aiCopyStatus.set('idle'); }
+  protected setIncludeItems(value: boolean): void { this.includeItems.set(value); this.aiCopyStatus.set('idle'); }
+  protected setIncludePaintings(value: boolean): void { this.includePaintingsOverride.set(value); this.aiCopyStatus.set('idle'); }
+  protected setIncludeJsonExample(value: boolean): void { this.includeJsonExample.set(value); this.aiCopyStatus.set('idle'); }
+  protected aiPromptSummary(): string {
+    const snapshot = this.aiSnapshot();
+    const parts = [this.i18n.t('structureJsonAiSummaryDescription')];
+    if (this.includeAiGuidance()) parts.push(this.i18n.t('structureJsonAiSummaryGuidance'));
+    if (this.includeAvailableContent()) {
+      if (this.includeBlocks() && snapshot.blockIds.length > 0) parts.push(`${snapshot.blockIds.length} ${this.i18n.t('structureJsonAiSummaryBlocks')}`);
+      if (this.includeItems() && snapshot.itemIds.length > 0) parts.push(`${snapshot.itemIds.length} ${this.i18n.t('structureJsonAiSummaryItems')}`);
+      if (this.includePaintings() && snapshot.paintingIds.length > 0) parts.push(`${snapshot.paintingIds.length} ${this.i18n.t('structureJsonAiSummaryPaintings')}`);
+      if (!snapshot.blockIds.length && !snapshot.itemIds.length && !snapshot.paintingIds.length) parts.push(this.i18n.t('structureJsonAiSummaryContent'));
+    }
+    if (this.includeJsonExample()) parts.push(this.i18n.t('structureJsonAiSummaryExample'));
+    return `${this.i18n.t('structureJsonAiIncludes')}: ${parts.join(' + ')}`;
+  }
+  protected async copyAiPrompt(): Promise<void> {
+    if (!this.aiDescription().trim()) { this.aiDescriptionInvalid.set(true); this.aiCopyStatus.set('idle'); return; }
+    this.aiDescriptionInvalid.set(false);
+    await this.copyText(this.aiPrompt());
+  }
   protected async copyAiExample(): Promise<void> { await this.copyText(this.aiExample()); }
   protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.importPlan.set(undefined); this.modePlanCache.clear(); this.importMode.set('replace'); this.progress.set('idle'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1; }
   protected async loadFile(event: Event): Promise<void> {

@@ -69,15 +69,27 @@
         } @else {
           <div class="ai-workspace structure-json-ai-workspace">
             <div class="ai-heading"><div><p class="eyebrow">{{ i18n.t('structureJsonImportAiTab') }}</p><h3>{{ i18n.t('structureJsonAiWorkspaceTitle') }}</h3></div><span class="ai-privacy-note">{{ i18n.t('structureJsonAiPrivacyNote') }}</span></div>
+            <section class="ai-prompt-config" aria-labelledby="structure-json-ai-config-title">
+              <div class="ai-prompt-config-heading"><h4 id="structure-json-ai-config-title">{{ i18n.t('structureJsonAiIncludeTitle') }}</h4><p>{{ i18n.t('structureJsonAiIncludeHelper') }}</p></div>
+              <div class="ai-prompt-toggles">
+                <label class="ai-toggle"><input type="checkbox" checked disabled /><span>{{ i18n.t('structureJsonAiSummaryDescription') }}</span><small>{{ i18n.t('structureJsonAiAlwaysIncluded') }}</small></label>
+                <label class="ai-toggle"><input type="checkbox" [checked]="includeAiGuidance()" (change)="setIncludeGuidance($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeGuidance') }}</span></label>
+                <label class="ai-toggle"><input type="checkbox" [checked]="includeAvailableContent()" [disabled]="!hasExternalContent()" (change)="setIncludeAvailableContent($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeContent') }}</span></label>
+                <label class="ai-toggle"><input type="checkbox" [checked]="includeJsonExample()" (change)="setIncludeJsonExample($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeExample') }}</span></label>
+              </div>
+              @if (hasExternalContent()) {
+                <div class="ai-content-toggles"><span class="ai-toggle-label">{{ i18n.t('structureJsonAiModContent') }}</span><label class="ai-toggle ai-toggle--compact"><input type="checkbox" [checked]="includeBlocks()" [disabled]="!includeAvailableContent() || aiSnapshot().blockIds.length === 0" (change)="setIncludeBlocks($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeBlocks') }}</span><small>{{ aiSnapshot().blockIds.length }}</small></label><label class="ai-toggle ai-toggle--compact"><input type="checkbox" [checked]="includeItems()" [disabled]="!includeAvailableContent() || aiSnapshot().itemIds.length === 0" (change)="setIncludeItems($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludeItems') }}</span><small>{{ aiSnapshot().itemIds.length }}</small></label><label class="ai-toggle ai-toggle--compact"><input type="checkbox" [checked]="includePaintings()" [disabled]="!includeAvailableContent() || aiSnapshot().paintingIds.length === 0" (change)="setIncludePaintings($any($event.target).checked)" /><span>{{ i18n.t('structureJsonAiIncludePaintings') }}</span><small>{{ aiSnapshot().paintingIds.length }}</small></label></div>
+              }
+            </section>
             <div class="ai-inner-tabs" role="tablist" [attr.aria-label]="i18n.t('structureJsonAiTabs')" (keydown)="onAiTabKeydown($event)">
               @for (tab of aiTabs; track tab) { <button type="button" role="tab" [attr.aria-selected]="activeAiTab() === tab" [class.active]="activeAiTab() === tab" (click)="setAiTab(tab)">{{ aiTabLabel(tab) }}</button> }
             </div>
             @if (activeAiTab() === 'description') {
               <section class="ai-panel" role="tabpanel">
                 <label for="structure-json-ai-description">{{ i18n.t('structureJsonAiDescriptionLabel') }}</label>
-                <p class="ai-helper">{{ i18n.t('structureJsonAiDescriptionHelper') }}</p>
+                <p class="ai-helper">{{ i18n.t('structureJsonAiDescriptionHelperConfig') }}</p>
                 <textarea id="structure-json-ai-description" class="structure-json-editor ai-description-editor" [value]="aiDescription()" (input)="setAiDescription($any($event.target).value)" [attr.placeholder]="i18n.t('structureJsonAiDescriptionPlaceholder')"></textarea>
-                <div class="ai-actions"><button type="button" class="ui-button ui-button--primary" [disabled]="!aiDescription().trim()" (click)="copyAiPrompt()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('structureJsonAiCopyPrompt') }}</button>@if (aiCopyStatus() === 'copied') { <span class="status-success" role="status">{{ i18n.t('structureJsonAiCopied') }}</span> } @if (aiCopyStatus() === 'failed') { <span class="status-error" role="status">{{ i18n.t('structureJsonAiCopyFailed') }}</span> }</div>
+                <div class="ai-actions"><button type="button" class="ui-button ui-button--primary" (click)="copyAiPrompt()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('structureJsonAiCopyPrompt') }}</button><span class="ai-prompt-summary">{{ aiPromptSummary() }}</span>@if (aiDescriptionInvalid()) { <span class="status-error" role="alert">{{ i18n.t('structureJsonAiDescriptionRequired') }}</span> } @else if (aiCopyStatus() === 'copied') { <span class="status-success" role="status">{{ i18n.t('structureJsonAiCopied') }}</span> } @else if (aiCopyStatus() === 'failed') { <span class="status-error" role="status">{{ i18n.t('structureJsonAiCopyFailed') }}</span> }</div>
                 <details class="ai-preview"><summary>{{ i18n.t('structureJsonAiPromptPreview') }}</summary><textarea class="structure-json-editor reference-editor prose-editor" [value]="aiPrompt()" readonly [attr.aria-label]="i18n.t('structureJsonAiPromptPreview')" spellcheck="false"></textarea></details>
               </section>
             } @else if (activeAiTab() === 'content') {

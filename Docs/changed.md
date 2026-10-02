@@ -2027,3 +2027,22 @@ The UI preference default font is Geist. Craft selects its visual chrome but
 does not force Minecraft-style typography; Minecraft-style remains an explicit
 user preference and survives theme changes. Invalid or missing font preferences
 fall back to Geist.
+
+## External AI prompt configuration
+
+Create with AI now separates viewing tabs from prompt inclusion. The user
+description is always copied last; AI guidance defaults on, available imported
+content defaults on only when external content exists, block IDs default on,
+item IDs default off, paintings follow availability, and the compact JSON
+example is opt-in. The prompt summary reflects the selected sections and the
+copy preview uses the same final assembled string as the clipboard action.
+
+The canonical external guidance is concise and self-contained: it states the
+current top-level Structure JSON contract, explicitly forbids `formatVersion`,
+requires explicit voxel geometry with meaningful three-dimensional depth,
+preserves spatial intent and intentional air gaps, and validates IDs,
+coordinates, states, decorations, and item counts. When an external AI has
+web/search access it is asked to research relevant Minecraft techniques and
+reliable subject references without copying a single build or treating online
+research as authorization for unlisted mod IDs. The app itself performs no
+network or AI request.

@@ -31,6 +31,7 @@ export class ExternalAiPromptContextService {
     return {
       minecraftVersion: project.metadata.minecraftVersion || assets.activeVersion(),
       vanillaSource: assets.sourceName() || 'local Minecraft Java assets',
+      projectBounds: project.size,
       mods,
       blockIds: blocks,
       itemIds: items,
