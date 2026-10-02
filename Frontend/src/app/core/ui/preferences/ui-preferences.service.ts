@@ -64,7 +64,7 @@ const defaults: UiPreferences = {
   showStructureBlockGuide: true,
   structureExport: { namespace: 'minecraftbuilder', archiveName: '', description: '' },
   editorMode: '3d',
-  appearance: { preset: 'craft', base: 'dark', font: 'minecraft-style', fontSize: 'normal', editorBackground: 'dark' },
+  appearance: { preset: 'craft', base: 'dark', font: 'geist', fontSize: 'normal', editorBackground: 'dark' },
   accessibility: { blockBrightness: 3 },
   controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9, clickDragThreshold: 5 },
   shortcuts: DEFAULT_KEYBINDINGS,

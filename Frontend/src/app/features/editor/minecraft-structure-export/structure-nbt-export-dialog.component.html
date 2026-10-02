@@ -14,23 +14,23 @@
         <section class="export-section semantic-group" data-tone="identity">
           <div class="section-heading"><div><p class="section-kicker">{{ i18n.t('structureExportIdentity') }}</p><h3>{{ i18n.t('structureExportResourceLocation') }}</h3></div><span class="section-number">01</span></div>
           <div class="form-grid">
-            <label><span>{{ i18n.t('structureExportNamespace') }}</span><input [value]="namespace()" (input)="setField('namespace', $event)" [attr.aria-invalid]="preflight().diagnostics.some(d => d.path === 'namespace')" /></label>
-            <label><span>{{ i18n.t('structureExportPath') }}</span><input [value]="structurePath()" (input)="setField('structurePath', $event)" [attr.aria-invalid]="preflight().diagnostics.some(d => d.path === 'structurePath')" /></label>
+            <label class="semantic-field namespace-field" [class.field-invalid]="fieldInvalid('namespace')"><span>{{ i18n.t('structureExportNamespace') }}</span><input [value]="namespace()" (input)="setField('namespace', $event)" [attr.aria-invalid]="fieldInvalid('namespace')" /></label>
+            <label class="semantic-field structure-path-field" [class.field-invalid]="fieldInvalid('structurePath')"><span>{{ i18n.t('structureExportPath') }}</span><input [value]="structurePath()" (input)="setField('structurePath', $event)" [attr.aria-invalid]="fieldInvalid('structurePath')" /></label>
           </div>
         </section>
         <section class="export-section semantic-group" data-tone="package">
           <div class="section-heading"><div><p class="section-kicker">{{ i18n.t('structureExportPackage') }}</p><h3>{{ i18n.t('structureExportFilename') }}</h3></div><span class="section-number">02</span></div>
           <div class="form-grid">
           @if (mode() === 'datapack') {
-            <label><span>{{ i18n.t('structureExportArchive') }}</span><input [value]="archiveName()" (input)="setField('archiveName', $event)" [attr.aria-invalid]="preflight().diagnostics.some(d => d.path === 'archiveName')" /><small>{{ i18n.t('structureExportArchiveHint') }}</small></label>
+            <label [class.field-invalid]="fieldInvalid('archiveName')"><span>{{ i18n.t('structureExportArchive') }}</span><input [value]="archiveName()" (input)="setField('archiveName', $event)" [attr.aria-invalid]="fieldInvalid('archiveName')" /><small>{{ i18n.t('structureExportArchiveHint') }}</small></label>
             <label class="wide"><span>{{ i18n.t('structureExportDescription') }}</span><textarea rows="3" [value]="description()" (input)="setField('description', $event)"></textarea></label>
           }
           </div>
-          <div class="live-summary">
-            <div><span>{{ i18n.t('structureExportResourceLocation') }}</span><code>{{ metadata()?.resourceLocation ?? (namespace() + ':' + structurePath()) }}</code><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="copyValue(metadata()?.resourceLocation ?? (namespace() + ':' + structurePath()))">{{ i18n.t('structureExportCopy') }}</button></div>
-            <div><span>{{ i18n.t('structureExportFilename') }}</span><code>{{ mode() === 'datapack' ? (archiveName() + '.zip') : ((structurePath().split('/').pop() || '') + '.nbt') }}</code></div>
-          </div>
         </section>
+        <div class="summary-cards">
+          <article class="summary-card semantic-group" data-tone="identity"><span class="summary-label">{{ i18n.t('structureExportResourceLocation') }}</span><div class="semantic-code" [attr.aria-label]="resourceLocation()"><span class="tone-namespace">{{ namespace() }}</span><span class="tone-separator">:</span><span class="tone-structure-path">{{ structurePath() }}</span></div><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="copyValue(resourceLocation())">{{ i18n.t('structureExportCopy') }}</button></article>
+          <article class="summary-card semantic-group" data-tone="package"><span class="summary-label">{{ i18n.t('structureExportFilename') }}</span><div class="semantic-code"><span class="tone-file">{{ downloadFilename().slice(0, downloadFilename().lastIndexOf('.')) }}</span><span class="tone-extension">{{ downloadFilename().slice(downloadFilename().lastIndexOf('.')) }}</span></div></article>
+        </div>
         @if (preflight().diagnostics.length > 0) {
           <div class="validation-errors" role="alert"><strong>{{ i18n.t('structureExportValidationSummary') }}</strong><ul>@for (diagnostic of preflight().diagnostics; track diagnostic.code + ':' + diagnostic.path) { <li>{{ diagnosticText(diagnostic) }}</li> }</ul></div>
         }
@@ -40,19 +40,23 @@
         @if (result(); as completed) { <p class="export-success" role="status">{{ i18n.t('structureExportSuccess') }} {{ completed.filename }} ({{ completed.byteLength }} bytes)</p> }
       </section>
       <aside class="structure-export-info">
-        <section class="info-section semantic-group" data-tone="metadata"><p class="section-kicker">{{ i18n.t('structureExportMetadata') }}</p><h3>{{ projectName() }}</h3>
+        <section class="info-section semantic-group" data-tone="metadata"><p class="section-kicker">{{ i18n.t('structureExportCompatibility') }}</p><h3>{{ i18n.t(compatibilityKey()) }}</h3>
         @if (sizeWarning()) { <p class="size-warning">{{ i18n.t('structureExportSizeWarning') }}</p> }
         @if (metadata(); as details) {
           <dl><div><dt>{{ i18n.t('structureExportCompatibility') }}</dt><dd>{{ i18n.t(compatibilityKey()) }}</dd></div>
           </dl>
         }
         </section>
-        <section class="info-section semantic-group" data-tone="install"><p class="section-kicker">{{ i18n.t('structureExportInstall') }}</p><h3>{{ i18n.t('structureExportInstallSteps') }}</h3>
+        <section class="info-section install-flow semantic-group" data-tone="install"><p class="section-kicker">{{ i18n.t('structureExportInstall') }}</p><h3>{{ i18n.t('structureExportInstallSteps') }}</h3>
         @if (metadata(); as details) {
-          <dl>
-            @if (mode() === 'standalone') { <div><dt>{{ i18n.t('structureExportWorldPath') }}</dt><dd><code>{{ details.worldInstallPath }}</code></dd></div><p>{{ i18n.t('structureExportStandaloneGuide') }}</p> }
-            @else { <div><dt>{{ i18n.t('structureExportDatapackPath') }}</dt><dd><code>{{ details.datapackInstallPath }}</code></dd></div><p>{{ i18n.t('structureExportDatapackGuide') }}</p><p><code>/reload</code> · {{ i18n.t('structureExportLoadCommand') }} <code>{{ details.resourceLocation }}</code></p> }
-          </dl><ol class="install-steps"><li>{{ i18n.t('structureExportStepCopy') }}</li>@if (mode() === 'datapack') { <li>{{ i18n.t('structureExportStepReload') }}</li> }<li>{{ i18n.t('structureExportStepLoad') }}</li></ol>
+          <div class="install-flow-steps">
+            <article class="install-step"><span class="step-index">1</span><div><h4>{{ i18n.t('structureExportStepCopyTitle') }}</h4><code class="path-line">@if (mode() === 'datapack') { <span class="tone-destination">&lt;world&gt;/datapacks/</span><span class="tone-file">{{ archiveName() }}.zip</span> } @else { <span class="tone-destination">&lt;world&gt;/generated/</span><span class="tone-namespace">{{ namespace() }}</span><span class="tone-destination">/structures/</span><span class="tone-structure-path">{{ structurePath() }}.nbt</span> }</code><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="copyValue(mode() === 'datapack' ? details.datapackInstallPath : details.worldInstallPath)">{{ i18n.t('structureExportCopy') }}</button></div></article>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <article class="install-step"><span class="step-index">2</span><div><h4>{{ mode() === 'datapack' ? i18n.t('structureExportStepReloadTitle') : i18n.t('structureExportStepReopenTitle') }}</h4>@if (mode() === 'datapack') { <code class="path-line tone-command">/reload</code><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="copyValue('/reload')">{{ i18n.t('structureExportCopy') }}</button> } @else { <p>{{ i18n.t('structureExportStepReopen') }}</p> }</div></article>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <article class="install-step"><span class="step-index">3</span><div><h4>{{ i18n.t('structureExportStepLoadTitle') }}</h4><code class="path-line semantic-code"><span class="tone-muted">{{ i18n.t('structureExportLoadCommand') }} </span><span class="tone-namespace">{{ namespace() }}</span><span class="tone-separator">:</span><span class="tone-structure-path">{{ structurePath() }}</span></code><button type="button" class="ui-button ui-button--ghost ui-button--sm" (click)="copyValue(resourceLocation())">{{ i18n.t('structureExportCopy') }}</button></div></article>
+          </div>
+          <p class="install-helper">{{ mode() === 'datapack' ? i18n.t('structureExportDatapackGuide') : i18n.t('structureExportStandaloneGuide') }}</p>
         }
         </section>
         @if (copyStatus() !== 'idle') { <p class="copy-status" role="status">{{ copyStatusText() }}</p> }

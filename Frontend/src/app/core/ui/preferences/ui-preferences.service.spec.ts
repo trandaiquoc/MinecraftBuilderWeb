@@ -16,6 +16,7 @@ describe('UiPreferencesService', () => {
     expect(preferences.preferences().autoUseHugeStructureBlocks).toBe(false);
     expect(preferences.preferences().showStructureBlockGuide).toBe(true);
     expect(preferences.preferences().accessibility.blockBrightness).toBe(3);
+    expect(preferences.preferences().appearance.font).toBe('geist');
     expect(preferences.preferences().controls.zoomSensitivity).toBe(2);
     expect(preferences.preferences().controls.cameraMoveSpeed).toBe(15);
     expect(preferences.preferences().controls.verticalMoveSpeed).toBe(9);
@@ -98,9 +99,20 @@ describe('UiPreferencesService', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');
     expect(preferences.preferences().appearance.preset).toBe('craft');
-    expect(preferences.preferences().appearance.font).toBe('minecraft-style');
+    expect(preferences.preferences().appearance.font).toBe('geist');
     expect(preferences.preferences().controls.orbitSensitivity).toBe(3);
     expect(preferences.preferences().controls.clickDragThreshold).toBe(1);
+  });
+
+  it('keeps font choice independent from theme and restores an explicit Minecraft font', () => {
+    const preferences = new UiPreferencesService();
+    expect(preferences.preferences().appearance.font).toBe('geist');
+    preferences.setAppearance({ preset: 'light' });
+    expect(preferences.preferences().appearance.font).toBe('geist');
+    preferences.setAppearance({ font: 'minecraft-style' });
+    preferences.setAppearance({ preset: 'craft' });
+    expect(preferences.preferences().appearance.font).toBe('minecraft-style');
+    expect(new UiPreferencesService().preferences().appearance.font).toBe('minecraft-style');
   });
 
   it('keeps saved control values while reset restores the new defaults', () => {

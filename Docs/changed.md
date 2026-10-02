@@ -2009,3 +2009,21 @@ Actual modal dialogs no longer close from a backdrop click. Escape, explicit clo
 controls, cancel actions, and existing dirty/busy guards remain responsible for
 closing. Searchable dropdowns, themed selects, and the Asset Manager Help popover
 remain non-modal and retain outside-click dismissal.
+
+## POST-15 Round 2 workflow polish
+
+Create with AI now keeps the full prompt and JSON example readable in a
+description-first workspace. The outer workspace scrolls independently from
+the code, prompt, and exact-ID viewers, and the prompt remains generated from
+the canonical instruction sections without changing its semantics.
+
+Structure export now presents ResourceLocations, filenames, destinations, and
+commands as live semantic segments. The standalone and datapack workflows use
+the same concise step-based install flow, while compatibility information stays
+separate from installation instructions. Copy actions still use the raw
+canonical values.
+
+The UI preference default font is Geist. Craft selects its visual chrome but
+does not force Minecraft-style typography; Minecraft-style remains an explicit
+user preference and survives theme changes. Invalid or missing font preferences
+fall back to Geist.

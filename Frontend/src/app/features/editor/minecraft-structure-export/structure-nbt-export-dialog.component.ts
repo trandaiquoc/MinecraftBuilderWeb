@@ -32,7 +32,8 @@ export class StructureNbtExportDialogComponent {
   protected readonly metadata = computed(() => this.preflight().metadata);
   protected readonly canDownload = computed(() => !this.busy() && !!this.workspace.project() && this.preflight().ok);
   protected readonly sizeWarning = computed(() => this.metadata()?.sizeClass === 'huge');
-  protected readonly projectName = computed(() => this.workspace.project()?.metadata.name ?? '');
+  protected readonly resourceLocation = computed(() => `${this.namespace()}:${this.structurePath()}`);
+  protected readonly downloadFilename = computed(() => this.mode() === 'datapack' ? `${this.archiveName()}.zip` : `${this.lastPathSegment(this.structurePath())}.nbt`);
   protected readonly compatibilityKey = computed(() => {
     const details = this.metadata();
     return details?.sizeClass === 'huge' ? 'structureExportHugeBlocksWarning' : details?.sizeClass === 'unsupported' ? 'structureExportTooLarge' : 'structureExportVanillaCompatible';
@@ -72,6 +73,8 @@ export class StructureNbtExportDialogComponent {
   protected async copyValue(value: string): Promise<void> {
     try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); this.copyStatus.set('copied'); } catch { this.copyStatus.set('failed'); }
   }
+  protected fieldInvalid(path: 'namespace' | 'structurePath' | 'archiveName'): boolean { return this.preflight().diagnostics.some((diagnostic) => diagnostic.path === path); }
+  protected lastPathSegment(path: string): string { return path.slice(path.lastIndexOf('/') + 1); }
   protected copyStatusText(): string {
     return this.copyStatus() === 'copied' ? this.i18n.t('structureExportCopied') : this.i18n.t('structureExportCopyFailed');
   }

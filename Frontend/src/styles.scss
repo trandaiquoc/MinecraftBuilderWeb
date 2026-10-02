@@ -4,6 +4,7 @@
 :root { --tone-identity: var(--accent); --tone-package: #6d8fd0; --tone-metadata: #a57ac7; --tone-install: #c28b4b; }
 :root[data-theme='light'] { --tone-identity: #245d9c; --tone-package: #396baf; --tone-metadata: #704d9c; --tone-install: #8b5a20; }
 :root[data-theme='craft'] { --tone-identity: #3c8527; --tone-package: #8ea6c9; --tone-metadata: #bc92cf; --tone-install: #bd884c; }
+:root { --tone-namespace: var(--tone-identity); --tone-structure-path: var(--tone-package); --tone-file: var(--tone-package); --tone-command: var(--tone-identity); --tone-destination: var(--tone-install); }
 [data-tone='identity'] { --tone-current: var(--tone-identity); }
 [data-tone='package'] { --tone-current: var(--tone-package); }
 [data-tone='metadata'] { --tone-current: var(--tone-metadata); }

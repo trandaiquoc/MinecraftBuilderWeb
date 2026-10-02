@@ -31,4 +31,17 @@ describe('external Structure JSON AI prompt', () => {
     expect(buildExternalAiPrompt('test', context)).toContain(guidance);
     expect(sections.map((section) => section.id)).toEqual(['contract', 'content', 'geometry', 'output']);
   });
+
+  it('keeps a large local content snapshot complete for copy without truncation', () => {
+    const largeContext = {
+      ...context,
+      blockIds: Array.from({ length: 350 }, (_, index) => `cobblemon:block_${String(index).padStart(3, '0')}`),
+      itemIds: Array.from({ length: 850 }, (_, index) => `cobblemon:item_${String(index).padStart(3, '0')}`),
+      paintingIds: ['cobblemon:painting_a', 'cobblemon:painting_b'],
+    };
+    const prompt = buildExternalAiPrompt('Build a catalog test.', largeContext);
+    expect(prompt).toContain('cobblemon:block_349');
+    expect(prompt).toContain('cobblemon:item_849');
+    expect(prompt).toContain('cobblemon:painting_b');
+  });
 });

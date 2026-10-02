@@ -24,12 +24,12 @@
 .validation-summary .secondary-row { padding-left: 1.35rem; background: transparent !important; font-size: .68rem; }
 .validation-summary .status-row dt svg { width: .9rem; height: .9rem; flex: 0 0 auto; stroke-width: 2.25; }
 .structure-json-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: .6rem; min-width: 0; min-height: 0; padding: .8rem; }
+.structure-json-layout.ai-mode .structure-json-workspace { grid-template-rows: minmax(0, 1fr); overflow: hidden; }
 .structure-json-tabs { display: flex; gap: .25rem; padding: .55rem .75rem 0; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
 .structure-json-tabs button { border: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0; padding: .5rem .7rem; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; }
 .structure-json-tabs button:hover { background: var(--surface-hover); color: var(--text); }
 .structure-json-tabs button.active { background: var(--control-selected); color: var(--control-selected-text); }
-.structure-json-ai-workspace { overflow: auto; }
-.structure-json-ai-workspace { display: grid; align-content: start; gap: .85rem; }
+.structure-json-ai-workspace { display: grid; align-content: start; gap: .85rem; min-height: 0; overflow: auto; padding-right: .2rem; }
 .ai-heading, .ai-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; }
 .ai-heading h3, .ai-panel h4, .ai-guidance-list h5 { margin: 0; }
 .ai-heading .eyebrow { margin-bottom: .2rem; }
@@ -48,16 +48,18 @@
 .ai-content-summary div { display: grid; gap: .2rem; padding: .65rem; border-radius: var(--radius-sm); background: var(--surface-raised); }
 .ai-content-summary dt { color: var(--text-muted); font-size: .7rem; }
 .ai-content-summary dd { margin: 0; font: 700 .85rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.ai-exact-ids { display: grid; gap: .45rem; }
+.ai-exact-ids { display: grid; gap: .45rem; min-height: 0; }
 .ai-guidance-list { display: grid; gap: .65rem; }
 .ai-guidance-list article { display: grid; gap: .35rem; padding: .7rem; border-radius: var(--radius-sm); background: var(--surface-raised); }
 .ai-guidance-list h5 { font-size: .78rem; }
 .ai-guidance-list ul { display: grid; gap: .35rem; margin: 0; padding-left: 1.1rem; color: var(--text-muted); font: .74rem/1.4 var(--font-readable); }
-.reference-editor { min-height: 10rem; resize: vertical; }
+.reference-editor { min-height: clamp(20rem, 45vh, 36rem); max-height: calc(100dvh - 14rem); overflow: auto; resize: vertical; white-space: pre; tab-size: 2; }
+.ai-preview .reference-editor { min-height: clamp(18rem, 38vh, 32rem); }
+.ai-exact-ids pre { max-height: min(36rem, 48vh); overflow: auto; white-space: pre; overflow-wrap: normal; }
 .structure-json-ai-workspace .ai-description-editor { min-height: 7rem; resize: vertical; }
 .structure-json-ai-workspace details { display: grid; gap: .45rem; min-height: 0; }
 .structure-json-ai-workspace summary { cursor: pointer; font-size: .78rem; font-weight: 650; }
-.structure-json-ai-workspace pre { margin: 0; max-height: 14rem; overflow: auto; padding: .65rem; border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-muted); font: .7rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+.structure-json-ai-workspace pre { margin: 0; overflow: auto; padding: .65rem; border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-muted); font: .7rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .import-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
 .import-toolbar > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .45rem; }
 .structure-json-editor { width: 100%; min-height: 0; resize: none; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .8rem; background: var(--surface-muted); color: var(--text); font: .76rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; }
