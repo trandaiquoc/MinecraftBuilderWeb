@@ -2177,3 +2177,14 @@ support. Explicitly requested floating designs and their intentional Air gaps
 remain valid and are never repaired with invented pillars or scaffolding. This
 is prompt guidance only; it does not add material budgets or editor-wide
 coordinate validation.
+
+## Structure JSON app-side validation
+
+The existing Structure JSON validation preview now also checks the enabled
+External AI Content Limits for canonical placeable block IDs, supported item
+stack locations, and painting variants. These violations and verified missing
+block support are import blockers. Support checks reuse the read-only
+BlockRuleEngine path and a single import voxel lookup; unknown behavior is not
+guessed. Positive origin offsets, clearly floating structures, and conservative
+sapling grounding checks are warnings only, so intentional structures are not
+mutated or translated during validation.

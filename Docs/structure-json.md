@@ -23,3 +23,12 @@ Replace import always replaces both `blocks` and `decorations`; an empty decorat
 The importer validates block-entity host compatibility, slot bounds, and item stack counts against the active catalog. Known max stack sizes come from the local vanilla item registry (`vanilla-item-registry-1.21.1.json`); unknown mod items are allowed only with count 1 and are never silently clamped. New exports and examples always use the canonical shape above; Project Backup compatibility is handled by its separate versioned package format.
 
 The Import dialog's **Create with AI** tab builds a copy-ready prompt locally. It includes canonical instructions, the active Minecraft asset source/version, imported mod metadata and exact active external IDs, a canonical example, and the user's exact description. It does not contact an AI service, fetch or execute mod code, or dump the full vanilla catalog. The prompt explicitly preserves intentional Air gaps, avoids invented scaffolding, and keeps coordinates, states, IDs, counts, and multi-block objects valid.
+
+Before Apply, the same validation preview also enforces the persisted External AI
+Content Limits when that preference is enabled. Restricted logical placeable
+IDs, supported block-entity items, item-frame items, and painting variants are
+hard blockers; unavailable mod content remains a missing-content diagnostic and
+is never authorized by a saved restriction. Verified attachment/support rules
+are checked read-only through the existing block behavior engine. Positive
+origin offsets, clearly floating structures, and conservative sapling grounding
+cases are warnings only and do not block import.

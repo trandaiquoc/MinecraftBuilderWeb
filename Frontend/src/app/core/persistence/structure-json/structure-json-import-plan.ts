@@ -6,11 +6,11 @@ import type { ProjectDocument, PlacedBlock, ProjectGroup, VoxelCoordinate } from
 import { decorationAabb } from '../../decorations/placement/decoration-placement';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import { projectBlockEntityDataFromStructureJson, type StructureJsonBlock, type StructureJsonDecoration, type StructureJson } from './structure-json';
-import { validateStructureJsonDecorations, type StructureJsonValidationPreview } from './structure-json-import';
+import { validateStructureJsonDecorations, type StructureJsonValidationOptions, type StructureJsonValidationPreview } from './structure-json-import';
 import { addDecorationToSpatialIndex, blocksIntersectingAabb, buildDecorationSpatialIndex, buildStructureImportSpatialContext, queryDecorationSpatialIndex } from './structure-json-spatial';
 
 export type StructureJsonImportMode = 'replace' | 'merge' | 'new-group';
-export type StructureJsonImportBlockerCode = 'structural-invalid' | 'out-of-bounds' | 'invalid-state' | 'duplicate-coordinate' | 'locked-current-blocks' | 'locked-current-decorations' | 'existing-coordinate-conflict' | 'decoration-conflict' | 'invalid-decoration' | 'empty-import';
+export type StructureJsonImportBlockerCode = 'structural-invalid' | 'out-of-bounds' | 'invalid-state' | 'duplicate-coordinate' | 'content-limit' | 'missing-support' | 'locked-current-blocks' | 'locked-current-decorations' | 'existing-coordinate-conflict' | 'decoration-conflict' | 'invalid-decoration' | 'empty-import';
 export interface StructureJsonImportBlocker { readonly code: StructureJsonImportBlockerCode; readonly count?: number; }
 export interface StructureJsonProjectConflict { readonly coordinate: VoxelCoordinate; readonly importedIndexes: readonly number[]; readonly existingBlockIds: readonly string[]; }
 export interface StructureJsonDecorationConflict { readonly importedIndex: number; readonly kind: StructureJsonDecoration['kind']; readonly anchor: VoxelCoordinate; readonly reason: 'block' | 'decoration'; readonly existingId?: string; }
@@ -40,19 +40,22 @@ export interface StructureJsonImportPlan {
   readonly baseProject: ProjectDocument;
 }
 
-export function buildStructureJsonImportPlan(source: StructureJson, validation: StructureJsonValidationPreview, project: ProjectDocument, getDefinition: (id: string) => BlockDefinition | undefined, mode: StructureJsonImportMode, fallbackGroupName = 'Imported Structure'): StructureJsonImportPlan {
+export function buildStructureJsonImportPlan(source: StructureJson, validation: StructureJsonValidationPreview, project: ProjectDocument, getDefinition: (id: string) => BlockDefinition | undefined, mode: StructureJsonImportMode, fallbackGroupName = 'Imported Structure', validationOptions?: StructureJsonValidationOptions): StructureJsonImportPlan {
   const importedBlocks = source.blocks.map((block) => toPlacedBlock(block, getDefinition(block.id)));
   const usedDecorationIds = new Set((project.decorations ?? []).map((entry) => entry.instanceId));
   const importedDecorations = source.decorations.map((decoration, index) => toPlacedDecoration(decoration, index, usedDecorationIds));
   const decorationValidationProject = mode === 'replace'
     ? { ...project, blocks: importedBlocks, decorations: [] }
     : { ...project, blocks: [...project.blocks, ...importedBlocks] };
-  const decorationValidation = validateStructureJsonDecorations(source, decorationValidationProject);
+  const decorationValidation = validateStructureJsonDecorations(source, decorationValidationProject, validationOptions);
   const blockers: StructureJsonImportBlocker[] = [];
   if (!validation.structuralValid) blockers.push({ code: 'structural-invalid' });
   if (validation.outOfBounds > 0) blockers.push({ code: 'out-of-bounds', count: validation.outOfBounds });
   if (validation.invalidStates > 0) blockers.push({ code: 'invalid-state', count: validation.invalidStates });
   if (validation.duplicateCoordinates > 0) blockers.push({ code: 'duplicate-coordinate', count: validation.duplicateCoordinates });
+  const contentLimitCount = validation.issues.contentLimit.length + decorationValidation.decorationIssues.filter((issue) => issue.category === 'content-limit').length;
+  if (contentLimitCount > 0) blockers.push({ code: 'content-limit', count: contentLimitCount });
+  if (validation.issues.support.length > 0) blockers.push({ code: 'missing-support', count: validation.issues.support.length });
   if (decorationValidation.invalidDecorations > 0) blockers.push({ code: 'invalid-decoration', count: decorationValidation.invalidDecorations });
   const currentConflicts = mode === 'replace' ? [] : findCurrentConflicts(source.blocks, project);
   if (currentConflicts.length > 0) blockers.push({ code: 'existing-coordinate-conflict', count: currentConflicts.length });

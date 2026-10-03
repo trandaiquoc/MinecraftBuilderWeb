@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { validateParsedStructureJsonPreviewAsync, validateStructureJsonPreview, STRUCTURE_JSON_VALIDATION_CHUNK_SIZE } from './structure-json-import';
+import { buildStructureJsonImportPlan } from './structure-json-import-plan';
+import type { ExternalAiContentLimits } from './external-ai-content-limits';
 
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
 const stairs: BlockDefinition = { ...stone, id: 'minecraft:oak_stairs', displayName: 'Oak Stairs', defaultState: { facing: 'north', half: 'bottom' }, stateDefinitions: [{ name: 'facing', values: ['north', 'south'] }, { name: 'half', values: ['top', 'bottom'] }] };
+const dragonWallHead: BlockDefinition = { ...stone, id: 'minecraft:dragon_wall_head', namespace: 'minecraft', displayName: 'Dragon Wall Head', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'south', 'east', 'west'] }], behavior: { kind: 'head-placement', wall: true, rotationProperty: 'rotation', facingProperty: 'facing' } };
+const chest: BlockDefinition = { ...stone, id: 'minecraft:chest', displayName: 'Chest', capabilities: [{ kind: 'inventory-storage', slotCount: 27, evidence: 'verified' }] };
+const dandelion: BlockDefinition = { ...stone, id: 'minecraft:dandelion', displayName: 'Dandelion', support: 'partial', behaviorSupport: 'full', behavior: { kind: 'floor-supported' } };
+const sapling: BlockDefinition = { ...stone, id: 'minecraft:oak_sapling', displayName: 'Oak Sapling', support: 'partial', behaviorSupport: 'full', behavior: { kind: 'floor-supported' } };
 const size = { x: 2, y: 2, z: 2 };
 const json = (blocks: unknown[]) => JSON.stringify({ format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks, decorations: [] });
+const limits = (overrides: Partial<ExternalAiContentLimits> = {}): ExternalAiContentLimits => ({ blocks: [], items: [], decorations: [], ...overrides });
 
 describe('Structure JSON import validation preview', () => {
   it('classifies valid, missing, duplicate and out-of-bounds blocks in one pass', () => {
@@ -95,5 +102,77 @@ describe('Structure JSON import validation preview', () => {
     const result = await validateParsedStructureJsonPreviewAsync({ format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:stone', x: 0, y: 0, z: 0 }], decorations: [] }, size, () => stone, () => { progressCalls += 1; });
     expect(result?.validBlocks).toBe(1);
     expect(progressCalls).toBe(1);
+  });
+
+  it('enforces enabled block limits through canonical placeable identity', () => {
+    const get = (id: string) => id === dragonWallHead.id ? dragonWallHead : undefined;
+    const value = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: dragonWallHead.id, x: 0, y: 0, z: 0 }], decorations: [] } as const;
+    expect(validateStructureJsonPreview(JSON.stringify(value), size, get, undefined, undefined, undefined, { contentLimitsEnabled: false, contentLimits: limits({ blocks: ['minecraft:dragon_head'] }) }).issues.contentLimit).toHaveLength(0);
+    const result = validateStructureJsonPreview(JSON.stringify(value), size, get, undefined, undefined, undefined, { contentLimitsEnabled: true, contentLimits: limits({ blocks: ['minecraft:dragon_head'] }) });
+    expect(result.issues.contentLimit[0].reason).toEqual({ code: 'content-limit', restrictedId: 'minecraft:dragon_head', path: 'id' });
+  });
+
+  it('turns hard content and support issues into import-plan blockers', () => {
+    const project = { schemaVersion: 3 as const, id: 'blocked', metadata: { name: 'Blocked', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size, structureMode: 'vanilla-structure-block' as const, blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'whole-structure' as const, referenceLayerOpacity: 0.5 } };
+    const contentSource = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }], decorations: [] } as const;
+    const contentOptions = { contentLimitsEnabled: true, contentLimits: limits({ blocks: [stone.id] }) };
+    const contentValidation = validateStructureJsonPreview(JSON.stringify(contentSource), size, (id) => id === stone.id ? stone : undefined, undefined, undefined, undefined, contentOptions);
+    const contentPlan = buildStructureJsonImportPlan(contentSource, contentValidation, project, (id) => id === stone.id ? stone : undefined, 'replace', undefined, contentOptions);
+    expect(contentPlan.blockingIssues).toContainEqual({ code: 'content-limit', count: 1 });
+    expect(contentPlan.applicable).toBe(false);
+
+    const supportSource = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: dandelion.id, x: 0, y: 1, z: 0 }], decorations: [] } as const;
+    const supportValidation = validateStructureJsonPreview(JSON.stringify(supportSource), size, (id) => id === dandelion.id ? dandelion : undefined);
+    const supportPlan = buildStructureJsonImportPlan(supportSource, supportValidation, project, (id) => id === dandelion.id ? dandelion : undefined, 'replace');
+    expect(supportPlan.blockingIssues).toContainEqual({ code: 'missing-support', count: 1 });
+    expect(supportPlan.applicable).toBe(false);
+  });
+
+  it('reports restricted items in container and item-frame payloads', () => {
+    const get = (id: string) => id === chest.id ? chest : id === stone.id ? stone : undefined;
+    const value = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: chest.id, x: 0, y: 0, z: 0, blockEntity: { kind: 'container', items: [{ slot: 0, item: { id: 'minecraft:diamond' } }] } }], decorations: [{ kind: 'item-frame', anchor: { x: 0, y: 1, z: 0 }, facing: 'north', item: { id: 'minecraft:diamond' } }] } as const;
+    const result = validateStructureJsonPreview(JSON.stringify(value), { x: 2, y: 3, z: 2 }, get, undefined, undefined, undefined, { contentLimitsEnabled: true, contentLimits: limits({ items: ['minecraft:diamond'] }) });
+    expect(result.issues.contentLimit).toHaveLength(1);
+    expect(result.issues.contentLimit[0].reason).toMatchObject({ restrictedId: 'minecraft:diamond', path: 'blockEntity.items[0].item.id' });
+    expect(result.decorationIssues).toContainEqual(expect.objectContaining({ category: 'content-limit', restrictedId: 'minecraft:diamond', path: 'item.id' }));
+  });
+
+  it('reports restricted painting variants without confusing held items', () => {
+    const value = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [], decorations: [{ kind: 'painting', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', variantId: 'minecraft:kebab' }] } as const;
+    const result = validateStructureJsonPreview(JSON.stringify(value), size, () => undefined, undefined, undefined, undefined, { contentLimitsEnabled: true, contentLimits: limits({ decorations: ['minecraft:kebab'] }) });
+    expect(result.decorationIssues).toContainEqual(expect.objectContaining({ category: 'content-limit', restrictedId: 'minecraft:kebab' }));
+  });
+
+  it('keeps unavailable mod restrictions from authorizing missing content', () => {
+    const value = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: 'example:missing', x: 0, y: 0, z: 0 }], decorations: [] } as const;
+    const result = validateStructureJsonPreview(JSON.stringify(value), size, () => undefined, undefined, undefined, undefined, { contentLimitsEnabled: true, contentLimits: limits({ blocks: ['example:missing'] }) });
+    expect(result.missingBlocks).toBe(1);
+  });
+
+  it('hard-blocks verified missing support while leaving unknown behavior alone', () => {
+    const get = (id: string) => id === dandelion.id ? dandelion : id === 'example:unknown' ? ({ ...stone, id, namespace: 'example', behaviorSupport: 'unknown' as const } satisfies BlockDefinition) : undefined;
+    const supported = validateStructureJsonPreview(json([{ id: stone.id, x: 0, y: 0, z: 0 }, { id: dandelion.id, x: 0, y: 1, z: 0 }]), size, get);
+    expect(supported.issues.support).toHaveLength(0);
+    const missing = validateStructureJsonPreview(json([{ id: dandelion.id, x: 0, y: 1, z: 0 }]), size, get);
+    expect(missing.issues.support).toHaveLength(1);
+    const unknown = validateStructureJsonPreview(json([{ id: 'example:unknown', x: 0, y: 1, z: 0 }]), size, get);
+    expect(unknown.issues.support).toHaveLength(0);
+  });
+
+  it('reports origin, floating, and conservative sapling warnings without blocking import', () => {
+    const unverifiedSapling = { ...sapling, behavior: undefined, behaviorSupport: 'unknown' as const } satisfies BlockDefinition;
+    const get = (id: string) => id === stone.id ? stone : id === sapling.id ? unverifiedSapling : undefined;
+    const value = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 1, y: 1, z: 1 }, { id: sapling.id, x: 2, y: 2, z: 1 }], decorations: [] } as const;
+    const result = validateStructureJsonPreview(JSON.stringify(value), { x: 4, y: 4, z: 4 }, get);
+    expect(result.issues.warning.map((entry) => entry.reason.code)).toEqual(expect.arrayContaining(['origin-offset', 'possible-floating', 'tree-grounding']));
+    const project = { schemaVersion: 3 as const, id: 'warnings', metadata: { name: 'Warnings', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 4, y: 4, z: 4 }, structureMode: 'vanilla-structure-block' as const, blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'whole-structure' as const, referenceLayerOpacity: 0.5 } };
+    const plan = buildStructureJsonImportPlan(value, result, project, get, 'replace');
+    expect(plan.applicable).toBe(true);
+  });
+
+  it('keeps negative coordinates as hard bounds errors', () => {
+    const result = validateStructureJsonPreview(json([{ id: stone.id, x: -1, y: 0, z: 0 }]), size, () => stone);
+    expect(result.outOfBounds).toBe(1);
+    expect(result.issues.warning).toHaveLength(0);
   });
 });

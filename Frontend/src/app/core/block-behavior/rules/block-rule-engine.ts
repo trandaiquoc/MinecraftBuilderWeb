@@ -12,7 +12,7 @@ export type RuleReason = 'ok' | 'unknown-behavior' | 'out-of-bounds' | 'occupied
 export interface RuleValidation { readonly status: RuleStatus; readonly reason: RuleReason; readonly affectedPositions: readonly VoxelCoordinate[]; readonly diagnostics?: readonly string[]; }
 export interface RuleMutationResult { readonly validation: RuleValidation; readonly project?: ProjectDocument; readonly plannedBlocks?: readonly PlacedBlock[]; }
 export type BlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
-type BlockSource = readonly PlacedBlock[] | ReadonlyBlockLookup;
+export type BlockSource = readonly PlacedBlock[] | ReadonlyBlockLookup;
 
 /** Returns the next canonical state when the active candle can stack in-place. */
 export function nextCandleState(existing: PlacedBlock, activeId: string, definition: BlockDefinitionLookup): Readonly<Record<string, string>> | undefined {
@@ -31,6 +31,15 @@ const sixOffsets: readonly VoxelCoordinate[] = [...horizontalDirections.map((ent
 
 export class BlockRuleEngine {
   constructor(private readonly definition: BlockDefinitionLookup) {}
+
+  /**
+   * Evaluates only the verified support contract for an already materialized
+   * block. This is intentionally read-only so import validation cannot trigger
+   * placement, derived-state refresh, or project mutation.
+   */
+  validateSupportOnly(project: ProjectDocument, block: PlacedBlock, definition = this.definition(block.id), source: BlockSource = project.blocks): RuleValidation {
+    return this.validateSupport(project, block, definition, source);
+  }
 
   place(project: ProjectDocument, requestedBlock: PlacedBlock, context?: PlacementContext, lookup?: ReadonlyBlockLookup): RuleMutationResult {
     const prepared = this.preparePlacement(requestedBlock, context);

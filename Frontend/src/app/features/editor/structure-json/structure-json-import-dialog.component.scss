@@ -119,6 +119,7 @@
 .issue-group { display: grid; gap: .45rem; margin-top: 1rem; }
 .issue-group summary { display: flex; align-items: center; justify-content: space-between; gap: .5rem; cursor: pointer; font-size: .74rem; }
 .issue-group summary strong { color: var(--text-muted); font-size: .7rem; }
+.issue-group.warning-group summary strong, .issue-group.warning-group .issue-reason { color: var(--warning); }
 .issue-group ul { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
 .issue-group li, .duplicate-conflict { display: grid; gap: .22rem; padding: .5rem .55rem; border-radius: var(--radius-sm); background: var(--surface-raised); font: .68rem/1.35 var(--font-readable); }
 .issue-group code { overflow-wrap: anywhere; color: var(--text); font-size: .64rem; }
