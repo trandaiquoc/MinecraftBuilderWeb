@@ -2261,6 +2261,15 @@ instead of dropping the face. Provider/renderer clears dispose atlas pages and
 compiled atlas state together, so a new provider generation cannot reuse old
 sprites. This remains render-only and is not a project or UI preference.
 
+Real Vanilla JSON block faces use `MeshBasicMaterial` or `MeshLambertMaterial`
+with `DoubleSide`, `alphaTest: 0.1`, Nearest filtering, no mipmaps, and sRGB
+textures. The atlas accepts `FrontSide` and `DoubleSide` while retaining
+`side` in the material semantics key and copying it to atlas materials;
+`BackSide`, transparent, and otherwise unsupported semantics remain strict
+fallbacks. Provider-backed fixture coverage verifies atlas diagnostics for
+stone, dirt, oak planks, sandstone, and oak log, including distinct oak log
+side/top source textures.
+
 ## Thumbnail generation lifecycle
 
 Block-browser thumbnails now use one explicit provider-generation transition.
