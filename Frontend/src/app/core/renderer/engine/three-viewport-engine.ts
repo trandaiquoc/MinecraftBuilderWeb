@@ -168,6 +168,12 @@ export interface ViewportPerformanceEvidence {
   readonly terrainAtlasFaces: number;
   readonly terrainAtlasFallbackFaces: number;
   readonly terrainAtlasChunkMeshes: number;
+  readonly activeAtlasGeneration: number;
+  readonly terrainGeneration: number;
+  readonly terrainProviderResets: number;
+  readonly staleTerrainTemplateResultsDiscarded: number;
+  readonly terrainCacheEntries: number;
+  readonly precompiledTerrainCacheEntries: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -878,14 +884,15 @@ export class ThreeViewportEngine {
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
     const previousProvider = this.visualProvider;
+    this.providerGeneration += 1;
+    this.cancelHydration();
     this.visualProvider = provider;
     this.clearReusableInstanceTemplates();
-    this.clearSurfaceFaceResources();
-    this.terrainRenderer.resetAtlas();
+    this.surfaceRenderer.clear(this.renderedBlocks.values());
+    this.terrainRenderer.resetProviderGeneration();
     this.pendingTerrainTemplates.clear();
     this.visualProvider?.retain?.();
     this.providerStats = undefined;
-    this.providerGeneration += 1;
     this.structureSyncKey = '';
     this.specialVisualSignature = '';
     this.ghostModelKey = '';
@@ -1308,7 +1315,7 @@ export class ThreeViewportEngine {
         continue;
       }
       if (candidate && cachedTemplates) {
-        const record: TerrainSurfaceRecord = { key, block: next!.block, templates: cachedTemplates };
+        const record: TerrainSurfaceRecord = { key, block: next!.block, templates: cachedTemplates, generation: this.terrainRenderer.generation };
         this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0, terrainChunkKey: chunkKey(next!.block.position) });
         this.pendingHydrationSignatures.delete(key);
         terrainChanges.push({ key, position: next!.block.position, after: record, afterOpaque: true });
@@ -1349,6 +1356,7 @@ export class ThreeViewportEngine {
     const groups = groupTerrainCandidates(candidates);
     const token = this.hydrationGeneration;
     const providerGeneration = this.providerGeneration;
+    const terrainGeneration = this.terrainRenderer.generation;
     const resolved = [...groups.entries()].map(([reusableKey, group]) => {
       const cached = this.terrainRenderer.templatesFor(reusableKey);
       if (cached) return Promise.resolve({ reusableKey, group, templates: cached, owned: false });
@@ -1359,7 +1367,8 @@ export class ThreeViewportEngine {
     const pendingGroups = resolved.filter((_, index) => !this.terrainRenderer.templateCache.has([...groups.keys()][index])).length;
     if (pendingGroups) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
     void Promise.all(resolved).then((results) => {
-      if (token !== this.hydrationGeneration || providerGeneration !== this.providerGeneration || this.disposed) {
+      if (token !== this.hydrationGeneration || providerGeneration !== this.providerGeneration || terrainGeneration !== this.terrainRenderer.generation || this.disposed) {
+        for (const _ of results) this.terrainRenderer.noteStaleTemplateResult();
         for (const result of results) if (result.owned && result.templates && ![...this.terrainRenderer.templateCache.values()].some((templates) => templates === result.templates)) this.disposeTerrainTemplates(result.templates);
         return;
       }
@@ -1367,11 +1376,11 @@ export class ThreeViewportEngine {
       const failed: TerrainHydrationCandidate[] = [];
       for (const result of results) {
         if (result.templates) {
-          this.terrainRenderer.cacheTemplates(result.reusableKey, result.templates);
+          this.terrainRenderer.cacheTemplates(result.reusableKey, result.templates, terrainGeneration);
           for (const candidate of result.group) {
             const current = this.renderedBlocks.get(candidate.key);
             if (!current || current.signature !== candidate.next.signature) continue;
-            usable.push({ key: candidate.key, block: candidate.next.block, templates: result.templates });
+            usable.push({ key: candidate.key, block: candidate.next.block, templates: result.templates, generation: terrainGeneration });
             current.terrainChunkKey = chunkKey(candidate.next.block.position);
             this.pendingHydrationSignatures.delete(candidate.key);
           }
@@ -1391,7 +1400,7 @@ export class ThreeViewportEngine {
     }).catch(() => {
       // Promise.all is intentionally normalized above; this is only a guard
       // for an unexpected coordinator failure.
-      this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
+      if (providerGeneration === this.providerGeneration && terrainGeneration === this.terrainRenderer.generation) this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
     });
   }
 
@@ -1809,10 +1818,14 @@ export class ThreeViewportEngine {
         ? this.resolveTerrainHydration(reusableKey, block, worldContext, provider!)
         : this.createProviderVisual(provider!, block, worldContext);
       void visualPromise.then((visual) => {
-        if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
+        if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) {
+          if (visual.object) disposeObject(visual.object);
+          if (visual.terrainTemplates && ![...this.terrainRenderer.templateCache.values()].some((templates) => templates === visual.terrainTemplates)) this.disposeTerrainTemplates(visual.terrainTemplates);
+          return;
+        }
         fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
         if (visual.terrainTemplates) {
-          this.terrainRenderer.cacheTemplates(reusableKey!, visual.terrainTemplates);
+          this.terrainRenderer.cacheTemplates(reusableKey!, visual.terrainTemplates, this.terrainRenderer.generation);
           if (this.addTerrainVisual(block, entry.key, visual.terrainTemplates)) {
             entry.terrainChunkKey = chunkKey(block.position);
             this.blocksGroup.remove(fallback);
@@ -1898,7 +1911,7 @@ export class ThreeViewportEngine {
   }
 
   private addTerrainVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[]): boolean {
-    return this.terrainRenderer.upsert({ key, block, templates });
+    return this.terrainRenderer.upsert({ key, block, templates, generation: this.terrainRenderer.generation });
   }
 
   private removeSurfaceFaceVisual(key: string, entry?: RenderedBlockEntry): void {
@@ -2785,6 +2798,12 @@ export class ThreeViewportEngine {
       terrainAtlasFaces: terrain.terrainAtlasFaces,
       terrainAtlasFallbackFaces: terrain.terrainAtlasFallbackFaces,
       terrainAtlasChunkMeshes: terrain.terrainAtlasChunkMeshes,
+      activeAtlasGeneration: terrain.activeAtlasGeneration,
+      terrainGeneration: terrain.terrainGeneration,
+      terrainProviderResets: terrain.terrainProviderResets,
+      staleTerrainTemplateResultsDiscarded: terrain.staleTerrainTemplateResultsDiscarded,
+      terrainCacheEntries: terrain.terrainCacheEntries,
+      precompiledTerrainCacheEntries: terrain.precompiledTerrainCacheEntries,
     };
   }
 

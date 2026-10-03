@@ -2266,3 +2266,14 @@ discarded. Fallback URLs remain visible while enhanced previews load, transient
 enhancement failures may retry on a later visible request, and explicitly
 unsupported previews remain unavailable without retry loops. Search/filter
 changes do not discard the shared queue unnecessarily.
+
+## Terrain provider generation boundary
+
+Compiled terrain now has an explicit renderer-owned generation. Replacing a
+visual provider atomically disposes old chunk meshes, source terrain templates,
+precompiled face descriptors, atlas pages, and atlas materials before the next
+generation hydrates. Late terrain template promises are discarded and cannot
+populate the new atlas. Atlas pages preserve each source texture's native row
+convention together with its `flipY` sampler flag; incompatible orientation
+classes use separate pages. This is renderer lifecycle state only and does not
+mutate project, workspace, selection, or history data.

@@ -167,6 +167,47 @@ describe('chunk surface renderer ownership', () => {
     expect(dispose).toHaveBeenCalledTimes(1);
     renderer.dispose(); map.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
+
+  it('atomically resets provider generation resources and removes stale cache entries', () => {
+    const group = new THREE.Group();
+    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined, atlas });
+    const map = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+    map.needsUpdate = true;
+    const material = new THREE.MeshBasicMaterial({ map });
+    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:oak_log', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { axis: 'y' } };
+    const templates = cubeTemplates(material);
+    renderer.cacheTemplates('minecraft:oak_log|axis=y', templates);
+    renderer.bulkUpsert([{ key: voxelKey(block.position), block, templates }], [{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }], [block.position], { initial: true });
+    const oldChunk = group.children[0] as THREE.Mesh;
+    const oldChunkDispose = vi.spyOn(oldChunk.geometry, 'dispose');
+    const oldAtlasMaterial = oldChunk.material as THREE.Material;
+    const oldAtlasMaterialDispose = vi.spyOn(oldAtlasMaterial, 'dispose');
+    const oldAtlasTexture = (atlas as unknown as { pages: readonly [{ texture: THREE.DataTexture }] }).pages[0].texture;
+    const oldAtlasTextureDispose = vi.spyOn(oldAtlasTexture, 'dispose');
+    expect(renderer.templatesFor('minecraft:oak_log|axis=y')).toBe(templates);
+
+    expect(renderer.resetProviderGeneration()).toBe(1);
+    expect(group.children).toHaveLength(0);
+    expect(renderer.templatesFor('minecraft:oak_log|axis=y')).toBeUndefined();
+    expect(oldChunkDispose).toHaveBeenCalledTimes(1);
+    expect(oldAtlasMaterialDispose).toHaveBeenCalledTimes(1);
+    expect(oldAtlasTextureDispose).toHaveBeenCalledTimes(1);
+    expect(renderer.upsert({ key: voxelKey(block.position), block, templates, generation: 0 })).toBe(false);
+    expect(renderer.evidence()).toMatchObject({ terrainGeneration: 1, terrainProviderResets: 1, terrainCacheEntries: 0, terrainLogicalBlocks: 0, activeAtlasGeneration: 1 });
+
+    const replacementMap = new THREE.DataTexture(new Uint8Array([40, 80, 120, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+    replacementMap.needsUpdate = true;
+    const replacementMaterial = new THREE.MeshBasicMaterial({ map: replacementMap });
+    const replacementTemplates = cubeTemplates(replacementMaterial);
+    const replacement = { ...block, state: { axis: 'y' } };
+    renderer.cacheTemplates('minecraft:oak_log|axis=y', replacementTemplates, 1);
+    renderer.bulkUpsert([{ key: voxelKey(replacement.position), block: replacement, templates: replacementTemplates }], [{ block: replacement, role: 'normal', occlusionClass: 'opaque-full-cube' }], [replacement.position], { initial: true });
+    expect(group.children).toHaveLength(1);
+    const replacementChunkMaterial = (group.children[0] as THREE.Mesh).material;
+    expect((Array.isArray(replacementChunkMaterial) ? replacementChunkMaterial[0] : replacementChunkMaterial).userData['terrainAtlasGeneration']).toBe(1);
+    renderer.dispose(); map.dispose(); material.dispose(); replacementMap.dispose(); replacementMaterial.dispose();
+  });
 });
 
 function voxelKey(position: VoxelCoordinate): string { return `${position.x},${position.y},${position.z}`; }

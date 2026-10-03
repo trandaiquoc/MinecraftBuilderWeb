@@ -4,6 +4,8 @@ import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCU
 import type { InstancePartTemplate } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import type { BlockVisualProvider } from '../geometry/block-model-geometry';
+import { VanillaBlockVisualProvider } from '../geometry/block-model-geometry';
+import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from '../benchmark/renderer-benchmark-fixtures';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
@@ -1331,6 +1333,70 @@ describe('3D exposed surface batches', () => {
     provider.dispose();
   });
 
+  it('keeps an oak-log axis transition visible across terrain and legacy paths', async () => {
+    const base = rendererBenchmarkProject('small');
+    const block = (axis: string): PlacedBlock => ({ kind: 'resolved', id: 'minecraft:oak_log', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { axis } });
+    const create = vi.fn(async () => terrainVisualResult());
+    const provider = { create, reusableVisualKey: (value: PlacedBlock) => `oak-log-${value.state['axis'] ?? 'y'}`, occlusionClass: (value: PlacedBlock) => value.state['axis'] === 'y' ? 'opaque-full-cube' as const : 'unknown' as const, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const engine = new ThreeViewportEngine();
+    const initial = { ...base, blocks: [block('y')], decorations: [] };
+    engine.setVisualProvider(provider);
+    engine.update(initial, undefined, { exposedFaceRendering: true });
+    await settleHydration(30, engine);
+    expect(engine.performanceEvidence()).toMatchObject({ terrainLogicalBlocks: 1, terrainChunkMeshes: 1, terrainFacesEmitted: 6 });
+    const refreshedProvider = { create, reusableVisualKey: (value: PlacedBlock) => `oak-log-${value.state['axis'] ?? 'y'}`, occlusionClass: (value: PlacedBlock) => value.state['axis'] === 'y' ? 'opaque-full-cube' as const : 'unknown' as const, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    engine.setVisualProvider(refreshedProvider);
+    await settleHydration(30, engine);
+    expect(engine.performanceEvidence()).toMatchObject({ terrainGeneration: 2, terrainLogicalBlocks: 1, terrainChunkMeshes: 1 });
+    let current = initial.blocks[0];
+    for (const axis of ['x', 'z', 'y']) {
+      const next = block(axis);
+      engine.update({ ...initial, blocks: [next] }, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position: current.position, before: current, after: next }], 'state-edit'));
+      await settleHydration(30, engine);
+      const evidence = engine.performanceEvidence();
+      expect(engine.visibleSceneDiagnostics().renderedVoxelCount).toBe(1);
+      if (axis === 'y') expect(evidence).toMatchObject({ terrainLogicalBlocks: 1, terrainChunkMeshes: 1 });
+      else expect(evidence.terrainLogicalBlocks).toBe(0);
+      current = next;
+    }
+    expect(engine.performanceEvidence().terrainFacesEmitted).toBeGreaterThanOrEqual(12);
+    engine.dispose();
+  });
+
+  it('runs a real vanilla provider cube through extraction, atlas, and chunk mesh', async () => {
+    const cubeFaces = Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: '#all' }]));
+    const assets = new VanillaAssetProvider('terrain-fixture', {
+      'assets/minecraft/blockstates/oak_log.json': { variants: { 'axis=y': { model: 'minecraft:block/oak_log' } } },
+      'assets/minecraft/models/block/oak_log.json': { parent: 'minecraft:block/cube_all', textures: { all: 'minecraft:block/oak_log' } },
+      'assets/minecraft/models/block/cube_all.json': { parent: 'minecraft:block/cube', textures: { down: '#all', up: '#all', north: '#all', south: '#all', west: '#all', east: '#all' } },
+      'assets/minecraft/models/block/cube.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: cubeFaces }] },
+    }, new Map([['assets/minecraft/textures/block/oak_log.png', new Uint8Array([1, 2, 3, 255])]]));
+    const provider = new VanillaBlockVisualProvider(assets, async () => {
+      const texture = new THREE.DataTexture(new Uint8Array([120, 80, 40, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+      texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter; texture.generateMipmaps = false; texture.needsUpdate = true;
+      return texture as unknown as THREE.Texture<HTMLImageElement>;
+    });
+    const base = rendererBenchmarkProject('small');
+    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:oak_log', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { axis: 'y' } };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update({ ...base, blocks: [block], decorations: [] }, undefined, { exposedFaceRendering: true });
+    await settleHydration(40, engine);
+    const evidence = engine.performanceEvidence();
+    expect(evidence).toMatchObject({ terrainLogicalBlocks: 1, terrainChunkMeshes: 1, terrainFacesEmitted: 6, terrainAtlasSprites: 1, terrainAtlasMaterials: 1 });
+    const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
+    expect(blocksGroup.children.some((child) => child.userData['terrainChunk'] === '0,0,0')).toBe(true);
+    const refreshedProvider = new VanillaBlockVisualProvider(assets, async () => {
+      const texture = new THREE.DataTexture(new Uint8Array([120, 80, 40, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+      texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter; texture.generateMipmaps = false; texture.needsUpdate = true;
+      return texture as unknown as THREE.Texture<HTMLImageElement>;
+    });
+    engine.setVisualProvider(refreshedProvider);
+    await settleHydration(40, engine);
+    expect(engine.performanceEvidence()).toMatchObject({ terrainGeneration: 2, terrainLogicalBlocks: 1, terrainChunkMeshes: 1, terrainAtlasSprites: 1, activeAtlasGeneration: 2 });
+    engine.dispose(); provider.dispose(); refreshedProvider.dispose();
+  });
+
   it('ingests a homogeneous 100k terrain scene by signature instead of voxel hydration jobs', async () => {
     const blocks: PlacedBlock[] = [];
     for (let y = 0; y < 10; y += 1) for (let z = 0; z < 100; z += 1) for (let x = 0; x < 100; x += 1) blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
@@ -1426,6 +1492,30 @@ describe('provider handoff hydration ownership', () => {
     await settleHydration();
     expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, running: 0 });
     expect(engine.visibleSceneDiagnostics()).toMatchObject({ renderedVoxelCount: 0, placeholderVoxelCount: 2, pendingVoxelCount: 0 });
+    engine.dispose();
+  });
+
+  it('discards a deferred terrain template from the old provider generation', async () => {
+    const base = rendererBenchmarkProject('small');
+    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:oak_log', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { axis: 'y' } };
+    const project = { ...base, blocks: [block], decorations: [] };
+    const pending: Array<(value: unknown) => void> = [];
+    const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), reusableVisualKey: () => 'oak-log-axis-y', occlusionClass: () => 'opaque-full-cube' as const, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const replacement = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), reusableVisualKey: () => 'oak-log-axis-y', occlusionClass: () => 'opaque-full-cube' as const, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    engine.setVisualProvider(replacement);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pending).toHaveLength(2);
+    pending[0](terrainVisualResult());
+    await Promise.resolve();
+    pending[1](terrainVisualResult());
+    await settleHydration(30, engine);
+    const evidence = engine.performanceEvidence();
+    expect(evidence).toMatchObject({ terrainGeneration: 2, terrainProviderResets: 2, terrainLogicalBlocks: 1, terrainChunkMeshes: 1 });
+    expect(evidence.staleTerrainTemplateResultsDiscarded).toBeGreaterThan(0);
     engine.dispose();
   });
 });
@@ -1585,6 +1675,17 @@ async function settleHydration(rounds = 20, engine?: ThreeViewportEngine): Promi
     await Promise.resolve();
     if (engine?.hydrationProgress().status === 'complete') return;
   }
+}
+
+function terrainVisualResult(): unknown {
+  const root = new THREE.Group();
+  for (const direction of ['north', 'south', 'east', 'west', 'up', 'down'] as const) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x8f6b3f }));
+    mesh.userData['face'] = direction;
+    mesh.userData['cullface'] = direction;
+    root.add(mesh);
+  }
+  return { object: root, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
 }
 
 function cameraFrustum(camera: THREE.PerspectiveCamera): THREE.Frustum {
