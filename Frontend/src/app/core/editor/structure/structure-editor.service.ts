@@ -9,7 +9,7 @@ import { BlockModelResolver } from '../../blocks/resolver/block-model-resolver';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { isBlockLocked as hasLockedMembership } from '../groups/group-membership';
 import { BlockRuleEngine, nextCandleState, RuleValidation } from '../../block-behavior/rules/block-rule-engine';
-import { expandLogicalObjectClosure, resolveLogicalObjectParts, resolveLogicalObjectPartsFromLookup, synchronizeLogicalObjectState, transformPairedHorizontal } from '../../block-behavior/logical-objects/logical-object';
+import { expandLogicalObjectClosure, resolveLogicalObjectParts, synchronizeLogicalObjectState, transformPairedHorizontal } from '../../block-behavior/logical-objects/logical-object';
 import { PlacementContext } from '../placement/placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from '../../block-entities/sign/sign-text-metrics';
 import { planPlacement, PlacementPlan } from '../../block-behavior/placement/placement-plan';
@@ -23,7 +23,6 @@ import type { ItemStackData } from '../../items/item-stack.types';
 import { validateItemStack } from '../../items/item-stack-validation';
 import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
-import type { RuntimeDeltaTransaction } from '../history/history.service';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -31,15 +30,14 @@ export class StructureEditorService {
   constructor(private readonly workspace: WorkspaceStateService = inject(WorkspaceStateService), private readonly activeBlock: ActiveBlockService = inject(ActiveBlockService), private readonly selection: SelectionService = inject(SelectionService), private readonly history: HistoryService = inject(HistoryService), private readonly library: BlockLibraryService = inject(BlockLibraryService)) {}
 
   place(position: VoxelCoordinate, context?: PlacementContext): boolean {
-    return this.history.executeDelta('Place', (project, runtime): RuntimeDeltaTransaction | undefined => {
+    return this.history.execute('Place', (project) => {
       const active = this.activeBlock.active();
-      const existing = runtime.get(position);
-      if (!active || !isWithinBounds(position, project.size) || existing || existing && hasLockedMembership(existing, project.groups)) return undefined;
-      const plan = planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id), runtime);
+      if (!active || !isWithinBounds(position, project.size) || this.find(project, position) || isBlockLocked(project, position)) return undefined;
+      const plan = planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id));
       this.lastValidation = plan.validation;
-      if (plan.validation.status === 'invalid' || !plan.changedBlocks?.length) return undefined;
+      if (!plan.project) return undefined;
       const placedKeys = new Set(plan.blocks.map((block) => coordinateKey(block.position)));
-      const changedBlocks = plan.changedBlocks.map((block) => {
+      return pruneInvalidDecorations({ ...plan.project, blocks: plan.project.blocks.map((block) => {
         if (!placedKeys.has(coordinateKey(block.position))) return block;
         const entityKind = blockEntityKind(this.library.get(block.id));
         if (entityKind === 'sign' || isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
@@ -47,10 +45,7 @@ export class StructureEditorService {
         const itemHost = itemHostCapability(this.library.get(block.id), block.id);
         if (itemHost) return { ...block, blockEntityData: defaultItemContainerData(itemHost.kind, itemHost.slotCount) };
         return block;
-      });
-      const added = changedBlocks.filter((block) => !runtime.get(block.position));
-      const updated = changedBlocks.flatMap((block) => { const before = runtime.get(block.position); return before ? [{ before, after: block }] : []; });
-      return { delta: { added, updated }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      }) });
     });
   }
 
@@ -62,14 +57,18 @@ export class StructureEditorService {
   }
 
   stackCandle(position: VoxelCoordinate): boolean {
-    return this.history.executeDelta('Stack candle', (project, runtime): RuntimeDeltaTransaction | undefined => {
+    return this.history.execute('Stack candle', (project) => {
       const active = this.activeBlock.active();
-      const existing = runtime.get(position);
+      const existing = this.find(project, position);
       if (!active || !existing || hasLockedMembership(existing, project.groups)) return undefined;
       const state = nextCandleState(existing, active.id, (id) => this.library.get(id));
       if (!state) return undefined;
       this.lastValidation = { status: 'valid', reason: 'ok', affectedPositions: [position] };
-      return { delta: { updated: [{ before: existing, after: { ...existing, state } }] }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      return {
+        ...project,
+        blocks: project.blocks.map((block) => coordinateKey(block.position) === coordinateKey(position) ? { ...block, state } : block),
+        metadata: { ...project.metadata, updatedAt: new Date().toISOString() },
+      };
     });
   }
 
@@ -82,7 +81,7 @@ export class StructureEditorService {
   deleteSelection(): boolean {
     const project = this.workspace.project();
     if (!project) return false;
-    const selected = this.selection.selectedBlocks(project, this.workspace.ensureRuntime(project));
+    const selected = this.selection.selectedBlocks(project);
     if (!selected.length) return false;
     const changed = this.deletePositions(selected.map((block) => block.position), 'Delete selection');
     if (changed) this.selection.clear();
@@ -90,21 +89,6 @@ export class StructureEditorService {
   }
 
   deletePositions(positions: readonly VoxelCoordinate[], label = 'Delete'): boolean {
-    if (positions.length > 4096) return this.deletePositionsSnapshot(positions, label);
-    return this.history.executeDelta(label, (project, runtime): RuntimeDeltaTransaction | undefined => {
-      const requested = new Set(positions.map(coordinateKey));
-      const seeds = positions.map((position) => runtime.get(position)).filter((block): block is PlacedBlock => !!block && requested.has(coordinateKey(block.position)));
-      const expanded = expandLogicalObjectClosure(project.blocks, seeds, (id) => this.library.get(id), runtime);
-      if (!expanded.length || expanded.some((block) => hasLockedMembership(block, project.groups))) return undefined;
-      const result = this.rules().deleteMany(project, expanded.map((block) => block.position), runtime);
-      this.lastValidation = result.validation;
-      if ((result.validation.status === 'invalid' && result.validation.reason !== 'missing-support') || !result.removedBlocks?.length) return undefined;
-      const updated = (result.changedBlocks ?? []).flatMap((block) => { const before = runtime.get(block.position); return before ? [{ before, after: block }] : []; });
-      return { delta: { removed: result.removedBlocks, updated }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
-    });
-  }
-
-  private deletePositionsSnapshot(positions: readonly VoxelCoordinate[], label: string): boolean {
     return this.history.execute(label, (project) => {
       const requested = new Set(positions.map(coordinateKey));
       const seeds = project.blocks.filter((block) => requested.has(coordinateKey(block.position)));
@@ -133,26 +117,6 @@ export class StructureEditorService {
 
   updateBlockState(position: VoxelCoordinate, property: string, value: string): boolean {
     const before = this.workspace.project(); const selectedBefore = before && this.find(before, position); const selectedWasHead = selectedBefore?.state['part'] === 'head';
-    if (before && selectedBefore) {
-      const runtime = this.workspace.ensureRuntime(before); const definition = this.library.get(selectedBefore.id); const options = definition?.stateDefinitions.find((entry) => entry.name === property)?.values;
-      const parts = resolveLogicalObjectPartsFromLookup(position, (id) => this.library.get(id), runtime);
-      if (options?.includes(value) && !this.rules().isDerivedProperty(selectedBefore.id, property) && !(definition?.behavior?.kind === 'paired-horizontal' && property === definition.behavior.facingProperty)) {
-        const changed = this.history.executeDelta('BlockState edit', (project, live): RuntimeDeltaTransaction | undefined => {
-          const block = live.get(position); if (!block || hasLockedMembership(block, project.groups)) return undefined;
-          const liveParts = resolveLogicalObjectPartsFromLookup(position, (id) => this.library.get(id), live);
-          if (!liveParts.length || liveParts.some((part) => hasLockedMembership(part, project.groups))) return undefined;
-          const behavior = definition?.behavior;
-          const identityProperty = behavior?.kind === 'double-height' ? behavior.halfProperty : behavior?.kind === 'paired-horizontal' ? behavior.partProperty : undefined;
-          const changedParts = liveParts.map((part) => ({ ...part, state: { ...part.state, ...block.state, [property]: value, ...(identityProperty ? { [identityProperty]: part.state[identityProperty] ?? block.state[identityProperty] } : {}) } }));
-          const result = this.rules().refreshWithLookup(project, changedParts, changedParts.map((part) => part.position), live); this.lastValidation = result.validation;
-          if (result.validation.status === 'invalid' && result.validation.reason !== 'missing-support') return undefined;
-          const changedEntries = result.changedBlocks?.length ? result.changedBlocks : changedParts;
-          const updated = changedEntries.flatMap((entry) => { const current = live.get(entry.position); return current ? [{ before: current, after: entry }] : []; });
-          return { delta: { updated }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
-        });
-        return changed;
-      }
-    }
     const changed = this.history.execute('BlockState edit', (project) => {
       const block = this.find(project, position); const definition = block && this.library.get(block.id); const options = definition?.stateDefinitions.find((entry) => entry.name === property)?.values;
       const rules = this.rules();
@@ -176,27 +140,6 @@ export class StructureEditorService {
 
   rotateBlock(position: VoxelCoordinate, quarterTurns = 1): boolean {
     const before = this.workspace.project(); const selectedBefore = before && this.find(before, position); const selectedWasHead = selectedBefore?.state['part'] === 'head';
-    if (before && selectedBefore) {
-      const runtime = this.workspace.ensureRuntime(before); const definition = this.library.get(selectedBefore.id); const parts = resolveLogicalObjectPartsFromLookup(position, (id) => this.library.get(id), runtime);
-      if (definition && (parts.length <= 1 || definition.behavior?.kind === 'double-height') && definition.behavior?.kind !== 'paired-horizontal') {
-        const changed = this.history.executeDelta('Rotate block', (project, live): RuntimeDeltaTransaction | undefined => {
-          const block = live.get(position); if (!block || hasLockedMembership(block, project.groups)) return undefined;
-          const rotated = new BlockModelResolver({ readJson: () => undefined }).rotateState(block.state, definition.stateDefinitions, quarterTurns);
-          if (!rotated.supported || !rotated.state) return undefined;
-          const liveParts = resolveLogicalObjectPartsFromLookup(position, (id) => this.library.get(id), live);
-          if (!liveParts.length || liveParts.some((part) => hasLockedMembership(part, project.groups))) return undefined;
-          const behavior = definition.behavior;
-          const identityProperty = behavior?.kind === 'double-height' ? behavior.halfProperty : undefined;
-          const changedParts = liveParts.map((part) => ({ ...part, state: { ...part.state, ...rotated.state, ...(identityProperty ? { [identityProperty]: part.state[identityProperty] ?? rotated.state![identityProperty] } : {}) } }));
-          const result = this.rules().refreshWithLookup(project, changedParts, changedParts.map((part) => part.position), live); this.lastValidation = result.validation;
-          if (result.validation.status === 'invalid' && result.validation.reason !== 'missing-support') return undefined;
-          const changedEntries = result.changedBlocks?.length ? result.changedBlocks : changedParts;
-          const updated = changedEntries.flatMap((entry) => { const current = live.get(entry.position); return current ? [{ before: current, after: entry }] : []; });
-          return { delta: { updated }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
-        });
-        return changed;
-      }
-    }
     const changed = this.history.execute('Rotate block', (project) => {
       const block = this.find(project, position); const definition = block && this.library.get(block.id);
       const parts = block ? resolveLogicalObjectParts(project.blocks, position, (id) => this.library.get(id)) : [];
@@ -224,63 +167,63 @@ export class StructureEditorService {
     return project && active ? planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id), lookup) : undefined;
   }
   updateSignText(position: VoxelCoordinate, side: 'front' | 'back', value: string): boolean {
-    return this.history.executeDelta('Sign text edit', (project, runtime) => {
-      const block = runtime.get(position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
+    return this.history.execute('Sign text edit', (project) => {
+      const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const target = current[side]; const lines = signLines(value);
       const data: SignBlockEntityData = { ...current, [side]: { ...target, lines } };
-      return { delta: { updated: [{ before: block, after: { ...block, blockEntityData: data } }] }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   updateSignAppearance(position: VoxelCoordinate, side: 'front' | 'back', patch: { readonly color?: string; readonly glowing?: boolean }): boolean {
-    return this.history.executeDelta('Sign appearance edit', (project, runtime) => {
-      const block = runtime.get(position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
+    return this.history.execute('Sign appearance edit', (project) => {
+      const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const target = current[side];
       const color = patch.color === undefined ? target.color : patch.color;
       if (!isVanillaSignColor(color)) return undefined;
       const data: SignBlockEntityData = { ...current, [side]: { ...target, color, glowing: patch.glowing ?? target.glowing } };
-      return { delta: { updated: [{ before: block, after: { ...block, blockEntityData: data } }] }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   updateSignWaxed(position: VoxelCoordinate, waxed: boolean): boolean {
-    return this.history.executeDelta('Sign wax edit', (project, runtime) => {
-      const block = runtime.get(position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
+    return this.history.execute('Sign wax edit', (project) => {
+      const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const data: SignBlockEntityData = { ...current, waxed };
-      return { delta: { updated: [{ before: block, after: { ...block, blockEntityData: data } }] }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   updateDecoratedPotDecoration(position: VoxelCoordinate, side: 'back' | 'left' | 'right' | 'front', sherd: string): boolean {
-    return this.history.executeDelta('Decorated Pot pattern edit', (project, runtime) => {
-      const block = runtime.get(position);
+    return this.history.execute('Decorated Pot pattern edit', (project) => {
+      const block = this.find(project, position);
       if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || !isPotSide(side) || !isDecoratedPotSherd(sherd) || hasLockedMembership(block, project.groups)) return undefined;
       const current = decoratedPotData(block.blockEntityData); const data = { ...current, decorations: { ...current.decorations, [side]: sherd } };
-      return { delta: { updated: [{ before: block, after: { ...block, blockEntityData: data } }] }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   setDecoratedPotItem(position: VoxelCoordinate, stack: ItemStackData | undefined): boolean {
-    return this.history.executeDelta('Decorated Pot item edit', (project, runtime) => {
-      const block = runtime.get(position);
+    return this.history.execute('Decorated Pot item edit', (project) => {
+      const block = this.find(project, position);
       if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups) || (stack !== undefined && !validateItemStack(stack, (id) => this.library.maxStackSizeFor(id)).valid)) return undefined;
       const current = decoratedPotData(block.blockEntityData);
       const data = { ...current, ...(stack ? { item: stack } : { item: undefined }) };
-      return { delta: { updated: [{ before: block, after: { ...block, blockEntityData: data } }] }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   setBlockItemSlot(position: VoxelCoordinate, slot: number, stack: ItemStackData | undefined): boolean {
-    return this.history.executeDelta('Item slot edit', (project, runtime) => {
-      const block = runtime.get(position); const capability = block ? itemHostCapability(this.library.get(block.id), block.id) : undefined;
+    return this.history.execute('Item slot edit', (project) => {
+      const block = this.find(project, position); const capability = block ? itemHostCapability(this.library.get(block.id), block.id) : undefined;
       if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups) || (stack !== undefined && !validateItemStack(stack, (id) => this.library.maxStackSizeFor(id)).valid)) return undefined;
       const data = setItemContainerSlot(block.blockEntityData, capability.kind, capability.slotCount, slot, stack);
-      return { delta: { updated: [{ before: block, after: { ...block, blockEntityData: data } }] }, project: { metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
+      return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   validatePlacement(position: VoxelCoordinate, context?: PlacementContext): RuleValidation {
     const project = this.workspace.project(); const active = this.activeBlock.active();
     if (!project || !active) return { status: 'invalid', reason: 'out-of-bounds', affectedPositions: [position] };
-    return planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id), this.workspace.ensureRuntime(project)).validation;
+    return planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id)).validation;
   }
   private rules(): BlockRuleEngine { return new BlockRuleEngine((id) => this.library.get(id)); }
 
-  private find(project: ProjectDocument, position: VoxelCoordinate): PlacedBlock | undefined { return this.workspace.ensureRuntime(project).get(position); }
+  private find(project: ProjectDocument, position: VoxelCoordinate): PlacedBlock | undefined { return project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(position)); }
 }
 
 /** Legacy fixture fallback for vanilla signs only; external sources must declare sign capability metadata. */

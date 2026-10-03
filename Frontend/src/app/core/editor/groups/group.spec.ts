@@ -111,17 +111,6 @@ describe('GroupService', () => {
     groups.resetMove(); expect(groups.moveOffset()).toEqual({ x: 0, y: 0, z: 0 });
   });
 
-  it('keeps a small group preview and commit bounded on a 100k project', () => {
-    const blocks = Array.from({ length: 100_000 }, (_, index) => {
-      const groupMember = index < 100; const sequence = groupMember ? index : index - 100;
-      return { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: sequence % 100, y: Math.floor(sequence / 100) % 100, z: groupMember ? 0 : 1 + Math.floor(sequence / 10_000) }, state: {}, ...(groupMember ? { groupIds: ['roof'] } : {}) };
-    });
-    const large: ProjectDocument = { ...project, id: 'large-groups', size: { x: 128, y: 100, z: 128 }, blocks, groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }] };
-    const { groups, workspace } = setup(large); groups.select('roof'); groups.setMoveOffset('x', 1); workspace.ensureRuntime(large).resetCounters();
-    expect(groups.movePreview()?.valid).toBe(true); expect(workspace.runtime.iterations).toBeLessThan(1_000);
-    expect(groups.saveMove()).toBe(true); expect(workspace.runtime.get({ x: 100, y: 0, z: 0 })?.groupIds).toEqual(['roof']);
-  });
-
   it('deletes active group blocks atomically while retaining group metadata', () => {
     const { groups, selection, workspace, history } = setup();
     selection.select({ x: 1, y: 1, z: 1 });

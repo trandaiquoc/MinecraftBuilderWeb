@@ -6,13 +6,11 @@ export interface AutosaveOptions {
   readonly onSaving?: (revision: number) => void;
   readonly onSaved?: (revision: number) => void;
   readonly onError?: (error: unknown, revision: number) => void;
-  /** Full validation belongs at persistence time, never on every dirty mark. */
-  readonly validate?: (project: ProjectDocument) => void;
 }
 
 export class AutosaveController {
   private timer: ReturnType<typeof setTimeout> | undefined;
-  private latest?: { readonly snapshot: () => ProjectDocument | undefined; readonly revision: number };
+  private latest?: { readonly project: ProjectDocument; readonly revision: number };
   private savedRevision = 0;
   private attemptedRevision = 0;
   private drainPromise?: Promise<void>;
@@ -21,11 +19,7 @@ export class AutosaveController {
   constructor(private readonly store: ProjectStore, private readonly options: AutosaveOptions = {}) {}
 
   schedule(project: ProjectDocument, revision: number): void {
-    this.scheduleSnapshot(() => project, revision);
-  }
-
-  scheduleSnapshot(snapshot: () => ProjectDocument | undefined, revision: number): void {
-    this.latest = { snapshot, revision };
+    this.latest = { project, revision };
     this.cancel();
     if (this.suspended || this.drainPromise) return;
     this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
@@ -70,20 +64,17 @@ export class AutosaveController {
 
   private async persistLatest(): Promise<void> {
     while (this.latest && this.latest.revision > this.savedRevision) {
-      const pending = this.latest;
-      this.attemptedRevision = pending.revision;
-      this.options.onSaving?.(pending.revision);
+      const snapshot = this.latest;
+      this.attemptedRevision = snapshot.revision;
+      this.options.onSaving?.(snapshot.revision);
       try {
-        const project = pending.snapshot();
-        if (!project) throw new Error('Unable to materialize the active project snapshot');
-        this.options.validate?.(project);
-        await this.store.saveRecoverySnapshot(project);
-        await this.store.save(project);
-        await this.store.deleteRecoverySnapshot(project.id);
-        this.savedRevision = pending.revision;
-        this.options.onSaved?.(pending.revision);
+        await this.store.saveRecoverySnapshot(snapshot.project);
+        await this.store.save(snapshot.project);
+        await this.store.deleteRecoverySnapshot(snapshot.project.id);
+        this.savedRevision = snapshot.revision;
+        this.options.onSaved?.(snapshot.revision);
       } catch (error) {
-        this.options.onError?.(error, pending.revision);
+        this.options.onError?.(error, snapshot.revision);
         throw error;
       }
     }

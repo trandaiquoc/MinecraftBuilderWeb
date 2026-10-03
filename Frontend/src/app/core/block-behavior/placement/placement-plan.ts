@@ -12,7 +12,6 @@ export interface PlacementPlan {
   readonly blocks: readonly PlacedBlock[];
   readonly validation: RuleValidation;
   readonly project?: ProjectDocument;
-  readonly changedBlocks?: readonly PlacedBlock[];
 }
 
 export function placementRequestForActive(active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, item?: PlaceableItemDefinition, definition?: (id: string) => BlockDefinition | undefined): PlacedBlock {
@@ -25,7 +24,7 @@ export function placementRequestForActive(active: ActiveBlock, position: VoxelCo
 export function planPlacement(project: ProjectDocument, active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined, item?: PlaceableItemDefinition, lookup?: ReadonlyBlockLookup): PlacementPlan {
   const request = placementRequestForActive(active, position, context, item, definition);
   const result = lookup ? new BlockRuleEngine(definition).preview(project, request, context, lookup) : new BlockRuleEngine(definition).place(project, request, context);
-  if (lookup) return { request, blocks: result.plannedBlocks ?? attemptedBlocks(request, context, definition), changedBlocks: result.changedBlocks, validation: result.validation };
+  if (lookup) return { request, blocks: result.plannedBlocks ?? attemptedBlocks(request, context, definition), validation: result.validation };
   const original = new Set(project.blocks.map((block) => key(block.position)));
   const blocks = result.project
     ? result.project.blocks.filter((block) => !original.has(key(block.position)))

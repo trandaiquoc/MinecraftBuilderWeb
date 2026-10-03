@@ -2,16 +2,11 @@ import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { groupIdsOf, isBlockLocked } from '../../editor/groups/group-membership';
-import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 
 export type LogicalBlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 
 export function resolveLogicalObjectParts(blocks: readonly PlacedBlock[], position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
   return resolveLogicalObjectPartsWithLookup(position, definition, (candidate) => find(blocks, candidate));
-}
-
-export function resolveLogicalObjectPartsFromLookup(position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup, lookup: ReadonlyBlockLookup): readonly PlacedBlock[] {
-  return resolveLogicalObjectPartsWithLookup(position, definition, (candidate) => lookup.get(candidate));
 }
 
 function resolveLogicalObjectPartsWithLookup(position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup, lookup: (position: VoxelCoordinate) => PlacedBlock | undefined): readonly PlacedBlock[] {
@@ -28,13 +23,8 @@ function resolveLogicalObjectPartsWithLookup(position: VoxelCoordinate, definiti
   return isPair && paired ? [block, paired] : [block];
 }
 
-export function expandLogicalObjectClosure(blocks: readonly PlacedBlock[], seeds: readonly PlacedBlock[], definition: LogicalBlockDefinitionLookup, lookup?: ReadonlyBlockLookup): readonly PlacedBlock[] {
-  if (!lookup && seeds.length === blocks.length) return blocks;
-  if (lookup) {
-    const closure = new Map<string, PlacedBlock>();
-    for (const seed of seeds) for (const part of resolveLogicalObjectPartsFromLookup(seed.position, definition, lookup)) closure.set(coordinateKey(part.position), part);
-    return [...closure.values()];
-  }
+export function expandLogicalObjectClosure(blocks: readonly PlacedBlock[], seeds: readonly PlacedBlock[], definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
+  if (seeds.length === blocks.length) return blocks;
   const index = new Map(blocks.map((block) => [coordinateKey(block.position), block] as const));
   const closure = new Map<string, PlacedBlock>();
   for (const seed of seeds) for (const part of resolveLogicalObjectPartsWithLookup(seed.position, definition, (position) => index.get(coordinateKey(position)))) closure.set(coordinateKey(part.position), part);

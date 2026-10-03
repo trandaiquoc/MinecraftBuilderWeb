@@ -135,15 +135,6 @@ describe('local persistence helpers', () => {
     expect(await store.openRecoverySnapshot(project.id)).toBeDefined();
   });
 
-  it('defers full project validation until persistence time', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
-    const persistence = new ProjectPersistenceService(store, 0);
-    const invalid = withBlocks(block('minecraft:stone', -1, 0, 0));
-    persistence.markChanged(invalid);
-    await expect(persistence.flushAutosave()).rejects.toThrow(/Invalid project/);
-    expect(await store.open(project.id)).toEqual(project);
-  });
-
   it('deletes the project and recovery snapshot after draining pending autosave', async () => {
     const store = new MemoryProjectStore(); await store.create(project);
     const persistence = new ProjectPersistenceService(store, 0);

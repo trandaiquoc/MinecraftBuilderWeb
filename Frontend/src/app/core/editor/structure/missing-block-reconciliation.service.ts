@@ -18,9 +18,8 @@ export class MissingBlockReconciliationService {
   });
 
   private async reconcile(project: ProjectDocument, revision: number, token: number): Promise<void> {
-    const source = this.workspace.materializeRuntime(project) ?? project;
-    const result = await reconcileMissingBlocksCooperatively(source, (id) => this.library.get(id));
+    const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id));
     if (token !== this.operationToken || this.workspace.project() !== project || this.library.catalogRevision() !== revision) return;
-    if (result.project !== source) { this.workspace.syncRuntime(result.project); this.workspace.project.set(result.project); }
+    if (result.project !== project) this.workspace.project.set(result.project);
   }
 }

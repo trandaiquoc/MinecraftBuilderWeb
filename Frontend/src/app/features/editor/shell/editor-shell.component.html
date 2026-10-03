@@ -341,13 +341,13 @@
   @if (diagnosticsOpen()) {
     <app-project-diagnostics-dialog [rendererEvidence]="currentViewportPerformanceEvidence()" (closed)="diagnosticsOpen.set(false)"></app-project-diagnostics-dialog>
   }
-  @if (structureJsonExportOpen() && structureJsonProject(); as project) {
+  @if (structureJsonExportOpen() && workspace.project(); as project) {
     <app-structure-json-export-dialog [project]="project" (closed)="closeStructureJsonExport()"></app-structure-json-export-dialog>
   }
   @if (structureNbtExportOpen()) {
     <app-structure-nbt-export-dialog (closed)="closeStructureNbtExport()"></app-structure-nbt-export-dialog>
   }
-  @if (structureJsonImportOpen() && structureJsonProject(); as project) {
+  @if (structureJsonImportOpen() && workspace.project(); as project) {
     <app-structure-json-import-dialog [project]="project" (closed)="closeStructureJsonImport()"></app-structure-json-import-dialog>
   }
   }

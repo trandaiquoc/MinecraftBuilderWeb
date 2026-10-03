@@ -1,10 +1,9 @@
 import { Injectable, signal } from '@angular/core';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { expandLogicalObjectClosure, resolveLogicalObjectParts, resolveLogicalObjectPartsFromLookup } from '../../block-behavior/logical-objects/logical-object';
+import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../../block-behavior/logical-objects/logical-object';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { VoxelBox, exposedSurfaceSelectionSeeds, voxelInBox } from './selection';
 import type { FaceNormal } from '../placement/placement';
-import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 
 export type SelectionKind = 'none' | 'single' | 'explicit' | 'box' | 'all';
 export interface SelectionRenderState {
@@ -24,12 +23,11 @@ export class SelectionService {
   private compactBoxSelection = false;
   private boxVisibility: (block: PlacedBlock) => boolean = () => true;
   select(position: VoxelCoordinate): void { this.single.set({ ...position }); this.box.set(undefined); this.logicalPositions.set([{ ...position }]); this.kind.set('single'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
-  selectLogical(position: VoxelCoordinate, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined, lookup?: ReadonlyBlockLookup): void { this.single.set({ ...position }); this.box.set(undefined); const parts = lookup ? resolveLogicalObjectPartsFromLookup(position, definition, lookup) : resolveLogicalObjectParts(project.blocks, position, definition); this.logicalPositions.set(parts.map((block) => ({ ...block.position }))); this.kind.set('explicit'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
+  selectLogical(position: VoxelCoordinate, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined): void { this.single.set({ ...position }); this.box.set(undefined); this.logicalPositions.set(resolveLogicalObjectParts(project.blocks, position, definition).map((block) => ({ ...block.position }))); this.kind.set('explicit'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
   selectBox(box: VoxelBox): void { this.single.set(undefined); this.box.set({ min: { ...box.min }, max: { ...box.max } }); this.logicalPositions.set([]); this.kind.set('box'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
-  selectBoxLogical(box: VoxelBox, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined, isVisible: (block: PlacedBlock) => boolean = () => true, lookup?: ReadonlyBlockLookup): void {
-    const indexed = lookup && 'queryBox' in lookup && typeof lookup.queryBox === 'function' ? [...lookup.queryBox(box.min, box.max)] : undefined;
-    const seeds = (indexed ?? project.blocks).filter((block) => isVisible(block) && voxelInBox(block.position, box));
-    const closure = expandLogicalObjectClosure(project.blocks, seeds, definition, lookup);
+  selectBoxLogical(box: VoxelBox, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined, isVisible: (block: PlacedBlock) => boolean = () => true): void {
+    const seeds = project.blocks.filter((block) => isVisible(block) && voxelInBox(block.position, box));
+    const closure = expandLogicalObjectClosure(project.blocks, seeds, definition);
     const logicalPositions = seeds.length > DETAILED_SELECTION_LIMIT
       ? closure.filter((block) => !voxelInBox(block.position, box)).map((block) => ({ ...block.position }))
       : closure.map((block) => ({ ...block.position }));
@@ -37,14 +35,11 @@ export class SelectionService {
     this.compactBoxSelection = seeds.length > DETAILED_SELECTION_LIMIT;
     this.boxVisibility = isVisible;
   }
-  selectSurfaceBoxLogical(box: VoxelBox, normal: FaceNormal, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined, isVisible: (block: PlacedBlock) => boolean = () => true, lookup?: ReadonlyBlockLookup): void {
-    const source = lookup && 'queryBox' in lookup && typeof lookup.queryBox === 'function'
-      ? [...lookup.queryBox({ x: box.min.x + Math.min(0, normal.x), y: box.min.y + Math.min(0, normal.y), z: box.min.z + Math.min(0, normal.z) }, { x: box.max.x + Math.max(0, normal.x), y: box.max.y + Math.max(0, normal.y), z: box.max.z + Math.max(0, normal.z) })]
-      : project.blocks;
-    const seeds = exposedSurfaceSelectionSeeds(source, box, normal, isVisible);
+  selectSurfaceBoxLogical(box: VoxelBox, normal: FaceNormal, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined, isVisible: (block: PlacedBlock) => boolean = () => true): void {
+    const seeds = exposedSurfaceSelectionSeeds(project.blocks, box, normal, isVisible);
     this.single.set(undefined);
     this.box.set({ min: { ...box.min }, max: { ...box.max } });
-    this.logicalPositions.set(expandLogicalObjectClosure(project.blocks, seeds, definition, lookup).map((block) => ({ ...block.position })));
+    this.logicalPositions.set(expandLogicalObjectClosure(project.blocks, seeds, definition).map((block) => ({ ...block.position })));
     this.kind.set('box');
     this.allBounds.set(undefined);
     this.compactBoxSelection = false;
@@ -77,56 +72,47 @@ export class SelectionService {
     if (kind === 'all') return (project?.blocks.length ?? 0) > 0;
     return kind !== 'none' && (this.logicalPositions().length > 0 || !!this.single() || !!this.box());
   }
-  selectedBlocks(project: ProjectDocument, lookup?: ReadonlyBlockLookup): readonly PlacedBlock[] {
+  selectedBlocks(project: ProjectDocument): readonly PlacedBlock[] {
     const kind = this.kind();
     if (kind === 'all') return project.blocks;
     if (kind === 'box') {
       const box = this.box();
       if (!box) return [];
-      const indexedBox = lookup && 'queryBox' in lookup && typeof lookup.queryBox === 'function' ? lookup.queryBox(box.min, box.max) : undefined;
       if (this.compactBoxSelection) {
         const keys = new Set(this.logicalPositions().map((position) => coordinateKey(position)));
-        if (indexedBox) {
-          const selected = [...indexedBox].filter((block) => keys.has(coordinateKey(block.position)) || this.boxVisibility(block));
-          for (const position of this.logicalPositions()) { const block = lookup?.get(position); if (block && !voxelInBox(block.position, box) && !selected.some((entry) => coordinateKey(entry.position) === coordinateKey(block.position))) selected.push(block); }
-          return selected;
-        }
         return project.blocks.filter((block) => keys.has(coordinateKey(block.position)) || voxelInBox(block.position, box) && this.boxVisibility(block));
       }
       if (this.logicalPositions().length) {
         const keys = new Set(this.logicalPositions().map((position) => coordinateKey(position)));
-        if (indexedBox && lookup) return this.logicalPositions().map((position) => lookup.get(position)).filter((block): block is PlacedBlock => !!block);
         return project.blocks.filter((block) => keys.has(coordinateKey(block.position)));
       }
-      return indexedBox ? [...indexedBox].filter((block) => this.boxVisibility(block)) : project.blocks.filter((block) => voxelInBox(block.position, box) && this.boxVisibility(block));
+      return project.blocks.filter((block) => voxelInBox(block.position, box) && this.boxVisibility(block));
     }
     if (this.logicalPositions().length) {
       const keys = new Set(this.logicalPositions().map((position) => coordinateKey(position)));
-      if (lookup) { const selected: PlacedBlock[] = []; for (const position of this.logicalPositions()) { const block = lookup.get(position); if (block) selected.push(block); } return selected; }
       return project.blocks.filter((block) => keys.has(coordinateKey(block.position)));
     }
     const selected = this.single();
-    if (selected && lookup) { const block = lookup.get(selected); return block ? [block] : []; }
     return selected ? project.blocks.filter((block) => coordinateKey(block.position) === coordinateKey(selected)) : [];
   }
-  count(project?: ProjectDocument, lookup?: ReadonlyBlockLookup): number {
+  count(project?: ProjectDocument): number {
     if (!project) return this.logicalPositions().length;
-    return this.selectedBlocks(project, lookup).length;
+    return this.selectedBlocks(project).length;
   }
-  bounds(project?: ProjectDocument, lookup?: ReadonlyBlockLookup): VoxelBox | undefined {
+  bounds(project?: ProjectDocument): VoxelBox | undefined {
     const kind = this.kind();
     if (kind === 'all') return this.allBounds() ?? (project ? boundsOf(project.blocks) : undefined);
     const box = this.box();
     if (box && !this.logicalPositions().length) return box;
-    const blocks = project ? this.selectedBlocks(project, lookup) : this.logicalPositions().map((position) => ({ position } as PlacedBlock));
+    const blocks = project ? this.selectedBlocks(project) : this.logicalPositions().map((position) => ({ position } as PlacedBlock));
     return boundsOf(blocks);
   }
-  renderState(project?: ProjectDocument, lookup?: ReadonlyBlockLookup): SelectionRenderState {
+  renderState(project?: ProjectDocument): SelectionRenderState {
     const kind = this.kind();
     const positions = kind === 'all' ? [] : this.logicalPositions();
     if (!project) return { kind, count: this.count(), positions, bounds: this.bounds() };
     if (kind === 'all') return { kind, count: project.blocks.length, positions, bounds: this.allBounds() ?? boundsOf(project.blocks) };
-    const selected = this.selectedBlocks(project, lookup);
+    const selected = this.selectedBlocks(project);
     const box = kind === 'box' ? this.box() : undefined;
     return { kind, count: selected.length, positions, bounds: box && !this.logicalPositions().length ? box : boundsOf(selected) };
   }

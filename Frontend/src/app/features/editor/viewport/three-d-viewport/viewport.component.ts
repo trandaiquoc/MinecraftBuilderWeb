@@ -22,7 +22,7 @@ import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
-import { isBlockVisible } from '../../../../core/editor/groups/group-membership';
+import { visibleBlockEntries } from '../../../../core/editor/viewport/visible-blocks';
 import { isSignDefinition, isSignId } from '../../../../core/editor/structure/structure-editor.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
@@ -78,7 +78,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
   private freeSpaceDragStart?: { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane };
   private readonly onNativePointerMove = (event: PointerEvent) => this.pointerMove(event);
-  private readonly sync = effect(() => { this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const runtime = this.workspace.ensureRuntime(project); const renderSelection = this.selection.renderState(project, runtime); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
+  private readonly sync = effect(() => { this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
   private readonly toolSync = effect(() => { this.tool.active(); this.engine.clearGhost(); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });
@@ -94,7 +94,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.mount(this.host().nativeElement);
     this.host().nativeElement.addEventListener('pointermove', this.onNativePointerMove, { passive: true });
     this.engine.restoreCamera(this.cameraState.get('3d'));
-    const project = this.workspace.project(); const runtime = this.workspace.ensureRuntime(project); const renderSelection = this.selection.renderState(project, runtime);
+    const project = this.workspace.project(); const renderSelection = this.selection.renderState(project);
     this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() });
     if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics());
   }
@@ -113,7 +113,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (decoration) { const bounds = decorationAabb(decoration); this.engine.focusBounds(bounds); return; }
     const box = this.selection.box();
     if (box) { this.engine.focusBounds({ min: box.min, max: { x: box.max.x + 1, y: box.max.y + 1, z: box.max.z + 1 } }); return; }
-    const project = this.workspace.project(); const bounds = this.selection.bounds(project, this.workspace.ensureRuntime(project)); this.engine.focusBounds(bounds ? { min: bounds.min, max: { x: bounds.max.x + 1, y: bounds.max.y + 1, z: bounds.max.z + 1 } } : undefined);
+    this.engine.focusBounds(this.selection.bounds(this.workspace.project()) ? { min: this.selection.bounds(this.workspace.project())!.min, max: { x: this.selection.bounds(this.workspace.project())!.max.x + 1, y: this.selection.bounds(this.workspace.project())!.max.y + 1, z: this.selection.bounds(this.workspace.project())!.max.z + 1 } } : undefined);
   }
   resetCamera(): void { this.engine.resetCamera(); }
   setCameraPreset(preset: CameraPreset): void { this.engine.setCameraPreset(preset); }
@@ -170,8 +170,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       if (project && cornerEnd) {
         const box = clampVoxelBox(normalizeVoxelBox(faceDragStart.block, cornerEnd), project.size);
         if (box) {
-          const runtime = this.workspace.ensureRuntime(project); const isolatedKeys = new Set(this.groups.isolatedGroupPositions().map((position) => coordinateKey(position))); const visible = (block: import('../../../../core/domain/project.types').PlacedBlock) => isBlockVisible(block, project.groups) && (!this.groups.isolatedGroupId() || isolatedKeys.has(coordinateKey(block.position)));
-          this.selection.selectSurfaceBoxLogical(box, faceDragStart.normal, project, (id) => this.library.get(id), visible, runtime);
+          const visibleKeys = new Set(visibleBlockEntries(project, { isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions() }).map((block) => coordinateKey(block.position)));
+          this.selection.selectSurfaceBoxLogical(box, faceDragStart.normal, project, (id) => this.library.get(id), (block) => visibleKeys.has(coordinateKey(block.position)));
         }
       }
       return;
@@ -182,8 +182,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       if (project && projected) {
         const box = freeSpaceSelectionBox(freeSpaceDragStart.point, projected.point, freeSpaceDragStart.plane, project.size);
         if (box) {
-          const runtime = this.workspace.ensureRuntime(project); const isolatedKeys = new Set(this.groups.isolatedGroupPositions().map((position) => coordinateKey(position))); const visible = (block: import('../../../../core/domain/project.types').PlacedBlock) => isBlockVisible(block, project.groups) && (!this.groups.isolatedGroupId() || isolatedKeys.has(coordinateKey(block.position)));
-          this.selection.selectBoxLogical(box, project, (id) => this.library.get(id), visible, runtime);
+          const visibleKeys = new Set(visibleBlockEntries(project, { isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions() }).map((block) => coordinateKey(block.position)));
+          this.selection.selectBoxLogical(box, project, (id) => this.library.get(id), (block) => visibleKeys.has(coordinateKey(block.position)));
         }
       }
       return;
@@ -219,8 +219,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.decorations.clearSelection();
     const project = this.workspace.project();
     if (!project) return;
-    const runtime = this.workspace.ensureRuntime(project); this.selection.selectLogical(position, project, (id) => this.library.get(id), runtime);
-    const selected = runtime.get(position);
+    this.selection.selectLogical(position, project, (id) => this.library.get(id));
+    const selected = project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(position));
     if (selected && (isSignDefinition(this.library.get(selected.id)) || isSignId(selected.id))) this.signTextSide.setFromHit(selected, faceNormal);
   }
   protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }

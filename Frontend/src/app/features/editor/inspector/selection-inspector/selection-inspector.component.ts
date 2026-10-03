@@ -6,6 +6,7 @@ import { DecorationService } from '../../../../core/decorations/decoration.servi
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { blockGroupNames } from '../../../../core/editor/groups/group-membership';
+import { coordinateKey } from '../../../../core/domain/coordinates';
 import { DecorationInspectorComponent } from '../decoration-inspector/decoration-inspector.component';
 import { SignInspectorComponent } from '../sign-inspector/sign-inspector.component';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
@@ -27,7 +28,7 @@ export class SelectionInspectorComponent {
   private readonly editor = inject(StructureEditorService);
   protected readonly stateFeedback = signal('');
   protected readonly selectedDecoration = this.decorations.selected;
-  protected readonly selectedBlock = computed(() => { const project = this.workspace.project(); const selected = this.selection.single(); return project && selected ? this.workspace.ensureRuntime(project).get(selected) : undefined; });
+  protected readonly selectedBlock = computed(() => { const project = this.workspace.project(); const selected = this.selection.single(); return project && selected ? project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(selected)) : undefined; });
   protected readonly stateEntries = computed(() => Object.entries(this.selectedBlock()?.state ?? {}));
   protected readonly selectedDefinition = computed(() => { const block = this.selectedBlock(); return block ? this.library.get(block.id) : undefined; });
   protected readonly stateProperties = computed<readonly ContentPropertyDescriptor[]>(() => {
@@ -50,7 +51,7 @@ export class SelectionInspectorComponent {
   protected readonly selectedDecoratedPot = computed(() => { const block = this.selectedBlock(); return !!block && (block.id === 'minecraft:decorated_pot' || blockCapability(this.selectedDefinition(), 'block-entity')?.entityKind === 'decorated-pot'); });
   protected readonly selectedBlockLocked = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return !!project && !!block && isBlockLocked(block, project.groups); });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
-  protected readonly selectedBlockCount = computed(() => { const project = this.workspace.project(); const box = this.selection.box(); return project && box ? this.workspace.ensureRuntime(project).queryBox(box.min, box.max).length : 0; });
+  protected readonly selectedBlockCount = computed(() => { const project = this.workspace.project(); const box = this.selection.box(); return project && box ? project.blocks.filter((block) => block.position.x >= box.min.x && block.position.x <= box.max.x && block.position.y >= box.min.y && block.position.y <= box.max.y && block.position.z >= box.min.z && block.position.z <= box.max.z).length : 0; });
   constructor() {
     effect(() => {
       this.selectedBlock();
