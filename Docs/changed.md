@@ -2261,6 +2261,16 @@ instead of dropping the face. Provider/renderer clears dispose atlas pages and
 compiled atlas state together, so a new provider generation cannot reuse old
 sprites. This remains render-only and is not a project or UI preference.
 
+The real-browser atlas gate remains conservative after the runtime A/B check:
+the Vanilla `TextureLoader` path supplies image-backed textures, while the
+current automated runner is Angular/Vitest with jsdom and has no real WebGL
+browser target. Atlas compatibility now returns a stable diagnostic reason,
+and `TerrainTextureAtlas` exposes an explicit probe-only `DoubleSide` policy;
+production remains `FrontSide`-only until a real framebuffer probe passes.
+`terrain-atlas-gpu-probe.ts` can compare source and atlas draw calls through
+`WebGLRenderTarget.readRenderTargetPixels`, including alpha/bounds/checksum and
+WebGL error evidence, without being invoked by normal editing.
+
 ## Thumbnail generation lifecycle
 
 Block-browser thumbnails now use one explicit provider-generation transition.

@@ -36,6 +36,16 @@ describe('terrain texture atlas', () => {
     atlas.clear(); material.dispose();
   });
 
+  it('does not opt DoubleSide into production unless explicitly requested by a probe', () => {
+    const source = texture([255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255]);
+    const material = new THREE.MeshBasicMaterial({ map: source, side: THREE.DoubleSide });
+    const strict = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
+    const probe = new TerrainTextureAtlas({ width: 16, height: 16 }, 1, { allowDoubleSideForProbe: true });
+    expect(strict.face(material, [0, 0, 1, 0])).toBeUndefined();
+    expect(probe.face(material, [0, 0, 1, 0])).toBeDefined();
+    strict.clear(); probe.clear(); material.dispose(); source.dispose();
+  });
+
   it('accepts a runtime-equivalent flipY=false source after explicit normalization', () => {
     const source = texture([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255]);
     source.flipY = false;

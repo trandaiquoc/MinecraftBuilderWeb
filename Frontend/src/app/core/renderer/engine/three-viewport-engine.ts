@@ -56,6 +56,7 @@ import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
 import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
+import { runTerrainAtlasGpuProbe, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -2833,6 +2834,11 @@ export class ThreeViewportEngine {
 
   terrainOwnershipFor(key: string): TerrainOwnershipEvidence | undefined {
     return this.terrainRenderer.ownershipFor(key);
+  }
+
+  /** Test/development-only hook; normal viewport rendering never probes the GPU. */
+  runTerrainAtlasGpuProbe(source: TerrainAtlasGpuProbeDraw, atlas: TerrainAtlasGpuProbeDraw, size = 32): TerrainAtlasGpuProbeResult | undefined {
+    return this.renderer ? runTerrainAtlasGpuProbe(this.renderer, source, atlas, size) : undefined;
   }
 
   hydrationDiagnostics(): ViewportHydrationDiagnostics {

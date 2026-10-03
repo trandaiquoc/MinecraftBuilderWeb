@@ -29,4 +29,33 @@ describe('terrain atlas pixels', () => {
     expect(pixel(target, 6, 3, 1)).toEqual([10, 11, 12, 255]);
     expect(pixel(target, 6, 3, 3)).toEqual([4, 5, 6, 255]);
   });
+
+  it('extracts an image-backed texture through the browser canvas route', () => {
+    const original = (globalThis as typeof globalThis & { OffscreenCanvas?: unknown }).OffscreenCanvas;
+    const imagePixels = new Uint8ClampedArray([
+      255, 0, 0, 255, 0, 255, 0, 255,
+      0, 0, 255, 255, 255, 255, 0, 255,
+    ]);
+    class CanvasStub {
+      constructor(readonly width: number, readonly height: number) {}
+      getContext(): { drawImage: () => void; getImageData: () => { data: Uint8ClampedArray } } {
+        return { drawImage: () => undefined, getImageData: () => ({ data: imagePixels }) };
+      }
+    }
+    Object.defineProperty(globalThis, 'OffscreenCanvas', { configurable: true, value: CanvasStub });
+    try {
+      const image = { width: 2, height: 2 };
+      const texture = new THREE.Texture(image);
+      texture.flipY = true;
+      const result = readTerrainTexturePixels(texture)!;
+      expect(result.width).toBe(2);
+      expect(result.height).toBe(2);
+      expect([...result.data]).toEqual([...imagePixels]);
+      expect(result.data.filter((_, index) => index % 4 === 3).every((alpha) => alpha === 255)).toBe(true);
+      texture.dispose();
+    } finally {
+      if (original === undefined) Object.defineProperty(globalThis, 'OffscreenCanvas', { configurable: true, value: undefined });
+      else Object.defineProperty(globalThis, 'OffscreenCanvas', { configurable: true, value: original });
+    }
+  });
 });

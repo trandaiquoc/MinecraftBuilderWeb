@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TerrainAtlasLayout, type TerrainAtlasRect } from './terrain-atlas-layout';
 import { copyTerrainPixelsWithGutter, normalizeTerrainPixels, readTerrainTexturePixels, type TerrainPixelSource } from './terrain-atlas-pixels';
-import { terrainAtlasEligibility, terrainTextureSourceIdentity, type TerrainAtlasMaterialSemantics } from './terrain-atlas-compatibility';
+import { terrainAtlasEligibility, terrainTextureSourceIdentity, type TerrainAtlasEligibilityOptions, type TerrainAtlasMaterialSemantics } from './terrain-atlas-compatibility';
 
 export type TerrainAtlasMode = 'off' | 'on';
 
@@ -21,10 +21,10 @@ export class TerrainTextureAtlas {
   private compatibleFaces = 0;
   private fallbackFaces = 0;
 
-  constructor(readonly pageSize = { width: 1024, height: 1024 }, readonly gutter = 1) {}
+  constructor(readonly pageSize = { width: 1024, height: 1024 }, readonly gutter = 1, private readonly eligibilityOptions: TerrainAtlasEligibilityOptions = {}) {}
 
   face(material: THREE.Material, uvs: readonly number[]): TerrainAtlasFace | undefined {
-    const eligibility = terrainAtlasEligibility(material);
+    const eligibility = terrainAtlasEligibility(material, this.eligibilityOptions);
     const map = (material as THREE.Material & { map?: THREE.Texture }).map;
     if (!eligibility.eligible || !eligibility.semantics || !map || uvs.length === 0 || uvs.some((value) => !Number.isFinite(value) || value < 0 || value > 1)) return this.fallback();
     const raw = readTerrainTexturePixels(map);

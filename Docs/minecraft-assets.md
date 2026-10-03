@@ -675,6 +675,15 @@ node tools/audit-vanilla-assets.mjs ../extracted 26.3
 The command writes `Docs/vanilla-asset-coverage-26.3.json` and `.md` without
 copying the JAR or extracted assets into the repository.
 
+## Terrain atlas browser gate
+
+The production atlas gate remains conservative for browser image textures
+until a real WebGL framebuffer comparison is run. Unit tests cover the canvas
+extraction branch and numeric framebuffer summarization; this repository has
+no browser-capable GPU test runner, so `DoubleSide` is only available through
+the explicit diagnostic probe policy and is not enabled for live Vanilla
+terrain yet.
+
 ## Runtime compatibility hotfix
 
 The shared Vanilla behavior path completes connection state domains from the
