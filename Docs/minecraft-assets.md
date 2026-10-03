@@ -684,6 +684,28 @@ no browser-capable GPU test runner, so `DoubleSide` is only available through
 the explicit diagnostic probe policy and is not enabled for live Vanilla
 terrain yet.
 
+### Explicit browser GPU probe
+
+Development builds expose one opt-in DevTools command after the 3D viewport is
+mounted:
+
+1. Start the frontend with `npm start` and open the editor in a normal browser.
+2. Load the Vanilla 1.21.1 assets/JAR through the existing Asset Manager flow.
+3. Open DevTools Console and run:
+
+   ```js
+   await window.__minecraftBuilderDiagnostics.runTerrainAtlasProbe()
+   ```
+
+The default target is `minecraft:stone`; a block id and canonical state object
+may be supplied as the two arguments. The returned plain object contains the
+source texture metadata, extraction route, CPU pixel summaries, atlas sprite
+and UV/texel checks, and the existing source-versus-atlas WebGL framebuffer
+evidence. The command is not installed in production builds, does not run
+automatically, and does not mutate project or provider state. The optional
+append-after-upload comparison remains deferred until the single-sprite result
+has been captured from a real browser.
+
 ## Runtime compatibility hotfix
 
 The shared Vanilla behavior path completes connection state domains from the

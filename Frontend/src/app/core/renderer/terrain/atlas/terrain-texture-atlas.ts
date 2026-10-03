@@ -38,6 +38,17 @@ export class TerrainTextureAtlas {
   }
 
   evidence(): TerrainAtlasEvidence { return { terrainAtlasPages: this.pages.length, terrainAtlasSprites: this.sprites.size, terrainAtlasCacheHits: this.cacheHits, terrainAtlasInsertions: this.insertions, terrainAtlasMaterials: this.materials.size, terrainAtlasCompatibleFaces: this.compatibleFaces, terrainAtlasFallbackFaces: this.fallbackFaces, terrainAtlasChunkBuckets: 0 }; }
+  /** Diagnostic-only copy of the content region represented by a sprite. */
+  spritePixels(sprite: TerrainAtlasSprite): TerrainPixelSource | undefined {
+    const page = this.pages[sprite.page];
+    if (!page || sprite.x < 0 || sprite.y < 0 || sprite.x + sprite.width > this.pageSize.width || sprite.y + sprite.height > this.pageSize.height) return undefined;
+    const data = new Uint8Array(sprite.width * sprite.height * 4);
+    for (let y = 0; y < sprite.height; y += 1) {
+      const sourceStart = ((sprite.y + y) * this.pageSize.width + sprite.x) * 4;
+      data.set(page.pixels.subarray(sourceStart, sourceStart + sprite.width * 4), y * sprite.width * 4);
+    }
+    return { width: sprite.width, height: sprite.height, data, route: 'atlas-page' };
+  }
   clear(): void { for (const material of this.materials.values()) material.dispose(); for (const page of this.pages) page.texture.dispose(); for (const layout of this.layouts.values()) layout.clear(); this.materials.clear(); this.layouts.clear(); this.pages.length = 0; this.sprites.clear(); this.cacheHits = 0; this.insertions = 0; this.compatibleFaces = 0; this.fallbackFaces = 0; }
   dispose(): void { this.clear(); }
 

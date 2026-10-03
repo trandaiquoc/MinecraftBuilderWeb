@@ -33,6 +33,7 @@ import { PaintingVariantCatalogService } from '../../../../core/decorations/cata
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
+import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/terrain-atlas-browser-runner';
 
 declare global {
   interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
@@ -72,6 +73,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();
+  private readonly terrainAtlasProbeCommand = (blockId = 'minecraft:stone', state: Readonly<Record<string, string>> = {}) => runTerrainAtlasProbe(this.engine, this.assets.visualProvider(), blockId, state);
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
   private pointerStart?: { x: number; y: number };
@@ -94,6 +96,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     }
     this.engine.setPlacementPlanProvider((_project, _active, target, context, lookup) => this.editor.planPlacement(target, context, lookup));
     this.engine.mount(this.host().nativeElement);
+    if (isDevMode() && typeof window !== 'undefined') {
+      window.__minecraftBuilderDiagnostics = { ...window.__minecraftBuilderDiagnostics, runTerrainAtlasProbe: this.terrainAtlasProbeCommand };
+    }
     this.host().nativeElement.addEventListener('pointermove', this.onNativePointerMove, { passive: true });
     this.engine.restoreCamera(this.cameraState.get('3d'));
     const project = this.workspace.project(); const renderSelection = this.selection.renderState(project);
@@ -102,6 +107,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   }
   ngOnDestroy(): void {
     if (isDevMode() && typeof window !== 'undefined' && window.__mbViewportDiagnostics === this.runtimeDiagnosticsCommand) delete window.__mbViewportDiagnostics;
+    if (isDevMode() && typeof window !== 'undefined' && window.__minecraftBuilderDiagnostics?.runTerrainAtlasProbe === this.terrainAtlasProbeCommand) {
+      const diagnostics = { ...window.__minecraftBuilderDiagnostics };
+      delete diagnostics.runTerrainAtlasProbe;
+      if (Object.keys(diagnostics).length) window.__minecraftBuilderDiagnostics = diagnostics;
+      else delete window.__minecraftBuilderDiagnostics;
+    }
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
     this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.toolSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();

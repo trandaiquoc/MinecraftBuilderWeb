@@ -13,6 +13,7 @@ describe('terrain atlas pixels', () => {
     const texture = new THREE.DataTexture(source, 2, 2, THREE.RGBAFormat);
     texture.flipY = true;
     const read = readTerrainTexturePixels(texture)!;
+    expect(read.route).toBe('data-buffer');
     expect(pixel(read.data, 2, 0, 0)).toEqual([255, 0, 0, 255]);
     expect(pixel(normalizeTerrainPixels(read, true).data, 2, 1, 1)).toEqual([255, 255, 0, 255]);
     texture.dispose();
@@ -50,6 +51,7 @@ describe('terrain atlas pixels', () => {
       const result = readTerrainTexturePixels(texture)!;
       expect(result.width).toBe(2);
       expect(result.height).toBe(2);
+      expect(result.route).toBe('offscreen-canvas');
       expect([...result.data]).toEqual([...imagePixels]);
       expect(result.data.filter((_, index) => index % 4 === 3).every((alpha) => alpha === 255)).toBe(true);
       texture.dispose();

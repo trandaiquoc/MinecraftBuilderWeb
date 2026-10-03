@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import type { TerrainAtlasRect } from './terrain-atlas-layout';
 
+export type TerrainPixelExtractionRoute = 'data-buffer' | 'offscreen-canvas' | 'html-canvas' | 'atlas-page';
+
 export interface TerrainPixelSource {
   readonly width: number;
   readonly height: number;
   /** RGBA bytes in top-row-first image order. */
   readonly data: Uint8Array;
+  readonly route?: TerrainPixelExtractionRoute;
 }
 
 /** Read raw image data without changing the provider texture. */
@@ -23,10 +26,11 @@ export function readTerrainTexturePixels(texture: THREE.Texture): TerrainPixelSo
       data[target + 2] = Number(image.data[source + 2]) || 0;
       data[target + 3] = channels === 4 ? Number(image.data[source + 3]) || 0 : 255;
     }
-    return { width, height, data };
+    return { width, height, data, route: 'data-buffer' };
   }
   try {
-    const canvas = typeof OffscreenCanvas !== 'undefined'
+    const offscreen = typeof OffscreenCanvas !== 'undefined';
+    const canvas = offscreen
       ? new OffscreenCanvas(width, height)
       : typeof document !== 'undefined'
         ? Object.assign(document.createElement('canvas'), { width, height })
@@ -34,7 +38,7 @@ export function readTerrainTexturePixels(texture: THREE.Texture): TerrainPixelSo
     const context = canvas?.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
     if (!canvas || !context || !('drawImage' in context)) return undefined;
     context.drawImage(image as CanvasImageSource, 0, 0, width, height);
-    return { width, height, data: new Uint8Array(context.getImageData(0, 0, width, height).data) };
+    return { width, height, data: new Uint8Array(context.getImageData(0, 0, width, height).data), route: offscreen ? 'offscreen-canvas' : 'html-canvas' };
   } catch {
     return undefined;
   }
@@ -50,7 +54,31 @@ export function normalizeTerrainPixels(source: TerrainPixelSource, sourceFlipY: 
     const to = (source.height - 1 - y) * rowBytes;
     data.set(source.data.subarray(from, from + rowBytes), to);
   }
-  return { width: source.width, height: source.height, data };
+  return { width: source.width, height: source.height, data, route: source.route };
+}
+
+export interface TerrainPixelSummary {
+  readonly width: number;
+  readonly height: number;
+  readonly nonTransparentPixels: number;
+  readonly alphaMin: number;
+  readonly alphaMax: number;
+  readonly checksum: number;
+}
+
+export function summarizeTerrainPixels(source: TerrainPixelSource): TerrainPixelSummary {
+  let nonTransparentPixels = 0;
+  let alphaMin = 255;
+  let alphaMax = 0;
+  let checksum = 0x811c9dc5;
+  for (let index = 0; index < source.data.length; index += 1) {
+    checksum ^= source.data[index]; checksum = Math.imul(checksum, 0x01000193) >>> 0;
+    if (index % 4 !== 3 || source.data[index] === 0) continue;
+    nonTransparentPixels += 1;
+    alphaMin = Math.min(alphaMin, source.data[index]);
+    alphaMax = Math.max(alphaMax, source.data[index]);
+  }
+  return { width: source.width, height: source.height, nonTransparentPixels, alphaMin: nonTransparentPixels ? alphaMin : 0, alphaMax, checksum };
 }
 
 export function copyTerrainPixelsWithGutter(target: Uint8Array, pageWidth: number, rect: TerrainAtlasRect, source: TerrainPixelSource): void {

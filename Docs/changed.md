@@ -2271,6 +2271,19 @@ production remains `FrontSide`-only until a real framebuffer probe passes.
 `WebGLRenderTarget.readRenderTargetPixels`, including alpha/bounds/checksum and
 WebGL error evidence, without being invoked by normal editing.
 
+The development-only `__minecraftBuilderDiagnostics.runTerrainAtlasProbe()`
+hook now runs that existing probe against the currently active
+`VanillaBlockVisualProvider` after the mounted 3D renderer is ready. It starts
+with `minecraft:stone`, extracts a real provider face and image-backed texture,
+builds a probe-only atlas with the explicit `DoubleSide` allowance, and returns
+JSON-friendly texture/material metadata, extraction route, CPU pixel summaries,
+atlas sprite/UV evidence, and GPU framebuffer evidence. Temporary cloned
+geometry/materials and probe atlas resources are disposed; provider-owned
+visuals, textures, caches, renderer state, and project data are left untouched.
+The hook is explicit and never runs during normal hydration. A real browser
+manual capture is still required before any production atlas policy changes;
+production `DoubleSide` eligibility remains disabled.
+
 ## Thumbnail generation lifecycle
 
 Block-browser thumbnails now use one explicit provider-generation transition.
