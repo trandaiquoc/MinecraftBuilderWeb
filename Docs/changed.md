@@ -2253,3 +2253,16 @@ on the strict legacy path. Atlas pages and sprites remain stable while local
 chunks rebuild, and atlas-owned resources are disposed separately from source
 provider resources and chunk geometry. Greedy meshing, workers, and
 dirty-chunk upstream discovery remain deferred.
+
+## Thumbnail generation lifecycle
+
+Block-browser thumbnails now use one explicit provider-generation transition.
+Generation advances before the provider/catalog replacement is observable to
+thumbnail effects; queued work is invalidated only at that transition, and
+the thumbnail epoch then re-emits the current visibility priority so visible
+tiles requeue against the new generation. Each request captures generation,
+epoch, provider identity, and item identity; stale asynchronous results are
+discarded. Fallback URLs remain visible while enhanced previews load, transient
+enhancement failures may retry on a later visible request, and explicitly
+unsupported previews remain unavailable without retry loops. Search/filter
+changes do not discard the shared queue unnecessarily.

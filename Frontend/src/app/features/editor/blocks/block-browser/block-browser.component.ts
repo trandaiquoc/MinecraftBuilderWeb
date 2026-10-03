@@ -50,7 +50,6 @@ export class BlockBrowserComponent {
   });
   private readonly catalogGridHost = viewChild<ElementRef<HTMLElement>>('catalogGridHost');
   private readonly catalogViewport = viewChild<CdkVirtualScrollViewport>('catalogViewport');
-  private readonly thumbnailScope = effect(() => { this.assets.visualProvider(); this.results(); this.assets.invalidateQueuedThumbnails(); });
   private readonly viewportSizing = effect((onCleanup) => {
     const host = this.catalogGridHost()?.nativeElement;
     if (!host) return;
