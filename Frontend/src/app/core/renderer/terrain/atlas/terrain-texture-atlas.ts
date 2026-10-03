@@ -49,6 +49,29 @@ export class TerrainTextureAtlas {
     }
     return { width: sprite.width, height: sprite.height, data, route: 'atlas-page' };
   }
+  /** Diagnostic-only page texture access; callers must not dispose or mutate it. */
+  pageTexture(page: number): THREE.DataTexture | undefined { return this.pages[page]?.texture; }
+  pageBufferMatchesTextureSource(page: number): boolean {
+    const entry = this.pages[page];
+    if (!entry) return false;
+    const image = entry.texture.image as { readonly data?: unknown } | undefined;
+    const source = entry.texture.source?.data as { readonly data?: unknown } | undefined;
+    const sourceValue: unknown = entry.texture.source?.data;
+    return image?.data === entry.pixels || source?.data === entry.pixels || sourceValue === entry.pixels;
+  }
+  pagePixel(page: number, x: number, y: number): readonly [number, number, number, number] | undefined {
+    const entry = this.pages[page];
+    if (!entry || x < 0 || y < 0 || x >= this.pageSize.width || y >= this.pageSize.height) return undefined;
+    const index = (y * this.pageSize.width + x) * 4;
+    return [entry.pixels[index], entry.pixels[index + 1], entry.pixels[index + 2], entry.pixels[index + 3]];
+  }
+  /** Diagnostic-only dirty mark used to compare one explicit post-upload refresh. */
+  refreshPage(page: number): number | undefined {
+    const texture = this.pages[page]?.texture;
+    if (!texture) return undefined;
+    texture.needsUpdate = true;
+    return texture.version;
+  }
   clear(): void { for (const material of this.materials.values()) material.dispose(); for (const page of this.pages) page.texture.dispose(); for (const layout of this.layouts.values()) layout.clear(); this.materials.clear(); this.layouts.clear(); this.pages.length = 0; this.sprites.clear(); this.cacheHits = 0; this.insertions = 0; this.compatibleFaces = 0; this.fallbackFaces = 0; }
   dispose(): void { this.clear(); }
 

@@ -2284,6 +2284,22 @@ The hook is explicit and never runs during normal hydration. A real browser
 manual capture is still required before any production atlas policy changes;
 production `DoubleSide` eligibility remains disabled.
 
+The browser probe now renders the same atlas page through current UVs,
+constant sprite-center UVs, mirrored-center V, mirrored-current V, a cloned
+`alphaTest=0` material, and an untextured geometry control. It also reports
+page-byte probes, page-buffer/source identity, DataTexture upload properties,
+texture version before/after the sequence, and the one explicit
+`needsUpdate` refresh result. Diagnosis is intentionally conservative:
+`current-uv`, `vertical-orientation`, `atlas-upload-or-material`, or
+`inconclusive`; synthetic tests do not claim GPU correctness.
+
+The installed Three.js 0.186 source was checked as part of this diagnostic:
+`DataTexture` defaults to `flipY = false` and `unpackAlignment = 1`, while
+`WebGLTextures` applies the texture's configured `flipY` through
+`UNPACK_FLIP_Y_WEBGL` for upload. The probe therefore reports the atlas page's
+actual configured values and does not assume that an image-backed `Texture`
+and a `DataTexture` share defaults.
+
 ## Thumbnail generation lifecycle
 
 Block-browser thumbnails now use one explicit provider-generation transition.

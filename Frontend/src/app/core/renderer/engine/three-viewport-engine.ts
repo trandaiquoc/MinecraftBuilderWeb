@@ -56,7 +56,7 @@ import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
 import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
-import { runTerrainAtlasGpuProbe, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
+import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -2839,6 +2839,10 @@ export class ThreeViewportEngine {
   /** Test/development-only hook; normal viewport rendering never probes the GPU. */
   runTerrainAtlasGpuProbe(source: TerrainAtlasGpuProbeDraw, atlas: TerrainAtlasGpuProbeDraw, size = 32): TerrainAtlasGpuProbeResult | undefined {
     return this.renderer ? runTerrainAtlasGpuProbe(this.renderer, source, atlas, size) : undefined;
+  }
+  /** Test/development-only multi-variant atlas diagnostics. */
+  runTerrainAtlasGpuProbeVariants(source: TerrainAtlasGpuProbeDraw, variants: readonly TerrainAtlasGpuProbeVariantDraw[], size = 32, beforeVariant?: TerrainAtlasGpuProbeBeforeVariant): TerrainAtlasGpuProbeVariantsResult | undefined {
+    return this.renderer ? runTerrainAtlasGpuProbeVariants(this.renderer, source, variants, size, beforeVariant) : undefined;
   }
 
   hydrationDiagnostics(): ViewportHydrationDiagnostics {

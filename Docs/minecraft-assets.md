@@ -706,6 +706,19 @@ automatically, and does not mutate project or provider state. The optional
 append-after-upload comparison remains deferred until the single-sprite result
 has been captured from a real browser.
 
+The returned `gpu` object now includes `source`, `current`, `center`,
+`mirroredCenter`, `mirroredCurrent`, `noAlphaTest`, `geometryControl`, and
+`currentAfterRefresh` evidence. `atlasTexture`, `atlasMaterial`,
+`atlasPageByteProbes`, and `uvProbesByVariant` expose the DataTexture/UV
+boundary without returning raw textures or the full atlas page. The diagnosis
+must be treated as a measurement checkpoint; no production UV, flipY,
+alphaTest, or DoubleSide policy is changed by this command.
+
+For the installed Three.js version, `DataTexture` starts with `flipY=false`
+and `unpackAlignment=1`; upload code uses the texture's explicit `flipY` value.
+The atlas probe reports those values after the current atlas configuration
+(`flipY=true`) rather than changing them for diagnostics.
+
 ## Runtime compatibility hotfix
 
 The shared Vanilla behavior path completes connection state domains from the

@@ -12,7 +12,24 @@ export interface TerrainAtlasFramebufferEvidence {
   readonly alphaMin: number;
   readonly alphaMax: number;
   readonly checksum: number;
+  readonly glError?: number;
   readonly bounds?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
+}
+
+export interface TerrainAtlasGpuProbeVariantDraw {
+  readonly name: string;
+  readonly geometry: THREE.BufferGeometry;
+  readonly material: THREE.Material;
+}
+
+export type TerrainAtlasGpuProbeBeforeVariant = (name: string) => void;
+
+export interface TerrainAtlasGpuProbeVariantsResult {
+  readonly source?: TerrainAtlasFramebufferEvidence;
+  readonly variants: Readonly<Record<string, TerrainAtlasFramebufferEvidence>>;
+  readonly parityByVariant: Readonly<Record<string, boolean>>;
+  readonly sourceGlError: number;
+  readonly failureStage?: 'source-render' | 'variant-render' | 'readback' | 'renderer-state';
 }
 
 export interface TerrainAtlasGpuProbeResult {
@@ -30,6 +47,26 @@ export interface TerrainAtlasGpuProbeResult {
  * called by normal terrain rendering or used as a runtime fallback.
  */
 export function runTerrainAtlasGpuProbe(renderer: THREE.WebGLRenderer, source: TerrainAtlasGpuProbeDraw, atlas: TerrainAtlasGpuProbeDraw, size = 32): TerrainAtlasGpuProbeResult {
+  const result = runTerrainAtlasGpuProbeVariants(renderer, source, [{ name: 'atlas', ...atlas }], size);
+  const atlasEvidence = result.variants['atlas'];
+  return {
+    source: result.source,
+    atlas: atlasEvidence,
+    sourceGlError: result.sourceGlError,
+    atlasGlError: atlasEvidence?.glError ?? -1,
+    parity: result.parityByVariant['atlas'] ?? false,
+    failureStage: result.failureStage === 'variant-render' ? 'atlas-render' : result.failureStage,
+  };
+}
+
+/** Runs one source draw followed by a named sequence of atlas/control draws. */
+export function runTerrainAtlasGpuProbeVariants(
+  renderer: THREE.WebGLRenderer,
+  source: TerrainAtlasGpuProbeDraw,
+  variants: readonly TerrainAtlasGpuProbeVariantDraw[],
+  size = 32,
+  beforeVariant?: TerrainAtlasGpuProbeBeforeVariant,
+): TerrainAtlasGpuProbeVariantsResult {
   const target = new THREE.WebGLRenderTarget(size, size, { depthBuffer: true, stencilBuffer: false });
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
@@ -44,22 +81,23 @@ export function runTerrainAtlasGpuProbe(renderer: THREE.WebGLRenderer, source: T
   scene.add(draw);
   try {
     const sourceCapture = renderAndRead(renderer, scene, camera, target, size);
-    draw.geometry = atlas.geometry;
-    draw.material = atlas.material;
-    const atlasCapture = renderAndRead(renderer, scene, camera, target, size);
-    return {
-      source: sourceCapture.evidence,
-      atlas: atlasCapture.evidence,
-      sourceGlError: sourceCapture.glError,
-      atlasGlError: atlasCapture.glError,
-      parity: sourceCapture.glError === 0 && atlasCapture.glError === 0 && framebuffersEqual(sourceCapture.pixels, atlasCapture.pixels),
-    };
+    const evidence: Record<string, TerrainAtlasFramebufferEvidence> = {};
+    const parityByVariant: Record<string, boolean> = {};
+    for (const variant of variants) {
+      beforeVariant?.(variant.name);
+      draw.geometry = variant.geometry;
+      draw.material = variant.material;
+      const capture = renderAndRead(renderer, scene, camera, target, size);
+      evidence[variant.name] = capture.evidence;
+      parityByVariant[variant.name] = sourceCapture.glError === 0 && capture.glError === 0 && framebuffersEqual(sourceCapture.pixels, capture.pixels);
+    }
+    return { source: sourceCapture.evidence, variants: evidence, parityByVariant, sourceGlError: sourceCapture.glError };
   } catch (error) {
     return {
+      variants: {},
+      parityByVariant: {},
       sourceGlError: safeGlError(renderer),
-      atlasGlError: safeGlError(renderer),
-      parity: false,
-      failureStage: error instanceof Error && error.message.includes('read') ? 'readback' : 'source-render',
+      failureStage: error instanceof Error && error.message.includes('read') ? 'readback' : variants.length ? 'variant-render' : 'source-render',
     };
   } finally {
     try {
@@ -77,6 +115,12 @@ export function runTerrainAtlasGpuProbe(renderer: THREE.WebGLRenderer, source: T
   }
 }
 
+function framebuffersEqual(source: Uint8Array, atlas: Uint8Array): boolean {
+  if (source.length !== atlas.length) return false;
+  for (let index = 0; index < source.length; index += 1) if (source[index] !== atlas[index]) return false;
+  return true;
+}
+
 interface Capture { readonly evidence: TerrainAtlasFramebufferEvidence; readonly pixels: Uint8Array; readonly glError: number; }
 
 function renderAndRead(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, target: THREE.WebGLRenderTarget, size: number): Capture {
@@ -90,7 +134,8 @@ function renderAndRead(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera
   const pixels = new Uint8Array(size * size * 4);
   renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
   const after = safeGlError(renderer);
-  return { evidence: summarizeTerrainFramebuffer(pixels, size, size), pixels, glError: before || after };
+  const glError = before || after;
+  return { evidence: { ...summarizeTerrainFramebuffer(pixels, size, size), glError }, pixels, glError };
 }
 
 export function summarizeTerrainFramebuffer(pixels: Uint8Array, width: number, height: number): TerrainAtlasFramebufferEvidence {
@@ -116,12 +161,6 @@ export function summarizeTerrainFramebuffer(pixels: Uint8Array, width: number, h
     maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
   }
   return { width, height, nonTransparentPixels, alphaMin: nonTransparentPixels ? alphaMin : 0, alphaMax, checksum, ...(maxX < 0 ? {} : { bounds: { minX, minY, maxX, maxY } }) };
-}
-
-function framebuffersEqual(source: Uint8Array, atlas: Uint8Array): boolean {
-  if (source.length !== atlas.length) return false;
-  for (let index = 0; index < source.length; index += 1) if (source[index] !== atlas[index]) return false;
-  return true;
 }
 
 function safeGlError(renderer: THREE.WebGLRenderer): number {
