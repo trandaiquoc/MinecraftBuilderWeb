@@ -36,6 +36,19 @@ import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-ind
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import { ddaVoxelCandidates } from '../interaction/voxel-raycast';
 import type { VoxelRaycastCandidate } from '../interaction/voxel-raycast';
+import { compileInstanceTemplates as compileInstanceTemplatesFromCache, mergeInstanceTemplateParts as mergeInstanceTemplatePartsFromCache } from '../batching/instance-template-cache';
+import type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
+import { PlaceholderBatchRenderer } from '../batching/placeholder-batch-renderer';
+import type { PlaceholderBatch } from '../batching/placeholder-batch-renderer';
+import { InstanceBatchRenderer } from '../batching/instance-batch-renderer';
+import type { InstanceBatch } from '../batching/instance-batch-renderer';
+import { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
+import type { SurfaceFaceBatch, SurfaceFaceMembership, SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
+import { RenderScheduler } from '../scheduling/render-scheduler';
+import { InteractiveResolutionController } from '../scheduling/interactive-resolution-controller';
+import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
+import { HydrationScheduler } from '../scheduling/hydration-scheduler';
+
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 export type ViewportHoverListener = (hit: ViewportHit) => void;
@@ -348,15 +361,8 @@ interface DecorationHydrationJob {
 }
 
 type VisibleBlockEntry = { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string; readonly occlusionClass: OcclusionClass };
-export interface SurfaceFaceTemplate {
-  readonly geometry: THREE.BufferGeometry;
-  readonly material: THREE.Material;
-  readonly direction: SurfaceFaceDirection;
-  /** Maps the canonical face plane back to this face's original local position/orientation. */
-  readonly matrix: THREE.Matrix4;
-}
-interface SurfaceFaceBatch { readonly key: string; readonly capacity: number; readonly template: SurfaceFaceTemplate; readonly mesh: THREE.InstancedMesh; readonly keys: string[]; readonly positions: VoxelCoordinate[]; readonly directions: SurfaceFaceDirection[]; }
-interface SurfaceFaceMembership { readonly batchKey: string; readonly index: number; }
+export type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
+export type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
 interface HoverRequest {
   readonly clientX: number;
   readonly clientY: number;
@@ -378,29 +384,6 @@ export const VIEWPORT_CAMERA_IDLE_GRACE_MS = 160;
 export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
 export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
 export const VIEWPORT_HYDRATION_COMPLETE_DISPLAY_MS = 800;
-
-export interface InstancePartTemplate { readonly geometry: THREE.BufferGeometry; readonly material: THREE.Material; readonly matrix: THREE.Matrix4; readonly ownsGeometry?: boolean; }
-export interface CompiledInstanceTemplates {
-  readonly templates: readonly InstancePartTemplate[];
-  readonly signature: string;
-  readonly envelope: THREE.Box3;
-}
-interface InstanceBatch {
-  readonly key: string;
-  readonly capacity: number;
-  readonly templates: readonly InstancePartTemplate[];
-  readonly parts: readonly THREE.InstancedMesh[];
-  readonly keys: string[];
-  readonly positions: VoxelCoordinate[];
-}
-
-interface PlaceholderBatch {
-  readonly key: string;
-  readonly capacity: number;
-  readonly mesh: THREE.InstancedMesh;
-  readonly keys: string[];
-  readonly positions: VoxelCoordinate[];
-}
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
@@ -452,6 +435,24 @@ export class ThreeViewportEngine {
     reference: Object.assign(new THREE.MeshLambertMaterial({ color: 0x65717e, transparent: true, opacity: .24, depthWrite: false }), { userData: { sharedPlaceholderMaterial: true } }),
     missing: Object.assign(new THREE.MeshLambertMaterial({ color: 0x9b5964, transparent: true, opacity: .58 }), { userData: { sharedPlaceholderMaterial: true } }),
   };
+  private readonly placeholderRenderer = new PlaceholderBatchRenderer({
+    blocksGroup: this.blocksGroup,
+    geometry: this.placeholderGeometry,
+    materials: this.placeholderMaterials,
+    capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
+    chunkKey,
+    chunkBounds: (chunk) => stableChunkBounds(chunk, unitVoxelEnvelope()),
+    recordBounds: () => this.instrumentation.record('instancedBoundsComputations'),
+  });
+  private get placeholderBatches(): Map<string, PlaceholderBatch> { return this.placeholderRenderer.batches; }
+  private get placeholderIndices(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.placeholderRenderer.indices; }
+  private readonly renderScheduler = new RenderScheduler(requestViewportFrame, cancelViewportFrame, {
+    onInvalidation: () => this.instrumentation.record('renderInvalidations'),
+    onCoalesced: () => { this.instrumentation.record('renderInvalidationsCoalesced'); this.instrumentation.record('coalescedRenderRequests'); },
+  });
+  private readonly interactiveResolutionController = new InteractiveResolutionController();
+  private readonly cameraInteraction = new CameraInteractionController({ idleGraceMs: VIEWPORT_CAMERA_IDLE_GRACE_MS });
+  private readonly hydrationScheduler = new HydrationScheduler<never>();
   private ghostModel?: THREE.Group;
   private ghostModelKey = '';
   private ghostPlan?: PlacementPlan;
@@ -501,6 +502,7 @@ export class ThreeViewportEngine {
   private cameraMovementInProgress = false;
   private cameraGestureInProgress = false;
   private readonly onControlStart = () => {
+    this.cameraInteraction.beginGesture();
     this.cameraGestureInProgress = true;
     this.cancelPendingHover(true);
     this.ghost.visible = false;
@@ -508,9 +510,9 @@ export class ThreeViewportEngine {
     this.clearDecorationGhost();
     this.requestCameraRender();
   };
-  private readonly onControlEnd = () => { this.cameraGestureInProgress = false; this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
+  private readonly onControlEnd = () => { this.cameraInteraction.endGesture(); this.cameraGestureInProgress = false; this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
   private cameraMoveFrame?: number;
-  private readonly pressedActions = new Set<MovementAction>();
+  private get pressedActions(): Set<MovementAction> { return this.cameraInteraction.pressedActions as Set<MovementAction>; }
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
   private readonly onWindowBlur = () => this.clearInput();
   private readonly onVisibilityChange = () => { if (document.hidden) this.clearInput(); };
@@ -554,18 +556,40 @@ export class ThreeViewportEngine {
   private themeApplied = false;
   private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9 };
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
+  private readonly instanceRenderer = new InstanceBatchRenderer({
+    blocksGroup: this.blocksGroup,
+    capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
+    chunkKey,
+    stableBounds: stableChunkBounds,
+    record: (name: string, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
+    getEntry: (key) => this.renderedBlocks.get(key),
+    setEntryObject: (key, batchKey, index, object) => {
+      const entry = this.renderedBlocks.get(key);
+      if (!entry) return;
+      entry.instanceBatchKey = batchKey;
+      entry.instanceIndex = index;
+      if (object) entry.object = object;
+    },
+    disposeMergedTemplateGeometry: (template) => this.disposeMergedTemplateGeometryIfUnused(template),
+    trace: (phase, key, source) => this.traceInstanceOwnership(phase, key, source),
+  });
+  private get instanceBatches(): Map<string, InstanceBatch> { return this.instanceRenderer.batches; }
+  private get instanceOwnershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
-  private readonly instanceBatches = new Map<string, InstanceBatch>();
-  private readonly surfaceFaceBatches = new Map<string, SurfaceFaceBatch>();
-  private readonly surfaceFaceOwnership = new Map<string, SurfaceFaceMembership[]>();
-  private readonly surfaceTemplateCache = new Map<string, readonly SurfaceFaceTemplate[]>();
+  private readonly surfaceRenderer = new SurfaceFaceBatchRenderer({
+    blocksGroup: this.blocksGroup,
+    capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
+    chunkKey,
+    stableBounds: stableChunkBounds,
+    unitEnvelope: unitVoxelEnvelope,
+    record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
+    getEntry: (key) => this.renderedBlocks.get(key),
+  });
+  private get surfaceFaceBatches(): Map<string, SurfaceFaceBatch> { return this.surfaceRenderer.batches; }
+  private get surfaceFaceOwnership(): Map<string, SurfaceFaceMembership[]> { return this.surfaceRenderer.ownership; }
+  private get surfaceTemplateCache(): Map<string, readonly SurfaceFaceTemplate[]> { return this.surfaceRenderer.templateCache; }
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
-  private readonly instanceTransformedMatrix = new THREE.Matrix4();
-  /** Derived lookup index; batch.keys remains the physical source of truth. */
-  private readonly instanceOwnershipIndex = new Map<string, { readonly batchKey: string; readonly index: number }>();
   private readonly reusableInstanceTemplates = new Map<string, CompiledInstanceTemplates>();
-  private readonly placeholderBatches = new Map<string, PlaceholderBatch>();
-  private readonly placeholderIndices = new Map<string, { readonly batchKey: string; readonly index: number }>();
   private readonly hydrationProgressListeners = new Set<(progress: ViewportHydrationProgress) => void>();
   private hydrationProgressState: ViewportHydrationProgress = { generation: 0, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 };
   private hydrationProgressHideTimer?: ReturnType<typeof setTimeout>;
@@ -599,7 +623,6 @@ export class ThreeViewportEngine {
   private hydrationScheduled = false;
   private cameraInteractingUntil = 0;
   private cameraRenderFrame?: number;
-  private staticResolutionRestoreTimer?: ReturnType<typeof setTimeout>;
   private staticPixelRatio = 1;
   private interactivePixelRatio = 1;
   private interactiveResolutionActive = false;
@@ -607,9 +630,6 @@ export class ThreeViewportEngine {
   private frameDurationMs = 0;
   private renderCpuMs = 0;
   private lastRendererMetrics = { calls: 0, triangles: 0, lines: 0, points: 0, geometries: 0, textures: 0 };
-  private renderScheduled = false;
-  private renderFrame?: number;
-  private renderTimer?: ReturnType<typeof setTimeout>;
   private hoverFrame?: number;
   private hoverTimer?: ReturnType<typeof setTimeout>;
   private pendingHover?: HoverRequest;
@@ -621,7 +641,6 @@ export class ThreeViewportEngine {
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
   private readonly culledBlockKeys = new Set<string>();
   private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
-  private readonly placeholderTranslationMatrix = new THREE.Matrix4();
 
   constructor(readonly instrumentation = new RendererDiagnostics()) {
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
@@ -743,8 +762,8 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
-  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.pressedActions.add(action); this.markCameraInteraction(); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { this.pressedActions.delete(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) { this.requestCameraRender(); this.scheduleStaticResolutionRestore(); } }
+  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.cameraInteraction.press(action); this.markCameraInteraction(); this.startCameraMovement(); }
+  cameraKeyUp(action: MovementAction): void { this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) { this.requestCameraRender(); this.scheduleStaticResolutionRestore(); } }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -1225,11 +1244,11 @@ export class ThreeViewportEngine {
   }
 
   private isCameraInteracting(): boolean {
-    return this.cameraGestureInProgress || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil;
+    return this.cameraGestureInProgress || this.cameraInteraction.isActive() || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil;
   }
 
   private markCameraInteraction(): void {
-    this.cameraInteractingUntil = performance.now() + VIEWPORT_CAMERA_IDLE_GRACE_MS;
+    this.cameraInteractingUntil = this.cameraInteraction.mark();
     this.enterInteractiveResolution();
     this.scheduleStaticResolutionRestore();
     if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
@@ -1249,47 +1268,41 @@ export class ThreeViewportEngine {
 
   private enterInteractiveResolution(): void {
     if (this.interactiveResolutionActive || !this.renderer || this.staticPixelRatio <= this.interactivePixelRatio) return;
-    this.interactiveResolutionActive = true;
-    this.applyPixelRatio(this.interactivePixelRatio);
-    this.instrumentation.record('interactiveResolutionEntries');
+    this.interactiveResolutionController.enter(
+      { staticRatio: this.staticPixelRatio, interactiveRatio: this.interactivePixelRatio },
+      () => this.applyPixelRatio(this.interactivePixelRatio),
+      () => { this.interactiveResolutionActive = true; this.instrumentation.record('interactiveResolutionEntries'); },
+    );
   }
 
   private scheduleStaticResolutionRestore(): void {
     if (!this.renderer || !this.interactiveResolutionActive) return;
-    if (this.staticResolutionRestoreTimer !== undefined) clearTimeout(this.staticResolutionRestoreTimer);
-    const delay = Math.max(0, this.cameraInteractingUntil - performance.now());
-    this.staticResolutionRestoreTimer = setTimeout(() => {
-      this.staticResolutionRestoreTimer = undefined;
-      if (this.cameraGestureInProgress || this.pressedActions.size || performance.now() < this.cameraInteractingUntil) {
-        this.scheduleStaticResolutionRestore();
-        return;
-      }
-      this.interactiveResolutionActive = false;
-      this.applyPixelRatio(this.staticPixelRatio);
-      this.instrumentation.record('staticResolutionRestores');
-      this.requestCameraRender();
-    }, delay);
+    this.interactiveResolutionController.markActive();
+    this.interactiveResolutionController.scheduleRestore({
+      interactionUntil: this.cameraInteractingUntil,
+      isInteractionActive: () => this.cameraGestureInProgress || this.cameraInteraction.isActive() || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil,
+      applyStatic: () => this.applyPixelRatio(this.staticPixelRatio),
+      onRestored: () => { this.interactiveResolutionActive = false; this.instrumentation.record('staticResolutionRestores'); this.requestCameraRender(); },
+    });
   }
 
   private scheduleHydrationWakeup(): void {
     const delay = Math.max(16, this.cameraInteractingUntil - performance.now() + 1);
-    if (this.hydrationTimer !== undefined) clearTimeout(this.hydrationTimer);
-    this.hydrationScheduled = true;
-    this.hydrationTimer = setTimeout(() => {
+    this.hydrationScheduler.reschedule(() => {
       this.hydrationScheduled = false;
       this.hydrationTimer = undefined;
       this.processHydrationBatch();
     }, delay);
+    this.hydrationScheduled = true;
   }
 
   private scheduleHydrationPump(delay: boolean | number = false): void {
     if (this.disposed) return;
     if (this.isCameraInteracting()) { this.scheduleHydrationWakeup(); return; }
-    if (this.hydrationScheduled) return;
-    this.hydrationScheduled = true;
     const run = () => { this.hydrationScheduled = false; this.hydrationTimer = undefined; this.processHydrationBatch(); };
-    if (!delay) queueMicrotask(run);
-    else this.hydrationTimer = setTimeout(run, typeof delay === 'number' ? delay : 0);
+    if (this.hydrationScheduler.isScheduled) return;
+    this.hydrationScheduler.schedule(run, !delay ? undefined : typeof delay === 'number' ? delay : 0);
+    this.hydrationScheduled = true;
   }
 
   private queuedBlockHydrationJobs(): number { return this.hydrationQueue.length - this.hydrationQueueHead; }
@@ -1412,7 +1425,8 @@ export class ThreeViewportEngine {
     this.cancelDecorationHydration();
     this.hydrationBatchBudget = 0;
     this.hydrationBatchDeadline = 0;
-    if (this.hydrationTimer !== undefined) { clearTimeout(this.hydrationTimer); this.hydrationTimer = undefined; }
+    this.hydrationScheduler.cancel();
+    this.hydrationTimer = undefined;
     this.hydrationScheduled = false;
     this.resetHydrationProgress();
   }
@@ -1425,105 +1439,23 @@ export class ThreeViewportEngine {
 
   private scheduleRender(): void {
     if (this.disposed) return;
-    this.instrumentation.record('renderInvalidations');
-    if (this.renderScheduled) {
-      this.instrumentation.record('renderInvalidationsCoalesced');
-      this.instrumentation.record('coalescedRenderRequests');
-      return;
-    }
-    this.renderScheduled = true;
-    this.renderFrame = requestViewportFrame(() => { this.renderScheduled = false; this.renderFrame = undefined; this.render(); });
+    this.renderScheduler.request(() => this.render());
   }
 
   private ensurePlaceholderVisual(key: string, block: ProjectDocument['blocks'][number], role: RenderedBlockEntry['role']): void {
-    if (this.placeholderIndices.has(key)) return;
-    const batchKey = `${role}|${chunkKey(block.position)}`;
-    const batch = this.getPlaceholderBatch(batchKey, role, block.position);
-    if (batch.keys.length >= batch.capacity) return;
-    const index = batch.keys.length;
-    const position = { ...block.position };
-    batch.keys.push(key); batch.positions.push(position);
-    batch.mesh.setMatrixAt(index, this.placeholderTranslationMatrix.makeTranslation(position.x + .5, position.y + .5, position.z + .5));
-    batch.mesh.count = index + 1;
-    (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
-    (batch.mesh.userData['instanceKeys'] as string[]).push(key);
-    batch.mesh.instanceMatrix.needsUpdate = true;
-    this.placeholderIndices.set(key, { batchKey, index });
-  }
-
-  private getPlaceholderBatch(batchKey: string, role: RenderedBlockEntry['role'], position: VoxelCoordinate): PlaceholderBatch {
-    const existing = this.placeholderBatches.get(batchKey);
-    if (existing) return existing;
-    const material = this.placeholderMaterials[role];
-    const mesh = new THREE.InstancedMesh(this.placeholderGeometry, material, VIEWPORT_INSTANCE_CHUNK_SIZE ** 3);
-    mesh.count = 0;
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    mesh.userData['instanceVoxels'] = [];
-    mesh.userData['instanceKeys'] = [];
-    mesh.userData['placeholder'] = true;
-    mesh.userData['instanceBatchKey'] = batchKey;
-    this.blocksGroup.add(mesh);
-    setStableMeshBounds(mesh, stableChunkBounds(chunkKey(position), unitVoxelEnvelope()));
-    this.instrumentation.record('instancedBoundsComputations');
-    const batch = { key: batchKey, capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3, mesh, keys: [], positions: [] };
-    this.placeholderBatches.set(batchKey, batch);
-    return batch;
+    this.placeholderRenderer.ensure(key, block.position, role);
   }
 
   private ensurePlaceholderVisualsBulk(entries: readonly VisibleBlockEntry[]): void {
-    const touched = new Set<string>();
-    for (const entry of entries) {
-      const key = coordinateKey(entry.block.position);
-      if (this.placeholderIndices.has(key)) continue;
-      const batchKey = `${entry.role}|${chunkKey(entry.block.position)}`;
-      const batch = this.getPlaceholderBatch(batchKey, entry.role, entry.block.position);
-      if (batch.keys.length >= batch.capacity) continue;
-      const index = batch.keys.length;
-      const position = { ...entry.block.position };
-      batch.keys.push(key); batch.positions.push(position);
-      batch.mesh.setMatrixAt(index, this.placeholderTranslationMatrix.makeTranslation(position.x + .5, position.y + .5, position.z + .5));
-      batch.mesh.count = index + 1;
-      (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
-      (batch.mesh.userData['instanceKeys'] as string[]).push(key);
-      this.placeholderIndices.set(key, { batchKey, index });
-      touched.add(batchKey);
-    }
-    for (const batchKey of touched) this.placeholderBatches.get(batchKey)!.mesh.instanceMatrix.needsUpdate = true;
+    this.placeholderRenderer.ensureBulk(entries.map((entry) => ({ key: coordinateKey(entry.block.position), position: entry.block.position, role: entry.role })));
   }
 
   private removePlaceholderVisual(key: string): void {
-    const reference = this.placeholderIndices.get(key);
-    if (!reference) return;
-    const batch = this.placeholderBatches.get(reference.batchKey);
-    this.placeholderIndices.delete(key);
-    if (!batch) return;
-    const index = reference.index;
-    const last = batch.keys.length - 1;
-    if (index !== last) {
-      const movedKey = batch.keys[last];
-      const movedPosition = batch.positions[last];
-      batch.keys[index] = movedKey; batch.positions[index] = movedPosition;
-      const voxels = batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[];
-      const keys = batch.mesh.userData['instanceKeys'] as string[];
-      voxels[index] = movedPosition; keys[index] = movedKey;
-      batch.mesh.setMatrixAt(index, this.placeholderTranslationMatrix.makeTranslation(movedPosition.x + .5, movedPosition.y + .5, movedPosition.z + .5));
-      this.placeholderIndices.set(movedKey, { batchKey: batch.key, index });
-    }
-    batch.keys.pop(); batch.positions.pop();
-    (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
-    (batch.mesh.userData['instanceKeys'] as string[]).pop();
-    batch.mesh.count = batch.keys.length;
-    batch.mesh.instanceMatrix.needsUpdate = true;
-    if (!batch.keys.length) {
-      this.blocksGroup.remove(batch.mesh);
-      this.placeholderBatches.delete(batch.key);
-    }
+    this.placeholderRenderer.remove(key);
   }
 
   private clearPlaceholderVisuals(): void {
-    for (const batch of this.placeholderBatches.values()) this.blocksGroup.remove(batch.mesh);
-    this.placeholderBatches.clear();
-    this.placeholderIndices.clear();
+    this.placeholderRenderer.clear();
   }
 
   private createBlockEntry(block: ProjectDocument['blocks'][number], signature: string, role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, surfaceFastPathEligible: boolean, surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockEntry>, onComplete?: () => void): void {
@@ -1611,101 +1543,21 @@ export class ThreeViewportEngine {
   }
 
   private addSurfaceFaceVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockEntry>): readonly SurfaceFaceMembership[] | undefined {
-    if (templates.length !== 6) return undefined;
     const visibleEntry = visible.get(key);
     if (!visibleEntry) return undefined;
-    const exposed = new Set(exposedFaceDirections(visibleEntry, visible));
-    const memberships: SurfaceFaceMembership[] = [];
-    for (const template of templates) {
-      if (!exposed.has(template.direction)) continue;
-      const batchKey = `${chunkKey(block.position)}|surface|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
-      let batch = this.surfaceFaceBatches.get(batchKey);
-      if (!batch) {
-        const mesh = new THREE.InstancedMesh(template.geometry, template.material.clone(), VIEWPORT_INSTANCE_CHUNK_SIZE ** 3);
-        mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        mesh.userData['instanceVoxels'] = []; mesh.userData['instanceKeys'] = []; mesh.userData['instanceFaceDirections'] = [];
-        mesh.userData['surfaceFaceBatch'] = true; mesh.userData['realModel'] = true; mesh.userData['instanceBatchKey'] = batchKey;
-        this.blocksGroup.add(mesh);
-        setStableMeshBounds(mesh, stableChunkBounds(chunkKey(block.position), unitVoxelEnvelope()));
-        batch = { key: batchKey, capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3, template, mesh, keys: [], positions: [], directions: [] };
-        this.surfaceFaceBatches.set(batchKey, batch);
-        this.instrumentation.record('instancedBoundsComputations');
-      }
-      if (batch.keys.length >= batch.capacity) return undefined;
-      const index = batch.keys.length;
-      const position = { ...block.position };
-      batch.keys.push(key); batch.positions.push(position); batch.directions.push(template.direction);
-      this.instanceTranslationMatrix.makeTranslation(position.x, position.y, position.z).multiply(template.matrix);
-      batch.mesh.setMatrixAt(index, this.instanceTranslationMatrix);
-      batch.mesh.count = index + 1; batch.mesh.instanceMatrix.needsUpdate = true;
-      (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
-      (batch.mesh.userData['instanceKeys'] as string[]).push(key);
-      (batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[]).push(template.direction);
-      memberships.push({ batchKey, index });
-    }
-    this.surfaceFaceOwnership.set(key, memberships);
-    this.instrumentation.record('surfaceFastPathBlocks');
-    this.instrumentation.record('exposedFaceInstances', memberships.length);
-    this.instrumentation.record('neighborFacesCulled', 6 - memberships.length);
-    return memberships;
+    return this.surfaceRenderer.add(block, key, templates, new Set(exposedFaceDirections(visibleEntry, visible)));
   }
 
   private removeSurfaceFaceVisual(key: string, entry?: RenderedBlockEntry): void {
-    const memberships = this.surfaceFaceOwnership.get(key) ?? entry?.surfaceFaceMemberships ?? [];
-    for (const membership of [...memberships].sort((left, right) => right.index - left.index)) this.removeSurfaceFaceMembership(membership.batchKey, membership.index, key);
-    this.surfaceFaceOwnership.delete(key);
-    if (entry?.surfaceFaceMemberships !== undefined) {
-      this.instrumentation.record('surfaceFastPathBlocks', -1);
-      this.instrumentation.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? memberships.length));
-      this.instrumentation.record('neighborFacesCulled', -(entry.surfaceNeighborFacesCulled ?? 6 - memberships.length));
-      entry.surfaceFaceMemberships = undefined;
-      entry.surfaceExposedFaceCount = undefined;
-      entry.surfaceNeighborFacesCulled = undefined;
-    }
+    this.surfaceRenderer.remove(key, entry);
   }
 
   private removeSurfaceFaceMembership(batchKey: string, requestedIndex: number, expectedKey: string): void {
-    const batch = this.surfaceFaceBatches.get(batchKey);
-    if (!batch) return;
-    const index = requestedIndex >= 0 && requestedIndex < batch.keys.length && batch.keys[requestedIndex] === expectedKey ? requestedIndex : batch.keys.indexOf(expectedKey);
-    if (index < 0) return;
-    const last = batch.keys.length - 1;
-    if (index !== last) {
-      const movedKey = batch.keys[last];
-      const movedPosition = batch.positions[last];
-      const movedDirection = batch.directions[last];
-      batch.keys[index] = movedKey; batch.positions[index] = movedPosition; batch.directions[index] = movedDirection;
-      const voxels = batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[];
-      const keys = batch.mesh.userData['instanceKeys'] as string[];
-      const directions = batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[];
-      voxels[index] = movedPosition; keys[index] = movedKey; directions[index] = movedDirection;
-      const movedMemberships = this.surfaceFaceOwnership.get(movedKey);
-      const movedMembershipIndex = movedMemberships?.findIndex((membership) => membership.batchKey === batchKey && membership.index === last) ?? -1;
-      if (movedMemberships && movedMembershipIndex >= 0) movedMemberships[movedMembershipIndex] = { batchKey, index };
-      const movedEntry = this.renderedBlocks.get(movedKey);
-      if (movedEntry?.surfaceFaceMemberships) movedEntry.surfaceFaceMemberships = movedMemberships;
-    }
-    batch.keys.pop(); batch.positions.pop(); batch.directions.pop();
-    (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
-    (batch.mesh.userData['instanceKeys'] as string[]).pop();
-    (batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[]).pop();
-    batch.mesh.count = batch.keys.length; batch.mesh.instanceMatrix.needsUpdate = true;
-    if (!batch.keys.length) {
-      this.blocksGroup.remove(batch.mesh); (batch.mesh.material as THREE.Material).dispose(); this.surfaceFaceBatches.delete(batchKey);
-    }
+    this.surfaceRenderer.removeMembership(batchKey, requestedIndex, expectedKey);
   }
 
   private clearSurfaceFaceResources(): void {
-    for (const entry of this.renderedBlocks.values()) if (entry.surfaceFaceMemberships !== undefined) {
-      this.instrumentation.record('surfaceFastPathBlocks', -1);
-      this.instrumentation.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? entry.surfaceFaceMemberships.length));
-      this.instrumentation.record('neighborFacesCulled', -(entry.surfaceNeighborFacesCulled ?? 6 - entry.surfaceFaceMemberships.length));
-    }
-    for (const batch of this.surfaceFaceBatches.values()) { this.blocksGroup.remove(batch.mesh); (batch.mesh.material as THREE.Material).dispose(); }
-    this.surfaceFaceBatches.clear(); this.surfaceFaceOwnership.clear();
-    for (const templates of this.surfaceTemplateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
-    this.surfaceTemplateCache.clear();
-    for (const entry of this.renderedBlocks.values()) { entry.surfaceFaceMemberships = undefined; entry.surfaceExposedFaceCount = undefined; entry.surfaceNeighborFacesCulled = undefined; }
+    this.surfaceRenderer.clear(this.renderedBlocks.values());
   }
 
   private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
@@ -1719,38 +1571,7 @@ export class ThreeViewportEngine {
 
   private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates): { readonly batchKey: string; readonly index: number } | undefined {
     const resolvedCompiled = compiled ?? compileInstanceTemplates(templates, this.instrumentation);
-    const existingEntry = this.renderedBlocks.get(key);
-    this.traceInstanceOwnership('before-insert', key, source, existingEntry);
-    if (existingEntry?.instanceBatchKey) this.removeInstanceVisual(key, existingEntry);
-    else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
-    const signature = resolvedCompiled.signature;
-    const chunk = chunkKey(block.position);
-    const batchKey = `${chunk}|${signature}`;
-    let batch = this.instanceBatches.get(batchKey);
-    if (!batch) {
-      const capacity = VIEWPORT_INSTANCE_CHUNK_SIZE ** 3;
-      const parts = templates.map((template) => {
-        const material = template.material.clone(); material.transparent = false; material.depthWrite = true;
-        const mesh = new THREE.InstancedMesh(template.geometry, material, capacity); mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.userData['instanceVoxels'] = []; mesh.userData['instanceKeys'] = []; mesh.userData['realModel'] = true; mesh.userData['instanceBatchKey'] = batchKey; this.blocksGroup.add(mesh); return mesh;
-      });
-      const bounds = stableChunkBounds(chunk, resolvedCompiled.envelope);
-      parts.forEach((part) => setStableMeshBounds(part, bounds));
-      this.instrumentation.record('instancedBoundsComputations', parts.length);
-      batch = { key: batchKey, capacity, templates, parts, keys: [], positions: [] };
-      this.instanceBatches.set(batchKey, batch);
-      this.instrumentation.record('instancedBatchCreations'); this.instrumentation.record('instancedMeshCount', parts.length);
-    }
-    if (batch.keys.length >= batch.capacity) return undefined;
-    const index = batch.keys.length; batch.keys.push(key); batch.positions.push({ ...block.position });
-    const translation = this.instanceTranslationMatrix.makeTranslation(block.position.x, block.position.y, block.position.z);
-    const transformed = this.instanceTransformedMatrix;
-    batch.parts.forEach((part, partIndex) => { transformed.copy(translation).multiply(batch.templates[partIndex].matrix); part.setMatrixAt(index, transformed); part.count = index + 1; (part.userData['instanceVoxels'] as VoxelCoordinate[]).push({ ...block.position }); (part.userData['instanceKeys'] as string[]).push(key); part.instanceMatrix.needsUpdate = true; });
-    this.instrumentation.record('instancedBlockAdds'); this.instrumentation.record('instancedMembers');
-    this.instanceOwnershipIndex.set(key, { batchKey, index });
-    const ownerEntry = this.renderedBlocks.get(key);
-    if (ownerEntry) { ownerEntry.instanceBatchKey = batchKey; ownerEntry.instanceIndex = index; ownerEntry.object = batch.parts[0]; }
-    this.traceInstanceOwnership('after-insert', key, source);
-    return { batchKey, index };
+    return this.instanceRenderer.addFromTemplates(templates, block.position, key, source, resolvedCompiled);
   }
 
   private instanceTemplates(object: THREE.Object3D): readonly InstancePartTemplate[] | undefined {
@@ -1773,7 +1594,7 @@ export class ThreeViewportEngine {
 
   private removeInstanceVisual(key: string, entry: RenderedBlockEntry): void {
     this.traceInstanceOwnership('before-remove', key, 'reconcile', entry);
-    this.removeOrphanedInstanceMemberships(key, 'reconcile', entry);
+    this.instanceRenderer.remove(key, entry, 'reconcile');
     entry.instanceBatchKey = undefined;
     entry.instanceIndex = undefined;
     this.traceInstanceOwnership('after-remove', key, 'reconcile');
@@ -1781,100 +1602,21 @@ export class ThreeViewportEngine {
 
   /** Returns every physical logical-key membership, including stale ownership. */
   private instanceMemberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] {
-    if (!scanAll) {
-      const indexed = this.instanceOwnershipIndex.get(key);
-      return indexed ? [{ ...indexed }] : [];
-    }
-    const memberships: { batchKey: string; index: number }[] = [];
-    for (const [batchKey, batch] of this.instanceBatches) for (const [index, memberKey] of batch.keys.entries()) if (memberKey === key) memberships.push({ batchKey, index });
-    return memberships;
+    return this.instanceRenderer.memberships(key, scanAll);
   }
 
   private removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry = this.renderedBlocks.get(key)): void {
-    const indexed = this.instanceOwnershipIndex.get(key);
-    const knownBatchKey = entry?.instanceBatchKey ?? indexed?.batchKey;
-    const knownIndex = entry?.instanceIndex ?? indexed?.index;
-    const knownRemoved = knownBatchKey && knownIndex !== undefined ? this.removeInstanceMembership(knownBatchKey, knownIndex, key) : false;
-    let memberships = this.runtimeDiagnosticsEnabled || !knownBatchKey || !knownRemoved ? this.instanceMemberships(key, true) : [];
-    while (memberships.length) {
-      for (const membership of memberships.slice().sort((left, right) => right.index - left.index)) this.removeInstanceMembership(membership.batchKey, membership.index, key);
-      const next = this.instanceMemberships(key, true);
-      if (next.length >= memberships.length) break;
-      memberships = next;
-    }
-    this.instanceOwnershipIndex.delete(key);
+    this.instanceRenderer.removeOrphaned(key, source, entry);
     if (entry) { entry.instanceBatchKey = undefined; entry.instanceIndex = undefined; }
-    if (source === 'rollback') this.traceInstanceOwnership('after-remove-entry', key, source, entry);
   }
 
   private removeInstanceMembership(batchKey: string, requestedIndex: number, expectedKey: string): boolean {
-    const batch = this.instanceBatches.get(batchKey);
-    if (!batch) return false;
-    const index = requestedIndex >= 0 && requestedIndex < batch.keys.length && batch.keys[requestedIndex] === expectedKey ? requestedIndex : batch.keys.indexOf(expectedKey);
-    if (index < 0) return false;
-    this.traceInstanceOwnership('before-remove', expectedKey, 'reconcile');
-    const last = batch.keys.length - 1;
-    if (index !== last) {
-      const movedKey = batch.keys[last];
-      const movedPosition = batch.positions[last];
-      batch.keys[index] = movedKey;
-      batch.positions[index] = movedPosition;
-      const movedEntry = this.renderedBlocks.get(movedKey);
-      if (movedEntry?.instanceBatchKey === batchKey) movedEntry.instanceIndex = index;
-      this.instanceOwnershipIndex.set(movedKey, { batchKey, index });
-      const translation = this.instanceTranslationMatrix.makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
-      const transformed = this.instanceTransformedMatrix;
-      batch.parts.forEach((part, partIndex) => {
-        transformed.copy(translation).multiply(batch.templates[partIndex].matrix);
-        const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[];
-        const keys = part.userData['instanceKeys'] as string[];
-        voxels[index] = { ...movedPosition };
-        keys[index] = movedKey;
-        part.instanceMatrix.needsUpdate = true;
-      });
-    }
-    batch.keys.pop();
-    batch.positions.pop();
-    this.instanceOwnershipIndex.delete(expectedKey);
-    batch.parts.forEach((part) => {
-      (part.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
-      (part.userData['instanceKeys'] as string[]).pop();
-      part.count = batch.keys.length;
-      part.instanceMatrix.needsUpdate = true;
-    });
-    this.instrumentation.record('instancedBlockRemovals');
-    this.instrumentation.record('instancedMembers', -1);
-    if (!batch.keys.length) {
-      for (const part of batch.parts) { this.blocksGroup.remove(part); (part.material as THREE.Material).dispose(); }
-      this.instanceBatches.delete(batchKey);
-      for (const template of batch.templates) this.disposeMergedTemplateGeometryIfUnused(template);
-      this.instrumentation.record('instancedMeshCount', -batch.parts.length);
-    }
-    return true;
+    return this.instanceRenderer.removeMembership(batchKey, requestedIndex, expectedKey);
   }
 
   /** Repairs only stale/duplicate memberships; it never rebuilds valid batches. */
   private reconcileInstanceOwnership(): void {
-    const memberships = new Map<string, { batchKey: string; index: number }[]>();
-    for (const [batchKey, batch] of this.instanceBatches) for (const [index, key] of batch.keys.entries()) {
-      const list = memberships.get(key) ?? [];
-      list.push({ batchKey, index });
-      memberships.set(key, list);
-    }
-    for (const [key, list] of memberships) {
-      const entry = this.renderedBlocks.get(key);
-      const preferred = entry?.instanceBatchKey && entry.instanceIndex !== undefined ? list.find((membership) => membership.batchKey === entry.instanceBatchKey && membership.index === entry.instanceIndex) ?? list[0] : list[0];
-      const extras = (entry ? list.filter((membership) => membership !== preferred) : list).sort((left, right) => right.index - left.index);
-      for (const membership of extras) this.removeInstanceMembership(membership.batchKey, membership.index, key);
-    }
-    this.instanceOwnershipIndex.clear();
-    for (const [batchKey, batch] of this.instanceBatches) for (const [index, key] of batch.keys.entries()) {
-      if (this.instanceOwnershipIndex.has(key)) continue;
-      this.instanceOwnershipIndex.set(key, { batchKey, index });
-      const entry = this.renderedBlocks.get(key);
-      if (entry) { entry.instanceBatchKey = batchKey; entry.instanceIndex = index; entry.object = batch.parts[0]; }
-    }
-    for (const [key, entry] of this.renderedBlocks) if (entry.instanceBatchKey && !this.instanceOwnershipIndex.has(key)) { entry.instanceBatchKey = undefined; entry.instanceIndex = undefined; }
+    this.instanceRenderer.reconcile(this.renderedBlocks);
   }
 
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
@@ -2167,9 +1909,9 @@ export class ThreeViewportEngine {
     this.cancelHydration();
     const provider = this.visualProvider;
     this.cancelCameraRender();
-    if (this.staticResolutionRestoreTimer !== undefined) { clearTimeout(this.staticResolutionRestoreTimer); this.staticResolutionRestoreTimer = undefined; }
-    if (this.renderFrame !== undefined) { cancelViewportFrame(this.renderFrame); this.renderFrame = undefined; this.renderScheduled = false; }
-    if (this.renderTimer !== undefined) { clearTimeout(this.renderTimer); this.renderTimer = undefined; this.renderScheduled = false; }
+    this.interactiveResolutionController.dispose();
+    this.cameraInteraction.clear();
+    this.renderScheduler.dispose();
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
     this.clearSurfaceFaceResources();
@@ -2696,7 +2438,7 @@ export class ThreeViewportEngine {
       currentGenerationRunning,
       staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning),
       hydrationScheduled: this.hydrationScheduled,
-      hydrationTimerActive: this.hydrationTimer !== undefined,
+      hydrationTimerActive: this.hydrationScheduler.timerActive,
       hydrationBatchBudget: this.hydrationBatchBudget,
       pendingSignatureCount: this.pendingHydrationSignatures.size,
       placeholderSignatureCount: this.placeholderSignatures.size,
@@ -2709,7 +2451,7 @@ export class ThreeViewportEngine {
       orphanedHydrationSample,
       completed: this.hydrationProgressState.completed,
       total: this.hydrationProgressState.total,
-      scheduled: this.hydrationScheduled || this.hydrationTimer !== undefined,
+      scheduled: this.hydrationScheduled || this.hydrationScheduler.timerActive,
     };
   }
 
@@ -2766,7 +2508,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.scheduleRender();
   }
-  clearInput(): void { this.pressedActions.clear(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } this.scheduleStaticResolutionRestore(); }
+  clearInput(): void { this.cameraInteraction.clear(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } this.scheduleStaticResolutionRestore(); }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
@@ -3328,136 +3070,8 @@ function canonicalizeSurfaceFaceGeometry(geometry: THREE.BufferGeometry, directi
   return transform;
 }
 
-function surfaceFaceGeometrySignature(geometry: THREE.BufferGeometry): string {
-  return Object.entries(geometry.attributes).sort(([left], [right]) => left.localeCompare(right)).map(([name, attribute]) => `${name}:${attribute.itemSize}:${attribute.normalized}:${Array.from(attribute.array).join(',')}`).join('|');
-}
-function instanceTemplateEnvelope(templates: readonly InstancePartTemplate[]): THREE.Box3 {
-  const envelope = new THREE.Box3();
-  for (const template of templates) {
-    template.geometry.computeBoundingBox();
-    if (template.geometry.boundingBox) envelope.union(template.geometry.boundingBox.clone().applyMatrix4(template.matrix));
-  }
-  return envelope.isEmpty() ? unitVoxelEnvelope() : envelope;
-}
-
-export function mergeInstanceTemplateParts(templates: readonly InstancePartTemplate[]): readonly InstancePartTemplate[] {
-  const groups = new Map<string, InstancePartTemplate[]>();
-  for (const template of templates) {
-    const key = `${instanceMaterialCompatibilityKey(template.material)}|${instanceGeometryCompatibilityKey(template.geometry)}`;
-    const group = groups.get(key) ?? [];
-    group.push(template);
-    groups.set(key, group);
-  }
-  const merged: InstancePartTemplate[] = [];
-  for (const group of groups.values()) {
-    const material = group[0].material as THREE.Material & { transparent?: boolean; depthWrite?: boolean };
-    if (group.length === 1 || material.transparent || material.depthWrite === false || group.some((template) => Object.keys(template.geometry.morphAttributes).length > 0)) {
-      merged.push(group[0]);
-      if (group.length > 1) merged.push(...group.slice(1));
-      continue;
-    }
-    const geometry = mergeTransformedGeometries(group);
-    if (!geometry) {
-      merged.push(...group);
-      continue;
-    }
-    geometry.userData['mergedInstanceTemplateGeometry'] = true;
-    merged.push({ geometry, material: group[0].material, matrix: new THREE.Matrix4(), ownsGeometry: true });
-  }
-  return merged;
-}
-
-export function compileInstanceTemplates(templates: readonly InstancePartTemplate[], instrumentation?: RendererDiagnostics, cloneMaterials = false): CompiledInstanceTemplates {
-  const retained = templates.map((template) => ({
-    geometry: template.geometry,
-    material: cloneMaterials ? template.material.clone() : template.material,
-    matrix: template.matrix.clone(),
-  }));
-  const merged = mergeInstanceTemplateParts(retained);
-  if (instrumentation) {
-    instrumentation.record('rawInstanceTemplateParts', templates.length);
-    instrumentation.record('mergedInstanceTemplateParts', merged.length);
-    instrumentation.record('templateMergeOperations', merged.filter((template) => template.ownsGeometry).length);
-    instrumentation.record('templatePartsEliminated', Math.max(0, templates.length - merged.length));
-  }
-  const signature = merged.map((template) => {
-    const material = template.material as THREE.Material & { map?: THREE.Texture; color?: THREE.Color; alphaTest?: number; side?: number; vertexColors?: boolean };
-    return `${template.geometry.uuid}|${material.type}|${material.map?.uuid ?? ''}|${material.color?.getHexString() ?? ''}|${material.alphaTest ?? 0}|${material.side ?? 0}|${material.vertexColors ? 1 : 0}|${template.matrix.elements.map((value) => value.toFixed(4)).join(',')}`;
-  }).join(';');
-  return { templates: merged, signature, envelope: instanceTemplateEnvelope(merged) };
-}
-
-function instanceMaterialCompatibilityKey(material: THREE.Material): string {
-  const candidate = material as THREE.Material & {
-    map?: THREE.Texture;
-    color?: THREE.Color;
-    emissive?: THREE.Color;
-    emissiveIntensity?: number;
-    alphaTest?: number;
-    side?: number;
-    vertexColors?: boolean;
-    flatShading?: boolean;
-    transparent?: boolean;
-    depthWrite?: boolean;
-    depthTest?: boolean;
-    blending?: number;
-    polygonOffset?: boolean;
-    polygonOffsetFactor?: number;
-    polygonOffsetUnits?: number;
-    opacity?: number;
-  };
-  const map = candidate.map;
-  return [candidate.type, map?.uuid ?? '', map?.offset.x ?? 0, map?.offset.y ?? 0, map?.repeat.x ?? 1, map?.repeat.y ?? 1, map?.rotation ?? 0, map?.center.x ?? 0, map?.center.y ?? 0, map?.wrapS ?? 1000, map?.wrapT ?? 1000, map?.flipY ? 1 : 0, map?.colorSpace ?? '', candidate.color?.getHexString() ?? '', candidate.emissive?.getHexString() ?? '', candidate.emissiveIntensity ?? 0, candidate.opacity ?? 1, candidate.alphaTest ?? 0, candidate.side ?? 0, candidate.vertexColors ? 1 : 0, candidate.flatShading ? 1 : 0, candidate.transparent ? 1 : 0, candidate.depthWrite ? 1 : 0, candidate.depthTest ? 1 : 0, candidate.blending ?? 0, candidate.polygonOffset ? 1 : 0, candidate.polygonOffsetFactor ?? 0, candidate.polygonOffsetUnits ?? 0].join('|');
-}
-
-function instanceGeometryCompatibilityKey(geometry: THREE.BufferGeometry): string {
-  if (geometry.morphAttributes && Object.keys(geometry.morphAttributes).length) return 'morph-unsupported';
-  const attributes = Object.entries(geometry.attributes).sort(([left], [right]) => left.localeCompare(right));
-  return `${geometry.index ? 'indexed' : 'non-indexed'}|${attributes.map(([name, attribute]) => `${name}:${attribute.itemSize}:${attribute.normalized}:${attribute instanceof THREE.InterleavedBufferAttribute ? 'interleaved' : attribute.array.constructor.name}`).join(',')}`;
-}
-
-function mergeTransformedGeometries(templates: readonly InstancePartTemplate[]): THREE.BufferGeometry | undefined {
-  const prepared: THREE.BufferGeometry[] = [];
-  try {
-    for (const template of templates) {
-      const transformed = template.geometry.clone().applyMatrix4(template.matrix);
-      const nonIndexed = transformed.index ? transformed.toNonIndexed() : transformed;
-      if (nonIndexed !== transformed) transformed.dispose();
-      if (Object.values(nonIndexed.attributes).some((attribute) => attribute instanceof THREE.InterleavedBufferAttribute)) { nonIndexed.dispose(); return undefined; }
-      prepared.push(nonIndexed);
-    }
-    const firstAttributes = Object.entries(prepared[0]?.attributes ?? {}).sort(([left], [right]) => left.localeCompare(right));
-    if (!firstAttributes.length || prepared.some((geometry) => {
-      const attributes = Object.entries(geometry.attributes).sort(([left], [right]) => left.localeCompare(right));
-      return attributes.length !== firstAttributes.length || attributes.some(([name, attribute], index) => {
-        const [firstName, firstAttribute] = firstAttributes[index];
-        return name !== firstName || attribute.itemSize !== firstAttribute.itemSize || attribute.normalized !== firstAttribute.normalized || attribute.array.constructor !== firstAttribute.array.constructor;
-      });
-    })) return undefined;
-    const merged = new THREE.BufferGeometry();
-    for (const [name, firstAttribute] of firstAttributes) {
-      const totalLength = prepared.reduce((sum, geometry) => sum + geometry.attributes[name].array.length, 0);
-      const values = newTypedArray(firstAttribute.array, totalLength);
-      let offset = 0;
-      for (const geometry of prepared) {
-        const attribute = geometry.attributes[name];
-        values.set(attribute.array, offset);
-        offset += attribute.array.length;
-      }
-      merged.setAttribute(name, new THREE.BufferAttribute(values, firstAttribute.itemSize, firstAttribute.normalized));
-    }
-    merged.computeBoundingBox();
-    merged.computeBoundingSphere();
-    return merged;
-  } finally {
-    for (const geometry of prepared) geometry.dispose();
-  }
-}
-
-function newTypedArray(source: THREE.TypedArray, length: number): THREE.TypedArray {
-  const Constructor = source.constructor as THREE.TypedArrayConstructor;
-  return new Constructor(length);
-}
+export const mergeInstanceTemplateParts = mergeInstanceTemplatePartsFromCache;
+export const compileInstanceTemplates = compileInstanceTemplatesFromCache;
 function unitVoxelEnvelope(): THREE.Box3 { return new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 1)); }
 function stableChunkBounds(chunk: string, envelope: THREE.Box3): THREE.Box3 {
   const [chunkX, chunkY, chunkZ] = chunk.split(',').map(Number);
@@ -3466,10 +3080,6 @@ function stableChunkBounds(chunk: string, envelope: THREE.Box3): THREE.Box3 {
     origin.clone().add(envelope.min),
     origin.clone().add(new THREE.Vector3(VIEWPORT_INSTANCE_CHUNK_SIZE - 1, VIEWPORT_INSTANCE_CHUNK_SIZE - 1, VIEWPORT_INSTANCE_CHUNK_SIZE - 1)).add(envelope.max),
   );
-}
-function setStableMeshBounds(mesh: THREE.InstancedMesh, bounds: THREE.Box3): void {
-  mesh.boundingBox = bounds.clone();
-  mesh.boundingSphere = bounds.getBoundingSphere(new THREE.Sphere());
 }
 function chunkKey(position: VoxelCoordinate): string { return `${Math.floor(position.x / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.y / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.z / VIEWPORT_INSTANCE_CHUNK_SIZE)}`; }
 function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry'] && !child.geometry.userData['sharedPlaceholderGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial'] || material.userData['sharedPlaceholderMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }

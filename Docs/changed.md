@@ -2199,3 +2199,16 @@ Editor mutations enforce non-negative integer block positions and decoration
 anchors at the shared history boundary. Placement and group translation still
 validate full planned footprints before commit, so rejected bulk operations do
 not create partial state or history entries.
+
+## Renderer performance subsystem modularization
+
+The existing renderer performance behavior is now organized behind dedicated
+renderer-only modules without changing the ProjectDocument or editor state
+architecture. Demand render scheduling, interactive pixel-ratio restoration,
+camera interaction state, and hydration pump scheduling live under
+`renderer/scheduling`. Placeholder occupancy batches, reusable instance batch
+ownership, exposed-face batch ownership, and instance-template compilation live
+under `renderer/batching`. ThreeViewportEngine remains the coordinator and keeps
+the existing public API, diagnostics, visual roles, swap-back ownership, and
+hydration behavior. Chunk surface meshing, atlases, workers, and new render
+algorithms remain deferred to later performance prompts.
