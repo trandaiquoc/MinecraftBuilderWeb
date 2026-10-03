@@ -4,6 +4,7 @@ import { coordinateKey } from '../../domain/coordinates';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { TerrainOccupancy } from './chunk-occupancy';
 import { relevantTerrainChunks, terrainChunkBounds, terrainChunkKey, worldToTerrainChunk, type TerrainChunkCoordinate } from './chunk-coordinate';
+import { dirtyTerrainChunkKeys } from './chunk-dirty-tracker';
 import { meshTerrainChunk, precompileTerrainTemplates, type CompiledTerrainChunk, type PrecompiledTerrainFace } from './chunk-surface-mesher';
 import type { TerrainClassificationEntry } from './terrain-classifier';
 
@@ -12,6 +13,14 @@ export interface TerrainSurfaceRecord {
   readonly block: PlacedBlock;
   readonly templates: readonly SurfaceFaceTemplate[];
   readonly compiledTemplates?: readonly PrecompiledTerrainFace[];
+}
+
+export interface TerrainBlockChange {
+  readonly position: VoxelCoordinate;
+  readonly key: string;
+  readonly before?: TerrainSurfaceRecord;
+  readonly after?: TerrainSurfaceRecord;
+  readonly afterOpaque: boolean;
 }
 
 export interface TerrainRendererEvidence {
@@ -65,6 +74,7 @@ export class ChunkSurfaceRenderer {
 
   syncOccupancy(entries: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[], initial = false): void {
     this.occupancy.replace(entries);
+    this.options.record('occupancyFullRebuilds');
     if (initial) for (const key of this.chunks.keys()) this.dirtyChunks.add(key);
     for (const position of affectedPositions) for (const chunk of relevantTerrainChunks(position)) this.dirtyChunks.add(terrainChunkKey(chunk));
     this.scheduleFlush();
@@ -101,6 +111,21 @@ export class ChunkSurfaceRenderer {
     else this.flushNow();
   }
 
+  /** Applies a bounded local voxel delta without replacing records or occupancy. */
+  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true): void {
+    if (!changes.length) return;
+    for (const change of changes) {
+      if (change.before && (!change.after || change.before.key !== change.after.key)) this.removeRecord(change.before);
+      if (change.after) this.indexRecord(change.after);
+    }
+    this.occupancy.applyDelta(changes.map((change) => ({ position: change.position, opaque: change.afterOpaque })));
+    this.options.record('occupancyDeltaUpdates', changes.length);
+    const dirty = dirtyTerrainChunkKeys(changes.map((change) => change.position));
+    this.options.record('incrementalChunkInvalidations', dirty.size);
+    for (const key of dirty) this.dirtyChunks.add(key);
+    if (flush) this.flushNow(); else this.scheduleFlush();
+  }
+
   templatesFor(key: string): readonly SurfaceFaceTemplate[] | undefined {
     const templates = this.templateCache.get(key);
     if (templates) { this.templateCacheHits += 1; this.options.record('terrainTemplateCacheHits'); }
@@ -123,8 +148,7 @@ export class ChunkSurfaceRenderer {
   remove(key: string): void {
     const previous = this.records.get(key);
     if (!previous) return;
-    this.records.delete(key);
-    this.removeFromChunkIndex(previous);
+    this.removeRecord(previous);
     for (const chunk of relevantTerrainChunks(previous.block.position)) this.dirtyChunks.add(terrainChunkKey(chunk));
     this.scheduleFlush();
   }
@@ -228,6 +252,14 @@ export class ChunkSurfaceRenderer {
     if (!records) return;
     records.delete(record.key);
     if (!records.size) this.recordsByChunk.delete(key);
+  }
+
+  private removeRecord(record: TerrainSurfaceRecord): void {
+    const current = this.records.get(record.key);
+    if (!current) return;
+    this.records.delete(record.key);
+    this.removeFromChunkIndex(current);
+    for (const chunk of relevantTerrainChunks(current.block.position)) this.dirtyChunks.add(terrainChunkKey(chunk));
   }
 
   private indexRecord(record: TerrainSurfaceRecord): void {

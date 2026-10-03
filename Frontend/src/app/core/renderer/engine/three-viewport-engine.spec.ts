@@ -12,6 +12,7 @@ import type { ContentSpecialVisualDescriptor } from '../../content/content-intro
 import { coordinateKey } from '../../domain/coordinates';
 import { viewportThemePalette } from './viewport-theme';
 import { RendererDiagnostics } from './renderer-diagnostics';
+import { blockMutationHint } from '../../editor/mutations/project-mutation-hint';
 
 describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
@@ -1193,6 +1194,27 @@ describe('camera movement input contract', () => {
     await Promise.resolve();
     expect(registeredIds).toContain(concreteId);
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ id: concreteId }), expect.anything());
+    engine.dispose();
+  });
+});
+
+describe('incremental project mutation reconciliation', () => {
+  it('updates a hinted local voxel without a full visible scan or spatial-index rebuild', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 8), decorations: [] };
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    const beforeCounters = engine.rendererCounters();
+    const before = project.blocks[0];
+    const after = { ...before, state: { ...before.state, powered: 'true' } };
+    const next = { ...project, blocks: project.blocks.map((block, index) => index === 0 ? after : block) };
+    engine.update(next, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position: before.position, before, after }], 'state-edit'));
+    const counters = engine.rendererCounters();
+    expect(counters.fullSceneRebuilds).toBe(beforeCounters.fullSceneRebuilds);
+    expect(counters.fullVisibleScans).toBe(beforeCounters.fullVisibleScans);
+    expect(counters.spatialIndexBuilds).toBe(beforeCounters.spatialIndexBuilds);
+    expect(counters.incrementalBlockReconciles).toBe(beforeCounters.incrementalBlockReconciles + 1);
+    expect(counters.incrementalChangedVoxels).toBeGreaterThan(0);
     engine.dispose();
   });
 });

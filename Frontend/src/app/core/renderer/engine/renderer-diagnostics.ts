@@ -88,6 +88,15 @@ export interface RendererCounters {
   readonly terrainTemplateResolutions: number;
   readonly terrainTemplateCacheHits: number;
   readonly terrainBulkBatches: number;
+  readonly hintedProjectMutations: number;
+  readonly incrementalBlockReconciles: number;
+  readonly incrementalChangedVoxels: number;
+  readonly incrementalChunkInvalidations: number;
+  readonly incrementalTerrainChunkRebuilds: number;
+  readonly fullReconcileFallbacks: number;
+  readonly fullVisibleScans: number;
+  readonly occupancyFullRebuilds: number;
+  readonly occupancyDeltaUpdates: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -180,6 +189,15 @@ const EMPTY_COUNTERS: RendererCounters = {
   terrainTemplateResolutions: 0,
   terrainTemplateCacheHits: 0,
   terrainBulkBatches: 0,
+  hintedProjectMutations: 0,
+  incrementalBlockReconciles: 0,
+  incrementalChangedVoxels: 0,
+  incrementalChunkInvalidations: 0,
+  incrementalTerrainChunkRebuilds: 0,
+  fullReconcileFallbacks: 0,
+  fullVisibleScans: 0,
+  occupancyFullRebuilds: 0,
+  occupancyDeltaUpdates: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

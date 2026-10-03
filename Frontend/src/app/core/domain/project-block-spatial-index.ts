@@ -18,6 +18,15 @@ export class ProjectBlockSpatialIndex implements ReadonlyBlockLookup {
   /** Adds a block while an ephemeral import index is built cooperatively. */
   add(block: PlacedBlock): void { this.blocksByPosition.set(coordinateKey(block.position), block); }
 
+  set(block: PlacedBlock): void { this.add(block); }
+
+  remove(position: VoxelCoordinate): void { this.blocksByPosition.delete(coordinateKey(position)); }
+
+  replace(before: VoxelCoordinate | undefined, after: PlacedBlock | undefined): void {
+    if (before) this.remove(before);
+    if (after) this.set(after);
+  }
+
   get(position: VoxelCoordinate): PlacedBlock | undefined {
     this._lookups += 1;
     return this.blocksByPosition.get(coordinateKey(position));

@@ -32,6 +32,7 @@ import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
 
 declare global {
   interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
@@ -58,6 +59,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly itemVisuals = inject(ItemVisualService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
+  private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly resolveSpecialVisual = (id: string) => this.library.get(id)?.specialVisual;
   private readonly resolveBlockDefinition = (id: string) => this.library.get(id);
   private readonly resolveDecorationTexture = (resource: string) => this.assets.sources.resources.textureUrl(resource);
@@ -78,7 +80,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
   private freeSpaceDragStart?: { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane };
   private readonly onNativePointerMove = (event: PointerEvent) => this.pointerMove(event);
-  private readonly sync = effect(() => { this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }); });
+  private readonly sync = effect(() => { this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, this.mutationHints.consume(project, 'three-d-viewport')); });
   private readonly toolSync = effect(() => { this.tool.active(); this.engine.clearGhost(); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });

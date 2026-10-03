@@ -4,7 +4,7 @@ import { ActiveBlock } from '../../blocks/placement-palette/active-block.service
 import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import { FaceNormal, resolveAttachmentPlacement, placementStatus, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
 import { blocksForLayers, YLayerVisibility } from '../../editor/viewport/y-layer';
-import { visibleBlockEntries } from '../../editor/viewport/visible-blocks';
+import { isBlockVisibleForViewport, visibleBlockEntries } from '../../editor/viewport/visible-blocks';
 import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../../editor/camera/camera';
 import { isBlockVisible } from '../../editor/groups/group-membership';
 import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
@@ -50,9 +50,10 @@ import { RenderScheduler } from '../scheduling/render-scheduler';
 import { InteractiveResolutionController } from '../scheduling/interactive-resolution-controller';
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
-import { ChunkSurfaceRenderer, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
+import { ChunkSurfaceRenderer, type TerrainBlockChange, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
+import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -500,8 +501,9 @@ export class ThreeViewportEngine {
   private spatialIndex?: ProjectBlockSpatialIndex;
   private spatialIndexProject?: ProjectDocument;
   private spatialIndexBlocksReference?: readonly ProjectDocument['blocks'][number][];
-  private cachedVisibleEntries: readonly VisibleBlockEntry[] = [];
+  private cachedVisibleEntries: VisibleBlockEntry[] = [];
   private cachedVisibleMap = new Map<string, VisibleBlockEntry>();
+  private readonly cachedVisibleIndices = new Map<string, number>();
   private cachedVisibleKey = '';
   private cachedVisibleProject?: ProjectDocument;
   private structuralSpecialVisualIds = new Set<string>();
@@ -933,8 +935,13 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
-  private ensureSpatialIndex(project: ProjectDocument | undefined, force = false): void {
+  private ensureSpatialIndex(project: ProjectDocument | undefined, force = false, preserveForIncrementalTransition = false): void {
     if (!project) { this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.structuralSpecialVisualIds.clear(); this.observedSpatialIndexLookups = 0; return; }
+    if (preserveForIncrementalTransition && !force && this.spatialIndex) {
+      this.spatialIndexProject = project;
+      this.spatialIndexBlocksReference = project.blocks;
+      return;
+    }
     if (!force && this.spatialIndexProject === project && this.spatialIndexBlocksReference === project.blocks && this.spatialIndex) return;
     this.spatialIndex = new ProjectBlockSpatialIndex(project.blocks);
     this.spatialIndexProject = project;
@@ -958,14 +965,19 @@ export class ThreeViewportEngine {
     return changed;
   }
 
-  update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}): void {
+  update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
+    const previousProject = this.project;
+    const previousOptions = this.renderOptions;
+    const previousSyncKey = this.structureSyncKey;
+    const nextSyncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}|${this.providerGeneration}` : 'empty';
+    const incrementalMutation = !!project && !!previousProject && project !== previousProject && !!mutationHint && nextSyncKey === previousSyncKey && renderFilterKey(previousOptions) === renderFilterKey(options) && this.cachedVisibleProject === previousProject && this.spatialIndexProject === previousProject;
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
     const inPlaceBlockMutation = project === this.syncedProject && project !== undefined && (project.blocks !== this.syncedBlocksReference || project.blocks.length !== this.syncedBlockCount);
-    this.ensureSpatialIndex(project, inPlaceBlockMutation);
+    this.ensureSpatialIndex(project, incrementalMutation ? false : inPlaceBlockMutation, incrementalMutation);
     this.syncSpecialVisualDescriptors();
-    const syncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}|${this.providerGeneration}` : 'empty';
+    const syncKey = nextSyncKey;
     const blockInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
     const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
     const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
@@ -973,12 +985,16 @@ export class ThreeViewportEngine {
     if (blockInputChanged || inPlaceBlockMutation) {
       const projectIdentityChanged = project !== this.syncedProject;
       const incrementalProjectChange = projectIdentityChanged && !full && this.renderedBlocks.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
-      if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) this.cancelHydration();
+      if (incrementalMutation && project && mutationHint) {
+        this.applyIncrementalMutation(project, options, mutationHint);
+      } else {
+        if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) this.cancelHydration();
+        this.reconcileStructure(project, options, full);
+      }
       this.structureSyncKey = syncKey;
       this.syncedProject = project;
       this.syncedBlockCount = project?.blocks.length;
       this.syncedBlocksReference = project?.blocks;
-      this.reconcileStructure(project, options, full);
     }
     if (decorationInputChanged) {
       if (!blockInputChanged) this.cancelDecorationHydration();
@@ -1038,6 +1054,7 @@ export class ThreeViewportEngine {
 
   private reconcileStructure(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     this.instrumentation.record('structuralReconciles');
+    this.instrumentation.record('fullReconcileFallbacks');
     if (!project) {
       this.clearPersistentVisuals();
       this.culledBlockKeys.clear();
@@ -1048,8 +1065,10 @@ export class ThreeViewportEngine {
     this.compactHydrationQueues();
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const visible = this.visibleBlocks(project, options);
-    this.cachedVisibleEntries = visible;
+    this.cachedVisibleEntries = [...visible];
     this.cachedVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
+    this.cachedVisibleIndices.clear();
+    this.cachedVisibleEntries.forEach((entry, index) => this.cachedVisibleIndices.set(coordinateKey(entry.block.position), index));
     this.cachedVisibleKey = renderFilterKey(options);
     this.cachedVisibleProject = project;
     const allVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
@@ -1173,7 +1192,149 @@ export class ThreeViewportEngine {
     return reusableKey ? { key, next, reusableKey, worldContext, provider } : undefined;
   }
 
-  private scheduleTerrainBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean): void {
+  private visibleEntry(block: ProjectDocument['blocks'][number], options: ViewportRenderOptions): VisibleBlockEntry {
+    const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
+    this.instrumentation.record('blockSignatureComputations');
+    return { block, role, signature: `${blockRenderSignature(block)}|${role}|${options.referenceOpacity ?? .28}`, occlusionClass: this.visualProvider?.occlusionClass?.(block) ?? 'unknown' };
+  }
+
+  private cacheVisibleEntry(key: string, entry: VisibleBlockEntry): void {
+    const index = this.cachedVisibleIndices.get(key);
+    this.cachedVisibleMap.set(key, entry);
+    if (index === undefined) {
+      this.cachedVisibleIndices.set(key, this.cachedVisibleEntries.length);
+      this.cachedVisibleEntries.push(entry);
+    } else this.cachedVisibleEntries[index] = entry;
+  }
+
+  private removeCachedVisibleEntry(key: string): void {
+    this.cachedVisibleMap.delete(key);
+    const index = this.cachedVisibleIndices.get(key);
+    if (index === undefined) return;
+    const lastIndex = this.cachedVisibleEntries.length - 1;
+    if (index !== lastIndex) {
+      const last = this.cachedVisibleEntries[lastIndex];
+      this.cachedVisibleEntries[index] = last;
+      this.cachedVisibleIndices.set(coordinateKey(last.block.position), index);
+    }
+    this.cachedVisibleEntries.pop();
+    this.cachedVisibleIndices.delete(key);
+  }
+
+  private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
+    this.instrumentation.record('hintedProjectMutations');
+    this.instrumentation.record('incrementalBlockReconciles');
+    this.compactHydrationQueues();
+    const changedKeys = new Set<string>();
+    const affectedPositions = new Map<string, VoxelCoordinate>();
+    const hintedKeys = new Set<string>();
+    for (const change of hint.changes) {
+      const beforeKey = change.before ? coordinateKey(change.before.position) : coordinateKey(change.position);
+      const afterKey = change.after ? coordinateKey(change.after.position) : coordinateKey(change.position);
+      hintedKeys.add(beforeKey); hintedKeys.add(afterKey);
+      for (const position of [change.position, change.before?.position, change.after?.position]) if (position) {
+        affectedPositions.set(coordinateKey(position), position);
+        changedKeys.add(coordinateKey(position));
+        for (const neighbor of coordinateNeighbors(position)) { affectedPositions.set(coordinateKey(neighbor), neighbor); changedKeys.add(coordinateKey(neighbor)); }
+      }
+      this.spatialIndex?.replace(change.before?.position, change.after);
+      if (change.after) this.structuralSpecialVisualIds.add(change.after.id);
+    }
+    this.syncSpecialVisualDescriptors();
+    this.instrumentation.record('incrementalChangedVoxels', affectedPositions.size);
+    this.spatialIndexProject = project;
+    this.spatialIndexBlocksReference = project.blocks;
+    this.cachedVisibleProject = project;
+    this.cachedVisibleKey = renderFilterKey(options);
+    for (const [key, position] of affectedPositions) {
+      const block = this.spatialIndex?.get(position);
+      if (block && isBlockVisibleForViewport(block, project, options)) this.cacheVisibleEntry(key, this.visibleEntry(block, options));
+      else this.removeCachedVisibleEntry(key);
+      if (block) this.previousVisibleBlockPositions.set(key, { ...block.position });
+      else this.previousVisibleBlockPositions.delete(key);
+    }
+    const localCulling = [...affectedPositions.keys()];
+    for (const key of localCulling) {
+      const entry = this.cachedVisibleMap.get(key);
+      if (!entry) { if (this.culledBlockKeys.delete(key)) this.instrumentation.record('interiorBlocksCulled', -1); continue; }
+      this.instrumentation.record('interiorCullingChecks');
+      this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, this.cachedVisibleMap));
+    }
+    const oldJobs = this.hydrationQueue;
+    this.hydrationQueue = oldJobs.filter((job) => !changedKeys.has(job.key));
+    this.hydrationQueueHead = 0;
+    for (const key of changedKeys) {
+      this.pendingHydrationSignatures.delete(key);
+      this.placeholderSignatures.delete(key);
+      this.runningHydrationKeys.delete(key);
+    }
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const terrainChanges: TerrainBlockChange[] = [];
+    const terrainCandidates: TerrainHydrationCandidate[] = [];
+    const renderableKeys = new Set<string>();
+    for (const key of changedKeys) {
+      const next = this.cachedVisibleMap.get(key);
+      const renderable = !!next && (options.exposedFaceRendering === true && isCompiledTerrainEntry(next) || !this.culledBlockKeys.has(key));
+      const current = this.renderedBlocks.get(key);
+      if (!renderable) {
+        if (current) { this.removeBlockEntry(key, current); this.instrumentation.record('blockRemovals'); }
+        if (this.placeholderIndices.has(key)) this.removePlaceholderVisual(key);
+        terrainChanges.push({ key, position: affectedPositions.get(key) ?? current?.block.position ?? { x: 0, y: 0, z: 0 }, afterOpaque: false });
+        continue;
+      }
+      renderableKeys.add(key);
+      const needsUpdate = hintedKeys.has(key) || !current || current.signature !== next!.signature || current.role !== next!.role || current.terrainChunkKey !== undefined || next!.occlusionClass === 'opaque-full-cube';
+      const candidate = this.terrainCandidate(key, next!, worldContext, options);
+      const cachedTemplates = candidate ? this.terrainRenderer.templatesFor(candidate.reusableKey) : undefined;
+      if (needsUpdate && current) { this.removeBlockEntry(key, current); this.instrumentation.record('blockUpdates'); }
+      if (!needsUpdate && current) continue;
+      this.ensurePlaceholderVisual(key, next!.block, next!.role);
+      this.pendingHydrationSignatures.set(key, next!.signature);
+      this.instrumentation.record('blockVisualCreations');
+      if (!this.visualProvider) {
+        this.pendingHydrationSignatures.delete(key); this.placeholderSignatures.set(key, next!.signature);
+        terrainChanges.push({ key, position: next!.block.position, afterOpaque: false });
+        continue;
+      }
+      if (candidate && cachedTemplates) {
+        const record: TerrainSurfaceRecord = { key, block: next!.block, templates: cachedTemplates };
+        this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0, terrainChunkKey: chunkKey(next!.block.position) });
+        this.pendingHydrationSignatures.delete(key);
+        terrainChanges.push({ key, position: next!.block.position, after: record, afterOpaque: true });
+        this.placeholderRenderer.removeBulk([key]);
+      } else if (candidate) {
+        this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0 });
+        terrainChanges.push({ key, position: next!.block.position, afterOpaque: false });
+        terrainCandidates.push(candidate);
+      } else {
+        terrainChanges.push({ key, position: next!.block.position, afterOpaque: false });
+        this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next!.block, signature: next!.signature, role: next!.role, worldContext, options, allowInstancing: false, surfaceFastPathEligible: false, surfaceVisibleEntries: this.cachedVisibleMap });
+      }
+    }
+    // Keep existing terrain records for affected neighbors while updating only
+    // occupancy at the changed voxel positions.
+    for (const [key, position] of affectedPositions) {
+      if (renderableKeys.has(key) && terrainChanges.some((change) => change.key === key)) continue;
+      const entry = this.cachedVisibleMap.get(key);
+      const terrain = entry && isCompiledTerrainEntry(entry) ? this.terrainRenderer.templatesFor(this.visualProvider?.reusableVisualKey?.(entry.block, worldContext) ?? '') : undefined;
+      terrainChanges.push({ key, position, afterOpaque: !!terrain });
+    }
+    this.terrainRenderer.applyBlockChanges(terrainChanges, false);
+    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true);
+    this.updateHydrationOrder();
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+    this.reconcileInstanceOwnership();
+    this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
+  }
+
+  private updateHydrationOrder(): void {
+    const normal: BlockHydrationJob[] = [], reference: BlockHydrationJob[] = [], missing: BlockHydrationJob[] = [];
+    for (const job of this.hydrationQueue) (job.role === 'normal' ? normal : job.role === 'reference' ? reference : missing).push(job);
+    this.hydrationQueue = [...normal, ...reference, ...missing];
+  }
+
+  private scheduleTerrainBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean, local = false): void {
     const groups = groupTerrainCandidates(candidates);
     const token = this.hydrationGeneration;
     const providerGeneration = this.providerGeneration;
@@ -1205,7 +1366,8 @@ export class ThreeViewportEngine {
           }
         } else failed.push(...result.group);
       }
-      this.terrainRenderer.bulkUpsert(usable, initial ? occupancyEntries : undefined, affectedPositions, { initial });
+      if (local) this.terrainRenderer.applyBlockChanges(usable.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: true })), true);
+      else this.terrainRenderer.bulkUpsert(usable, initial ? occupancyEntries : undefined, affectedPositions, { initial });
       if (usable.length) this.placeholderRenderer.removeBulk(usable.map((record) => record.key));
       this.enqueueFailedTerrainCandidates(failed);
       for (const _ of results) {
@@ -1249,10 +1411,9 @@ export class ThreeViewportEngine {
   }
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions): readonly VisibleBlockEntry[] {
+    this.instrumentation.record('fullVisibleScans');
     return visibleBlockEntries(project, options).map((block) => {
-      const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
-      this.instrumentation.record('blockSignatureComputations');
-      return { block, role, signature: `${blockRenderSignature(block)}|${role}|${options.referenceOpacity ?? .28}`, occlusionClass: this.visualProvider?.occlusionClass?.(block) ?? 'unknown' };
+      return this.visibleEntry(block, options);
     });
   }
 
@@ -1837,7 +1998,7 @@ export class ThreeViewportEngine {
     delete template.geometry.userData['mergedInstanceTemplateGeometry'];
   }
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {

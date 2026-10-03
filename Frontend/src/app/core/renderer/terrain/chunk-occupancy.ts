@@ -13,6 +13,14 @@ export class TerrainOccupancy {
     for (const entry of entries) if (isCompiledTerrainEntry(entry)) this.opaque.add(coordinateKey(entry.block.position));
   }
 
+  addOpaque(position: VoxelCoordinate): void { this.opaque.add(coordinateKey(position)); }
+  removeOpaque(position: VoxelCoordinate): void { this.opaque.delete(coordinateKey(position)); }
+  setOpaque(position: VoxelCoordinate, opaque: boolean): void { if (opaque) this.addOpaque(position); else this.removeOpaque(position); }
+
+  applyDelta(changes: readonly { readonly position: VoxelCoordinate; readonly opaque: boolean }[]): void {
+    for (const change of changes) this.setOpaque(change.position, change.opaque);
+  }
+
   hasOpaque(position: VoxelCoordinate): boolean { return this.opaque.has(coordinateKey(position)); }
   size(): number { return this.opaque.size; }
   positions(): readonly string[] { return [...this.opaque]; }

@@ -12,4 +12,14 @@ describe('ProjectBlockSpatialIndex', () => {
     expect(index.get({ x: 0, y: 0, z: 0 })).toBeUndefined();
     expect(blocks).toHaveLength(1);
   });
+
+  it('applies local set/remove/replace operations without rebuilding the index', () => {
+    const blocks = [block(2, 1, 3)];
+    const index = new ProjectBlockSpatialIndex(blocks);
+    index.remove({ x: 2, y: 1, z: 3 });
+    expect(index.has({ x: 2, y: 1, z: 3 })).toBe(false);
+    const next = block(5, 0, 0);
+    index.replace(undefined, next);
+    expect(index.get(next.position)).toBe(next);
+  });
 });

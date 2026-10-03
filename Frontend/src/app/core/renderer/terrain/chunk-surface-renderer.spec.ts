@@ -25,6 +25,16 @@ describe('chunk surface renderer ownership', () => {
     expect(evidence.terrainBulkBatches).toBe(1);
     expect([...group.children].every((child) => child instanceof THREE.Mesh && child.frustumCulled)).toBe(true);
     expect(counters.get('terrainTemplateResolutions') ?? 0).toBe(0);
+    const unrelatedChunk = group.children.find((child) => child.userData['terrainChunk'] === '1,0,0');
+    const beforeLocalRebuilds = renderer.evidence().terrainChunkRebuilds;
+    const localPosition = { x: 5, y: 0, z: 5 };
+    const localBlock = blocks.find((block) => block.position.x === localPosition.x && block.position.y === localPosition.y && block.position.z === localPosition.z)!;
+    const edited = { ...localBlock, state: { powered: 'true' } };
+    renderer.applyBlockChanges([{ key: voxelKey(localPosition), position: localPosition, before: { key: voxelKey(localPosition), block: localBlock, templates }, after: { key: voxelKey(localPosition), block: edited, templates }, afterOpaque: true }]);
+    expect(renderer.evidence().terrainChunkRebuilds - beforeLocalRebuilds).toBe(1);
+    expect(group.children.find((child) => child.userData['terrainChunk'] === '1,0,0')).toBe(unrelatedChunk);
+    renderer.applyBlockChanges([{ key: voxelKey(localPosition), position: localPosition, before: { key: voxelKey(localPosition), block: edited, templates }, afterOpaque: false }]);
+    expect(renderer.logicalBlockCount).toBe(99_999);
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
@@ -86,6 +96,21 @@ describe('chunk surface renderer ownership', () => {
     expect(group.children.find((child) => child.userData['terrainChunk'] === '1,0,0')).not.toBe(secondMesh);
     expect(secondGeometryDispose).toHaveBeenCalledTimes(1);
     expect(renderer.evidence().terrainChunkRebuilds - beforeRebuilds).toBe(1);
+    renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('applies a terrain add/remove delta without replacing the full occupancy set', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 5, y: 5, z: 5 }, state: {} };
+    renderer.bulkUpsert([{ key: voxelKey(first.position), block: first, templates }], [{ block: first, role: 'normal', occlusionClass: 'opaque-full-cube' }], [first.position], { initial: true });
+    const second: PlacedBlock = { ...first, position: { x: 6, y: 5, z: 5 } };
+    renderer.applyBlockChanges([{ key: voxelKey(second.position), position: second.position, after: { key: voxelKey(second.position), block: second, templates }, afterOpaque: true }]);
+    expect(renderer.logicalBlockCount).toBe(2);
+    renderer.applyBlockChanges([{ key: voxelKey(first.position), position: first.position, before: { key: voxelKey(first.position), block: first, templates }, afterOpaque: false }]);
+    expect(renderer.logicalBlockCount).toBe(1);
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 });

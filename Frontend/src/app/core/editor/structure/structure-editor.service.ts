@@ -23,6 +23,7 @@ import type { ItemStackData } from '../../items/item-stack.types';
 import { validateItemStack } from '../../items/item-stack-validation';
 import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
+import { blockMutationHint, ProjectMutationHint } from '../mutations/project-mutation-hint';
 
 @Injectable({ providedIn: 'root' })
 export class StructureEditorService {
@@ -30,23 +31,32 @@ export class StructureEditorService {
   constructor(private readonly workspace: WorkspaceStateService = inject(WorkspaceStateService), private readonly activeBlock: ActiveBlockService = inject(ActiveBlockService), private readonly selection: SelectionService = inject(SelectionService), private readonly history: HistoryService = inject(HistoryService), private readonly library: BlockLibraryService = inject(BlockLibraryService)) {}
 
   place(position: VoxelCoordinate, context?: PlacementContext): boolean {
-    return this.history.execute('Place', (project) => {
+    let mutationHint: ProjectMutationHint | undefined;
+    return this.history.executeWithMutation('Place', (project) => {
       const active = this.activeBlock.active();
       if (!active || !isWithinBounds(position, project.size) || this.find(project, position) || isBlockLocked(project, position)) return undefined;
       const plan = planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id));
       this.lastValidation = plan.validation;
       if (!plan.project) return undefined;
       const placedKeys = new Set(plan.blocks.map((block) => coordinateKey(block.position)));
-      return pruneInvalidDecorations({ ...plan.project, blocks: plan.project.blocks.map((block) => {
-        if (!placedKeys.has(coordinateKey(block.position))) return block;
+      const placedBlocks = plan.blocks.map((block) => {
         const entityKind = blockEntityKind(this.library.get(block.id));
         if (entityKind === 'sign' || isSignId(block.id)) return { ...block, blockEntityData: defaultSignData() };
         if (entityKind === 'decorated-pot' || block.id === 'minecraft:decorated_pot') return { ...block, blockEntityData: defaultDecoratedPotData() };
         const itemHost = itemHostCapability(this.library.get(block.id), block.id);
         if (itemHost) return { ...block, blockEntityData: defaultItemContainerData(itemHost.kind, itemHost.slotCount) };
         return block;
+      });
+      const placedByKey = new Map(placedBlocks.map((block) => [coordinateKey(block.position), block] as const));
+      const next = pruneInvalidDecorations({ ...plan.project, blocks: plan.project.blocks.map((block) => {
+        const placed = placedByKey.get(coordinateKey(block.position));
+        if (placed) return placed;
+        if (!placedKeys.has(coordinateKey(block.position))) return block;
+        return block;
       }) });
-    });
+      mutationHint = blockMutationHint(placedBlocks.map((after) => ({ position: after.position, before: this.find(project, after.position), after })), 'place');
+      return next;
+    }, () => mutationHint);
   }
 
   canStackCandle(position: VoxelCoordinate): boolean {
@@ -57,19 +67,25 @@ export class StructureEditorService {
   }
 
   stackCandle(position: VoxelCoordinate): boolean {
-    return this.history.execute('Stack candle', (project) => {
+    let mutationHint: ProjectMutationHint | undefined;
+    return this.history.executeWithMutation('Stack candle', (project) => {
       const active = this.activeBlock.active();
       const existing = this.find(project, position);
       if (!active || !existing || hasLockedMembership(existing, project.groups)) return undefined;
       const state = nextCandleState(existing, active.id, (id) => this.library.get(id));
       if (!state) return undefined;
       this.lastValidation = { status: 'valid', reason: 'ok', affectedPositions: [position] };
+      const after = {
+        ...existing,
+        state,
+      };
+      mutationHint = blockMutationHint([{ position, before: existing, after }], 'candle-stack');
       return {
         ...project,
-        blocks: project.blocks.map((block) => coordinateKey(block.position) === coordinateKey(position) ? { ...block, state } : block),
+        blocks: project.blocks.map((block) => coordinateKey(block.position) === coordinateKey(position) ? after : block),
         metadata: { ...project.metadata, updatedAt: new Date().toISOString() },
       };
-    });
+    }, () => mutationHint);
   }
 
   delete(position: VoxelCoordinate): boolean {
@@ -89,7 +105,8 @@ export class StructureEditorService {
   }
 
   deletePositions(positions: readonly VoxelCoordinate[], label = 'Delete'): boolean {
-    return this.history.execute(label, (project) => {
+    let mutationHint: ProjectMutationHint | undefined;
+    return this.history.executeWithMutation(label, (project) => {
       const requested = new Set(positions.map(coordinateKey));
       const seeds = project.blocks.filter((block) => requested.has(coordinateKey(block.position)));
       // A complete selection already contains every logical part. Avoid
@@ -101,8 +118,15 @@ export class StructureEditorService {
       if (!expanded.length || expanded.some((block) => hasLockedMembership(block, project.groups))) return undefined;
       const result = this.rules().deleteMany(project, expanded.map((block) => block.position));
       this.lastValidation = result.validation;
-      return result.project ? pruneInvalidDecorations(result.project) : result.project;
-    });
+      if (!result.project) return result.project;
+      const affected = uniqueCoordinates([...expanded.map((block) => block.position), ...(result.validation.affectedPositions ?? [])]);
+      const expandedByKey = new Map(expanded.map((block) => [coordinateKey(block.position), block] as const));
+      mutationHint = blockMutationHint(affected.map((affectedPosition) => {
+        const key = coordinateKey(affectedPosition);
+        return { position: affectedPosition, before: expandedByKey.get(key), after: expandedByKey.has(key) ? undefined : result.project!.blocks.find((block) => coordinateKey(block.position) === key) };
+      }), label.toLowerCase());
+      return pruneInvalidDecorations(result.project);
+    }, () => mutationHint);
   }
 
   pick(position: VoxelCoordinate): void {
@@ -117,20 +141,27 @@ export class StructureEditorService {
 
   updateBlockState(position: VoxelCoordinate, property: string, value: string): boolean {
     const before = this.workspace.project(); const selectedBefore = before && this.find(before, position); const selectedWasHead = selectedBefore?.state['part'] === 'head';
-    const changed = this.history.execute('BlockState edit', (project) => {
+    let mutationHint: ProjectMutationHint | undefined;
+    const changed = this.history.executeWithMutation('BlockState edit', (project) => {
       const block = this.find(project, position); const definition = block && this.library.get(block.id); const options = definition?.stateDefinitions.find((entry) => entry.name === property)?.values;
       const rules = this.rules();
       const parts = block ? resolveLogicalObjectParts(project.blocks, position, (id) => this.library.get(id)) : [];
       if (!block || !options?.includes(value) || parts.some((part) => hasLockedMembership(part, project.groups)) || rules.isDerivedProperty(block.id, property)) return undefined;
       if (definition?.behavior?.kind === 'paired-horizontal' && property === definition.behavior.facingProperty) {
         const transformed = transformPairedHorizontal(project, position, value, (id) => this.library.get(id));
-        return transformed ? { ...transformed, metadata: { ...transformed.metadata, updatedAt: new Date().toISOString() } } : undefined;
+        if (!transformed) return undefined;
+        mutationHint = hintForPositions(project, transformed, parts.map((part) => part.position));
+        return { ...transformed, metadata: { ...transformed.metadata, updatedAt: new Date().toISOString() } };
       }
       const changedState = { ...block.state, [property]: value };
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: changedState } : entry);
       const blocks = synchronizeLogicalObjectState(directlyChanged, position, changedState, (id) => this.library.get(id));
-        const result = rules.refresh({ ...project, blocks }, [position]); this.lastValidation = result.validation; return result.project ? pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } }) : undefined;
-    });
+        const result = rules.refresh({ ...project, blocks }, [position]); this.lastValidation = result.validation;
+        if (!result.project) return undefined;
+        const affected = uniqueCoordinates([position, ...parts.map((part) => part.position), ...(result.validation.affectedPositions ?? [])]);
+        mutationHint = hintForPositions(project, result.project, affected);
+        return pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } });
+    }, () => mutationHint);
     if (changed && selectedWasHead && this.selection.single()) {
       const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head' && block.state['facing'] === (after.blocks.find((entry) => entry.state['part'] === 'foot' && entry.id === selectedBefore?.id)?.state['facing'] ?? ''));
       if (nextHead) this.selection.selectLogical(nextHead.position, after!, (id) => this.library.get(id));
@@ -140,7 +171,8 @@ export class StructureEditorService {
 
   rotateBlock(position: VoxelCoordinate, quarterTurns = 1): boolean {
     const before = this.workspace.project(); const selectedBefore = before && this.find(before, position); const selectedWasHead = selectedBefore?.state['part'] === 'head';
-    const changed = this.history.execute('Rotate block', (project) => {
+    let mutationHint: ProjectMutationHint | undefined;
+    const changed = this.history.executeWithMutation('Rotate block', (project) => {
       const block = this.find(project, position); const definition = block && this.library.get(block.id);
       const parts = block ? resolveLogicalObjectParts(project.blocks, position, (id) => this.library.get(id)) : [];
       if (!block || !definition || parts.some((part) => hasLockedMembership(part, project.groups))) return undefined;
@@ -148,12 +180,17 @@ export class StructureEditorService {
       if (!rotated.supported || !rotated.state) return undefined;
       if (definition.behavior?.kind === 'paired-horizontal' && rotated.state[definition.behavior.facingProperty]) {
         const transformed = transformPairedHorizontal(project, position, rotated.state[definition.behavior.facingProperty]!, (id) => this.library.get(id));
-        return transformed ? { ...transformed, metadata: { ...transformed.metadata, updatedAt: new Date().toISOString() } } : undefined;
+        if (!transformed) return undefined;
+        mutationHint = hintForPositions(project, transformed, parts.map((part) => part.position));
+        return { ...transformed, metadata: { ...transformed.metadata, updatedAt: new Date().toISOString() } };
       }
       const directlyChanged = project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, state: rotated.state! } : entry);
       const updated = { ...project, blocks: synchronizeLogicalObjectState(directlyChanged, position, rotated.state, (id) => this.library.get(id)) };
-      const result = this.rules().refresh(updated, [position]); this.lastValidation = result.validation; return result.project ? pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } }) : undefined;
-    });
+      const result = this.rules().refresh(updated, [position]); this.lastValidation = result.validation;
+      if (!result.project) return undefined;
+      mutationHint = hintForPositions(project, result.project, uniqueCoordinates([position, ...parts.map((part) => part.position), ...(result.validation.affectedPositions ?? [])]));
+      return pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } });
+    }, () => mutationHint);
     if (changed && selectedWasHead && this.selection.single()) {
       const after = this.workspace.project(); const nextHead = after?.blocks.find((block) => block.id === selectedBefore?.id && block.state['part'] === 'head');
       if (nextHead) this.selection.selectLogical(nextHead.position, after!, (id) => this.library.get(id));
@@ -167,7 +204,7 @@ export class StructureEditorService {
     return project && active ? planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id), lookup) : undefined;
   }
   updateSignText(position: VoxelCoordinate, side: 'front' | 'back', value: string): boolean {
-    return this.history.execute('Sign text edit', (project) => {
+    return this.executeSingleBlockEdit('Sign text edit', position, (project) => {
       const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const target = current[side]; const lines = signLines(value);
       const data: SignBlockEntityData = { ...current, [side]: { ...target, lines } };
@@ -175,7 +212,7 @@ export class StructureEditorService {
     });
   }
   updateSignAppearance(position: VoxelCoordinate, side: 'front' | 'back', patch: { readonly color?: string; readonly glowing?: boolean }): boolean {
-    return this.history.execute('Sign appearance edit', (project) => {
+    return this.executeSingleBlockEdit('Sign appearance edit', position, (project) => {
       const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const target = current[side];
       const color = patch.color === undefined ? target.color : patch.color;
@@ -185,14 +222,14 @@ export class StructureEditorService {
     });
   }
   updateSignWaxed(position: VoxelCoordinate, waxed: boolean): boolean {
-    return this.history.execute('Sign wax edit', (project) => {
+    return this.executeSingleBlockEdit('Sign wax edit', position, (project) => {
       const block = this.find(project, position); if (!block || !isSignBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups)) return undefined;
       const current = signData(block.blockEntityData); const data: SignBlockEntityData = { ...current, waxed };
       return { ...project, blocks: project.blocks.map((entry) => coordinateKey(entry.position) === coordinateKey(position) ? { ...entry, blockEntityData: data } : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
     });
   }
   updateDecoratedPotDecoration(position: VoxelCoordinate, side: 'back' | 'left' | 'right' | 'front', sherd: string): boolean {
-    return this.history.execute('Decorated Pot pattern edit', (project) => {
+    return this.executeSingleBlockEdit('Decorated Pot pattern edit', position, (project) => {
       const block = this.find(project, position);
       if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || !isPotSide(side) || !isDecoratedPotSherd(sherd) || hasLockedMembership(block, project.groups)) return undefined;
       const current = decoratedPotData(block.blockEntityData); const data = { ...current, decorations: { ...current.decorations, [side]: sherd } };
@@ -200,7 +237,7 @@ export class StructureEditorService {
     });
   }
   setDecoratedPotItem(position: VoxelCoordinate, stack: ItemStackData | undefined): boolean {
-    return this.history.execute('Decorated Pot item edit', (project) => {
+    return this.executeSingleBlockEdit('Decorated Pot item edit', position, (project) => {
       const block = this.find(project, position);
       if (!block || !isDecoratedPotBlock(block, this.library.get(block.id)) || hasLockedMembership(block, project.groups) || (stack !== undefined && !validateItemStack(stack, (id) => this.library.maxStackSizeFor(id)).valid)) return undefined;
       const current = decoratedPotData(block.blockEntityData);
@@ -209,7 +246,7 @@ export class StructureEditorService {
     });
   }
   setBlockItemSlot(position: VoxelCoordinate, slot: number, stack: ItemStackData | undefined): boolean {
-    return this.history.execute('Item slot edit', (project) => {
+    return this.executeSingleBlockEdit('Item slot edit', position, (project) => {
       const block = this.find(project, position); const capability = block ? itemHostCapability(this.library.get(block.id), block.id) : undefined;
       if (!block || !capability || !Number.isInteger(slot) || slot < 0 || slot >= capability.slotCount || hasLockedMembership(block, project.groups) || (stack !== undefined && !validateItemStack(stack, (id) => this.library.maxStackSizeFor(id)).valid)) return undefined;
       const data = setItemContainerSlot(block.blockEntityData, capability.kind, capability.slotCount, slot, stack);
@@ -223,6 +260,18 @@ export class StructureEditorService {
   }
   private rules(): BlockRuleEngine { return new BlockRuleEngine((id) => this.library.get(id)); }
 
+  private executeSingleBlockEdit(label: string, position: VoxelCoordinate, change: (project: ProjectDocument) => ProjectDocument | undefined): boolean {
+    let mutationHint: ProjectMutationHint | undefined;
+    return this.history.executeWithMutation(label, (project) => {
+      const before = this.find(project, position);
+      const next = change(project);
+      if (!next) return undefined;
+      const after = this.find(next, position);
+      mutationHint = blockMutationHint([{ position, before, after }], label.toLowerCase());
+      return next;
+    }, () => mutationHint);
+  }
+
   private find(project: ProjectDocument, position: VoxelCoordinate): PlacedBlock | undefined { return project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(position)); }
 }
 
@@ -233,6 +282,14 @@ export function isSignId(id: string): boolean {
   return /(?:^|_)(?:wall_)?sign$/.test(path) || path.endsWith('_hanging_sign') || path.endsWith('_wall_hanging_sign');
 }
 function isSignBlock(block: PlacedBlock, definition: ReturnType<BlockLibraryService['get']>): boolean { return isSignDefinition(definition) || isSignId(block.id); }
+function hintForPositions(before: ProjectDocument, after: ProjectDocument, positions: readonly VoxelCoordinate[]): ProjectMutationHint {
+  return blockMutationHint(uniqueCoordinates(positions).map((position) => ({ position, before: before.blocks.find((block) => coordinateKey(block.position) === coordinateKey(position)), after: after.blocks.find((block) => coordinateKey(block.position) === coordinateKey(position)) })));
+}
+function uniqueCoordinates(positions: readonly VoxelCoordinate[]): readonly VoxelCoordinate[] {
+  const result = new Map<string, VoxelCoordinate>();
+  for (const position of positions) result.set(coordinateKey(position), position);
+  return [...result.values()];
+}
 function isBlockEntity(definition: ReturnType<BlockLibraryService['get']>, kind: BlockEntityKind): boolean { return blockCapability(definition, 'block-entity')?.entityKind === kind; }
 function blockEntityKind(definition: ReturnType<BlockLibraryService['get']>): BlockEntityKind | undefined { return blockCapability(definition, 'block-entity')?.entityKind; }
 type EditableItemHostCapability = Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'item-display' | 'item-storage-display' }> | (Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'inventory-storage' }> & { readonly slotCount: number });
