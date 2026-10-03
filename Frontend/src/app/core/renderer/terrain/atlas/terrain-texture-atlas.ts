@@ -5,6 +5,10 @@ import { terrainAtlasEligibility, terrainTextureSourceIdentity, type TerrainAtla
 
 export type TerrainAtlasMode = 'off' | 'on';
 
+/**
+ * x/y are CPU page coordinates. U/V are final GPU sampling bounds after the
+ * page's flipY upload; source V is intentionally interpolated in reverse.
+ */
 export interface TerrainAtlasSprite { readonly page: number; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly minU: number; readonly minV: number; readonly maxU: number; readonly maxV: number; readonly sourceIdentity: string; }
 export interface TerrainAtlasFace { readonly sprite: TerrainAtlasSprite; readonly material: THREE.Material; readonly bucketKey: string; readonly uvs: readonly number[]; }
 export interface TerrainAtlasEvidence { readonly terrainAtlasPages: number; readonly terrainAtlasSprites: number; readonly terrainAtlasCacheHits: number; readonly terrainAtlasInsertions: number; readonly terrainAtlasMaterials: number; readonly terrainAtlasCompatibleFaces: number; readonly terrainAtlasFallbackFaces: number; readonly terrainAtlasChunkBuckets: number; }
@@ -21,7 +25,7 @@ export class TerrainTextureAtlas {
   private compatibleFaces = 0;
   private fallbackFaces = 0;
 
-  constructor(readonly pageSize = { width: 1024, height: 1024 }, readonly gutter = 1, private readonly eligibilityOptions: TerrainAtlasEligibilityOptions = {}) {}
+  constructor(readonly pageSize = { width: 1024, height: 1024 }, readonly gutter = 1, private readonly eligibilityOptions: TerrainAtlasEligibilityOptions = { allowDoubleSide: true }) {}
 
   face(material: THREE.Material, uvs: readonly number[]): TerrainAtlasFace | undefined {
     const eligibility = terrainAtlasEligibility(material, this.eligibilityOptions);
@@ -89,7 +93,7 @@ export class TerrainTextureAtlas {
     const page = this.ensurePage(samplingKey, rect.page, texture);
     copyTerrainPixelsWithGutter(page.pixels, this.pageSize.width, { ...rect, page: page.index }, source);
     page.texture.needsUpdate = true;
-    const sprite = { page: page.index, x: rect.x, y: rect.y, width: rect.width, height: rect.height, minU: rect.x / this.pageSize.width, minV: rect.y / this.pageSize.height, maxU: (rect.x + rect.width) / this.pageSize.width, maxV: (rect.y + rect.height) / this.pageSize.height, sourceIdentity };
+    const sprite = { page: page.index, x: rect.x, y: rect.y, width: rect.width, height: rect.height, minU: rect.x / this.pageSize.width, minV: 1 - (rect.y + rect.height) / this.pageSize.height, maxU: (rect.x + rect.width) / this.pageSize.width, maxV: 1 - rect.y / this.pageSize.height, sourceIdentity };
     this.sprites.set(key, sprite); this.insertions += 1;
     return sprite;
   }
@@ -124,7 +128,7 @@ export class TerrainTextureAtlas {
 }
 
 export function remapTerrainUvs(uvs: readonly number[], sprite: TerrainAtlasSprite): readonly number[] {
-  return uvs.flatMap((value, index) => index % 2 === 0 ? [sprite.minU + value * (sprite.maxU - sprite.minU)] : [sprite.minV + value * (sprite.maxV - sprite.minV)]);
+  return uvs.flatMap((value, index) => index % 2 === 0 ? [sprite.minU + value * (sprite.maxU - sprite.minU)] : [sprite.maxV - value * (sprite.maxV - sprite.minV)]);
 }
 
-export function sampleAtlasUv(sprite: TerrainAtlasSprite, u: number, v: number): readonly [number, number] { return [sprite.minU + u * (sprite.maxU - sprite.minU), sprite.minV + v * (sprite.maxV - sprite.minV)]; }
+export function sampleAtlasUv(sprite: TerrainAtlasSprite, u: number, v: number): readonly [number, number] { return [sprite.minU + u * (sprite.maxU - sprite.minU), sprite.maxV - v * (sprite.maxV - sprite.minV)]; }

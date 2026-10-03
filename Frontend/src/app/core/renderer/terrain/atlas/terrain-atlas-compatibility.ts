@@ -18,7 +18,7 @@ export type TerrainAtlasEligibilityReason =
 
 export interface TerrainAtlasMaterialSemantics { readonly key: string; readonly samplingKey: string; }
 export interface TerrainAtlasEligibility { readonly eligible: boolean; readonly reason: TerrainAtlasEligibilityReason; readonly semantics?: TerrainAtlasMaterialSemantics; }
-export interface TerrainAtlasEligibilityOptions { readonly allowDoubleSideForProbe?: boolean; }
+export interface TerrainAtlasEligibilityOptions { readonly allowDoubleSide?: boolean; readonly allowDoubleSideForProbe?: boolean; }
 
 /** A deliberately narrower contract than the generic material compatibility key. */
 export function terrainAtlasEligibility(material: THREE.Material, options: TerrainAtlasEligibilityOptions = {}): TerrainAtlasEligibility {
@@ -36,7 +36,7 @@ export function terrainAtlasEligibility(material: THREE.Material, options: Terra
   if (opacity !== 1) return { eligible: false, reason: 'opacity' };
   if (blending !== THREE.NormalBlending) return { eligible: false, reason: 'blending' };
   const side = candidate.side ?? THREE.FrontSide;
-  const doubleSideAllowed = options.allowDoubleSideForProbe === true;
+  const doubleSideAllowed = options.allowDoubleSide === true || options.allowDoubleSideForProbe === true;
   if (side !== THREE.FrontSide && !(doubleSideAllowed && side === THREE.DoubleSide)) return { eligible: false, reason: 'side' };
   if (candidate.vertexColors) return { eligible: false, reason: 'vertex-colors' };
   if (candidate.flatShading) return { eligible: false, reason: 'flat-shading' };

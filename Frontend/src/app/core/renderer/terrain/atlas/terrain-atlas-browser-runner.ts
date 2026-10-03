@@ -98,11 +98,12 @@ export interface TerrainAtlasBrowserGpuEvidence {
   readonly geometryControl?: TerrainAtlasFramebufferEvidence;
   readonly currentBeforeRefresh?: TerrainAtlasFramebufferEvidence;
   readonly currentAfterRefresh?: TerrainAtlasFramebufferEvidence;
+  readonly currentParity?: boolean;
   readonly sourceGlError: number;
   readonly diagnosis: TerrainAtlasGpuDiagnosis;
 }
 
-export type TerrainAtlasGpuDiagnosis = 'current-uv' | 'vertical-orientation' | 'atlas-upload-or-material' | 'inconclusive';
+export type TerrainAtlasGpuDiagnosis = 'parity' | 'current-uv' | 'vertical-orientation' | 'atlas-upload-or-material' | 'inconclusive';
 
 declare global {
   interface Window {
@@ -225,7 +226,7 @@ function legacyGpuResult(host: TerrainAtlasBrowserProbeHost, source: TerrainAtla
 }
 
 function gpuVariantsToEvidence(result: TerrainAtlasGpuProbeVariantsResult): Omit<TerrainAtlasBrowserGpuEvidence, 'diagnosis'> {
-  return { source: result.source, current: result.variants['current'], center: result.variants['center'], mirroredCenter: result.variants['mirroredCenter'], mirroredCurrent: result.variants['mirroredCurrent'], noAlphaTest: result.variants['noAlphaTest'], geometryControl: result.variants['geometryControl'], currentBeforeRefresh: result.variants['current'], currentAfterRefresh: result.variants['currentAfterRefresh'], sourceGlError: result.sourceGlError };
+  return { source: result.source, current: result.variants['current'], center: result.variants['center'], mirroredCenter: result.variants['mirroredCenter'], mirroredCurrent: result.variants['mirroredCurrent'], noAlphaTest: result.variants['noAlphaTest'], geometryControl: result.variants['geometryControl'], currentBeforeRefresh: result.variants['current'], currentAfterRefresh: result.variants['currentAfterRefresh'], currentParity: result.parityByVariant['current'], sourceGlError: result.sourceGlError };
 }
 
 export function classifyTerrainAtlasGpuResult(gpu: Omit<TerrainAtlasBrowserGpuEvidence, 'diagnosis'>): TerrainAtlasGpuDiagnosis {
@@ -235,6 +236,7 @@ export function classifyTerrainAtlasGpuResult(gpu: Omit<TerrainAtlasBrowserGpuEv
   const center = visible(gpu.center);
   const mirroredCenter = visible(gpu.mirroredCenter);
   const mirroredCurrent = visible(gpu.mirroredCurrent);
+  if (source && current && (gpu.currentParity === true || (gpu.currentParity === undefined && gpu.source?.checksum === gpu.current?.checksum))) return 'parity';
   if (source && !current && center) return 'current-uv';
   if (source && !center && (mirroredCenter || mirroredCurrent)) return 'vertical-orientation';
   if (source && !current && !center && !mirroredCenter && !mirroredCurrent && visible(gpu.geometryControl)) return 'atlas-upload-or-material';
@@ -322,7 +324,9 @@ function atlasUvProbes(sprite: TerrainAtlasSprite, uvs: readonly number[], pageS
   ];
   return values.map(([name, u, v]) => {
     const texelX = Math.floor(u * pageSize.width);
-    const texelY = Math.floor(v * pageSize.height);
+    // DataTexture uploads this page with flipY=true. Keep the public GPU UV
+    // unchanged, but convert it back to CPU page coordinates for this probe.
+    const texelY = Math.floor((1 - v) * pageSize.height);
     const inSprite = texelX >= sprite.x && texelX < sprite.x + sprite.width && texelY >= sprite.y && texelY < sprite.y + sprite.height;
     const gutter = !inSprite && texelX >= sprite.x - 1 && texelX < sprite.x + sprite.width + 1 && texelY >= sprite.y - 1 && texelY < sprite.y + sprite.height + 1;
     return { name: name as TerrainAtlasBrowserUvProbe['name'], u, v, texelX, texelY, insideSprite: inSprite, region: inSprite ? 'sprite' : gutter ? 'gutter' : 'outside' };

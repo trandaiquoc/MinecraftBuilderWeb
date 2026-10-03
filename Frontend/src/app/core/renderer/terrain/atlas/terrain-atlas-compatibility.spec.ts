@@ -17,11 +17,19 @@ describe('terrain atlas compatibility', () => {
     material.dispose(); texture.dispose();
   });
 
-  it('keeps DoubleSide closed in production but exposes an explicit probe policy', () => {
+  it('accepts production DoubleSide after the proven atlas parity gate', () => {
     const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
     const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
     expect(terrainAtlasEligibility(material)).toMatchObject({ eligible: false, reason: 'side' });
+    expect(terrainAtlasEligibility(material, { allowDoubleSide: true })).toMatchObject({ eligible: true, reason: 'compatible' });
     expect(terrainAtlasEligibility(material, { allowDoubleSideForProbe: true })).toMatchObject({ eligible: true, reason: 'compatible' });
+    material.dispose(); texture.dispose();
+  });
+
+  it('keeps BackSide on the strict fallback path', () => {
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
+    expect(terrainAtlasEligibility(material, { allowDoubleSide: true })).toMatchObject({ eligible: false, reason: 'side' });
     material.dispose(); texture.dispose();
   });
 });

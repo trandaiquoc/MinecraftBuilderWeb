@@ -49,7 +49,7 @@ describe('terrain atlas browser probe runner', () => {
 
   it('forwards GPU evidence and returns a JSON-friendly trace for the active provider face', async () => {
     const result = await runTerrainAtlasProbe({ runTerrainAtlasGpuProbe: vi.fn(() => gpuResult) }, providerWithFace(), 'minecraft:stone', { axis: 'y' });
-    expect(result).toMatchObject({ ok: true, block: 'minecraft:stone', state: { axis: 'y' }, extractionRoute: 'data-buffer', gpu: { source: gpuResult.source, current: gpuResult.atlas, sourceGlError: 0, diagnosis: 'inconclusive' } });
+    expect(result).toMatchObject({ ok: true, block: 'minecraft:stone', state: { axis: 'y' }, extractionRoute: 'data-buffer', gpu: { source: gpuResult.source, current: gpuResult.atlas, sourceGlError: 0, diagnosis: 'parity' } });
     expect(result.sourceTexture).toMatchObject({ type: 'DataTexture', width: 2, height: 2, flipY: true });
     expect(result.sourceMaterial).toMatchObject({ type: 'MeshBasicMaterial', side: THREE.DoubleSide });
     expect(result.sourcePixels).toMatchObject({ width: 2, height: 2, alphaMin: 255, alphaMax: 255 });
@@ -106,5 +106,6 @@ describe('terrain atlas browser probe runner', () => {
     expect(classifyTerrainAtlasGpuResult({ ...base, center: visible(0), mirroredCenter: visible(1) })).toBe('vertical-orientation');
     expect(classifyTerrainAtlasGpuResult({ ...base, center: visible(0), mirroredCenter: visible(0), geometryControl: visible(1) })).toBe('atlas-upload-or-material');
     expect(classifyTerrainAtlasGpuResult({ ...base, center: visible(0), mirroredCenter: visible(0), geometryControl: visible(0) })).toBe('inconclusive');
+    expect(classifyTerrainAtlasGpuResult({ ...base, current: visible(1), currentParity: true })).toBe('parity');
   });
 });

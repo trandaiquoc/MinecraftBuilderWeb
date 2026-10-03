@@ -91,7 +91,7 @@ describe('compiled terrain surface mesher', () => {
       expect(optimized[index].positions).toEqual(strict[index].positions);
       expect(optimized[index].normals).toEqual(strict[index].normals);
       const sprite = atlas.face(material, strict[index].uvs)!.sprite;
-      const semantic = optimized[index].uvs.map((value, uvIndex) => uvIndex % 2 === 0 ? (value - sprite.minU) / (sprite.maxU - sprite.minU) : (value - sprite.minV) / (sprite.maxV - sprite.minV));
+      const semantic = optimized[index].uvs.map((value, uvIndex) => uvIndex % 2 === 0 ? (value - sprite.minU) / (sprite.maxU - sprite.minU) : (sprite.maxV - value) / (sprite.maxV - sprite.minV));
       expect(semantic).toEqual(strict[index].uvs);
     }
     atlas.clear(); material.dispose(); pixels.dispose(); for (const template of templates) template.geometry.dispose();

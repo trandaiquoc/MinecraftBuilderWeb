@@ -677,12 +677,12 @@ copying the JAR or extracted assets into the repository.
 
 ## Terrain atlas browser gate
 
-The production atlas gate remains conservative for browser image textures
-until a real WebGL framebuffer comparison is run. Unit tests cover the canvas
-extraction branch and numeric framebuffer summarization; this repository has
-no browser-capable GPU test runner, so `DoubleSide` is only available through
-the explicit diagnostic probe policy and is not enabled for live Vanilla
-terrain yet.
+The terrain atlas now uses a V-only GPU-space correction after the supplied
+real-browser probe demonstrated exact source/current parity when the atlas V
+range is mirrored. CPU page bytes, normalization, gutters, and `flipY=true`
+remain unchanged. Production atlas materials accept `FrontSide` and
+`DoubleSide` while `BackSide` remains a strict fallback; material side remains
+part of the bucket key.
 
 ### Explicit browser GPU probe
 
@@ -702,17 +702,15 @@ may be supplied as the two arguments. The returned plain object contains the
 source texture metadata, extraction route, CPU pixel summaries, atlas sprite
 and UV/texel checks, and the existing source-versus-atlas WebGL framebuffer
 evidence. The command is not installed in production builds, does not run
-automatically, and does not mutate project or provider state. The optional
-append-after-upload comparison remains deferred until the single-sprite result
-has been captured from a real browser.
+automatically, and does not mutate project or provider state.
 
 The returned `gpu` object now includes `source`, `current`, `center`,
 `mirroredCenter`, `mirroredCurrent`, `noAlphaTest`, `geometryControl`, and
 `currentAfterRefresh` evidence. `atlasTexture`, `atlasMaterial`,
 `atlasPageByteProbes`, and `uvProbesByVariant` expose the DataTexture/UV
-boundary without returning raw textures or the full atlas page. The diagnosis
-must be treated as a measurement checkpoint; no production UV, flipY,
-alphaTest, or DoubleSide policy is changed by this command.
+boundary without returning raw textures or the full atlas page. A successful
+current-path probe reports `diagnosis: 'parity'`; mirrored variants remain
+diagnostic controls only.
 
 For the installed Three.js version, `DataTexture` starts with `flipY=false`
 and `unpackAlignment=1`; upload code uses the texture's explicit `flipY` value.

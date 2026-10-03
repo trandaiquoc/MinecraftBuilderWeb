@@ -2261,12 +2261,22 @@ instead of dropping the face. Provider/renderer clears dispose atlas pages and
 compiled atlas state together, so a new provider generation cannot reuse old
 sprites. This remains render-only and is not a project or UI preference.
 
-The real-browser atlas gate remains conservative after the runtime A/B check:
-the Vanilla `TextureLoader` path supplies image-backed textures, while the
-current automated runner is Angular/Vitest with jsdom and has no real WebGL
-browser target. Atlas compatibility now returns a stable diagnostic reason,
-and `TerrainTextureAtlas` exposes an explicit probe-only `DoubleSide` policy;
-production remains `FrontSide`-only until a real framebuffer probe passes.
+The atlas UV contract keeps page pixels top-row-first and keeps `flipY = true`
+on the page `DataTexture`, while `TerrainAtlasSprite.minV/maxV` now represent
+the final GPU-space bounds (`1 - CPU-bottom` through `1 - CPU-top`). Runtime
+source V is interpolated from `maxV` down to `minV`, which is algebraically
+`1 - (oldMinV + sourceV * oldRange)`. This is a V-only correction; CPU
+normalization, gutter copying, U coordinates, and
+texture update ownership are unchanged. The supplied real-browser probe showed
+that mirroring only the atlas V values restored source/current framebuffer
+parity, while the CPU bytes and upload buffer were already identical.
+
+Atlas compatibility returns a stable diagnostic reason. Production
+`TerrainTextureAtlas` now accepts safe `FrontSide` and `DoubleSide` materials;
+`BackSide` and all other unsupported semantics still use the strict fallback.
+`side` remains in the material semantics key, so FrontSide and DoubleSide are
+never merged into one bucket. The explicit probe option remains available for
+diagnostic callers.
 `terrain-atlas-gpu-probe.ts` can compare source and atlas draw calls through
 `WebGLRenderTarget.readRenderTargetPixels`, including alpha/bounds/checksum and
 WebGL error evidence, without being invoked by normal editing.
@@ -2280,9 +2290,9 @@ JSON-friendly texture/material metadata, extraction route, CPU pixel summaries,
 atlas sprite/UV evidence, and GPU framebuffer evidence. Temporary cloned
 geometry/materials and probe atlas resources are disposed; provider-owned
 visuals, textures, caches, renderer state, and project data are left untouched.
-The hook is explicit and never runs during normal hydration. A real browser
-manual capture is still required before any production atlas policy changes;
-production `DoubleSide` eligibility remains disabled.
+The hook is explicit and never runs during normal hydration. The supplied
+real-browser capture is the evidence for the V correction; the hook remains a
+manual regression tool for future provider/texture changes.
 
 The browser probe now renders the same atlas page through current UVs,
 constant sprite-center UVs, mirrored-center V, mirrored-current V, a cloned
@@ -2290,8 +2300,10 @@ constant sprite-center UVs, mirrored-center V, mirrored-current V, a cloned
 page-byte probes, page-buffer/source identity, DataTexture upload properties,
 texture version before/after the sequence, and the one explicit
 `needsUpdate` refresh result. Diagnosis is intentionally conservative:
-`current-uv`, `vertical-orientation`, `atlas-upload-or-material`, or
-`inconclusive`; synthetic tests do not claim GPU correctness.
+`parity`, `current-uv`, `vertical-orientation`, `atlas-upload-or-material`, or
+`inconclusive`; synthetic tests do not claim GPU correctness. `parity` is only
+reported when the current variant is visible and the measured framebuffer
+matches the source (or the probe's explicit parity result is true).
 
 The installed Three.js 0.186 source was checked as part of this diagnostic:
 `DataTexture` defaults to `flipY = false` and `unpackAlignment = 1`, while
