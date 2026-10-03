@@ -87,6 +87,7 @@ export interface RendererCounters {
   readonly terrainFacesCulled: number;
   readonly terrainTemplateResolutions: number;
   readonly terrainTemplateCacheHits: number;
+  readonly terrainBulkBatches: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -178,6 +179,7 @@ const EMPTY_COUNTERS: RendererCounters = {
   terrainFacesCulled: 0,
   terrainTemplateResolutions: 0,
   terrainTemplateCacheHits: 0,
+  terrainBulkBatches: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

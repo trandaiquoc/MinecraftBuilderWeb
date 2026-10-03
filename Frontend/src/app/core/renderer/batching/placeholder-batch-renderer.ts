@@ -81,6 +81,10 @@ export class PlaceholderBatchRenderer {
     }
   }
 
+  removeBulk(keys: readonly string[]): void {
+    for (const key of keys) this.remove(key);
+  }
+
   clear(): void {
     for (const batch of this.batches.values()) this.options.blocksGroup.remove(batch.mesh);
     this.batches.clear();

@@ -1271,6 +1271,31 @@ describe('3D exposed surface batches', () => {
     engine.dispose();
     provider.dispose();
   });
+
+  it('ingests a homogeneous 100k terrain scene by signature instead of voxel hydration jobs', async () => {
+    const blocks: PlacedBlock[] = [];
+    for (let y = 0; y < 10; y += 1) for (let z = 0; z < 100; z += 1) for (let x = 0; x < 100; x += 1) blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+    const project = { ...rendererBenchmarkProject('small'), id: 'terrain-100k', size: { x: 100, y: 10, z: 100 }, blocks, decorations: [] };
+    const provider = rendererBenchmarkVisualProvider();
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await settleHydration(80, engine);
+    const evidence = engine.performanceEvidence();
+    expect(evidence.terrainLogicalBlocks).toBe(100_000);
+    expect(evidence.terrainChunks).toBe(49);
+    expect(evidence.terrainChunkRebuilds).toBeLessThanOrEqual(60);
+    expect(evidence.terrainTemplateResolutions).toBe(1);
+    expect(evidence.terrainBulkBatches).toBe(1);
+    expect(engine.rendererCounters().providerObjectCreations).toBe(1);
+    expect(engine.hydrationDiagnostics().queued).toBe(0);
+    expect(evidence.terrainFacesEmitted).toBe(24_000);
+    const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
+    const triangles = blocksGroup.children.filter((child) => child.userData['terrainChunk']).reduce((total, child) => total + ((child as THREE.Mesh).geometry.getAttribute('position')?.count ?? 0) / 3, 0);
+    expect(triangles).toBe(48_000);
+    engine.dispose();
+    provider.dispose();
+  }, 30_000);
 });
 
 describe('provider handoff hydration ownership', () => {

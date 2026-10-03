@@ -4,13 +4,14 @@ import { coordinateKey } from '../../domain/coordinates';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { TerrainOccupancy } from './chunk-occupancy';
 import { relevantTerrainChunks, terrainChunkBounds, terrainChunkKey, worldToTerrainChunk, type TerrainChunkCoordinate } from './chunk-coordinate';
-import { meshTerrainChunk, type CompiledTerrainChunk } from './chunk-surface-mesher';
+import { meshTerrainChunk, precompileTerrainTemplates, type CompiledTerrainChunk, type PrecompiledTerrainFace } from './chunk-surface-mesher';
 import type { TerrainClassificationEntry } from './terrain-classifier';
 
 export interface TerrainSurfaceRecord {
   readonly key: string;
   readonly block: PlacedBlock;
   readonly templates: readonly SurfaceFaceTemplate[];
+  readonly compiledTemplates?: readonly PrecompiledTerrainFace[];
 }
 
 export interface TerrainRendererEvidence {
@@ -23,6 +24,7 @@ export interface TerrainRendererEvidence {
   readonly terrainTemplateResolutions: number;
   readonly terrainTemplateCacheHits: number;
   readonly terrainLogicalBlocks: number;
+  readonly terrainBulkBatches: number;
 }
 
 export interface ChunkSurfaceRendererOptions {
@@ -39,6 +41,7 @@ interface TerrainChunkObject {
 /** Owns compiled opaque terrain meshes while leaving project/editor data elsewhere. */
 export class ChunkSurfaceRenderer {
   readonly templateCache = new Map<string, readonly SurfaceFaceTemplate[]>();
+  private readonly compiledTemplateCache = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
   private readonly records = new Map<string, TerrainSurfaceRecord>();
   private readonly recordsByChunk = new Map<string, Map<string, TerrainSurfaceRecord>>();
   private readonly chunks = new Map<string, TerrainChunkObject>();
@@ -51,6 +54,7 @@ export class ChunkSurfaceRenderer {
   private facesCulled = 0;
   private templateResolutions = 0;
   private templateCacheHits = 0;
+  private bulkBatches = 0;
 
   constructor(private readonly options: ChunkSurfaceRendererOptions) {}
 
@@ -69,8 +73,32 @@ export class ChunkSurfaceRenderer {
   cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[]): void {
     if (this.templateCache.has(key)) return;
     this.templateCache.set(key, templates);
+    this.compiledTemplateCache.set(templates, precompileTerrainTemplates(templates));
     this.templateResolutions += 1;
     this.options.record('terrainTemplateResolutions');
+  }
+
+  /** Registers one generation/batch and compiles its dirty chunks exactly once. */
+  bulkUpsert(records: readonly TerrainSurfaceRecord[], occupancyEntries?: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[] = [], options: { readonly initial?: boolean; readonly flush?: boolean } = {}): void {
+    this.bulkBatches += 1;
+    this.options.record('terrainBulkBatches');
+    if (options.initial) {
+      for (const chunk of this.chunks.values()) this.disposeChunk(chunk);
+      this.chunks.clear();
+      this.records.clear();
+      this.recordsByChunk.clear();
+      this.dirtyChunks.clear();
+    }
+    if (occupancyEntries) this.occupancy.replace(occupancyEntries);
+    for (const record of records) {
+      const previous = this.records.get(record.key);
+      this.indexRecord(record);
+      for (const position of [previous?.block.position, record.block.position]) if (position) for (const chunk of relevantTerrainChunks(position)) this.dirtyChunks.add(terrainChunkKey(chunk));
+    }
+    if (options.initial) for (const key of this.recordsByChunk.keys()) this.dirtyChunks.add(key);
+    for (const position of affectedPositions) for (const chunk of relevantTerrainChunks(position)) this.dirtyChunks.add(terrainChunkKey(chunk));
+    if (options.flush === false) this.scheduleFlush();
+    else this.flushNow();
   }
 
   templatesFor(key: string): readonly SurfaceFaceTemplate[] | undefined {
@@ -82,12 +110,7 @@ export class ChunkSurfaceRenderer {
   upsert(record: TerrainSurfaceRecord): boolean {
     if (record.templates.length !== 6) return false;
     const previous = this.records.get(record.key);
-    if (previous) this.removeFromChunkIndex(previous);
-    this.records.set(record.key, record);
-    const chunkKey = terrainChunkKeyForPosition(record.block.position);
-    const chunkRecords = this.recordsByChunk.get(chunkKey) ?? new Map<string, TerrainSurfaceRecord>();
-    chunkRecords.set(record.key, record);
-    this.recordsByChunk.set(chunkKey, chunkRecords);
+    this.indexRecord(record);
     if (!previous || coordinateKey(previous.block.position) !== coordinateKey(record.block.position)) {
       for (const position of [previous?.block.position, record.block.position]) if (position) for (const chunk of relevantTerrainChunks(position)) this.dirtyChunks.add(terrainChunkKey(chunk));
     } else {
@@ -131,6 +154,7 @@ export class ChunkSurfaceRenderer {
       terrainTemplateResolutions: this.templateResolutions,
       terrainTemplateCacheHits: this.templateCacheHits,
       terrainLogicalBlocks: this.records.size,
+      terrainBulkBatches: this.bulkBatches,
     };
   }
 
@@ -144,6 +168,7 @@ export class ChunkSurfaceRenderer {
     this.dirtyChunks.clear();
     for (const templates of this.templateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateCache.clear();
+    this.bulkBatches = 0;
   }
 
   dispose(): void { this.clear(); }
@@ -160,7 +185,7 @@ export class ChunkSurfaceRenderer {
     if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
     if (!entries.length) return;
-    const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position })), this.occupancy);
+    const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy);
     this.rebuildCount += 1;
     this.blocksCompiled += compiled.blocksCompiled;
     this.facesEmitted += compiled.facesEmitted;
@@ -203,6 +228,20 @@ export class ChunkSurfaceRenderer {
     if (!records) return;
     records.delete(record.key);
     if (!records.size) this.recordsByChunk.delete(key);
+  }
+
+  private indexRecord(record: TerrainSurfaceRecord): void {
+    if (record.templates.length !== 6) return;
+    const previous = this.records.get(record.key);
+    if (previous) this.removeFromChunkIndex(previous);
+    const compiledTemplates = record.compiledTemplates ?? this.compiledTemplateCache.get(record.templates) ?? precompileTerrainTemplates(record.templates);
+    if (!this.compiledTemplateCache.has(record.templates)) this.compiledTemplateCache.set(record.templates, compiledTemplates);
+    const indexed = { ...record, compiledTemplates };
+    this.records.set(record.key, indexed);
+    const chunkKey = terrainChunkKeyForPosition(indexed.block.position);
+    const chunkRecords = this.recordsByChunk.get(chunkKey) ?? new Map<string, TerrainSurfaceRecord>();
+    chunkRecords.set(indexed.key, indexed);
+    this.recordsByChunk.set(chunkKey, chunkRecords);
   }
 }
 

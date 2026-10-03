@@ -50,8 +50,9 @@ import { RenderScheduler } from '../scheduling/render-scheduler';
 import { InteractiveResolutionController } from '../scheduling/interactive-resolution-controller';
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
-import { ChunkSurfaceRenderer } from '../terrain/chunk-surface-renderer';
+import { ChunkSurfaceRenderer, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
+import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -156,6 +157,7 @@ export interface ViewportPerformanceEvidence {
   readonly terrainTemplateResolutions: number;
   readonly terrainTemplateCacheHits: number;
   readonly terrainLogicalBlocks: number;
+  readonly terrainBulkBatches: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -379,6 +381,13 @@ interface TerrainHydrationResult extends BlockVisualResult {
 }
 
 type VisibleBlockEntry = { readonly block: ProjectDocument['blocks'][number]; readonly role: 'normal' | 'reference' | 'missing'; readonly signature: string; readonly occlusionClass: OcclusionClass };
+interface TerrainHydrationCandidate {
+  readonly key: string;
+  readonly next: VisibleBlockEntry;
+  readonly reusableKey: string;
+  readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
+  readonly provider: BlockVisualProvider;
+}
 export type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 export type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
 interface HoverRequest {
@@ -639,6 +648,7 @@ export class ThreeViewportEngine {
   private decorationHydrationQueueHead = 0;
   private readonly pendingDecorationSignatures = new Map<string, string>();
   private hydrationRunning = 0;
+  private terrainHydrationPending = 0;
   private readonly hydrationRunningByGeneration = new Map<number, number>();
   private hydrationBatchBudget = 0;
   private hydrationBatchDeadline = 0;
@@ -975,7 +985,7 @@ export class ThreeViewportEngine {
       this.decorationSyncKey = decorationKey;
       this.syncedDecorationProject = project;
       this.reconcileDecorations(project, options, false);
-      this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.queuedDecorationHydrationJobs());
+      this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
     }
     if (!blockInputChanged && !inPlaceBlockMutation && !decorationInputChanged) this.instrumentation.record('overlayOnlyUpdates');
     this.setProjectBounds(project);
@@ -1071,7 +1081,9 @@ export class ThreeViewportEngine {
       for (const neighbor of coordinateNeighbors(position)) if (allVisibleMap.has(coordinateKey(neighbor))) changed.add(coordinateKey(neighbor));
     }
     const terrainAffectedPositions = [...changed].map((key) => allVisibleMap.get(key)?.block.position ?? this.previousVisibleBlockPositions.get(key)).filter((position): position is VoxelCoordinate => !!position);
-    this.terrainRenderer.syncOccupancy(visible, terrainAffectedPositions, full);
+    // Initial terrain occupancy is committed together with the first bulk
+    // terrain batch. Incremental edits retain the existing conservative sync.
+    if (!full) this.terrainRenderer.syncOccupancy(visible, terrainAffectedPositions);
     this.updateInteriorCulling(visible, full, changed);
     const renderVisible = visible.filter((entry) => {
       if (options.exposedFaceRendering === true && isCompiledTerrainEntry(entry)) return true;
@@ -1109,6 +1121,7 @@ export class ThreeViewportEngine {
     }
     const changedEntries = [...changed].map((key) => visibleMap.get(key)).filter((entry): entry is VisibleBlockEntry => !!entry);
     if (full) this.ensurePlaceholderVisualsBulk(changedEntries);
+    const terrainCandidates: TerrainHydrationCandidate[] = [];
     for (const key of changed) {
       const next = visibleMap.get(key); if (!next) continue;
       const previous = this.renderedBlocks.get(key);
@@ -1126,8 +1139,13 @@ export class ThreeViewportEngine {
         continue;
       }
       this.placeholderSignatures.delete(key);
-      this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && next.role === 'normal' && next.occlusionClass === 'opaque-full-cube', surfaceVisibleEntries: allVisibleMap });
+      const terrainCandidate = this.terrainCandidate(key, next, worldContext, options);
+      if (terrainCandidate) {
+        this.renderedBlocks.set(key, { key, block: next.block, signature: next.signature, role: next.role, revision: 0 });
+        terrainCandidates.push(terrainCandidate);
+      } else this.hydrationQueue.push({ token: this.hydrationGeneration, key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && next.role === 'normal' && next.occlusionClass === 'opaque-full-cube', surfaceVisibleEntries: allVisibleMap });
     }
+    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, visible, terrainAffectedPositions, full);
     const normalJobs: BlockHydrationJob[] = [];
     const referenceJobs: BlockHydrationJob[] = [];
     const missingJobs: BlockHydrationJob[] = [];
@@ -1140,12 +1158,94 @@ export class ThreeViewportEngine {
     this.hydrationQueueHead = 0;
     const previousMax = this.instrumentation.snapshot().maxPendingVisualJobs;
     if (this.queuedBlockHydrationJobs() > previousMax) this.instrumentation.record('maxPendingVisualJobs', this.queuedBlockHydrationJobs() - previousMax);
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0), this.queuedDecorationHydrationJobs());
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     this.reconcileInstanceOwnership();
     this.previousVisibleBlockPositions.clear();
     for (const entry of visible) this.previousVisibleBlockPositions.set(coordinateKey(entry.block.position), { ...entry.block.position });
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
+  }
+
+  private terrainCandidate(key: string, next: VisibleBlockEntry, worldContext: TerrainHydrationCandidate['worldContext'], options: ViewportRenderOptions): TerrainHydrationCandidate | undefined {
+    const provider = this.visualProvider;
+    if (!provider || options.exposedFaceRendering !== true || next.role !== 'normal' || !isCompiledTerrainEntry(next)) return undefined;
+    const reusableKey = provider.reusableVisualKey?.(next.block, worldContext);
+    return reusableKey ? { key, next, reusableKey, worldContext, provider } : undefined;
+  }
+
+  private scheduleTerrainBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean): void {
+    const groups = groupTerrainCandidates(candidates);
+    const token = this.hydrationGeneration;
+    const providerGeneration = this.providerGeneration;
+    const resolved = [...groups.entries()].map(([reusableKey, group]) => {
+      const cached = this.terrainRenderer.templatesFor(reusableKey);
+      if (cached) return Promise.resolve({ reusableKey, group, templates: cached, owned: false });
+      this.terrainHydrationPending += 1;
+      return this.resolveTerrainTemplates(reusableKey, group[0].next.block, group[0].worldContext, group[0].provider)
+        .then((templates) => ({ reusableKey, group, templates, owned: true }), () => ({ reusableKey, group, templates: undefined, owned: false }));
+    });
+    const pendingGroups = resolved.filter((_, index) => !this.terrainRenderer.templateCache.has([...groups.keys()][index])).length;
+    if (pendingGroups) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    void Promise.all(resolved).then((results) => {
+      if (token !== this.hydrationGeneration || providerGeneration !== this.providerGeneration || this.disposed) {
+        for (const result of results) if (result.owned && result.templates && ![...this.terrainRenderer.templateCache.values()].some((templates) => templates === result.templates)) this.disposeTerrainTemplates(result.templates);
+        return;
+      }
+      const usable: TerrainSurfaceRecord[] = [];
+      const failed: TerrainHydrationCandidate[] = [];
+      for (const result of results) {
+        if (result.templates) {
+          this.terrainRenderer.cacheTemplates(result.reusableKey, result.templates);
+          for (const candidate of result.group) {
+            const current = this.renderedBlocks.get(candidate.key);
+            if (!current || current.signature !== candidate.next.signature) continue;
+            usable.push({ key: candidate.key, block: candidate.next.block, templates: result.templates });
+            current.terrainChunkKey = chunkKey(candidate.next.block.position);
+            this.pendingHydrationSignatures.delete(candidate.key);
+          }
+        } else failed.push(...result.group);
+      }
+      this.terrainRenderer.bulkUpsert(usable, initial ? occupancyEntries : undefined, affectedPositions, { initial });
+      if (usable.length) this.placeholderRenderer.removeBulk(usable.map((record) => record.key));
+      this.enqueueFailedTerrainCandidates(failed);
+      for (const _ of results) {
+        this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - 1);
+        this.completeHydrationPart(token, 'block');
+      }
+      this.recordProviderCacheStats();
+      this.scheduleRender();
+      if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+    }).catch(() => {
+      // Promise.all is intentionally normalized above; this is only a guard
+      // for an unexpected coordinator failure.
+      this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
+    });
+  }
+
+  private enqueueFailedTerrainCandidates(candidates: readonly TerrainHydrationCandidate[]): void {
+    for (const candidate of candidates) {
+      const current = this.renderedBlocks.get(candidate.key);
+      if (!current || current.signature !== candidate.next.signature) continue;
+      this.hydrationQueue.push({ token: this.hydrationGeneration, key: candidate.key, block: candidate.next.block, signature: candidate.next.signature, role: candidate.next.role, worldContext: candidate.worldContext, options: this.renderOptions, allowInstancing: false, surfaceFastPathEligible: false, surfaceVisibleEntries: this.cachedVisibleMap });
+    }
+  }
+
+  private resolveTerrainTemplates(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: TerrainHydrationCandidate['worldContext'], provider: BlockVisualProvider): Promise<readonly SurfaceFaceTemplate[] | undefined> {
+    const existing = this.pendingTerrainTemplates.get(reusableKey);
+    if (existing) return existing;
+    const pending = this.createProviderVisual(provider, block, worldContext).then((visual) => {
+      if (!visual.object) return undefined;
+      const templates = extractSurfaceFaceTemplates(visual.object);
+      disposeObject(visual.object);
+      return templates;
+    });
+    this.pendingTerrainTemplates.set(reusableKey, pending);
+    void pending.then(() => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); }, () => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); });
+    return pending;
+  }
+
+  private disposeTerrainTemplates(templates: readonly SurfaceFaceTemplate[]): void {
+    for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
   }
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions): readonly VisibleBlockEntry[] {
@@ -1451,6 +1551,7 @@ export class ThreeViewportEngine {
     this.hydrationQueue = [];
     this.hydrationQueueHead = 0;
     this.pendingHydrationSignatures.clear();
+    this.terrainHydrationPending = 0;
     this.runningHydrationKeys.clear();
     this.cancelDecorationHydration();
     this.hydrationBatchBudget = 0;
@@ -2496,6 +2597,7 @@ export class ThreeViewportEngine {
       terrainTemplateResolutions: terrain.terrainTemplateResolutions,
       terrainTemplateCacheHits: terrain.terrainTemplateCacheHits,
       terrainLogicalBlocks: terrain.terrainLogicalBlocks,
+      terrainBulkBatches: terrain.terrainBulkBatches,
     };
   }
 

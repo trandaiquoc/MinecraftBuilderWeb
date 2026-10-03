@@ -14,17 +14,52 @@ describe('chunk surface renderer ownership', () => {
     const blocks: PlacedBlock[] = [];
     for (let y = 0; y < 10; y += 1) for (let z = 0; z < 100; z += 1) for (let x = 0; x < 100; x += 1) blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
     const entries = blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const }));
-    renderer.syncOccupancy(entries, blocks.map((block) => block.position), true);
-    for (const block of blocks) renderer.upsert({ key: voxelKey(block.position), block, templates });
-    renderer.flushNow();
+    renderer.bulkUpsert(blocks.map((block) => ({ key: voxelKey(block.position), block, templates })), entries, blocks.map((block) => block.position), { initial: true });
     const evidence = renderer.evidence();
     expect(evidence.terrainLogicalBlocks).toBe(100_000);
     expect(evidence.terrainChunks).toBe(49);
     expect(evidence.terrainChunkMeshes).toBe(49);
     expect(evidence.terrainFacesEmitted).toBe(24_000);
     expect(evidence.terrainFacesCulled).toBe(576_000);
+    expect(evidence.terrainChunkRebuilds).toBe(49);
+    expect(evidence.terrainBulkBatches).toBe(1);
     expect([...group.children].every((child) => child instanceof THREE.Mesh && child.frustumCulled)).toBe(true);
     expect(counters.get('terrainTemplateResolutions') ?? 0).toBe(0);
+    renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('builds a complete chunk once per bulk batch and does not rebuild an unrelated chunk', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const block = (position: VoxelCoordinate): PlacedBlock => ({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: {} });
+    const first = Array.from({ length: 16 ** 3 }, (_, index) => block({ x: index % 16, y: Math.floor(index / 256), z: Math.floor(index / 16) % 16 }));
+    const firstEntries = first.map((value) => ({ block: value, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const }));
+    renderer.bulkUpsert(first.map((value) => ({ key: voxelKey(value.position), block: value, templates })), firstEntries, first.map((value) => value.position), { initial: true });
+    expect(renderer.evidence().terrainChunkRebuilds).toBe(1);
+    const before = renderer.evidence().terrainChunkRebuilds;
+    const second = Array.from({ length: 16 ** 3 }, (_, index) => block({ x: 32 + index % 16, y: Math.floor(index / 256), z: Math.floor(index / 16) % 16 }));
+    const allEntries = [...firstEntries, ...second.map((value) => ({ block: value, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const }))];
+    renderer.bulkUpsert(second.map((value) => ({ key: voxelKey(value.position), block: value, templates })), allEntries, second.map((value) => value.position));
+    expect(renderer.evidence().terrainChunkRebuilds - before).toBe(1);
+    renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('keeps the 48 cubed initial generation near one build per populated chunk', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const blocks: PlacedBlock[] = [];
+    for (let y = 0; y < 48; y += 1) for (let z = 0; z < 48; z += 1) for (let x = 0; x < 48; x += 1) blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+    const entries = blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const }));
+    renderer.bulkUpsert(blocks.map((block) => ({ key: voxelKey(block.position), block, templates })), entries, blocks.map((block) => block.position), { initial: true });
+    // 27 occupied coordinates are rebuilt; the fully enclosed center chunk
+    // correctly emits no physical mesh.
+    expect(renderer.evidence().terrainChunks).toBe(26);
+    expect(renderer.evidence().terrainChunkRebuilds).toBe(27);
+    expect(renderer.evidence().terrainFacesEmitted).toBe(13_824);
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
