@@ -50,7 +50,8 @@ import { RenderScheduler } from '../scheduling/render-scheduler';
 import { InteractiveResolutionController } from '../scheduling/interactive-resolution-controller';
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
-import { ChunkSurfaceRenderer, type TerrainBlockChange, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
+import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
+import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
 import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
@@ -61,7 +62,11 @@ export interface ViewportHit { readonly target?: VoxelCoordinate; readonly statu
 export type ViewportHoverListener = (hit: ViewportHit) => void;
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined, lookup?: ReadonlyBlockLookup) => PlacementPlan | undefined;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
-export interface ViewportEngineOptions { readonly terrainAtlasMode?: TerrainAtlasMode; }
+export interface ViewportEngineOptions {
+  readonly terrainAtlasMode?: TerrainAtlasMode;
+  /** Narrow test seam for validating atomic terrain ownership commits. */
+  readonly terrainShouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
+}
 export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
 export interface ViewportHydrationProgress {
   readonly generation: number;
@@ -691,6 +696,7 @@ export class ThreeViewportEngine {
     this.terrainRenderer = new ChunkSurfaceRenderer({
       blocksGroup: this.blocksGroup,
       terrainAtlasMode: this.terrainAtlasMode,
+      shouldCommitChunk: options.terrainShouldCommitChunk,
       record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
@@ -1286,6 +1292,8 @@ export class ThreeViewportEngine {
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const terrainChanges: TerrainBlockChange[] = [];
     const terrainCandidates: TerrainHydrationCandidate[] = [];
+    const preparedTerrainRecords = new Map<string, TerrainSurfaceRecord>();
+    const preparedTerrainCandidates = new Map<string, TerrainHydrationCandidate>();
     const renderableKeys = new Set<string>();
     for (const key of changedKeys) {
       const next = this.cachedVisibleMap.get(key);
@@ -1313,10 +1321,10 @@ export class ThreeViewportEngine {
       }
       if (candidate && cachedTemplates) {
         const record: TerrainSurfaceRecord = { key, block: next!.block, templates: cachedTemplates };
-        this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0, terrainChunkKey: chunkKey(next!.block.position) });
-        this.pendingHydrationSignatures.delete(key);
+        this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0 });
+        preparedTerrainRecords.set(key, record);
+        preparedTerrainCandidates.set(key, candidate);
         terrainChanges.push({ key, position: next!.block.position, after: record, afterOpaque: true });
-        this.placeholderRenderer.removeBulk([key]);
       } else if (candidate) {
         this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0 });
         terrainChanges.push({ key, position: next!.block.position, afterOpaque: false });
@@ -1334,13 +1342,37 @@ export class ThreeViewportEngine {
       const terrain = entry && isCompiledTerrainEntry(entry) ? this.terrainRenderer.templatesFor(this.visualProvider?.reusableVisualKey?.(entry.block, worldContext) ?? '') : undefined;
       terrainChanges.push({ key, position, afterOpaque: !!terrain });
     }
-    this.terrainRenderer.applyBlockChanges(terrainChanges, false);
+    const terrainResult = this.terrainRenderer.applyBlockChanges(terrainChanges, true);
+    this.commitTerrainRecords(preparedTerrainRecords.values(), terrainResult);
+    const representedTerrainKeys = new Set(terrainResult.representedKeys);
+    this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate));
     if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true);
     this.updateHydrationOrder();
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     this.reconcileInstanceOwnership();
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
+  }
+
+  private commitTerrainRecords(records: Iterable<TerrainSurfaceRecord>, result: TerrainApplyResult): void {
+    const represented = new Set(result.representedKeys);
+    const failed = new Set(result.failedKeys);
+    for (const key of failed) {
+      const current = this.renderedBlocks.get(key);
+      if (!current || represented.has(key)) continue;
+      current.terrainChunkKey = undefined;
+      this.ensurePlaceholderVisual(key, current.block, current.role);
+      if (!this.pendingHydrationSignatures.has(key)) this.placeholderSignatures.set(key, current.signature);
+    }
+    for (const record of records) {
+      const current = this.renderedBlocks.get(record.key);
+      if (!current || current.signature !== this.cachedVisibleMap.get(record.key)?.signature) continue;
+      if (!represented.has(record.key)) continue;
+      current.terrainChunkKey = chunkKey(record.block.position);
+      this.pendingHydrationSignatures.delete(record.key);
+      this.placeholderSignatures.delete(record.key);
+      this.placeholderRenderer.removeBulk([record.key]);
+    }
   }
 
   private updateHydrationOrder(): void {
@@ -1351,6 +1383,7 @@ export class ThreeViewportEngine {
 
   private scheduleTerrainBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean, local = false): void {
     const groups = groupTerrainCandidates(candidates);
+    const candidateByKey = new Map(candidates.map((candidate) => [candidate.key, candidate] as const));
     const token = this.hydrationGeneration;
     const providerGeneration = this.providerGeneration;
     const resolved = [...groups.entries()].map(([reusableKey, group]) => {
@@ -1376,14 +1409,18 @@ export class ThreeViewportEngine {
             const current = this.renderedBlocks.get(candidate.key);
             if (!current || current.signature !== candidate.next.signature) continue;
             usable.push({ key: candidate.key, block: candidate.next.block, templates: result.templates });
-            current.terrainChunkKey = chunkKey(candidate.next.block.position);
-            this.pendingHydrationSignatures.delete(candidate.key);
           }
         } else failed.push(...result.group);
       }
-      if (local) this.terrainRenderer.applyBlockChanges(usable.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: true })), true);
-      else this.terrainRenderer.bulkUpsert(usable, initial ? occupancyEntries : undefined, affectedPositions, { initial });
-      if (usable.length) this.placeholderRenderer.removeBulk(usable.map((record) => record.key));
+      const result = local
+        ? this.terrainRenderer.applyBlockChanges(usable.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: true })), true)
+        : this.terrainRenderer.bulkUpsert(usable, initial ? occupancyEntries : undefined, affectedPositions, { initial });
+      this.commitTerrainRecords(usable, result);
+      const represented = new Set(result.representedKeys);
+      for (const record of usable) if (!represented.has(record.key)) {
+        const candidate = candidateByKey.get(record.key);
+        if (candidate) failed.push(candidate);
+      }
       this.enqueueFailedTerrainCandidates(failed);
       for (const _ of results) {
         this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - 1);
@@ -1902,7 +1939,7 @@ export class ThreeViewportEngine {
   }
 
   private addTerrainVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[]): boolean {
-    return this.terrainRenderer.upsert({ key, block, templates });
+    return this.terrainRenderer.upsertAndCommit({ key, block, templates });
   }
 
   private removeSurfaceFaceVisual(key: string, entry?: RenderedBlockEntry): void {
@@ -2793,6 +2830,10 @@ export class ThreeViewportEngine {
   }
 
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
+
+  terrainOwnershipFor(key: string): TerrainOwnershipEvidence | undefined {
+    return this.terrainRenderer.ownershipFor(key);
+  }
 
   hydrationDiagnostics(): ViewportHydrationDiagnostics {
     const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;

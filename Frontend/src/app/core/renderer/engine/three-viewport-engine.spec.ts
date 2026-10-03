@@ -1214,6 +1214,78 @@ describe('camera movement input contract', () => {
 });
 
 describe('incremental project mutation reconciliation', () => {
+  it('keeps an oak-log terrain voxel physically owned across y to x to z to y transitions', async () => {
+    const provider = axisCubeProvider();
+    const position = { x: 2, y: 2, z: 2 };
+    const before: PlacedBlock = { kind: 'resolved', id: 'minecraft:oak_log', namespace: 'minecraft', position, state: { axis: 'y' } };
+    const engine = new ThreeViewportEngine(undefined, { terrainAtlasMode: 'on' });
+    engine.setVisualProvider(provider);
+    let currentBlock = before;
+    let project: ProjectDocument = { ...rendererBenchmarkProject('small'), blocks: [currentBlock], decorations: [] };
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await settleHydration(40, engine);
+    const key = coordinateKey(position);
+    expect(engine.terrainOwnershipFor(key)).toBeDefined();
+    for (const axis of ['x', 'z', 'y'] as const) {
+      const after = { ...currentBlock, state: { axis } };
+      const next = { ...project, blocks: [after] };
+      engine.update(next, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position, before: currentBlock, after }], 'state-edit'));
+      await settleHydration(40, engine);
+      expect(engine.terrainOwnershipFor(key)).toBeDefined();
+      expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toContain(key);
+      (engine as unknown as { render: () => void }).render();
+      expect(engine.terrainOwnershipFor(key)).toBeDefined();
+      project = next;
+      currentBlock = after;
+    }
+    engine.dispose();
+  });
+
+  it('keeps a stone delete/undo/redo transition represented across later renders', async () => {
+    const provider = axisCubeProvider();
+    const position = { x: 1, y: 1, z: 1 };
+    const stone: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: {} };
+    const engine = new ThreeViewportEngine(undefined, { terrainAtlasMode: 'on' });
+    engine.setVisualProvider(provider);
+    const base = { ...rendererBenchmarkProject('small'), decorations: [] };
+    const present = { ...base, blocks: [stone] };
+    const absent = { ...base, blocks: [] };
+    const key = coordinateKey(position);
+    engine.update(present, undefined, { exposedFaceRendering: true });
+    await settleHydration(40, engine);
+    expect(engine.terrainOwnershipFor(key)).toBeDefined();
+    engine.update(absent, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position, before: stone, after: undefined }], 'delete'));
+    expect(engine.terrainOwnershipFor(key)).toBeUndefined();
+    engine.update(present, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position, before: undefined, after: stone }], 'undo'));
+    await settleHydration(40, engine);
+    expect(engine.terrainOwnershipFor(key)).toBeDefined();
+    (engine as unknown as { render: () => void }).render();
+    expect(engine.terrainOwnershipFor(key)).toBeDefined();
+    engine.update(absent, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position, before: stone, after: undefined }], 'redo'));
+    expect(engine.terrainOwnershipFor(key)).toBeUndefined();
+    engine.update(present, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position, before: undefined, after: stone }], 'undo'));
+    await settleHydration(40, engine);
+    (engine as unknown as { render: () => void }).render();
+    expect(engine.terrainOwnershipFor(key)).toBeDefined();
+    engine.dispose();
+  });
+
+  it('keeps fallback ownership when a local terrain chunk commit is rejected', async () => {
+    const provider = axisCubeProvider();
+    const blocks = [0, 1].map((x) => ({ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y: 1, z: 1 }, state: {} }));
+    const engine = new ThreeViewportEngine(undefined, { terrainAtlasMode: 'on', terrainShouldCommitChunk: () => false });
+    engine.setVisualProvider(provider);
+    const project = { ...rendererBenchmarkProject('small'), blocks, decorations: [] };
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await settleHydration(40, engine);
+    const internal = engine as unknown as { renderedBlocks: Map<string, { terrainChunkKey?: string }> };
+    expect(engine.terrainOwnershipFor(coordinateKey(blocks[0].position))).toBeUndefined();
+    expect(engine.terrainOwnershipFor(coordinateKey(blocks[1].position))).toBeUndefined();
+    expect([...internal.renderedBlocks.values()].every((entry) => entry.terrainChunkKey === undefined)).toBe(true);
+    expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toEqual(expect.arrayContaining(blocks.map((block) => coordinateKey(block.position))));
+    engine.dispose();
+  });
+
   it('updates a hinted local voxel without a full visible scan or spatial-index rebuild', () => {
     const engine = new ThreeViewportEngine();
     const base = rendererBenchmarkProject('small');
@@ -1571,6 +1643,34 @@ function cubeFaceTemplates(materials: readonly THREE.Material[]): readonly Insta
     new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(0, .5, .5),
   ];
   return transforms.map((matrix, index) => ({ geometry: new THREE.PlaneGeometry(1, 1), material: materials[index], matrix }));
+}
+
+function axisCubeProvider(): BlockVisualProvider {
+  const directions = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
+  const transforms = [
+    new THREE.Matrix4().setPosition(.5, .5, 1),
+    new THREE.Matrix4().makeRotationY(Math.PI).setPosition(.5, .5, 0),
+    new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(.5, 1, .5),
+    new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(.5, 0, .5),
+    new THREE.Matrix4().makeRotationY(Math.PI / 2).setPosition(1, .5, .5),
+    new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(0, .5, .5),
+  ];
+  return {
+    reusableVisualKey: (block: PlacedBlock) => `oak-log-${String(block.state['axis'] ?? 'y')}`,
+    occlusionClass: () => 'opaque-full-cube',
+    thumbnailUrl: () => undefined,
+    create: async () => {
+      const object = new THREE.Group();
+      directions.forEach((direction, index) => {
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x887766 }));
+        mesh.applyMatrix4(transforms[index]);
+        mesh.userData['face'] = direction;
+        mesh.userData['cullface'] = direction;
+        object.add(mesh);
+      });
+      return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+    },
+  } as unknown as BlockVisualProvider;
 }
 
 function disposeTemplateFixture(raw: readonly InstancePartTemplate[], compiled: readonly InstancePartTemplate[], ...materials: readonly THREE.Material[]): void {

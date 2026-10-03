@@ -2273,3 +2273,15 @@ discarded. Fallback URLs remain visible while enhanced previews load, transient
 enhancement failures may retry on a later visible request, and explicitly
 unsupported previews remain unavailable without retry loops. Search/filter
 changes do not discard the shared queue unnecessarily.
+
+## Incremental terrain ownership commits
+
+Incremental terrain mutations now use an explicit prepare/commit boundary.
+ChunkSurfaceRenderer reports key-scoped physical ownership after each bounded
+chunk rebuild; exposed voxels must emit a face, while fully occluded voxels may
+be represented logically without a mesh. ThreeViewportEngine keeps its
+placeholder/fallback and pending hydration state until that physical result is
+confirmed, and only then assigns `terrainChunkKey` and removes the placeholder.
+Failed keys remain recoverable and a mixed batch commits successful keys without
+blanket removal. Hover and later render frames do not participate in ownership
+commits.

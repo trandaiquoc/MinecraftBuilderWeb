@@ -84,6 +84,12 @@ export interface CompiledTerrainChunk {
   readonly blocksCompiled: number;
   readonly facesEmitted: number;
   readonly facesCulled: number;
+  /** Keys with at least one emitted face in this chunk. */
+  readonly emittedKeys: readonly string[];
+  /** Keys with no emitted face because all six neighbours are opaque. */
+  readonly fullyOccludedKeys: readonly string[];
+  /** Exposed keys that produced no physical face and therefore cannot commit. */
+  readonly unrepresentedExposedKeys: readonly string[];
 }
 
 /** CPU-only surface compiler. It emits one quad's triangles directly into chunk buffers. */
@@ -92,17 +98,28 @@ export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonl
   let blocksCompiled = 0;
   let facesEmitted = 0;
   let facesCulled = 0;
+  const emittedKeys = new Set<string>();
+  const fullyOccludedKeys = new Set<string>();
+  const unrepresentedExposedKeys: string[] = [];
   for (const entry of entries) {
     blocksCompiled += 1;
     const templates = precompiledByDirection(entry.compiledTemplates ?? precompileTerrainTemplates(entry.templates, atlas));
+    let emittedForEntry = 0;
+    let culledForEntry = 0;
     for (const direction of SURFACE_DIRECTIONS) {
       const template = templates.get(direction);
       if (!template) continue;
-      if (occupancy.hasOpaque(neighborPosition(entry.position, direction))) { facesCulled += 1; continue; }
+      if (occupancy.hasOpaque(neighborPosition(entry.position, direction))) { facesCulled += 1; culledForEntry += 1; continue; }
       const bucket = buckets.get(template.bucketKey) ?? createBucket(template.bucketKey, template.material);
       buckets.set(template.bucketKey, bucket);
       appendFace(bucket, template, entry.position);
       facesEmitted += 1;
+      emittedKeys.add(entry.key);
+      emittedForEntry += 1;
+    }
+    if (emittedForEntry === 0) {
+      if (culledForEntry === ALL_DIRECTIONS.length) fullyOccludedKeys.add(entry.key);
+      else unrepresentedExposedKeys.push(entry.key);
     }
   }
   return {
@@ -111,6 +128,9 @@ export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonl
     blocksCompiled,
     facesEmitted,
     facesCulled,
+    emittedKeys: [...emittedKeys],
+    fullyOccludedKeys: [...fullyOccludedKeys],
+    unrepresentedExposedKeys,
   };
 }
 
@@ -148,6 +168,7 @@ function finalizeBucket(bucket: MutableBucket): CompiledTerrainBucket {
 }
 
 const SURFACE_DIRECTIONS: readonly SurfaceFaceDirection[] = ['north', 'south', 'east', 'west', 'up', 'down'];
+const ALL_DIRECTIONS = SURFACE_DIRECTIONS;
 
 function neighborPosition(position: VoxelCoordinate, direction: SurfaceFaceDirection): VoxelCoordinate {
   switch (direction) {

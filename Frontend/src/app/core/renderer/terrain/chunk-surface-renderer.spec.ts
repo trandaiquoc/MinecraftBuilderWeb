@@ -135,6 +135,52 @@ describe('chunk surface renderer ownership', () => {
     expect(make('on')).toMatchObject({ terrainLogicalBlocks: 1, terrainFacesEmitted: 6, terrainChunkMeshes: 1 });
   });
 
+  it('reports key-scoped physical ownership and keeps failed exposed keys unrepresented', () => {
+    const group = new THREE.Group();
+    const failedKey = voxelKey({ x: 1, y: 0, z: 0 });
+    const renderer = new ChunkSurfaceRenderer({
+      blocksGroup: group,
+      terrainAtlasMode: 'on',
+      shouldCommitChunk: (key) => key !== '0,0,0',
+      record: () => undefined,
+    });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first = blockAt({ x: 0, y: 0, z: 0 });
+    const second = blockAt({ x: 1, y: 0, z: 0 });
+    const result = renderer.bulkUpsert([
+      { key: voxelKey(first.position), block: first, templates },
+      { key: failedKey, block: second, templates },
+    ], [
+      { block: first, role: 'normal', occlusionClass: 'opaque-full-cube' },
+      { block: second, role: 'normal', occlusionClass: 'opaque-full-cube' },
+    ], [first.position, second.position], { initial: true });
+    expect(result.representedKeys).toEqual([]);
+    expect(result.failedKeys).toEqual(expect.arrayContaining([voxelKey(first.position), failedKey]));
+    expect(renderer.ownershipFor(failedKey)).toBeUndefined();
+    expect(renderer.logicalBlockCount).toBe(2);
+    renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('commits one key while preserving a failed key in a partial local batch', () => {
+    const group = new THREE.Group();
+    const failedKey = voxelKey({ x: 16, y: 0, z: 0 });
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, shouldCommitChunk: (key) => key !== '1,0,0', record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first = blockAt({ x: 0, y: 0, z: 0 });
+    const second = blockAt({ x: 16, y: 0, z: 0 });
+    const result = renderer.applyBlockChanges([
+      { key: voxelKey(first.position), position: first.position, after: { key: voxelKey(first.position), block: first, templates }, afterOpaque: true },
+      { key: failedKey, position: second.position, after: { key: failedKey, block: second, templates }, afterOpaque: true },
+    ]);
+    expect(result.representedKeys).toContain(voxelKey(first.position));
+    expect(result.failedKeys).toContain(failedKey);
+    expect(renderer.ownershipFor(voxelKey(first.position))).toBeDefined();
+    expect(renderer.ownershipFor(failedKey)).toBeUndefined();
+    renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('keeps the 100k homogeneous atlas sprite work bounded by texture sources', () => {
     const group = new THREE.Group();
     const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, terrainAtlasMode: 'on', record: () => undefined });
@@ -185,6 +231,10 @@ describe('chunk surface renderer ownership', () => {
 });
 
 function voxelKey(position: VoxelCoordinate): string { return `${position.x},${position.y},${position.z}`; }
+
+function blockAt(position: VoxelCoordinate): PlacedBlock {
+  return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: {} };
+}
 
 function cubeTemplates(material: THREE.Material): readonly SurfaceFaceTemplate[] {
   return (['north', 'south', 'east', 'west', 'up', 'down'] as const).map((direction) => {

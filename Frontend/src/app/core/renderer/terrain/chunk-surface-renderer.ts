@@ -25,6 +25,21 @@ export interface TerrainBlockChange {
   readonly afterOpaque: boolean;
 }
 
+export interface TerrainOwnershipEvidence {
+  readonly key: string;
+  readonly chunkKey: string;
+  readonly revision: number;
+  readonly facesEmitted: number;
+  readonly fullyOccluded: boolean;
+}
+
+export interface TerrainApplyResult {
+  readonly changedKeys: readonly string[];
+  readonly rebuiltChunks: readonly string[];
+  readonly representedKeys: readonly string[];
+  readonly failedKeys: readonly string[];
+}
+
 export interface TerrainRendererEvidence {
   readonly terrainChunks: number;
   readonly terrainChunkMeshes: number;
@@ -43,6 +58,8 @@ export interface ChunkSurfaceRendererOptions {
   readonly blocksGroup: THREE.Group;
   readonly record: (name: string, delta?: number) => void;
   readonly terrainAtlasMode?: TerrainAtlasMode;
+  /** Test seam for proving that logical records are not committed early. */
+  readonly shouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
 }
 
 interface TerrainChunkObject {
@@ -60,6 +77,8 @@ export class ChunkSurfaceRenderer {
   private readonly chunks = new Map<string, TerrainChunkObject>();
   private readonly occupancy = new TerrainOccupancy();
   private readonly dirtyChunks = new Set<string>();
+  private readonly ownership = new Map<string, TerrainOwnershipEvidence>();
+  private readonly chunkRevisions = new Map<string, number>();
   private flushTimer?: ReturnType<typeof setTimeout>;
   private rebuildCount = 0;
   private blocksCompiled = 0;
@@ -76,6 +95,8 @@ export class ChunkSurfaceRenderer {
   get chunkMeshCount(): number { return [...this.chunks.values()].reduce((count, chunk) => count + chunk.meshes.length, 0); }
   get logicalBlockCount(): number { return this.records.size; }
   has(key: string): boolean { return this.records.has(key); }
+  ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.ownership.get(key); }
+  isRepresented(key: string): boolean { return this.ownership.has(key); }
 
   syncOccupancy(entries: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[], initial = false): void {
     this.occupancy.replace(entries);
@@ -94,7 +115,7 @@ export class ChunkSurfaceRenderer {
   }
 
   /** Registers one generation/batch and compiles its dirty chunks exactly once. */
-  bulkUpsert(records: readonly TerrainSurfaceRecord[], occupancyEntries?: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[] = [], options: { readonly initial?: boolean; readonly flush?: boolean } = {}): void {
+  bulkUpsert(records: readonly TerrainSurfaceRecord[], occupancyEntries?: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[] = [], options: { readonly initial?: boolean; readonly flush?: boolean } = {}): TerrainApplyResult {
     this.bulkBatches += 1;
     this.options.record('terrainBulkBatches');
     if (options.initial) {
@@ -102,6 +123,8 @@ export class ChunkSurfaceRenderer {
       this.chunks.clear();
       this.records.clear();
       this.recordsByChunk.clear();
+      this.ownership.clear();
+      this.chunkRevisions.clear();
       this.dirtyChunks.clear();
     }
     if (occupancyEntries) this.occupancy.replace(occupancyEntries);
@@ -112,13 +135,13 @@ export class ChunkSurfaceRenderer {
     }
     if (options.initial) for (const key of this.recordsByChunk.keys()) this.dirtyChunks.add(key);
     for (const position of affectedPositions) for (const chunk of relevantTerrainChunks(position)) this.dirtyChunks.add(terrainChunkKey(chunk));
-    if (options.flush === false) this.scheduleFlush();
-    else this.flushNow();
+    if (options.flush === false) { this.scheduleFlush(); return emptyTerrainApplyResult(records.map((record) => record.key)); }
+    return this.flushNow(records.map((record) => record.key));
   }
 
   /** Applies a bounded local voxel delta without replacing records or occupancy. */
-  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true): void {
-    if (!changes.length) return;
+  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true): TerrainApplyResult {
+    if (!changes.length) return emptyTerrainApplyResult();
     for (const change of changes) {
       if (change.before && (!change.after || change.before.key !== change.after.key)) this.removeRecord(change.before);
       if (change.after) this.indexRecord(change.after);
@@ -128,7 +151,9 @@ export class ChunkSurfaceRenderer {
     const dirty = dirtyTerrainChunkKeys(changes.map((change) => change.position));
     this.options.record('incrementalChunkInvalidations', dirty.size);
     for (const key of dirty) this.dirtyChunks.add(key);
-    if (flush) this.flushNow(); else this.scheduleFlush();
+    if (flush) return this.flushNow(changes.map((change) => change.key));
+    this.scheduleFlush();
+    return emptyTerrainApplyResult(changes.map((change) => change.key));
   }
 
   templatesFor(key: string): readonly SurfaceFaceTemplate[] | undefined {
@@ -137,7 +162,7 @@ export class ChunkSurfaceRenderer {
     return templates;
   }
 
-  upsert(record: TerrainSurfaceRecord): boolean {
+  upsert(record: TerrainSurfaceRecord, flush = false): boolean {
     if (record.templates.length !== 6) return false;
     const previous = this.records.get(record.key);
     this.indexRecord(record);
@@ -146,9 +171,12 @@ export class ChunkSurfaceRenderer {
     } else {
       for (const chunk of relevantTerrainChunks(record.block.position)) this.dirtyChunks.add(terrainChunkKey(chunk));
     }
+    if (flush) return this.flushNow([record.key]).representedKeys.includes(record.key);
     this.scheduleFlush();
     return true;
   }
+
+  upsertAndCommit(record: TerrainSurfaceRecord): boolean { return this.upsert(record, true); }
 
   remove(key: string): void {
     const previous = this.records.get(key);
@@ -158,11 +186,21 @@ export class ChunkSurfaceRenderer {
     this.scheduleFlush();
   }
 
-  flushNow(): void {
+  flushNow(changedKeys: readonly string[] = []): TerrainApplyResult {
     if (this.flushTimer !== undefined) { clearTimeout(this.flushTimer); this.flushTimer = undefined; }
     const dirty = [...this.dirtyChunks];
     this.dirtyChunks.clear();
-    for (const key of dirty) this.rebuildChunk(key);
+    const rebuiltChunks: string[] = [];
+    const representedKeys = new Set<string>();
+    const failedKeys = new Set<string>();
+    for (const key of dirty) {
+      const result = this.rebuildChunk(key);
+      if (!result) continue;
+      rebuiltChunks.push(key);
+      for (const item of result.representedKeys) representedKeys.add(item);
+      for (const item of result.failedKeys) failedKeys.add(item);
+    }
+    return { changedKeys: [...new Set(changedKeys)], rebuiltChunks, representedKeys: [...representedKeys], failedKeys: [...failedKeys] };
   }
 
   applyMaterial(callback: (material: THREE.Material) => void): void {
@@ -195,6 +233,8 @@ export class ChunkSurfaceRenderer {
     this.chunks.clear();
     this.records.clear();
     this.recordsByChunk.clear();
+    this.ownership.clear();
+    this.chunkRevisions.clear();
     this.dirtyChunks.clear();
     for (const templates of this.templateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateCache.clear();
@@ -209,13 +249,19 @@ export class ChunkSurfaceRenderer {
     this.flushTimer = setTimeout(() => { this.flushTimer = undefined; this.flushNow(); }, 0);
   }
 
-  private rebuildChunk(key: string): void {
+  private rebuildChunk(key: string): { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[] } | undefined {
     const chunk = parseChunkKey(key);
-    if (!chunk) return;
-    const previous = this.chunks.get(key);
-    if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
+    if (!chunk) return undefined;
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
-    if (!entries.length) return;
+    const previous = this.chunks.get(key);
+    const previousRevision = this.chunkRevisions.get(key) ?? 0;
+    const revision = previousRevision + 1;
+    this.chunkRevisions.set(key, revision);
+    if (!entries.length) {
+      if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
+      this.clearChunkOwnership(key);
+      return { representedKeys: [], failedKeys: [] };
+    }
     const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy, this.terrainAtlas);
     this.rebuildCount += 1;
     this.blocksCompiled += compiled.blocksCompiled;
@@ -225,6 +271,15 @@ export class ChunkSurfaceRenderer {
     this.options.record('terrainBlocksCompiled', compiled.blocksCompiled);
     this.options.record('terrainFacesEmitted', compiled.facesEmitted);
     this.options.record('terrainFacesCulled', compiled.facesCulled);
+    const shouldCommit = this.options.shouldCommitChunk?.(key, compiled) ?? true;
+    const represented = [...compiled.emittedKeys, ...compiled.fullyOccludedKeys];
+    const failed = [...compiled.unrepresentedExposedKeys];
+    if (!shouldCommit || failed.length > 0 && represented.length === 0) {
+      for (const bucket of compiled.buckets) { bucket.geometry.dispose(); if (!bucket.material.userData['sharedTerrainAtlasMaterial']) bucket.material.dispose(); }
+      if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
+      this.clearChunkOwnership(key);
+      return { representedKeys: [], failedKeys: [...new Set([...failed, ...represented])] };
+    }
     const meshes: THREE.Mesh[] = [];
     const bounds = terrainChunkBounds(chunk);
     for (const bucket of compiled.buckets) {
@@ -240,8 +295,28 @@ export class ChunkSurfaceRenderer {
       this.options.blocksGroup.add(mesh);
       meshes.push(mesh);
     }
-    if (meshes.length) this.chunks.set(key, { key, chunk, meshes });
-    else for (const bucket of compiled.buckets) { bucket.geometry.dispose(); if (!bucket.material.userData['sharedTerrainAtlasMaterial']) bucket.material.dispose(); }
+    if (meshes.length) {
+      if (previous) this.disposeChunk(previous);
+      this.chunks.set(key, { key, chunk, meshes });
+    } else if (previous) {
+      this.disposeChunk(previous);
+      this.chunks.delete(key);
+    }
+    this.clearChunkOwnership(key);
+    const emittedKeys = new Set(compiled.emittedKeys);
+    const occludedKeys = new Set(compiled.fullyOccludedKeys);
+    for (const item of represented) {
+      this.ownership.set(item, { key: item, chunkKey: key, revision, facesEmitted: emittedKeys.has(item) ? 1 : 0, fullyOccluded: occludedKeys.has(item) });
+    }
+    if (failed.length) for (const item of failed) this.ownership.delete(item);
+    if (!meshes.length && represented.some((item) => !occludedKeys.has(item))) {
+      return { representedKeys: [], failedKeys: [...new Set([...failed, ...represented.filter((item) => !occludedKeys.has(item))])] };
+    }
+    return { representedKeys: represented, failedKeys: failed };
+  }
+
+  private clearChunkOwnership(chunkKey: string): void {
+    for (const [key, ownership] of this.ownership) if (ownership.chunkKey === chunkKey) this.ownership.delete(key);
   }
 
   private disposeChunk(chunk: TerrainChunkObject): void {
@@ -285,6 +360,9 @@ export class ChunkSurfaceRenderer {
 }
 
 function terrainChunkKeyForPosition(position: VoxelCoordinate): string { return terrainChunkKey(worldToTerrainChunk(position)); }
+function emptyTerrainApplyResult(changedKeys: readonly string[] = []): TerrainApplyResult {
+  return { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [] };
+}
 function parseChunkKey(key: string): TerrainChunkCoordinate | undefined {
   const values = key.split(',').map(Number);
   return values.length === 3 && values.every(Number.isInteger) ? { x: values[0], y: values[1], z: values[2] } : undefined;
