@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { coordinateKey } from '../../domain/coordinates';
+import { coordinateKey, isWithinBounds } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, ProjectGroup, VoxelCoordinate } from '../../domain/project.types';
 import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
@@ -142,7 +142,7 @@ export function validateGroupMove(project: ProjectDocument, groupId: string, off
   const positions = moving.map((block) => block.position);
   const decorationIds = movingDecorations.map((decoration) => decoration.instanceId);
   if (!moving.length && !movingDecorations.length || !group || group.locked || moving.some((block) => isBlockLocked(block, project.groups)) || movingDecorations.some((decoration) => isDecorationLocked(decoration, project.groups))) return { groupId, offset, positions, decorationIds, valid: false, reason: 'locked' };
-  if (!Number.isInteger(offset.x) || !Number.isInteger(offset.y) || !Number.isInteger(offset.z) || moving.some((block) => !inBounds(translated(block.position, offset), project)) || movingDecorations.some((decoration) => !decorationInBounds(translated(decoration.anchor, offset), project.size))) return { groupId, offset, positions, decorationIds, valid: false, reason: 'bounds' };
+  if (!Number.isInteger(offset.x) || !Number.isInteger(offset.y) || !Number.isInteger(offset.z) || moving.some((block) => !isWithinBounds(translated(block.position, offset), project.size)) || movingDecorations.some((decoration) => !decorationInBounds(translated(decoration.anchor, offset), project.size))) return { groupId, offset, positions, decorationIds, valid: false, reason: 'bounds' };
   const movingKeys = new Set(moving.map((block) => coordinateKey(block.position)));
   const occupied = new Set(project.blocks.filter((block) => !movingKeys.has(coordinateKey(block.position))).map((block) => coordinateKey(block.position)));
   if (moving.some((block) => occupied.has(coordinateKey(translated(block.position, offset))))) return { groupId, offset, positions, decorationIds, valid: false, reason: 'collision' };
@@ -164,4 +164,3 @@ function decorationSupportValid(project: ProjectDocument, decoration: PlacedDeco
 }
 
 function translated(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }
-function inBounds(position: VoxelCoordinate, project: ProjectDocument): boolean { return position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < project.size.x && position.y < project.size.y && position.z < project.size.z; }

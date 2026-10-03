@@ -17,6 +17,24 @@ function makeEditor(project: ProjectDocument): { editor: StructureEditorService;
 const project: ProjectDocument = { schemaVersion: 1, id: 'editor', metadata: { name: 'Editor', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [{ kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' } }], groups: [], editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: .28 } };
 
 describe('StructureEditorService mutations', () => {
+  it('rejects negative placement coordinates without changing project or history', () => {
+    const { editor, workspace, history, library, active } = makeEditor({ ...project, blocks: [] });
+    active.select(library.get('minecraft:stone')!);
+    const before = workspace.project();
+    expect(editor.place({ x: -1, y: 0, z: 0 })).toBe(false);
+    expect(editor.place({ x: 0, y: -1, z: 0 })).toBe(false);
+    expect(editor.place({ x: 0, y: 0, z: -1 })).toBe(false);
+    expect(workspace.project()).toBe(before); expect(history.canUndo()).toBe(false);
+  });
+
+  it('rejects a multi-block placement whose paired part crosses a lower boundary atomically', () => {
+    const { editor, workspace, history, library, active } = makeEditor({ ...project, blocks: [] });
+    active.select(library.get('minecraft:red_bed')!);
+    const before = workspace.project();
+    expect(editor.place({ x: 0, y: 0, z: 0 }, { facing: 'west' })).toBe(false);
+    expect(workspace.project()).toBe(before); expect(history.canUndo()).toBe(false);
+  });
+
   it('rotates a Bed pair atomically and moves its head from either selected part', () => {
     const bed: ProjectDocument = { ...project, blocks: [
       { kind: 'resolved', id: 'minecraft:red_bed', namespace: 'minecraft', position: { x: 3, y: 1, z: 3 }, state: { part: 'foot', facing: 'north', occupied: 'false' } },

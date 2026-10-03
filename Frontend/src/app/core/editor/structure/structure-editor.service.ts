@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { coordinateKey } from '../../domain/coordinates';
+import { coordinateKey, isWithinBounds } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, SignBlockEntityData, SignSide, VoxelCoordinate } from '../../domain/project.types';
 import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 import { SelectionService } from '../selection/selection.service';
@@ -32,7 +32,7 @@ export class StructureEditorService {
   place(position: VoxelCoordinate, context?: PlacementContext): boolean {
     return this.history.execute('Place', (project) => {
       const active = this.activeBlock.active();
-      if (!active || !this.inBounds(position, project) || this.find(project, position) || isBlockLocked(project, position)) return undefined;
+      if (!active || !isWithinBounds(position, project.size) || this.find(project, position) || isBlockLocked(project, position)) return undefined;
       const plan = planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id));
       this.lastValidation = plan.validation;
       if (!plan.project) return undefined;
@@ -224,7 +224,6 @@ export class StructureEditorService {
   private rules(): BlockRuleEngine { return new BlockRuleEngine((id) => this.library.get(id)); }
 
   private find(project: ProjectDocument, position: VoxelCoordinate): PlacedBlock | undefined { return project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(position)); }
-  private inBounds(position: VoxelCoordinate, project: ProjectDocument): boolean { return position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < project.size.x && position.y < project.size.y && position.z < project.size.z && Number.isInteger(position.x) && Number.isInteger(position.y) && Number.isInteger(position.z); }
 }
 
 /** Legacy fixture fallback for vanilla signs only; external sources must declare sign capability metadata. */

@@ -94,6 +94,15 @@ describe('GroupService', () => {
     expect(validateGroupMove({ ...moved, groups: [{ ...moved.groups[0], locked: true }] }, 'roof', { x: 1, y: 0, z: 0 }).reason).toBe('locked');
   });
 
+  it('rejects a negative group translation atomically without history', () => {
+    const { groups, selection, history, workspace } = setup();
+    selection.select({ x: 1, y: 1, z: 1 }); groups.create('Roof'); groups.addSelectionToActive(); groups.setMoveOffset('x', -2);
+    const before = workspace.project();
+    expect(groups.movePreview()).toMatchObject({ valid: false, reason: 'bounds' });
+    expect(groups.saveMove()).toBe(false);
+    expect(workspace.project()).toBe(before); expect(history.undo()).toBe(true); expect(workspace.project()!.blocks[0].position).toEqual({ x: 1, y: 1, z: 1 }); expect(workspace.project()!.blocks[0].groupIds).toBeUndefined();
+  });
+
   it('nudges world axes by integer step and resets without mutating the project', () => {
     const { groups, workspace } = setup(); groups.create('Roof');
     groups.setMoveStep(5); groups.nudgeMove('x', 1); groups.nudgeMove('y', -1); groups.nudgeMove('z', 1);

@@ -120,8 +120,18 @@
 .issue-group summary { display: flex; align-items: center; justify-content: space-between; gap: .5rem; cursor: pointer; font-size: .74rem; }
 .issue-group summary strong { color: var(--text-muted); font-size: .7rem; }
 .issue-group.warning-group summary strong, .issue-group.warning-group .issue-reason { color: var(--warning); }
+.issue-group.validation-error, .issue-group.validation-warning { padding: .45rem; border: 1px solid; border-radius: var(--radius-sm); }
+.issue-group.validation-error { border-color: color-mix(in srgb, var(--danger) 56%, var(--border)); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.issue-group.validation-warning { border-color: color-mix(in srgb, var(--warning) 56%, var(--border)); background: color-mix(in srgb, var(--warning) 8%, transparent); }
+.issue-group.validation-error summary::before, .issue-group.validation-warning summary::before { display: inline-grid; width: 1rem; height: 1rem; margin-right: .35rem; place-items: center; border-radius: 50%; font: 700 .65rem/1 var(--font-ui); }
+.issue-group.validation-error summary::before { content: '!'; background: var(--danger); color: var(--surface); }
+.issue-group.validation-warning summary::before { content: '?'; background: var(--warning); color: var(--surface); }
+.issue-group.validation-error summary strong, .issue-group.validation-error .issue-reason { color: var(--danger); }
+.issue-group.validation-warning summary strong, .issue-group.validation-warning .issue-reason { color: var(--warning); }
 .issue-group ul { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
 .issue-group li, .duplicate-conflict { display: grid; gap: .22rem; padding: .5rem .55rem; border-radius: var(--radius-sm); background: var(--surface-raised); font: .68rem/1.35 var(--font-readable); }
+.issue-group li.validation-error, .duplicate-conflict.validation-error { border: 1px solid color-mix(in srgb, var(--danger) 48%, var(--border)); border-left: 3px solid var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--surface-raised)); }
+.issue-group li.validation-warning { border: 1px solid color-mix(in srgb, var(--warning) 48%, var(--border)); border-left: 3px solid var(--warning); background: color-mix(in srgb, var(--warning) 8%, var(--surface-raised)); }
 .issue-group code { overflow-wrap: anywhere; color: var(--text); font-size: .64rem; }
 .issue-field-label { color: var(--text-muted); font: .64rem/1.2 var(--font-ui); }
 .coordinate-cells { display: flex; flex-wrap: wrap; gap: .3rem; }
@@ -130,6 +140,8 @@
 .issue-state { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .4rem; color: var(--text); }
 .issue-state > span { color: var(--text-muted); font: .64rem/1.2 var(--font-ui); }
 .issue-reason { color: var(--text-muted); font-family: var(--font-readable); }
+.validation-error > .issue-reason, .validation-error > strong, .validation-error > summary strong { color: var(--danger); }
+.validation-warning > .issue-reason, .validation-warning > strong, .validation-warning > summary strong { color: var(--warning); }
 .duplicate-conflict { border-left: 2px solid var(--danger); }
 .duplicate-count { color: var(--text-muted); }
 .duplicate-conflict > code { color: var(--text-muted); }

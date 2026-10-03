@@ -20,6 +20,8 @@ describe('decorations domain', () => {
     expect(decorationInBounds({ x: 4, y: 0, z: 0 }, { x: 4, y: 4, z: 4 })).toBe(false);
     expect(supportsDecoration('painting', 'up', true)).toBe(false);
     expect(supportsDecoration('painting', 'north', true)).toBe(true);
+    const negativeAnchor = planDecorationPlacement({ schemaVersion: 1, id: 'bounds', metadata: { name: 'bounds', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 4, y: 4, z: 4 }, structureMode: 'vanilla-structure-block', blocks: [{ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} }], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .28 } }, { kind: 'item-frame', fixed: false }, { x: 0, y: 0, z: 0 }, 'west');
+    expect(negativeAnchor.status).toBe('invalid'); expect(negativeAnchor.reason).toBe('out-of-bounds');
   });
 
   it('produces frame dimensions and vanilla direction NBT', () => {

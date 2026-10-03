@@ -2188,3 +2188,14 @@ BlockRuleEngine path and a single import voxel lookup; unknown behavior is not
 guessed. Positive origin offsets, clearly floating structures, and conservative
 sapling grounding checks are warnings only, so intentional structures are not
 mutated or translated during validation.
+
+## Validation severity and editor coordinate invariant
+
+Structure JSON validation UI now uses one centralized severity map: blocking
+diagnostics use red error treatment across summaries, issue cards, decoration
+diagnostics, duplicates, and import blockers; missing content that remains
+importable and origin/floating/tree diagnostics use yellow warning treatment.
+Editor mutations enforce non-negative integer block positions and decoration
+anchors at the shared history boundary. Placement and group translation still
+validate full planned footprints before commit, so rejected bulk operations do
+not create partial state or history entries.

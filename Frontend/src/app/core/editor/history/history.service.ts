@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { ProjectDocument } from '../../domain/project.types';
+import { projectCoordinatesAreNonNegative } from '../../domain/coordinates';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 
 interface HistoryEntry { readonly label: string; readonly before: ProjectDocument; readonly after: ProjectDocument; }
@@ -17,7 +18,7 @@ export class HistoryService {
     const before = this.workspace.project();
     if (!before) return false;
     const after = change(before);
-    if (!after || after === before) return false;
+    if (!after || after === before || !projectCoordinatesAreNonNegative(after)) return false;
     this.workspace.project.set(after);
     this.undoStack.update((entries) => [...entries, { label, before, after }]);
     this.redoStack.set([]);
