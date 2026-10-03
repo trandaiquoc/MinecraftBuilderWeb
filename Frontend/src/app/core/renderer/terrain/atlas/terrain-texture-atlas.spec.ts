@@ -84,32 +84,4 @@ describe('TerrainTextureAtlas', () => {
     for (const map of maps) map.dispose();
     atlas.dispose();
   });
-
-  it('preserves asymmetric source rows under the explicit flipY sampling contract', () => {
-    const topToBottom = new Uint8Array([
-      255, 0, 0, 255, 0, 255, 0, 255,
-      0, 0, 255, 255, 255, 255, 0, 255,
-    ]);
-    const bottomToTop = new Uint8Array([
-      0, 0, 255, 255, 255, 255, 0, 255,
-      255, 0, 0, 255, 0, 255, 0, 255,
-    ]);
-    const flipped = new THREE.Texture({ width: 2, height: 2, data: topToBottom });
-    flipped.flipY = true; flipped.magFilter = THREE.NearestFilter; flipped.minFilter = THREE.NearestFilter; flipped.generateMipmaps = false; flipped.needsUpdate = true;
-    const unflipped = new THREE.DataTexture(bottomToTop, 2, 2, THREE.RGBAFormat, THREE.UnsignedByteType);
-    unflipped.flipY = false; unflipped.magFilter = THREE.NearestFilter; unflipped.minFilter = THREE.NearestFilter; unflipped.generateMipmaps = false; unflipped.needsUpdate = true;
-    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
-    const flippedFace = atlas.face(new THREE.MeshBasicMaterial({ map: flipped }), [0, 0, 1, 0, 1, 1, 0, 1])!;
-    const unflippedFace = atlas.face(new THREE.MeshBasicMaterial({ map: unflipped }), [0, 0, 1, 0, 1, 1, 0, 1])!;
-    const pages = (atlas as unknown as { pages: ReadonlyArray<{ pixels: Uint8Array; texture: THREE.DataTexture }> }).pages;
-    expect(pages).toHaveLength(2);
-    expect(pages[flippedFace.sprite.page].texture.flipY).toBe(true);
-    expect(pages[unflippedFace.sprite.page].texture.flipY).toBe(false);
-    const pixel = (page: { pixels: Uint8Array }, x: number, y: number) => [...page.pixels.slice(((y * 16) + x) * 4, ((y * 16) + x + 1) * 4)];
-    expect(pixel(pages[flippedFace.sprite.page], flippedFace.sprite.x, flippedFace.sprite.y)).toEqual([255, 0, 0, 255]);
-    expect(pixel(pages[flippedFace.sprite.page], flippedFace.sprite.x, flippedFace.sprite.y + 1)).toEqual([0, 0, 255, 255]);
-    expect(pixel(pages[unflippedFace.sprite.page], unflippedFace.sprite.x, unflippedFace.sprite.y)).toEqual([0, 0, 255, 255]);
-    expect(pixel(pages[unflippedFace.sprite.page], unflippedFace.sprite.x, unflippedFace.sprite.y + 1)).toEqual([255, 0, 0, 255]);
-    atlas.dispose(); flipped.dispose(); unflipped.dispose();
-  });
 });

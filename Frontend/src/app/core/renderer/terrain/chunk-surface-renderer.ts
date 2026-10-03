@@ -14,7 +14,6 @@ export interface TerrainSurfaceRecord {
   readonly block: PlacedBlock;
   readonly templates: readonly SurfaceFaceTemplate[];
   readonly compiledTemplates?: readonly PrecompiledTerrainFace[];
-  readonly generation?: number;
 }
 
 export interface TerrainBlockChange {
@@ -44,12 +43,6 @@ export interface TerrainRendererEvidence {
   readonly terrainAtlasFaces: number;
   readonly terrainAtlasFallbackFaces: number;
   readonly terrainAtlasChunkMeshes: number;
-  readonly activeAtlasGeneration: number;
-  readonly terrainGeneration: number;
-  readonly terrainProviderResets: number;
-  readonly staleTerrainTemplateResultsDiscarded: number;
-  readonly terrainCacheEntries: number;
-  readonly precompiledTerrainCacheEntries: number;
 }
 
 export interface ChunkSurfaceRendererOptions {
@@ -67,7 +60,7 @@ interface TerrainChunkObject {
 /** Owns compiled opaque terrain meshes while leaving project/editor data elsewhere. */
 export class ChunkSurfaceRenderer {
   readonly templateCache = new Map<string, readonly SurfaceFaceTemplate[]>();
-  private compiledTemplateCache = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
+  private readonly compiledTemplateCache = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
   private readonly records = new Map<string, TerrainSurfaceRecord>();
   private readonly recordsByChunk = new Map<string, Map<string, TerrainSurfaceRecord>>();
   private readonly chunks = new Map<string, TerrainChunkObject>();
@@ -82,17 +75,12 @@ export class ChunkSurfaceRenderer {
   private templateCacheHits = 0;
   private bulkBatches = 0;
   private readonly atlas: TerrainTextureAtlas;
-  private terrainGeneration = 0;
-  private terrainProviderResets = 0;
-  private staleTerrainTemplateResultsDiscarded = 0;
-  private precompiledTemplateEntries = 0;
 
   constructor(private readonly options: ChunkSurfaceRendererOptions) { this.atlas = options.atlas ?? new TerrainTextureAtlas(); }
 
   get chunkCount(): number { return this.chunks.size; }
   get chunkMeshCount(): number { return [...this.chunks.values()].reduce((count, chunk) => count + chunk.meshes.length, 0); }
   get logicalBlockCount(): number { return this.records.size; }
-  get generation(): number { return this.terrainGeneration; }
   has(key: string): boolean { return this.records.has(key); }
 
   syncOccupancy(entries: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[], initial = false): void {
@@ -103,18 +91,12 @@ export class ChunkSurfaceRenderer {
     this.scheduleFlush();
   }
 
-  cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[], generation = this.terrainGeneration): boolean {
-    if (generation !== this.terrainGeneration || this.templateCache.has(key)) return false;
-    for (const template of templates) {
-      template.material.userData['terrainTemplateGeneration'] = generation;
-      template.geometry.userData['terrainTemplateGeneration'] = generation;
-    }
+  cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[]): void {
+    if (this.templateCache.has(key)) return;
     this.templateCache.set(key, templates);
     this.compiledTemplateCache.set(templates, precompileTerrainTemplates(templates, this.atlas));
-    this.precompiledTemplateEntries += 1;
     this.templateResolutions += 1;
     this.options.record('terrainTemplateResolutions');
-    return true;
   }
 
   /** Registers one generation/batch and compiles its dirty chunks exactly once. */
@@ -131,7 +113,7 @@ export class ChunkSurfaceRenderer {
     if (occupancyEntries) this.occupancy.replace(occupancyEntries);
     for (const record of records) {
       const previous = this.records.get(record.key);
-      if (!this.indexRecord(record)) continue;
+      this.indexRecord(record);
       for (const position of [previous?.block.position, record.block.position]) if (position) for (const chunk of relevantTerrainChunks(position)) this.dirtyChunks.add(terrainChunkKey(chunk));
     }
     if (options.initial) for (const key of this.recordsByChunk.keys()) this.dirtyChunks.add(key);
@@ -164,7 +146,7 @@ export class ChunkSurfaceRenderer {
   upsert(record: TerrainSurfaceRecord): boolean {
     if (record.templates.length !== 6) return false;
     const previous = this.records.get(record.key);
-    if (!this.indexRecord(record)) return false;
+    this.indexRecord(record);
     if (!previous || coordinateKey(previous.block.position) !== coordinateKey(record.block.position)) {
       for (const position of [previous?.block.position, record.block.position]) if (position) for (const chunk of relevantTerrainChunks(position)) this.dirtyChunks.add(terrainChunkKey(chunk));
     } else {
@@ -211,11 +193,6 @@ export class ChunkSurfaceRenderer {
       terrainBulkBatches: this.bulkBatches,
       ...atlas,
       terrainAtlasChunkMeshes: this.chunkMeshCount,
-      terrainGeneration: this.terrainGeneration,
-      terrainProviderResets: this.terrainProviderResets,
-      staleTerrainTemplateResultsDiscarded: this.staleTerrainTemplateResultsDiscarded,
-      terrainCacheEntries: this.templateCache.size,
-      precompiledTerrainCacheEntries: this.precompiledTemplateEntries,
     };
   }
 
@@ -227,30 +204,12 @@ export class ChunkSurfaceRenderer {
     this.records.clear();
     this.recordsByChunk.clear();
     this.dirtyChunks.clear();
-    const geometries = new Set<THREE.BufferGeometry>();
-    const materials = new Set<THREE.Material>();
-    for (const templates of this.templateCache.values()) for (const template of templates) { geometries.add(template.geometry); materials.add(template.material); }
-    for (const geometry of geometries) geometry.dispose();
-    for (const material of materials) material.dispose();
+    for (const templates of this.templateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateCache.clear();
-    this.compiledTemplateCache = new WeakMap();
-    this.precompiledTemplateEntries = 0;
     this.bulkBatches = 0;
   }
 
-  /**
-   * Cold provider boundary. All provider-dependent terrain resources are
-   * invalidated together so no chunk or compiled face can retain an old atlas.
-   */
-  resetProviderGeneration(): number {
-    this.terrainGeneration += 1;
-    this.terrainProviderResets += 1;
-    this.clear();
-    this.atlas.beginGeneration(this.terrainGeneration);
-    return this.terrainGeneration;
-  }
-
-  noteStaleTemplateResult(): void { this.staleTerrainTemplateResultsDiscarded += 1; }
+  resetAtlas(): void { this.atlas.clear(); }
 
   dispose(): void { this.clear(); this.atlas.dispose(); }
 
@@ -320,24 +279,18 @@ export class ChunkSurfaceRenderer {
     for (const chunk of relevantTerrainChunks(current.block.position)) this.dirtyChunks.add(terrainChunkKey(chunk));
   }
 
-  private indexRecord(record: TerrainSurfaceRecord): boolean {
-    if (record.templates.length !== 6) return false;
-    if (record.generation !== undefined && record.generation !== this.terrainGeneration) return false;
-    if (record.templates.some((template) => {
-      const generation = template.material.userData['terrainTemplateGeneration'] ?? template.geometry.userData['terrainTemplateGeneration'];
-      return typeof generation === 'number' && generation !== this.terrainGeneration;
-    })) return false;
+  private indexRecord(record: TerrainSurfaceRecord): void {
+    if (record.templates.length !== 6) return;
     const previous = this.records.get(record.key);
     if (previous) this.removeFromChunkIndex(previous);
     const compiledTemplates = record.compiledTemplates ?? this.compiledTemplateCache.get(record.templates) ?? precompileTerrainTemplates(record.templates, this.atlas);
-    if (!this.compiledTemplateCache.has(record.templates)) { this.compiledTemplateCache.set(record.templates, compiledTemplates); this.precompiledTemplateEntries += 1; }
+    if (!this.compiledTemplateCache.has(record.templates)) this.compiledTemplateCache.set(record.templates, compiledTemplates);
     const indexed = { ...record, compiledTemplates };
     this.records.set(record.key, indexed);
     const chunkKey = terrainChunkKeyForPosition(indexed.block.position);
     const chunkRecords = this.recordsByChunk.get(chunkKey) ?? new Map<string, TerrainSurfaceRecord>();
     chunkRecords.set(indexed.key, indexed);
     this.recordsByChunk.set(chunkKey, chunkRecords);
-    return true;
   }
 }
 

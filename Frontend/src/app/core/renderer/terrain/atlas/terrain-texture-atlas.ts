@@ -31,7 +31,6 @@ export interface TerrainAtlasEvidence {
   readonly terrainAtlasFaces: number;
   readonly terrainAtlasFallbackFaces: number;
   readonly terrainAtlasChunkMeshes: number;
-  readonly activeAtlasGeneration: number;
 }
 
 interface AtlasPage {
@@ -58,11 +57,8 @@ export class TerrainTextureAtlas {
   private spriteInsertions = 0;
   private terrainAtlasFaces = 0;
   private terrainAtlasFallbackFaces = 0;
-  private generation = 0;
 
   constructor(readonly pageSize = { width: 1024, height: 1024 }, readonly gutter = 1) {}
-
-  get activeGeneration(): number { return this.generation; }
 
   face(material: THREE.Material, uvs: readonly number[]): TerrainAtlasFace | undefined {
     const eligibility = terrainAtlasEligibility(material);
@@ -78,19 +74,13 @@ export class TerrainTextureAtlas {
   }
 
   evidence(): TerrainAtlasEvidence {
-    return { terrainAtlasPages: this.pages.length, terrainAtlasSprites: this.sprites.size, terrainAtlasSpriteCacheHits: this.spriteCacheHits, terrainAtlasSpriteInsertions: this.spriteInsertions, terrainAtlasMaterials: this.materials.size, terrainAtlasFaces: this.terrainAtlasFaces, terrainAtlasFallbackFaces: this.terrainAtlasFallbackFaces, terrainAtlasChunkMeshes: 0, activeAtlasGeneration: this.generation };
+    return { terrainAtlasPages: this.pages.length, terrainAtlasSprites: this.sprites.size, terrainAtlasSpriteCacheHits: this.spriteCacheHits, terrainAtlasSpriteInsertions: this.spriteInsertions, terrainAtlasMaterials: this.materials.size, terrainAtlasFaces: this.terrainAtlasFaces, terrainAtlasFallbackFaces: this.terrainAtlasFallbackFaces, terrainAtlasChunkMeshes: 0 };
   }
 
   clear(): void {
     for (const material of this.materials.values()) material.dispose();
     for (const page of this.pages) page.texture.dispose();
     this.materials.clear(); for (const layout of this.layouts.values()) layout.clear(); this.layouts.clear(); this.pages.length = 0; this.sprites.clear(); this.spriteCacheHits = 0; this.spriteInsertions = 0; this.terrainAtlasFaces = 0; this.terrainAtlasFallbackFaces = 0;
-  }
-
-  /** Clears every atlas-owned resource and starts a new provider generation. */
-  beginGeneration(generation: number): void {
-    this.clear();
-    this.generation = generation;
   }
 
   dispose(): void { this.clear(); }
@@ -119,7 +109,6 @@ export class TerrainTextureAtlas {
     const pixels = new Uint8Array(this.pageSize.width * this.pageSize.height * 4);
     const texture = new THREE.DataTexture(pixels, this.pageSize.width, this.pageSize.height, THREE.RGBAFormat, THREE.UnsignedByteType);
     texture.magFilter = sourceTexture.magFilter; texture.minFilter = sourceTexture.minFilter; texture.generateMipmaps = false; texture.flipY = sourceTexture.flipY; texture.colorSpace = sourceTexture.colorSpace; texture.premultiplyAlpha = sourceTexture.premultiplyAlpha; texture.needsUpdate = true;
-    texture.userData['terrainAtlasGeneration'] = this.generation;
     const page = { index: this.pages.length, localIndex, pixels, texture, samplingKey };
     this.pages.push(page);
     return page;
@@ -132,20 +121,11 @@ export class TerrainTextureAtlas {
     (material as THREE.Material & { map?: THREE.Texture }).map = this.pages[pageIndex].texture;
     material.userData['sharedTerrainAtlasMaterial'] = true;
     material.userData['terrainAtlasPage'] = pageIndex;
-    material.userData['terrainAtlasGeneration'] = this.generation;
     material.needsUpdate = true;
     this.materials.set(key, material);
     return material;
   }
 }
-
-/**
- * Atlas pixel contract: rows are copied in the source texture's native image
- * convention and the page keeps the source `flipY` flag. Browser ImageLoader
- * sources therefore remain top-to-bottom with flipY=true; DataTexture sources
- * with flipY=false must provide their native bottom-to-top row convention.
- * Incompatible sampling classes are kept on separate atlas layouts.
- */
 
 export function remapTerrainUvs(uvs: readonly number[], sprite: TerrainAtlasSprite): readonly number[] {
   const result: number[] = [];
