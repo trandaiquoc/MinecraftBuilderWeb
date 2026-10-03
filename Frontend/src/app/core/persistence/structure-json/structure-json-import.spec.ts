@@ -104,6 +104,16 @@ describe('Structure JSON import validation preview', () => {
     expect(progressCalls).toBe(1);
   });
 
+  it('validates a generated 100k source cooperatively with correct counts', async () => {
+    const blocks = Array.from({ length: 100_000 }, (_, index) => ({ id: stone.id, x: index % 1000, y: Math.floor(index / 1000), z: 0 }));
+    let progressCalls = 0;
+    const result = await validateParsedStructureJsonPreviewAsync({ format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks, decorations: [] }, { x: 1000, y: 100, z: 1 }, () => stone, () => { progressCalls += 1; });
+    expect(result?.validBlocks).toBe(100_000);
+    expect(result?.duplicateCoordinates).toBe(0);
+    expect(progressCalls).toBe(Math.ceil(blocks.length / STRUCTURE_JSON_VALIDATION_CHUNK_SIZE));
+    expect(progressCalls).toBeGreaterThan(1);
+  }, 30_000);
+
   it('enforces enabled block limits through canonical placeable identity', () => {
     const get = (id: string) => id === dragonWallHead.id ? dragonWallHead : undefined;
     const value = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: dragonWallHead.id, x: 0, y: 0, z: 0 }], decorations: [] } as const;

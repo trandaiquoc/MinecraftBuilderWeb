@@ -2,6 +2,7 @@ import { coordinateKey } from '../../domain/coordinates';
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import { decorationAabb, decorationOverlaps } from '../../decorations/placement/decoration-placement';
+import { CooperativeWorkBudget, yieldToBrowser } from '../../assets/cooperative-yield';
 
 export type SpatialAabb = ReturnType<typeof decorationAabb>;
 
@@ -19,6 +20,24 @@ export interface DecorationSpatialEntry {
 
 export interface DecorationSpatialIndex {
   readonly byCell: Map<string, DecorationSpatialEntry[]>;
+}
+
+export interface SpatialBuildCancellation { readonly signal?: AbortSignal; readonly isCancelled?: () => boolean; }
+
+export async function buildStructureImportSpatialContextAsync(blocks: readonly PlacedBlock[], decorations: readonly PlacedDecoration[], cancellation?: SpatialBuildCancellation): Promise<StructureImportSpatialContext | undefined> {
+  const budget = new CooperativeWorkBudget(8, 4096);
+  const blockByCoordinate = new Map<string, PlacedBlock>();
+  const occupiedCoordinates = new Set<string>();
+  for (let index = 0; index < blocks.length; index += 1) {
+    const key = coordinateKey(blocks[index].position); blockByCoordinate.set(key, blocks[index]); occupiedCoordinates.add(key);
+    if (await spatialCheckpoint(budget, index + 1, cancellation)) return undefined;
+  }
+  const decorationIndex = buildDecorationSpatialIndex([]);
+  for (let index = 0; index < decorations.length; index += 1) {
+    addDecorationToSpatialIndex(decorationIndex, decorations[index]);
+    if (await spatialCheckpoint(budget, index + 1, cancellation)) return undefined;
+  }
+  return { blockByCoordinate, occupiedCoordinates, decorations: decorationIndex };
 }
 
 export function buildStructureImportSpatialContext(blocks: readonly PlacedBlock[], decorations: readonly PlacedDecoration[]): StructureImportSpatialContext {
@@ -75,4 +94,11 @@ export function aabbCells(box: SpatialAabb): readonly string[] {
 
 export function intersectsBlock(box: SpatialAabb, position: VoxelCoordinate): boolean {
   return box.min.x < position.x + 1 && box.max.x > position.x && box.min.y < position.y + 1 && box.max.y > position.y && box.min.z < position.z + 1 && box.max.z > position.z;
+}
+
+async function spatialCheckpoint(budget: CooperativeWorkBudget, processed: number, cancellation?: SpatialBuildCancellation): Promise<boolean> {
+  if (cancellation?.signal?.aborted || cancellation?.isCancelled?.()) return true;
+  if (!budget.shouldYieldNow()) return false;
+  budget.reset(); await yieldToBrowser();
+  return Boolean(cancellation?.signal?.aborted || cancellation?.isCancelled?.());
 }

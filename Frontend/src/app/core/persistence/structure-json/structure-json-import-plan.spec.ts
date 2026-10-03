@@ -3,9 +3,9 @@ import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { HistoryService } from '../../editor/history/history.service';
 import { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
-import { validateParsedStructureJsonPreview, validateStructureJsonPreview } from './structure-json-import';
+import { validateParsedStructureJsonPreview, validateParsedStructureJsonPreviewAsync, validateStructureJsonPreview } from './structure-json-import';
 import type { StructureJsonBlock, StructureJson } from './structure-json';
-import { applyStructureJsonImportPlan, buildStructureJsonImportPlan } from './structure-json-import-plan';
+import { applyStructureJsonImportPlan, buildStructureJsonImportPlan, buildStructureJsonImportPlanAsync } from './structure-json-import-plan';
 
 const stone: BlockDefinition = { id: 'minecraft:stone', namespace: 'minecraft', displayName: 'Stone', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', behaviorSupport: 'full', visualSupport: 'real', visualClassification: 'standard-json', defaultStateSource: 'authoritative-report' };
 const stairs: BlockDefinition = { ...stone, id: 'minecraft:oak_stairs', displayName: 'Oak Stairs', defaultState: { facing: 'north', half: 'bottom' }, stateDefinitions: [{ name: 'facing', values: ['north', 'south'] }, { name: 'half', values: ['top', 'bottom'] }] };
@@ -26,6 +26,25 @@ function source(blocks: readonly StructureJsonBlock[], name?: string): Structure
 function planFor(value: ReturnType<typeof source>, project: ProjectDocument, mode: Parameters<typeof buildStructureJsonImportPlan>[4]) { const validation = validateStructureJsonPreview(JSON.stringify(value), project.size, definitions); return buildStructureJsonImportPlan(value, validation, project, definitions, mode); }
 
 describe('Structure JSON import plan', () => {
+  it('builds the same Replace, Merge, and New-group plans cooperatively', async () => {
+    const value = source([{ id: stone.id, x: 0, y: 0, z: 0 }, { id: stairs.id, x: 1, y: 0, z: 0, state: { facing: 'south' } }], 'Async');
+    const validation = validateStructureJsonPreview(JSON.stringify(value), base.size, definitions);
+    const asyncValidation = await validateParsedStructureJsonPreviewAsync(value, base.size, definitions, undefined, undefined, base);
+    expect(asyncValidation).toEqual(validation);
+    for (const mode of ['replace', 'merge', 'new-group'] as const) {
+      const sync = buildStructureJsonImportPlan(value, validation, base, definitions, mode);
+      const cooperative = await buildStructureJsonImportPlanAsync(value, validation, base, definitions, mode);
+      expect(cooperative).toEqual(sync);
+    }
+  });
+
+  it('observes cancellation while planning a large source', async () => {
+    const value = source(Array.from({ length: 5000 }, (_, index) => ({ id: stone.id, x: index % 100, y: Math.floor(index / 100) % 50, z: Math.floor(index / 5000) })));
+    const validation = validateStructureJsonPreview(JSON.stringify(value), { x: 100, y: 50, z: 2 }, definitions);
+    let cancelled = false;
+    const result = await buildStructureJsonImportPlanAsync(value, validation, { ...base, size: { x: 100, y: 50, z: 2 } }, definitions, 'replace', undefined, undefined, { cancellation: { isCancelled: () => cancelled }, onProgress: () => { cancelled = true; } });
+    expect(result).toBeUndefined();
+  });
   it('materializes resolved defaults and preserves missing block data', () => {
     const value = source([{ id: stairs.id, x: 0, y: 0, z: 0, state: { facing: 'south' } }, { id: 'mod:marble', x: 1, y: 0, z: 0, state: { variant: 'polished' } }]);
     const plan = planFor(value, base, 'replace');

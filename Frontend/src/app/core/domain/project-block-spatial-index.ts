@@ -15,6 +15,9 @@ export class ProjectBlockSpatialIndex implements ReadonlyBlockLookup {
     for (const block of blocks) this.blocksByPosition.set(coordinateKey(block.position), block);
   }
 
+  /** Adds a block while an ephemeral import index is built cooperatively. */
+  add(block: PlacedBlock): void { this.blocksByPosition.set(coordinateKey(block.position), block); }
+
   get(position: VoxelCoordinate): PlacedBlock | undefined {
     this._lookups += 1;
     return this.blocksByPosition.get(coordinateKey(position));
