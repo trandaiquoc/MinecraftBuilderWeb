@@ -2212,3 +2212,18 @@ under `renderer/batching`. ThreeViewportEngine remains the coordinator and keeps
 the existing public API, diagnostics, visual roles, swap-back ownership, and
 hydration behavior. Chunk surface meshing, atlases, workers, and new render
 algorithms remain deferred to later performance prompts.
+
+## Compiled terrain chunk surfaces
+
+Normal 3D viewport blocks that pass the existing positive opaque full-cube
+proof now use render-only 16x16x16 terrain chunks. Exposed faces are compiled
+into BufferGeometry buckets using the existing resolved face templates and
+strict material compatibility keys. Interior and cross-chunk neighbors are
+culled through a dedicated occupancy map. SurfaceFaceBatchRenderer remains the
+conservative fallback for signatures that cannot be compiled safely; fluids,
+transparent, reference, special, and unknown content remain on legacy paths.
+Terrain-eligible voxels remain in the hydration set even when the legacy
+interior-culling diagnostic identifies them as enclosed; the compiled mesher
+performs the authoritative six-neighbor surface cull.
+Project coordinates and DDA picking are unchanged. Texture atlases, greedy
+meshing, workers, and dirty-chunk upstream discovery remain deferred.

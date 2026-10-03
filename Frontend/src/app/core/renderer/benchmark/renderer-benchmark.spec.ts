@@ -117,15 +117,21 @@ describe('renderer incremental baseline', () => {
     const engine = new ThreeViewportEngine(diagnostics);
     const provider = rendererBenchmarkVisualProvider();
     engine.setVisualProvider(provider);
-    engine.update(project, undefined);
+    engine.update(project, undefined, { exposedFaceRendering: true });
     await settleHydration();
     const counters = diagnostics.snapshot();
-    // The fixture intentionally includes a transparent visual and a multipart
-    // fence that remain non-instanced; opaque cube/stair members still batch.
-    expect(counters.instancedMembers).toBeGreaterThan(project.blocks.length / 3);
+    // The fixture intentionally includes transparent and multipart visuals that
+    // remain on the legacy path; verified opaque cubes compile into terrain
+    // chunks while the remaining compatible visuals still use instancing.
+    const evidence = engine.performanceEvidence();
+    expect(evidence.terrainLogicalBlocks).toBeGreaterThan(0);
+    expect(evidence.terrainChunkMeshes).toBeLessThan(project.blocks.length / 50);
+    expect(evidence.terrainFacesEmitted).toBeGreaterThan(0);
+    expect(counters.instancedMembers).toBeGreaterThan(0);
     expect(counters.instancedMembers).toBeLessThan(project.blocks.length);
     expect(counters.reusableTemplateCreations).toBeGreaterThan(0);
-    expect(counters.reusableTemplateCacheHits).toBeGreaterThan(project.blocks.length / 3);
+    expect(counters.reusableTemplateCacheHits).toBeGreaterThan(0);
+    expect(evidence.terrainTemplateResolutions).toBeLessThan(project.blocks.length / 100);
     expect(counters.providerObjectCreations).toBeLessThan(project.blocks.length);
     expect(counters.instancedMeshCount).toBeLessThan(project.blocks.length / 50);
     engine.dispose();
