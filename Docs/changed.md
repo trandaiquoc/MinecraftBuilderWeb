@@ -1162,6 +1162,25 @@ snap helper supports verified hanging-sign candidates below a vertical Chain or
 another vanilla hanging sign; normal occupancy and bounds validation remain
 authoritative.
 
+## 44.1 Incremental connected-block and pending-picking correctness
+
+[x] A committed block remains pickable while its final visual is pending. DDA
+precise candidates now raycast the candidate's final, fallback, instanced,
+surface-face, or placeholder ownership without requiring a `renderedBlocks`
+entry; placeholder instance metadata remains the exact voxel owner.
+
+[x] Local mutation hints are bounded exact before/after deltas. They include
+derived wall, fence, stair, and other neighbor state changes, omit unchanged
+support positions, and remain safe to invert for undo/redo without a full
+ProjectDocument diff.
+
+[x] Ceiling hanging signs may chain from another verified hanging sign. This is
+distinct from a solid ceiling: the child remains `attached=false`, while
+solid-block and vertical-chain support semantics remain separate and verified.
+The contract is based on the existing Java 1.21.1 placement fixture and the
+mapped `CeilingHangingSignBlock` `ATTACHED`/`shouldTryToChainAnotherHangingSign`
+API surface, not registry-name inference.
+
 # 45. Versioned Bed visuals and thumbnail reliability
 
 [x] Special model rendering now consumes a renderer-independent ModelPart-style

@@ -269,7 +269,7 @@ export class BlockRuleEngine {
       const support = find(source, supportPosition!);
       if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition!] };
       const supportBehavior = this.definition(support.id)?.behavior;
-      return this.isSupportBlock(support.id) || supportBehavior?.kind === 'vertical-chain' && support.state[supportBehavior.axisProperty] === supportBehavior.verticalAxis
+      return this.isSupportBlock(support.id) || compatibleHangingSign(support, this.definition) || supportBehavior?.kind === 'vertical-chain' && support.state[supportBehavior.axisProperty] === supportBehavior.verticalAxis
         ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, supportPosition!] }
         : !supportBehavior ? { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition!] }
           : { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition!] };
@@ -387,6 +387,10 @@ function clockwise(direction: string): string { return ({ north: 'east', east: '
 function counterClockwise(direction: string): string { return ({ north: 'west', west: 'south', south: 'east', east: 'north' } as Record<string, string>)[direction] ?? direction; }
 function compatibleWallHanging(block: PlacedBlock | undefined, facing: string, definition: BlockDefinitionLookup): boolean {
   return !!block && definition(block.id)?.behavior?.kind === 'wall-hanging-sign' && axis(block.state['facing']) === axis(facing);
+}
+/** A ceiling hanging sign may be chained from another compatible ceiling sign. */
+function compatibleHangingSign(block: PlacedBlock | undefined, definition: BlockDefinitionLookup): boolean {
+  return !!block && definition(block.id)?.behavior?.kind === 'hanging-sign';
 }
 /** Java RotationPropertyHelper equivalent for SignBlock placement: player yaw + 180. */
 export function minecraftSignRotation(yaw: number | undefined): string {

@@ -1,22 +1,60 @@
 import { describe, expect, it } from 'vitest';
 import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
-import { ProjectDocument } from '../../domain/project.types';
+import { PlacedBlock, ProjectDocument } from '../../domain/project.types';
 import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
 import { isSignId, signLines, StructureEditorService } from './structure-editor.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
 import type { ItemStackData } from '../../items/item-stack.types';
+import { ProjectMutationHintService } from '../mutations/project-mutation-hint.service';
 
-function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService } {
-  const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const history = new HistoryService(workspace); const library = new BlockLibraryService(active);
-  workspace.project.set(project); return { editor: new StructureEditorService(workspace, active, selection, history, library), workspace, history, selection, library, active };
+function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService; hints: ProjectMutationHintService } {
+  const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const hints = new ProjectMutationHintService(); const history = new HistoryService(workspace, hints); const library = new BlockLibraryService(active);
+  workspace.project.set(project); return { editor: new StructureEditorService(workspace, active, selection, history, library), workspace, history, selection, library, active, hints };
 }
 
 const project: ProjectDocument = { schemaVersion: 1, id: 'editor', metadata: { name: 'Editor', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [{ kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' } }], groups: [], editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: .28 } };
 
 describe('StructureEditorService mutations', () => {
+  it('records wall and fence neighbor state changes as exact bounded deltas', () => {
+    const wallA: PlacedBlock = { kind: 'resolved', id: 'minecraft:cobblestone_wall', namespace: 'minecraft', position: { x: 2, y: 1, z: 2 }, state: { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true', waterlogged: 'false' } };
+    const wallProject = { ...project, blocks: [wallA] };
+    const wall = makeEditor(wallProject); wall.active.select(wall.library.get('minecraft:cobblestone_wall')!);
+    expect(wall.editor.place({ x: 3, y: 1, z: 2 })).toBe(true);
+    const wallHint = wall.hints.consume(wall.workspace.project(), 'test')!;
+    expect(wallHint.changes.map((change) => `${change.position.x},${change.position.y},${change.position.z}`)).toEqual(expect.arrayContaining(['2,1,2', '3,1,2']));
+    expect(wallHint.changes.find((change) => change.position.x === 2)?.after?.state['east']).toBe('low');
+    expect(wall.history.undo()).toBe(true);
+    expect(wall.workspace.project()!.blocks[0].state['east']).toBe('none');
+    expect(wall.history.redo()).toBe(true);
+    expect(wall.workspace.project()!.blocks.find((block) => block.position.x === 2)?.state['east']).toBe('low');
+
+    const fenceA: PlacedBlock = { kind: 'resolved', id: 'minecraft:oak_fence', namespace: 'minecraft', position: { x: 2, y: 1, z: 2 }, state: { north: 'false', east: 'false', south: 'false', west: 'false', waterlogged: 'false' } };
+    const fenceProject = { ...project, blocks: [fenceA] };
+    const fence = makeEditor(fenceProject); fence.active.select(fence.library.get('minecraft:oak_fence')!);
+    expect(fence.editor.place({ x: 3, y: 1, z: 2 })).toBe(true);
+    const fenceHint = fence.hints.consume(fence.workspace.project(), 'test')!;
+    expect(fenceHint.changes.find((change) => change.position.x === 2)?.after?.state['east']).toBe('true');
+    expect(fence.editor.delete({ x: 3, y: 1, z: 2 })).toBe(true);
+    const deleteHint = fence.hints.consume(fence.workspace.project(), 'test-delete')!;
+    expect(deleteHint.changes.find((change) => change.position.x === 2)?.before?.state['east']).toBe('true');
+    expect(deleteHint.changes.find((change) => change.position.x === 2)?.after?.state['east']).toBe('false');
+    expect(deleteHint.changes.some((change) => change.position.x === 2 && !change.before && change.after)).toBe(false);
+    expect(fence.history.undo()).toBe(true);
+    expect(fence.workspace.project()!.blocks.find((block) => block.position.x === 2)?.state['east']).toBe('true');
+    expect(fence.history.redo()).toBe(true);
+    expect(fence.workspace.project()!.blocks.find((block) => block.position.x === 2)?.state['east']).toBe('false');
+
+    const stairCenter: PlacedBlock = { kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position: { x: 2, y: 1, z: 2 }, state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'true' } };
+    const stairs = makeEditor({ ...project, blocks: [stairCenter] });
+    stairs.active.set({ id: 'minecraft:oak_stairs', state: { facing: 'west', half: 'bottom', shape: 'straight', waterlogged: 'false' }, support: 'full' });
+    expect(stairs.editor.place({ x: 2, y: 1, z: 1 })).toBe(true);
+    const stairHint = stairs.hints.consume(stairs.workspace.project(), 'test-stairs')!;
+    expect(stairHint.changes.find((change) => change.position.x === 2 && change.position.z === 2)?.after?.state['shape']).toBe('outer_left');
+  });
+
   it('rejects negative placement coordinates without changing project or history', () => {
     const { editor, workspace, history, library, active } = makeEditor({ ...project, blocks: [] });
     active.select(library.get('minecraft:stone')!);

@@ -42,6 +42,12 @@ describe('verified Java 1.21.1 sign placement', () => {
     expect(engine.place(chain, block('minecraft:oak_hanging_sign', { x: 3, y: 2, z: 3 }), { faceNormal: { x: 0, y: -1, z: 0 } }).project?.blocks.at(-1)?.state['attached']).toBe('false');
     expect(engine.place(project, block('minecraft:oak_hanging_sign', { x: 3, y: 2, z: 3 }), undefined).validation.status).toBe('valid');
   });
+  it('allows a ceiling hanging sign to chain from another compatible hanging sign without changing attached semantics', () => {
+    const upper = { ...base, blocks: [block('minecraft:oak_hanging_sign', { x: 3, y: 3, z: 3 })] };
+    const result = engine.place(upper, block('minecraft:oak_hanging_sign', { x: 3, y: 2, z: 3 }), { faceNormal: { x: 0, y: -1, z: 0 } });
+    expect(result.validation.status).toBe('valid');
+    expect(result.project?.blocks.find((entry) => entry.position.y === 2)?.state['attached']).toBe('false');
+  });
   it('maps Java cardinal camera yaw and diagonal yaw to the verified sixteen rotations', () => {
     expect([minecraftSignRotation(180), minecraftSignRotation(-90), minecraftSignRotation(0), minecraftSignRotation(90)]).toEqual(['0', '4', '8', '12']);
     expect(minecraftSignRotation(22.5)).toBe('9');

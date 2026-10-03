@@ -2108,13 +2108,19 @@ export class ThreeViewportEngine {
     for (const candidate of candidates) {
       const key = coordinateKey(candidate.position);
       const entry = this.renderedBlocks.get(key);
-      if (!entry) continue;
       const objects: THREE.Object3D[] = [];
       const add = (object: THREE.Object3D | undefined) => { if (object && !objects.some((existing) => existing.uuid === object.uuid)) objects.push(object); };
-      add(entry.fallback);
-      add(entry.object);
-      for (const membership of entry.surfaceFaceMemberships ?? this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
-      if (entry.instanceBatchKey) for (const part of this.instanceBatches.get(entry.instanceBatchKey)?.parts ?? []) add(part);
+      // A committed block can be represented only by a pending placeholder.
+      // Keep candidate geometry scoped to this voxel, without requiring a
+      // final renderedBlocks entry before considering that representation.
+      if (entry) {
+        add(entry.fallback);
+        add(entry.object);
+        for (const membership of entry.surfaceFaceMemberships ?? this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
+        if (entry.instanceBatchKey) for (const part of this.instanceBatches.get(entry.instanceBatchKey)?.parts ?? []) add(part);
+      } else {
+        for (const membership of this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
+      }
       const placeholder = this.placeholderIndices.get(key);
       if (placeholder) add(this.placeholderBatches.get(placeholder.batchKey)?.mesh);
       if (!objects.length) continue;

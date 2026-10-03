@@ -289,6 +289,21 @@ describe('camera movement input contract', () => {
     normal.geometry.dispose(); normal.material.dispose(); placeholder.geometry.dispose(); placeholder.material.dispose(); final.geometry.dispose(); final.material.dispose();
   });
 
+  it('precisely picks a committed placeholder candidate before a block behind it', () => {
+    const engine = new ThreeViewportEngine();
+    const wall: PlacedBlock = { kind: 'resolved', id: 'minecraft:cobblestone_wall', namespace: 'minecraft', position: { x: 1, y: 0, z: 0 }, state: { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true', waterlogged: 'false' } };
+    const solid: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 3, y: 0, z: 0 }, state: {} };
+    const project = { ...rendererBenchmarkProject('small'), size: { x: 6, y: 1, z: 1 }, blocks: [wall, solid], decorations: [] };
+    engine.update(project, undefined);
+    const internal = engine as unknown as {
+      raycaster: THREE.Raycaster;
+      ddaPick: (project: ProjectDocument) => { position: VoxelCoordinate } | undefined;
+    };
+    internal.raycaster.set(new THREE.Vector3(-1, .5, .5), new THREE.Vector3(1, 0, 0));
+    expect(internal.ddaPick(project)?.position).toEqual({ x: 1, y: 0, z: 0 });
+    engine.dispose();
+  });
+
   it('adds voxel translation without replacing a special visual local transform', () => {
     const visual = new SpecialBlockVisualRegistry().resolve({ kind: 'resolved', id: 'minecraft:skeleton_skull', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { rotation: '0' } })!.create({ kind: 'resolved', id: 'minecraft:skeleton_skull', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { rotation: '0' } });
     translateVisualToVoxel(visual, { x: 7, y: 3, z: -2 });
@@ -1215,8 +1230,30 @@ describe('incremental project mutation reconciliation', () => {
     expect(counters.spatialIndexBuilds).toBe(beforeCounters.spatialIndexBuilds);
     expect(counters.incrementalBlockReconciles).toBe(beforeCounters.incrementalBlockReconciles + 1);
     expect(counters.incrementalChangedVoxels).toBeGreaterThan(0);
+    const spatialIndex = (engine as unknown as { spatialIndex: { get: (position: VoxelCoordinate) => PlacedBlock | undefined } }).spatialIndex;
+    expect(spatialIndex.get(before.position)).toEqual(after);
     engine.dispose();
   });
+
+  it('keeps a 100k local mutation on the bounded incremental path', () => {
+    const blocks: PlacedBlock[] = [];
+    for (let y = 0; y < 10; y += 1) for (let z = 0; z < 100; z += 1) for (let x = 0; x < 100; x += 1) blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+    const project = { ...rendererBenchmarkProject('small'), id: 'hint-100k', size: { x: 100, y: 10, z: 100 }, blocks, decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, undefined);
+    const beforeCounters = engine.rendererCounters();
+    const before = blocks[50_000];
+    const after = { ...before, state: { powered: 'true' } };
+    const next = { ...project, blocks: blocks.map((block, index) => index === 50_000 ? after : block) };
+    engine.update(next, undefined, {}, blockMutationHint([{ position: before.position, before, after }], '100k-local'));
+    const counters = engine.rendererCounters();
+    expect(counters.fullVisibleScans).toBe(beforeCounters.fullVisibleScans);
+    expect(counters.spatialIndexBuilds).toBe(beforeCounters.spatialIndexBuilds);
+    expect(counters.fullSceneRebuilds).toBe(beforeCounters.fullSceneRebuilds);
+    expect(counters.occupancyFullRebuilds).toBe(beforeCounters.occupancyFullRebuilds);
+    expect(counters.incrementalBlockReconciles).toBe(beforeCounters.incrementalBlockReconciles + 1);
+    engine.dispose();
+  }, 30_000);
 });
 
 describe('reusable instance template compilation', () => {
