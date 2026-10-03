@@ -92,15 +92,15 @@ export class MinecraftStructureExportService {
   private readonly codec = new NbtifyMinecraftJavaCodec();
   private readonly itemCatalog = inject(ItemCatalogService);
 
-  defaults(project = this.workspace.project()): ReturnType<typeof deriveStructureExportDefaults> | undefined {
+  defaults(project = this.workspace.materializeRuntime()): ReturnType<typeof deriveStructureExportDefaults> | undefined {
     return project ? deriveStructureExportDefaults(project, this.preferences.preferences().structureExport) : undefined;
   }
 
-  preflight(mode: StructureExportMode, form: StructureExportForm, project = this.workspace.project()): StructureExportPreflight {
+  preflight(mode: StructureExportMode, form: StructureExportForm, project = this.workspace.materializeRuntime()): StructureExportPreflight {
     return preflightStructureExport(project, mode, form);
   }
 
-  async download(mode: StructureExportMode, form: StructureExportForm, project = this.workspace.project()): Promise<StructureExportDownloadResult> {
+  async download(mode: StructureExportMode, form: StructureExportForm, project = this.workspace.materializeRuntime()): Promise<StructureExportDownloadResult> {
     const result = await prepareAndDownloadStructure(project, mode, form, this.codec, this.browserDownload, (id) => this.itemCatalog.get(id)?.maxStackSize);
     if (result.ok) this.preferences.setStructureExport(mode === 'standalone' ? { namespace: form.namespace } : { namespace: form.namespace, archiveName: form.archiveName, description: form.description });
     return result;

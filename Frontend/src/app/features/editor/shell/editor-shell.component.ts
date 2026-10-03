@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
+import { ProjectDocument } from '../../../core/domain/project.types';
 import { BlockBrowserComponent } from '../blocks/block-browser/block-browser.component';
 import { DecorationBrowserComponent } from '../decorations/decoration-browser/decoration-browser.component';
 import { QuickBlockBarComponent } from '../quick-bar/quick-block-bar.component';
@@ -70,7 +71,7 @@ export class EditorShellComponent implements OnDestroy {
   private readonly yLayerViewport = viewChild(YLayerComponent);
   protected readonly selectedDecoration = this.decorations.selected;
   protected readonly presets: readonly CameraPreset[] = ['perspective', 'top', 'front', 'back', 'left', 'right'];
-  protected readonly logicalSelectionCount = computed(() => this.selection.count(this.workspace.project()));
+  protected readonly logicalSelectionCount = computed(() => { const project = this.workspace.project(); return this.selection.count(project, this.workspace.ensureRuntime(project)); });
   protected readonly hasEditorSelection = computed(() => hasEditorSelectionState(!!this.selectedDecoration(), this.logicalSelectionCount(), !!this.selection.box() || this.selection.kind() === 'all'));
   protected readonly focusSelectionAvailable = computed(() => !!this.selectedDecoration() || this.selection.hasAny(this.workspace.project()));
   protected readonly leftSidebarTab = signal<'blocks' | 'decorations' | 'groups'>('blocks');
@@ -83,6 +84,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly diagnosticsOpen = signal(false);
   protected readonly structureJsonExportOpen = signal(false);
   protected readonly structureJsonImportOpen = signal(false);
+  protected readonly structureJsonProject = signal<ProjectDocument | undefined>(undefined);
   protected readonly structureNbtExportOpen = signal(false);
   protected readonly leftDrawerOpen = signal(false);
   protected readonly rightDrawerOpen = signal(false);
@@ -234,13 +236,13 @@ export class EditorShellComponent implements OnDestroy {
       this.deletingProject.set(false);
     }
   }
-  protected openStructureJsonImport(): void { this.closeMenus(); this.structureJsonImportOpen.set(true); }
-  protected closeStructureJsonImport(): void { this.structureJsonImportOpen.set(false); }
+  protected openStructureJsonImport(): void { this.closeMenus(); const snapshot = this.workspace.materializeRuntime(); if (snapshot) { this.structureJsonProject.set(snapshot); this.structureJsonImportOpen.set(true); } }
+  protected closeStructureJsonImport(): void { this.structureJsonImportOpen.set(false); this.structureJsonProject.set(undefined); }
   protected showUnavailableFeature(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('featureUnavailable'), this.i18n.t('featureUnavailable')); }
   protected openStructureNbtExport(): void { this.closeMenus(); this.structureNbtExportOpen.set(true); }
   protected closeStructureNbtExport(): void { this.structureNbtExportOpen.set(false); }
-  protected openStructureJsonExport(): void { this.closeMenus(); this.structureJsonExportOpen.set(true); }
-  protected closeStructureJsonExport(): void { this.structureJsonExportOpen.set(false); }
+  protected openStructureJsonExport(): void { this.closeMenus(); const snapshot = this.workspace.materializeRuntime(); if (snapshot) { this.structureJsonProject.set(snapshot); this.structureJsonExportOpen.set(true); } }
+  protected closeStructureJsonExport(): void { this.structureJsonExportOpen.set(false); this.structureJsonProject.set(undefined); }
   protected showControlsHelp(): void { this.closeMenus(); this.controlsHelpOpen.set(true); }
   protected showAbout(): void { this.closeMenus(); void this.dialogs.info(this.i18n.t('about'), this.i18n.t('aboutText')); }
   protected clearSelection(): void { this.selection.clear(); this.decorations.clearSelection(); this.closeMenus(); }

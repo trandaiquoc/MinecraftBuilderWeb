@@ -59,19 +59,19 @@ export class DecorationService {
     const plan = this.planFromSupport(support, facing);
     if (!plan.decoration || plan.status !== 'valid') return false;
     const decoration: PlacedDecoration = { ...plan.decoration, instanceId: newInstanceId() };
-    return this.history.execute(active.kind === 'painting' ? 'Place painting' : 'Place item frame', (current) => {
+    return this.history.executeDelta(active.kind === 'painting' ? 'Place painting' : 'Place item frame', (current) => {
       const decorations = current.decorations ?? [];
       if (decorations.some((entry) => entry.anchor.x === decoration.anchor.x && entry.anchor.y === decoration.anchor.y && entry.anchor.z === decoration.anchor.z && entry.facing === facing)) return undefined;
-      return { ...current, decorations: [...decorations, decoration], metadata: { ...current.metadata, updatedAt: new Date().toISOString() } };
+      return { delta: {}, project: { decorations: [...decorations, decoration], metadata: { ...current.metadata, updatedAt: new Date().toISOString() } } };
     });
   }
 
   delete(id: string): boolean {
-    return this.history.execute('Delete decoration', (project) => {
+    return this.history.executeDelta('Delete decoration', (project) => {
       const current = project.decorations?.find((entry) => entry.instanceId === id);
       if (!current || isDecorationLocked(current, project.groups)) return undefined;
       this.selectedId.set(undefined);
-      return { ...project, decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+      return { delta: {}, project: { decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
     });
   }
 
@@ -105,13 +105,13 @@ export class DecorationService {
     const support = { x: current.anchor.x - (current.facing === 'east' ? 1 : current.facing === 'west' ? -1 : 0), y: current.anchor.y - (current.facing === 'up' ? 1 : current.facing === 'down' ? -1 : 0), z: current.anchor.z - (current.facing === 'south' ? 1 : current.facing === 'north' ? -1 : 0) };
     const plan = planDecorationPlacement({ ...project, decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id) }, { kind: 'painting', variantId }, support, current.facing);
     if (plan.status !== 'valid') return false;
-    return this.history.execute('Change painting variant', (before) => ({ ...before, decorations: (before.decorations ?? []).map((entry) => entry.instanceId === id ? { ...entry, variantId } : entry), metadata: { ...before.metadata, updatedAt: new Date().toISOString() } }));
+    return this.history.executeDelta('Change painting variant', (before) => ({ delta: {}, project: { decorations: (before.decorations ?? []).map((entry) => entry.instanceId === id ? { ...entry, variantId } : entry), metadata: { ...before.metadata, updatedAt: new Date().toISOString() } } }));
   }
   private updateSelectedFrame(id: string, change: (entry: PlacedDecoration) => PlacedDecoration): boolean {
-    return this.history.execute('Edit decoration', (project) => {
+    return this.history.executeDelta('Edit decoration', (project) => {
       const current = project.decorations?.find((entry) => entry.instanceId === id);
       if (!current || isDecorationLocked(current, project.groups) || (current.kind !== 'item-frame' && current.kind !== 'glow-item-frame')) return undefined;
-      return { ...project, decorations: project.decorations!.map((entry) => entry.instanceId === id ? change(entry) : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } };
+      return { delta: {}, project: { decorations: project.decorations!.map((entry) => entry.instanceId === id ? change(entry) : entry), metadata: { ...project.metadata, updatedAt: new Date().toISOString() } } };
     });
   }
 }

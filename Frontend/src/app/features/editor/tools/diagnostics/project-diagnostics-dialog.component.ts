@@ -22,14 +22,14 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   readonly closed = output<void>();
   readonly rendererEvidence = input<ViewportPerformanceEvidence | undefined>();
   protected readonly query = signal('');
-  protected readonly logicalBlockCount = computed(() => this.workspace.project()?.blocks.length ?? 0);
+  protected readonly logicalBlockCount = computed(() => this.workspace.materializeRuntime()?.blocks.length ?? 0);
   protected readonly audit = signal<VanillaAssetCoverageReport | undefined>(undefined);
   protected readonly auditProgress = signal(0);
   protected readonly auditing = signal(false);
   private controller?: AbortController;
   ngOnDestroy(): void { this.controller?.abort(); }
   protected readonly issues = computed<readonly ProjectIssue[]>(() => {
-    const project = this.workspace.project();
+    const project = this.workspace.materializeRuntime();
     const result: ProjectIssue[] = [];
     if (project) for (const block of project.blocks) {
       const definition = this.library.get(block.id);

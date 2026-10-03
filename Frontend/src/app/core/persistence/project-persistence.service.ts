@@ -16,6 +16,7 @@ export class ProjectPersistenceService {
       onSaving: () => onAutosaveStatus?.('saving'),
       onSaved: (revision) => { if (this.dirtyState.markClean(revision)) onAutosaveStatus?.('saved'); },
       onError: (error) => onAutosaveStatus?.('error', error),
+      validate: assertValid,
     });
   }
 
@@ -78,11 +79,16 @@ export class ProjectPersistenceService {
   }
 
   markChanged(project: ProjectDocument): void {
-    assertValid(project);
     const revision = this.dirtyState.markDirty();
-    // Keep the caller's version on autosave; opening/importing performs migration,
-    // while autosave must not unexpectedly rewrite an older in-memory snapshot.
+    // Keep dirty marking cheap. The autosave controller validates the latest
+    // materialized snapshot immediately before writing recovery/canonical data.
     this.autosave.schedule(project, revision);
+  }
+
+  /** Schedules a runtime snapshot; materialization/validation is deferred to the actual save. */
+  markRuntimeChanged(snapshot: () => ProjectDocument | undefined): void {
+    const revision = this.dirtyState.markDirty();
+    this.autosave.scheduleSnapshot(snapshot, revision);
   }
 
   flushAutosave(): Promise<void> { return this.autosave.flush(); }

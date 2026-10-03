@@ -25,7 +25,7 @@ export class EditorStatusBarComponent {
   protected readonly library = inject(BlockLibraryService);
   protected readonly decorations = inject(DecorationService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
-  protected readonly selectionCount = computed(() => this.selection.count(this.workspace.project()));
+  protected readonly selectionCount = computed(() => { const project = this.workspace.project(); return this.selection.count(project, this.workspace.ensureRuntime(project)); });
   protected readonly activePlacement = computed<ActivePlacementStatus | undefined>(() => {
     const activeBlock = this.library.activeBlock.active();
     if (activeBlock) {

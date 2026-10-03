@@ -2199,3 +2199,20 @@ Editor mutations enforce non-negative integer block positions and decoration
 anchors at the shared history boundary. Placement and group translation still
 validate full planned footprints before commit, so rejected bulk operations do
 not create partial state or history entries.
+
+## Local runtime edit data architecture
+
+Interactive block editing now uses an ephemeral `RuntimeProjectBlockStore`.
+It keeps the canonical `ProjectDocument` format unchanged while providing
+coordinate, chunk, dirty-chunk, and group-membership indexes for local edits.
+Project replacement/open hydrates the store once; persistence, export,
+diagnostics, and other cold boundaries materialize a deterministic full
+`ProjectDocument` snapshot through `WorkspaceStateService`.
+
+Hot block and group mutations use operation-local deltas with delta-aware
+history undo/redo. Delta transactions validate only changed result
+coordinates before committing, while legacy snapshot transactions retain the
+full cold invariant checks. Autosave records a dirty runtime revision and
+defers snapshot materialization and full validation until the debounced write.
+The renderer architecture is intentionally unchanged; runtime revisions and
+dirty chunk keys are exposed for the following renderer-consumer phase.

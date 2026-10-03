@@ -10,7 +10,7 @@ import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-ind
 export type RuleStatus = 'valid' | 'warning' | 'invalid' | 'unknown';
 export type RuleReason = 'ok' | 'unknown-behavior' | 'out-of-bounds' | 'occupied' | 'missing-support' | 'locked-affected-block' | 'unstable-neighbor-update';
 export interface RuleValidation { readonly status: RuleStatus; readonly reason: RuleReason; readonly affectedPositions: readonly VoxelCoordinate[]; readonly diagnostics?: readonly string[]; }
-export interface RuleMutationResult { readonly validation: RuleValidation; readonly project?: ProjectDocument; readonly plannedBlocks?: readonly PlacedBlock[]; }
+export interface RuleMutationResult { readonly validation: RuleValidation; readonly project?: ProjectDocument; readonly plannedBlocks?: readonly PlacedBlock[]; readonly changedBlocks?: readonly PlacedBlock[]; readonly removedBlocks?: readonly PlacedBlock[]; }
 export type BlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 export type BlockSource = readonly PlacedBlock[] | ReadonlyBlockLookup;
 
@@ -90,14 +90,15 @@ export class BlockRuleEngine {
     const knownPlacement = !!definition?.behavior || hasBlockCapability(definition, 'direct-placement');
     const directPlacementOnly = !definition?.behavior && hasBlockCapability(definition, 'direct-placement');
     const status = support.status === 'unknown' ? (directPlacementOnly ? 'valid' : 'unknown') : support.status === 'valid' && !knownPlacement ? 'unknown' : support.status;
-    return { validation: { status, reason: status === 'valid' ? 'ok' : 'unknown-behavior', affectedPositions: refreshed.affectedPositions }, plannedBlocks: placed };
+    return { validation: { status, reason: status === 'valid' ? 'ok' : 'unknown-behavior', affectedPositions: refreshed.affectedPositions }, plannedBlocks: placed, changedBlocks: overlay.entries() };
   }
 
   delete(project: ProjectDocument, position: VoxelCoordinate): RuleMutationResult {
     return this.deleteMany(project, [position]);
   }
 
-  deleteMany(project: ProjectDocument, positions: readonly VoxelCoordinate[]): RuleMutationResult {
+  deleteMany(project: ProjectDocument, positions: readonly VoxelCoordinate[], lookup?: ReadonlyBlockLookup): RuleMutationResult {
+    if (lookup) return this.deleteManyFromLookup(project, positions, lookup);
     const requested = new Set(positions.map(coordinateKey));
     const seeds = project.blocks.filter((block) => requested.has(coordinateKey(block.position)));
     if (!seeds.length) return invalid('occupied', positions);
@@ -117,6 +118,17 @@ export class BlockRuleEngine {
     }
     const refreshed = this.refresh({ ...project, blocks: project.blocks.filter((entry) => !keys.has(coordinateKey(entry.position))) }, removing.map((entry) => entry.position));
     return refreshed.project ? { validation: refreshed.validation, project: touch(refreshed.project) } : refreshed;
+  }
+
+  private deleteManyFromLookup(project: ProjectDocument, positions: readonly VoxelCoordinate[], lookup: ReadonlyBlockLookup): RuleMutationResult {
+    const requested = new Set(positions.map(coordinateKey));
+    const seeds = positions.map((position) => lookup.get(position)).filter((block): block is PlacedBlock => !!block && requested.has(coordinateKey(block.position)));
+    if (!seeds.length) return invalid('occupied', positions);
+    const removing = expandLogicalObjectClosure(project.blocks, seeds, this.definition, lookup);
+    if (removing.some((entry) => isBlockLocked(entry, project.groups))) return invalid('locked-affected-block', removing.map((entry) => entry.position));
+    const overlay = new PreviewBlockLookup(lookup); for (const block of removing) overlay.delete(block.position);
+    const validation = this.refreshPreview(project, overlay, removing.map((block) => block.position));
+    return { validation, removedBlocks: removing, changedBlocks: overlay.entries() };
   }
 
   refresh(project: ProjectDocument, changed: readonly VoxelCoordinate[]): RuleMutationResult {
@@ -142,6 +154,14 @@ export class BlockRuleEngine {
     return supportInvalid
       ? { validation: { status: 'invalid', reason: 'missing-support', affectedPositions: [supportInvalid.position], diagnostics: ['Dependent block was preserved but no longer has verified support.'] }, project: resultingProject }
       : { validation: { status: 'valid', reason: 'ok', affectedPositions: [...affected.values()] }, project: resultingProject };
+  }
+
+  /** Refreshes derived neighbors against the live lookup without cloning the project block array. */
+  refreshWithLookup(project: ProjectDocument, initial: readonly PlacedBlock[], changed: readonly VoxelCoordinate[], lookup: ReadonlyBlockLookup): RuleMutationResult {
+    const overlay = new PreviewBlockLookup(lookup);
+    for (const block of initial) overlay.set(block);
+    const validation = this.refreshPreview(project, overlay, changed);
+    return validation.status === 'invalid' ? { validation } : { validation, changedBlocks: overlay.entries() };
   }
 
   isDerivedProperty(blockId: string, property: string): boolean { return this.definition(blockId)?.stateDefinitions.some((entry) => entry.name === property && entry.derived === true) ?? false; }
@@ -438,11 +458,13 @@ function placedBlocksForBehavior(block: PlacedBlock, behavior: BlockDefinition['
   return [block];
 }
 class PreviewBlockLookup implements ReadonlyBlockLookup {
-  private readonly overlay = new Map<string, PlacedBlock>();
+  private readonly overlay = new Map<string, PlacedBlock | undefined>();
   constructor(private readonly base: ReadonlyBlockLookup) {}
-  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.overlay.get(coordinateKey(position)) ?? this.base.get(position); }
+  get(position: VoxelCoordinate): PlacedBlock | undefined { const key = coordinateKey(position); return this.overlay.has(key) ? this.overlay.get(key) : this.base.get(position); }
   has(position: VoxelCoordinate): boolean { return this.get(position) !== undefined; }
   set(block: PlacedBlock): void { this.overlay.set(coordinateKey(block.position), block); }
+  delete(position: VoxelCoordinate): void { this.overlay.set(coordinateKey(position), undefined); }
+  entries(): readonly PlacedBlock[] { return [...this.overlay.values()].filter((block): block is PlacedBlock => !!block); }
 }
 function withState(block: PlacedBlock, state: Readonly<Record<string, string>>, position: VoxelCoordinate): PlacedBlock { return { ...block, position: { ...position }, state }; }
 function equalState(a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): boolean { const aKeys = Object.keys(a); return aKeys.length === Object.keys(b).length && aKeys.every((key) => a[key] === b[key]); }

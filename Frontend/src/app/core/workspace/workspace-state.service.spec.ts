@@ -63,6 +63,16 @@ describe('WorkspaceStateService', () => {
     workspace.clearRememberedProject('project-a', storage);
     expect(values.has(ACTIVE_PROJECT_KEY)).toBe(false);
   });
+
+  it('hydrates and replaces the runtime lookup when a project is opened', () => {
+    const first = { ...project('first', '2026-04-01'), blocks: [{ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: {} }] };
+    const second = { ...project('second', '2026-04-02'), blocks: [{ kind: 'resolved' as const, id: 'minecraft:dirt', namespace: 'minecraft', position: { x: 2, y: 1, z: 1 }, state: {} }] };
+    const workspace = new WorkspaceStateService(); workspace.activate(first, undefined);
+    expect(workspace.runtime.get({ x: 1, y: 1, z: 1 })?.id).toBe('minecraft:stone');
+    workspace.activate(second, undefined);
+    expect(workspace.runtime.get({ x: 1, y: 1, z: 1 })).toBeUndefined();
+    expect(workspace.runtime.get({ x: 2, y: 1, z: 1 })?.id).toBe('minecraft:dirt');
+  });
 });
 
 function memoryStore(projects: readonly ProjectDocument[], onOpen?: () => void): ProjectStore {

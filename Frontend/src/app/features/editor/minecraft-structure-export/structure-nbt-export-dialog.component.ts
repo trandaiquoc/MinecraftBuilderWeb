@@ -28,7 +28,7 @@ export class StructureNbtExportDialogComponent {
   protected readonly result = signal<StructureExportDownloadResult | undefined>(undefined);
   protected readonly errorDiagnostics = signal<readonly StructurePackagingDiagnostic[]>([]);
   protected readonly form = computed<StructureExportForm>(() => ({ namespace: this.namespace(), structurePath: this.structurePath(), archiveName: this.archiveName(), description: this.description() }));
-  protected readonly preflight = computed(() => this.exporter.preflight(this.mode(), this.form(), this.workspace.project()));
+  protected readonly preflight = computed(() => this.exporter.preflight(this.mode(), this.form()));
   protected readonly metadata = computed(() => this.preflight().metadata);
   protected readonly canDownload = computed(() => !this.busy() && !!this.workspace.project() && this.preflight().ok);
   protected readonly sizeWarning = computed(() => this.metadata()?.sizeClass === 'huge');
@@ -65,7 +65,7 @@ export class StructureNbtExportDialogComponent {
     if (!this.canDownload() || this.busy()) return;
     this.busy.set(true); this.result.set(undefined); this.errorDiagnostics.set([]);
     try {
-      const result = await this.exporter.download(this.mode(), this.form(), this.workspace.project());
+      const result = await this.exporter.download(this.mode(), this.form());
       if (result.ok) this.result.set(result);
       else this.errorDiagnostics.set(result.diagnostics);
     } finally { this.busy.set(false); }
