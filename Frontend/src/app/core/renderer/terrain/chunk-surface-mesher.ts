@@ -5,7 +5,6 @@ import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering'
 import { instanceGeometryCompatibilityKey, instanceMaterialCompatibilityKey } from '../batching/instance-template-cache';
 import { TerrainOccupancy } from './chunk-occupancy';
 import type { TerrainChunkCoordinate } from './chunk-coordinate';
-import type { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
 
 export interface TerrainMeshEntry {
   readonly key: string;
@@ -27,8 +26,8 @@ export interface PrecompiledTerrainFace {
 const PRECOMPILED_TEMPLATE_CACHE = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
 const PRECOMPILED_DIRECTION_CACHE = new WeakMap<readonly PrecompiledTerrainFace[], ReadonlyMap<SurfaceFaceDirection, PrecompiledTerrainFace>>();
 
-export function precompileTerrainTemplates(templates: readonly SurfaceFaceTemplate[], atlas?: TerrainTextureAtlas): readonly PrecompiledTerrainFace[] {
-  const cached = atlas ? undefined : PRECOMPILED_TEMPLATE_CACHE.get(templates);
+export function precompileTerrainTemplates(templates: readonly SurfaceFaceTemplate[]): readonly PrecompiledTerrainFace[] {
+  const cached = PRECOMPILED_TEMPLATE_CACHE.get(templates);
   if (cached) return cached;
   const compiled = templates.map((template) => {
     const positionAttribute = template.geometry.getAttribute('position');
@@ -56,10 +55,9 @@ export function precompileTerrainTemplates(templates: readonly SurfaceFaceTempla
       if (uvAttribute) uvs.push(uvAttribute.getX(sourceIndex), uvAttribute.getY(sourceIndex));
       else uvs.push(0, 0);
     }
-    const atlasFace = atlas?.face(template.material, uvs);
-    return { direction: template.direction, material: atlasFace?.material ?? template.material, bucketKey: atlasFace?.bucketKey ?? `${instanceMaterialCompatibilityKey(template.material)}|${instanceGeometryCompatibilityKey(template.geometry)}`, positions, normals, uvs: atlasFace?.uvs ?? uvs };
+    return { direction: template.direction, material: template.material, bucketKey: `${instanceMaterialCompatibilityKey(template.material)}|${instanceGeometryCompatibilityKey(template.geometry)}`, positions, normals, uvs };
   });
-  if (!atlas) PRECOMPILED_TEMPLATE_CACHE.set(templates, compiled);
+  PRECOMPILED_TEMPLATE_CACHE.set(templates, compiled);
   return compiled;
 }
 
@@ -87,14 +85,14 @@ export interface CompiledTerrainChunk {
 }
 
 /** CPU-only surface compiler. It emits one quad's triangles directly into chunk buffers. */
-export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonly TerrainMeshEntry[], occupancy: TerrainOccupancy, atlas?: TerrainTextureAtlas): CompiledTerrainChunk {
+export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonly TerrainMeshEntry[], occupancy: TerrainOccupancy): CompiledTerrainChunk {
   const buckets = new Map<string, MutableBucket>();
   let blocksCompiled = 0;
   let facesEmitted = 0;
   let facesCulled = 0;
   for (const entry of entries) {
     blocksCompiled += 1;
-    const templates = precompiledByDirection(entry.compiledTemplates ?? precompileTerrainTemplates(entry.templates, atlas));
+    const templates = precompiledByDirection(entry.compiledTemplates ?? precompileTerrainTemplates(entry.templates));
     for (const direction of SURFACE_DIRECTIONS) {
       const template = templates.get(direction);
       if (!template) continue;

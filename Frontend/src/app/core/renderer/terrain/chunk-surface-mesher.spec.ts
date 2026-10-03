@@ -5,7 +5,6 @@ import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-rendere
 import { TerrainOccupancy } from './chunk-occupancy';
 import { terrainChunkKey, worldToTerrainChunk } from './chunk-coordinate';
 import { meshTerrainChunk, type TerrainMeshEntry } from './chunk-surface-mesher';
-import { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
 
 describe('compiled terrain surface mesher', () => {
   it('preserves transformed normals/UVs and keeps incompatible materials in separate buckets', () => {
@@ -57,28 +56,6 @@ describe('compiled terrain surface mesher', () => {
     expect(triangles).toBe(27_648);
     material.dispose();
     for (const template of templates) template.geometry.dispose();
-  });
-
-  it('merges compatible mixed opaque textures into one atlas material bucket', () => {
-    const textures = Array.from({ length: 5 }, (_, index) => {
-      const data = new Uint8Array([index * 30, 20, 10, 255]);
-      const map = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
-      map.magFilter = THREE.NearestFilter; map.minFilter = THREE.NearestFilter; map.generateMipmaps = false; map.needsUpdate = true;
-      return map;
-    });
-    const entries: TerrainMeshEntry[] = textures.map((map, index) => {
-      const block: PlacedBlock = { kind: 'resolved', id: `example:block_${index}`, namespace: 'example', position: { x: index, y: 0, z: 0 }, state: {} };
-      return { key: `${index},0,0`, position: block.position, templates: cubeTemplates(new THREE.MeshBasicMaterial({ map })) };
-    });
-    const occupancy = new TerrainOccupancy();
-    const atlas = new TerrainTextureAtlas({ width: 32, height: 32 }, 1);
-    const compiled = meshTerrainChunk({ x: 0, y: 0, z: 0 }, entries, occupancy, atlas);
-    expect(atlas.evidence()).toMatchObject({ terrainAtlasSprites: 5, terrainAtlasPages: 1 });
-    expect(compiled.buckets).toHaveLength(1);
-    expect(compiled.buckets[0].faceCount).toBe(30);
-    for (const bucket of compiled.buckets) bucket.geometry.dispose();
-    for (const entry of entries) for (const template of entry.templates) { template.geometry.dispose(); template.material.dispose(); }
-    atlas.dispose(); for (const map of textures) map.dispose();
   });
 });
 

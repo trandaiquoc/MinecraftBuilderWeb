@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { ChunkSurfaceRenderer } from './chunk-surface-renderer';
-import { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
 
 describe('chunk surface renderer ownership', () => {
   it('compiles a 100k solid shape into material-bucket meshes rather than face instances', () => {
@@ -37,39 +36,6 @@ describe('chunk surface renderer ownership', () => {
     renderer.applyBlockChanges([{ key: voxelKey(localPosition), position: localPosition, before: { key: voxelKey(localPosition), block: edited, templates }, afterOpaque: false }]);
     expect(renderer.logicalBlockCount).toBe(99_999);
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
-  });
-
-  it('keeps a mixed 100k terrain scene bounded by atlas sprites and occupied chunks', () => {
-    const group = new THREE.Group();
-    const atlas = new TerrainTextureAtlas({ width: 64, height: 64 }, 1);
-    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined, atlas });
-    const maps = Array.from({ length: 5 }, (_, index) => {
-      const map = new THREE.DataTexture(new Uint8Array([index * 30, 40, 90, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
-      map.magFilter = THREE.NearestFilter; map.minFilter = THREE.NearestFilter; map.generateMipmaps = false; map.needsUpdate = true;
-      return map;
-    });
-    const materials = maps.map((map) => new THREE.MeshBasicMaterial({ map }));
-    const templates = materials.map((material) => cubeTemplates(material));
-    const records: Array<{ key: string; block: PlacedBlock; templates: readonly SurfaceFaceTemplate[] }> = [];
-    const entries: Array<{ block: PlacedBlock; role: 'normal'; occlusionClass: 'opaque-full-cube' }> = [];
-    for (let y = 0; y < 10; y += 1) for (let z = 0; z < 100; z += 1) for (let x = 0; x < 100; x += 1) {
-      const position = { x, y, z };
-      const block: PlacedBlock = { kind: 'resolved', id: `example:block_${(x + y + z) % 5}`, namespace: 'example', position, state: {} };
-      records.push({ key: voxelKey(position), block, templates: templates[(x + y + z) % 5] });
-      entries.push({ block, role: 'normal', occlusionClass: 'opaque-full-cube' });
-    }
-    renderer.bulkUpsert(records, entries, records.map((record) => record.block.position), { initial: true });
-    const evidence = renderer.evidence();
-    expect(evidence.terrainLogicalBlocks).toBe(100_000);
-    expect(evidence.terrainChunks).toBe(49);
-    expect(evidence.terrainChunkMeshes).toBe(49);
-    expect(evidence.terrainAtlasSprites).toBe(5);
-    expect(evidence.terrainAtlasPages).toBe(1);
-    expect(evidence.terrainAtlasMaterials).toBe(1);
-    expect(evidence.terrainFacesEmitted).toBe(24_000);
-    renderer.dispose();
-    for (const map of maps) map.dispose();
-    for (const material of materials) material.dispose();
   });
 
   it('builds a complete chunk once per bulk batch and does not rebuild an unrelated chunk', () => {
@@ -146,26 +112,6 @@ describe('chunk surface renderer ownership', () => {
     renderer.applyBlockChanges([{ key: voxelKey(first.position), position: first.position, before: { key: voxelKey(first.position), block: first, templates }, afterOpaque: false }]);
     expect(renderer.logicalBlockCount).toBe(1);
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
-  });
-
-  it('keeps atlas material ownership with the atlas while chunk geometry is rebuilt', () => {
-    const group = new THREE.Group();
-    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
-    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined, atlas });
-    const pixels = new Uint8Array([255, 255, 255, 255]);
-    const map = new THREE.DataTexture(pixels, 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType); map.needsUpdate = true;
-    const material = new THREE.MeshBasicMaterial({ map });
-    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
-    const templates = cubeTemplates(material);
-    renderer.bulkUpsert([{ key: voxelKey(block.position), block, templates }], [{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }], [block.position], { initial: true });
-    const atlasMaterial = (group.children[0] as THREE.Mesh).material as THREE.Material;
-    expect(atlasMaterial.userData['sharedTerrainAtlasMaterial']).toBe(true);
-    const dispose = vi.spyOn(atlasMaterial, 'dispose');
-    renderer.applyBlockChanges([{ key: voxelKey(block.position), position: block.position, before: { key: voxelKey(block.position), block, templates }, afterOpaque: false }]);
-    expect(dispose).not.toHaveBeenCalled();
-    atlas.dispose();
-    expect(dispose).toHaveBeenCalledTimes(1);
-    renderer.dispose(); map.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 });
 

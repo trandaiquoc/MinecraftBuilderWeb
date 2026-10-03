@@ -51,7 +51,6 @@ import { InteractiveResolutionController } from '../scheduling/interactive-resol
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { ChunkSurfaceRenderer, type TerrainBlockChange, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
-import { TerrainTextureAtlas } from '../terrain/atlas/terrain-texture-atlas';
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
 import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
@@ -160,14 +159,6 @@ export interface ViewportPerformanceEvidence {
   readonly terrainTemplateCacheHits: number;
   readonly terrainLogicalBlocks: number;
   readonly terrainBulkBatches: number;
-  readonly terrainAtlasPages: number;
-  readonly terrainAtlasSprites: number;
-  readonly terrainAtlasSpriteCacheHits: number;
-  readonly terrainAtlasSpriteInsertions: number;
-  readonly terrainAtlasMaterials: number;
-  readonly terrainAtlasFaces: number;
-  readonly terrainAtlasFallbackFaces: number;
-  readonly terrainAtlasChunkMeshes: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -630,7 +621,6 @@ export class ThreeViewportEngine {
   private readonly terrainRenderer = new ChunkSurfaceRenderer({
     blocksGroup: this.blocksGroup,
     record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
-    atlas: new TerrainTextureAtlas(),
   });
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
   private readonly reusableInstanceTemplates = new Map<string, CompiledInstanceTemplates>();
@@ -881,7 +871,6 @@ export class ThreeViewportEngine {
     this.visualProvider = provider;
     this.clearReusableInstanceTemplates();
     this.clearSurfaceFaceResources();
-    this.terrainRenderer.resetAtlas();
     this.pendingTerrainTemplates.clear();
     this.visualProvider?.retain?.();
     this.providerStats = undefined;
@@ -2312,7 +2301,6 @@ export class ThreeViewportEngine {
     this.fallbackGeometry.dispose();
     this.fallbackMaterials.normal.dispose(); this.fallbackMaterials.reference.dispose(); this.fallbackMaterials.missing.dispose();
     this.clearPlaceholderVisuals();
-    this.terrainRenderer.dispose();
     this.placeholderGeometry.dispose();
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
     provider?.release?.();
@@ -2777,14 +2765,6 @@ export class ThreeViewportEngine {
       terrainTemplateCacheHits: terrain.terrainTemplateCacheHits,
       terrainLogicalBlocks: terrain.terrainLogicalBlocks,
       terrainBulkBatches: terrain.terrainBulkBatches,
-      terrainAtlasPages: terrain.terrainAtlasPages,
-      terrainAtlasSprites: terrain.terrainAtlasSprites,
-      terrainAtlasSpriteCacheHits: terrain.terrainAtlasSpriteCacheHits,
-      terrainAtlasSpriteInsertions: terrain.terrainAtlasSpriteInsertions,
-      terrainAtlasMaterials: terrain.terrainAtlasMaterials,
-      terrainAtlasFaces: terrain.terrainAtlasFaces,
-      terrainAtlasFallbackFaces: terrain.terrainAtlasFallbackFaces,
-      terrainAtlasChunkMeshes: terrain.terrainAtlasChunkMeshes,
     };
   }
 
@@ -3474,4 +3454,4 @@ function stableChunkBounds(chunk: string, envelope: THREE.Box3): THREE.Box3 {
   );
 }
 function chunkKey(position: VoxelCoordinate): string { return `${Math.floor(position.x / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.y / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.z / VIEWPORT_INSTANCE_CHUNK_SIZE)}`; }
-function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry'] && !child.geometry.userData['sharedPlaceholderGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial'] || material.userData['sharedPlaceholderMaterial'] || material.userData['sharedTerrainAtlasMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
+function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry'] && !child.geometry.userData['sharedPlaceholderGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial'] || material.userData['sharedPlaceholderMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }

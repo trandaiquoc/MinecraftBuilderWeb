@@ -2244,15 +2244,7 @@ transparent, reference, special, and unknown content remain on legacy paths.
 Terrain-eligible voxels remain in the hydration set even when the legacy
 interior-culling diagnostic identifies them as enclosed; the compiled mesher
 performs the authoritative six-neighbor surface cull.
-Project coordinates and DDA picking are unchanged. Terrain faces with proven
-opaque static texture/material semantics now use a fixed-size, append-only
-texture atlas with gutter extrusion and shared page/material buckets. Source
-texture identity is deduplicated by texture-source and sampler identity; map
-transforms, transparent/cutout/unsupported sources, and special visuals stay
-on the strict legacy path. Atlas pages and sprites remain stable while local
-chunks rebuild, and atlas-owned resources are disposed separately from source
-provider resources and chunk geometry. Greedy meshing, workers, and
-dirty-chunk upstream discovery remain deferred.
+Project coordinates and DDA picking are unchanged.
 
 ## Thumbnail generation lifecycle
 
