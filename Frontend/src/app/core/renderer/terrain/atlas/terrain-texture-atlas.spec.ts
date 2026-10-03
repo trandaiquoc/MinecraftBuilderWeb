@@ -46,33 +46,6 @@ describe('terrain texture atlas', () => {
     atlas.clear(); material.dispose(); source.dispose();
   });
 
-  it('preserves DoubleSide on atlas materials while sharing compatible buckets', () => {
-    const source = texture([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255]);
-    const material = new THREE.MeshBasicMaterial({ map: source, side: THREE.DoubleSide, alphaTest: .1 });
-    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
-    const result = atlas.face(material, [0, 0, 1, 0, 1, 1, 0, 1])!;
-    expect(result.material.side).toBe(THREE.DoubleSide);
-    expect((result.material as THREE.MeshBasicMaterial).alphaTest).toBe(.1);
-    expect(result.bucketKey).toContain(`|${THREE.DoubleSide}|`);
-    atlas.clear(); material.dispose(); source.dispose();
-  });
-
-  it('uses one material bucket for different source sprites but keeps side semantics separate', () => {
-    const firstSource = texture([255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255]);
-    const secondSource = texture([0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255]);
-    const front = new THREE.MeshBasicMaterial({ map: firstSource });
-    const double = new THREE.MeshBasicMaterial({ map: secondSource, side: THREE.DoubleSide });
-    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
-    const first = atlas.face(front, [0, 0, 1, 0, 1, 1, 0, 1])!;
-    const second = atlas.face(front.clone(), [0, 0, 1, 0, 1, 1, 0, 1])!;
-    const differentSide = atlas.face(double, [0, 0, 1, 0, 1, 1, 0, 1])!;
-    expect(first.sprite).not.toEqual(differentSide.sprite);
-    expect(first.bucketKey).toBe(second.bucketKey);
-    expect(first.bucketKey).not.toBe(differentSide.bucketKey);
-    expect(atlas.evidence().terrainAtlasMaterials).toBe(2);
-    atlas.clear(); front.dispose(); second.material.dispose(); double.dispose(); firstSource.dispose(); secondSource.dispose();
-  });
-
   it('resets pages and sprite identity at a provider-generation boundary', () => {
     const source = texture([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255]);
     const material = new THREE.MeshBasicMaterial({ map: source });

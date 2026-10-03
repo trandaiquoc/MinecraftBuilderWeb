@@ -675,17 +675,6 @@ node tools/audit-vanilla-assets.mjs ../extracted 26.3
 The command writes `Docs/vanilla-asset-coverage-26.3.json` and `.md` without
 copying the JAR or extracted assets into the repository.
 
-## Terrain atlas material contract
-
-The compiled terrain atlas consumes the same materials produced by the Vanilla
-block model provider. Normal JSON faces are commonly `MeshBasicMaterial` or
-`MeshLambertMaterial` with `DoubleSide`, `alphaTest: 0.1`, Nearest sampling,
-disabled mipmaps, and sRGB color space. Atlas eligibility preserves those
-semantics, keeps source texture identity only for sprite lookup, and retains a
-strict fallback for transparent, `BackSide`, transformed, or otherwise
-unsupported materials. Atlas pages are render-owned copies; provider texture
-objects are not mutated or disposed by atlas insertion.
-
 ## Runtime compatibility hotfix
 
 The shared Vanilla behavior path completes connection state domains from the

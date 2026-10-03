@@ -196,33 +196,6 @@ describe('chunk surface renderer ownership', () => {
     renderer.clear(); material.dispose(); pixels.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
-  it('reduces buckets for a deterministic 100k five-family compatible fixture', () => {
-    const blocks: PlacedBlock[] = [];
-    const families = Array.from({ length: 5 }, (_, index) => {
-      const pixels = new THREE.DataTexture(new Uint8Array([40 + index * 30, 120, 80, 255]), 1, 1, THREE.RGBAFormat);
-      pixels.flipY = true; pixels.magFilter = THREE.NearestFilter; pixels.minFilter = THREE.NearestFilter; pixels.generateMipmaps = false; pixels.needsUpdate = true;
-      const material = new THREE.MeshBasicMaterial({ map: pixels });
-      return { pixels, templates: cubeTemplates(material), material };
-    });
-    for (let y = 0; y < 10; y += 1) for (let z = 0; z < 100; z += 1) for (let x = 0; x < 100; x += 1) blocks.push({ kind: 'resolved', id: `minecraft:family_${(x + z) % 5}`, namespace: 'minecraft', position: { x, y, z }, state: {} });
-    const entries = blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const }));
-    const build = (terrainAtlasMode: 'off' | 'on') => {
-      const group = new THREE.Group();
-      const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, terrainAtlasMode, record: () => undefined });
-      renderer.bulkUpsert(blocks.map((block, index) => ({ key: voxelKey(block.position), block, templates: families[index % 5].templates })), entries, blocks.map((block) => block.position), { initial: true });
-      return renderer;
-    };
-    const strict = build('off');
-    const atlas = build('on');
-    expect(atlas.evidence()).toMatchObject({ terrainLogicalBlocks: 100_000, terrainChunks: 49, terrainFacesEmitted: 24_000 });
-    expect(strict.evidence()).toMatchObject({ terrainLogicalBlocks: 100_000, terrainChunks: 49, terrainFacesEmitted: 24_000 });
-    expect(atlas.evidence().terrainAtlas.terrainAtlasSprites).toBe(5);
-    expect(atlas.evidence().terrainAtlas.terrainAtlasInsertions).toBe(5);
-    expect(atlas.evidence().terrainChunkMeshes).toBeLessThan(strict.evidence().terrainChunkMeshes);
-    strict.clear(); atlas.clear();
-    for (const family of families) { family.material.dispose(); family.pixels.dispose(); for (const template of family.templates) template.geometry.dispose(); }
-  }, 30_000);
-
   it('preserves the 48 cubed outer-shell counts in atlas mode', () => {
     const group = new THREE.Group();
     const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, terrainAtlasMode: 'on', record: () => undefined });

@@ -13,11 +13,7 @@ export function terrainAtlasEligibility(material: THREE.Material): TerrainAtlasE
   const opacity = candidate.opacity ?? 1;
   const blending = candidate.blending ?? THREE.NormalBlending;
   if (candidate.transparent || !depthWrite || !depthTest || opacity !== 1 || blending !== THREE.NormalBlending) return { eligible: false };
-  // Vanilla JSON block faces are emitted as explicit outward quads but the
-  // shared model builder intentionally keeps them DoubleSide.  Atlas those
-  // materials without normalizing their render semantics; BackSide remains
-  // conservative because changing its culling would alter visible winding.
-  if (candidate.side !== undefined && candidate.side !== THREE.FrontSide && candidate.side !== THREE.DoubleSide) return { eligible: false };
+  if (candidate.side !== undefined && candidate.side !== THREE.FrontSide) return { eligible: false };
   if (candidate.vertexColors || candidate.flatShading || candidate.polygonOffset) return { eligible: false };
   if (map.wrapS !== THREE.ClampToEdgeWrapping || map.wrapT !== THREE.ClampToEdgeWrapping || map.offset.x !== 0 || map.offset.y !== 0 || map.repeat.x !== 1 || map.repeat.y !== 1 || map.rotation !== 0 || map.center.x !== 0 || map.center.y !== 0 || map.anisotropy > 1) return { eligible: false };
   const samplingKey = [map.colorSpace, map.premultiplyAlpha ? 1 : 0, map.magFilter, map.minFilter, map.generateMipmaps ? 1 : 0].join('|');
