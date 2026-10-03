@@ -7,6 +7,8 @@ import { relevantTerrainChunks, terrainChunkBounds, terrainChunkKey, worldToTerr
 import { dirtyTerrainChunkKeys } from './chunk-dirty-tracker';
 import { meshTerrainChunk, precompileTerrainTemplates, type CompiledTerrainChunk, type PrecompiledTerrainFace } from './chunk-surface-mesher';
 import type { TerrainClassificationEntry } from './terrain-classifier';
+import { TerrainTextureAtlas, type TerrainAtlasEvidence } from './atlas/terrain-texture-atlas';
+import type { TerrainAtlasMode } from './atlas/terrain-texture-atlas';
 
 export interface TerrainSurfaceRecord {
   readonly key: string;
@@ -34,11 +36,13 @@ export interface TerrainRendererEvidence {
   readonly terrainTemplateCacheHits: number;
   readonly terrainLogicalBlocks: number;
   readonly terrainBulkBatches: number;
+  readonly terrainAtlas: TerrainAtlasEvidence;
 }
 
 export interface ChunkSurfaceRendererOptions {
   readonly blocksGroup: THREE.Group;
   readonly record: (name: string, delta?: number) => void;
+  readonly terrainAtlasMode?: TerrainAtlasMode;
 }
 
 interface TerrainChunkObject {
@@ -64,8 +68,9 @@ export class ChunkSurfaceRenderer {
   private templateResolutions = 0;
   private templateCacheHits = 0;
   private bulkBatches = 0;
+  readonly terrainAtlas?: TerrainTextureAtlas;
 
-  constructor(private readonly options: ChunkSurfaceRendererOptions) {}
+  constructor(private readonly options: ChunkSurfaceRendererOptions) { this.terrainAtlas = options.terrainAtlasMode === 'on' ? new TerrainTextureAtlas() : undefined; }
 
   get chunkCount(): number { return this.chunks.size; }
   get chunkMeshCount(): number { return [...this.chunks.values()].reduce((count, chunk) => count + chunk.meshes.length, 0); }
@@ -83,7 +88,7 @@ export class ChunkSurfaceRenderer {
   cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[]): void {
     if (this.templateCache.has(key)) return;
     this.templateCache.set(key, templates);
-    this.compiledTemplateCache.set(templates, precompileTerrainTemplates(templates));
+    this.compiledTemplateCache.set(templates, precompileTerrainTemplates(templates, this.terrainAtlas));
     this.templateResolutions += 1;
     this.options.record('terrainTemplateResolutions');
   }
@@ -179,6 +184,7 @@ export class ChunkSurfaceRenderer {
       terrainTemplateCacheHits: this.templateCacheHits,
       terrainLogicalBlocks: this.records.size,
       terrainBulkBatches: this.bulkBatches,
+      terrainAtlas: { ...(this.terrainAtlas?.evidence() ?? { terrainAtlasPages: 0, terrainAtlasSprites: 0, terrainAtlasCacheHits: 0, terrainAtlasInsertions: 0, terrainAtlasMaterials: 0, terrainAtlasCompatibleFaces: 0, terrainAtlasFallbackFaces: 0 }), terrainAtlasChunkBuckets: this.chunkMeshCount },
     };
   }
 
@@ -193,6 +199,7 @@ export class ChunkSurfaceRenderer {
     for (const templates of this.templateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateCache.clear();
     this.bulkBatches = 0;
+    this.terrainAtlas?.clear();
   }
 
   dispose(): void { this.clear(); }
@@ -209,7 +216,7 @@ export class ChunkSurfaceRenderer {
     if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
     if (!entries.length) return;
-    const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy);
+    const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy, this.terrainAtlas);
     this.rebuildCount += 1;
     this.blocksCompiled += compiled.blocksCompiled;
     this.facesEmitted += compiled.facesEmitted;
@@ -234,7 +241,7 @@ export class ChunkSurfaceRenderer {
       meshes.push(mesh);
     }
     if (meshes.length) this.chunks.set(key, { key, chunk, meshes });
-    else for (const bucket of compiled.buckets) { bucket.geometry.dispose(); bucket.material.dispose(); }
+    else for (const bucket of compiled.buckets) { bucket.geometry.dispose(); if (!bucket.material.userData['sharedTerrainAtlasMaterial']) bucket.material.dispose(); }
   }
 
   private disposeChunk(chunk: TerrainChunkObject): void {
@@ -266,7 +273,7 @@ export class ChunkSurfaceRenderer {
     if (record.templates.length !== 6) return;
     const previous = this.records.get(record.key);
     if (previous) this.removeFromChunkIndex(previous);
-    const compiledTemplates = record.compiledTemplates ?? this.compiledTemplateCache.get(record.templates) ?? precompileTerrainTemplates(record.templates);
+    const compiledTemplates = record.compiledTemplates ?? this.compiledTemplateCache.get(record.templates) ?? precompileTerrainTemplates(record.templates, this.terrainAtlas);
     if (!this.compiledTemplateCache.has(record.templates)) this.compiledTemplateCache.set(record.templates, compiledTemplates);
     const indexed = { ...record, compiledTemplates };
     this.records.set(record.key, indexed);

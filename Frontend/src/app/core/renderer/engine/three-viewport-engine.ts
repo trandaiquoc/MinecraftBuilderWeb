@@ -54,12 +54,14 @@ import { ChunkSurfaceRenderer, type TerrainBlockChange, type TerrainSurfaceRecor
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
 import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
+import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 export type ViewportHoverListener = (hit: ViewportHit) => void;
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined, lookup?: ReadonlyBlockLookup) => PlacementPlan | undefined;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
+export interface ViewportEngineOptions { readonly terrainAtlasMode?: TerrainAtlasMode; }
 export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
 export interface ViewportHydrationProgress {
   readonly generation: number;
@@ -159,6 +161,15 @@ export interface ViewportPerformanceEvidence {
   readonly terrainTemplateCacheHits: number;
   readonly terrainLogicalBlocks: number;
   readonly terrainBulkBatches: number;
+  readonly terrainAtlasMode: TerrainAtlasMode;
+  readonly terrainAtlasPages: number;
+  readonly terrainAtlasSprites: number;
+  readonly terrainAtlasInsertions: number;
+  readonly terrainAtlasCacheHits: number;
+  readonly terrainAtlasCompatibleFaces: number;
+  readonly terrainAtlasFallbackFaces: number;
+  readonly terrainAtlasMaterials: number;
+  readonly terrainAtlasChunkBuckets: number;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -618,10 +629,8 @@ export class ThreeViewportEngine {
   private get surfaceFaceBatches(): Map<string, SurfaceFaceBatch> { return this.surfaceRenderer.batches; }
   private get surfaceFaceOwnership(): Map<string, SurfaceFaceMembership[]> { return this.surfaceRenderer.ownership; }
   private get surfaceTemplateCache(): Map<string, readonly SurfaceFaceTemplate[]> { return this.surfaceRenderer.templateCache; }
-  private readonly terrainRenderer = new ChunkSurfaceRenderer({
-    blocksGroup: this.blocksGroup,
-    record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
-  });
+  private readonly terrainRenderer: ChunkSurfaceRenderer;
+  readonly terrainAtlasMode: TerrainAtlasMode;
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
   private readonly reusableInstanceTemplates = new Map<string, CompiledInstanceTemplates>();
   private readonly hydrationProgressListeners = new Set<(progress: ViewportHydrationProgress) => void>();
@@ -677,7 +686,13 @@ export class ThreeViewportEngine {
   private readonly culledBlockKeys = new Set<string>();
   private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
 
-  constructor(readonly instrumentation = new RendererDiagnostics()) {
+  constructor(readonly instrumentation = new RendererDiagnostics(), options: ViewportEngineOptions = {}) {
+    this.terrainAtlasMode = options.terrainAtlasMode ?? 'on';
+    this.terrainRenderer = new ChunkSurfaceRenderer({
+      blocksGroup: this.blocksGroup,
+      terrainAtlasMode: this.terrainAtlasMode,
+      record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
+    });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
     selectionBoxMaterial.depthTest = false;
@@ -2765,6 +2780,15 @@ export class ThreeViewportEngine {
       terrainTemplateCacheHits: terrain.terrainTemplateCacheHits,
       terrainLogicalBlocks: terrain.terrainLogicalBlocks,
       terrainBulkBatches: terrain.terrainBulkBatches,
+      terrainAtlasMode: this.terrainAtlasMode,
+      terrainAtlasPages: terrain.terrainAtlas.terrainAtlasPages,
+      terrainAtlasSprites: terrain.terrainAtlas.terrainAtlasSprites,
+      terrainAtlasInsertions: terrain.terrainAtlas.terrainAtlasInsertions,
+      terrainAtlasCacheHits: terrain.terrainAtlas.terrainAtlasCacheHits,
+      terrainAtlasCompatibleFaces: terrain.terrainAtlas.terrainAtlasCompatibleFaces,
+      terrainAtlasFallbackFaces: terrain.terrainAtlas.terrainAtlasFallbackFaces,
+      terrainAtlasMaterials: terrain.terrainAtlas.terrainAtlasMaterials,
+      terrainAtlasChunkBuckets: terrain.terrainAtlas.terrainAtlasChunkBuckets,
     };
   }
 

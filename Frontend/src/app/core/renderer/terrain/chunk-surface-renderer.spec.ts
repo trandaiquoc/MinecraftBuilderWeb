@@ -113,6 +113,75 @@ describe('chunk surface renderer ownership', () => {
     expect(renderer.logicalBlockCount).toBe(1);
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
+
+  it('supports strict OFF and atlas ON with the same isolated voxel evidence', () => {
+    const make = (terrainAtlasMode: 'off' | 'on') => {
+      const group = new THREE.Group();
+      const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, terrainAtlasMode, record: () => undefined });
+      const pixels = new THREE.DataTexture(new Uint8Array([255, 0, 0, 255]), 1, 1, THREE.RGBAFormat); pixels.flipY = true;
+      const material = new THREE.MeshBasicMaterial({ map: pixels });
+      const templates = cubeTemplates(material);
+      const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
+      renderer.bulkUpsert([{ key: voxelKey(block.position), block, templates }], [{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }], [block.position], { initial: true });
+      const evidence = renderer.evidence();
+      expect(evidence.terrainLogicalBlocks).toBe(1);
+      expect(evidence.terrainFacesEmitted).toBe(6);
+      expect(evidence.terrainChunkMeshes).toBe(1);
+      if (terrainAtlasMode === 'on') expect(evidence.terrainAtlas.terrainAtlasSprites).toBe(1);
+      renderer.clear(); material.dispose(); pixels.dispose(); for (const template of templates) template.geometry.dispose();
+      return evidence;
+    };
+    expect(make('off')).toMatchObject({ terrainLogicalBlocks: 1, terrainFacesEmitted: 6, terrainChunkMeshes: 1 });
+    expect(make('on')).toMatchObject({ terrainLogicalBlocks: 1, terrainFacesEmitted: 6, terrainChunkMeshes: 1 });
+  });
+
+  it('keeps the 100k homogeneous atlas sprite work bounded by texture sources', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, terrainAtlasMode: 'on', record: () => undefined });
+    const pixels = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255]), 1, 1, THREE.RGBAFormat); pixels.flipY = true;
+    const material = new THREE.MeshBasicMaterial({ map: pixels });
+    const templates = cubeTemplates(material);
+    const blocks: PlacedBlock[] = [];
+    for (let y = 0; y < 10; y += 1) for (let z = 0; z < 100; z += 1) for (let x = 0; x < 100; x += 1) blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+    renderer.bulkUpsert(blocks.map((block) => ({ key: voxelKey(block.position), block, templates })), blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const })), blocks.map((block) => block.position), { initial: true });
+    expect(renderer.evidence()).toMatchObject({ terrainLogicalBlocks: 100_000, terrainFacesEmitted: 24_000, terrainChunkMeshes: 49 });
+    expect(renderer.evidence().terrainAtlas.terrainAtlasSprites).toBe(1);
+    expect(renderer.evidence().terrainAtlas.terrainAtlasInsertions).toBe(1);
+    renderer.clear(); material.dispose(); pixels.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('preserves the 48 cubed outer-shell counts in atlas mode', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, terrainAtlasMode: 'on', record: () => undefined });
+    const pixels = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255]), 1, 1, THREE.RGBAFormat); pixels.flipY = true;
+    const material = new THREE.MeshBasicMaterial({ map: pixels });
+    const templates = cubeTemplates(material);
+    const blocks: PlacedBlock[] = [];
+    for (let y = 0; y < 48; y += 1) for (let z = 0; z < 48; z += 1) for (let x = 0; x < 48; x += 1) blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+    renderer.bulkUpsert(blocks.map((block) => ({ key: voxelKey(block.position), block, templates })), blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const })), blocks.map((block) => block.position), { initial: true });
+    expect(renderer.evidence()).toMatchObject({ terrainLogicalBlocks: 110_592, terrainFacesEmitted: 13_824, terrainChunkRebuilds: 27 });
+    expect(renderer.evidence().terrainAtlas.terrainAtlasSprites).toBe(1);
+    renderer.clear(); material.dispose(); pixels.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('appends the first new local texture without rebuilding an unrelated chunk', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, terrainAtlasMode: 'on', record: () => undefined });
+    const stonePixels = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255]), 1, 1, THREE.RGBAFormat); stonePixels.flipY = true;
+    const goldPixels = new THREE.DataTexture(new Uint8Array([220, 180, 40, 255]), 1, 1, THREE.RGBAFormat); goldPixels.flipY = true;
+    const stoneMaterial = new THREE.MeshBasicMaterial({ map: stonePixels });
+    const goldMaterial = new THREE.MeshBasicMaterial({ map: goldPixels });
+    const stoneTemplates = cubeTemplates(stoneMaterial); const goldTemplates = cubeTemplates(goldMaterial);
+    const stone: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
+    renderer.bulkUpsert([{ key: voxelKey(stone.position), block: stone, templates: stoneTemplates }], [{ block: stone, role: 'normal', occlusionClass: 'opaque-full-cube' }], [stone.position], { initial: true });
+    const oldChunk = group.children.find((child) => child.userData['terrainChunk'] === '0,0,0');
+    expect(renderer.evidence().terrainAtlas.terrainAtlasSprites).toBe(1);
+    const gold: PlacedBlock = { kind: 'resolved', id: 'minecraft:gold_block', namespace: 'minecraft', position: { x: 32, y: 0, z: 0 }, state: {} };
+    renderer.applyBlockChanges([{ key: voxelKey(gold.position), position: gold.position, after: { key: voxelKey(gold.position), block: gold, templates: goldTemplates }, afterOpaque: true }]);
+    expect(renderer.evidence().terrainAtlas.terrainAtlasSprites).toBe(2);
+    expect(group.children.find((child) => child.userData['terrainChunk'] === '0,0,0')).toBe(oldChunk);
+    renderer.clear(); stoneMaterial.dispose(); goldMaterial.dispose(); stonePixels.dispose(); goldPixels.dispose(); for (const template of [...stoneTemplates, ...goldTemplates]) template.geometry.dispose();
+  });
 });
 
 function voxelKey(position: VoxelCoordinate): string { return `${position.x},${position.y},${position.z}`; }

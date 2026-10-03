@@ -2229,7 +2229,7 @@ camera interaction state, and hydration pump scheduling live under
 ownership, exposed-face batch ownership, and instance-template compilation live
 under `renderer/batching`. ThreeViewportEngine remains the coordinator and keeps
 the existing public API, diagnostics, visual roles, swap-back ownership, and
-hydration behavior. Chunk surface meshing, atlases, workers, and new render
+hydration behavior. Worker meshing, greedy meshing, and other new render
 algorithms remain deferred to later performance prompts.
 
 ## Compiled terrain chunk surfaces
@@ -2245,6 +2245,21 @@ Terrain-eligible voxels remain in the hydration set even when the legacy
 interior-culling diagnostic identifies them as enclosed; the compiled mesher
 performs the authoritative six-neighbor surface cull.
 Project coordinates and DDA picking are unchanged.
+
+## Terrain texture atlas with strict parity fallback
+
+Compiled opaque terrain now has an internal `terrainAtlasMode` switch. The
+engine uses atlas mode by default, while `ChunkSurfaceRenderer` tests can run
+the exact strict material baseline with `terrainAtlasMode: 'off'`. Atlas pages
+are owned by the terrain renderer, use append-only shelves with one-pixel edge
+extrusion, and never mutate provider textures. Source pixels are normalized to
+top-row-first data and atlas pages use `flipY = true`; a source texture with
+`flipY = false` is vertically normalized before insertion so its UV semantics
+remain unchanged. Any unsupported material, pixel extraction failure, or
+incompatible transform returns the face to the existing strict material bucket
+instead of dropping the face. Provider/renderer clears dispose atlas pages and
+compiled atlas state together, so a new provider generation cannot reuse old
+sprites. This remains render-only and is not a project or UI preference.
 
 ## Thumbnail generation lifecycle
 

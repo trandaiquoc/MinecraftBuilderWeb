@@ -25,3 +25,9 @@ npm run benchmark:renderer
 
 The explicit benchmark reports counters and elapsed time for comparison. Timing is informational; tests assert deterministic reconciliation/resource behavior rather than machine-dependent thresholds. Standard JSON geometry is provider-owned and shared by geometry signature; materials remain per visual instance so reference opacity cannot leak between blocks. Fluid and special visuals are intentionally not placed in this cache.
 The benchmark also reports provider resource counts before and after disposal; disposed caches are expected to return zero retained models, geometries, textures, fluid views, and thumbnails.
+
+Terrain chunk compilation also exposes an internal A/B terrain atlas mode. The
+strict `off` path remains the baseline reference; `on` uses append-only atlas
+pages with per-face strict fallback and reports atlas page/sprite/material
+evidence. The atlas is renderer-owned and is reset with provider generation
+changes.

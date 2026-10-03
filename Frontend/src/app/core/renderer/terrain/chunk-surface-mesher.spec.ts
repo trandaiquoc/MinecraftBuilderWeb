@@ -4,7 +4,8 @@ import type { PlacedBlock } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { TerrainOccupancy } from './chunk-occupancy';
 import { terrainChunkKey, worldToTerrainChunk } from './chunk-coordinate';
-import { meshTerrainChunk, type TerrainMeshEntry } from './chunk-surface-mesher';
+import { meshTerrainChunk, precompileTerrainTemplates, type TerrainMeshEntry } from './chunk-surface-mesher';
+import { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
 
 describe('compiled terrain surface mesher', () => {
   it('preserves transformed normals/UVs and keeps incompatible materials in separate buckets', () => {
@@ -56,6 +57,85 @@ describe('compiled terrain surface mesher', () => {
     expect(triangles).toBe(27_648);
     material.dispose();
     for (const template of templates) template.geometry.dispose();
+  });
+
+  it('keeps strict face count and geometry parity when atlas conversion is mixed with fallback', () => {
+    const supportedTexture = new THREE.DataTexture(new Uint8Array([255, 0, 0, 255]), 1, 1, THREE.RGBAFormat);
+    supportedTexture.flipY = true;
+    const supported = new THREE.MeshBasicMaterial({ map: supportedTexture });
+    const unsupported = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const strictTemplates = cubeTemplates(supported).map((template, index) => index === 0 ? { ...template, material: unsupported } : template);
+    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
+    const occupancy = new TerrainOccupancy(); occupancy.replace([{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }]);
+    const strict = meshTerrainChunk({ x: 0, y: 0, z: 0 }, [{ key: '0,0,0', position: block.position, templates: strictTemplates }], occupancy);
+    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
+    const optimized = meshTerrainChunk({ x: 0, y: 0, z: 0 }, [{ key: '0,0,0', position: block.position, templates: strictTemplates }], occupancy, atlas);
+    expect(optimized.facesEmitted).toBe(strict.facesEmitted);
+    expect(optimized.buckets.reduce((sum, bucket) => sum + bucket.faceCount, 0)).toBe(6);
+    expect(atlas.evidence().terrainAtlasCompatibleFaces).toBe(5);
+    expect(atlas.evidence().terrainAtlasFallbackFaces).toBe(1);
+    expect(optimized.buckets.some((bucket) => bucket.material === unsupported)).toBe(true);
+    for (const bucket of [...strict.buckets, ...optimized.buckets]) bucket.geometry.dispose();
+    atlas.clear(); supported.dispose(); unsupported.dispose(); supportedTexture.dispose();
+  });
+
+  it('keeps strict positions/normals and semantic UV corners under atlas remapping', () => {
+    const pixels = new THREE.DataTexture(new Uint8Array([255, 0, 0, 255]), 1, 1, THREE.RGBAFormat); pixels.flipY = true;
+    const material = new THREE.MeshBasicMaterial({ map: pixels });
+    const templates = cubeTemplates(material);
+    const strict = precompileTerrainTemplates(templates);
+    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
+    const optimized = precompileTerrainTemplates(templates, atlas);
+    expect(optimized).toHaveLength(strict.length);
+    for (let index = 0; index < strict.length; index += 1) {
+      expect(optimized[index].positions).toEqual(strict[index].positions);
+      expect(optimized[index].normals).toEqual(strict[index].normals);
+      const sprite = atlas.face(material, strict[index].uvs)!.sprite;
+      const semantic = optimized[index].uvs.map((value, uvIndex) => uvIndex % 2 === 0 ? (value - sprite.minU) / (sprite.maxU - sprite.minU) : (value - sprite.minV) / (sprite.maxV - sprite.minV));
+      expect(semantic).toEqual(strict[index].uvs);
+    }
+    atlas.clear(); material.dispose(); pixels.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('keeps separate oak-log side/top sources and remains visible across axis transitions', () => {
+    const sideTexture = new THREE.DataTexture(new Uint8Array([120, 80, 40, 255]), 1, 1, THREE.RGBAFormat); sideTexture.flipY = true;
+    const topTexture = new THREE.DataTexture(new Uint8Array([180, 120, 70, 255]), 1, 1, THREE.RGBAFormat); topTexture.flipY = true;
+    const side = new THREE.MeshBasicMaterial({ map: sideTexture });
+    const top = new THREE.MeshBasicMaterial({ map: topTexture });
+    const templates = cubeTemplates(side).map((template) => template.direction === 'up' || template.direction === 'down' ? { ...template, material: top } : template);
+    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:oak_log', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { axis: 'y' } };
+    const occupancy = new TerrainOccupancy(); occupancy.replace([{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }]);
+    const atlas = new TerrainTextureAtlas({ width: 16, height: 16 }, 1);
+    for (const axis of ['y', 'x', 'z', 'y'] as const) {
+      const next = { ...block, state: { axis } };
+      const compiled = meshTerrainChunk({ x: 0, y: 0, z: 0 }, [{ key: 'oak-log', position: next.position, templates }], occupancy, atlas);
+      expect(compiled.facesEmitted).toBe(6);
+      expect(compiled.buckets.length).toBeGreaterThan(0);
+      for (const bucket of compiled.buckets) bucket.geometry.dispose();
+    }
+    expect(atlas.evidence().terrainAtlasSprites).toBe(2);
+    atlas.clear(); side.dispose(); top.dispose(); sideTexture.dispose(); topTexture.dispose();
+  });
+
+  it('renders a mixed five-block terrain fixture with one sprite per source texture', () => {
+    const ids = ['minecraft:stone', 'minecraft:dirt', 'minecraft:oak_planks', 'minecraft:sandstone', 'minecraft:oak_log'];
+    const materials = ids.map((_, index) => {
+      const texture = new THREE.DataTexture(new Uint8Array([40 + index, 80 + index, 120 + index, 255]), 1, 1, THREE.RGBAFormat); texture.flipY = true;
+      const material = new THREE.MeshBasicMaterial({ map: texture });
+      return { material, texture };
+    });
+    const atlas = new TerrainTextureAtlas({ width: 32, height: 32 }, 1);
+    const blocks: PlacedBlock[] = ids.map((id, index) => {
+      const state: Readonly<Record<string, string>> = id === 'minecraft:oak_log' ? { axis: 'y' } : {};
+      return { kind: 'resolved', id, namespace: 'minecraft', position: { x: index * 2, y: 0, z: 0 }, state };
+    });
+    const occupancy = new TerrainOccupancy(); occupancy.replace(blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const })));
+    const compiled = meshTerrainChunk({ x: 0, y: 0, z: 0 }, blocks.map((block, index) => ({ key: block.id, position: block.position, templates: cubeTemplates(materials[index].material) })), occupancy, atlas);
+    expect(compiled.facesEmitted).toBeGreaterThan(0);
+    expect(compiled.buckets.reduce((sum, bucket) => sum + bucket.faceCount, 0)).toBe(compiled.facesEmitted);
+    expect(atlas.evidence().terrainAtlasSprites).toBe(5);
+    for (const bucket of compiled.buckets) bucket.geometry.dispose();
+    atlas.clear(); for (const entry of materials) { entry.material.dispose(); entry.texture.dispose(); }
   });
 });
 
