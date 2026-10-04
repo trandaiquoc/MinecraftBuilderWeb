@@ -67,6 +67,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     { id: 'current-only', label: this.i18n.t('visibilityCurrent') }, { id: 'current-previous', label: this.i18n.t('visibilityPrevious') }, { id: 'current-next', label: this.i18n.t('visibilityNext') }, { id: 'previous-current-next', label: this.i18n.t('visibilityThree') }, { id: 'all-below', label: this.i18n.t('visibilityBelow') }, { id: 'whole-structure', label: this.i18n.t('visibilityWhole') },
   ]);
   protected readonly status = signal<PlacementStatus>('invalid');
+  protected readonly placementStatus = signal<PlacementStatus | undefined>(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
@@ -105,7 +106,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected setVisibility(value: string): void { const project = this.workspace.project(); if (!project) return; this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, layerVisibility: value as YLayerVisibility } }); }
   protected resize(): void { this.engine.resize(); }
   protected pointerMove(event: PointerEvent): void { this.engine.hover(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }
-  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const status = activeDecoration ? (hit.decorationPlan?.status === 'valid' ? 'valid' : 'invalid') : hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const placementStatus = activeDecoration ? hit.decorationPlan?.status : hit.placement?.status; const status = placementStatus ?? 'invalid'; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.placementStatus.set(placementStatus); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
   protected pointerDown(event: PointerEvent): void {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
@@ -155,7 +156,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     if (activeDecoration && hit.block && hit.faceNormal && this.tool.active() === 'place' && gestureAction === 'primary-action') {
       const facing = facingFromNormal(hit.faceNormal); if (facing && hit.decorationPlan?.status === 'valid') this.decorations.placeFromSupport(hit.block, facing); return;
     }
-    const status = hit.target ? this.editor.validatePlacement(hit.target, hit.placementContext).status : hit.status;
+    const status = hit.placement?.status ?? 'invalid';
     if (this.tool.active() === 'place' && gestureAction === 'primary-action' && hit.block && this.editor.canStackCandle(hit.block)) {
       this.editor.stackCandle(hit.block);
       return;
@@ -179,7 +180,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined;
-    this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
+    this.engine.clearGhost(); this.placementStatus.set(undefined); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
     if (event) this.releasePointer(event);

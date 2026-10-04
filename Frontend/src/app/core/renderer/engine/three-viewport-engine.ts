@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
-import { FaceNormal, resolveAttachmentPlacement, placementStatus, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
+import { FaceNormal, resolveAttachmentPlacement, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
 import { blocksForLayers, YLayerVisibility } from '../../editor/viewport/y-layer';
 import { isBlockVisibleForViewport, visibleBlockEntries } from '../../editor/viewport/visible-blocks';
 import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../../editor/camera/camera';
@@ -50,6 +50,10 @@ import { RenderScheduler } from '../scheduling/render-scheduler';
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
+import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
+import type { HydrationProgressSnapshot, HydrationStatus } from '../scheduling/hydration-progress-tracker';
+import { ProviderRefreshCoordinator } from '../provider/provider-refresh-coordinator';
+import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
 import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
@@ -60,9 +64,10 @@ import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainA
 import { nextCameraDistanceFromWheel, wheelMagnitude, type WheelZoomAction } from '../scheduling/camera-wheel-zoom';
 import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
+import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
 
 
-export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
+export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 export type ViewportHoverListener = (hit: ViewportHit) => void;
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined, lookup?: ReadonlyBlockLookup) => PlacementPlan | undefined;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
@@ -71,18 +76,8 @@ export interface ViewportEngineOptions {
   /** Narrow test seam for validating atomic terrain ownership commits. */
   readonly terrainShouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
 }
-export type ViewportHydrationStatus = 'idle' | 'hydrating' | 'complete';
-export interface ViewportHydrationProgress {
-  readonly generation: number;
-  readonly status: ViewportHydrationStatus;
-  readonly completed: number;
-  readonly total: number;
-  readonly blocksCompleted: number;
-  readonly blocksTotal: number;
-  readonly decorationsCompleted: number;
-  readonly decorationsTotal: number;
-  readonly percent: number;
-}
+export type ViewportHydrationStatus = HydrationStatus;
+export type ViewportHydrationProgress = HydrationProgressSnapshot;
 export interface ViewportPerformanceEvidence {
   readonly renderCalls: number;
   readonly triangles: number;
@@ -626,7 +621,7 @@ export class ThreeViewportEngine {
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly hydrationWork = new HydrationWorkCoordinator<BlockHydrationJob>({ concurrency: VIEWPORT_VISUAL_CONCURRENCY, regularReservedCapacity: 4, providerRefreshCapacity: 2 });
   private get hydrationRunning(): number { return this.hydrationWork.runningTotal(); }
-  private readonly retiredProviders = new Set<BlockVisualProvider>();
+  private readonly providerLifecycle = new ProviderRefreshCoordinator<BlockVisualProvider>();
   private readonly pendingTerrainTemplates = new Map<string, Promise<readonly SurfaceFaceTemplate[] | undefined>>();
   private readonly instanceRenderer = new InstanceBatchRenderer({
     blocksGroup: this.blocksGroup,
@@ -664,12 +659,10 @@ export class ThreeViewportEngine {
   readonly terrainAtlasMode: TerrainAtlasMode;
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
   private readonly reusableInstanceTemplates = new Map<string, CompiledInstanceTemplates>();
-  private readonly hydrationProgressListeners = new Set<(progress: ViewportHydrationProgress) => void>();
-  private hydrationProgressState: ViewportHydrationProgress = { generation: 0, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 };
-  private readonly hydrationBlockScope = new Set<string>();
-  private readonly completedHydrationBlocks = new Set<string>();
-  private readonly hydrationDecorationScope = new Set<string>();
-  private readonly completedHydrationDecorations = new Set<string>();
+  private readonly hydrationProgressTracker = new HydrationProgressTracker(
+    () => this.instrumentation.record('hydrationProgressRegressions'),
+    (progress) => this.runtimeTrace?.record('hydration-progress', { generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent }),
+  );
   private hemisphereLight?: THREE.HemisphereLight;
   private keyLight?: THREE.DirectionalLight;
   private blockBrightness = 3;
@@ -680,7 +673,8 @@ export class ThreeViewportEngine {
   private decorationSyncKey = '';
   private syncedDecorationProject?: ProjectDocument;
   private decorationRevision = 0;
-  private providerGeneration = 0;
+  private get providerGeneration(): number { return this.providerLifecycle.generation; }
+  private get hydrationProgressState(): ViewportHydrationProgress { return this.hydrationProgressTracker.snapshot(); }
   private providerStats?: VisualCacheStats;
   private hydrationGeneration = 0;
   private readonly pendingHydrationSignatures = new Map<string, string>();
@@ -926,12 +920,8 @@ export class ThreeViewportEngine {
     if (this.visualProvider === provider) return;
     const previousProvider = this.visualProvider;
     this.visualProvider = provider;
-    const providerAlreadyRetained = !!provider && this.retiredProviders.has(provider);
-    if (provider && !providerAlreadyRetained) provider.retain?.();
-    if (previousProvider) this.retiredProviders.add(previousProvider);
-    if (provider) this.retiredProviders.delete(provider);
+    this.providerLifecycle.transition(previousProvider, provider);
     this.providerStats = undefined;
-    this.providerGeneration += 1;
     this.runtimeTrace?.record('provider-generation', { providerGeneration: this.providerGeneration, hasProvider: !!provider });
     this.specialVisualSignature = '';
     this.ghostModelKey = '';
@@ -1066,13 +1056,10 @@ export class ThreeViewportEngine {
   }
 
   private releaseUnusedRetiredProviders(): void {
-    for (const provider of [...this.retiredProviders]) {
-      const referenced = [...this.renderedBlocks.values()].some((entry) => entry.provider === provider);
-      const queued = this.hydrationWork.providerRefreshJobs().some((job) => job.key && this.renderedBlocks.get(job.key)?.provider === provider);
-      if (referenced || queued) continue;
-      provider.release?.();
-      this.retiredProviders.delete(provider);
-    }
+    this.providerLifecycle.releaseUnused({
+      referenced: (provider) => [...this.renderedBlocks.values()].some((entry) => entry.provider === provider),
+      queued: (provider) => this.hydrationWork.providerRefreshJobs().some((job) => job.key && this.renderedBlocks.get(job.key)?.provider === provider),
+    });
   }
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
@@ -1390,8 +1377,8 @@ export class ThreeViewportEngine {
       const beforeKey = change.before ? coordinateKey(change.before.position) : coordinateKey(change.position);
       const afterKey = change.after ? coordinateKey(change.after.position) : coordinateKey(change.position);
       hintedKeys.add(beforeKey); hintedKeys.add(afterKey);
-      this.completedHydrationBlocks.delete(beforeKey);
-      this.completedHydrationBlocks.delete(afterKey);
+      this.hydrationProgressTracker.invalidate('block', beforeKey);
+      this.hydrationProgressTracker.invalidate('block', afterKey);
       for (const position of [change.position, change.before?.position, change.after?.position]) if (position) {
         affectedPositions.set(coordinateKey(position), position);
         changedKeys.add(coordinateKey(position));
@@ -1657,80 +1644,28 @@ export class ThreeViewportEngine {
   }
 
   private setHydrationBlockScope(entries: readonly VisibleBlockEntry[]): void {
-    const next = new Set(entries.map((entry) => coordinateKey(entry.block.position)));
-    for (const key of this.hydrationBlockScope) if (!next.has(key)) this.completedHydrationBlocks.delete(key);
-    for (const key of this.completedHydrationBlocks) if (!next.has(key)) this.completedHydrationBlocks.delete(key);
-    this.hydrationBlockScope.clear();
-    for (const key of next) this.hydrationBlockScope.add(key);
+    this.hydrationProgressTracker.setBlockScope(entries.map((entry) => coordinateKey(entry.block.position)));
   }
 
   private setHydrationDecorationScope(ids: readonly string[]): void {
-    const next = new Set(ids);
-    for (const id of this.completedHydrationDecorations) if (!next.has(id)) this.completedHydrationDecorations.delete(id);
-    this.hydrationDecorationScope.clear();
-    for (const id of next) this.hydrationDecorationScope.add(id);
+    this.hydrationProgressTracker.setDecorationScope(ids);
   }
 
   private beginHydrationProgress(_blocksWork: number, _decorationsWork: number): void {
-    const current = this.hydrationProgressState;
-    const blocksTotal = this.hydrationBlockScope.size;
-    const decorationsTotal = this.hydrationDecorationScope.size;
-    const blocksCompleted = this.completedHydrationBlocks.size;
-    const decorationsCompleted = this.completedHydrationDecorations.size;
-    const total = blocksTotal + decorationsTotal;
-    if (!total) { this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 }); return; }
-    const completed = blocksCompleted + decorationsCompleted;
-    if (completed >= total) return;
-    this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
+    this.hydrationProgressTracker.begin(this.hydrationGeneration);
   }
 
   private completeHydrationPart(token: number, kind: 'block' | 'decoration', key: string): void {
-    if (kind === 'block') {
-      if (!this.hydrationBlockScope.has(key)) return;
-      this.completedHydrationBlocks.add(key);
-    } else {
-      if (!this.hydrationDecorationScope.has(key)) return;
-      this.completedHydrationDecorations.add(key);
-    }
-    const current = this.hydrationProgressState;
-    if (current.generation !== token) return;
-    const blocksCompleted = this.completedHydrationBlocks.size;
-    const decorationsCompleted = this.completedHydrationDecorations.size;
-    const completed = blocksCompleted + decorationsCompleted;
-    const total = this.hydrationBlockScope.size + this.hydrationDecorationScope.size;
-    const percent = total > 0 ? completed / total * 100 : 100;
-    if (completed >= total) {
-      this.publishHydrationProgress({ ...current, status: 'complete', completed: total, total, blocksCompleted: this.hydrationBlockScope.size, blocksTotal: this.hydrationBlockScope.size, decorationsCompleted: this.hydrationDecorationScope.size, decorationsTotal: this.hydrationDecorationScope.size, percent: 100 });
-      return;
-    }
-    this.publishHydrationProgress({ ...current, total, completed, blocksCompleted, blocksTotal: this.hydrationBlockScope.size, decorationsCompleted, decorationsTotal: this.hydrationDecorationScope.size, percent });
+    this.hydrationProgressTracker.complete(token, kind, key);
   }
 
   private publishHydrationProgress(progress: ViewportHydrationProgress): void {
-    const current = this.hydrationProgressState;
-    const sameScope = current.generation === progress.generation && current.total > 0 && (progress.total === current.total || progress.total === 0);
-    if (sameScope && (progress.completed < current.completed || progress.total === 0 || progress.blocksCompleted < current.blocksCompleted || progress.decorationsCompleted < current.decorationsCompleted)) {
-      this.instrumentation.record('hydrationProgressRegressions');
-      progress = {
-        ...progress,
-        generation: current.generation,
-        status: current.status === 'complete' ? 'complete' : 'hydrating',
-        completed: current.completed,
-        total: current.total,
-        blocksCompleted: current.blocksCompleted,
-        blocksTotal: current.blocksTotal,
-        decorationsCompleted: current.decorationsCompleted,
-        decorationsTotal: current.decorationsTotal,
-        percent: current.percent,
-      };
-    }
-    this.hydrationProgressState = progress;
-    this.runtimeTrace?.record('hydration-progress', { generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent });
-    for (const listener of this.hydrationProgressListeners) listener(progress);
+    // Kept as a narrow test seam; normal accounting lives in the tracker.
+    this.hydrationProgressTracker.publish(progress as HydrationProgressSnapshot);
   }
 
   private resetHydrationProgress(): void {
-    this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 });
+    this.hydrationProgressTracker.reset(this.hydrationGeneration);
   }
 
   private requestCameraRender(): void {
@@ -1897,10 +1832,7 @@ export class ThreeViewportEngine {
     this.hydrationScheduler.cancel();
     this.hydrationTimer = undefined;
     this.hydrationScheduled = false;
-    this.hydrationBlockScope.clear();
-    this.completedHydrationBlocks.clear();
-    this.hydrationDecorationScope.clear();
-    this.completedHydrationDecorations.clear();
+    this.hydrationProgressTracker.clear();
     this.resetHydrationProgress();
   }
 
@@ -2396,7 +2328,7 @@ export class ThreeViewportEngine {
 
   private performHit(clientX: number, clientY: number, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
-    if (!this.renderer || !this.container || !project) return { status: 'invalid' };
+    if (!this.renderer || !this.container || !project) return {};
     this.flushInstanceBatchBounds();
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
@@ -2440,23 +2372,27 @@ export class ThreeViewportEngine {
       faceNormal = { x: 0, y: attachment.snapType === 'chain-extension' ? 1 : -1, z: 0 };
     } else if (!target && block && faceNormal) target = targetFromBlockFace(block, faceNormal);
     const placementContext = faceNormal ? { faceNormal, hitPoint: hitPoint ? { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z } : undefined, facing: isHorizontalDirection(facing) ? facing : undefined, yaw: cameraYaw(this.camera), stateOverride: attachment?.stateOverride } : undefined;
-    const previewStarted = typeof performance !== 'undefined' ? performance.now() : 0;
-    const plan = target && active && this.placementPlanProvider ? this.placementPlanProvider(project, active, target, placementContext, this.spatialIndex) : undefined;
+    const previewStarted = showGhost && typeof performance !== 'undefined' ? performance.now() : 0;
+    const placement = resolvePlacementPreview({ requested: showGhost && !this.renderOptions.activeDecoration, project, active, target, context: placementContext, lookup: this.spatialIndex, provider: this.placementPlanProvider });
     if (previewStarted) this.instrumentation.record('placementPreviewMs', Math.max(0, performance.now() - previewStarted));
-    this.syncSpecialVisualDescriptors(plan?.blocks ?? []);
-    const decorationPlan = this.renderOptions.activeDecoration && block && faceNormal ? planDecorationPlacement(project, this.renderOptions.activeDecoration, block, facingFromNormal(faceNormal) ?? 'up') : undefined;
-    const status = decorationPlan?.status === 'invalid' ? 'invalid' : plan?.validation.status ?? placementStatus(target, project.size, active?.support ?? 'unknown');
-    this.ghostPlan = plan;
-    this.updateGhostModel(active, plan);
-    this.updateGhost(showGhost ? target : undefined, project, active, status, plan);
-    if (showGhost && this.renderOptions.activeDecoration && decorationPlan?.decoration) this.updateDecorationGhost(decorationPlan.decoration, decorationPlan.status);
-    else this.clearDecorationGhost();
-    const hoverVisualKey = `${target ? coordinateKey(target) : ''}|${status}|${this.ghostModelKey}|${decorationPlan?.decoration ? stableValue(decorationPlan.decoration) : ''}`;
+    const decorationPlan = showGhost && this.renderOptions.activeDecoration && block && faceNormal ? planDecorationPlacement(project, this.renderOptions.activeDecoration, block, facingFromNormal(faceNormal) ?? 'up') : undefined;
+    const previewStatus = decorationPlan?.status ?? placement.status;
+    if (showGhost) {
+      this.syncSpecialVisualDescriptors(placement.plan?.blocks ?? []);
+      this.ghostPlan = placement.plan;
+      this.updateGhostModel(active, placement.plan);
+      this.updateGhost(target, project, active, previewStatus ?? 'invalid', placement.plan);
+      if (this.renderOptions.activeDecoration && decorationPlan?.decoration) this.updateDecorationGhost(decorationPlan.decoration, decorationPlan.status);
+      else this.clearDecorationGhost();
+    } else {
+      this.clearDecorationGhost();
+    }
+    const hoverVisualKey = `${target ? coordinateKey(target) : ''}|${previewStatus ?? ''}|${this.ghostModelKey}|${decorationPlan?.decoration ? stableValue(decorationPlan.decoration) : ''}`;
     if (hoverVisualKey !== this.lastHoverVisualKey) { this.lastHoverVisualKey = hoverVisualKey; this.scheduleRender(); }
     if (started) { const elapsed = Math.max(0, performance.now() - started); this.instrumentation.record('hoverPickMs', elapsed); this.instrumentation.record('hoverPickCount'); this.instrumentation.record('hoverPickMaxMs', Math.max(0, elapsed - this.instrumentation.snapshot().hoverPickMaxMs)); }
     if (previewStarted) { const elapsed = Math.max(0, performance.now() - previewStarted); this.instrumentation.record('placementPreviewCount'); this.instrumentation.record('placementPreviewMaxMs', Math.max(0, elapsed - this.instrumentation.snapshot().placementPreviewMaxMs)); }
     this.recordSpatialLookupDelta();
-    return { target, block, status, faceNormal, placementContext, decoration, decorationPlan, decorationDistance: decorationHit?.distance, blockDistance: ddaHit?.distance ?? blockHit?.distance };
+    return { target, block, placement: placement.status ? { status: placement.status, plan: placement.plan } : undefined, faceNormal, placementContext, decoration, decorationPlan, decorationDistance: decorationHit?.distance, blockDistance: ddaHit?.distance ?? blockHit?.distance };
   }
 
   /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
@@ -2532,7 +2468,7 @@ export class ThreeViewportEngine {
     for (const child of [...this.logicalSelectionGroup.children]) this.logicalSelectionGroup.remove(child);
     for (const child of [...this.decorationGhostGroup.children]) disposeObject(child); this.decorationGhostGroup.clear();
     for (const child of [...this.decorationSelectionGroup.children]) disposeObject(child); this.decorationSelectionGroup.clear();
-    this.renderedBlocks.clear(); this.renderedDecorations.clear(); this.providerGeneration += 1;
+    this.renderedBlocks.clear(); this.renderedDecorations.clear();
     this.clearStructureBlockGuide();
     this.structureBlockGuideGroup.clear();
     this.ghost.geometry.dispose();
@@ -2562,8 +2498,7 @@ export class ThreeViewportEngine {
     this.placeholderGeometry.dispose();
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
     provider?.release?.();
-    for (const retired of this.retiredProviders) retired.release?.();
-    this.retiredProviders.clear();
+    this.providerLifecycle.clear();
     this.visualProvider = undefined;
     this.renderer = undefined;
     this.container = undefined;
@@ -2576,37 +2511,13 @@ export class ThreeViewportEngine {
   visibleSceneDiagnostics(): VisibleSceneDiagnostics {
     const expected = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
     const expectedKeys = [...new Set(expected.map((entry) => coordinateKey(entry.block.position)))];
-    const expectedSet = new Set(expectedKeys);
-    const renderedVoxelKeys = [...this.renderedBlocks.keys()].filter((key) => expectedSet.has(key));
-    const placeholderVoxelKeys = [...this.placeholderIndices.keys()].filter((key) => expectedSet.has(key));
-    const pendingVoxelKeys = [...this.pendingHydrationSignatures.keys()].filter((key) => expectedSet.has(key));
-    const representedVoxelKeys = [...new Set([...renderedVoxelKeys, ...placeholderVoxelKeys])];
-    return {
-      expectedVisibleVoxelCount: expectedKeys.length,
-      renderedVoxelCount: renderedVoxelKeys.length,
-      placeholderVoxelCount: placeholderVoxelKeys.length,
-      pendingVoxelCount: pendingVoxelKeys.length,
-      expectedVoxelKeys: expectedKeys,
-      renderedVoxelKeys,
-      placeholderVoxelKeys,
-      pendingVoxelKeys,
-      representedVoxelKeys,
-    };
+    return collectVisibleSceneDiagnostics({ expectedKeys, renderedKeys: this.renderedBlocks.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingKeys: this.pendingHydrationSignatures.keys() });
   }
 
   ownershipDiagnostics(): readonly ViewportVoxelOwnershipDiagnostic[] {
     const expected = this.project ? new Set(this.visibleBlocks(this.project, this.renderOptions).map((entry) => coordinateKey(entry.block.position))) : new Set<string>();
     const queued = new Set(this.hydrationWork.regularJobs().map((job) => job.key));
-    const keys = new Set([...expected, ...this.renderedBlocks.keys(), ...this.placeholderIndices.keys(), ...this.pendingHydrationSignatures.keys(), ...this.placeholderSignatures.keys(), ...queued, ...this.runningHydrationKeys.keys()]);
-    return [...keys].sort().map((coordinateKeyValue) => ({
-      coordinateKey: coordinateKeyValue,
-      expectedVisible: expected.has(coordinateKeyValue),
-      renderedEntry: this.renderedBlocks.has(coordinateKeyValue),
-      placeholderEntry: this.placeholderIndices.has(coordinateKeyValue),
-      ...(this.pendingHydrationSignatures.has(coordinateKeyValue) ? { pendingSignature: this.pendingHydrationSignatures.get(coordinateKeyValue) } : {}),
-      queuedJob: queued.has(coordinateKeyValue),
-      ...(this.runningHydrationKeys.has(coordinateKeyValue) ? { runningGeneration: this.runningHydrationKeys.get(coordinateKeyValue) } : {}),
-    }));
+    return collectOwnershipDiagnostics({ expectedKeys: expected, renderedKeys: this.renderedBlocks.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingSignatures: this.pendingHydrationSignatures, queuedKeys: queued, runningKeys: this.runningHydrationKeys });
   }
 
   private instanceOwnershipViolations(): readonly string[] {
@@ -3112,9 +3023,7 @@ export class ThreeViewportEngine {
   }
 
   onHydrationProgress(listener: (progress: ViewportHydrationProgress) => void): () => void {
-    this.hydrationProgressListeners.add(listener);
-    listener(this.hydrationProgressState);
-    return () => this.hydrationProgressListeners.delete(listener);
+    return this.hydrationProgressTracker.onProgress(listener);
   }
 
   private setEditingPlane(y: number | undefined, project: ProjectDocument | undefined): void {

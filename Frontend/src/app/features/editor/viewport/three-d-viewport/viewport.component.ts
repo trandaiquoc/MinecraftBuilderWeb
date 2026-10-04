@@ -71,6 +71,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly resolveDecorationItemPreview = (item: import('../../../../core/items/item-stack.types').ItemStackData) => this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]);
   private readonly resolvePaintingTexture = (id: string) => this.paintingCatalog.get(id)?.assetPath;
   protected readonly status = signal<PlacementStatus>('invalid');
+  protected readonly placementStatus = signal<PlacementStatus | undefined>(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
@@ -141,7 +142,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected resize(): void { this.engine.resize(); }
   protected statusLabel(): string { return this.i18n.t(this.status()); }
   protected pointerMove(event: PointerEvent): void { this.engine.hover(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }
-  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const status = activeDecoration ? (hit.decorationPlan?.status === 'valid' ? 'valid' : 'invalid') : hit.status; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const placementStatus = activeDecoration ? hit.decorationPlan?.status : hit.placement?.status; const status = placementStatus ?? 'invalid'; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.placementStatus.set(placementStatus); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
   protected pointerDown(event: PointerEvent): void {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
@@ -224,7 +225,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (activeDecoration && hit.block && this.tool.active() === 'select') { this.decorations.select(undefined); }
-    const status = activeDecoration ? hit.decorationPlan?.status ?? hit.status : hit.status;
+    const status = activeDecoration ? hit.decorationPlan?.status ?? 'invalid' : hit.placement?.status ?? 'invalid';
     if (this.tool.active() === 'place' && gestureAction === 'primary-action' && hit.block && this.editor.canStackCandle(hit.block)) {
       this.editor.stackCandle(hit.block);
       return;
@@ -248,7 +249,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined;
-    this.engine.clearGhost(); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
+    this.engine.clearGhost(); this.placementStatus.set(undefined); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
     if (event) this.releasePointer(event);
