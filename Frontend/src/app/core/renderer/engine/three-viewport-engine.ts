@@ -58,6 +58,7 @@ import type { ProjectMutationHint } from '../../editor/mutations/project-mutatio
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
 import { nextCameraDistanceFromWheel, type WheelZoomAction } from '../scheduling/camera-wheel-zoom';
+import { effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -114,6 +115,8 @@ export interface ViewportPerformanceEvidence {
   readonly staticResolutionRestores: number;
   readonly hydrationPausesForCamera: number;
   readonly hydrationJobsStartedWhileCamera: number;
+  readonly hydrationProgressRegressions: number;
+  readonly cameraOnlyGenerationChanges: number;
   readonly blockSignatureComputations: number;
   readonly hoverRaycasts: number;
   readonly hoverRaycastsSuppressedDuringCamera: number;
@@ -431,7 +434,6 @@ export const VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH = 8;
 export const VIEWPORT_CAMERA_IDLE_GRACE_MS = 160;
 export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
 export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
-export const VIEWPORT_HYDRATION_COMPLETE_DISPLAY_MS = 800;
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
@@ -644,7 +646,6 @@ export class ThreeViewportEngine {
   private readonly reusableInstanceTemplates = new Map<string, CompiledInstanceTemplates>();
   private readonly hydrationProgressListeners = new Set<(progress: ViewportHydrationProgress) => void>();
   private hydrationProgressState: ViewportHydrationProgress = { generation: 0, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 };
-  private hydrationProgressHideTimer?: ReturnType<typeof setTimeout>;
   private readonly hydrationBlockScope = new Set<string>();
   private readonly completedHydrationBlocks = new Set<string>();
   private readonly hydrationDecorationScope = new Set<string>();
@@ -1553,7 +1554,6 @@ export class ThreeViewportEngine {
   }
 
   private beginHydrationProgress(_blocksWork: number, _decorationsWork: number): void {
-    if (this.hydrationProgressHideTimer !== undefined) { clearTimeout(this.hydrationProgressHideTimer); this.hydrationProgressHideTimer = undefined; }
     const current = this.hydrationProgressState;
     const blocksTotal = this.hydrationBlockScope.size;
     const decorationsTotal = this.hydrationDecorationScope.size;
@@ -1583,22 +1583,34 @@ export class ThreeViewportEngine {
     const percent = total > 0 ? completed / total * 100 : 100;
     if (completed >= total) {
       this.publishHydrationProgress({ ...current, status: 'complete', completed: total, total, blocksCompleted: this.hydrationBlockScope.size, blocksTotal: this.hydrationBlockScope.size, decorationsCompleted: this.hydrationDecorationScope.size, decorationsTotal: this.hydrationDecorationScope.size, percent: 100 });
-      this.hydrationProgressHideTimer = setTimeout(() => {
-        if (this.hydrationProgressState.generation === token && this.hydrationProgressState.status === 'complete') this.publishHydrationProgress({ generation: token, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 });
-        this.hydrationProgressHideTimer = undefined;
-      }, VIEWPORT_HYDRATION_COMPLETE_DISPLAY_MS);
       return;
     }
     this.publishHydrationProgress({ ...current, total, completed, blocksCompleted, blocksTotal: this.hydrationBlockScope.size, decorationsCompleted, decorationsTotal: this.hydrationDecorationScope.size, percent });
   }
 
   private publishHydrationProgress(progress: ViewportHydrationProgress): void {
+    const current = this.hydrationProgressState;
+    const sameScope = current.generation === progress.generation && current.total > 0 && (progress.total === current.total || progress.total === 0);
+    if (sameScope && (progress.completed < current.completed || progress.total === 0 || progress.blocksCompleted < current.blocksCompleted || progress.decorationsCompleted < current.decorationsCompleted)) {
+      this.instrumentation.record('hydrationProgressRegressions');
+      progress = {
+        ...progress,
+        generation: current.generation,
+        status: current.status === 'complete' ? 'complete' : 'hydrating',
+        completed: current.completed,
+        total: current.total,
+        blocksCompleted: current.blocksCompleted,
+        blocksTotal: current.blocksTotal,
+        decorationsCompleted: current.decorationsCompleted,
+        decorationsTotal: current.decorationsTotal,
+        percent: current.percent,
+      };
+    }
     this.hydrationProgressState = progress;
     for (const listener of this.hydrationProgressListeners) listener(progress);
   }
 
   private resetHydrationProgress(): void {
-    if (this.hydrationProgressHideTimer !== undefined) { clearTimeout(this.hydrationProgressHideTimer); this.hydrationProgressHideTimer = undefined; }
     this.publishHydrationProgress({ generation: this.hydrationGeneration, status: 'idle', completed: 0, total: 0, blocksCompleted: 0, blocksTotal: 0, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 });
   }
 
@@ -1766,6 +1778,7 @@ export class ThreeViewportEngine {
   }
 
   private cancelHydration(): void {
+    if (this.cameraGestureInProgress || this.pressedActions.size > 0) this.instrumentation.record('cameraOnlyGenerationChanges');
     this.hydrationGeneration += 1;
     this.instrumentation.record('hydrationGenerations');
     if (this.queuedBlockHydrationJobs() || this.hydrationRunning) this.instrumentation.record('cancelledHydrations');
@@ -2785,6 +2798,8 @@ export class ThreeViewportEngine {
       staticResolutionRestores: counters.staticResolutionRestores,
       hydrationPausesForCamera: counters.hydrationPausesForCamera,
       hydrationJobsStartedWhileCamera: counters.hydrationJobsStartedWhileCamera,
+      hydrationProgressRegressions: counters.hydrationProgressRegressions,
+      cameraOnlyGenerationChanges: counters.cameraOnlyGenerationChanges,
       blockSignatureComputations: counters.blockSignatureComputations,
       hoverRaycasts: counters.hoverRaycasts,
       hoverRaycastsSuppressedDuringCamera: counters.hoverRaycastsSuppressedDuringCamera,
@@ -3333,7 +3348,9 @@ export class ThreeViewportEngine {
   private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     if (!this.controls || !keys.size) return;
     this.markCameraInteraction();
-    const direction = cameraActionMovementDelta(keys, this.camera, this.controlConfiguration.cameraMoveSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
+    const cameraDistance = this.camera.position.distanceTo(this.controls.target);
+    const horizontalSpeed = effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, cameraDistance);
+    const direction = cameraActionMovementDelta(keys, this.camera, horizontalSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
     if (!direction.lengthSq()) return;
     this.camera.position.add(direction);
     this.controls.target.add(direction);

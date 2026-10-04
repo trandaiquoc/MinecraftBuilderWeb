@@ -2352,3 +2352,16 @@ so control changes, movement, hydration commits, and overlays coalesce into one
 scene render per pending frame. Wheel distance changes are exponential and
 delta-mode aware (pixel, line, and page), while preserving configured zoom
 direction, sensitivity, and distance limits.
+
+## Camera interaction stabilization
+
+Hydration progress remains monotonic within one render generation. Completion
+is no longer converted back to a zero-valued progress snapshot after a short
+timer; an intentional project/provider generation reset is the boundary that
+clears progress. Camera-only orbit, pan, WASD, and wheel input therefore cannot
+lower the logical completed count.
+
+Horizontal WASD movement uses a continuous camera-distance scale: base speed
+is multiplied by `clamp(cameraTargetDistance / 16, 0.35, 2.5)`. Vertical
+movement remains controlled by its separate preference. Temporary interactive
+pixel-ratio changes are presentation-only and do not change camera pose.

@@ -443,6 +443,55 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('keeps hydration progress monotonic across camera-only interaction', () => {
+    const engine = new ThreeViewportEngine();
+    const internals = engine as unknown as {
+      hydrationGeneration: number;
+      publishHydrationProgress: (progress: unknown) => void;
+      onControlStart: () => void;
+      onControlEnd: () => void;
+      renderOnControlChange: () => void;
+      applyWheelZoom: (action: 'zoom-in' | 'zoom-out', deltaY: number, deltaMode: number) => void;
+      camera: THREE.PerspectiveCamera;
+      controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void };
+    };
+    internals.hydrationGeneration = 7;
+    internals.publishHydrationProgress({ generation: 7, status: 'hydrating', completed: 70, total: 100, blocksCompleted: 70, blocksTotal: 100, decorationsCompleted: 0, decorationsTotal: 0, percent: 70 });
+    internals.onControlStart();
+    internals.renderOnControlChange();
+    internals.camera.position.set(8, 6, 8);
+    internals.controls = { target: new THREE.Vector3(), minDistance: 1, maxDistance: 100, update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    internals.applyWheelZoom('zoom-in', 3, 1);
+    internals.onControlEnd();
+    expect(engine.hydrationProgress()).toMatchObject({ generation: 7, total: 100, blocksTotal: 100, blocksCompleted: 70, completed: 70 });
+    expect(engine.rendererCounters()).toMatchObject({ hydrationGenerations: 0, cameraOnlyGenerationChanges: 0, hydrationProgressRegressions: 0 });
+    engine.dispose();
+  });
+
+  it('scales horizontal WASD distance continuously with camera-target distance', () => {
+    const engine = new ThreeViewportEngine();
+    const internals = engine as unknown as {
+      camera: THREE.PerspectiveCamera;
+      controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void };
+      moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void;
+    };
+    internals.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
+    internals.camera.position.set(0, 0, 8);
+    internals.camera.lookAt(internals.controls.target);
+    const nearBefore = internals.camera.position.clone();
+    internals.moveCamera(new Set(['move-forward']), .1);
+    const nearDistance = internals.camera.position.distanceTo(nearBefore);
+    internals.controls.target.set(0, 0, 0);
+    internals.camera.position.set(0, 0, 24);
+    internals.camera.lookAt(internals.controls.target);
+    const farBefore = internals.camera.position.clone();
+    internals.moveCamera(new Set(['move-forward']), .1);
+    const farDistance = internals.camera.position.distanceTo(farBefore);
+    expect(farDistance).toBeGreaterThan(nearDistance);
+    expect(farDistance / nearDistance).toBeLessThan(3.1);
+    engine.dispose();
+  });
+
   it('coalesces repeated OrbitControls changes into one camera render request per frame', async () => {
     const engine = new ThreeViewportEngine();
     const internals = engine as unknown as { renderOnControlChange: () => void };
@@ -468,6 +517,8 @@ describe('camera movement input contract', () => {
     } as unknown as THREE.WebGLRenderer;
     const internals = engine as unknown as {
       renderer: THREE.WebGLRenderer;
+      camera: THREE.PerspectiveCamera;
+      controls: { target: THREE.Vector3; removeEventListener: () => void; dispose: () => void };
       staticPixelRatio: number;
       interactivePixelRatio: number;
       enterInteractiveResolution: () => void;
@@ -475,14 +526,27 @@ describe('camera movement input contract', () => {
       cameraInteractingUntil: number;
     };
     internals.renderer = renderer;
+    internals.controls = { target: new THREE.Vector3(), removeEventListener: vi.fn(), dispose: vi.fn() };
     internals.staticPixelRatio = 2;
     internals.interactivePixelRatio = 1;
+    internals.camera.position.set(8, 6, 8);
+    internals.controls.target.set(1, 2, 3);
+    internals.camera.lookAt(internals.controls.target);
+    const poseBefore = { position: internals.camera.position.clone(), target: internals.controls.target.clone(), quaternion: internals.camera.quaternion.clone(), fov: internals.camera.fov, aspect: internals.camera.aspect };
     internals.enterInteractiveResolution();
     expect(setPixelRatio).toHaveBeenCalledWith(1);
+    expect(internals.camera.position.distanceTo(poseBefore.position)).toBe(0);
+    expect(internals.controls.target.distanceTo(poseBefore.target)).toBe(0);
+    expect(internals.camera.quaternion.angleTo(poseBefore.quaternion)).toBe(0);
+    expect(internals.camera.fov).toBe(poseBefore.fov);
+    expect(internals.camera.aspect).toBe(poseBefore.aspect);
     internals.cameraInteractingUntil = performance.now() - 1;
     internals.scheduleStaticResolutionRestore();
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(setPixelRatio).toHaveBeenLastCalledWith(2);
+    expect(internals.camera.position.distanceTo(poseBefore.position)).toBe(0);
+    expect(internals.controls.target.distanceTo(poseBefore.target)).toBe(0);
+    expect(internals.camera.quaternion.angleTo(poseBefore.quaternion)).toBe(0);
     expect(engine.rendererCounters()).toMatchObject({ interactiveResolutionEntries: 1, staticResolutionRestores: 1 });
     engine.dispose();
   });

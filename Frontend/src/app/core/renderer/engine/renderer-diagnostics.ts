@@ -55,6 +55,8 @@ export interface RendererCounters {
   readonly staticResolutionRestores: number;
   readonly hydrationPausesForCamera: number;
   readonly hydrationJobsStartedWhileCamera: number;
+  readonly hydrationProgressRegressions: number;
+  readonly cameraOnlyGenerationChanges: number;
   readonly blockSignatureComputations: number;
   readonly hoverRaycasts: number;
   readonly hoverRaycastsSuppressedDuringCamera: number;
@@ -156,6 +158,8 @@ const EMPTY_COUNTERS: RendererCounters = {
   staticResolutionRestores: 0,
   hydrationPausesForCamera: 0,
   hydrationJobsStartedWhileCamera: 0,
+  hydrationProgressRegressions: 0,
+  cameraOnlyGenerationChanges: 0,
   blockSignatureComputations: 0,
   hoverRaycasts: 0,
   hoverRaycastsSuppressedDuringCamera: 0,
