@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BoundedTraceBuffer, percentile, sanitizeTraceScenario, stableTraceJson, viewportTraceFilename, ViewportRuntimeTrace, type ViewportTraceSample } from './viewport-runtime-trace';
+import { BoundedTraceBuffer, percentile, sanitizeTraceScenario, stableTraceJson, viewportTraceFilename, ViewportRuntimeTrace, type TraceDurationSummary, type ViewportTraceSample } from './viewport-runtime-trace';
 
 function sample(overrides: Partial<ViewportTraceSample> = {}): ViewportTraceSample {
   return {
@@ -56,5 +56,92 @@ describe('ViewportRuntimeTrace', () => {
     trace.start('unsupported');
     expect(trace.stop()?.summary.responsiveness.longTaskObserverSupported).toBe(false);
     if (original) vi.stubGlobal('PerformanceObserver', original); else vi.unstubAllGlobals();
+  });
+
+  it('retains critical marks while hydration progress floods the recorder', () => {
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
+    trace.start('all-in-one-final');
+    trace.mark('rmb-first');
+    for (let completed = 0; completed < 100_000; completed += 1) {
+      trace.record('hydration-progress', { status: completed === 99_999 ? 'complete' : 'hydrating', generation: 1, completed, total: 100_000, percent: completed / 1_000 });
+    }
+    trace.mark('rmb-second');
+    trace.mark('mmb');
+    trace.mark('wasd-far');
+    trace.mark('wasd-near');
+    trace.mark('wheel');
+    const document = trace.stop();
+    const marks = document?.timeline.filter((event) => event.type === 'mark').map((event) => event.payload?.['label']);
+    expect(marks).toEqual(['rmb-first', 'rmb-second', 'mmb', 'wasd-far', 'wasd-near', 'wheel']);
+    expect(document?.summary.hydration.endCompleted).toBe(99_999);
+    expect(document?.summary.recorder['throttledHydrationEvents']).toBeGreaterThan(99_000);
+  });
+
+  it('keeps noisy hydration and render timelines bounded while summaries remain current', () => {
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
+    trace.start('bounded');
+    for (let completed = 0; completed < 10_000; completed += 1) {
+      trace.record('hydration-progress', { status: 'hydrating', generation: 3, completed, total: 10_000, percent: completed / 100 });
+      trace.record('render-frame', { frame: completed });
+      trace.record('render-request', { request: completed });
+    }
+    const document = trace.stop();
+    expect(document?.timeline.length).toBeLessThan(2_100);
+    expect(document?.summary.hydration.endCompleted).toBe(9_999);
+    expect(document?.summary.recorder['renderFrameCount']).toBe(10_000);
+    expect(document?.summary.recorder['renderRequestCount']).toBe(10_000);
+    expect(document?.summary.recorder['throttledRenderEvents']).toBeGreaterThan(19_000);
+  });
+
+  it('aggregates heartbeat intervals without retaining an unbounded timeline', () => {
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
+    trace.start('heartbeat');
+    for (let index = 0; index < 10_000; index += 1) trace.recordHeartbeat(20);
+    const document = trace.stop();
+    expect(document?.summary.responsiveness.heartbeatSamples).toBe(10_000);
+    expect(document?.summary.responsiveness.frameIntervalP50).toBe(20);
+    expect(document?.summary.responsiveness.frameIntervalP95).toBe(20);
+    expect(document?.summary.recorder['heartbeatStoredSampleCount']).toBe(512);
+    expect(document?.summary.recorder['heartbeatDroppedSampleCount']).toBe(9_488);
+  });
+
+  it('reports observed duration counts separately from bounded percentile samples', () => {
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
+    trace.start('durations');
+    for (let index = 0; index < 10_000; index += 1) trace.recordDuration('provider.create', index % 17);
+    const document = trace.stop();
+    const durations = document?.summary.build['durationSamples'] as Record<string, TraceDurationSummary> | undefined;
+    expect(durations?.['provider.create'].observedCount).toBe(10_000);
+    expect(durations?.['provider.create'].storedSampleCount).toBe(256);
+    expect(durations?.['provider.create'].droppedSampleCount).toBe(9_744);
+    expect(durations?.['provider.create'].totalMs).toBe(79_974);
+    expect(durations?.['provider.create'].maxMs).toBe(16);
+  });
+
+  it('keeps marked segment boundaries and first gesture evidence', () => {
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
+    trace.start('segments');
+    trace.record('controls-start');
+    trace.mark('rmb-first');
+    for (let index = 0; index < 2_000; index += 1) trace.record('hydration-progress', { status: 'hydrating', generation: 1, completed: index, total: 2_000 });
+    trace.mark('rmb-second');
+    trace.mark('wasd-far');
+    trace.mark('wheel');
+    const document = trace.stop();
+    expect(document?.summary.segments).toEqual(expect.objectContaining({ 'rmb-first': expect.any(Object), 'rmb-second': expect.any(Object), 'wasd-far': expect.any(Object), wheel: expect.any(Object) }));
+    expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['controls-start', 'first-gesture-before']));
+  });
+
+  it('keeps regressions and generation evidence as critical timeline events', () => {
+    let current = sample({ hydration: { completed: 10, generation: 1 } });
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => current });
+    trace.start('anomalies');
+    trace.record('hydration-progress', { status: 'hydrating', generation: 1, completed: 10, total: 20 });
+    trace.record('hydration-progress', { status: 'hydrating', generation: 2, completed: 1, total: 20 });
+    current = sample({ hydration: { completed: 1, generation: 2 }, generations: { providerGeneration: 2 } });
+    trace.captureSample('generation-change');
+    const document = trace.stop();
+    expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['anomaly:progress-regression', 'anomaly:hydration-generation-change']));
+    expect(document?.summary.hydration.progressRegressionCount).toBeGreaterThan(0);
   });
 });
