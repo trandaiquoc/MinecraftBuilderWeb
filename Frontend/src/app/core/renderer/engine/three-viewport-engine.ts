@@ -182,6 +182,8 @@ export interface ViewportPerformanceEvidence {
   readonly terrainAtlasFallbackFaces: number;
   readonly terrainAtlasMaterials: number;
   readonly terrainAtlasChunkBuckets: number;
+  readonly terrainWorker: Readonly<Record<string, unknown>>;
+  readonly terrainCommit: Readonly<Record<string, unknown>>;
 }
 export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
 export interface ViewportHydrationDiagnostics {
@@ -716,6 +718,14 @@ export class ThreeViewportEngine {
       blocksGroup: this.blocksGroup,
       terrainAtlasMode: this.terrainAtlasMode,
       shouldCommitChunk: options.terrainShouldCommitChunk,
+      terrainGeneration: () => this.hydrationGeneration,
+      providerGeneration: () => this.providerGeneration,
+      isCameraInteracting: () => this.isCameraInteracting(),
+      onAsyncApply: (records, result) => {
+        this.commitTerrainRecords(records, result);
+        this.scheduleRender();
+        if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+      },
       record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
       onTiming: (stage, durationMs) => this.runtimeTrace?.recordDuration(stage, durationMs),
       isTimingEnabled: () => !!this.runtimeTrace?.isActive,
@@ -1467,9 +1477,9 @@ export class ThreeViewportEngine {
       terrainChanges.push({ key, position, afterOpaque: !!terrain });
     }
     const terrainResult = this.terrainRenderer.applyBlockChanges(terrainChanges, true);
-    this.commitTerrainRecords(preparedTerrainRecords.values(), terrainResult);
+    if (!terrainResult.pending) this.commitTerrainRecords(preparedTerrainRecords.values(), terrainResult);
     const representedTerrainKeys = new Set(terrainResult.representedKeys);
-    this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate));
+    if (!terrainResult.pending) this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate));
     if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true);
     this.updateHydrationOrder();
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
@@ -1540,9 +1550,9 @@ export class ThreeViewportEngine {
       const result = local
         ? this.terrainRenderer.applyBlockChanges(usable.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: true })), true)
         : this.terrainRenderer.bulkUpsert(usable, initial ? occupancyEntries : undefined, affectedPositions, { initial });
-      this.commitTerrainRecords(usable, result);
+      if (!result.pending) this.commitTerrainRecords(usable, result);
       const represented = new Set(result.representedKeys);
-      for (const record of usable) if (!represented.has(record.key)) {
+      for (const record of usable) if (!result.pending && !represented.has(record.key)) {
         const candidate = candidateByKey.get(record.key);
         if (candidate) failed.push(candidate);
       }
@@ -2953,6 +2963,8 @@ export class ThreeViewportEngine {
       terrainAtlasFallbackFaces: terrain.terrainAtlas.terrainAtlasFallbackFaces,
       terrainAtlasMaterials: terrain.terrainAtlas.terrainAtlasMaterials,
       terrainAtlasChunkBuckets: terrain.terrainAtlas.terrainAtlasChunkBuckets,
+      terrainWorker: { ...terrain.terrainWorker, terrainWorkerCpuMs: { ...terrain.terrainWorker.terrainWorkerCpuMs }, terrainWorkerRoundTripMs: { ...terrain.terrainWorker.terrainWorkerRoundTripMs } },
+      terrainCommit: { ...terrain.terrainCommit, terrainCommitCpuMs: { ...terrain.terrainCommit.terrainCommitCpuMs } },
     };
   }
 

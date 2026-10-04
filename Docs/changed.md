@@ -2381,3 +2381,23 @@ Horizontal WASD movement uses a continuous camera-distance scale: base speed
 is multiplied by `clamp(cameraTargetDistance / 16, 0.35, 2.5)`. Vertical
 movement remains controlled by its separate preference. Temporary interactive
 pixel-ratio changes are presentation-only and do not change camera pose.
+
+## Off-main-thread terrain meshing
+
+Terrain chunk surface compilation now has a Three.js-free numeric core and a
+versioned worker DTO. Browsers with `Worker` support use a bounded pool of up
+to four workers; each job contains only chunk entries, precompiled numeric face
+templates, and an 18^3 occupancy halo. Positions, normals, and UV buffers are
+transferred back to the main thread, where existing atlas materials and Three.js
+ownership remain authoritative. Environments without workers use the same core
+synchronously as a deterministic fallback.
+
+Worker results carry job, hydration/provider generation, and chunk revision
+identity. Stale results are discarded, the old chunk stays visible until its
+replacement is committed, and one-chunk commits are scheduled in a bounded
+main-thread queue. Worker, round-trip, commit-queue, byte, fallback, and stale
+result evidence is exposed through the existing renderer diagnostics.
+
+`PLACEMENT STATUS WAS NOT CHANGED.` `CAMERA STABLE-DPR WAS NOT CHANGED.`
+`HYDRATION FAIRNESS WAS NOT CHANGED.` `GREEDY MESHING WAS NOT IMPLEMENTED.`
+`Y-LAYER OPTIMIZATION WAS NOT IMPLEMENTED.`

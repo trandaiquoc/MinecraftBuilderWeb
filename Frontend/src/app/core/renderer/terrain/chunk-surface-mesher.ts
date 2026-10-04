@@ -6,6 +6,8 @@ import { instanceGeometryCompatibilityKey, instanceMaterialCompatibilityKey } fr
 import { TerrainOccupancy } from './chunk-occupancy';
 import type { TerrainChunkCoordinate } from './chunk-coordinate';
 import type { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
+import { meshTerrainCore } from './terrain-mesh-core';
+import type { TerrainMeshJob, TerrainMeshTemplateData } from './terrain-mesh-protocol';
 
 export interface TerrainMeshEntry {
   readonly key: string;
@@ -25,7 +27,7 @@ export interface PrecompiledTerrainFace {
 }
 
 const PRECOMPILED_TEMPLATE_CACHE = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
-const PRECOMPILED_DIRECTION_CACHE = new WeakMap<readonly PrecompiledTerrainFace[], ReadonlyMap<SurfaceFaceDirection, PrecompiledTerrainFace>>();
+const PURE_FACE_CACHE = new WeakMap<readonly PrecompiledTerrainFace[], readonly { direction: SurfaceFaceDirection; bucketKey: string; positions: Float32Array; normals: Float32Array; uvs: Float32Array }[]>();
 
 export function precompileTerrainTemplates(templates: readonly SurfaceFaceTemplate[], atlas?: TerrainTextureAtlas): readonly PrecompiledTerrainFace[] {
   const cached = atlas ? undefined : PRECOMPILED_TEMPLATE_CACHE.get(templates);
@@ -63,14 +65,6 @@ export function precompileTerrainTemplates(templates: readonly SurfaceFaceTempla
   return compiled;
 }
 
-function precompiledByDirection(templates: readonly PrecompiledTerrainFace[]): ReadonlyMap<SurfaceFaceDirection, PrecompiledTerrainFace> {
-  const cached = PRECOMPILED_DIRECTION_CACHE.get(templates);
-  if (cached) return cached;
-  const map = new Map(templates.map((template) => [template.direction, template] as const));
-  PRECOMPILED_DIRECTION_CACHE.set(templates, map);
-  return map;
-}
-
 export interface CompiledTerrainBucket {
   readonly key: string;
   readonly material: THREE.Material;
@@ -94,92 +88,53 @@ export interface CompiledTerrainChunk {
 
 /** CPU-only surface compiler. It emits one quad's triangles directly into chunk buffers. */
 export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonly TerrainMeshEntry[], occupancy: TerrainOccupancy, atlas?: TerrainTextureAtlas): CompiledTerrainChunk {
-  const buckets = new Map<string, MutableBucket>();
-  let blocksCompiled = 0;
-  let facesEmitted = 0;
-  let facesCulled = 0;
-  const emittedKeys = new Set<string>();
-  const fullyOccludedKeys = new Set<string>();
-  const unrepresentedExposedKeys: string[] = [];
-  for (const entry of entries) {
-    blocksCompiled += 1;
-    const templates = precompiledByDirection(entry.compiledTemplates ?? precompileTerrainTemplates(entry.templates, atlas));
-    let emittedForEntry = 0;
-    let culledForEntry = 0;
-    for (const direction of SURFACE_DIRECTIONS) {
-      const template = templates.get(direction);
-      if (!template) continue;
-      if (occupancy.hasOpaque(neighborPosition(entry.position, direction))) { facesCulled += 1; culledForEntry += 1; continue; }
-      const bucket = buckets.get(template.bucketKey) ?? createBucket(template.bucketKey, template.material);
-      buckets.set(template.bucketKey, bucket);
-      appendFace(bucket, template, entry.position);
-      facesEmitted += 1;
-      emittedKeys.add(entry.key);
-      emittedForEntry += 1;
+  const materialByBucket = new Map<string, THREE.Material>();
+  const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], number>();
+  const templates: TerrainMeshTemplateData[] = [];
+  const prepared = entries.map((entry) => {
+    const compiled = entry.compiledTemplates ?? precompileTerrainTemplates(entry.templates, atlas);
+    const faces = pureFaces(compiled);
+    let templateIndex = templateIndexes.get(compiled);
+    if (templateIndex === undefined) {
+      templateIndex = templates.length;
+      templateIndexes.set(compiled, templateIndex);
+      templates.push({ faces });
+      for (const template of compiled) {
+        if (!materialByBucket.has(template.bucketKey)) materialByBucket.set(template.bucketKey, template.material);
+      }
     }
-    if (emittedForEntry === 0) {
-      if (culledForEntry === ALL_DIRECTIONS.length) fullyOccludedKeys.add(entry.key);
-      else unrepresentedExposedKeys.push(entry.key);
-    }
-  }
+    return { key: entry.key, position: [entry.position.x, entry.position.y, entry.position.z] as [number, number, number], templateIndex };
+  });
+  const origin: [number, number, number] = [chunk.x * 16 - 1, chunk.y * 16 - 1, chunk.z * 16 - 1];
+  const opaque = new Uint8Array(18 * 18 * 18);
+  for (let y = 0; y < 18; y += 1) for (let z = 0; z < 18; z += 1) for (let x = 0; x < 18; x += 1) if (occupancy.hasOpaque({ x: origin[0] + x, y: origin[1] + y, z: origin[2] + z })) opaque[(y * 18 + z) * 18 + x] = 1;
+  const job: TerrainMeshJob = { jobId: 0, generation: 0, providerGeneration: 0, revision: 0, chunk, templates, entries: prepared, occupancy: { origin, size: 18, opaque } };
+  const result = meshTerrainCore(job);
   return {
     chunk,
-    buckets: [...buckets.values()].map(finalizeBucket),
-    blocksCompiled,
-    facesEmitted,
-    facesCulled,
-    emittedKeys: [...emittedKeys],
-    fullyOccludedKeys: [...fullyOccludedKeys],
-    unrepresentedExposedKeys,
+    buckets: result.buckets.map((bucket) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(bucket.positions, 3));
+      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(bucket.normals, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(bucket.uvs, 2));
+      geometry.setIndex(new THREE.BufferAttribute(bucket.indices, 1));
+      return { key: bucket.key, material: materialByBucket.get(bucket.key) ?? new THREE.MeshBasicMaterial({ color: 0xffffff }), geometry, faceCount: bucket.faceCount };
+    }),
+    blocksCompiled: result.blocksCompiled,
+    facesEmitted: result.facesEmitted,
+    facesCulled: result.facesCulled,
+    emittedKeys: result.emittedKeys,
+    fullyOccludedKeys: result.fullyOccludedKeys,
+    unrepresentedExposedKeys: result.unrepresentedExposedKeys,
   };
 }
 
-interface MutableBucket {
-  readonly key: string;
-  readonly material: THREE.Material;
-  readonly positions: number[];
-  readonly normals: number[];
-  readonly uvs: number[];
-  faceCount: number;
-}
-
-function createBucket(key: string, material: THREE.Material): MutableBucket {
-  return { key, material, positions: [], normals: [], uvs: [], faceCount: 0 };
-}
-
-function appendFace(bucket: MutableBucket, template: PrecompiledTerrainFace, position: VoxelCoordinate): void {
-  for (let index = 0; index < template.positions.length; index += 3) {
-    bucket.positions.push(template.positions[index] + position.x, template.positions[index + 1] + position.y, template.positions[index + 2] + position.z);
-    bucket.normals.push(template.normals[index], template.normals[index + 1], template.normals[index + 2]);
-    const uvIndex = (index / 3) * 2;
-    bucket.uvs.push(template.uvs[uvIndex], template.uvs[uvIndex + 1]);
-  }
-  bucket.faceCount += 1;
-}
-
-function finalizeBucket(bucket: MutableBucket): CompiledTerrainBucket {
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(bucket.positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(bucket.normals, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(bucket.uvs, 2));
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  return { key: bucket.key, material: bucket.material, geometry, faceCount: bucket.faceCount };
-}
-
-const SURFACE_DIRECTIONS: readonly SurfaceFaceDirection[] = ['north', 'south', 'east', 'west', 'up', 'down'];
-const ALL_DIRECTIONS = SURFACE_DIRECTIONS;
-
-function neighborPosition(position: VoxelCoordinate, direction: SurfaceFaceDirection): VoxelCoordinate {
-  switch (direction) {
-    case 'north': return { x: position.x, y: position.y, z: position.z - 1 };
-    case 'south': return { x: position.x, y: position.y, z: position.z + 1 };
-    case 'east': return { x: position.x + 1, y: position.y, z: position.z };
-    case 'west': return { x: position.x - 1, y: position.y, z: position.z };
-    case 'up': return { x: position.x, y: position.y + 1, z: position.z };
-    case 'down': return { x: position.x, y: position.y - 1, z: position.z };
-  }
-  throw new Error(`Unknown terrain face direction: ${direction}`);
+function pureFaces(compiled: readonly PrecompiledTerrainFace[]): readonly { direction: SurfaceFaceDirection; bucketKey: string; positions: Float32Array; normals: Float32Array; uvs: Float32Array }[] {
+  const cached = PURE_FACE_CACHE.get(compiled);
+  if (cached) return cached;
+  const faces = compiled.map((template) => ({ direction: template.direction, bucketKey: template.bucketKey, positions: new Float32Array(template.positions), normals: new Float32Array(template.normals), uvs: new Float32Array(template.uvs) }));
+  PURE_FACE_CACHE.set(compiled, faces);
+  return faces;
 }
 
 function directionNormalValues(direction: SurfaceFaceDirection): readonly [number, number, number] {

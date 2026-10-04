@@ -24,6 +24,8 @@ describe('chunk surface renderer ownership', () => {
     expect(evidence.terrainChunkRebuilds).toBe(49);
     expect(evidence.terrainBulkBatches).toBe(1);
     expect([...group.children].every((child) => child instanceof THREE.Mesh && child.frustumCulled)).toBe(true);
+    expect((group.children[0] as THREE.Mesh).geometry.boundingBox?.min.toArray()).toEqual([0, 0, 0]);
+    expect((group.children[0] as THREE.Mesh).geometry.boundingBox?.max.toArray()).toEqual([16, 16, 16]);
     expect(counters.get('terrainTemplateResolutions') ?? 0).toBe(0);
     const unrelatedChunk = group.children.find((child) => child.userData['terrainChunk'] === '1,0,0');
     const beforeLocalRebuilds = renderer.evidence().terrainChunkRebuilds;
