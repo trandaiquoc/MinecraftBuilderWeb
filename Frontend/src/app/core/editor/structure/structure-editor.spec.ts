@@ -18,6 +18,14 @@ function makeEditor(project: ProjectDocument): { editor: StructureEditorService;
 const project: ProjectDocument = { schemaVersion: 1, id: 'editor', metadata: { name: 'Editor', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [{ kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' } }], groups: [], editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: .28 } };
 
 describe('StructureEditorService mutations', () => {
+  it('uses the active/project supplied by the viewport provider for preview planning', () => {
+    const setup = makeEditor({ ...project, blocks: [] });
+    setup.active.select(setup.library.get('minecraft:oak_stairs')!);
+    const supplied = { id: 'minecraft:stone', state: {}, support: 'full' as const };
+    const plan = setup.editor.planPlacement({ x: 1, y: 1, z: 1 }, { faceNormal: { x: 0, y: 1, z: 0 } }, undefined, supplied, { ...project, blocks: [] });
+    expect(plan?.request.id).toBe('minecraft:stone');
+  });
+
   it('records wall and fence neighbor state changes as exact bounded deltas', () => {
     const wallA: PlacedBlock = { kind: 'resolved', id: 'minecraft:cobblestone_wall', namespace: 'minecraft', position: { x: 2, y: 1, z: 2 }, state: { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true', waterlogged: 'false' } };
     const wallProject = { ...project, blocks: [wallA] };

@@ -1,5 +1,5 @@
 <div #host class="viewport-host" (pointerdown)="pointerDown($event)" (pointerup)="pointerUp($event)" (pointercancel)="cancelPointer($event)" (lostpointercapture)="cancelPointer($event)" (pointerleave)="pointerLeave($event)" (wheel)="preventViewportWheel($event)" (contextmenu)="$event.preventDefault()" (window:resize)="resize()">
-  @if (target() || reasonLabel() || placementStatus()) {
-    <div class="viewport-status" [attr.data-status]="placementStatus()">@if (placementStatus()) { {{ statusLabel() }} } @if (reasonLabel()) { <span>&middot; {{ reasonLabel() }}</span> } @if (target()) { <span>{{ target() }}</span> }</div>
+  @if (target() || reasonLabel() || placementFeedback()) {
+    <div class="viewport-status" [attr.data-status]="placementFeedback()?.status">@if (placementFeedback()) { {{ statusLabel() }} } @if (reasonLabel()) { <span>&middot; {{ reasonLabel() }}</span> } @if (target()) { <span>{{ target() }}</span> }</div>
   }
 </div>

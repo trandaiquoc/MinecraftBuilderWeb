@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { coordinateKey, isWithinBounds } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, SignBlockEntityData, SignSide, VoxelCoordinate } from '../../domain/project.types';
 import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
+import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import { SelectionService } from '../selection/selection.service';
 import { HistoryService } from '../history/history.service';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
@@ -198,8 +199,8 @@ export class StructureEditorService {
   }
 
   validation(): RuleValidation | undefined { return this.lastValidation; }
-  planPlacement(position: VoxelCoordinate, context?: PlacementContext, lookup?: ReadonlyBlockLookup): PlacementPlan | undefined {
-    const project = this.workspace.project(); const active = this.activeBlock.active();
+  planPlacement(position: VoxelCoordinate, context?: PlacementContext, lookup?: ReadonlyBlockLookup, activeOverride?: ActiveBlock, projectOverride?: ProjectDocument): PlacementPlan | undefined {
+    const project = projectOverride ?? this.workspace.project(); const active = activeOverride ?? this.activeBlock.active();
     return project && active ? planPlacement(project, active, position, context, (id) => this.library.get(id), this.library.getItem(active.itemId ?? active.id), lookup) : undefined;
   }
   updateSignText(position: VoxelCoordinate, side: 'front' | 'back', value: string): boolean {

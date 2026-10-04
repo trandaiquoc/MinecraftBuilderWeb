@@ -18,7 +18,11 @@ export function placementRequestForActive(active: ActiveBlock, position: VoxelCo
   const block = item
     ? resolveItemBlock(item, active.state, position, context, definition)
     : { kind: active.support === 'unknown' ? 'missing' : 'resolved', id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { ...position }, state: { ...active.state, ...context?.stateOverride } } as PlacedBlock;
-  return { ...block, kind: active.support === 'unknown' ? 'missing' : 'resolved' };
+  // Content existence is independent from placement-rule confidence. A known
+  // catalog item/block must remain resolved even when its behavior is unknown;
+  // the rule engine reports that uncertainty separately.
+  const contentKnown = !!definition?.(block.id) || !!item?.concreteBlockIds.includes(block.id);
+  return { ...block, kind: contentKnown || active.support !== 'unknown' ? 'resolved' : 'missing' };
 }
 
 export function planPlacement(project: ProjectDocument, active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined, item?: PlaceableItemDefinition, lookup?: ReadonlyBlockLookup): PlacementPlan {

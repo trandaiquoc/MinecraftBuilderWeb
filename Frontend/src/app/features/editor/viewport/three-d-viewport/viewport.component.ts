@@ -2,7 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, effect, inject, isDevM
 import { ActiveBlockService } from '../../../../core/blocks/placement-palette/active-block.service';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
-import { PlacementStatus } from '../../../../core/editor/placement/placement';
+import { placementFeedbackForHit } from '../../../../core/renderer/interaction/viewport-hit-resolver';
 import { isPointerClick } from '../../../../core/editor/input/interaction';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { EditorToolService } from '../../../../core/editor/state/tool.service';
@@ -70,8 +70,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly resolveDecorationItemVisual = (itemId: string) => resolveItemVisual(this.assets.sources.resources, itemId);
   private readonly resolveDecorationItemPreview = (item: import('../../../../core/items/item-stack.types').ItemStackData) => this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]);
   private readonly resolvePaintingTexture = (id: string) => this.paintingCatalog.get(id)?.assetPath;
-  protected readonly status = signal<PlacementStatus>('invalid');
-  protected readonly placementStatus = signal<PlacementStatus | undefined>(undefined);
+  protected readonly placementFeedback = signal<ReturnType<typeof placementFeedbackForHit> | undefined>(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
@@ -100,7 +99,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       this.engine.setRuntimeTrace(this.viewportTrace);
       window.__mbViewportDiagnostics = this.runtimeDiagnosticsCommand;
     }
-    this.engine.setPlacementPlanProvider((_project, _active, target, context, lookup) => this.editor.planPlacement(target, context, lookup));
+    this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project));
     this.engine.mount(this.host().nativeElement);
     if (isDevMode() && typeof window !== 'undefined') {
       window.__minecraftBuilderDiagnostics = { ...window.__minecraftBuilderDiagnostics, runTerrainAtlasProbe: this.terrainAtlasProbeCommand, viewportTrace: this.viewportTraceApi };
@@ -140,9 +139,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   setCameraPreset(preset: CameraPreset): void { this.engine.setCameraPreset(preset); }
 
   protected resize(): void { this.engine.resize(); }
-  protected statusLabel(): string { return this.i18n.t(this.status()); }
+  protected statusLabel(): string { return this.i18n.t(this.placementFeedback()?.status ?? 'invalid'); }
   protected pointerMove(event: PointerEvent): void { this.engine.hover(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }
-  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const placementStatus = activeDecoration ? hit.decorationPlan?.status : hit.placement?.status; const status = placementStatus ?? 'invalid'; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.placementStatus.set(placementStatus); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const feedback = placementFeedbackForHit(hit, !!activeDecoration); this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(feedback?.status ?? 'invalid'); this.placementFeedback.set(feedback); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
   protected pointerDown(event: PointerEvent): void {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
@@ -249,7 +248,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined;
-    this.engine.clearGhost(); this.placementStatus.set(undefined); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
+    this.engine.clearGhost(); this.placementFeedback.set(undefined); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
     if (event) this.releasePointer(event);

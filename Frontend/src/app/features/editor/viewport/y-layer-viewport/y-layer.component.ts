@@ -4,7 +4,7 @@ import { BlockLibraryService } from '../../../../core/blocks/catalog/block-libra
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { adjacentOccupiedLayer, blocksForLayers, clampLayer, jumpOccupiedLayer, layerCoordinate, YLayerVisibility } from '../../../../core/editor/viewport/y-layer';
-import { PlacementStatus } from '../../../../core/editor/placement/placement';
+import { placementFeedbackForHit } from '../../../../core/renderer/interaction/viewport-hit-resolver';
 import { isPointerClick } from '../../../../core/editor/input/interaction';
 import { EditorToolService } from '../../../../core/editor/state/tool.service';
 import { CameraStateService } from '../../../../core/editor/camera/camera-state.service';
@@ -66,8 +66,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly visibilityOptions = computed<readonly ThemedSelectOption[]>(() => [
     { id: 'current-only', label: this.i18n.t('visibilityCurrent') }, { id: 'current-previous', label: this.i18n.t('visibilityPrevious') }, { id: 'current-next', label: this.i18n.t('visibilityNext') }, { id: 'previous-current-next', label: this.i18n.t('visibilityThree') }, { id: 'all-below', label: this.i18n.t('visibilityBelow') }, { id: 'whole-structure', label: this.i18n.t('visibilityWhole') },
   ]);
-  protected readonly status = signal<PlacementStatus>('invalid');
-  protected readonly placementStatus = signal<PlacementStatus | undefined>(undefined);
+  protected readonly placementFeedback = signal<ReturnType<typeof placementFeedbackForHit> | undefined>(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
@@ -83,7 +82,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
-  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((_project, _active, target, context) => this.editor.planPlacement(target, context)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
+  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
   ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
@@ -106,7 +105,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected setVisibility(value: string): void { const project = this.workspace.project(); if (!project) return; this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, layerVisibility: value as YLayerVisibility } }); }
   protected resize(): void { this.engine.resize(); }
   protected pointerMove(event: PointerEvent): void { this.engine.hover(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }
-  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const placementStatus = activeDecoration ? hit.decorationPlan?.status : hit.placement?.status; const status = placementStatus ?? 'invalid'; this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(status); this.placementStatus.set(placementStatus); this.status.set(status); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const feedback = placementFeedbackForHit(hit, !!activeDecoration); this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(feedback?.status ?? 'invalid'); this.placementFeedback.set(feedback); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
   protected pointerDown(event: PointerEvent): void {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
@@ -172,7 +171,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const project = this.workspace.project();
     if (project) this.selection.selectLogical(position, project, (id) => this.library.get(id));
   }
-  protected statusLabel(): string { return this.i18n.t(this.status()); }
+  protected statusLabel(): string { return this.i18n.t(this.placementFeedback()?.status ?? 'invalid'); }
   protected setOpacity(value: string): void { const project = this.workspace.project(); if (!project) return; const opacity = Math.min(1, Math.max(0, Number(value))); this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, referenceLayerOpacity: opacity } }); }
   protected referenceOpacityPercent(): number { return Math.round((this.workspace.project()?.editorSettings.referenceLayerOpacity ?? .28) * 100); }
   protected reasonLabel(): string { const reason = this.decorationReason(); return reason === 'missing-support' ? this.i18n.t('decorationNeedsSupport') : reason === 'overlap-decoration' ? this.i18n.t('decorationOverlap') : reason === 'blocked-by-block' ? this.i18n.t('decorationBlocked') : reason === 'unsupported-face' ? this.i18n.t('decorationWallFace') : reason === 'out-of-bounds' ? this.i18n.t('decorationOutsideBounds') : ''; }
@@ -180,7 +179,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined;
-    this.engine.clearGhost(); this.placementStatus.set(undefined); this.status.set('invalid'); this.decorationReason.set(''); this.target.set('');
+    this.engine.clearGhost(); this.placementFeedback.set(undefined); this.decorationReason.set(''); this.target.set('');
   }
   protected cancelPointer(event?: PointerEvent): void {
     if (event) this.releasePointer(event);

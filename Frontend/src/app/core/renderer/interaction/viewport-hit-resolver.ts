@@ -9,6 +9,14 @@ export interface PlacementPreviewResolution {
   readonly status?: PlacementStatus;
 }
 
+export interface PlacementFeedback { readonly status: PlacementStatus; }
+
+/** Uses the same resolved preview result for the ghost and the viewport badge. */
+export function placementFeedbackForHit(hit: { readonly placement?: { readonly status: PlacementStatus }; readonly decorationPlan?: { readonly status: PlacementStatus } }, decorationActive: boolean): PlacementFeedback | undefined {
+  const status = decorationActive ? hit.decorationPlan?.status : hit.placement?.status;
+  return status ? { status } : undefined;
+}
+
 export interface PlacementPreviewRequest {
   readonly requested: boolean;
   readonly project: ProjectDocument;

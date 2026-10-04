@@ -400,6 +400,22 @@ The requirement mentioned reference-layer opacity, but manual testing showed it 
 
 ---
 
+# 11.1 Placement metadata and status source of truth
+
+[x] Active block selections retain their user-edited state while catalog/source
+replacement refreshes catalog-owned support metadata. A user no longer needs to
+reselect a block after vanilla or mod resources finish loading.
+
+[x] Known catalog content remains `resolved` even when placement behavior
+confidence is `unknown`; missing content and unknown placement semantics are
+separate diagnostics.
+
+[x] 3D Edit and Y-Layer placement previews use the active/project supplied by
+the viewport provider and expose one placement feedback state to the status UI.
+`Unknown` remains visible for genuinely unsupported placement semantics.
+
+---
+
 # 12. Block Browser currently uses a local fixture/catalog pipeline
 
 ## Original product goal

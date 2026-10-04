@@ -29,5 +29,26 @@ export class ActiveBlockService {
     this.active.set({ id, ...(item && item.itemId !== id ? { itemId: item.itemId } : {}), ...(item && item.placementKind !== 'direct' ? { placementKind: item.placementKind } : {}), ...(sourceId ? { sourceId } : {}), state: { ...block.state }, support: definition?.support ?? item?.support ?? (block.kind === 'missing' ? 'unknown' : 'fallback') });
   }
   set(active: ActiveBlock): void { this.active.set({ id: active.id, ...(active.itemId && active.itemId !== active.id ? { itemId: active.itemId } : {}), ...(active.placementKind ? { placementKind: active.placementKind } : {}), ...(active.sourceId ? { sourceId: active.sourceId } : {}), state: { ...active.state }, support: active.support }); }
+  /** Refresh catalog-owned metadata without replacing the user's selected state. */
+  refreshMetadata(definition?: BlockDefinition, item?: PlaceableItemDefinition): void {
+    const current = this.active();
+    if (!current) return;
+    const metadata = item ?? definition;
+    if (!metadata) {
+      this.clear();
+      return;
+    }
+    const itemBacked = current.itemId !== undefined || current.placementKind !== undefined;
+    const itemId = itemBacked && item && item.itemId !== current.id ? item.itemId : undefined;
+    const placementKind = itemBacked && item && item.placementKind !== 'direct' ? item.placementKind : undefined;
+    this.active.set({
+      id: current.id,
+      ...(itemId ? { itemId } : {}),
+      ...(placementKind ? { placementKind } : {}),
+      ...((metadata.sourceId ?? current.sourceId) ? { sourceId: metadata.sourceId ?? current.sourceId } : {}),
+      state: { ...current.state },
+      support: metadata.support,
+    });
+  }
   clear(): void { this.active.set(undefined); }
 }

@@ -30,8 +30,21 @@ export class BlockLibraryService {
 
   setQuery(query: string): void { this.query.set(query); }
   load(source: BlockCatalogSource): void { this.replaceSource(source); }
-  replaceSource(source: BlockCatalogSource): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.replaceSource(source); this.replaceItems(buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence())); if (activeId && activeSource === (source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla') && !this.catalog.get(activeId)) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
-  removeSource(sourceId: string): void { const activeId = this.activeBlock.active()?.id; const activeSource = activeId ? this.catalog.get(activeId)?.sourceId : undefined; this.catalog.removeSource(sourceId); this.replaceItems(buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence())); if (activeSource === sourceId) this.activeBlock.clear(); this.revision.update((value) => value + 1); }
+  replaceSource(source: BlockCatalogSource): void {
+    const active = this.activeBlock.active();
+    this.catalog.replaceSource(source);
+    this.replaceItems(buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence()));
+    if (active) this.refreshActiveBlock(active);
+    this.revision.update((value) => value + 1);
+  }
+  removeSource(sourceId: string): void {
+    const active = this.activeBlock.active();
+    const activeSource = active ? this.catalog.get(active.id)?.sourceId : undefined;
+    this.catalog.removeSource(sourceId);
+    this.replaceItems(buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence()));
+    if (active && activeSource === sourceId) this.refreshActiveBlock(active);
+    this.revision.update((value) => value + 1);
+  }
   sourceIds(): readonly string[] { return this.catalog.sources(); }
   catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog.conflicts(); }
   select(item: PlaceableItemDefinition): void { this.decorations?.clearActive(); this.activeBlock.select(item); }
@@ -65,5 +78,15 @@ export class BlockLibraryService {
     }
     for (const [source, bucket] of sourceBuckets) this.itemsBySource.set(source, bucket);
     this.itemsBySource.set(ALL_CONTENT_SOURCE, items);
+  }
+
+  private refreshActiveBlock(active: NonNullable<ReturnType<ActiveBlockService['active']>>): void {
+    const definition = this.catalog.get(active.id);
+    const item = this.getItem(active.itemId ?? active.id);
+    if (!definition && !item) {
+      this.activeBlock.clear();
+      return;
+    }
+    this.activeBlock.refreshMetadata(definition, item);
   }
 }
