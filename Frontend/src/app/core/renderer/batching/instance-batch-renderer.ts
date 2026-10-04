@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { VoxelCoordinate } from '../../domain/project.types';
 import { compileInstanceTemplates, type CompiledInstanceTemplates, type InstancePartTemplate } from './instance-template-cache';
+import type { RenderRegionPolicy } from './render-region-policy';
 
 export interface InstanceBatchEntry {
   instanceBatchKey?: string;
@@ -10,6 +11,8 @@ export interface InstanceBatchEntry {
 
 export interface InstanceBatch {
   readonly key: string;
+  readonly regionKey: string;
+  readonly segment: number;
   readonly capacity: number;
   readonly templates: readonly InstancePartTemplate[];
   readonly parts: readonly THREE.InstancedMesh[];
@@ -22,6 +25,7 @@ export interface InstanceBatchRendererOptions {
   readonly capacity: number;
   readonly chunkKey: (position: VoxelCoordinate) => string;
   readonly stableBounds: (chunk: string, envelope: THREE.Box3) => THREE.Box3;
+  readonly regionPolicy?: RenderRegionPolicy;
   readonly record: (name: string, delta?: number) => void;
   readonly getEntry: (key: string) => InstanceBatchEntry | undefined;
   readonly setEntryObject?: (key: string, batchKey: string | undefined, index: number | undefined, object: THREE.Object3D | undefined) => void;
@@ -50,9 +54,16 @@ export class InstanceBatchRenderer {
     this.options.trace?.('before-insert', key, source);
     if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
     else if (this.ownershipIndex.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);
-    const chunk = this.options.chunkKey(position);
-    const batchKey = `${chunk}|${resolved.signature}`;
+    const region = this.options.regionPolicy?.key(position) ?? this.options.chunkKey(position);
+    const baseKey = `${region}|${resolved.signature}`;
+    let segment = 0;
+    let batchKey = `${baseKey}|segment:${segment}`;
     let batch = this.batches.get(batchKey);
+    while (batch && batch.keys.length >= batch.capacity) {
+      segment += 1;
+      batchKey = `${baseKey}|segment:${segment}`;
+      batch = this.batches.get(batchKey);
+    }
     if (!batch) {
       const parts = resolved.templates.map((template) => {
         const material = template.material.clone();
@@ -66,12 +77,12 @@ export class InstanceBatchRenderer {
         mesh.userData['realModel'] = true;
         mesh.userData['instanceBatchKey'] = batchKey;
         this.options.blocksGroup.add(mesh);
-        mesh.boundingBox = this.options.stableBounds(chunk, resolved.envelope);
+        mesh.boundingBox = this.options.regionPolicy?.bounds(region, resolved.envelope) ?? this.options.stableBounds(region, resolved.envelope);
         mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
         return mesh;
       });
       this.options.record('instancedBoundsComputations', parts.length);
-      batch = { key: batchKey, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [] };
+      batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [] };
       this.batches.set(batchKey, batch);
       this.options.record('instancedBatchCreations');
       this.options.record('instancedMeshCount', parts.length);

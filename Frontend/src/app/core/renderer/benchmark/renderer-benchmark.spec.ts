@@ -76,6 +76,12 @@ describe('renderer incremental baseline', () => {
     expect(signatures.size).toBeGreaterThanOrEqual(8);
   });
 
+  it('keeps the 110k opt-in fixture dense and deterministic', () => {
+    const project = rendererBenchmarkProject('mega');
+    expect(project.blocks).toHaveLength(110_592);
+    expect(project.size).toEqual({ x: 48, y: 48, z: 48 });
+  });
+
   it('updates a single structural entry without rebuilding unchanged entries', () => {
     const project = rendererBenchmarkProject('small');
     const diagnostics = new RendererDiagnostics();

@@ -46,6 +46,7 @@ import { InstanceBatchRenderer } from '../batching/instance-batch-renderer';
 import type { InstanceBatch } from '../batching/instance-batch-renderer';
 import { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
 import type { SurfaceFaceBatch, SurfaceFaceMembership, SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
+import { RenderRegionPolicy } from '../batching/render-region-policy';
 import { RenderScheduler } from '../scheduling/render-scheduler';
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
@@ -65,6 +66,7 @@ import { nextCameraDistanceFromWheel, wheelMagnitude, type WheelZoomAction } fro
 import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
+import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -87,6 +89,7 @@ export interface ViewportPerformanceEvidence {
   readonly renderedDecorations: number;
   readonly object3dCount: number;
   readonly meshCount: number;
+  readonly visibleMeshCount: number;
   readonly instanceMeshCount: number;
   readonly instanceMembers: number;
   readonly providerObjectCreations: number;
@@ -134,6 +137,23 @@ export interface ViewportPerformanceEvidence {
   readonly instanceBatches: number;
   readonly instancedMeshCount: number;
   readonly nonInstancedMeshCount: number;
+  readonly renderRegionSize: number;
+  readonly renderRegionCount: number;
+  readonly regionalInstanceBatchCount: number;
+  readonly regionalInstanceMeshCount: number;
+  readonly regionalSurfaceBatchCount: number;
+  readonly instanceMaterialCount: number;
+  readonly instanceGeometryCount: number;
+  readonly standaloneBlockObjects: number;
+  readonly standaloneBlockMeshes: number;
+  readonly standaloneTransparentMeshes: number;
+  readonly standaloneOpaqueMeshes: number;
+  readonly placeholderBatches: number;
+  readonly placeholderMeshes: number;
+  readonly decorationObjects: number;
+  readonly decorationMeshes: number;
+  readonly transparentMeshCount: number;
+  readonly opaqueMeshCount: number;
   readonly renderableBlocks: number;
   readonly surfaceFastPathBlocks: number;
   readonly exposedFaceInstances: number;
@@ -165,6 +185,8 @@ export interface ViewportPerformanceEvidence {
   readonly actualSceneRenders: number;
   readonly terrainChunks: number;
   readonly terrainChunkMeshes: number;
+  readonly terrainDrawObjectCount: number;
+  readonly terrainTriangleCount: number;
   readonly terrainChunkRebuilds: number;
   readonly terrainBlocksCompiled: number;
   readonly terrainFacesEmitted: number;
@@ -438,6 +460,8 @@ export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
 export const VIEWPORT_VISUAL_CONCURRENCY = 6;
 export const VIEWPORT_INSTANCE_CHUNK_SIZE = 16;
+/** Presentation regions reduce far-view batch fragmentation while preserving culling locality. */
+export const VIEWPORT_RENDER_REGION_SIZE = 32;
 export const VIEWPORT_INSTANCE_THRESHOLD = 256;
 export const VIEWPORT_HYDRATION_SYNC_BUDGET_MS = 7;
 export const VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH = 256;
@@ -625,11 +649,13 @@ export class ThreeViewportEngine {
   private get hydrationRunning(): number { return this.hydrationWork.runningTotal(); }
   private readonly providerLifecycle = new ProviderRefreshCoordinator<BlockVisualProvider>();
   private readonly pendingTerrainTemplates = new Map<string, Promise<readonly SurfaceFaceTemplate[] | undefined>>();
+  private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer = new InstanceBatchRenderer({
     blocksGroup: this.blocksGroup,
     capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
     chunkKey,
     stableBounds: stableChunkBounds,
+    regionPolicy: this.renderRegionPolicy,
     record: (name: string, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
     getEntry: (key) => this.renderedBlocks.get(key),
     setEntryObject: (key, batchKey, index, object) => {
@@ -650,6 +676,7 @@ export class ThreeViewportEngine {
     capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
     chunkKey,
     stableBounds: stableChunkBounds,
+    regionPolicy: this.renderRegionPolicy,
     unitEnvelope: unitVoxelEnvelope,
     record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
     getEntry: (key) => this.renderedBlocks.get(key),
@@ -1185,12 +1212,14 @@ export class ThreeViewportEngine {
     const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;
     const workCounts = this.hydrationWork.counts();
     const hydration = this.hydrationProgressState;
+    const renderRegions = new Set([...this.instanceBatches.values(), ...this.surfaceFaceBatches.values()].map((batch) => batch.regionKey).filter((key): key is string => !!key));
+    const standaloneBlockObjects = [...this.renderedBlocks.values()].filter((entry) => !!entry.object && !entry.instanceBatchKey && !entry.surfaceFaceMemberships?.length && entry.terrainChunkKey === undefined).length;
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
       hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.cachedVisibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
-      render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled },
+      render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.filter((child) => child.visible).length + this.decorationsGroup.children.filter((child) => child.visible).length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain.terrainChunkMeshes, standaloneMeshCount: standaloneBlockObjects, renderRegionCount: renderRegions.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
       terrain: { ...terrain, terrainAtlas: { ...terrain.terrainAtlas } },
       build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed },
@@ -2853,12 +2882,9 @@ export class ThreeViewportEngine {
   }
 
   performanceEvidence(): ViewportPerformanceEvidence {
-    let object3dCount = 0;
-    let meshCount = 0;
-    let instanceMeshCount = 0;
-    this.scene.traverse((object) => { object3dCount += 1; if (object instanceof THREE.Mesh) { meshCount += 1; if (object instanceof THREE.InstancedMesh) instanceMeshCount += 1; } });
     const counters = this.instrumentation.snapshot();
     const terrain = this.terrainRenderer.evidence();
+    const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.renderedBlocks.values(), renderedDecorations: this.renderedDecorations.values() });
     return {
       renderCalls: this.lastRendererMetrics.calls,
       triangles: this.lastRendererMetrics.triangles,
@@ -2866,10 +2892,28 @@ export class ThreeViewportEngine {
       textures: this.lastRendererMetrics.textures,
       renderedBlocks: this.renderedBlocks.size,
       renderedDecorations: this.renderedDecorations.size,
-      object3dCount,
-      meshCount,
+      object3dCount: renderCost.object3dCount,
+      meshCount: renderCost.meshCount,
+      visibleMeshCount: renderCost.visibleMeshCount,
       instanceMeshCount: counters.instancedMeshCount,
       instanceMembers: counters.instancedMembers,
+      renderRegionSize: this.renderRegionPolicy.size,
+      renderRegionCount: renderCost.regions,
+      regionalInstanceBatchCount: renderCost.instance.batchCount,
+      regionalInstanceMeshCount: renderCost.instance.meshCount,
+      regionalSurfaceBatchCount: renderCost.surface.batchCount,
+      instanceMaterialCount: renderCost.instance.materials,
+      instanceGeometryCount: renderCost.instance.geometries,
+      standaloneBlockObjects: renderCost.standaloneBlockObjects,
+      standaloneBlockMeshes: renderCost.standaloneBlockMeshes,
+      standaloneTransparentMeshes: renderCost.standaloneTransparentMeshes,
+      standaloneOpaqueMeshes: renderCost.standaloneOpaqueMeshes,
+      placeholderBatches: renderCost.placeholders.batchCount,
+      placeholderMeshes: renderCost.placeholders.meshCount,
+      decorationObjects: renderCost.decorationObjects,
+      decorationMeshes: renderCost.decorationMeshes,
+      transparentMeshCount: renderCost.transparentMeshCount,
+      opaqueMeshCount: renderCost.opaqueMeshCount,
       providerObjectCreations: counters.providerObjectCreations,
       reusableTemplateCreations: counters.reusableTemplateCreations,
       reusableTemplateCacheHits: counters.reusableTemplateCacheHits,
@@ -2913,8 +2957,8 @@ export class ThreeViewportEngine {
       lines: this.lastRendererMetrics.lines,
       points: this.lastRendererMetrics.points,
       instanceBatches: this.instanceBatches.size,
-      instancedMeshCount: instanceMeshCount,
-      nonInstancedMeshCount: Math.max(0, meshCount - instanceMeshCount),
+      instancedMeshCount: renderCost.instance.meshCount,
+      nonInstancedMeshCount: Math.max(0, renderCost.meshCount - renderCost.instance.meshCount),
       renderableBlocks: this.renderedBlocks.size,
       surfaceFastPathBlocks: counters.surfaceFastPathBlocks,
       exposedFaceInstances: counters.exposedFaceInstances,
@@ -2946,6 +2990,8 @@ export class ThreeViewportEngine {
       actualSceneRenders: counters.actualSceneRenders,
       terrainChunks: terrain.terrainChunks,
       terrainChunkMeshes: terrain.terrainChunkMeshes,
+      terrainDrawObjectCount: terrain.terrainChunkMeshes,
+      terrainTriangleCount: renderCost.terrainTriangleCount,
       terrainChunkRebuilds: terrain.terrainChunkRebuilds,
       terrainBlocksCompiled: terrain.terrainBlocksCompiled,
       terrainFacesEmitted: terrain.terrainFacesEmitted,

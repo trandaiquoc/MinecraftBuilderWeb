@@ -2401,3 +2401,17 @@ result evidence is exposed through the existing renderer diagnostics.
 `PLACEMENT STATUS WAS NOT CHANGED.` `CAMERA STABLE-DPR WAS NOT CHANGED.`
 `HYDRATION FAIRNESS WAS NOT CHANGED.` `GREEDY MESHING WAS NOT IMPLEMENTED.`
 `Y-LAYER OPTIMIZATION WAS NOT IMPLEMENTED.`
+
+## Far-view render-region batching
+
+Static reusable instance and exposed-face presentation batches now share a
+32-block `RenderRegionPolicy`. Each region remains spatially bounded for
+frustum culling, while batches segment at the existing capacity instead of
+falling back to standalone objects. Region, batch, material, geometry,
+standalone, terrain, and transparency counts are available through
+`performanceEvidence()` and the opt-in viewport trace render sample. Terrain
+ownership remains chunk-local and its worker/commit pipeline is unchanged.
+
+The 110,592-voxel (`48^3`) steady-state fixture is opt-in through
+`RENDERER_BENCHMARK=1`; it is intentionally excluded from the normal fast test
+run. No visual LOD or greedy meshing was added.

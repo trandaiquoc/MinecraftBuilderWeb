@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { instanceMaterialCompatibilityKey } from './instance-template-cache';
+import type { RenderRegionPolicy } from './render-region-policy';
 
 export interface SurfaceFaceTemplate {
   readonly geometry: THREE.BufferGeometry;
@@ -23,6 +24,8 @@ export interface SurfaceFaceEntry {
 
 export interface SurfaceFaceBatch {
   readonly key: string;
+  readonly regionKey: string;
+  readonly segment: number;
   readonly capacity: number;
   readonly template: SurfaceFaceTemplate;
   readonly mesh: THREE.InstancedMesh;
@@ -36,6 +39,7 @@ export interface SurfaceFaceBatchRendererOptions {
   readonly capacity: number;
   readonly chunkKey: (position: VoxelCoordinate) => string;
   readonly stableBounds: (chunk: string, envelope: THREE.Box3) => THREE.Box3;
+  readonly regionPolicy?: RenderRegionPolicy;
   readonly unitEnvelope: () => THREE.Box3;
   readonly record: (name: string, delta?: number) => void;
   readonly getEntry: (key: string) => SurfaceFaceEntry | undefined;
@@ -55,8 +59,16 @@ export class SurfaceFaceBatchRenderer {
     const memberships: SurfaceFaceMembership[] = [];
     for (const template of templates) {
       if (!exposed.has(template.direction)) continue;
-      const batchKey = `${this.options.chunkKey(block.position)}|surface|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
+      const region = this.options.regionPolicy?.key(block.position) ?? this.options.chunkKey(block.position);
+      const baseKey = `${region}|surface|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
+      let segment = 0;
+      let batchKey = `${baseKey}|segment:${segment}`;
       let batch = this.batches.get(batchKey);
+      while (batch && batch.keys.length >= batch.capacity) {
+        segment += 1;
+        batchKey = `${baseKey}|segment:${segment}`;
+        batch = this.batches.get(batchKey);
+      }
       if (!batch) {
         const mesh = new THREE.InstancedMesh(template.geometry, template.material.clone(), this.options.capacity);
         mesh.count = 0;
@@ -68,10 +80,10 @@ export class SurfaceFaceBatchRenderer {
         mesh.userData['realModel'] = true;
         mesh.userData['instanceBatchKey'] = batchKey;
         this.options.blocksGroup.add(mesh);
-        mesh.boundingBox = this.options.stableBounds(this.options.chunkKey(block.position), this.options.unitEnvelope());
+        mesh.boundingBox = this.options.regionPolicy?.bounds(region, this.options.unitEnvelope()) ?? this.options.stableBounds(region, this.options.unitEnvelope());
         mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
         this.options.record('instancedBoundsComputations');
-        batch = { key: batchKey, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [] };
+        batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [] };
         this.batches.set(batchKey, batch);
       }
       if (batch.keys.length >= batch.capacity) return undefined;

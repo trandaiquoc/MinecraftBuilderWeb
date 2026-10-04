@@ -4,13 +4,14 @@ import * as THREE from 'three';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { VanillaBlockVisualProvider } from '../geometry/block-model-geometry';
 
-export type RendererBenchmarkSize = 'small' | 'medium' | 'large' | 'stress';
+export type RendererBenchmarkSize = 'small' | 'medium' | 'large' | 'stress' | 'mega';
 
 const SIZES: Readonly<Record<RendererBenchmarkSize, ProjectSize>> = {
   small: { x: 16, y: 16, z: 16 },
   medium: { x: 32, y: 16, z: 32 },
   large: { x: 64, y: 16, z: 64 },
   stress: { x: 64, y: 5, z: 64 },
+  mega: { x: 48, y: 48, z: 48 },
 };
 
 const COUNTS: Readonly<Record<RendererBenchmarkSize, number>> = {
@@ -18,6 +19,7 @@ const COUNTS: Readonly<Record<RendererBenchmarkSize, number>> = {
   medium: 2048,
   large: 8192,
   stress: 20000,
+  mega: 110592,
 };
 
 export function rendererBenchmarkProject(size: RendererBenchmarkSize): ProjectDocument {

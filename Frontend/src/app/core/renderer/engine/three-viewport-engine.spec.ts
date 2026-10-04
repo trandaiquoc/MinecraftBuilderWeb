@@ -1152,8 +1152,8 @@ describe('camera movement input contract', () => {
     const expanded = { ...initial, blocks: [...initialBlocks, { ...base.blocks[0], position: { x: 0, y: 0, z: 15 } }] };
     engine.update(expanded, undefined); await settleHydration();
     const expandedInstance = blocksGroup.children.find((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)!;
-    expect(initialMaxZ).toBeCloseTo(16);
-    expect(expandedInstance.boundingBox!.max.z).toBeCloseTo(16);
+    expect(initialMaxZ).toBeCloseTo(32);
+    expect(expandedInstance.boundingBox!.max.z).toBeCloseTo(32);
     expect(expandedInstance.boundingSphere!.radius).toBeGreaterThan(0);
     expect(engine.rendererCounters().instancedBoundsComputations).toBeLessThanOrEqual(initialBoundsComputations + 1);
     engine.dispose(); sharedGeometry.dispose();
