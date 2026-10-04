@@ -47,7 +47,6 @@ import type { InstanceBatch } from '../batching/instance-batch-renderer';
 import { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
 import type { SurfaceFaceBatch, SurfaceFaceMembership, SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { RenderScheduler } from '../scheduling/render-scheduler';
-import { InteractiveResolutionController } from '../scheduling/interactive-resolution-controller';
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
@@ -505,7 +504,6 @@ export class ThreeViewportEngine {
     onInvalidation: () => this.instrumentation.record('renderInvalidations'),
     onCoalesced: () => { this.instrumentation.record('renderInvalidationsCoalesced'); this.instrumentation.record('coalescedRenderRequests'); },
   });
-  private readonly interactiveResolutionController = new InteractiveResolutionController();
   private readonly cameraInteraction = new CameraInteractionController({ idleGraceMs: VIEWPORT_CAMERA_IDLE_GRACE_MS });
   private readonly hydrationScheduler = new HydrationScheduler<never>();
   private ghostModel?: THREE.Group;
@@ -568,7 +566,7 @@ export class ThreeViewportEngine {
     this.clearDecorationGhost();
     this.requestCameraRender();
   };
-  private readonly onControlEnd = () => { this.runtimeTrace?.record('controls-end'); this.cameraInteraction.endGesture(); this.cameraGestureInProgress = false; this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
+  private readonly onControlEnd = () => { this.runtimeTrace?.record('controls-end'); this.cameraInteraction.endGesture(); this.cameraGestureInProgress = false; this.requestCameraRender(); };
   private cameraMoveFrame?: number;
   private get pressedActions(): Set<MovementAction> { return this.cameraInteraction.pressedActions as Set<MovementAction>; }
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
@@ -694,8 +692,6 @@ export class ThreeViewportEngine {
   private cameraInteractingUntil = 0;
   private cameraRenderPending = false;
   private staticPixelRatio = 1;
-  private interactivePixelRatio = 1;
-  private interactiveResolutionActive = false;
   private lastRenderTimestamp = 0;
   private frameDurationMs = 0;
   private renderCpuMs = 0;
@@ -844,7 +840,7 @@ export class ThreeViewportEngine {
   }
 
   cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.runtimeTrace?.record('movement-keydown', { action }); this.cameraInteraction.press(action); this.markCameraInteraction(); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { this.runtimeTrace?.record('movement-keyup', { action }); this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) { this.requestCameraRender(); this.scheduleStaticResolutionRestore(); } }
+  cameraKeyUp(action: MovementAction): void { this.runtimeTrace?.record('movement-keyup', { action }); this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.requestCameraRender(); }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -908,7 +904,7 @@ export class ThreeViewportEngine {
   resize(): void {
     if (!this.renderer || !this.container) return;
     this.updatePixelRatioTargets();
-    this.applyPixelRatio(this.interactiveResolutionActive ? this.interactivePixelRatio : this.staticPixelRatio);
+    this.applyPixelRatio(this.staticPixelRatio);
     const { width, height } = this.container.getBoundingClientRect();
     const size = viewportRenderSize(width, height);
     this.canvasSize = size;
@@ -1188,8 +1184,8 @@ export class ThreeViewportEngine {
     const hydration = this.hydrationProgressState;
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
-      dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.interactivePixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: this.interactiveResolutionActive, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
-      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.cachedVisibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: this.interactiveResolutionActive },
+      dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
+      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.cachedVisibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
       render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
@@ -1757,41 +1753,18 @@ export class ThreeViewportEngine {
 
   private markCameraInteraction(): void {
     this.cameraInteractingUntil = this.cameraInteraction.mark();
-    this.enterInteractiveResolution();
-    this.scheduleStaticResolutionRestore();
     if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
   }
 
   private updatePixelRatioTargets(): void {
     const devicePixelRatio = typeof window === 'undefined' ? 1 : window.devicePixelRatio;
     this.staticPixelRatio = Math.min(devicePixelRatio, 2);
-    this.interactivePixelRatio = Math.min(devicePixelRatio, 1);
   }
 
   private applyPixelRatio(pixelRatio: number): void {
     if (!this.renderer || this.renderer.getPixelRatio() === pixelRatio) return;
     this.renderer.setPixelRatio(pixelRatio);
     if (this.canvasSize.width > 0 && this.canvasSize.height > 0) this.renderer.setSize(this.canvasSize.width, this.canvasSize.height, false);
-  }
-
-  private enterInteractiveResolution(): void {
-    if (this.interactiveResolutionActive || !this.renderer || this.staticPixelRatio <= this.interactivePixelRatio) return;
-    this.interactiveResolutionController.enter(
-      { staticRatio: this.staticPixelRatio, interactiveRatio: this.interactivePixelRatio },
-      () => this.applyPixelRatio(this.interactivePixelRatio),
-      () => { this.interactiveResolutionActive = true; this.instrumentation.record('interactiveResolutionEntries'); this.runtimeTrace?.record('resolution-interactive'); },
-    );
-  }
-
-  private scheduleStaticResolutionRestore(): void {
-    if (!this.renderer || !this.interactiveResolutionActive) return;
-    this.interactiveResolutionController.markActive();
-    this.interactiveResolutionController.scheduleRestore({
-      interactionUntil: this.cameraInteractingUntil,
-      isInteractionActive: () => this.cameraGestureInProgress || this.cameraInteraction.isActive() || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil,
-      applyStatic: () => this.applyPixelRatio(this.staticPixelRatio),
-      onRestored: () => { this.interactiveResolutionActive = false; this.instrumentation.record('staticResolutionRestores'); this.runtimeTrace?.record('resolution-static-restore'); this.requestCameraRender(); },
-    });
   }
 
   private scheduleHydrationPump(delay: boolean | number = false): void {
@@ -2556,7 +2529,6 @@ export class ThreeViewportEngine {
     this.cancelHydration();
     const provider = this.visualProvider;
     this.cameraRenderPending = false;
-    this.interactiveResolutionController.dispose();
     this.cameraInteraction.clear();
     this.renderScheduler.dispose();
     this.renderer?.dispose();
@@ -3192,7 +3164,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.scheduleRender();
   }
-  clearInput(): void { this.cameraInteraction.clear(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } this.scheduleStaticResolutionRestore(); }
+  clearInput(): void { this.cameraInteraction.clear(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {

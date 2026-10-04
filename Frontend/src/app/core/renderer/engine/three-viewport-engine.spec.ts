@@ -502,53 +502,87 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
-  it('uses interactive pixel ratio during camera work and restores the static ratio after idle', async () => {
+  it('keeps DPR, backing dimensions, and projection stable across camera input', () => {
+    const previousDevicePixelRatio = window.devicePixelRatio;
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1.25 });
     const engine = new ThreeViewportEngine();
-    const setPixelRatio = vi.fn();
-    let pixelRatio = 2;
+    let pixelRatio = 1;
+    const domElement = {
+      width: 0,
+      height: 0,
+      getBoundingClientRect: () => ({ width: 1200, height: 800, left: 0, top: 0, right: 1200, bottom: 800 }),
+      removeEventListener: vi.fn(),
+      remove: vi.fn(),
+    };
+    const setPixelRatio = vi.fn((value: number) => { pixelRatio = value; });
+    const setSize = vi.fn((width: number, height: number) => {
+      domElement.width = Math.round(width * pixelRatio);
+      domElement.height = Math.round(height * pixelRatio);
+    });
     const renderer = {
       getPixelRatio: () => pixelRatio,
-      setPixelRatio: (value: number) => { pixelRatio = value; setPixelRatio(value); },
-      setSize: vi.fn(),
+      setPixelRatio,
+      setSize,
       render: vi.fn(),
       dispose: vi.fn(),
       info: { render: { calls: 0, triangles: 0, lines: 0, points: 0 }, memory: { geometries: 0, textures: 0 } },
-      domElement: { removeEventListener: vi.fn(), remove: vi.fn() },
+      domElement,
     } as unknown as THREE.WebGLRenderer;
     const internals = engine as unknown as {
       renderer: THREE.WebGLRenderer;
+      container: { getBoundingClientRect: () => { width: number; height: number } };
+      canvasSize: { width: number; height: number };
       camera: THREE.PerspectiveCamera;
-      controls: { target: THREE.Vector3; removeEventListener: () => void; dispose: () => void };
-      staticPixelRatio: number;
-      interactivePixelRatio: number;
-      enterInteractiveResolution: () => void;
-      scheduleStaticResolutionRestore: () => void;
-      cameraInteractingUntil: number;
+      controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void };
+      onControlStart: () => void;
+      renderOnControlChange: () => void;
+      onControlEnd: () => void;
+      applyWheelZoom: (action: 'zoom-in' | 'zoom-out', deltaY: number, deltaMode: number) => void;
+      moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void;
     };
     internals.renderer = renderer;
-    internals.controls = { target: new THREE.Vector3(), removeEventListener: vi.fn(), dispose: vi.fn() };
-    internals.staticPixelRatio = 2;
-    internals.interactivePixelRatio = 1;
+    internals.container = { getBoundingClientRect: () => ({ width: 1200, height: 800 }) };
+    internals.controls = { target: new THREE.Vector3(1, 2, 3), minDistance: 1, maxDistance: 100, update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     internals.camera.position.set(8, 6, 8);
-    internals.controls.target.set(1, 2, 3);
     internals.camera.lookAt(internals.controls.target);
-    const poseBefore = { position: internals.camera.position.clone(), target: internals.controls.target.clone(), quaternion: internals.camera.quaternion.clone(), fov: internals.camera.fov, aspect: internals.camera.aspect };
-    internals.enterInteractiveResolution();
-    expect(setPixelRatio).toHaveBeenCalledWith(1);
+    engine.resize();
+    expect(pixelRatio).toBe(1.25);
+    const backingSize = { width: domElement.width, height: domElement.height };
+    setPixelRatio.mockClear(); setSize.mockClear();
+    const poseBefore = {
+      position: internals.camera.position.clone(),
+      target: internals.controls.target.clone(),
+      quaternion: internals.camera.quaternion.clone(),
+      projection: internals.camera.projectionMatrix.clone(),
+      fov: internals.camera.fov,
+      aspect: internals.camera.aspect,
+    };
+
+    internals.onControlStart();
+    internals.renderOnControlChange();
+    internals.onControlEnd();
     expect(internals.camera.position.distanceTo(poseBefore.position)).toBe(0);
     expect(internals.controls.target.distanceTo(poseBefore.target)).toBe(0);
     expect(internals.camera.quaternion.angleTo(poseBefore.quaternion)).toBe(0);
     expect(internals.camera.fov).toBe(poseBefore.fov);
     expect(internals.camera.aspect).toBe(poseBefore.aspect);
-    internals.cameraInteractingUntil = performance.now() - 1;
-    internals.scheduleStaticResolutionRestore();
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(setPixelRatio).toHaveBeenLastCalledWith(2);
-    expect(internals.camera.position.distanceTo(poseBefore.position)).toBe(0);
-    expect(internals.controls.target.distanceTo(poseBefore.target)).toBe(0);
-    expect(internals.camera.quaternion.angleTo(poseBefore.quaternion)).toBe(0);
-    expect(engine.rendererCounters()).toMatchObject({ interactiveResolutionEntries: 1, staticResolutionRestores: 1 });
+    expect(internals.camera.projectionMatrix.equals(poseBefore.projection)).toBe(true);
+
+    const distanceBeforeWheel = internals.camera.position.distanceTo(internals.controls.target);
+    internals.applyWheelZoom('zoom-in', 3, 1);
+    expect(internals.camera.position.distanceTo(internals.controls.target)).toBeLessThan(distanceBeforeWheel);
+    internals.moveCamera(new Set(['move-forward']), .016);
+    engine.cameraKeyDown('move-forward');
+    engine.cameraKeyUp('move-forward');
+    engine.clearInput();
+
+    expect(pixelRatio).toBe(1.25);
+    expect(setPixelRatio).not.toHaveBeenCalled();
+    expect(setSize).not.toHaveBeenCalled();
+    expect({ width: domElement.width, height: domElement.height }).toEqual(backingSize);
+    expect(engine.rendererCounters()).toMatchObject({ interactiveResolutionEntries: 0, staticResolutionRestores: 0 });
     engine.dispose();
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: previousDevicePixelRatio });
   });
 
   it('contains a synchronous cached-visual failure and continues hydration', async () => {
