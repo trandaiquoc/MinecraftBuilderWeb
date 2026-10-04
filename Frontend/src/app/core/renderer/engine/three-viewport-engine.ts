@@ -50,6 +50,7 @@ import { RenderScheduler } from '../scheduling/render-scheduler';
 import { InteractiveResolutionController } from '../scheduling/interactive-resolution-controller';
 import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
+import { wheelZoomDistance } from '../scheduling/camera-wheel-zoom';
 import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
@@ -546,17 +547,15 @@ export class ThreeViewportEngine {
     this.requestCameraRender();
   };
   private cameraMovementInProgress = false;
-  private cameraGestureInProgress = false;
   private readonly onControlStart = () => {
     this.cameraInteraction.beginGesture();
-    this.cameraGestureInProgress = true;
     this.cancelPendingHover(true);
     this.ghost.visible = false;
     if (this.ghostModel) this.ghostModel.visible = false;
     this.clearDecorationGhost();
     this.requestCameraRender();
   };
-  private readonly onControlEnd = () => { this.cameraInteraction.endGesture(); this.cameraGestureInProgress = false; this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
+  private readonly onControlEnd = () => { this.cameraInteraction.endGesture(); this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
   private cameraMoveFrame?: number;
   private get pressedActions(): Set<MovementAction> { return this.cameraInteraction.pressedActions as Set<MovementAction>; }
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
@@ -576,10 +575,11 @@ export class ThreeViewportEngine {
     if (mapped !== undefined) { event.preventDefault(); this.temporaryMouseButton = { key, previous: mapped }; delete this.controls.mouseButtons[key]; }
   };
   private readonly onCanvasPointerUpCapture = () => { this.restoreTemporaryMouseButton(); };
+  private readonly onCanvasPointerCancelCapture = () => this.clearInput();
   private readonly onCanvasWheelCapture = (event: WheelEvent) => {
     const action = mouseActionForEvent(event, this.mouseBindings);
     if (action !== 'zoom-in' && action !== 'zoom-out') { event.preventDefault(); event.stopImmediatePropagation(); return; }
-    event.preventDefault(); event.stopImmediatePropagation(); this.applyWheelZoom(action);
+    event.preventDefault(); event.stopImmediatePropagation(); this.markCameraInteraction(); this.applyWheelZoom(action, event);
   };
   private temporaryMouseButton?: { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined };
   private palette: ViewportThemePalette = viewportThemePalette('dark');
@@ -671,7 +671,6 @@ export class ThreeViewportEngine {
   private hydrationBatchDeadline = 0;
   private hydrationTimer?: ReturnType<typeof setTimeout>;
   private hydrationScheduled = false;
-  private cameraInteractingUntil = 0;
   private cameraRenderFrame?: number;
   private staticPixelRatio = 1;
   private interactivePixelRatio = 1;
@@ -752,7 +751,7 @@ export class ThreeViewportEngine {
     this.controls.addEventListener('end', this.onControlEnd);
     this.renderer.domElement.addEventListener('pointerdown', this.onCanvasPointerDownCapture, true);
     this.renderer.domElement.addEventListener('pointerup', this.onCanvasPointerUpCapture, true);
-    this.renderer.domElement.addEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
+    this.renderer.domElement.addEventListener('pointercancel', this.onCanvasPointerCancelCapture, true);
     this.renderer.domElement.addEventListener('wheel', this.onCanvasWheelCapture, { capture: true, passive: false });
     document.addEventListener('focusin', this.onWindowBlur); window.addEventListener('blur', this.onWindowBlur); document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -863,13 +862,11 @@ export class ThreeViewportEngine {
     return binding;
   }
 
-  private applyWheelZoom(action: 'zoom-in' | 'zoom-out'): void {
+  private applyWheelZoom(action: 'zoom-in' | 'zoom-out', event: Pick<WheelEvent, 'deltaY' | 'deltaMode'>): void {
     if (!this.controls) return;
     const offset = this.camera.position.clone().sub(this.controls.target);
     const distance = offset.length();
-    const zoomScale = Math.pow(.95, this.controlConfiguration.zoomSensitivity);
-    const factor = action === 'zoom-in' ? zoomScale : 1 / zoomScale;
-    const nextDistance = Math.min(this.controls.maxDistance, Math.max(this.controls.minDistance, distance * factor));
+    const nextDistance = wheelZoomDistance(distance, event, { action, sensitivity: this.controlConfiguration.zoomSensitivity, minDistance: this.controls.minDistance, maxDistance: this.controls.maxDistance });
     if (distance > 0) this.camera.position.copy(this.controls.target).add(offset.normalize().multiplyScalar(nextDistance));
     this.controls.update();
   }
@@ -1588,11 +1585,11 @@ export class ThreeViewportEngine {
   }
 
   private isCameraInteracting(): boolean {
-    return this.cameraGestureInProgress || this.cameraInteraction.isActive() || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil;
+    return this.cameraInteraction.isActive();
   }
 
   private markCameraInteraction(): void {
-    this.cameraInteractingUntil = this.cameraInteraction.mark();
+    this.cameraInteraction.mark();
     this.enterInteractiveResolution();
     this.scheduleStaticResolutionRestore();
     if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
@@ -1623,15 +1620,15 @@ export class ThreeViewportEngine {
     if (!this.renderer || !this.interactiveResolutionActive) return;
     this.interactiveResolutionController.markActive();
     this.interactiveResolutionController.scheduleRestore({
-      interactionUntil: this.cameraInteractingUntil,
-      isInteractionActive: () => this.cameraGestureInProgress || this.cameraInteraction.isActive() || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil,
+      interactionUntil: this.cameraInteraction.idleUntil,
+      isInteractionActive: () => this.cameraInteraction.isActive(),
       applyStatic: () => this.applyPixelRatio(this.staticPixelRatio),
       onRestored: () => { this.interactiveResolutionActive = false; this.instrumentation.record('staticResolutionRestores'); this.requestCameraRender(); },
     });
   }
 
   private scheduleHydrationWakeup(): void {
-    const delay = Math.max(16, this.cameraInteractingUntil - performance.now() + 1);
+    const delay = Math.max(16, this.cameraInteraction.idleUntil - performance.now() + 1);
     this.hydrationScheduler.reschedule(() => {
       this.hydrationScheduled = false;
       this.hydrationTimer = undefined;
@@ -2109,14 +2106,14 @@ export class ThreeViewportEngine {
 
   /** Coalesces hover work to one raycast per animation frame. Commit paths use hit() synchronously. */
   hover(event: PointerEvent, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY: number | undefined, showGhost: boolean, listener: ViewportHoverListener): void {
-    if (this.cameraGestureInProgress) { this.instrumentation.record('hoverRaycastsSuppressedDuringCamera'); return; }
+    if (this.cameraInteraction.gestureInProgress) { this.instrumentation.record('hoverRaycastsSuppressedDuringCamera'); return; }
     if (this.pendingHover) this.instrumentation.record('hoverPointerMovesCoalesced');
     this.pendingHover = { clientX: event.clientX, clientY: event.clientY, project, active, planeY, showGhost, listener };
     if (this.hoverFrame !== undefined || this.hoverTimer !== undefined) return;
     const run = () => {
       this.hoverFrame = undefined; this.hoverTimer = undefined;
       const request = this.pendingHover; this.pendingHover = undefined;
-      if (!request || this.cameraGestureInProgress) { if (request && this.cameraGestureInProgress) this.instrumentation.record('hoverRaycastsSuppressedDuringCamera'); return; }
+      if (!request || this.cameraInteraction.gestureInProgress) { if (request && this.cameraInteraction.gestureInProgress) this.instrumentation.record('hoverRaycastsSuppressedDuringCamera'); return; }
       this.instrumentation.record('hoverRaycasts');
       request.listener(this.performHit(request.clientX, request.clientY, request.project, request.active, request.planeY, request.showGhost));
     };
@@ -2303,7 +2300,7 @@ export class ThreeViewportEngine {
     this.controls?.dispose();
     this.renderer?.domElement.removeEventListener('pointerdown', this.onCanvasPointerDownCapture, true);
     this.renderer?.domElement.removeEventListener('pointerup', this.onCanvasPointerUpCapture, true);
-    this.renderer?.domElement.removeEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
+    this.renderer?.domElement.removeEventListener('pointercancel', this.onCanvasPointerCancelCapture, true);
     this.renderer?.domElement.removeEventListener('wheel', this.onCanvasWheelCapture, true);
     if (typeof document !== 'undefined') { document.removeEventListener('focusin', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); }
     if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
@@ -2313,7 +2310,7 @@ export class ThreeViewportEngine {
     const provider = this.visualProvider;
     this.cancelCameraRender();
     this.interactiveResolutionController.dispose();
-    this.cameraInteraction.clear();
+    this.cameraInteraction.cancelAll();
     this.renderScheduler.dispose();
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
@@ -2944,7 +2941,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.scheduleRender();
   }
-  clearInput(): void { this.cameraInteraction.clear(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } this.scheduleStaticResolutionRestore(); }
+  clearInput(): void { this.cameraInteraction.cancelAll(); this.restoreTemporaryMouseButton(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } this.cancelCameraRender(); this.scheduleStaticResolutionRestore(); if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump(); }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {

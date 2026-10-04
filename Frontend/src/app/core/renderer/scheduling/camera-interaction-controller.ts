@@ -16,10 +16,12 @@ export class CameraInteractionController {
 
   beginGesture(): void {
     this.gesture = true;
+    this.mark();
   }
 
   endGesture(): void {
     this.gesture = false;
+    this.mark();
   }
 
   press(action: string): void {
@@ -29,10 +31,11 @@ export class CameraInteractionController {
 
   release(action: string): void {
     this.pressedActions.delete(action);
+    this.mark();
   }
 
   mark(): number {
-    this.interactingUntil = this.now() + this.options.idleGraceMs;
+    this.interactingUntil = Math.max(this.interactingUntil, this.now() + this.options.idleGraceMs);
     return this.interactingUntil;
   }
 
@@ -41,8 +44,14 @@ export class CameraInteractionController {
   }
 
   clear(): void {
+    this.cancelAll();
+  }
+
+  /** Immediately cancels every interaction source, including idle grace. */
+  cancelAll(): void {
     this.pressedActions.clear();
     this.gesture = false;
+    this.interactingUntil = 0;
   }
 
   get gestureInProgress(): boolean {

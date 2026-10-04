@@ -2336,3 +2336,15 @@ confirmed, and only then assigns `terrainChunkKey` and removes the placeholder.
 Failed keys remain recoverable and a mixed batch commits successful keys without
 blanket removal. Hover and later render frames do not participate in ownership
 commits.
+
+## Camera interaction ownership and wheel zoom
+
+Camera interaction truth is owned by `CameraInteractionController`: OrbitControls
+gestures, held camera actions, and idle grace all flow through that controller.
+Engine interruption cleanup uses its immediate cancellation path, restoring
+temporary mouse mappings and cancelling camera movement/render frames on blur,
+visibility loss, pointer cancellation, and dispose. Wheel zoom retains the
+custom mouse bindings but normalizes pixel, line, and page `WheelEvent` deltas
+before applying a bounded exponential distance change around
+`OrbitControls.target`; min/max distance and zoom sensitivity remain active.
+Render-lane consolidation and hydration fairness remain deferred to D2/D3.
