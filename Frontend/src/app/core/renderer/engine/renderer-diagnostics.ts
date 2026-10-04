@@ -53,6 +53,12 @@ export interface RendererCounters {
   readonly cameraRenderRequestsCoalesced: number;
   readonly interactiveResolutionEntries: number;
   readonly staticResolutionRestores: number;
+  readonly regularHydrationStarted: number;
+  readonly regularHydrationCompleted: number;
+  readonly providerRefreshStarted: number;
+  readonly providerRefreshCompleted: number;
+  readonly hydrationFairnessDeferrals: number;
+  readonly maxProviderRefreshRunningWhileRegularPending: number;
   readonly hydrationPausesForCamera: number;
   readonly hydrationJobsStartedWhileCamera: number;
   readonly hydrationProgressRegressions: number;
@@ -156,6 +162,12 @@ const EMPTY_COUNTERS: RendererCounters = {
   cameraRenderRequestsCoalesced: 0,
   interactiveResolutionEntries: 0,
   staticResolutionRestores: 0,
+  regularHydrationStarted: 0,
+  regularHydrationCompleted: 0,
+  providerRefreshStarted: 0,
+  providerRefreshCompleted: 0,
+  hydrationFairnessDeferrals: 0,
+  maxProviderRefreshRunningWhileRegularPending: 0,
   hydrationPausesForCamera: 0,
   hydrationJobsStartedWhileCamera: 0,
   hydrationProgressRegressions: 0,
