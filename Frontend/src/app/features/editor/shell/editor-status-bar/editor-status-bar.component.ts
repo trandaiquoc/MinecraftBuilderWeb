@@ -68,8 +68,10 @@ export class EditorStatusBarComponent {
   }
   protected hydrationCount(snapshot: ViewportHydrationStatusSnapshot): string {
     const progress = snapshot.progress;
-    const totalLabel = progress.decorationsTotal > 0 ? this.i18n.t('viewportHydrationItems') : this.i18n.t('viewportHydrationBlocks');
-    return `${this.formatCount(progress.completed)} / ${this.formatCount(progress.total)} ${totalLabel}`;
+    if (progress.decorationsTotal > 0) {
+      return `${this.formatCount(progress.blocksCompleted)} / ${this.formatCount(progress.blocksTotal)} ${this.i18n.t('viewportHydrationBlocks')} · ${this.formatCount(progress.decorationsCompleted)} / ${this.formatCount(progress.decorationsTotal)} ${this.i18n.t('viewportHydrationItems')}`;
+    }
+    return `${this.formatCount(progress.blocksCompleted)} / ${this.formatCount(progress.blocksTotal)} ${this.i18n.t('viewportHydrationBlocks')}`;
   }
   private formatPercent(value: number): string { return value.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 1 }); }
   private formatCount(value: number): string { return value.toLocaleString(this.i18n.locale()); }

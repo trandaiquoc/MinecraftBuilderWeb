@@ -241,6 +241,7 @@ describe('camera movement input contract', () => {
       const targetBefore = new THREE.Vector3(0, 0, 0);
       internal.controls.target.copy(targetBefore);
       internal.camera.position.set(8, 6, 8);
+      const directionBefore = internal.camera.getWorldDirection(new THREE.Vector3());
       const cameraBefore = internal.camera.position.clone();
       const offsetBefore = cameraBefore.clone().sub(targetBefore);
       const renderedBefore = internal.renderedBlocks.size;
@@ -254,6 +255,7 @@ describe('camera movement input contract', () => {
       expect(internal.camera.position.clone().sub(internal.controls.target).x).toBeCloseTo(offsetBefore.x);
       expect(internal.camera.position.clone().sub(internal.controls.target).y).toBeCloseTo(offsetBefore.y);
       expect(internal.camera.position.clone().sub(internal.controls.target).z).toBeCloseTo(offsetBefore.z);
+      expect(internal.camera.getWorldDirection(new THREE.Vector3()).angleTo(directionBefore)).toBeCloseTo(0);
       expect(project.blocks).toHaveLength(projectBlockCount);
       expect(internal.renderedBlocks.size).toBe(renderedBefore);
       expect(internal.placeholderIndices.size).toBe(placeholdersBefore);
@@ -1538,7 +1540,24 @@ describe('selection visualization scalability', () => {
     await settleHydration();
     expect(engine.hydrationDiagnostics().generation).toBe(generation);
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 7 });
-    expect(engine.rendererCounters().hydrationPausesForCamera).toBeGreaterThan(0);
+    expect(engine.rendererCounters().hydrationPausesForCamera).toBe(0);
+    expect(engine.rendererCounters().hydrationJobsStartedWhileCamera).toBeGreaterThan(0);
+    engine.dispose();
+  });
+
+  it('reports logical block totals when terrain candidates share one reusable signature', async () => {
+    const base = rendererBenchmarkProject('small');
+    const blocks = Array.from({ length: 100 }, (_, index) => ({
+      ...base.blocks[0],
+      id: 'minecraft:stone',
+      position: { x: index % 10, y: Math.floor(index / 100), z: Math.floor(index / 10) },
+    }));
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(rendererBenchmarkVisualProvider());
+    engine.update({ ...base, size: { x: 10, y: 1, z: 10 }, blocks, decorations: [] }, undefined, { exposedFaceRendering: true });
+    await settleHydration(100, engine);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksTotal: 100, blocksCompleted: 100, total: 100, completed: 100 });
+    expect(engine.performanceEvidence().terrainLogicalBlocks).toBe(100);
     engine.dispose();
   });
 

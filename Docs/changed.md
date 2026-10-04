@@ -2336,3 +2336,19 @@ confirmed, and only then assigns `terrainChunkKey` and removes the placeholder.
 Failed keys remain recoverable and a mixed batch commits successful keys without
 blanket removal. Hover and later render frames do not participate in ownership
 commits.
+
+## Interactive hydration and camera scheduling
+
+Viewport hydration progress is now scoped to the visible logical voxel and
+decoration identities for the current generation. Terrain completion advances
+one entry for every represented voxel, including fully occluded ownership, so
+reusable signatures and chunk mesh counts are never presented as block totals.
+Stale generations and retries cannot increment the current generation twice.
+
+Camera interaction no longer pauses hydration completely. Orbit, pan, and WASD
+use a conservative bounded interactive hydration budget; idle periods use the
+normal budget. Camera invalidations share the existing demand-render scheduler,
+so control changes, movement, hydration commits, and overlays coalesce into one
+scene render per pending frame. Wheel distance changes are exponential and
+delta-mode aware (pixel, line, and page), while preserving configured zoom
+direction, sensitivity, and distance limits.
