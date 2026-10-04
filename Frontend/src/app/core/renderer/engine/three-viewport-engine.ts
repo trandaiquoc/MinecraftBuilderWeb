@@ -57,8 +57,9 @@ import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator
 import type { ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
-import { nextCameraDistanceFromWheel, type WheelZoomAction } from '../scheduling/camera-wheel-zoom';
-import { effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
+import { nextCameraDistanceFromWheel, wheelMagnitude, type WheelZoomAction } from '../scheduling/camera-wheel-zoom';
+import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
+import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly status: PlacementStatus; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -542,6 +543,7 @@ export class ThreeViewportEngine {
   private hasCameraFrame = false;
   private readonly renderOnControlChange = () => {
     this.instrumentation.record('controlChangeEvents');
+    this.runtimeTrace?.record('controls-change');
     this.markCameraInteraction();
     if (this.cameraMovementInProgress) {
       this.instrumentation.record('cameraChangeEventsDuringMovement');
@@ -553,6 +555,7 @@ export class ThreeViewportEngine {
   private cameraMovementInProgress = false;
   private cameraGestureInProgress = false;
   private readonly onControlStart = () => {
+    this.runtimeTrace?.record('controls-start');
     this.cameraInteraction.beginGesture();
     this.cameraGestureInProgress = true;
     this.cancelPendingHover(true);
@@ -561,12 +564,12 @@ export class ThreeViewportEngine {
     this.clearDecorationGhost();
     this.requestCameraRender();
   };
-  private readonly onControlEnd = () => { this.cameraInteraction.endGesture(); this.cameraGestureInProgress = false; this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
+  private readonly onControlEnd = () => { this.runtimeTrace?.record('controls-end'); this.cameraInteraction.endGesture(); this.cameraGestureInProgress = false; this.requestCameraRender(); this.scheduleStaticResolutionRestore(); };
   private cameraMoveFrame?: number;
   private get pressedActions(): Set<MovementAction> { return this.cameraInteraction.pressedActions as Set<MovementAction>; }
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
-  private readonly onWindowBlur = () => this.clearInput();
-  private readonly onVisibilityChange = () => { if (document.hidden) this.clearInput(); };
+  private readonly onWindowBlur = () => { this.runtimeTrace?.record('blur'); this.clearInput(); };
+  private readonly onVisibilityChange = () => { this.runtimeTrace?.record('visibilitychange', { hidden: document.hidden }); if (document.hidden) this.clearInput(); };
   private readonly onCanvasPointerDownCapture = (event: PointerEvent) => {
     const action = mouseActionForEvent(event, this.mouseBindings);
     if (!action || !this.controls) return;
@@ -574,13 +577,14 @@ export class ThreeViewportEngine {
     if (!key) return;
     const mapped = this.controls.mouseButtons[key];
     if (action === 'orbit-camera' || action === 'pan-camera') {
+      this.runtimeTrace?.record('pointer-camera-start', { button: event.button, action });
       if (mapped === undefined) { this.temporaryMouseButton = { key, previous: mapped }; this.controls.mouseButtons[key] = action === 'orbit-camera' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN; }
       return;
     }
     if (action !== 'primary-action' && action !== 'delete-target') return;
     if (mapped !== undefined) { event.preventDefault(); this.temporaryMouseButton = { key, previous: mapped }; delete this.controls.mouseButtons[key]; }
   };
-  private readonly onCanvasPointerUpCapture = () => { this.restoreTemporaryMouseButton(); };
+  private readonly onCanvasPointerUpCapture = (event: PointerEvent) => { if (this.temporaryMouseButton) this.runtimeTrace?.record('pointer-camera-end', { button: event.button }); this.restoreTemporaryMouseButton(); };
   private readonly onCanvasWheelCapture = (event: WheelEvent) => {
     const action = mouseActionForEvent(event, this.mouseBindings);
     if (action !== 'zoom-in' && action !== 'zoom-out') { event.preventDefault(); event.stopImmediatePropagation(); return; }
@@ -694,6 +698,7 @@ export class ThreeViewportEngine {
   private fallbackGeometryCounted = false;
   private readonly fallbackMaterialRoles = new Set<string>();
   private runtimeDiagnosticsEnabled = false;
+  private runtimeTrace?: ViewportRuntimeTrace;
   private runtimeObservedProjectBlockCount = 0;
   private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
@@ -707,6 +712,8 @@ export class ThreeViewportEngine {
       terrainAtlasMode: this.terrainAtlasMode,
       shouldCommitChunk: options.terrainShouldCommitChunk,
       record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
+      onTiming: (stage, durationMs) => this.runtimeTrace?.recordDuration(stage, durationMs),
+      isTimingEnabled: () => !!this.runtimeTrace?.isActive,
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
@@ -828,8 +835,8 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
-  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.cameraInteraction.press(action); this.markCameraInteraction(); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) { this.requestCameraRender(); this.scheduleStaticResolutionRestore(); } }
+  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.runtimeTrace?.record('movement-keydown', { action }); this.cameraInteraction.press(action); this.markCameraInteraction(); this.startCameraMovement(); }
+  cameraKeyUp(action: MovementAction): void { this.runtimeTrace?.record('movement-keyup', { action }); this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) { this.requestCameraRender(); this.scheduleStaticResolutionRestore(); } }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -884,6 +891,7 @@ export class ThreeViewportEngine {
       minDistance: this.controls.minDistance,
       maxDistance: this.controls.maxDistance,
     });
+    this.runtimeTrace?.record('wheel', { action, deltaY, deltaMode, magnitude: wheelMagnitude(deltaY, deltaMode), sensitivity: this.controlConfiguration.zoomSensitivity, distanceBefore: distance, distanceAfter: nextDistance });
     if (distance > 0) this.camera.position.copy(this.controls.target).add(offset.normalize().multiplyScalar(nextDistance));
     this.controls.update();
     this.requestCameraRender();
@@ -899,6 +907,7 @@ export class ThreeViewportEngine {
     this.camera.aspect = size.width / size.height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(size.width, size.height, false);
+    this.runtimeTrace?.record('resize', { cssWidth: width, cssHeight: height, backingWidth: size.width, backingHeight: size.height });
     this.render();
   }
 
@@ -912,6 +921,7 @@ export class ThreeViewportEngine {
     this.visualProvider?.retain?.();
     this.providerStats = undefined;
     this.providerGeneration += 1;
+    this.runtimeTrace?.record('provider-generation', { providerGeneration: this.providerGeneration, hasProvider: !!provider });
     this.structureSyncKey = '';
     this.specialVisualSignature = '';
     this.ghostModelKey = '';
@@ -1081,6 +1091,51 @@ export class ThreeViewportEngine {
     this.instanceOwnershipTrace.length = 0;
   }
 
+  setRuntimeTrace(trace: ViewportRuntimeTrace | undefined): void { this.runtimeTrace = trace; }
+
+  runtimeTraceMetadata(): ViewportTraceMetadata {
+    const project = this.project;
+    const capabilities = this.renderer?.capabilities;
+    return {
+      minecraftVersion: '1.21.1',
+      projectId: project?.id,
+      projectBlocks: project?.blocks.length ?? 0,
+      visibleLogicalBlocks: this.cachedVisibleEntries.length,
+      decorations: project?.decorations?.length ?? 0,
+      atlasMode: this.terrainAtlasMode,
+      controlConfiguration: { ...this.controlConfiguration },
+      devicePixelRatio: typeof window === 'undefined' ? 1 : window.devicePixelRatio,
+      viewportCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 },
+      rendererBacking: { width: this.renderer?.domElement.width ?? 0, height: this.renderer?.domElement.height ?? 0 },
+      hardwareConcurrency: typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency,
+      deviceMemory: typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+      userAgent: typeof navigator === 'undefined' ? undefined : navigator.userAgent,
+      webgl: capabilities ? { isWebGL2: capabilities.isWebGL2, maxTextures: capabilities.maxTextures, maxTextureSize: capabilities.maxTextureSize, maxSamples: capabilities.maxSamples } : undefined,
+      providerGeneration: this.providerGeneration,
+      specialVisualRevision: this.specialVisualRevision,
+    };
+  }
+
+  runtimeTraceSample(): ViewportTraceSample {
+    const target = this.controls?.target ?? new THREE.Vector3();
+    const offset = this.camera.position.clone().sub(target);
+    const direction = this.camera.getWorldDirection(new THREE.Vector3());
+    const counters = this.instrumentation.snapshot();
+    const terrain = this.terrainRenderer.evidence();
+    const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;
+    const hydration = this.hydrationProgressState;
+    return {
+      camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
+      dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.interactivePixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: this.interactiveResolutionActive, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
+      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.cachedVisibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: this.interactiveResolutionActive },
+      counters,
+      render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled },
+      generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
+      terrain: { ...terrain, terrainAtlas: { ...terrain.terrainAtlas } },
+      build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed },
+    };
+  }
+
   runtimeGhostDiagnostics(): ViewportRuntimeDiagnostics {
     const current = this.captureGhostSceneSnapshot();
     const firstEmpty = this.emptyTransitionSnapshots.at(-2) ?? null;
@@ -1090,6 +1145,7 @@ export class ThreeViewportEngine {
   }
 
   private reconcileStructure(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
+    this.runtimeTrace?.record('reconcile', { full, projectBlocks: project?.blocks.length ?? 0 });
     this.instrumentation.record('structuralReconciles');
     this.instrumentation.record('fullReconcileFallbacks');
     if (!project) {
@@ -1260,6 +1316,7 @@ export class ThreeViewportEngine {
   }
 
   private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
+    this.runtimeTrace?.record('incremental-reconcile', { changedVoxelCount: hint.changes.length, source: hint.source ?? 'unknown' });
     this.instrumentation.record('hintedProjectMutations');
     this.instrumentation.record('incrementalBlockReconciles');
     this.compactHydrationQueues();
@@ -1607,6 +1664,7 @@ export class ThreeViewportEngine {
       };
     }
     this.hydrationProgressState = progress;
+    this.runtimeTrace?.record('hydration-progress', { generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent });
     for (const listener of this.hydrationProgressListeners) listener(progress);
   }
 
@@ -1618,6 +1676,7 @@ export class ThreeViewportEngine {
     if (this.disposed) return;
     this.instrumentation.record('cameraRenderRequests');
     if (this.cameraRenderPending) this.instrumentation.record('cameraRenderRequestsCoalesced');
+    this.runtimeTrace?.record('render-request', { coalesced: this.cameraRenderPending });
     this.cameraRenderPending = true;
     this.scheduleRender();
   }
@@ -1650,7 +1709,7 @@ export class ThreeViewportEngine {
     this.interactiveResolutionController.enter(
       { staticRatio: this.staticPixelRatio, interactiveRatio: this.interactivePixelRatio },
       () => this.applyPixelRatio(this.interactivePixelRatio),
-      () => { this.interactiveResolutionActive = true; this.instrumentation.record('interactiveResolutionEntries'); },
+      () => { this.interactiveResolutionActive = true; this.instrumentation.record('interactiveResolutionEntries'); this.runtimeTrace?.record('resolution-interactive'); },
     );
   }
 
@@ -1661,7 +1720,7 @@ export class ThreeViewportEngine {
       interactionUntil: this.cameraInteractingUntil,
       isInteractionActive: () => this.cameraGestureInProgress || this.cameraInteraction.isActive() || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil,
       applyStatic: () => this.applyPixelRatio(this.staticPixelRatio),
-      onRestored: () => { this.interactiveResolutionActive = false; this.instrumentation.record('staticResolutionRestores'); this.requestCameraRender(); },
+      onRestored: () => { this.interactiveResolutionActive = false; this.instrumentation.record('staticResolutionRestores'); this.runtimeTrace?.record('resolution-static-restore'); this.requestCameraRender(); },
     });
   }
 
@@ -1685,6 +1744,8 @@ export class ThreeViewportEngine {
   }
 
   private processHydrationBatch(): void {
+    const traceActive = !!this.runtimeTrace?.isActive;
+    const batchStarted = traceActive ? performance.now() : 0;
     const token = this.hydrationGeneration;
     const interactive = this.isCameraInteracting();
     const now = performance.now();
@@ -1729,6 +1790,7 @@ export class ThreeViewportEngine {
       this.hydrationBatchDeadline = 0;
     }
     this.compactConsumedHydrationQueues();
+    if (traceActive) this.runtimeTrace?.recordDuration('processHydrationBatch', performance.now() - batchStarted);
   }
 
   private completeHydrationJob(job: BlockHydrationJob): void {
@@ -1816,6 +1878,7 @@ export class ThreeViewportEngine {
       this.cameraRenderPending = false;
       this.instrumentation.record('cameraRendersExecuted');
     }
+    this.runtimeTrace?.record('render-frame');
     this.render();
   }
 
@@ -1928,8 +1991,10 @@ export class ThreeViewportEngine {
   private createProviderVisual(provider: BlockVisualProvider, block: ProjectDocument['blocks'][number], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }): Promise<TerrainHydrationResult> {
     this.instrumentation.record('modelResolutions');
     this.instrumentation.record('providerObjectCreations');
-    try { return Promise.resolve(provider.create(block, worldContext)); }
-    catch (error) { return Promise.reject(error); }
+    const traceActive = !!this.runtimeTrace?.isActive;
+    const started = traceActive ? performance.now() : 0;
+    try { return Promise.resolve(provider.create(block, worldContext)).finally(() => { if (traceActive) this.runtimeTrace?.recordDuration('provider.create', performance.now() - started); }); }
+    catch (error) { if (traceActive) this.runtimeTrace?.recordDuration('provider.create', performance.now() - started); return Promise.reject(error); }
   }
 
   private resolveTerrainHydration(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, provider: BlockVisualProvider): Promise<TerrainHydrationResult> {
@@ -3324,6 +3389,7 @@ export class ThreeViewportEngine {
     this.renderer.render(this.scene, this.camera);
     const elapsed = performance.now() - renderStarted;
     this.renderCpuMs = this.renderCpuMs === 0 ? elapsed : this.renderCpuMs * .8 + elapsed * .2;
+    this.runtimeTrace?.recordDuration('renderer.render', elapsed);
     const info = this.renderer.info;
     this.lastRendererMetrics = { calls: info.render.calls, triangles: info.render.triangles, lines: info.render.lines, points: info.render.points, geometries: info.memory.geometries, textures: info.memory.textures };
     this.renderCount++;
@@ -3355,6 +3421,7 @@ export class ThreeViewportEngine {
     this.camera.position.add(direction);
     this.controls.target.add(direction);
     this.instrumentation.record('cameraMovementFrames');
+    this.runtimeTrace?.record('movement-frame', { actions: [...keys], deltaSeconds: delta, configuredHorizontalSpeed: this.controlConfiguration.cameraMoveSpeed, configuredVerticalSpeed: this.controlConfiguration.verticalMoveSpeed, distance: cameraDistance, movementScale: cameraMovementScale(cameraDistance), effectiveHorizontalSpeed: horizontalSpeed });
     this.cameraMovementInProgress = true;
     try {
       this.controls.update();
@@ -3377,6 +3444,8 @@ function cameraYaw(camera: THREE.Camera): number {
 function requestViewportFrame(callback: FrameRequestCallback): number {
   return typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(() => callback(performance.now()), 0) as unknown as number;
 }
+
+function toTraceVector(value: THREE.Vector3): TraceVector3 { return { x: value.x, y: value.y, z: value.z }; }
 
 function cancelViewportFrame(frame: number): void {
   if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);

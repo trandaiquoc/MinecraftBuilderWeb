@@ -4,6 +4,7 @@ import type { BlockVisualProvider } from '../../geometry/block-model-geometry';
 import { TerrainTextureAtlas, sampleAtlasUv, type TerrainAtlasFace, type TerrainAtlasSprite } from './terrain-texture-atlas';
 import { normalizeTerrainPixels, readTerrainTexturePixels, summarizeTerrainPixels, type TerrainPixelSource, type TerrainPixelSummary, type TerrainPixelExtractionRoute } from './terrain-atlas-pixels';
 import type { TerrainAtlasFramebufferEvidence, TerrainAtlasGpuProbeDraw, TerrainAtlasGpuProbeResult, TerrainAtlasGpuProbeVariantsResult, TerrainAtlasGpuProbeVariantDraw } from './terrain-atlas-gpu-probe';
+import type { ViewportRuntimeTraceApi } from '../../diagnostics/viewport-runtime-trace';
 
 export interface TerrainAtlasBrowserProbeHost {
   runTerrainAtlasGpuProbeVariants?(source: TerrainAtlasGpuProbeDraw, variants: readonly TerrainAtlasGpuProbeVariantDraw[], size?: number, beforeVariant?: (name: string) => void): TerrainAtlasGpuProbeVariantsResult | undefined;
@@ -109,6 +110,7 @@ declare global {
   interface Window {
     __minecraftBuilderDiagnostics?: {
       runTerrainAtlasProbe?: (blockId?: string, state?: Readonly<Record<string, string>>) => Promise<TerrainAtlasBrowserProbeResult>;
+      viewportTrace?: ViewportRuntimeTraceApi;
     };
   }
 }

@@ -60,6 +60,8 @@ export interface ChunkSurfaceRendererOptions {
   readonly terrainAtlasMode?: TerrainAtlasMode;
   /** Test seam for proving that logical records are not committed early. */
   readonly shouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
+  readonly onTiming?: (stage: 'terrain.flushNow' | 'terrain.rebuildChunk' | 'terrain.meshTerrainChunk', durationMs: number) => void;
+  readonly isTimingEnabled?: () => boolean;
 }
 
 interface TerrainChunkObject {
@@ -187,6 +189,8 @@ export class ChunkSurfaceRenderer {
   }
 
   flushNow(changedKeys: readonly string[] = []): TerrainApplyResult {
+    const timing = !!this.options.onTiming && (this.options.isTimingEnabled?.() ?? true);
+    const started = timing ? performance.now() : 0;
     if (this.flushTimer !== undefined) { clearTimeout(this.flushTimer); this.flushTimer = undefined; }
     const dirty = [...this.dirtyChunks];
     this.dirtyChunks.clear();
@@ -200,7 +204,9 @@ export class ChunkSurfaceRenderer {
       for (const item of result.representedKeys) representedKeys.add(item);
       for (const item of result.failedKeys) failedKeys.add(item);
     }
-    return { changedKeys: [...new Set(changedKeys)], rebuiltChunks, representedKeys: [...representedKeys], failedKeys: [...failedKeys] };
+    const result = { changedKeys: [...new Set(changedKeys)], rebuiltChunks, representedKeys: [...representedKeys], failedKeys: [...failedKeys] };
+    if (timing) this.options.onTiming?.('terrain.flushNow', performance.now() - started);
+    return result;
   }
 
   applyMaterial(callback: (material: THREE.Material) => void): void {
@@ -250,8 +256,11 @@ export class ChunkSurfaceRenderer {
   }
 
   private rebuildChunk(key: string): { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[] } | undefined {
+    const timing = !!this.options.onTiming && (this.options.isTimingEnabled?.() ?? true);
+    const started = timing ? performance.now() : 0;
+    const finish = (result: { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[] } | undefined) => { if (timing) this.options.onTiming?.('terrain.rebuildChunk', performance.now() - started); return result; };
     const chunk = parseChunkKey(key);
-    if (!chunk) return undefined;
+    if (!chunk) return finish(undefined);
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
     const previous = this.chunks.get(key);
     const previousRevision = this.chunkRevisions.get(key) ?? 0;
@@ -260,9 +269,11 @@ export class ChunkSurfaceRenderer {
     if (!entries.length) {
       if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
-      return { representedKeys: [], failedKeys: [] };
+      return finish({ representedKeys: [], failedKeys: [] });
     }
+    const meshStarted = timing ? performance.now() : 0;
     const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy, this.terrainAtlas);
+    if (timing) this.options.onTiming?.('terrain.meshTerrainChunk', performance.now() - meshStarted);
     this.rebuildCount += 1;
     this.blocksCompiled += compiled.blocksCompiled;
     this.facesEmitted += compiled.facesEmitted;
@@ -278,7 +289,7 @@ export class ChunkSurfaceRenderer {
       for (const bucket of compiled.buckets) { bucket.geometry.dispose(); if (!bucket.material.userData['sharedTerrainAtlasMaterial']) bucket.material.dispose(); }
       if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
-      return { representedKeys: [], failedKeys: [...new Set([...failed, ...represented])] };
+      return finish({ representedKeys: [], failedKeys: [...new Set([...failed, ...represented])] });
     }
     const meshes: THREE.Mesh[] = [];
     const bounds = terrainChunkBounds(chunk);
@@ -310,9 +321,9 @@ export class ChunkSurfaceRenderer {
     }
     if (failed.length) for (const item of failed) this.ownership.delete(item);
     if (!meshes.length && represented.some((item) => !occludedKeys.has(item))) {
-      return { representedKeys: [], failedKeys: [...new Set([...failed, ...represented.filter((item) => !occludedKeys.has(item))])] };
+      return finish({ representedKeys: [], failedKeys: [...new Set([...failed, ...represented.filter((item) => !occludedKeys.has(item))])] });
     }
-    return { representedKeys: represented, failedKeys: failed };
+    return finish({ representedKeys: represented, failedKeys: failed });
   }
 
   private clearChunkOwnership(chunkKey: string): void {
