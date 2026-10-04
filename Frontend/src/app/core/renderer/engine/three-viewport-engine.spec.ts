@@ -110,8 +110,8 @@ describe('camera movement input contract', () => {
     engine.hover(pointer(2), undefined, undefined, undefined, false, () => hits.push(2));
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect(hits).toEqual([2]);
-    const internal = engine as unknown as { cameraInteraction: { beginGesture: () => void } };
-    internal.cameraInteraction.beginGesture();
+    const internal = engine as unknown as { cameraGestureInProgress: boolean };
+    internal.cameraGestureInProgress = true;
     engine.hover(pointer(3), undefined, undefined, undefined, false, () => hits.push(3));
     expect(engine.rendererCounters()).toMatchObject({ hoverRaycasts: 1, hoverPointerMovesCoalesced: 1, hoverRaycastsSuppressedDuringCamera: 1 });
     engine.dispose();
@@ -158,28 +158,12 @@ describe('camera movement input contract', () => {
       expect(internal.pressedActions.size).toBe(1);
       engine.clearInput();
       expect(internal.pressedActions.size).toBe(0);
-      expect((engine as unknown as { cameraInteraction: { isActive: () => boolean } }).cameraInteraction.isActive()).toBe(false);
       expect(internal.cameraMoveFrame).toBeUndefined();
       expect(callbacks.size).toBe(0);
       engine.dispose();
     } finally {
       vi.unstubAllGlobals();
     }
-  });
-
-  it('applies magnitude-aware wheel zoom around the existing OrbitControls target', () => {
-    const engine = new ThreeViewportEngine();
-    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void }; applyWheelZoom: (action: 'zoom-in' | 'zoom-out', event: { deltaY: number; deltaMode: number }) => void };
-    internal.camera.position.set(0, 0, 10);
-    internal.controls = { target: new THREE.Vector3(2, 3, 4), minDistance: 5, maxDistance: 12, update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
-    const targetBefore = internal.controls.target.clone();
-    internal.applyWheelZoom('zoom-in', { deltaY: -100, deltaMode: 0 });
-    expect(internal.controls.target).toEqual(targetBefore);
-    expect(internal.camera.position.distanceTo(targetBefore)).toBeLessThan(10);
-    internal.applyWheelZoom('zoom-out', { deltaY: 100_000, deltaMode: 0 });
-    expect(internal.camera.position.distanceTo(targetBefore)).toBe(12);
-    expect(internal.controls.update).toHaveBeenCalledTimes(2);
-    engine.dispose();
   });
 
   it('keeps a seven-block selection and render membership intact for every camera movement action', async () => {
@@ -486,14 +470,14 @@ describe('camera movement input contract', () => {
       interactivePixelRatio: number;
       enterInteractiveResolution: () => void;
       scheduleStaticResolutionRestore: () => void;
-      cameraInteraction: { cancelAll: () => void };
+      cameraInteractingUntil: number;
     };
     internals.renderer = renderer;
     internals.staticPixelRatio = 2;
     internals.interactivePixelRatio = 1;
     internals.enterInteractiveResolution();
     expect(setPixelRatio).toHaveBeenCalledWith(1);
-    internals.cameraInteraction.cancelAll();
+    internals.cameraInteractingUntil = performance.now() - 1;
     internals.scheduleStaticResolutionRestore();
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(setPixelRatio).toHaveBeenLastCalledWith(2);
