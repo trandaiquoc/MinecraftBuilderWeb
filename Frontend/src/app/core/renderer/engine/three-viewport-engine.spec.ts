@@ -1555,6 +1555,34 @@ describe('provider handoff hydration ownership', () => {
     engine.dispose();
   });
 
+  it('keeps keyed terrain and logical progress intact across a live provider handoff', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 32), decorations: [] };
+    const firstProvider = rendererBenchmarkVisualProvider();
+    const secondProvider = rendererBenchmarkVisualProvider();
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(firstProvider);
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await settleHydration(40, engine);
+    const before = engine.rendererCounters();
+    const progress = engine.hydrationProgress();
+    const evidence = engine.performanceEvidence();
+
+    engine.setVisualProvider(secondProvider);
+    await settleHydration(40, engine);
+
+    const after = engine.rendererCounters();
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.fullReconcileFallbacks).toBe(before.fullReconcileFallbacks);
+    expect(after.hydrationGenerations).toBe(before.hydrationGenerations);
+    expect(engine.hydrationProgress().blocksCompleted).toBeGreaterThanOrEqual(progress.blocksCompleted);
+    expect(engine.performanceEvidence().terrainBulkBatches).toBe(evidence.terrainBulkBatches);
+    expect(engine.visibleSceneDiagnostics().renderedVoxelCount + engine.visibleSceneDiagnostics().placeholderVoxelCount).toBe(project.blocks.length);
+    engine.dispose();
+    firstProvider.dispose();
+    secondProvider.dispose();
+  });
+
   it('keeps placeholders stable without a provider and does not create a runaway queue', async () => {
     const base = rendererBenchmarkProject('small');
     const project = { ...base, blocks: base.blocks.slice(0, 2), decorations: [] };
