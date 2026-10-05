@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { fluidCornerHeightsResolved, fluidVelocityResolved, FluidRenderResolver, FluidWorldLookup, vanillaFluidRenderResolver } from './fluid-state';
+import { shouldCullFluidFace } from './fluid-face-occlusion';
+import { fluidSideUv } from './fluid-surface-sampler';
 
 export interface FluidGeometryResult { readonly geometry: THREE.BufferGeometry; readonly faceCount: number; readonly flowAngle: number; }
 
@@ -8,7 +10,7 @@ export function createFluidGeometry(block: PlacedBlock, world?: FluidWorldLookup
   const state = resolver.resolve(block, world); if (!state) return undefined;
   const lookup = world ?? { getBlock: (position: PlacedBlock['position']) => position.x === block.position.x && position.y === block.position.y && position.z === block.position.z ? block : undefined };
   const corners = fluidCornerHeightsResolved(block.position, state, lookup, resolver); const velocity = fluidVelocityResolved(block.position, state, lookup, resolver);
-  const flowAngle = velocity.x || velocity.z ? Math.atan2(velocity.z, velocity.x) - Math.PI / 2 : 0;
+  const flowAngle = Math.hypot(velocity.x, velocity.z) > 1e-6 ? Math.atan2(velocity.z, velocity.x) - Math.PI / 2 : 0;
   const positions: number[] = []; const uvs: number[] = []; const indices: number[] = []; let faces = 0;
   const quad = (vertices: readonly (readonly [number, number, number])[], uv: readonly (readonly [number, number])[], flipWinding = false): void => {
     const start = faces * 4; vertices.forEach((vertex) => positions.push(...vertex)); uv.forEach((value) => uvs.push(...value));
@@ -16,13 +18,12 @@ export function createFluidGeometry(block: PlacedBlock, world?: FluidWorldLookup
   };
   const hNW = corners.northWest - .001; const hNE = corners.northEast - .001; const hSW = corners.southWest - .001; const hSE = corners.southEast - .001;
   const topUv = rotateUv([[0, 0], [1, 0], [1, 1], [0, 1]], flowAngle);
-  const same = (dx: number, dy: number, dz: number): boolean => resolver.resolve(lookup.getBlock({ x: block.position.x + dx, y: block.position.y + dy, z: block.position.z + dz }), lookup)?.connectivityKey === state.connectivityKey;
-  if (!same(0, 1, 0)) quad([[0, hNW, 0], [1, hNE, 0], [1, hSE, 1], [0, hSW, 1]], topUv, true);
-  if (!same(0, -1, 0)) quad([[0, 0, 1], [1, 0, 1], [1, 0, 0], [0, 0, 0]], [[0, 1], [1, 1], [1, 0], [0, 0]], true);
-  if (!same(0, 0, -1)) quad([[0, 0, .001], [1, 0, .001], [1, hNE, .001], [0, hNW, .001]], [[0, 1], [1, 1], [1, 0], [0, 0]], true);
-  if (!same(0, 0, 1)) quad([[1, 0, .999], [0, 0, .999], [0, hSW, .999], [1, hSE, .999]], [[0, 1], [1, 1], [1, 0], [0, 0]], true);
-  if (!same(-1, 0, 0)) quad([[.001, 0, 0], [.001, 0, 1], [.001, hSW, 1], [.001, hNW, 0]], [[0, 1], [1, 1], [1, 0], [0, 0]]);
-  if (!same(1, 0, 0)) quad([[.999, 0, 1], [.999, 0, 0], [.999, hNE, 0], [.999, hSE, 1]], [[0, 1], [1, 1], [1, 0], [0, 0]]);
+  if (!shouldCullFluidFace(block.position, 'up', state, lookup, resolver)) quad([[0, hNW, 0], [1, hNE, 0], [1, hSE, 1], [0, hSW, 1]], topUv, true);
+  if (!shouldCullFluidFace(block.position, 'down', state, lookup, resolver)) quad([[0, 0, 1], [1, 0, 1], [1, 0, 0], [0, 0, 0]], [[0, 1], [1, 1], [1, 0], [0, 0]], true);
+  if (!shouldCullFluidFace(block.position, 'north', state, lookup, resolver)) quad([[0, 0, .001], [1, 0, .001], [1, hNE, .001], [0, hNW, .001]], fluidSideUv(hNW, hNE), true);
+  if (!shouldCullFluidFace(block.position, 'south', state, lookup, resolver)) quad([[1, 0, .999], [0, 0, .999], [0, hSW, .999], [1, hSE, .999]], fluidSideUv(hSE, hSW), true);
+  if (!shouldCullFluidFace(block.position, 'west', state, lookup, resolver)) quad([[.001, 0, 0], [.001, 0, 1], [.001, hSW, 1], [.001, hNW, 0]], fluidSideUv(hSW, hNW));
+  if (!shouldCullFluidFace(block.position, 'east', state, lookup, resolver)) quad([[.999, 0, 1], [.999, 0, 0], [.999, hNE, 0], [.999, hSE, 1]], fluidSideUv(hNE, hSE));
   const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); geometry.setIndex(indices); geometry.computeVertexNormals();
   return { geometry, faceCount: faces, flowAngle };
 }

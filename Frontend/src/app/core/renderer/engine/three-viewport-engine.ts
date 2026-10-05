@@ -71,6 +71,7 @@ import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
 import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
 import { fluidChunkKey } from '../fluids/fluid-mesh-core';
+import type { FluidWorldLookup } from '../fluids/fluid-state';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -1046,8 +1047,16 @@ export class ThreeViewportEngine {
     const visible = this.cachedVisibleProject === this.project && this.cachedVisibleKey === renderFilterKey(this.renderOptions)
       ? this.cachedVisibleEntries
       : this.visibleBlocks(this.project, this.renderOptions);
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const worldContext = this.fluidWorldContext();
     this.syncFluidVisuals(visible, worldContext);
+  }
+
+  private fluidWorldContext(): FluidWorldLookup {
+    return {
+      getBlock: (position) => this.spatialIndex?.get(position),
+      getDefinition: (blockId) => this.definitionResolver?.(blockId),
+      getOcclusionClass: (block) => this.visualProvider?.occlusionClass?.(block) ?? 'unknown',
+    };
   }
   setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined, revision?: number): void {
     if (resolver === this.specialVisualResolver && revision === this.specialVisualRevision) return;
@@ -1468,7 +1477,7 @@ export class ThreeViewportEngine {
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
   }
 
-  private syncFluidVisuals(visible: readonly VisibleBlockEntry[], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, changedPositions?: readonly VoxelCoordinate[]): void {
+  private syncFluidVisuals(visible: readonly VisibleBlockEntry[], worldContext: FluidWorldLookup, changedPositions?: readonly VoxelCoordinate[]): void {
     const records = this.visualProvider?.fluidRenderResolver && this.visualProvider.fluidTexture
       ? visible.flatMap((entry) => {
         const state = this.visualProvider!.fluidRenderResolver!.resolve(entry.block, worldContext);

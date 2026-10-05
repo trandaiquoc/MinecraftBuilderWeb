@@ -57,4 +57,11 @@ describe('static fluid geometry', () => {
     expect(triangleNormal(result, 2).z).toBeLessThan(0); expect(triangleNormal(result, 3).z).toBeGreaterThan(0);
     expect(triangleNormal(result, 4).x).toBeLessThan(0); expect(triangleNormal(result, 5).x).toBeGreaterThan(0);
   });
+
+  it('uses the sampled top height for side UVs', () => {
+    const result = createFluidGeometry(block('minecraft:water', undefined, '7'))!;
+    const uvs = [...result.geometry.getAttribute('uv').array];
+    const expectedTopV = 1 - (1 / 9 - .001);
+    expect(uvs.some((value) => Math.abs(value - expectedTopV) < .001)).toBe(true);
+  });
 });

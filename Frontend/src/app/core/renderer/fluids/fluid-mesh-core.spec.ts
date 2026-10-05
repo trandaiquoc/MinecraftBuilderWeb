@@ -35,4 +35,30 @@ describe('generic fluid mesh core', () => {
     expect(result.fluidLogicalVoxels).toBe(1);
     expect(result.buckets[0].texture).toBe('mod:block/test_still');
   });
+
+  it('culls a confirmed opaque full cube but keeps unknown or partial neighbors visible', () => {
+    const water = block('minecraft:water');
+    const stone = block('minecraft:stone', { x: 1, y: 0, z: 0 });
+    const world: FluidWorldLookup = {
+      getBlock: (position) => `${position.x},${position.y},${position.z}` === '0,0,0' ? water : `${position.x},${position.y},${position.z}` === '1,0,0' ? stone : undefined,
+      getOcclusionClass: (value) => value.id === 'minecraft:stone' ? 'opaque-full-cube' : 'unknown',
+    };
+    const result = buildFluidMeshData([{ block: water, state: vanillaFluidRenderResolver.resolve(water)! }], world, vanillaFluidRenderResolver);
+    expect(result.fluidFacesCulled).toBe(1);
+    expect(result.fluidFacesEmitted).toBe(5);
+    const partialResult = buildFluidMeshData([{ block: water, state: vanillaFluidRenderResolver.resolve(water)! }], { ...world, getOcclusionClass: () => 'unknown' }, vanillaFluidRenderResolver);
+    expect(partialResult.fluidFacesCulled).toBe(0);
+  });
+
+  it('applies the same conservative occlusion policy to top and bottom faces', () => {
+    const water = block('minecraft:water');
+    const above = block('minecraft:stone', { x: 0, y: 1, z: 0 });
+    const below = block('minecraft:stone', { x: 0, y: -1, z: 0 });
+    const world: FluidWorldLookup = {
+      getBlock: (position) => [water, above, below].find((value) => value.position.x === position.x && value.position.y === position.y && value.position.z === position.z),
+      getOcclusionClass: (value) => value.id === 'minecraft:stone' ? 'opaque-full-cube' : 'unknown',
+    };
+    const result = buildFluidMeshData([{ block: water, state: vanillaFluidRenderResolver.resolve(water)! }], world, vanillaFluidRenderResolver);
+    expect(result.fluidFacesCulled).toBe(2);
+  });
 });

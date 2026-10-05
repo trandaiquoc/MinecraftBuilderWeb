@@ -1,5 +1,7 @@
 import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { fluidCornerHeightsResolved, fluidVelocityResolved, FluidRenderResolver, FluidWorldLookup, ResolvedFluidRenderState } from './fluid-state';
+import { shouldCullFluidFace } from './fluid-face-occlusion';
+import { fluidSideUv } from './fluid-surface-sampler';
 
 export interface FluidMeshRecord { readonly block: PlacedBlock; readonly state: ResolvedFluidRenderState; }
 export interface FluidMeshBucket {
@@ -34,8 +36,8 @@ export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: F
   for (const record of records) {
     const { block, state } = record;
     const velocity = fluidVelocityResolved(block.position, state, world, resolver);
-    const flowAngle = velocity.x || velocity.z ? Math.atan2(velocity.z, velocity.x) - Math.PI / 2 : 0;
-    const flowing = flowAngle !== 0;
+    const flowAngle = Math.hypot(velocity.x, velocity.z) > 1e-6 ? Math.atan2(velocity.z, velocity.x) - Math.PI / 2 : 0;
+    const flowing = Math.hypot(velocity.x, velocity.z) > 1e-6;
     const texture = flowing ? state.flowTexture : state.stillTexture;
     const bucketKey = `${state.materialKey}|${state.renderLayer}|${texture}|${state.tint ?? ''}|${state.opacity ?? ''}|${state.depthWrite}|${state.doubleSided}`;
     let bucket = buckets.get(bucketKey);
@@ -46,7 +48,6 @@ export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: F
     const corners = fluidCornerHeightsResolved(block.position, state, world, resolver);
     const hNW = corners.northWest - .001; const hNE = corners.northEast - .001; const hSW = corners.southWest - .001; const hSE = corners.southEast - .001;
     const topUv = rotateUv([[0, 0], [1, 0], [1, 1], [0, 1]], flowAngle);
-    const same = (dx: number, dy: number, dz: number): boolean => resolver.resolve(world.getBlock({ x: block.position.x + dx, y: block.position.y + dy, z: block.position.z + dz }), world)?.connectivityKey === state.connectivityKey;
     const key = `${block.position.x},${block.position.y},${block.position.z}`;
     const face = (vertices: readonly (readonly [number, number, number])[], uv: readonly (readonly [number, number])[], normal: readonly [number, number, number], flipWinding = false): void => {
       const start = bucket!.positions.length / 3;
@@ -57,15 +58,16 @@ export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: F
     };
     const exposed = (dx: number, dy: number, dz: number, vertices: readonly (readonly [number, number, number])[], uv: readonly (readonly [number, number])[], normal: readonly [number, number, number], flip = false): void => {
       potential += 1; bucket!.facesPotential += 1;
-      if (same(dx, dy, dz)) { culled += 1; bucket!.facesCulled += 1; return; }
+      const direction = dx === 0 && dy === 1 ? 'up' : dx === 0 && dy === -1 ? 'down' : dx === 0 && dz === -1 ? 'north' : dx === 0 && dz === 1 ? 'south' : dx === -1 ? 'west' : 'east';
+      if (shouldCullFluidFace(block.position, direction, state, world, resolver)) { culled += 1; bucket!.facesCulled += 1; return; }
       face(vertices, uv, normal, flip);
     };
     exposed(0, 1, 0, [[block.position.x, block.position.y + hNW, block.position.z], [block.position.x + 1, block.position.y + hNE, block.position.z], [block.position.x + 1, block.position.y + hSE, block.position.z + 1], [block.position.x, block.position.y + hSW, block.position.z + 1]], topUv, [0, 1, 0], true);
     exposed(0, -1, 0, [[block.position.x, block.position.y, block.position.z + 1], [block.position.x + 1, block.position.y, block.position.z + 1], [block.position.x + 1, block.position.y, block.position.z], [block.position.x, block.position.y, block.position.z]], [[0, 1], [1, 1], [1, 0], [0, 0]], [0, -1, 0], true);
-    exposed(0, 0, -1, [[block.position.x, block.position.y, block.position.z + .001], [block.position.x + 1, block.position.y, block.position.z + .001], [block.position.x + 1, block.position.y + hNE, block.position.z + .001], [block.position.x, block.position.y + hNW, block.position.z + .001]], [[0, 1], [1, 1], [1, 0], [0, 0]], [0, 0, -1], true);
-    exposed(0, 0, 1, [[block.position.x + 1, block.position.y, block.position.z + .999], [block.position.x, block.position.y, block.position.z + .999], [block.position.x, block.position.y + hSW, block.position.z + .999], [block.position.x + 1, block.position.y + hSE, block.position.z + .999]], [[0, 1], [1, 1], [1, 0], [0, 0]], [0, 0, 1], true);
-    exposed(-1, 0, 0, [[block.position.x + .001, block.position.y, block.position.z], [block.position.x + .001, block.position.y, block.position.z + 1], [block.position.x + .001, block.position.y + hSW, block.position.z + 1], [block.position.x + .001, block.position.y + hNW, block.position.z]], [[0, 1], [1, 1], [1, 0], [0, 0]], [-1, 0, 0]);
-    exposed(1, 0, 0, [[block.position.x + .999, block.position.y, block.position.z + 1], [block.position.x + .999, block.position.y, block.position.z], [block.position.x + .999, block.position.y + hNE, block.position.z], [block.position.x + .999, block.position.y + hSE, block.position.z + 1]], [[0, 1], [1, 1], [1, 0], [0, 0]], [1, 0, 0]);
+    exposed(0, 0, -1, [[block.position.x, block.position.y, block.position.z + .001], [block.position.x + 1, block.position.y, block.position.z + .001], [block.position.x + 1, block.position.y + hNE, block.position.z + .001], [block.position.x, block.position.y + hNW, block.position.z + .001]], fluidSideUv(hNW, hNE), [0, 0, -1], true);
+    exposed(0, 0, 1, [[block.position.x + 1, block.position.y, block.position.z + .999], [block.position.x, block.position.y, block.position.z + .999], [block.position.x, block.position.y + hSW, block.position.z + .999], [block.position.x + 1, block.position.y + hSE, block.position.z + .999]], fluidSideUv(hSE, hSW), [0, 0, 1], true);
+    exposed(-1, 0, 0, [[block.position.x + .001, block.position.y, block.position.z], [block.position.x + .001, block.position.y, block.position.z + 1], [block.position.x + .001, block.position.y + hSW, block.position.z + 1], [block.position.x + .001, block.position.y + hNW, block.position.z]], fluidSideUv(hSW, hNW), [-1, 0, 0]);
+    exposed(1, 0, 0, [[block.position.x + .999, block.position.y, block.position.z + 1], [block.position.x + .999, block.position.y, block.position.z], [block.position.x + .999, block.position.y + hNE, block.position.z], [block.position.x + .999, block.position.y + hSE, block.position.z + 1]], fluidSideUv(hNE, hSE), [1, 0, 0]);
   }
   return { buckets: [...buckets.values()], fluidLogicalVoxels: records.length, fluidFacesPotential: potential, fluidFacesCulled: culled, fluidFacesEmitted: emitted };
 }
