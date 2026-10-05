@@ -26,4 +26,28 @@ describe('ContentOperationCoordinator', () => {
     await coordinator.run('foreground', async () => 'ok');
     expect(coordinator.isBusy()).toBe(false);
   });
+
+  it('waits for foreground work instead of aborting it when background work starts', async () => {
+    const coordinator = new ContentOperationCoordinator();
+    let releaseForeground!: () => void;
+    let foregroundAborted = false;
+    const foreground = coordinator.run('foreground', async (signal) => {
+      await new Promise<void>((resolve) => { releaseForeground = resolve; });
+      foregroundAborted = signal.aborted;
+      return 'foreground';
+    });
+    await Promise.resolve();
+    let backgroundStarted = false;
+    const background = coordinator.run('background', async () => {
+      backgroundStarted = true;
+      return 'background';
+    });
+    await Promise.resolve();
+    expect(backgroundStarted).toBe(false);
+    expect(foregroundAborted).toBe(false);
+    releaseForeground();
+    await expect(foreground).resolves.toBe('foreground');
+    await expect(background).resolves.toBe('background');
+    expect(backgroundStarted).toBe(true);
+  });
 });

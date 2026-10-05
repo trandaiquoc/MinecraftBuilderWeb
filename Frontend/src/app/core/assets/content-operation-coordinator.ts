@@ -15,7 +15,10 @@ export class ContentOperationCoordinator {
 
   async run<T>(priority: ContentOperationPriority, work: (signal: AbortSignal) => Promise<T>, callerSignal?: AbortSignal): Promise<T> {
     const previous = this.active;
-    if (previous) previous.controller.abort(createAbortError(`${priority} content operation superseded the active operation`));
+    const backgroundMustWaitForForeground = priority === 'background' && previous?.priority === 'foreground';
+    if (previous && !backgroundMustWaitForForeground) {
+      previous.controller.abort(createAbortError(`${priority} content operation superseded the active operation`));
+    }
     if (previous) await previous.done;
     const controller = new AbortController();
     const combined = combineAbortSignals(controller.signal, callerSignal);
