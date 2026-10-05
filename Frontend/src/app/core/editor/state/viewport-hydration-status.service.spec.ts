@@ -54,21 +54,4 @@ describe('ViewportHydrationStatusService', () => {
     service.publish(owner, progress({ generation: 2, total: 100, percent: 10, completed: 10, blocksCompleted: 10 }));
     expect(service.status()?.activity).toBe('build');
   });
-
-  it('keeps local mutation hydration out of the global loading affordance', () => {
-    const service = new ViewportHydrationStatusService();
-    const owner = service.claim();
-    service.publish(owner, progress({ total: 10_000, completed: 9_999 }));
-    service.publish(owner, progress({ lane: 'local', total: 10_001, completed: 10_000 }));
-    expect(service.status()).toBeUndefined();
-  });
-
-  it('exposes provider convergence independently from structure hydration', () => {
-    const service = new ViewportHydrationStatusService();
-    const owner = service.claim();
-    service.publishProvider(owner, { generation: 2, phase: 'converging', queued: 2, running: 1, completed: 4, total: 7 });
-    expect(service.provider()).toMatchObject({ phase: 'converging', completed: 4, total: 7 });
-    service.publishProvider(owner, { generation: 2, phase: 'ready', queued: 0, running: 0, completed: 7, total: 7 });
-    expect(service.provider()).toBeUndefined();
-  });
 });

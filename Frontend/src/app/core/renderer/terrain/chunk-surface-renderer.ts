@@ -314,12 +314,6 @@ export class ChunkSurfaceRenderer {
     const chunk = parseChunkKey(key);
     if (!chunk) return;
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
-    // A bulk call can dirty many chunks. Only pass the keys represented by
-    // this chunk to the commit callback; carrying the generation-wide set into
-    // every chunk caused repeated intersections and misleading completion
-    // diagnostics during large initial hydration.
-    const entryKeys = new Set(entries.map((entry) => entry.key));
-    const chunkHydrationCandidateKeys = hydrationCandidateKeys.filter((candidate) => entryKeys.has(candidate));
     const previousRevision = this.chunkRevisions.get(key) ?? 0;
     const revision = previousRevision + 1;
     this.chunkRevisions.set(key, revision);
@@ -330,7 +324,7 @@ export class ChunkSurfaceRenderer {
       if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
       this.chunkWork.delete(key);
-      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [...new Set(chunkHydrationCandidateKeys)], disposition: 'chunk-removed' });
+      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], disposition: 'chunk-removed' });
       return;
     }
     const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], number>();
@@ -362,7 +356,7 @@ export class ChunkSurfaceRenderer {
       this.options.onTiming?.('terrain.worker', result.cpuMs);
       this.commitScheduler.enqueue(() => {
         const started = performance.now();
-        this.commitWorkerResult(key, entries, result, priority, chunkHydrationCandidateKeys);
+        this.commitWorkerResult(key, entries, result, priority, hydrationCandidateKeys);
         this.options.onTiming?.('terrain.commit', performance.now() - started);
       }, 1);
     }).catch(() => {
@@ -599,14 +593,12 @@ export class ChunkSurfaceRenderer {
   }
 
   private recordCommitStage(stage: string, started: number, metrics: TerrainCommitMetrics): void {
-    if (this.options.onTiming && !(this.options.isTimingEnabled?.() ?? true)) return;
     const duration = Math.max(0, performance.now() - started);
     this.commitDiagnostics.recordStage(stage, duration);
     this.options.onTiming?.(stage, duration);
   }
 
   private finishCommitDiagnostics(metrics: TerrainCommitMetrics, started: number, result: TerrainApplyResult): void {
-    if (this.options.onTiming && !(this.options.isTimingEnabled?.() ?? true)) return;
     metrics.hydrationCompletedKeys = (result.hydrationCandidateKeys ?? result.changedKeys).filter((key) => result.representedKeys.includes(key)).length;
     metrics.hydrationPublishCount = metrics.hydrationCompletedKeys > 0 ? 1 : 0;
     this.commitDiagnostics.recordCommit({ ...metrics, totalMs: Math.max(0, performance.now() - started) });
