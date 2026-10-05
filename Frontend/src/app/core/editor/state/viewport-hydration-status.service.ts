@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import type { ViewportHydrationProgress } from '../../renderer/engine/three-viewport-engine';
+import type { ProviderConvergenceSnapshot } from '../../renderer/provider/provider-convergence-tracker';
 
 export type ViewportHydrationActivity = 'import' | 'build';
 
@@ -15,6 +16,7 @@ export const VIEWPORT_HYDRATION_STATUS_DELAY_MS = 180;
 @Injectable({ providedIn: 'root' })
 export class ViewportHydrationStatusService {
   readonly status = signal<ViewportHydrationStatusSnapshot | undefined>(undefined);
+  readonly provider = signal<ProviderConvergenceSnapshot | undefined>(undefined);
 
   private nextOwner = 1;
   private activeOwner?: number;
@@ -35,8 +37,14 @@ export class ViewportHydrationStatusService {
 
   publish(owner: number, progress: ViewportHydrationProgress): void {
     if (owner !== this.activeOwner) return;
+    // Local edits use the same renderer accounting lane, but they must not
+    // replace the global initial/import loading affordance for a whole scene.
+    if (progress.lane === 'local') {
+      this.clearHydrationVisibleState();
+      return;
+    }
     if (progress.status !== 'hydrating' || progress.total <= 0) {
-      this.clearVisibleState();
+      this.clearHydrationVisibleState();
       return;
     }
     if (this.generation !== progress.generation) {
@@ -64,7 +72,17 @@ export class ViewportHydrationStatusService {
     this.clearVisibleState();
   }
 
+  publishProvider(owner: number, snapshot: ProviderConvergenceSnapshot): void {
+    if (owner !== this.activeOwner) return;
+    this.provider.set(snapshot.phase === 'converging' && snapshot.total > 0 ? snapshot : undefined);
+  }
+
   private clearVisibleState(): void {
+    this.clearHydrationVisibleState();
+    this.provider.set(undefined);
+  }
+
+  private clearHydrationVisibleState(): void {
     this.cancelShowTimer();
     this.pending = undefined;
     this.generation = undefined;

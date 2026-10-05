@@ -80,6 +80,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly terrainAtlasProbeCommand = (blockId = 'minecraft:stone', state: Readonly<Record<string, string>> = {}) => runTerrainAtlasProbe(this.engine, this.assets.visualProvider(), blockId, state);
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
+  private readonly providerConvergenceUnsubscribe = this.engine.onProviderConvergence((snapshot) => this.hydrationStatus.publishProvider(this.hydrationOwner, snapshot));
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
   private pickConsumed = false;
@@ -122,7 +123,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.setRuntimeTrace(undefined);
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.toolSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.providerConvergenceUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.toolSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

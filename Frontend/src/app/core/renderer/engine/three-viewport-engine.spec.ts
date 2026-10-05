@@ -1590,6 +1590,21 @@ describe('provider handoff hydration ownership', () => {
     engine.dispose();
   });
 
+  it('adopts committed ownership when the same structure is reopened in a new project generation', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 3), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider({ create: vi.fn(async () => resolvedVisual()), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider);
+    engine.update(project, undefined);
+    await settleHydration();
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', completed: 3, total: 3 });
+
+    engine.update({ ...project, blocks: project.blocks.map((block) => ({ ...block, state: { ...block.state } })) }, undefined);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', completed: 3, total: 3 });
+    expect(engine.hydrationDiagnostics().orphanedHydrationCount).toBe(0);
+    engine.dispose();
+  });
+
   it('re-hydrates stale representations when the provider generation changes', async () => {
     const base = rendererBenchmarkProject('small');
     const project = { ...base, blocks: base.blocks.slice(0, 1), decorations: [] };

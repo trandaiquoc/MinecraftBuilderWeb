@@ -62,6 +62,7 @@ export class EditorStatusBarComponent {
     return this.i18n.t('assetsReady');
   }
   protected hydrationStatus(): ViewportHydrationStatusSnapshot | undefined { return this.hydration.status(); }
+  protected providerStatus() { return this.hydration.provider(); }
   protected hydrationStatusLabel(snapshot: ViewportHydrationStatusSnapshot): string {
     const label = this.i18n.t(snapshot.activity === 'import' ? 'importingStructure' : 'buildingStructure');
     return `${label} · ${this.formatPercent(snapshot.progress.percent)}%`;
@@ -72,6 +73,11 @@ export class EditorStatusBarComponent {
       return `${this.formatCount(progress.blocksCompleted)} / ${this.formatCount(progress.blocksTotal)} ${this.i18n.t('viewportHydrationBlocks')} · ${this.formatCount(progress.decorationsCompleted)} / ${this.formatCount(progress.decorationsTotal)} ${this.i18n.t('viewportHydrationItems')}`;
     }
     return `${this.formatCount(progress.blocksCompleted)} / ${this.formatCount(progress.blocksTotal)} ${this.i18n.t('viewportHydrationBlocks')}`;
+  }
+  protected providerStatusLabel(): string {
+    const provider = this.providerStatus();
+    if (!provider) return '';
+    return `${this.i18n.t('applyingVisualResources')} · ${this.formatPercent(provider.total ? provider.completed / provider.total * 100 : 0)}%`;
   }
   private formatPercent(value: number): string { return value.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 1 }); }
   private formatCount(value: number): string { return value.toLocaleString(this.i18n.locale()); }

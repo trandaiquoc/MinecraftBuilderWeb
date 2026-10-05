@@ -74,4 +74,25 @@ describe('HydrationProgressTracker', () => {
     tracker.removeBlockKey('new');
     expect(tracker.snapshot().completed).toBe(1);
   });
+
+  it('adopts committed representation after a generation transition', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['kept', 'pending']);
+    tracker.reset(2);
+    tracker.adoptBlockKeys(2, ['kept']);
+    tracker.begin(2);
+    expect(tracker.snapshot()).toMatchObject({ generation: 2, completed: 1, total: 2, status: 'hydrating' });
+    tracker.complete(2, 'block', 'pending');
+    expect(tracker.snapshot().status).toBe('complete');
+  });
+
+  it('marks local work without changing the structural scope', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['existing']);
+    tracker.reset(1);
+    tracker.setLane('local');
+    tracker.addBlockKey('new');
+    tracker.begin(1);
+    expect(tracker.snapshot()).toMatchObject({ lane: 'local', total: 2 });
+  });
 });

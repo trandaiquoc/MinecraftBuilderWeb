@@ -78,12 +78,23 @@ export class FluidRenderCoordinator {
   sync(records: readonly FluidChunkRecord[], world: FluidWorldLookup, hydrationGeneration: number, changedPositions?: readonly VoxelCoordinate[]): Promise<void> {
     const generation = ++this.syncGeneration;
     const next = new Map(records.map((record) => [keyOf(record), record] as const));
+    const previous = new Map(this.detected);
+    const canAdoptExisting = this.pending.size === 0
+      && this.committed.size + this.fallback.size === this.detected.size;
+    const preserved = canAdoptExisting
+      ? new Set([...next.keys()].filter((key) => {
+        const before = previous.get(key);
+        const after = next.get(key);
+        return !!before && !!after && sameFluidRecord(before, after) && this.renderer.hasVoxel(key);
+      }))
+      : new Set<string>();
     this.detected.clear();
     for (const [key, record] of next) this.detected.set(key, record);
-    this.pending = this.provider ? new Set(next.keys()) : new Set();
-    this.committed = new Set();
+    this.pending = this.provider ? new Set([...next.keys()].filter((key) => !preserved.has(key))) : new Set();
+    this.committed = new Set(preserved);
     this.fallback = new Set();
     if (!this.provider) return Promise.resolve();
+    if (preserved.size) this.callbacks.onTerminal(hydrationGeneration, [...preserved]);
     return this.renderer.sync(records, world, changedPositions).then((result) => {
       if (generation !== this.syncGeneration || result.status === 'stale') return;
       this.applyResult(result, hydrationGeneration, generation);
@@ -119,6 +130,8 @@ export class FluidRenderCoordinator {
   isClaimed(key: string): boolean { return this.detected.has(key); }
   objectsForVoxel(key: string): readonly THREE.Object3D[] { return this.renderer.objectsForVoxel(key); }
   hasVoxel(key: string): boolean { return this.renderer.hasVoxel(key); }
+  isTerminal(key: string): boolean { return this.committed.has(key) || this.fallback.has(key); }
+  terminalKeys(): ReadonlySet<string> { return new Set([...this.committed, ...this.fallback]); }
   referencedProviders(): ReadonlySet<RetainableProvider> { return this.retiredProviderLeases; }
 
   diagnostics(): FluidLifecycleDiagnostics {
@@ -185,3 +198,6 @@ export class FluidRenderCoordinator {
 
 function keyOf(record: FluidChunkRecord): string { return `${record.block.position.x},${record.block.position.y},${record.block.position.z}`; }
 function keyOfPosition(position: VoxelCoordinate): string { return `${position.x},${position.y},${position.z}`; }
+function sameFluidRecord(left: FluidChunkRecord, right: FluidChunkRecord): boolean {
+  return left.role === right.role && left.block.id === right.block.id && JSON.stringify(left.block.state) === JSON.stringify(right.block.state);
+}

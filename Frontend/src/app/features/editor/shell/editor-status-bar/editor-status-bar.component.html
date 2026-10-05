@@ -24,5 +24,12 @@
         <span class="hydration-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="hydration.progress.percent" [attr.aria-label]="hydrationStatusLabel(hydration)"><span class="hydration-progress-fill" [style.width.%]="hydration.progress.percent"></span></span>
       </span>
     }
+    @if (providerStatus(); as provider) {
+      <span class="hydration-status provider-convergence-status" data-status="warning" aria-live="polite" aria-atomic="true">
+        <span class="hydration-status-copy">{{ providerStatusLabel() }}</span>
+        <span class="hydration-status-count">{{ provider.completed.toLocaleString(i18n.locale()) }} / {{ provider.total.toLocaleString(i18n.locale()) }} {{ i18n.t('visualResources') }}</span>
+        <span class="hydration-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="provider.total ? provider.completed / provider.total * 100 : 0" [attr.aria-label]="providerStatusLabel()"><span class="hydration-progress-fill" [style.width.%]="provider.total ? provider.completed / provider.total * 100 : 0"></span></span>
+      </span>
+    }
   </div>
 </footer>
