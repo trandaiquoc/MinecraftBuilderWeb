@@ -10,6 +10,13 @@ export class PaintingVariantCatalogService {
     const existing = this.entries().filter((entry) => (entry.sourceId ?? 'vanilla') !== sourceId);
     const next = [...existing, ...variants.map(normalizeVariant)]; this.entries.set(next); setActivePaintingVariants(next);
   }
+  replaceSources(entries: readonly { readonly sourceId: string; readonly variants: readonly PaintingVariant[] }[]): void {
+    if (!entries.length) return;
+    const sourceIds = new Set(entries.map((entry) => entry.sourceId));
+    const existing = this.entries().filter((entry) => !sourceIds.has(entry.sourceId ?? 'vanilla'));
+    const next = [...existing, ...entries.flatMap((entry) => entry.variants.map(normalizeVariant))];
+    this.entries.set(next); setActivePaintingVariants(next);
+  }
   removeSource(sourceId: string): void { const next = this.entries().filter((entry) => (entry.sourceId ?? 'vanilla') !== sourceId); this.entries.set(next); setActivePaintingVariants(next); }
   all(): readonly PaintingVariant[] { return this.entries().length ? this.entries() : allPaintingVariants().map(normalizeVariant); }
   placeable(sourceId = '__minecraftbuilder_all__'): readonly PaintingVariant[] { return this.entries().filter((entry) => entry.placeable !== false && (sourceId === '__minecraftbuilder_all__' || (entry.sourceId ?? 'vanilla') === sourceId)); }

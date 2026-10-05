@@ -117,4 +117,27 @@ describe('ContentSourceRegistry', () => {
     registry.register(source);
     expect(registry.decorationSources().map((entry) => entry.id)).toEqual(['paintings']);
   });
+
+  it('keeps a prepared batch invisible until all sources validate and commit', () => {
+    const registry = new ContentSourceRegistry();
+    const first = new FakeSource('first', ['first'], {}, [block('first:stone', 'first')]);
+    const second = new FakeSource('second', ['second'], {}, [block('second:stone', 'second')]);
+    const firstCatalog = first.catalog();
+    const secondCatalog = second.catalog();
+    expect(registry.sources()).toEqual([]);
+    expect(registry.catalog().all()).toEqual([]);
+    expect(registry.resources.providerForSource('first')).toBeUndefined();
+    registry.commitBatch([{ provider: first, catalog: firstCatalog }, { provider: second, catalog: secondCatalog }]);
+    expect(registry.sources().map((source) => source.id)).toEqual(['first', 'second']);
+    expect(registry.catalog().all().map((entry) => entry.id)).toEqual(['first:stone', 'second:stone']);
+  });
+
+  it('does not partially activate a batch when a staged catalog conflicts', () => {
+    const registry = new ContentSourceRegistry();
+    const first = new FakeSource('first', ['first'], {}, [block('shared:block', 'first')]);
+    const second = new FakeSource('second', ['second'], {}, [block('shared:block', 'second')]);
+    expect(() => registry.commitBatch([{ provider: first, catalog: first.catalog() }, { provider: second, catalog: second.catalog() }])).toThrow(/Catalog block-id conflict/);
+    expect(registry.sources()).toEqual([]);
+    expect(registry.catalog().all()).toEqual([]);
+  });
 });

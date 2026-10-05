@@ -40,6 +40,15 @@ export class BlockCatalog {
     this.rebuild();
   }
 
+  replaceSources(sources: readonly BlockCatalogSource[]): void {
+    for (const source of sources) {
+      const sourceId = source.sourceId ?? source.blocks[0]?.sourceId ?? 'vanilla';
+      const sourceName = source.sourceName ?? source.blocks[0]?.sourceName ?? sourceId;
+      this.contributions.set(sourceId, { definitions: source.blocks.map((record) => toDefinition(record, sourceId, sourceName)), targetItems: (source.targetItems ?? []).map((item) => ({ ...item, sourceId: item.sourceId ?? sourceId, sourceName: item.sourceName ?? sourceName })), itemEvidenceAvailable: source.itemEvidenceAvailable === true });
+    }
+    if (sources.length) this.rebuild();
+  }
+
   removeSource(sourceId: string): void { this.contributions.delete(sourceId); this.rebuild(); }
   sources(): readonly string[] { return [...this.contributions.keys()]; }
   conflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] {

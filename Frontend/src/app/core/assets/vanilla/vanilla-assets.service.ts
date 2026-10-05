@@ -8,7 +8,7 @@ import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CA
 import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import { loadVanillaItemRegistry, VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 import { JarImportSource, providerFromBundle } from '../bundle/asset-bundle';
-import { ContentSourceRegistry } from '../content-source/content-source-registry';
+import { ContentSourceRegistry, PreparedContentSource } from '../content-source/content-source-registry';
 import { ExternalModProvider, ModImportDiagnostic, ModImportReport } from '../mod/external-mod-provider';
 import { commitModImport, inspectModJar, ModImportProgress, PreparedModImport } from '../mod/external-mod-importer';
 import { MojangVanillaAssetSource, VanillaDownloadProgress } from './mojang-vanilla-asset-source';
@@ -518,11 +518,15 @@ export class VanillaAssetsService {
     if (!total) return;
     await yieldToBrowser(signal);
     let failed = 0; let current = 0;
+    const staged: PreparedContentSource[] = [];
+    const stagedProviders: ExternalModProvider[] = [];
+    let committed = false;
     this.activity.begin('mod-restore', `Restoring imported Mods (0 / ${total})`, 'mod');
     this.restoringExternalMods = true;
     try {
       for (const serialized of stored) {
         let sourceName = serialized.metadata?.displayName;
+        let provider: ExternalModProvider | undefined;
         try {
           throwIfAborted(signal);
           const existing = this.sources.providerForSource(serialized.sourceId) as ExternalModProvider | undefined;
@@ -532,19 +536,55 @@ export class VanillaAssetsService {
             await yieldToBrowser(signal);
             continue;
           }
-          const provider = ExternalModProvider.deserialize(serialized, version);
+          provider = ExternalModProvider.deserialize(serialized, version);
           sourceName = provider.metadata.displayName;
-          if (provider.report.canActivate === false) failed += 1;
-          else { await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`), signal); throwIfAborted(signal); this.activateExternal(provider); }
-        } catch (error) { if (isAbortError(error) || signal?.aborted) throw error; failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
+          if (provider.report.canActivate === false) { provider.dispose(); provider = undefined; failed += 1; }
+          else {
+            const catalog = await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`), signal);
+            throwIfAborted(signal);
+            staged.push({ provider, catalog, replaceExisting: !!existing });
+            stagedProviders.push(provider);
+            provider = undefined;
+          }
+        } catch (error) {
+          if (isAbortError(error) || signal?.aborted) throw error;
+          provider?.dispose?.();
+          failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */
+        }
         current += 1;
         this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
         this.activity.update({ loaded: current, total }, sourceName ? `Restoring imported Mods (${current} / ${total}): ${sourceName}` : `Restoring imported Mods (${current} / ${total})`);
         await yieldToBrowser(signal);
       }
+      throwIfAborted(signal);
+      if (staged.length) {
+        this.activity.update({ loaded: current, total }, 'Committing imported Mods');
+        try {
+          this.transitionThumbnailGeneration(() => {
+            // The visual provider is published after resources are committed but
+            // before catalog revisions, so reconciliation cannot observe a
+            // catalog that has no matching resource contract yet.
+            this.sources.commitBatch(staged);
+            this.replaceVisualProvider();
+            this.library.replaceSources(staged.map((entry) => entry.catalog));
+            this.paintingCatalog.replaceSources(staged.map((entry) => ({ sourceId: entry.provider.source.id, variants: entry.catalog.paintingVariants ?? [] })));
+            for (const entry of staged) {
+              const summary = summarizeMod(entry.provider as ExternalModProvider);
+              this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
+            }
+          });
+          committed = true;
+        } catch (error) {
+          if (isAbortError(error) || signal?.aborted) throw error;
+          failed += staged.length;
+          this.activity.event('mod-restore', error instanceof Error ? error.message : 'Imported Mod activation failed', 'warning', 'mod');
+        }
+      }
     } finally {
       this.restoringExternalMods = false;
-      this.transitionThumbnailGeneration(() => this.replaceVisualProvider());
+      // Staged providers are owned by the registry after commit. Any provider
+      // left in this list was never published and must not leak resources.
+      if (!committed) for (const provider of stagedProviders) if (!this.sources.providerForSource(provider.source.id)) provider.dispose?.();
     }
     this.contentRestore.set(contentRestoreAfterMods(total, failed));
     this.activity.finish('mod-restore', failed ? `Imported Mods restored with ${failed} warning${failed === 1 ? '' : 's'}` : 'Imported Mods restored', 'mod');

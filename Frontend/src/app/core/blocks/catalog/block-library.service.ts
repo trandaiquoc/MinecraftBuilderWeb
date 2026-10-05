@@ -37,6 +37,14 @@ export class BlockLibraryService {
     if (active) this.refreshActiveBlock(active);
     this.revision.update((value) => value + 1);
   }
+  replaceSources(sources: readonly BlockCatalogSource[]): void {
+    if (!sources.length) return;
+    const active = this.activeBlock.active();
+    this.catalog.replaceSources(sources);
+    this.replaceItems(buildPlaceableItems(this.catalog.all(), this.catalog.targetItems(), this.catalog.hasTargetItemEvidence()));
+    if (active) this.refreshActiveBlock(active);
+    this.revision.update((value) => value + 1);
+  }
   removeSource(sourceId: string): void {
     const active = this.activeBlock.active();
     const activeSource = active ? this.catalog.get(active.id)?.sourceId : undefined;
