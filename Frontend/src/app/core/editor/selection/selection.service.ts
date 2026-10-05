@@ -1,9 +1,10 @@
 import { Injectable, signal } from '@angular/core';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../../block-behavior/logical-objects/logical-object';
+import { expandLogicalObjectClosure, resolveLogicalObjectPartsFromLookup } from '../../block-behavior/logical-objects/logical-object';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { VoxelBox, exposedSurfaceSelectionSeeds, voxelInBox } from './selection';
 import type { FaceNormal } from '../placement/placement';
+import { defaultProjectBlockRuntimeIndex, ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
 
 export type SelectionKind = 'none' | 'single' | 'explicit' | 'box' | 'all';
 export interface SelectionRenderState {
@@ -15,6 +16,7 @@ export interface SelectionRenderState {
 
 @Injectable({ providedIn: 'root' })
 export class SelectionService {
+  constructor(private readonly runtimeIndex: ProjectBlockRuntimeIndex = defaultProjectBlockRuntimeIndex) {}
   readonly single = signal<VoxelCoordinate | undefined>(undefined);
   readonly box = signal<VoxelBox | undefined>(undefined);
   readonly logicalPositions = signal<readonly VoxelCoordinate[]>([]);
@@ -23,7 +25,7 @@ export class SelectionService {
   private compactBoxSelection = false;
   private boxVisibility: (block: PlacedBlock) => boolean = () => true;
   select(position: VoxelCoordinate): void { this.single.set({ ...position }); this.box.set(undefined); this.logicalPositions.set([{ ...position }]); this.kind.set('single'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
-  selectLogical(position: VoxelCoordinate, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined): void { this.single.set({ ...position }); this.box.set(undefined); this.logicalPositions.set(resolveLogicalObjectParts(project.blocks, position, definition).map((block) => ({ ...block.position }))); this.kind.set('explicit'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
+  selectLogical(position: VoxelCoordinate, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined): void { this.runtimeIndex.ensure(project); this.single.set({ ...position }); this.box.set(undefined); this.logicalPositions.set(resolveLogicalObjectPartsFromLookup(this.runtimeIndex, position, definition).map((block) => ({ ...block.position }))); this.kind.set('explicit'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
   selectBox(box: VoxelBox): void { this.single.set(undefined); this.box.set({ min: { ...box.min }, max: { ...box.max } }); this.logicalPositions.set([]); this.kind.set('box'); this.allBounds.set(undefined); this.compactBoxSelection = false; this.boxVisibility = () => true; }
   selectBoxLogical(box: VoxelBox, project: ProjectDocument, definition: (id: string) => BlockDefinition | undefined, isVisible: (block: PlacedBlock) => boolean = () => true): void {
     const seeds = project.blocks.filter((block) => isVisible(block) && voxelInBox(block.position, box));
@@ -88,12 +90,12 @@ export class SelectionService {
       }
       return project.blocks.filter((block) => voxelInBox(block.position, box) && this.boxVisibility(block));
     }
-    if (this.logicalPositions().length) {
-      const keys = new Set(this.logicalPositions().map((position) => coordinateKey(position)));
-      return project.blocks.filter((block) => keys.has(coordinateKey(block.position)));
-    }
+    if (this.logicalPositions().length) { this.runtimeIndex.ensure(project); return this.logicalPositions().map((position) => this.runtimeIndex.get(position)).filter((block): block is PlacedBlock => !!block); }
     const selected = this.single();
-    return selected ? project.blocks.filter((block) => coordinateKey(block.position) === coordinateKey(selected)) : [];
+    if (!selected) return [];
+    this.runtimeIndex.ensure(project);
+    const block = this.runtimeIndex.get(selected);
+    return block ? [block] : [];
   }
   count(project?: ProjectDocument): number {
     if (!project) return this.logicalPositions().length;

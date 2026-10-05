@@ -30,4 +30,17 @@ describe('FluidChunkRenderer', () => {
     expect(renderer.diagnostics().fluidIncrementalRebuilds).toBe(1);
     expect(renderer.objectsForVoxel('1,0,0').length).toBeGreaterThan(0);
   });
+
+  it('patches one logical fluid voxel without scanning/replacing unrelated records', async () => {
+    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
+    renderer.setProvider({ resolver: vanillaFluidRenderResolver, texture: async () => texture });
+    const first = block('minecraft:water', { x: 0, y: 0, z: 0 }); const other = block('minecraft:water', { x: 32, y: 0, z: 0 });
+    await renderer.sync([first, other].map((value) => ({ block: value, state: vanillaFluidRenderResolver.resolve(value)! })), worldFor([first, other]));
+    const changed = { ...first, state: { level: '4' } };
+    await renderer.syncDelta([{ position: first.position, before: { block: first, state: vanillaFluidRenderResolver.resolve(first)! }, after: { block: changed, state: vanillaFluidRenderResolver.resolve(changed)! } }], [first.position], worldFor([changed, other]));
+    expect(renderer.hasVoxel('0,0,0')).toBe(true);
+    expect(renderer.hasVoxel('32,0,0')).toBe(true);
+    expect(renderer.diagnostics().fluidIncrementalRebuilds).toBe(1);
+    renderer.dispose(); texture.dispose();
+  });
 });

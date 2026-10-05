@@ -9,6 +9,7 @@ import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
 import type { ItemStackData } from '../../items/item-stack.types';
 import { ProjectMutationHintService } from '../mutations/project-mutation-hint.service';
+import { ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
 
 function makeEditor(project: ProjectDocument): { editor: StructureEditorService; workspace: WorkspaceStateService; history: HistoryService; selection: SelectionService; library: BlockLibraryService; active: ActiveBlockService; hints: ProjectMutationHintService } {
   const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const hints = new ProjectMutationHintService(); const history = new HistoryService(workspace, hints); const library = new BlockLibraryService(active);
@@ -208,6 +209,18 @@ describe('StructureEditorService mutations', () => {
     expect(history.undo()).toBe(true);
     expect(history.redo()).toBe(true);
     expect((workspace.project()!.blocks[0].blockEntityData as typeof data).slots[1]?.stack?.id).toBe('example:gem');
+  });
+
+  it('keeps a 100k local placement on the runtime-index and bounded-hint path', () => {
+    const workspace = new WorkspaceStateService(); const active = new ActiveBlockService(); const selection = new SelectionService(); const hints = new ProjectMutationHintService(); const runtime = new ProjectBlockRuntimeIndex(); const history = new HistoryService(workspace, hints, runtime); const library = new BlockLibraryService(active);
+    const blocks = Array.from({ length: 100000 }, (_, index): PlacedBlock => ({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: index % 400, y: 0, z: Math.floor(index / 400) }, state: {} }));
+    const large = { ...project, id: 'editor-100k', size: { x: 400, y: 1, z: 251 }, blocks };
+    workspace.project.set(large); active.select(library.get('minecraft:stone')!); const editor = new StructureEditorService(workspace, active, selection, history, library, runtime);
+    const target = { x: 399, y: 0, z: 250 };
+    expect(editor.place(target)).toBe(true);
+    const hint = hints.consume(workspace.project(), '100k-local')!;
+    expect(hint.changes).toHaveLength(1);
+    expect(runtime.get(target)?.id).toBe('minecraft:stone');
   });
 
   it('initializes empty verified item-host slots when the block is placed', () => {

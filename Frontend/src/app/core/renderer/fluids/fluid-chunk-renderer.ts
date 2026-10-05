@@ -5,6 +5,7 @@ import { buildFluidFallbackMeshData, buildFluidMeshData, FluidMeshRecord, fluidC
 import { FluidRenderResolver, FluidWorldLookup, ResolvedFluidRenderState } from './fluid-state';
 
 export interface FluidChunkRecord { readonly block: PlacedBlock; readonly state: ResolvedFluidRenderState; readonly role?: 'normal' | 'reference'; }
+export interface FluidChunkChange { readonly position: VoxelCoordinate; readonly before?: FluidChunkRecord; readonly after?: FluidChunkRecord; }
 export interface FluidChunkVisualProvider {
   readonly contractKey?: string;
   readonly resolver: FluidRenderResolver;
@@ -53,6 +54,7 @@ interface FluidChunk {
 export class FluidChunkRenderer {
   readonly group = new THREE.Group();
   private readonly records = new Map<string, FluidChunkRecord>();
+  private readonly recordsByChunk = new Map<string, Map<string, FluidChunkRecord>>();
   private readonly chunks = new Map<string, FluidChunk>();
   private readonly materialCache = new Map<string, THREE.Material>();
   private provider?: FluidChunkVisualProvider;
@@ -95,6 +97,14 @@ export class FluidChunkRenderer {
     return task;
   }
 
+  /** Patches logical fluid ownership and rebuilds only the affected chunks. */
+  syncDelta(changes: readonly FluidChunkChange[], changedPositions: readonly VoxelCoordinate[], world: FluidWorldLookup): Promise<FluidChunkSyncResult> {
+    const epoch = this.epoch;
+    const task = this.syncQueue.then(() => this.syncDeltaNow(changes, changedPositions, world, epoch));
+    this.syncQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
   private async syncNow(records: readonly FluidChunkRecord[], world: FluidWorldLookup, changedPositions: readonly VoxelCoordinate[] | undefined, epoch: number): Promise<FluidChunkSyncResult> {
     if (epoch !== this.epoch) return { status: 'stale', committedKeys: [], fallbackKeys: [] };
     if (!this.provider) return { status: 'unavailable', committedKeys: [], fallbackKeys: [] };
@@ -106,9 +116,11 @@ export class FluidChunkRenderer {
     for (const [key, record] of next) {
       const previous = this.records.get(key);
       if (!previous || fluidRecordSignature(previous) !== fluidRecordSignature(record)) dirty.add(fluidChunkKey(record.block.position, this.chunkSize));
+      if (previous && fluidChunkKey(previous.block.position, this.chunkSize) !== fluidChunkKey(record.block.position, this.chunkSize)) this.deleteChunkRecord(key);
       this.records.set(key, record);
+      this.setChunkRecord(key, record);
     }
-    for (const key of this.records.keys()) if (!next.has(key)) this.records.delete(key);
+    for (const key of [...this.records.keys()]) if (!next.has(key)) { this.records.delete(key); this.deleteChunkRecord(key); }
     if (full) this.fullRebuilds += 1; else this.incrementalRebuilds += 1;
     this.dirtyChunksLastEdit = dirty.size;
     for (const key of dirty) {
@@ -127,6 +139,47 @@ export class FluidChunkRenderer {
         if (chunk.fallbackKeys.has(key)) fallbackKeys.push(key);
       }
     }
+    return { status: 'committed', committedKeys, fallbackKeys };
+  }
+
+  private async syncDeltaNow(changes: readonly FluidChunkChange[], changedPositions: readonly VoxelCoordinate[], world: FluidWorldLookup, epoch: number): Promise<FluidChunkSyncResult> {
+    if (epoch !== this.epoch) return { status: 'stale', committedKeys: [], fallbackKeys: [] };
+    if (!this.provider) return { status: 'unavailable', committedKeys: [], fallbackKeys: [] };
+    const dirty = this.dirtyChunkKeys(changedPositions);
+    const changedKeys: string[] = [];
+    for (const change of changes) {
+      const key = coordinateKey(change.after?.block.position ?? change.before?.block.position ?? change.position);
+      if (change.after) {
+        const previous = this.records.get(key);
+        if (!previous || fluidRecordSignature(previous) !== fluidRecordSignature(change.after)) dirty.add(fluidChunkKey(change.after.block.position, this.chunkSize));
+        if (previous && fluidChunkKey(previous.block.position, this.chunkSize) !== fluidChunkKey(change.after.block.position, this.chunkSize)) this.deleteChunkRecord(key);
+        this.records.set(key, change.after);
+        this.setChunkRecord(key, change.after);
+      } else if (this.records.delete(key)) {
+        dirty.add(fluidChunkKey(change.before?.block.position ?? change.position, this.chunkSize));
+        this.deleteChunkRecord(key);
+      }
+      changedKeys.push(key);
+    }
+    this.incrementalRebuilds += 1;
+    this.dirtyChunksLastEdit = dirty.size;
+    for (const key of dirty) {
+      if (epoch !== this.epoch) return { status: 'stale', committedKeys: [], fallbackKeys: [] };
+      const result = await this.rebuildChunk(key, world, epoch);
+      if (result === 'stale') return { status: 'stale', committedKeys: [], fallbackKeys: [] };
+    }
+    const committedKeys: string[] = [];
+    const fallbackKeys: string[] = [];
+    for (const key of changedKeys) {
+      const record = this.records.get(key);
+      if (!record) continue;
+      const chunk = this.chunks.get(fluidChunkKey(record.block.position, this.chunkSize));
+      if (chunk?.providerContractKey === providerContractKey(this.provider) && chunk.signatures.get(key) === fluidRecordSignature(record)) {
+        committedKeys.push(key);
+        if (chunk.fallbackKeys.has(key)) fallbackKeys.push(key);
+      }
+    }
+    if (!this.records.size && this.group.parent === this.blocksGroup) this.blocksGroup.remove(this.group);
     return { status: 'committed', committedKeys, fallbackKeys };
   }
 
@@ -151,7 +204,7 @@ export class FluidChunkRenderer {
   clear(): void {
     for (const key of [...this.chunks.keys()]) this.removeChunk(key);
     this.epoch += 1;
-    this.records.clear(); this.dirtyChunksLastEdit = 0;
+    this.records.clear(); this.recordsByChunk.clear(); this.dirtyChunksLastEdit = 0;
     if (!this.records.size && this.group.parent === this.blocksGroup) this.blocksGroup.remove(this.group);
   }
 
@@ -164,7 +217,7 @@ export class FluidChunkRenderer {
 
   private async rebuildChunk(key: string, world: FluidWorldLookup, epoch: number): Promise<'committed' | 'stale'> {
     if (epoch !== this.epoch || !this.provider) return 'stale';
-    const records = [...this.records.values()].filter((record) => fluidChunkKey(record.block.position, this.chunkSize) === key);
+    const records = [...(this.recordsByChunk.get(key)?.values() ?? [])];
     const previous = this.chunks.get(key);
     if (!records.length) {
       this.removeChunk(key);
@@ -221,6 +274,18 @@ export class FluidChunkRenderer {
     const dirty = new Set<string>();
     for (const position of changed) for (let dx = -1; dx <= 1; dx += 1) for (let dy = -1; dy <= 1; dy += 1) for (let dz = -1; dz <= 1; dz += 1) dirty.add(fluidChunkKey({ x: position.x + dx, y: position.y + dy, z: position.z + dz }, this.chunkSize));
     return dirty;
+  }
+
+  private setChunkRecord(key: string, record: FluidChunkRecord): void {
+    const chunkKey = fluidChunkKey(record.block.position, this.chunkSize);
+    const chunk = this.recordsByChunk.get(chunkKey) ?? new Map<string, FluidChunkRecord>();
+    chunk.set(key, record); this.recordsByChunk.set(chunkKey, chunk);
+  }
+
+  private deleteChunkRecord(key: string): void {
+    const position = parseKey(key); const chunkKey = fluidChunkKey(position, this.chunkSize);
+    const chunk = this.recordsByChunk.get(chunkKey); if (!chunk) return;
+    chunk.delete(key); if (!chunk.size) this.recordsByChunk.delete(chunkKey);
   }
 
   private removeChunk(key: string): void {

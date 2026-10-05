@@ -71,6 +71,8 @@ import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
 import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
 import { fluidChunkKey } from '../fluids/fluid-mesh-core';
+import { planLocalRenderDelta } from '../mutations/local-render-delta';
+import { applyLocalFluidDelta } from '../mutations/local-fluid-render-delta';
 import type { FluidWorldLookup } from '../fluids/fluid-state';
 
 
@@ -1545,20 +1547,15 @@ export class ThreeViewportEngine {
     this.instrumentation.record('hintedProjectMutations');
     this.instrumentation.record('incrementalBlockReconciles');
     this.compactHydrationQueues();
-    const changedKeys = new Set<string>();
-    const affectedPositions = new Map<string, VoxelCoordinate>();
-    const hintedKeys = new Set<string>();
+    const delta = planLocalRenderDelta(hint);
+    const changedKeys = new Set(delta.changedKeys);
+    const affectedPositions = new Map(delta.affectedPositions);
+    const hintedKeys = new Set(delta.hintedKeys);
     for (const change of hint.changes) {
       const beforeKey = change.before ? coordinateKey(change.before.position) : coordinateKey(change.position);
       const afterKey = change.after ? coordinateKey(change.after.position) : coordinateKey(change.position);
-      hintedKeys.add(beforeKey); hintedKeys.add(afterKey);
       this.hydrationProgressTracker.invalidate('block', beforeKey);
       this.hydrationProgressTracker.invalidate('block', afterKey);
-      for (const position of [change.position, change.before?.position, change.after?.position]) if (position) {
-        affectedPositions.set(coordinateKey(position), position);
-        changedKeys.add(coordinateKey(position));
-        for (const neighbor of coordinateNeighbors(position)) { affectedPositions.set(coordinateKey(neighbor), neighbor); changedKeys.add(coordinateKey(neighbor)); }
-      }
       this.spatialIndex?.replace(change.before?.position, change.after);
       if (change.after) this.structuralSpecialVisualIds.add(change.after.id);
     }
@@ -1589,6 +1586,21 @@ export class ThreeViewportEngine {
       this.runningHydrationKeys.delete(key);
     }
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const fluidKeys = applyLocalFluidDelta(hint, [...affectedPositions.values()], {
+      resolver: this.visualProvider?.fluidRenderResolver,
+      hasTexture: !!this.visualProvider?.fluidTexture,
+      getBlock: (position) => this.spatialIndex?.get(position),
+      getVisibleEntry: (key) => this.cachedVisibleMap.get(key),
+      getRenderedEntry: (key) => this.renderedBlocks.get(key),
+      removeRenderedEntry: (key) => this.renderedBlocks.delete(key),
+      removeBlockEntry: (key, entry) => this.removeBlockEntry(key, entry as RenderedBlockEntry),
+      setFluidEntry: (key, block, entry) => this.renderedBlocks.set(key, { key, block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(block.position) }),
+      fluidCoordinator: this.fluidCoordinator,
+      worldContext,
+      hydrationGeneration: this.hydrationGeneration,
+      layerY: options.layerY,
+      onComplete: () => { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); },
+    });
     const terrainChanges: TerrainBlockChange[] = [];
     const terrainCandidates: TerrainHydrationCandidate[] = [];
     const preparedTerrainRecords = new Map<string, TerrainSurfaceRecord>();
@@ -1605,7 +1617,14 @@ export class ThreeViewportEngine {
         continue;
       }
       renderableKeys.add(key);
+      if (fluidKeys.has(key) && !hintedKeys.has(key)) continue;
       const needsUpdate = hintedKeys.has(key) || !current || current.signature !== next!.signature || current.role !== next!.role || current.terrainChunkKey !== undefined || next!.occlusionClass === 'opaque-full-cube';
+      if (fluidKeys.has(key)) {
+        if (current) { this.removeBlockEntry(key, current); this.instrumentation.record('blockUpdates'); }
+        if (this.placeholderIndices.has(key)) this.removePlaceholderVisual(key);
+        terrainChanges.push({ key, position: next!.block.position, afterOpaque: false });
+        continue;
+      }
       const candidate = this.terrainCandidate(key, next!, worldContext, options);
       const cachedTemplates = candidate ? this.terrainRenderer.templatesFor(candidate.reusableKey) : undefined;
       if (needsUpdate && current) { this.removeBlockEntry(key, current); this.instrumentation.record('blockUpdates'); }
@@ -1630,12 +1649,13 @@ export class ThreeViewportEngine {
         terrainCandidates.push(candidate);
       } else {
         terrainChanges.push({ key, position: next!.block.position, afterOpaque: false });
-        this.hydrationWork.enqueueRegular({ token: this.hydrationGeneration, key, block: next!.block, signature: next!.signature, role: next!.role, worldContext, options, allowInstancing: false, surfaceFastPathEligible: false, surfaceVisibleEntries: this.cachedVisibleMap });
+        this.hydrationWork.enqueueRegular({ token: this.hydrationGeneration, key, block: next!.block, signature: next!.signature, role: next!.role, worldContext, options, allowInstancing: true, surfaceFastPathEligible: options.exposedFaceRendering === true && next!.role === 'normal' && next!.occlusionClass === 'opaque-full-cube', surfaceVisibleEntries: this.cachedVisibleMap });
       }
     }
     // Keep existing terrain records for affected neighbors while updating only
     // occupancy at the changed voxel positions.
     for (const [key, position] of affectedPositions) {
+      if (fluidKeys.has(key)) continue;
       if (renderableKeys.has(key) && terrainChanges.some((change) => change.key === key)) continue;
       const entry = this.cachedVisibleMap.get(key);
       const terrain = entry && isCompiledTerrainEntry(entry) ? this.terrainRenderer.templatesFor(this.visualProvider ? this.requestReusableVisualKey(this.visualProvider, entry.block, worldContext) ?? '' : '') : undefined;
@@ -1649,7 +1669,9 @@ export class ThreeViewportEngine {
     this.updateHydrationOrder();
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
-    this.reconcileInstanceOwnership();
+    // InstanceBatchRenderer updates swap-back ownership atomically for every
+    // touched entry. Full ownership reconciliation remains on structural
+    // rebuilds and diagnostics, not on the local edit hot path.
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
   }
 

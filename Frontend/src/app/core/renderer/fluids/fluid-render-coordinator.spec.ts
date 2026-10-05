@@ -98,4 +98,16 @@ describe('FluidRenderCoordinator', () => {
     expect(terminal).toHaveLength(1);
     coordinator.dispose(); texture.dispose();
   });
+
+  it('keeps unrelated committed fluid ownership committed across a local delta', async () => {
+    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
+    const first = block(0); const other = block(32); const world = worldFor([first, other]);
+    coordinator.setProvider(provider('delta', async () => texture));
+    await coordinator.sync(recordsFor([first, other]), world, 1);
+    const changed = { ...first, state: { level: '4' } };
+    await coordinator.syncDelta([{ position: first.position, before: { block: first, state: vanillaFluidRenderResolver.resolve(first)! }, after: { block: changed, state: vanillaFluidRenderResolver.resolve(changed)! } }], [first.position], worldFor([changed, other]), 2);
+    expect(coordinator.diagnostics()).toMatchObject({ fluidDetectedVoxels: 2, fluidCommittedVoxels: 2, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0 });
+    coordinator.dispose(); texture.dispose();
+  });
 });

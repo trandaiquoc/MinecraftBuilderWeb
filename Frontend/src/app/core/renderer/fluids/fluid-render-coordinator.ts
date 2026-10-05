@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { VoxelCoordinate } from '../../domain/project.types';
 import { RetainableProvider } from '../provider/provider-refresh-coordinator';
-import { FluidChunkDiagnostics, FluidChunkRecord, FluidChunkRenderer, FluidChunkSyncResult, FluidChunkVisualProvider } from './fluid-chunk-renderer';
+import { FluidChunkChange, FluidChunkDiagnostics, FluidChunkRecord, FluidChunkRenderer, FluidChunkSyncResult, FluidChunkVisualProvider } from './fluid-chunk-renderer';
 import { FluidWorldLookup } from './fluid-state';
 
 export interface FluidLifecycleDiagnostics extends FluidChunkDiagnostics {
@@ -93,6 +93,28 @@ export class FluidRenderCoordinator {
     });
   }
 
+  /** Local edit path. Unchanged fluid ownership remains committed. */
+  syncDelta(changes: readonly FluidChunkChange[], changedPositions: readonly VoxelCoordinate[], world: FluidWorldLookup, hydrationGeneration: number): Promise<void> {
+    const generation = ++this.syncGeneration;
+    const changedKeys = new Set<string>();
+    for (const change of changes) {
+      const key = keyOfPosition(change.after?.block.position ?? change.before?.block.position ?? change.position);
+      changedKeys.add(key);
+      if (change.after) {
+        this.detected.set(key, change.after);
+        this.pending.add(key); this.committed.delete(key); this.fallback.delete(key);
+      } else {
+        this.detected.delete(key);
+        this.pending.delete(key); this.committed.delete(key); this.fallback.delete(key);
+      }
+    }
+    if (!this.provider) return Promise.resolve();
+    return this.renderer.syncDelta(changes, changedPositions, world).then((result) => {
+      if (generation !== this.syncGeneration || result.status === 'stale') return;
+      this.applyDeltaResult(result, hydrationGeneration, generation, changedKeys);
+    }, () => undefined);
+  }
+
   claimedKeys(): ReadonlySet<string> { return new Set(this.detected.keys()); }
   isClaimed(key: string): boolean { return this.detected.has(key); }
   objectsForVoxel(key: string): readonly THREE.Object3D[] { return this.renderer.objectsForVoxel(key); }
@@ -143,6 +165,23 @@ export class FluidRenderCoordinator {
     if (this.pending.size === 0) this.retiredProviderLeases.clear();
     if (this.committed.size || this.fallback.size) this.callbacks.onTerminal(hydrationGeneration, [...new Set([...this.committed, ...this.fallback])]);
   }
+
+  private applyDeltaResult(result: FluidChunkSyncResult, hydrationGeneration: number, generation: number, changedKeys: ReadonlySet<string>): void {
+    if (generation !== this.syncGeneration || result.status !== 'committed') return;
+    const fallback = new Set(result.fallbackKeys);
+    for (const key of result.committedKeys) {
+      this.pending.delete(key);
+      if (fallback.has(key)) { this.fallback.add(key); this.committed.delete(key); }
+      else { this.committed.add(key); this.fallback.delete(key); }
+    }
+    for (const key of changedKeys) if (!this.detected.has(key)) {
+      this.pending.delete(key); this.committed.delete(key); this.fallback.delete(key);
+    }
+    const terminal = result.committedKeys.filter((key) => fallback.has(key));
+    const committed = result.committedKeys.filter((key) => !fallback.has(key));
+    if (terminal.length || committed.length) this.callbacks.onTerminal(hydrationGeneration, [...new Set([...terminal, ...committed])]);
+  }
 }
 
 function keyOf(record: FluidChunkRecord): string { return `${record.block.position.x},${record.block.position.y},${record.block.position.z}`; }
+function keyOfPosition(position: VoxelCoordinate): string { return `${position.x},${position.y},${position.z}`; }

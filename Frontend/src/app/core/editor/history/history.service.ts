@@ -4,12 +4,13 @@ import { projectCoordinatesAreNonNegative } from '../../domain/coordinates';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { ProjectMutationHintService } from '../mutations/project-mutation-hint.service';
 import { invertProjectMutationHint, ProjectMutationHint } from '../mutations/project-mutation-hint';
+import { defaultProjectBlockRuntimeIndex, ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
 
 interface HistoryEntry { readonly label: string; readonly before: ProjectDocument; readonly after: ProjectDocument; readonly mutationHint?: ProjectMutationHint; }
 
 @Injectable({ providedIn: 'root' })
 export class HistoryService {
-  constructor(private readonly workspace: WorkspaceStateService = inject(WorkspaceStateService), private readonly mutationHints?: ProjectMutationHintService) {}
+  constructor(private readonly workspace: WorkspaceStateService = inject(WorkspaceStateService), private readonly mutationHints?: ProjectMutationHintService, private readonly runtimeIndex: ProjectBlockRuntimeIndex = defaultProjectBlockRuntimeIndex) {}
   private readonly undoStack = signal<readonly HistoryEntry[]>([]);
   private readonly redoStack = signal<readonly HistoryEntry[]>([]);
   readonly canUndo = computed(() => this.undoStack().length > 0);
@@ -29,6 +30,8 @@ export class HistoryService {
     if (mutationHint) this.mutationHints?.publish(before, after, mutationHint);
     else this.mutationHints?.clear();
     this.workspace.project.set(after);
+    if (mutationHint) this.runtimeIndex.adoptTransition(before, after, mutationHint);
+    else this.runtimeIndex.observeProject(after);
     this.undoStack.update((entries) => [...entries, { label, before, after, mutationHint }]);
     this.redoStack.set([]);
     return true;
@@ -40,6 +43,8 @@ export class HistoryService {
     if (entry.mutationHint) this.mutationHints?.publish(entry.after, entry.before, invertProjectMutationHint(entry.mutationHint));
     else this.mutationHints?.clear();
     this.workspace.project.set(entry.before);
+    if (entry.mutationHint) this.runtimeIndex.adoptTransition(entry.after, entry.before, invertProjectMutationHint(entry.mutationHint));
+    else this.runtimeIndex.observeProject(entry.before);
     this.undoStack.update((entries) => entries.slice(0, -1));
     this.redoStack.update((entries) => [...entries, entry]);
     return true;
@@ -51,6 +56,8 @@ export class HistoryService {
     if (entry.mutationHint) this.mutationHints?.publish(entry.before, entry.after, entry.mutationHint);
     else this.mutationHints?.clear();
     this.workspace.project.set(entry.after);
+    if (entry.mutationHint) this.runtimeIndex.adoptTransition(entry.before, entry.after, entry.mutationHint);
+    else this.runtimeIndex.observeProject(entry.after);
     this.redoStack.update((entries) => entries.slice(0, -1));
     this.undoStack.update((entries) => [...entries, entry]);
     return true;

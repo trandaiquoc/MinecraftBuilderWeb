@@ -10,7 +10,7 @@ import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-ind
 export type RuleStatus = 'valid' | 'warning' | 'invalid' | 'unknown';
 export type RuleReason = 'ok' | 'unknown-behavior' | 'out-of-bounds' | 'occupied' | 'missing-support' | 'locked-affected-block' | 'unstable-neighbor-update';
 export interface RuleValidation { readonly status: RuleStatus; readonly reason: RuleReason; readonly affectedPositions: readonly VoxelCoordinate[]; readonly diagnostics?: readonly string[]; }
-export interface RuleMutationResult { readonly validation: RuleValidation; readonly project?: ProjectDocument; readonly plannedBlocks?: readonly PlacedBlock[]; }
+export interface RuleMutationResult { readonly validation: RuleValidation; readonly project?: ProjectDocument; readonly plannedBlocks?: readonly PlacedBlock[]; readonly changedBlocks?: readonly PlacedBlock[]; }
 export type BlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 export type BlockSource = readonly PlacedBlock[] | ReadonlyBlockLookup;
 
@@ -58,12 +58,14 @@ export class BlockRuleEngine {
     const support = this.validateSupport(project, block, definition, source);
     if (support.status === 'invalid') return { validation: support };
     const placed = placedBlocksForBehavior(block, behavior, targets);
-    const refreshed = this.refresh({ ...project, blocks: [...project.blocks, ...placed] }, targets);
+    const placementLookup = new PreviewBlockLookup(lookup ?? new ArrayBlockLookup(project.blocks));
+    for (const entry of placed) placementLookup.set(entry);
+    const refreshed = this.refresh({ ...project, blocks: [...project.blocks, ...placed] }, targets, placementLookup);
     if (!refreshed.project) return refreshed;
     const knownPlacement = !!definition?.behavior || hasBlockCapability(definition, 'direct-placement');
     const directPlacementOnly = !definition?.behavior && hasBlockCapability(definition, 'direct-placement');
     const status = support.status === 'unknown' ? (directPlacementOnly ? 'valid' : 'unknown') : support.status === 'valid' && !knownPlacement ? 'unknown' : support.status;
-    return { validation: { status, reason: status === 'valid' ? 'ok' : 'unknown-behavior', affectedPositions: refreshed.validation.affectedPositions }, project: touch(refreshed.project) };
+    return { validation: { status, reason: status === 'valid' ? 'ok' : 'unknown-behavior', affectedPositions: refreshed.validation.affectedPositions }, project: touch(refreshed.project), plannedBlocks: placed, changedBlocks: refreshed.changedBlocks };
   }
 
   /** Evaluates the same placement preparation/rules without cloning the project. */
@@ -97,9 +99,9 @@ export class BlockRuleEngine {
     return this.deleteMany(project, [position]);
   }
 
-  deleteMany(project: ProjectDocument, positions: readonly VoxelCoordinate[]): RuleMutationResult {
+  deleteMany(project: ProjectDocument, positions: readonly VoxelCoordinate[], source: BlockSource = project.blocks): RuleMutationResult {
     const requested = new Set(positions.map(coordinateKey));
-    const seeds = project.blocks.filter((block) => requested.has(coordinateKey(block.position)));
+    const seeds = positions.map((position) => find(source, position)).filter((block): block is PlacedBlock => !!block && requested.has(coordinateKey(block.position)));
     if (!seeds.length) return invalid('occupied', positions);
     // Select All already contains every block, so resolving pair closure for each
     // seed would only add work and allocations without changing the result.
@@ -115,12 +117,13 @@ export class BlockRuleEngine {
         project: touch({ ...project, blocks: [] }),
       };
     }
-    const refreshed = this.refresh({ ...project, blocks: project.blocks.filter((entry) => !keys.has(coordinateKey(entry.position))) }, removing.map((entry) => entry.position));
-    return refreshed.project ? { validation: refreshed.validation, project: touch(refreshed.project) } : refreshed;
+    const refreshed = this.refresh({ ...project, blocks: project.blocks.filter((entry) => !keys.has(coordinateKey(entry.position))) }, removing.map((entry) => entry.position), new MaskedBlockLookup(source, keys));
+    return refreshed.project ? { validation: refreshed.validation, project: touch(refreshed.project), changedBlocks: refreshed.changedBlocks } : refreshed;
   }
 
-  refresh(project: ProjectDocument, changed: readonly VoxelCoordinate[]): RuleMutationResult {
-    let blocks = [...project.blocks];
+  refresh(project: ProjectDocument, changed: readonly VoxelCoordinate[], source: BlockSource = project.blocks): RuleMutationResult {
+    const blocks = project.blocks;
+    const updates = new Map<string, PlacedBlock>();
     const queue = new Map<string, VoxelCoordinate>();
     const affected = new Map<string, VoxelCoordinate>();
     for (const position of changed) for (const candidate of [position, ...sixOffsets.map((offset) => add(position, offset))]) queue.set(coordinateKey(candidate), candidate);
@@ -129,19 +132,22 @@ export class BlockRuleEngine {
     while (queue.size) {
       if (++iterations > guard) return invalid('unstable-neighbor-update', [...affected.values()]);
       const [key, position] = queue.entries().next().value as [string, VoxelCoordinate]; queue.delete(key);
-      const block = find(blocks, position); if (!block) continue;
-      const nextState = this.derivedState(block, blocks);
+      const block = updates.get(coordinateKey(position)) ?? find(source, position); if (!block) continue;
+      const nextState = this.derivedState(block, { get: (candidate) => updates.get(coordinateKey(candidate)) ?? find(source, candidate), has: (candidate) => !!(updates.get(coordinateKey(candidate)) ?? find(source, candidate)) });
       if (!nextState || equalState(block.state, nextState)) continue;
       if (isBlockLocked(block, project.groups)) return invalid('locked-affected-block', [position]);
-      blocks = blocks.map((entry) => coordinateKey(entry.position) === key ? { ...entry, state: nextState } : entry);
+      const updated = { ...block, state: nextState };
+      updates.set(key, updated);
       affected.set(key, position);
       for (const offset of sixOffsets) { const neighbor = add(position, offset); queue.set(coordinateKey(neighbor), neighbor); }
     }
-    const resultingProject = { ...project, blocks };
-    const supportInvalid = [...queueCandidates(changed).values()].map((position) => find(blocks, position)).filter((block): block is PlacedBlock => !!block).find((block) => this.validateSupport(resultingProject, block, this.definition(block.id)).status === 'invalid');
+    const resultingBlocks = blocks.map((entry) => updates.get(coordinateKey(entry.position)) ?? entry);
+    const resultingProject = { ...project, blocks: resultingBlocks };
+    const afterLookup: ReadonlyBlockLookup = { get: (position) => updates.get(coordinateKey(position)) ?? find(source, position), has: (position) => !!(updates.get(coordinateKey(position)) ?? find(source, position)) };
+    const supportInvalid = [...queueCandidates(changed).values()].map((position) => find(afterLookup, position)).filter((block): block is PlacedBlock => !!block).find((block) => this.validateSupport(resultingProject, block, this.definition(block.id), afterLookup).status === 'invalid');
     return supportInvalid
-      ? { validation: { status: 'invalid', reason: 'missing-support', affectedPositions: [supportInvalid.position], diagnostics: ['Dependent block was preserved but no longer has verified support.'] }, project: resultingProject }
-      : { validation: { status: 'valid', reason: 'ok', affectedPositions: [...affected.values()] }, project: resultingProject };
+      ? { validation: { status: 'invalid', reason: 'missing-support', affectedPositions: [supportInvalid.position], diagnostics: ['Dependent block was preserved but no longer has verified support.'] }, project: resultingProject, changedBlocks: [...updates.values()] }
+      : { validation: { status: 'valid', reason: 'ok', affectedPositions: [...affected.values()] }, project: resultingProject, changedBlocks: [...updates.values()] };
   }
 
   isDerivedProperty(blockId: string, property: string): boolean { return this.definition(blockId)?.stateDefinitions.some((entry) => entry.name === property && entry.derived === true) ?? false; }
@@ -447,6 +453,22 @@ class PreviewBlockLookup implements ReadonlyBlockLookup {
   get(position: VoxelCoordinate): PlacedBlock | undefined { return this.overlay.get(coordinateKey(position)) ?? this.base.get(position); }
   has(position: VoxelCoordinate): boolean { return this.get(position) !== undefined; }
   set(block: PlacedBlock): void { this.overlay.set(coordinateKey(block.position), block); }
+}
+export function overlayBlockLookup(base: ReadonlyBlockLookup, blocks: readonly PlacedBlock[]): ReadonlyBlockLookup {
+  const lookup = new PreviewBlockLookup(base);
+  for (const block of blocks) lookup.set(block);
+  return lookup;
+}
+class ArrayBlockLookup implements ReadonlyBlockLookup {
+  private readonly values: Map<string, PlacedBlock>;
+  constructor(blocks: readonly PlacedBlock[]) { this.values = new Map(blocks.map((block) => [coordinateKey(block.position), block] as const)); }
+  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.values.get(coordinateKey(position)); }
+  has(position: VoxelCoordinate): boolean { return this.values.has(coordinateKey(position)); }
+}
+class MaskedBlockLookup implements ReadonlyBlockLookup {
+  constructor(private readonly base: BlockSource, private readonly masked: ReadonlySet<string>) {}
+  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.masked.has(coordinateKey(position)) ? undefined : find(this.base, position); }
+  has(position: VoxelCoordinate): boolean { return this.get(position) !== undefined; }
 }
 function withState(block: PlacedBlock, state: Readonly<Record<string, string>>, position: VoxelCoordinate): PlacedBlock { return { ...block, position: { ...position }, state }; }
 function equalState(a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): boolean { const aKeys = Object.keys(a); return aKeys.length === Object.keys(b).length && aKeys.every((key) => a[key] === b[key]); }

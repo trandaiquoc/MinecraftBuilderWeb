@@ -2,11 +2,16 @@ import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { groupIdsOf, isBlockLocked } from '../../editor/groups/group-membership';
+import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 
 export type LogicalBlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 
 export function resolveLogicalObjectParts(blocks: readonly PlacedBlock[], position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
   return resolveLogicalObjectPartsWithLookup(position, definition, (candidate) => find(blocks, candidate));
+}
+
+export function resolveLogicalObjectPartsFromLookup(lookup: ReadonlyBlockLookup, position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
+  return resolveLogicalObjectPartsWithLookup(position, definition, (candidate) => lookup.get(candidate));
 }
 
 function resolveLogicalObjectPartsWithLookup(position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup, lookup: (position: VoxelCoordinate) => PlacedBlock | undefined): readonly PlacedBlock[] {
@@ -23,11 +28,13 @@ function resolveLogicalObjectPartsWithLookup(position: VoxelCoordinate, definiti
   return isPair && paired ? [block, paired] : [block];
 }
 
-export function expandLogicalObjectClosure(blocks: readonly PlacedBlock[], seeds: readonly PlacedBlock[], definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
-  if (seeds.length === blocks.length) return blocks;
-  const index = new Map(blocks.map((block) => [coordinateKey(block.position), block] as const));
+export function expandLogicalObjectClosure(blocks: readonly PlacedBlock[] | ReadonlyBlockLookup, seeds: readonly PlacedBlock[], definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
+  if (Array.isArray(blocks) && seeds.length === blocks.length) return blocks;
+  const lookup: ReadonlyBlockLookup = 'get' in blocks
+    ? blocks
+    : new MapBlockLookup(blocks);
   const closure = new Map<string, PlacedBlock>();
-  for (const seed of seeds) for (const part of resolveLogicalObjectPartsWithLookup(seed.position, definition, (position) => index.get(coordinateKey(position)))) closure.set(coordinateKey(part.position), part);
+  for (const seed of seeds) for (const part of resolveLogicalObjectPartsWithLookup(seed.position, definition, (position) => lookup.get(position))) closure.set(coordinateKey(part.position), part);
   return [...closure.values()];
 }
 
@@ -82,6 +89,12 @@ export function transformPairedHorizontal(project: ProjectDocument, position: Vo
 }
 
 function find(blocks: readonly PlacedBlock[], position: VoxelCoordinate): PlacedBlock | undefined { const key = coordinateKey(position); return blocks.find((block) => coordinateKey(block.position) === key); }
+class MapBlockLookup implements ReadonlyBlockLookup {
+  private readonly values: ReadonlyMap<string, PlacedBlock>;
+  constructor(blocks: readonly PlacedBlock[]) { this.values = new Map(blocks.map((block) => [coordinateKey(block.position), block] as const)); }
+  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.values.get(coordinateKey(position)); }
+  has(position: VoxelCoordinate): boolean { return this.values.has(coordinateKey(position)); }
+}
 function sameValues(a: readonly string[], b: readonly string[]): boolean { return a.length === b.length && a.every((value) => b.includes(value)); }
 function groupOrder(project: ProjectDocument, id: string): number { const index = project.groups.findIndex((group) => group.id === id); return index < 0 ? Number.MAX_SAFE_INTEGER : index; }
 function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }

@@ -12,6 +12,7 @@ export interface PlacementPlan {
   readonly blocks: readonly PlacedBlock[];
   readonly validation: RuleValidation;
   readonly project?: ProjectDocument;
+  readonly changedBlocks?: readonly PlacedBlock[];
 }
 
 export function placementRequestForActive(active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, item?: PlaceableItemDefinition, definition?: (id: string) => BlockDefinition | undefined): PlacedBlock {
@@ -25,15 +26,12 @@ export function placementRequestForActive(active: ActiveBlock, position: VoxelCo
   return { ...block, kind: contentKnown || active.support !== 'unknown' ? 'resolved' : 'missing' };
 }
 
-export function planPlacement(project: ProjectDocument, active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined, item?: PlaceableItemDefinition, lookup?: ReadonlyBlockLookup): PlacementPlan {
+export function planPlacement(project: ProjectDocument, active: ActiveBlock, position: VoxelCoordinate, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined, item?: PlaceableItemDefinition, lookup?: ReadonlyBlockLookup, mutation = false): PlacementPlan {
   const request = placementRequestForActive(active, position, context, item, definition);
-  const result = lookup ? new BlockRuleEngine(definition).preview(project, request, context, lookup) : new BlockRuleEngine(definition).place(project, request, context);
-  if (lookup) return { request, blocks: result.plannedBlocks ?? attemptedBlocks(request, context, definition), validation: result.validation };
-  const original = new Set(project.blocks.map((block) => key(block.position)));
-  const blocks = result.project
-    ? result.project.blocks.filter((block) => !original.has(key(block.position)))
-    : attemptedBlocks(request, context, definition);
-  return { request, blocks, validation: result.validation, project: result.project };
+  const result = lookup && !mutation ? new BlockRuleEngine(definition).preview(project, request, context, lookup) : new BlockRuleEngine(definition).place(project, request, context, lookup);
+  if (lookup && !mutation) return { request, blocks: result.plannedBlocks ?? attemptedBlocks(request, context, definition), validation: result.validation };
+  const blocks = result.plannedBlocks ?? attemptedBlocks(request, context, definition);
+  return { request, blocks, validation: result.validation, project: result.project, changedBlocks: result.changedBlocks };
 }
 
 function attemptedBlocks(request: PlacedBlock, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined): readonly PlacedBlock[] {
@@ -55,4 +53,3 @@ function attemptedBlocks(request: PlacedBlock, context: PlacementContext | undef
 
 function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
 function add(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }
-function key(position: VoxelCoordinate): string { return `${position.x},${position.y},${position.z}`; }
