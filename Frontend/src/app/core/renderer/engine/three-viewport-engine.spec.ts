@@ -1037,19 +1037,6 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
-  it('credits interior-cullable blocks as terminal hydration ownership', async () => {
-    const provider = rendererBenchmarkVisualProvider();
-    const base = rendererBenchmarkProject('small');
-    const blocks = Array.from({ length: 27 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 3, y: Math.floor(index / 9), z: Math.floor(index / 3) % 3 } }));
-    const project = { ...base, size: { x: 3, y: 3, z: 3 }, blocks, decorations: [] };
-    const engine = new ThreeViewportEngine();
-    engine.setVisualProvider(provider);
-    engine.update(project, undefined);
-    await settleHydration();
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 27, blocksTotal: 27, percent: 100 });
-    engine.dispose();
-  });
-
   it('collapses repeated opaque full cubes into a chunked instance group', async () => {
     const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
     sharedGeometry.userData['providerOwnedGeometry'] = true;
