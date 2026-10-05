@@ -47,6 +47,10 @@ export class ViewportHydrationStatusService {
       this.generationActivity = progress.lane === 'content' ? 'content' : this.nextActivity;
       this.nextActivity = 'build';
     }
+    // A provider handoff can start content finalization within an existing
+    // renderer generation. Its lane is still authoritative for the status
+    // surface, even though no structural generation was restarted.
+    if (progress.lane === 'content') this.generationActivity = 'content';
     const snapshot: ViewportHydrationStatusSnapshot = { progress, activity: this.generationActivity };
     this.pending = snapshot;
     if (progress.total >= VIEWPORT_HYDRATION_STATUS_WORK_THRESHOLD) {

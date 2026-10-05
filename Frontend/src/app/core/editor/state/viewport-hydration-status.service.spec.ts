@@ -68,4 +68,12 @@ describe('ViewportHydrationStatusService', () => {
     service.publish(owner, progress({ lane: 'content', total: 40, completed: 1, percent: 2.5 }));
     expect(service.status()).toMatchObject({ activity: 'content', progress: { lane: 'content' } });
   });
+
+  it('switches an existing generation to content activity for provider finalization', () => {
+    const service = new ViewportHydrationStatusService();
+    const owner = service.claim();
+    service.publish(owner, progress({ total: 200, completed: 20, percent: 10 }));
+    service.publish(owner, progress({ lane: 'content', total: 40, completed: 0, percent: 0 }));
+    expect(service.status()).toMatchObject({ activity: 'content', progress: { total: 40, completed: 0 } });
+  });
 });

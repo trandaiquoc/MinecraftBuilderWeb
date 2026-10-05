@@ -88,7 +88,10 @@ export interface ViewportEngineOptions {
   readonly terrainShouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
 }
 export type ViewportHydrationStatus = HydrationStatus;
-export type ViewportHydrationProgress = HydrationProgressSnapshot;
+export type ViewportHydrationProgress = HydrationProgressSnapshot & {
+  readonly providerRefreshCompleted?: number;
+  readonly providerRefreshTotal?: number;
+};
 export interface ViewportPerformanceEvidence {
   readonly renderCalls: number;
   readonly triangles: number;
@@ -733,6 +736,7 @@ export class ThreeViewportEngine {
   private decorationRevision = 0;
   private get providerGeneration(): number { return this.providerLifecycle.generation; }
   private get hydrationProgressState(): ViewportHydrationProgress { return this.hydrationProgressTracker.snapshot(); }
+  private providerRefreshProgress?: { total: number; completed: number; startedAt: number };
   private providerStats?: VisualCacheStats;
   private hydrationGeneration = 0;
   private readonly pendingHydrationSignatures = new Map<string, string>();
@@ -1160,13 +1164,22 @@ export class ThreeViewportEngine {
    */
   private queueProviderRefresh(previousProvider: BlockVisualProvider, nextProvider: BlockVisualProvider): void {
     if (!this.project) return;
+    const started = performance.now();
+    this.runtimeTrace?.record('provider-refresh-classification-start');
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const visible = this.cachedVisibleProject === this.project && this.cachedVisibleKey === renderFilterKey(this.renderOptions)
       ? this.cachedVisibleMap
       : new Map(this.visibleBlocks(this.project, this.renderOptions).map((entry) => [coordinateKey(entry.block.position), entry] as const));
+    let considered = 0;
+    let queued = 0;
     for (const [key, entry] of this.renderedBlocks) {
       const visibleEntry = visible.get(key);
       if (!visibleEntry) continue;
+      // Missing entries are finalized by the bounded content-resolution lane
+      // once catalogs are published. Re-queuing them for provider handoff
+      // duplicates the expensive pink -> resolved build.
+      if (entry.block.kind === 'missing') continue;
+      considered += 1;
       const oldKey = this.requestReusableVisualKey(entry.provider ?? previousProvider, entry.block, worldContext);
       const newKey = this.requestReusableVisualKey(nextProvider, entry.block, worldContext);
       // Undefined keys represent specials, fluids, fallbacks, and other
@@ -1174,7 +1187,7 @@ export class ThreeViewportEngine {
       // entries, but never invalidate keyed terrain merely for a handoff.
       if (entry.fluidChunkKey !== undefined || this.fluidCoordinator.isClaimed(key)) continue;
       if (oldKey !== newKey || oldKey === undefined || newKey === undefined) {
-        this.hydrationWork.enqueueProviderRefresh({
+        if (this.hydrationWork.enqueueProviderRefresh({
           token: this.hydrationGeneration,
           key,
           block: visibleEntry.block,
@@ -1186,8 +1199,15 @@ export class ThreeViewportEngine {
           surfaceFastPathEligible: this.renderOptions.exposedFaceRendering === true && visibleEntry.role === 'normal' && visibleEntry.occlusionClass === 'opaque-full-cube',
           surfaceVisibleEntries: visible,
           providerRefresh: true,
-        });
+        })) queued += 1;
       }
+    }
+    this.runtimeTrace?.record('provider-refresh-classification-end', { considered, queued, durationMs: performance.now() - started });
+    this.runtimeTrace?.record('provider-refresh-queued', { queued });
+    if (queued) {
+      this.providerRefreshProgress = { total: queued, completed: 0, startedAt: performance.now() };
+      this.runtimeTrace?.record('provider-refresh-start', { queued });
+      this.publishProviderRefreshProgress();
     }
     if (this.hydrationWork.queuedProviderRefresh()) this.scheduleHydrationPump();
   }
@@ -2074,6 +2094,16 @@ export class ThreeViewportEngine {
     if (!job.providerRefresh && this.runningHydrationKeys.get(job.key) === job.token) this.runningHydrationKeys.delete(job.key);
     this.hydrationWork.complete(job);
     this.instrumentation.record(job.providerRefresh ? 'providerRefreshCompleted' : 'regularHydrationCompleted');
+    if (job.providerRefresh && this.providerRefreshProgress) {
+      this.providerRefreshProgress.completed = Math.min(this.providerRefreshProgress.total, this.providerRefreshProgress.completed + 1);
+      const counts = this.hydrationWork.counts();
+      if (!counts.providerRefreshQueued && !counts.providerRefreshRunning) {
+        const durationMs = performance.now() - this.providerRefreshProgress.startedAt;
+        this.runtimeTrace?.record('provider-refresh-end', { completed: this.providerRefreshProgress.completed, durationMs });
+        this.providerRefreshProgress = undefined;
+      }
+      this.publishProviderRefreshProgress();
+    }
     const generationRunning = Math.max(0, (this.hydrationRunningByGeneration.get(job.token) ?? 1) - 1);
     if (generationRunning) this.hydrationRunningByGeneration.set(job.token, generationRunning); else this.hydrationRunningByGeneration.delete(job.token);
     if (!job.providerRefresh) this.completeHydrationPart(job.token, 'block', job.key);
@@ -2154,6 +2184,7 @@ export class ThreeViewportEngine {
     this.hydrationTimer = undefined;
     this.hydrationScheduled = false;
     this.hydrationProgressTracker.clear();
+    this.providerRefreshProgress = undefined;
     this.hydrationLane = 'structural';
     this.hydrationProgressTracker.setLane('structural');
     this.resetHydrationProgress();
@@ -3399,7 +3430,30 @@ export class ThreeViewportEngine {
   }
 
   onHydrationProgress(listener: (progress: ViewportHydrationProgress) => void): () => void {
-    return this.hydrationProgressTracker.onProgress(listener);
+    return this.hydrationProgressTracker.onProgress((progress) => listener(this.withProviderRefreshProgress(progress)));
+  }
+
+  private withProviderRefreshProgress(progress: HydrationProgressSnapshot): ViewportHydrationProgress {
+    const refresh = this.providerRefreshProgress;
+    if (!refresh) return progress;
+    return {
+      ...progress,
+      lane: 'content',
+      status: 'hydrating',
+      completed: refresh.completed,
+      total: refresh.total,
+      blocksCompleted: refresh.completed,
+      blocksTotal: refresh.total,
+      decorationsCompleted: 0,
+      decorationsTotal: 0,
+      percent: refresh.total ? refresh.completed / refresh.total * 100 : 0,
+      providerRefreshCompleted: refresh.completed,
+      providerRefreshTotal: refresh.total,
+    };
+  }
+
+  private publishProviderRefreshProgress(): void {
+    this.hydrationProgressTracker.publish(this.hydrationProgressTracker.snapshot());
   }
 
   private setEditingPlane(y: number | undefined, project: ProjectDocument | undefined): void {
