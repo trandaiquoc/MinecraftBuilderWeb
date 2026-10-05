@@ -80,6 +80,7 @@ import type { FluidWorldLookup } from '../fluids/fluid-state';
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
 export type ViewportHoverListener = (hit: ViewportHit) => void;
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined, lookup?: ReadonlyBlockLookup) => PlacementPlan | undefined;
+type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
 export interface ViewportEngineOptions {
   readonly terrainAtlasMode?: TerrainAtlasMode;
@@ -1011,6 +1012,7 @@ export class ThreeViewportEngine {
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
     const previousProvider = this.visualProvider;
+    const previousProviderGeneration = this.providerGeneration;
     const previousFluidEntries = !provider
       ? [...this.renderedBlocks.values()].filter((entry) => entry.fluidChunkKey !== undefined)
       : [];
@@ -1028,7 +1030,7 @@ export class ThreeViewportEngine {
       this.ensureFallbackVisual(entry);
     }
     this.providerStats = undefined;
-    this.runtimeTrace?.record('provider-generation', { providerGeneration: this.providerGeneration, hasProvider: !!provider });
+    this.runtimeTrace?.record('provider-generation', { previousProviderGeneration, providerGeneration: this.providerGeneration, hasProvider: !!provider, previousProvider: !!previousProvider });
     this.specialVisualSignature = '';
     this.ghostModelKey = '';
     // A provider becoming available for the first time must promote the
@@ -1220,7 +1222,20 @@ export class ThreeViewportEngine {
       if (incrementalMutation && project && mutationHint) {
         this.applyIncrementalMutation(project, options, mutationHint);
       } else {
-        if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) this.cancelHydration();
+        if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) {
+          const reason: HydrationCancellationReason = inPlaceBlockMutation ? 'in-place-project-mutation' : full ? 'structure-sync-key-changed' : 'project-identity-changed';
+          this.cancelHydration(reason, {
+            projectIdentityChanged,
+            structureSyncKeyChanged: full,
+            renderFilterChanged: renderFilterKey(previousOptions) !== renderFilterKey(options),
+            previousProjectId: this.syncedProject?.id,
+            nextProjectId: project?.id,
+            previousProjectUpdatedAt: this.syncedProject?.metadata.updatedAt,
+            nextProjectUpdatedAt: project?.metadata.updatedAt,
+            previousSyncKey,
+            nextSyncKey,
+          });
+        }
         this.reconcileStructure(project, options, full);
       }
       this.structureSyncKey = syncKey;
@@ -2094,9 +2109,30 @@ export class ThreeViewportEngine {
     if (processed > 0) this.scheduleRender();
   }
 
-  private cancelHydration(): void {
-    if (this.cameraGestureInProgress || this.pressedActions.size > 0) this.instrumentation.record('cameraOnlyGenerationChanges');
+  private cancelHydration(reason: HydrationCancellationReason = 'structure-sync-key-changed', context: Readonly<Record<string, unknown>> = {}): void {
+    const previousGeneration = this.hydrationGeneration;
     this.hydrationGeneration += 1;
+    this.runtimeTrace?.record('hydration-generation-start', {
+      ...context,
+      reason,
+      previousGeneration,
+      generation: this.hydrationGeneration,
+      providerGeneration: this.providerGeneration,
+      specialVisualRevision: this.specialVisualRevision,
+      providerReady: !!this.visualProvider,
+      projectId: this.project?.id,
+      syncedProjectId: this.syncedProject?.id,
+      queuedBlockHydrationJobs: this.queuedBlockHydrationJobs(),
+      queuedDecorationHydrationJobs: this.queuedDecorationHydrationJobs(),
+      hydrationRunning: this.hydrationRunning,
+      pendingSignatureCount: this.pendingHydrationSignatures.size,
+      placeholderSignatureCount: this.placeholderSignatures.size,
+      placeholderVisualCount: this.placeholderIndices.size,
+      renderedBlockCount: this.renderedBlocks.size,
+      terrainHydrationPending: this.terrainHydrationPending,
+      cameraInteractionInProgress: this.cameraGestureInProgress || this.pressedActions.size > 0,
+    });
+    if (this.cameraGestureInProgress || this.pressedActions.size > 0) this.instrumentation.record('cameraOnlyGenerationChanges');
     this.instrumentation.record('hydrationGenerations');
     if (this.queuedBlockHydrationJobs() || this.hydrationRunning) this.instrumentation.record('cancelledHydrations');
     this.hydrationWork.clearPending();
@@ -2734,7 +2770,7 @@ export class ThreeViewportEngine {
     if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
     this.clearInput();
     this.cancelPendingHover(false);
-    this.cancelHydration();
+    this.cancelHydration('dispose');
     const provider = this.visualProvider;
     this.cameraRenderPending = false;
     this.cameraInteraction.clear();

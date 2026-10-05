@@ -14,6 +14,7 @@ import { viewportThemePalette } from './viewport-theme';
 import { RendererDiagnostics } from './renderer-diagnostics';
 import { blockMutationHint } from '../../editor/mutations/project-mutation-hint';
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
+import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
 
 describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
@@ -382,6 +383,24 @@ describe('camera movement input contract', () => {
     expect(internal.renderedBlocks.size).toBe(project.blocks.length);
     expect(internal.placeholderIndices.size).toBe(0);
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: project.blocks.length, percent: 100 });
+    engine.dispose();
+  });
+
+  it('traces the reason and pre-clear ownership when a project identity restarts hydration', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 8), decorations: [] };
+    const reopened = { ...project, metadata: { ...project.metadata, updatedAt: '2026-10-05T00:00:01.000Z' } };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await settleHydration();
+    const trace = new ViewportRuntimeTrace({ metadata: () => engine.runtimeTraceMetadata(), sample: () => engine.runtimeTraceSample() });
+    engine.setRuntimeTrace(trace);
+    trace.start('hydration-restart-diagnostic');
+    engine.update(reopened, undefined);
+    const event = trace.stop()?.timeline.find((entry) => entry.type === 'hydration-generation-start');
+    expect(event?.payload).toMatchObject({ reason: 'project-identity-changed', previousGeneration: 2, generation: 3, projectIdentityChanged: true, structureSyncKeyChanged: false, previousProjectId: project.id, nextProjectId: reopened.id, renderedBlockCount: project.blocks.length });
     engine.dispose();
   });
 
