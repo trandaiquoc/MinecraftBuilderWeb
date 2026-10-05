@@ -2,6 +2,7 @@ import type { BlockDefinition } from '../../blocks/catalog/block-definition.type
 import { materializeBlockState } from '../../blocks/catalog/block-state-compatibility';
 import type { ProjectDocument, ResolvedPlacedBlock } from '../../domain/project.types';
 import type { ProjectMutationChange } from '../mutations/project-mutation-hint';
+import { throwIfAborted } from '../../assets/mod/mod-import-cancellation';
 
 export const MISSING_BLOCK_RECONCILIATION_BATCH_SIZE = 128;
 
@@ -29,7 +30,8 @@ export function reconcileMissingBlocks(project: ProjectDocument, getDefinition: 
   return finishReconciliation(project, replacements, replacements.size, stillMissingCount, incompatibleCount);
 }
 
-export async function reconcileMissingBlocksCooperatively(project: ProjectDocument, getDefinition: (id: string) => BlockDefinition | undefined, batchSize = MISSING_BLOCK_RECONCILIATION_BATCH_SIZE, yieldToBrowser: () => Promise<void> = defaultYield): Promise<MissingBlockReconciliationResult> {
+export async function reconcileMissingBlocksCooperatively(project: ProjectDocument, getDefinition: (id: string) => BlockDefinition | undefined, batchSize = MISSING_BLOCK_RECONCILIATION_BATCH_SIZE, yieldToBrowser: () => Promise<void> = defaultYield, signal?: AbortSignal): Promise<MissingBlockReconciliationResult> {
+  throwIfAborted(signal);
   const missingIndexes: number[] = [];
   for (let index = 0; index < project.blocks.length; index += 1) if (project.blocks[index].kind === 'missing') missingIndexes.push(index);
   const replacements = new Map<number, ResolvedPlacedBlock>();
@@ -37,6 +39,7 @@ export async function reconcileMissingBlocksCooperatively(project: ProjectDocume
   let incompatibleCount = 0;
   const chunkSize = Math.max(1, Math.floor(batchSize));
   for (let start = 0; start < missingIndexes.length; start += chunkSize) {
+    throwIfAborted(signal);
     const end = Math.min(start + chunkSize, missingIndexes.length);
     for (let offset = start; offset < end; offset += 1) {
       const index = missingIndexes[offset];
@@ -48,7 +51,10 @@ export async function reconcileMissingBlocksCooperatively(project: ProjectDocume
       if (!materialized.valid) { stillMissingCount += 1; incompatibleCount += 1; continue; }
       replacements.set(index, { ...block, kind: 'resolved', namespace: definition.namespace, state: materialized.state });
     }
-    if (end < missingIndexes.length) await yieldToBrowser();
+    if (end < missingIndexes.length) {
+      await yieldToBrowser();
+      throwIfAborted(signal);
+    }
   }
   return finishReconciliation(project, replacements, replacements.size, stillMissingCount, incompatibleCount);
 }

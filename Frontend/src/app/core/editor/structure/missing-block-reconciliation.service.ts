@@ -6,6 +6,7 @@ import { reconcileMissingBlocksCooperatively } from './missing-block-reconciliat
 import { ProjectMutationHintService } from '../mutations/project-mutation-hint.service';
 import { blockMutationHint } from '../mutations/project-mutation-hint';
 import { ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
+import { createAbortError, isAbortError } from '../../assets/mod/mod-import-cancellation';
 
 @Injectable({ providedIn: 'root' })
 export class MissingBlockReconciliationService {
@@ -14,16 +15,18 @@ export class MissingBlockReconciliationService {
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
   private operationToken = 0;
-  private readonly trigger = effect(() => {
+  private readonly trigger = effect((onCleanup) => {
+    const controller = new AbortController();
+    onCleanup(() => controller.abort(createAbortError('Missing block reconciliation superseded')));
     const project = this.workspace.project();
     const revision = this.library.catalogRevision();
     const token = ++this.operationToken;
     if (!project || !project.blocks.some((block) => block.kind === 'missing')) return;
-    void this.reconcile(project, revision, token);
+    void this.reconcile(project, revision, token, controller.signal).catch((error) => { if (!isAbortError(error)) throw error; });
   });
 
-  private async reconcile(project: ProjectDocument, revision: number, token: number): Promise<void> {
-    const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id));
+  private async reconcile(project: ProjectDocument, revision: number, token: number, signal: AbortSignal): Promise<void> {
+    const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id), undefined, undefined, signal);
     if (token !== this.operationToken || this.workspace.project() !== project || this.library.catalogRevision() !== revision) return;
     if (result.project !== project && result.changes.length) {
       const hint = blockMutationHint(result.changes, 'content-resolution', 'content-resolution');

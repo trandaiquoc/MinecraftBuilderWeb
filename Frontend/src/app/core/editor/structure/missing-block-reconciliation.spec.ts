@@ -61,4 +61,10 @@ describe('missing block reconciliation', () => {
     expect(result.changes).toHaveLength(blocks.length);
     expect(yields).toBe(1);
   });
+
+  it('stops cooperative reconciliation when its content session is aborted', async () => {
+    const blocks = Array.from({ length: MISSING_BLOCK_RECONCILIATION_BATCH_SIZE + 1 }, (_, index) => ({ kind: 'missing' as const, id: definition.id, namespace: 'example', position: { x: index, y: 0, z: 0 }, state: {} }));
+    const controller = new AbortController();
+    await expect(reconcileMissingBlocksCooperatively(project(blocks), () => definition, MISSING_BLOCK_RECONCILIATION_BATCH_SIZE, async () => { controller.abort(); }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+  });
 });
