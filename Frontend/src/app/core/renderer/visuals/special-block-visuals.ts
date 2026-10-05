@@ -10,7 +10,7 @@ export interface SpecialVisualContext { readonly texture?: THREE.Texture; readon
 export interface NormalizedSpecialVisualDescriptor extends ContentSpecialVisualDescriptor { readonly contentId: string; }
 export interface SpecialVisualProviderMetadata { readonly providerId: string; readonly gameEdition: 'java'; readonly gameVersion: string; readonly namespace: string; readonly family: string; readonly priority: number; }
 export interface BedVisualDescriptor { readonly metadata: SpecialVisualProviderMetadata; matches(block: PlacedBlock): boolean; textureResource(block: PlacedBlock): string | undefined; model(block: PlacedBlock): SpecialModelDescriptor | undefined; transform(block: PlacedBlock, root: THREE.Group): void; }
-export interface SpecialBlockVisualAdapter { readonly family: string; readonly overrideGeneric?: boolean; matches(block: PlacedBlock): boolean; textureResource?(block: PlacedBlock): string | undefined; textureResources?(block: PlacedBlock): Readonly<Record<string, string>>; create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group; }
+export interface SpecialBlockVisualAdapter { readonly family: string; readonly overrideGeneric?: boolean; readonly staticBatchable?: boolean; matches(block: PlacedBlock): boolean; textureResource?(block: PlacedBlock): string | undefined; textureResources?(block: PlacedBlock): Readonly<Record<string, string>>; create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group; }
 export interface SpecialVisualCompatibility { readonly adapter?: SpecialBlockVisualAdapter; readonly family?: string; readonly missingResources: readonly string[]; }
 export const SPECIAL_VISUAL_COMPATIBILITY: Readonly<Record<string, { readonly requiredState: readonly string[]; readonly requiredResource: string }>> = {
   beds: { requiredState: ['part', 'facing', 'occupied'], requiredResource: 'entity/bed/<color>' },
@@ -81,6 +81,12 @@ export class SpecialBlockVisualRegistry {
   resolveCompatible(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
     return this.inspect(block).adapter;
   }
+  reusableVisualKey(block: PlacedBlock): string | undefined {
+    const adapter = this.resolveCompatible(block);
+    if (!adapter?.staticBatchable) return undefined;
+    const state = Object.entries(block.state).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join(',');
+    return `special-template-v1|${adapter.family}|${block.id}|${state}`;
+  }
   resolveDiagnosticFallback(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
     return this.candidates().find((candidate) => candidate.matches(block));
   }
@@ -109,6 +115,7 @@ export class SpecialBlockVisualRegistry {
 
 /** Extension point for a normalized mod bed descriptor; it never infers Java runtime renderers. */
 export class BedVisualProvider implements SpecialBlockVisualAdapter {
+  readonly staticBatchable = true;
   readonly family = 'beds';
   constructor(private readonly gameVersion: string, private readonly descriptors: BedVisualDescriptor[]) {}
   register(descriptor: BedVisualDescriptor): void { this.descriptors.push(descriptor); }
@@ -166,12 +173,13 @@ const vanillaBedDescriptor: BedVisualDescriptor = {
 const chestIds = new Set(['minecraft:chest', 'minecraft:trapped_chest', 'minecraft:ender_chest']);
 const chestAdapter: SpecialBlockVisualAdapter = {
   family: 'chests',
+  staticBatchable: true,
   matches: (block) => chestIds.has(block.id),
   textureResource: (block) => chestTextureResource(block),
   create: (block, context) => createChestVisual(block, context?.texture),
 };
 /** Diagnostic-only fallback. A barrel with usable JSON elements stays on the generic path. */
-const barrelAdapter: SpecialBlockVisualAdapter = { family: 'containers', matches: (block) => block.namespace === 'minecraft' && /(?:^|_)barrel$/.test(block.id.split(':').at(-1) ?? block.id), create: (block) => { const root = new THREE.Group(); root.userData['visualFallback'] = 'diagnostic'; root.userData['fallbackReason'] = 'BARREL_GENERIC_RESOURCE_UNAVAILABLE'; box(root, [.92, .58, .92], [.5, .29, .5], 0x8c6035); box(root, [.94, .12, .94], [.5, .64, .5], 0xc28a47); return root; } };
+const barrelAdapter: SpecialBlockVisualAdapter = { family: 'containers', staticBatchable: true, matches: (block) => block.namespace === 'minecraft' && /(?:^|_)barrel$/.test(block.id.split(':').at(-1) ?? block.id), create: (block) => { const root = new THREE.Group(); root.userData['visualFallback'] = 'diagnostic'; root.userData['fallbackReason'] = 'BARREL_GENERIC_RESOURCE_UNAVAILABLE'; box(root, [.92, .58, .92], [.5, .29, .5], 0x8c6035); box(root, [.94, .12, .94], [.5, .64, .5], 0xc28a47); return root; } };
 
 const chestSingleModel: SpecialModelDescriptor = {
   id: 'minecraft-java-chest-single-1.21.1', textureSize: [64, 64], parts: [
@@ -226,6 +234,7 @@ function createChestVisual(block: PlacedBlock, texture?: THREE.Texture): THREE.G
 }
 const bannerAdapter: SpecialBlockVisualAdapter = {
   family: 'banners',
+  staticBatchable: true,
   matches: (block) => block.namespace === 'minecraft' && (block.id.endsWith('_banner') || block.id.endsWith('_wall_banner')),
   create: (block) => createBannerVisual(block),
 };
@@ -360,6 +369,7 @@ export const conduitInactiveModel: SpecialModelDescriptor = {
 };
 const conduitAdapter: SpecialBlockVisualAdapter = {
   family: 'conduits',
+  staticBatchable: true,
   overrideGeneric: true,
   matches: (block) => block.namespace === 'minecraft' && block.id === 'minecraft:conduit',
   textureResource: () => 'minecraft:entity/conduit/base',
@@ -372,6 +382,7 @@ const conduitAdapter: SpecialBlockVisualAdapter = {
 };
 const shulkerAdapter: SpecialBlockVisualAdapter = {
   family: 'shulker-boxes',
+  staticBatchable: true,
   matches: (block) => block.namespace === 'minecraft' && (block.id === 'minecraft:shulker_box' || block.id.endsWith('_shulker_box')),
   textureResource: (block) => shulkerTextureResource(block),
   create: (block, context) => createShulkerVisual(block, context?.texture),

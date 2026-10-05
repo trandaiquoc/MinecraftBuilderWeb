@@ -247,6 +247,11 @@ describe('block model geometry', () => {
     expect(result.object?.userData['specialVisualFamily']).toBe('shulker-boxes');
     expect(result.object?.userData['specialModel']).toBe('minecraft-java-shulker-box-1.21.1');
   });
+  it('publishes stable keys only for static special visuals', () => {
+    const provider = new VanillaBlockVisualProvider({ readJson: () => undefined, readBinary: () => new Uint8Array([1]), textureUrl: () => undefined } as any);
+    expect(provider.reusableVisualKey?.(block('minecraft:light_blue_shulker_box', { facing: 'north' }))).toContain('special-template-v1|shulker-boxes');
+    expect(provider.reusableVisualKey?.(block('minecraft:oak_sign', { rotation: '0' }))).toBeUndefined();
+  });
   it('prioritizes Decorated Pot special rendering and loads all five textures', async () => {
     const json = {
       'assets/minecraft/blockstates/decorated_pot.json': { variants: { 'facing=north,waterlogged=false,cracked=false': { model: 'minecraft:block/decorated_pot' } } },

@@ -129,6 +129,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       const texture = textures['default'] ?? textures['base'] ?? (resource ? await this.texture(resource) : undefined);
       const object = special.create(block, { texture, textures });
       object.userData['specialVisualFamily'] = special.family;
+      object.userData['staticBatchable'] = special.staticBatchable === true;
       object.updateMatrixWorld(true);
       const specialTexturePaths = entries.map(([, value]) => texturePath(value));
       const requiredTexturesReady = entries.every(([role]) => !!textures[role]);
@@ -164,7 +165,10 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   reusableVisualKey(block: PlacedBlock): string | undefined {
     const stateKey = `${block.id}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`;
     if (this.reusableKeyCache.has(stateKey)) return this.reusableKeyCache.get(stateKey);
-    if (fluidKindForBlockId(block.id) || this.specialVisuals.resolveCompatible(block)) return undefined;
+    if (fluidKindForBlockId(block.id)) return undefined;
+    const specialKey = this.specialVisuals.reusableVisualKey(block);
+    if (specialKey) { this.reusableKeyCache.set(stateKey, specialKey); return specialKey; }
+    if (this.specialVisuals.resolveCompatible(block)) return undefined;
     const resolved = this.resolve(block.id, block.state);
     if (!resolved.parts.some((part) => part.elements.length)) return undefined;
     const key = `vanilla-template-v1|${stableVisualComponentKey({ id: block.id, state: block.state, parts: resolved.parts })}`;
@@ -396,6 +400,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       const material = element.shade === false || explicitShade
         ? new THREE.MeshBasicMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide })
         : new THREE.MeshLambertMaterial({ map: texture, color: tint ?? 0xffffff, transparent: face.forceTranslucent === true, alphaTest: .1, side: THREE.DoubleSide });
+      if (face.forceTranslucent === true) material.userData['minecraftForceTranslucent'] = true;
       if (explicitShade) {
         material.color.multiplyScalar(shadeDirectionFactor(element.shadeDirectionOverride));
         material.userData['shadeDirectionOverride'] = element.shadeDirectionOverride;

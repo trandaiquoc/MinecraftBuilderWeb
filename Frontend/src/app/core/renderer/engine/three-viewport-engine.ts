@@ -42,7 +42,7 @@ import { compileInstanceTemplates as compileInstanceTemplatesFromCache, mergeIns
 import type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
 import { PlaceholderBatchRenderer } from '../batching/placeholder-batch-renderer';
 import type { PlaceholderBatch } from '../batching/placeholder-batch-renderer';
-import { InstanceBatchRenderer } from '../batching/instance-batch-renderer';
+import { StaticModelBatchRenderer } from '../batching/static-model-batch-renderer';
 import type { InstanceBatch } from '../batching/instance-batch-renderer';
 import { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
 import type { SurfaceFaceBatch, SurfaceFaceMembership, SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
@@ -144,6 +144,15 @@ export interface ViewportPerformanceEvidence {
   readonly regionalSurfaceBatchCount: number;
   readonly instanceMaterialCount: number;
   readonly instanceGeometryCount: number;
+  readonly staticModelCandidates: number;
+  readonly staticModelBatchable: number;
+  readonly staticModelBatchedMembers: number;
+  readonly staticModelTemplateCacheHits: number;
+  readonly staticModelTemplateCacheMisses: number;
+  readonly providerObjectsAvoidedByStaticCache: number;
+  readonly staticModelRejected: Readonly<Record<string, number>>;
+  readonly staticModelBatchCount: number;
+  readonly staticModelInstanceMeshCount: number;
   readonly standaloneBlockObjects: number;
   readonly standaloneBlockMeshes: number;
   readonly standaloneTransparentMeshes: number;
@@ -662,26 +671,11 @@ export class ThreeViewportEngine {
   private readonly providerLifecycle = new ProviderRefreshCoordinator<BlockVisualProvider>();
   private readonly pendingTerrainTemplates = new Map<string, Promise<readonly SurfaceFaceTemplate[] | undefined>>();
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
-  private readonly instanceRenderer = new InstanceBatchRenderer({
-    blocksGroup: this.blocksGroup,
-    capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
-    chunkKey,
-    stableBounds: stableChunkBounds,
-    regionPolicy: this.renderRegionPolicy,
-    record: (name: string, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
-    getEntry: (key) => this.renderedBlocks.get(key),
-    setEntryObject: (key, batchKey, index, object) => {
-      const entry = this.renderedBlocks.get(key);
-      if (!entry) return;
-      entry.instanceBatchKey = batchKey;
-      entry.instanceIndex = index;
-      if (object) entry.object = object;
-    },
-    disposeMergedTemplateGeometry: (template) => this.disposeMergedTemplateGeometryIfUnused(template),
-    trace: (phase, key, source) => this.traceInstanceOwnership(phase, key, source),
-  });
+  private readonly instanceRenderer: StaticModelBatchRenderer;
   private get instanceBatches(): Map<string, InstanceBatch> { return this.instanceRenderer.batches; }
   private get instanceOwnershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
+  /** Compatibility view for diagnostics/tests; ownership remains in the batching module. */
+  private get reusableInstanceTemplates(): ReadonlyMap<string, CompiledInstanceTemplates> { return this.instanceRenderer.templateCacheView(); }
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
   private readonly surfaceRenderer = new SurfaceFaceBatchRenderer({
     blocksGroup: this.blocksGroup,
@@ -699,7 +693,6 @@ export class ThreeViewportEngine {
   private readonly terrainRenderer: ChunkSurfaceRenderer;
   readonly terrainAtlasMode: TerrainAtlasMode;
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
-  private readonly reusableInstanceTemplates = new Map<string, CompiledInstanceTemplates>();
   private readonly hydrationProgressTracker = new HydrationProgressTracker(
     () => this.instrumentation.record('hydrationProgressRegressions'),
     (progress) => this.runtimeTrace?.record('hydration-progress', { generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent }),
@@ -769,6 +762,23 @@ export class ThreeViewportEngine {
       record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
       onTiming: (stage, durationMs) => this.runtimeTrace?.recordDuration(stage, durationMs),
       isTimingEnabled: () => !!this.runtimeTrace?.isActive,
+    });
+    this.instanceRenderer = new StaticModelBatchRenderer({
+      blocksGroup: this.blocksGroup,
+      capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
+      chunkKey,
+      stableBounds: stableChunkBounds,
+      regionPolicy: this.renderRegionPolicy,
+      instrumentation,
+      getEntry: (key) => this.renderedBlocks.get(key),
+      setEntryObject: (key, batchKey, index, object) => {
+        const entry = this.renderedBlocks.get(key);
+        if (!entry) return;
+        entry.instanceBatchKey = batchKey;
+        entry.instanceIndex = index;
+        if (object) entry.object = object;
+      },
+      trace: (phase, key, source) => this.traceInstanceOwnership(phase, key, source),
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
     const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
@@ -874,7 +884,7 @@ export class ThreeViewportEngine {
     for (const material of Object.values(this.fallbackMaterials)) applyBlockBrightnessToMaterial(material, this.blockBrightness);
     for (const material of Object.values(this.placeholderMaterials)) applyBlockBrightnessToMaterial(material, this.blockBrightness);
     applyBlockBrightnessToObject(this.blocksGroup, this.blockBrightness);
-    for (const compiled of this.reusableInstanceTemplates.values()) for (const template of compiled.templates) applyBlockBrightnessToMaterial(template.material, this.blockBrightness);
+    for (const compiled of this.instanceRenderer.templates()) for (const template of compiled.templates) applyBlockBrightnessToMaterial(template.material, this.blockBrightness);
     for (const templates of this.surfaceTemplateCache.values()) for (const template of templates) applyBlockBrightnessToMaterial(template.material, this.blockBrightness);
     this.terrainRenderer.applyMaterial((material) => applyBlockBrightnessToMaterial(material, this.blockBrightness));
   }
@@ -2021,7 +2031,7 @@ export class ThreeViewportEngine {
     const providerAvailable = !!this.visualProvider && block.kind !== 'missing';
     const provider = this.visualProvider;
     const reusableKey = providerAvailable && (allowInstancing || surfaceFastPathEligible) && role === 'normal' ? provider?.reusableVisualKey?.(block, worldContext) : undefined;
-    const cachedTemplates = reusableKey ? this.reusableInstanceTemplates.get(reusableKey) : undefined;
+    const cachedTemplates = reusableKey ? this.instanceRenderer.templateFor(reusableKey) : undefined;
     const cachedTerrainTemplates = surfaceFastPathEligible && reusableKey ? this.terrainRenderer.templatesFor(reusableKey) : undefined;
     const cachedSurfaceTemplates = surfaceFastPathEligible && reusableKey ? this.surfaceTemplateCache.get(reusableKey) : undefined;
     if (providerAvailable && cachedTerrainTemplates) {
@@ -2166,35 +2176,11 @@ export class ThreeViewportEngine {
   }
 
   private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
-    const templates = this.instanceTemplates(object);
-    if (!templates) return undefined;
-    const cached = reusableKey ? this.reusableInstanceTemplates.get(reusableKey) : undefined;
-    const compiled = cached ?? compileInstanceTemplates(templates, this.instrumentation, !!reusableKey);
-    if (!cached && reusableKey) { this.reusableInstanceTemplates.set(reusableKey, compiled); this.instrumentation.record('reusableTemplateCreations'); }
-    return this.addInstanceVisualFromTemplates(compiled.templates, block, key, source, compiled);
+    return this.instanceRenderer.tryAdd(object, block, key, reusableKey, source);
   }
 
   private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates): { readonly batchKey: string; readonly index: number } | undefined {
-    const resolvedCompiled = compiled ?? compileInstanceTemplates(templates, this.instrumentation);
-    return this.instanceRenderer.addFromTemplates(templates, block.position, key, source, resolvedCompiled);
-  }
-
-  private instanceTemplates(object: THREE.Object3D): readonly InstancePartTemplate[] | undefined {
-    if (object.userData['specialVisualFamily'] || object.userData['fluidKind'] || object.userData['fluidRenderLayer']) return undefined;
-    object.updateMatrixWorld(true);
-    const rootInverse = object.matrixWorld.clone().invert();
-    const bounds = new THREE.Box3().setFromObject(object); const size = bounds.getSize(new THREE.Vector3());
-    if (Math.abs(size.x - 1) > .02 || Math.abs(size.y - 1) > .02 || Math.abs(size.z - 1) > .02) return undefined;
-    const templates: InstancePartTemplate[] = [];
-    let compatible = true;
-    object.traverse((child) => {
-      if (!(child instanceof THREE.Mesh) || !compatible) return;
-      if (child.userData['specialVisualFamily'] || child.userData['fluidKind'] || child.userData['fluidRenderLayer']) { compatible = false; return; }
-      const material = Array.isArray(child.material) ? undefined : child.material;
-      if (!material || material.transparent || material.depthWrite === false || child.morphTargetInfluences || child.type === 'SkinnedMesh') { compatible = false; return; }
-      templates.push({ geometry: child.geometry, material, matrix: rootInverse.clone().multiply(child.matrixWorld) });
-    });
-    return compatible && templates.length > 0 ? templates : undefined;
+    return this.instanceRenderer.addFromTemplates(templates, block, key, source, compiled);
   }
 
   private removeInstanceVisual(key: string, entry: RenderedBlockEntry): void {
@@ -2247,18 +2233,9 @@ export class ThreeViewportEngine {
   }
 
   private clearReusableInstanceTemplates(): void {
-    const compiledTemplates = [...this.reusableInstanceTemplates.values()].flatMap((compiled) => compiled.templates);
-    this.reusableInstanceTemplates.clear();
-    for (const template of compiledTemplates) { template.material.dispose(); this.disposeMergedTemplateGeometryIfUnused(template); }
+    this.instanceRenderer.clearTemplates();
   }
 
-  private disposeMergedTemplateGeometryIfUnused(template: InstancePartTemplate): void {
-    if (!template.ownsGeometry || !template.geometry.userData['mergedInstanceTemplateGeometry']) return;
-    const referenced = [...this.instanceBatches.values()].some((batch) => batch.templates.some((candidate) => candidate.geometry === template.geometry));
-    if (referenced) return;
-    template.geometry.dispose();
-    delete template.geometry.userData['mergedInstanceTemplateGeometry'];
-  }
 
   private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
 
@@ -2534,8 +2511,7 @@ export class ThreeViewportEngine {
     this.clearSurfaceFaceResources();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
-    this.instanceBatches.clear(); this.instanceOwnershipIndex.clear();
-    this.clearReusableInstanceTemplates();
+    this.instanceRenderer.clear();
     for (const child of this.decorationsGroup.children) disposeObject(child);
     this.decorationsGroup.clear();
     for (const child of [...this.logicalSelectionGroup.children]) this.logicalSelectionGroup.remove(child);
@@ -2870,7 +2846,7 @@ export class ThreeViewportEngine {
         decorationGhostChildren: this.decorationGhostGroup.children.length,
         logicalSelectionChildren: this.logicalSelectionGroup.children.length,
         selectionOutlineVisible: this.selectionOutline.visible,
-        reusableTemplateCount: this.reusableInstanceTemplates.size,
+        reusableTemplateCount: this.instanceRenderer.templates().length,
       },
       hydrationState: {
         queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(),
@@ -2919,6 +2895,7 @@ export class ThreeViewportEngine {
     const counters = this.instrumentation.snapshot();
     const terrain = this.terrainRenderer.evidence();
     const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.renderedBlocks.values(), renderedDecorations: this.renderedDecorations.values() });
+    const staticModelMetrics = this.instanceRenderer.metrics();
     return {
       renderCalls: this.lastRendererMetrics.calls,
       triangles: this.lastRendererMetrics.triangles,
@@ -2938,6 +2915,15 @@ export class ThreeViewportEngine {
       regionalSurfaceBatchCount: renderCost.surface.batchCount,
       instanceMaterialCount: renderCost.instance.materials,
       instanceGeometryCount: renderCost.instance.geometries,
+      staticModelCandidates: staticModelMetrics.candidates,
+      staticModelBatchable: staticModelMetrics.batchable,
+      staticModelBatchedMembers: staticModelMetrics.batchedMembers,
+      staticModelTemplateCacheHits: staticModelMetrics.templateCacheHits,
+      staticModelTemplateCacheMisses: staticModelMetrics.templateCacheMisses,
+      providerObjectsAvoidedByStaticCache: staticModelMetrics.providerObjectsAvoidedByStaticCache,
+      staticModelRejected: staticModelMetrics.rejected,
+      staticModelBatchCount: this.instanceBatches.size,
+      staticModelInstanceMeshCount: renderCost.instance.meshCount,
       standaloneBlockObjects: renderCost.standaloneBlockObjects,
       standaloneBlockMeshes: renderCost.standaloneBlockMeshes,
       standaloneTransparentMeshes: renderCost.standaloneTransparentMeshes,

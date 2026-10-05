@@ -24,6 +24,7 @@ export function compileInstanceTemplates(
     geometry: template.geometry,
     material: cloneMaterials ? template.material.clone() : template.material,
     matrix: template.matrix.clone(),
+    ownsGeometry: template.ownsGeometry,
   }));
   const merged = mergeInstanceTemplateParts(retained);
   if (instrumentation) {

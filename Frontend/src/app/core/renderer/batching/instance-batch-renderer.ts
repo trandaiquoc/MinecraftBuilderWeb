@@ -29,7 +29,7 @@ export interface InstanceBatchRendererOptions {
   readonly record: (name: string, delta?: number) => void;
   readonly getEntry: (key: string) => InstanceBatchEntry | undefined;
   readonly setEntryObject?: (key: string, batchKey: string | undefined, index: number | undefined, object: THREE.Object3D | undefined) => void;
-  readonly disposeMergedTemplateGeometry: (template: InstancePartTemplate, batches: ReadonlyMap<string, InstanceBatch>) => void;
+  readonly disposeMergedTemplateGeometry?: (template: InstancePartTemplate, batches: ReadonlyMap<string, InstanceBatch>) => void;
   readonly trace?: (phase: 'before-insert' | 'after-insert' | 'before-remove' | 'after-remove' | 'after-remove-entry', key: string, source: 'cached-template' | 'provider-async' | 'rollback' | 'reconcile') => void;
 }
 
@@ -182,7 +182,7 @@ export class InstanceBatchRenderer {
     if (!batch.keys.length) {
       for (const part of batch.parts) { this.options.blocksGroup.remove(part); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
       this.batches.delete(batchKey);
-      for (const template of batch.templates) this.options.disposeMergedTemplateGeometry(template, this.batches);
+      for (const template of batch.templates) this.disposeMergedTemplateGeometry(template);
       this.options.record('instancedMeshCount', -batch.parts.length);
     }
     return true;
@@ -214,9 +214,14 @@ export class InstanceBatchRenderer {
     for (const batch of [...this.batches.values()]) {
       for (const part of batch.parts) { this.options.blocksGroup.remove(part); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
       this.batches.delete(batch.key);
-      for (const template of batch.templates) this.options.disposeMergedTemplateGeometry(template, this.batches);
+      for (const template of batch.templates) this.disposeMergedTemplateGeometry(template);
     }
     this.batches.clear();
     this.ownershipIndex.clear();
+  }
+
+  private disposeMergedTemplateGeometry(template: InstancePartTemplate): void {
+    if (this.options.disposeMergedTemplateGeometry) { this.options.disposeMergedTemplateGeometry(template, this.batches); return; }
+    if (template.ownsGeometry && template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
   }
 }
