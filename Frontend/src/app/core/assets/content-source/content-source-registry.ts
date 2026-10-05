@@ -56,6 +56,10 @@ export class ContentSourceRegistry {
 
     const stagedPaths = new Map<string, ContentSourceProvider>();
     const liveCatalog = this.catalog();
+    // Validate normalization before touching live resources. This keeps an
+    // invalid prepared record from failing after the resource boundary.
+    const normalizedStagedCatalog = new BlockCatalog();
+    normalizedStagedCatalog.replaceSources(entries.map((entry) => entry.catalog));
     const liveBlocks = new Map(liveCatalog.all().filter((block) => !sourceIds.has(block.sourceId ?? '')).map((block) => [block.id, block.sourceId] as const));
     const liveItems = new Map(this.itemEvidenceSources().filter((source) => !sourceIds.has(source.sourceId)).flatMap((source) => source.items.map((item) => [item.itemId, source.sourceId] as const)));
     const livePaintings = new Map(this.paintingVariants().filter((painting) => !sourceIds.has(painting.sourceId ?? 'vanilla')).map((painting) => [painting.id, painting.sourceId ?? 'vanilla'] as const));
