@@ -1353,28 +1353,6 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
-  it('applies missing-to-resolved content as a bounded incremental delta', async () => {
-    const provider = { create: vi.fn(async () => ({ object: new THREE.Group(), resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
-    const base = rendererBenchmarkProject('small');
-    const before = { ...base, blocks: [{ kind: 'missing' as const, id: 'example:marble', namespace: 'example', position: { x: 0, y: 0, z: 0 }, state: {} }], decorations: [] };
-    const afterBlock = { ...before.blocks[0], kind: 'resolved' as const, namespace: 'example' };
-    const after = { ...before, blocks: [afterBlock] };
-    const engine = new ThreeViewportEngine();
-    engine.setVisualProvider(provider);
-    engine.update(before, undefined);
-    await settleHydration(20, engine);
-    const beforeCounters = engine.rendererCounters();
-    engine.update(after, undefined, {}, blockMutationHint([{ position: afterBlock.position, before: before.blocks[0], after: afterBlock }], 'content-resolution'));
-    await settleHydration(20, engine);
-    const counters = engine.rendererCounters();
-    expect(counters.incrementalBlockReconciles).toBe(beforeCounters.incrementalBlockReconciles + 1);
-    expect(counters.fullSceneRebuilds).toBe(beforeCounters.fullSceneRebuilds);
-    expect(counters.fullVisibleScans).toBe(beforeCounters.fullVisibleScans);
-    expect(provider.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'resolved', id: 'example:marble' }), expect.anything());
-    expect(engine.hydrationProgress().lane).toBe('content');
-    engine.dispose();
-  });
-
   it('does not dispose provider-owned shared geometry when one entry is removed', async () => {
     const geometry = new THREE.BoxGeometry(1, 1, 1); geometry.userData['providerOwnedGeometry'] = true; const dispose = vi.spyOn(geometry, 'dispose');
     const provider = { create: vi.fn(async () => { const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())); return { object, resolved: { diagnostics: [], support: 'full' }, mode: 'real', diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;

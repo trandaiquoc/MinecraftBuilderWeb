@@ -1,5 +1,5 @@
 export type HydrationStatus = 'idle' | 'hydrating' | 'complete';
-export type HydrationLane = 'structural' | 'local' | 'content';
+export type HydrationLane = 'structural' | 'local';
 
 export interface HydrationProgressSnapshot {
   readonly generation: number;

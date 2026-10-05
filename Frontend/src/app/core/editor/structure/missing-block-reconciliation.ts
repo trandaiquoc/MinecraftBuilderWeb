@@ -1,7 +1,6 @@
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { materializeBlockState } from '../../blocks/catalog/block-state-compatibility';
 import type { ProjectDocument, ResolvedPlacedBlock } from '../../domain/project.types';
-import type { ProjectMutationChange } from '../mutations/project-mutation-hint';
 
 export const MISSING_BLOCK_RECONCILIATION_BATCH_SIZE = 128;
 
@@ -10,7 +9,6 @@ export interface MissingBlockReconciliationResult {
   readonly resolvedCount: number;
   readonly stillMissingCount: number;
   readonly incompatibleCount: number;
-  readonly changes: readonly ProjectMutationChange[];
 }
 
 export function reconcileMissingBlocks(project: ProjectDocument, getDefinition: (id: string) => BlockDefinition | undefined): MissingBlockReconciliationResult {
@@ -54,10 +52,9 @@ export async function reconcileMissingBlocksCooperatively(project: ProjectDocume
 }
 
 function finishReconciliation(project: ProjectDocument, replacements: ReadonlyMap<number, ResolvedPlacedBlock>, resolvedCount: number, stillMissingCount: number, incompatibleCount: number): MissingBlockReconciliationResult {
-  const changes = [...replacements.entries()].map(([index, after]) => ({ position: after.position, before: project.blocks[index], after }));
-  if (replacements.size === 0) return { project, resolvedCount, stillMissingCount, incompatibleCount, changes };
+  if (replacements.size === 0) return { project, resolvedCount, stillMissingCount, incompatibleCount };
   const blocks = project.blocks.map((block, index) => replacements.get(index) ?? block);
-  return { project: { ...project, blocks }, resolvedCount, stillMissingCount, incompatibleCount, changes };
+  return { project: { ...project, blocks }, resolvedCount, stillMissingCount, incompatibleCount };
 }
 
 function defaultYield(): Promise<void> { return new Promise((resolve) => setTimeout(resolve, 0)); }

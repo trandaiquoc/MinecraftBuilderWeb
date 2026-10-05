@@ -7,7 +7,6 @@ import { HistoryService } from '../history/history.service';
 import type { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { MissingBlockReconciliationService } from './missing-block-reconciliation.service';
-import { ProjectMutationHintService } from '../mutations/project-mutation-hint.service';
 
 const definition: BlockDefinition = {
   id: 'example:marble', namespace: 'example', displayName: 'Marble', defaultState: { polished: 'false' },
@@ -33,7 +32,6 @@ describe('MissingBlockReconciliationService', () => {
     const library = { catalogRevision: revision.asReadonly(), get: (id: string) => definitions.get(id) } as unknown as BlockLibraryService;
     await TestBed.configureTestingModule({ providers: [{ provide: WorkspaceStateService, useValue: workspace }, { provide: BlockLibraryService, useValue: library }, MissingBlockReconciliationService] }).compileComponents();
     TestBed.inject(MissingBlockReconciliationService);
-    const hints = TestBed.inject(ProjectMutationHintService);
     const history = new HistoryService(workspace);
     const original = project();
     workspace.project.set(original);
@@ -43,9 +41,6 @@ describe('MissingBlockReconciliationService', () => {
     revision.set(1);
     await flushReconciliation();
     expect(workspace.project()?.blocks[0]).toMatchObject({ kind: 'resolved', namespace: 'example', state: { polished: 'false' } });
-    const resolved = workspace.project()!;
-    expect(hints.consume(resolved, 'missing-block-test')?.source).toBe('content-resolution');
-    expect(hints.consume(resolved, 'missing-block-test')?.source).toBeUndefined();
     expect(history.canUndo()).toBe(false);
   });
 

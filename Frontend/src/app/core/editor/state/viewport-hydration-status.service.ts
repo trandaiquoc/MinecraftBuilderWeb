@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import type { ViewportHydrationProgress } from '../../renderer/engine/three-viewport-engine';
 
-export type ViewportHydrationActivity = 'import' | 'build' | 'content';
+export type ViewportHydrationActivity = 'import' | 'build';
 
 export interface ViewportHydrationStatusSnapshot {
   readonly progress: ViewportHydrationProgress;
@@ -44,7 +44,7 @@ export class ViewportHydrationStatusService {
     }
     if (this.generation !== progress.generation) {
       this.generation = progress.generation;
-      this.generationActivity = progress.lane === 'content' ? 'content' : this.nextActivity;
+      this.generationActivity = this.nextActivity;
       this.nextActivity = 'build';
     }
     const snapshot: ViewportHydrationStatusSnapshot = { progress, activity: this.generationActivity };

@@ -30,8 +30,6 @@ describe('missing block reconciliation', () => {
     expect(result.project.blocks[0]).toEqual({ ...block, kind: 'resolved', namespace: 'authoritative', state: { facing: 'south', polished: 'false' } });
     expect(result.resolvedCount).toBe(1);
     expect(result.stillMissingCount).toBe(0);
-    expect(result.changes).toHaveLength(1);
-    expect(result.changes[0]).toMatchObject({ position: block.position, before: block, after: result.project.blocks[0] });
   });
 
   it('keeps incompatible state missing without rewriting the original block', () => {
@@ -42,7 +40,6 @@ describe('missing block reconciliation', () => {
     expect(result.project.blocks[0]).toBe(block);
     expect(result.incompatibleCount).toBe(1);
     expect(result.stillMissingCount).toBe(1);
-    expect(result.changes).toHaveLength(0);
   });
 
   it('does not rewrite already resolved blocks and preserves the project reference when nothing is eligible', () => {
@@ -58,7 +55,6 @@ describe('missing block reconciliation', () => {
     let yields = 0;
     const result = await reconcileMissingBlocksCooperatively(project(blocks), () => definition, MISSING_BLOCK_RECONCILIATION_BATCH_SIZE, async () => { yields += 1; });
     expect(result.resolvedCount).toBe(blocks.length);
-    expect(result.changes).toHaveLength(blocks.length);
     expect(yields).toBe(1);
   });
 });

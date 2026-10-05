@@ -63,7 +63,7 @@ export class EditorStatusBarComponent {
   }
   protected hydrationStatus(): ViewportHydrationStatusSnapshot | undefined { return this.hydration.status(); }
   protected hydrationStatusLabel(snapshot: ViewportHydrationStatusSnapshot): string {
-    const label = snapshot.activity === 'content' ? this.i18n.t('updatingBlockAssets') : this.i18n.t(snapshot.activity === 'import' ? 'importingStructure' : 'buildingStructure');
+    const label = this.i18n.t(snapshot.activity === 'import' ? 'importingStructure' : 'buildingStructure');
     return `${label} · ${this.formatPercent(snapshot.progress.percent)}%`;
   }
   protected hydrationCount(snapshot: ViewportHydrationStatusSnapshot): string {
