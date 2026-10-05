@@ -82,7 +82,7 @@ export function collectSceneRenderCost(input: {
   readonly instanceBatches: Iterable<{ readonly regionKey?: string; readonly keys: readonly unknown[]; readonly mesh?: THREE.Mesh; readonly parts?: readonly THREE.Mesh[] }>;
   readonly surfaceBatches: Iterable<{ readonly regionKey?: string; readonly keys: readonly unknown[]; readonly mesh?: THREE.Mesh; readonly parts?: readonly THREE.Mesh[] }>;
   readonly placeholderBatches: Iterable<{ readonly regionKey?: string; readonly keys: readonly unknown[]; readonly mesh?: THREE.Mesh; readonly parts?: readonly THREE.Mesh[] }>;
-  readonly renderedBlocks: Iterable<{ readonly object?: THREE.Object3D; readonly instanceBatchKey?: string; readonly surfaceFaceMemberships?: readonly unknown[]; readonly terrainChunkKey?: string; readonly fluidChunkKey?: string }>;
+  readonly renderedBlocks: Iterable<{ readonly object?: THREE.Object3D; readonly instanceBatchKey?: string; readonly surfaceFaceMemberships?: readonly unknown[]; readonly terrainChunkKey?: string; readonly fluidChunkKey?: string; readonly fluidFallback?: boolean }>;
   readonly renderedDecorations: Iterable<{ readonly object: THREE.Object3D }>;
 }): SceneRenderCost {
   let object3dCount = 0;
@@ -110,6 +110,7 @@ export function collectSceneRenderCost(input: {
   let fluidStandaloneMeshes = 0;
   for (const entry of input.renderedBlocks) {
     if (entry.fluidChunkKey !== undefined) continue;
+    if (entry.fluidFallback) continue;
     if (!entry.object || entry.instanceBatchKey || entry.surfaceFaceMemberships?.length || entry.terrainChunkKey !== undefined) continue;
     const cost = countObjectMeshCost(entry.object, true);
     if (entry.object.userData['fluidRenderLayer'] !== undefined || entry.object.userData['fluidKind'] !== undefined) { fluidStandaloneMeshes += cost.meshes; continue; }

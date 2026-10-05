@@ -70,6 +70,42 @@ export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: F
   return { buckets: [...buckets.values()], fluidLogicalVoxels: records.length, fluidFacesPotential: potential, fluidFacesCulled: culled, fluidFacesEmitted: emitted };
 }
 
+/** Keeps a failed fluid build visible and terminal without content-specific IDs. */
+export function buildFluidFallbackMeshData(records: readonly FluidMeshRecord[]): FluidMeshBuildResult {
+  const bucket: FluidMeshBucket = {
+    materialKey: 'fluid-fallback',
+    fluidTypeId: 'fallback',
+    renderLayer: records[0]?.state.renderLayer ?? 'translucent',
+    texture: '',
+    tint: records[0]?.state.tint,
+    opacity: .62,
+    doubleSided: true,
+    depthWrite: false,
+    positions: [], normals: [], uvs: [], indices: [], voxelKeys: [],
+    facesPotential: records.length * 6,
+    facesCulled: 0,
+    facesEmitted: records.length * 6,
+  };
+  const face = (vertices: readonly (readonly [number, number, number])[], normal: readonly [number, number, number], key: string): void => {
+    const start = bucket.positions.length / 3;
+    for (const [x, y, z] of vertices) { bucket.positions.push(x, y, z); bucket.normals.push(...normal); }
+    bucket.uvs.push(0, 1, 1, 1, 1, 0, 0, 0);
+    bucket.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
+    bucket.voxelKeys.push(key);
+  };
+  for (const record of records) {
+    const { x, y, z } = record.block.position;
+    const key = `${x},${y},${z}`;
+    face([[x, y + 1, z], [x + 1, y + 1, z], [x + 1, y + 1, z + 1], [x, y + 1, z + 1]], [0, 1, 0], key);
+    face([[x, y, z + 1], [x + 1, y, z + 1], [x + 1, y, z], [x, y, z]], [0, -1, 0], key);
+    face([[x, y, z], [x + 1, y, z], [x + 1, y + 1, z], [x, y + 1, z]], [0, 0, -1], key);
+    face([[x + 1, y, z + 1], [x, y, z + 1], [x, y + 1, z + 1], [x + 1, y + 1, z + 1]], [0, 0, 1], key);
+    face([[x, y, z + 1], [x, y, z], [x, y + 1, z], [x, y + 1, z + 1]], [-1, 0, 0], key);
+    face([[x + 1, y, z], [x + 1, y, z + 1], [x + 1, y + 1, z + 1], [x + 1, y + 1, z]], [1, 0, 0], key);
+  }
+  return { buckets: [bucket], fluidLogicalVoxels: records.length, fluidFacesPotential: bucket.facesPotential, fluidFacesCulled: 0, fluidFacesEmitted: bucket.facesEmitted };
+}
+
 function rotateUv(values: readonly (readonly [number, number])[], angle: number): readonly (readonly [number, number])[] {
   if (!angle) return values;
   const cos = Math.cos(angle); const sin = Math.sin(angle);

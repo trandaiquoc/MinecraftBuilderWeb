@@ -40,4 +40,13 @@ describe('HydrationProgressTracker', () => {
     tracker.begin(1);
     expect(tracker.snapshot()).toMatchObject({ status: 'hydrating', total: 1 });
   });
+
+  it('completes a fluid batch once after its committed representation is ready', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['fluid-a', 'fluid-b', 'solid']);
+    tracker.begin(8);
+    tracker.complete(8, 'block', 'solid');
+    tracker.completeBatch(8, 'block', ['fluid-a', 'fluid-b']);
+    expect(tracker.snapshot()).toMatchObject({ status: 'complete', completed: 3, total: 3, percent: 100 });
+  });
 });

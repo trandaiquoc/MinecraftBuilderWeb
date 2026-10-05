@@ -70,6 +70,8 @@ export interface BlockVisualProvider {
   reusableVisualKey?(block: PlacedBlock, context?: BlockVisualWorldContext): string | undefined;
   fluidRenderResolver?: FluidRenderResolver;
   fluidTexture?(resource: string): Promise<THREE.Texture | undefined>;
+  /** Stable fluid resource contract; provider object identity alone is not a remesh reason. */
+  fluidRenderContractKey?: string;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult>;
@@ -108,6 +110,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   constructor(private readonly assets: RenderableAssetResourceProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets); }
 
   readonly fluidRenderResolver = vanillaFluidRenderResolver;
+  get fluidRenderContractKey(): string { return `vanilla-fluid-v1|${(this.assets as RenderableAssetResourceProvider & { readonly revision?: number }).revision ?? 'unknown'}`; }
 
   async fluidTexture(resource: string): Promise<THREE.Texture | undefined> {
     try {

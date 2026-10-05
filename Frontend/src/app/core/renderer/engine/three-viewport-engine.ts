@@ -68,9 +68,9 @@ import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
 import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
-import { FluidChunkRenderer, type FluidChunkRecord } from '../fluids/fluid-chunk-renderer';
+import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
+import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
 import { fluidChunkKey } from '../fluids/fluid-mesh-core';
-import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -440,6 +440,7 @@ interface RenderedBlockEntry {
   staticModelDecision?: ReturnType<StaticModelBatchRenderer['decisionFor']>;
   staticModelFamily?: string;
   fluidChunkKey?: string;
+  fluidFallback?: boolean;
 }
 
 interface RenderedDecorationEntry {
@@ -688,9 +689,7 @@ export class ThreeViewportEngine {
   private readonly pendingTerrainTemplates = new Map<string, Promise<readonly SurfaceFaceTemplate[] | undefined>>();
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer: StaticModelBatchRenderer;
-  private readonly fluidRenderer = new FluidChunkRenderer(this.blocksGroup);
-  private readonly fluidBlockKeys = new Set<string>();
-  private fluidSyncGeneration = 0;
+  private readonly fluidCoordinator: FluidRenderCoordinator;
   private get instanceBatches(): Map<string, InstanceBatch> { return this.instanceRenderer.batches; }
   private get instanceOwnershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
   /** Compatibility view for diagnostics/tests; ownership remains in the batching module. */
@@ -766,6 +765,15 @@ export class ThreeViewportEngine {
 
   constructor(readonly instrumentation = new RendererDiagnostics(), options: ViewportEngineOptions = {}) {
     this.terrainAtlasMode = options.terrainAtlasMode ?? 'on';
+    this.fluidCoordinator = new FluidRenderCoordinator(new FluidChunkRenderer(this.blocksGroup), {
+      onTerminal: (generation, keys) => {
+        if (generation !== this.hydrationGeneration || this.disposed) return;
+        this.completeHydrationBatch(generation, keys);
+        this.releaseUnusedRetiredProviders();
+        this.invalidateStaticModelDiagnostics();
+        this.scheduleRender();
+      },
+    });
     this.terrainRenderer = new ChunkSurfaceRenderer({
       blocksGroup: this.blocksGroup,
       terrainAtlasMode: this.terrainAtlasMode,
@@ -999,10 +1007,22 @@ export class ThreeViewportEngine {
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
     const previousProvider = this.visualProvider;
-    this.fluidSyncGeneration += 1;
+    const previousFluidEntries = !provider
+      ? [...this.renderedBlocks.values()].filter((entry) => entry.fluidChunkKey !== undefined)
+      : [];
     this.visualProvider = provider;
-    this.fluidRenderer.setProvider(provider?.fluidRenderResolver && provider.fluidTexture ? { resolver: provider.fluidRenderResolver, texture: provider.fluidTexture.bind(provider) } : undefined);
     this.providerLifecycle.transition(previousProvider, provider);
+    this.fluidCoordinator.setProvider(provider?.fluidRenderResolver && provider.fluidTexture ? {
+      contractKey: provider.fluidRenderContractKey ?? `provider-object-v1|${this.providerGeneration}`,
+      resolver: provider.fluidRenderResolver,
+      texture: provider.fluidTexture.bind(provider),
+    } : undefined, provider);
+    if (!provider) for (const entry of previousFluidEntries) {
+      entry.fluidChunkKey = undefined;
+      entry.fluidFallback = true;
+      entry.provider = undefined;
+      this.ensureFallbackVisual(entry);
+    }
     this.providerStats = undefined;
     this.runtimeTrace?.record('provider-generation', { providerGeneration: this.providerGeneration, hasProvider: !!provider });
     this.specialVisualSignature = '';
@@ -1010,11 +1030,24 @@ export class ThreeViewportEngine {
     // A provider becoming available for the first time must promote the
     // placeholder-only scene. A handoff between live providers is different:
     // existing terrain remains authoritative until a changed visual commits.
-    if (!previousProvider || !provider) this.structureSyncKey = '';
+    const requiresStructureResync = !previousProvider || !provider;
+    if (requiresStructureResync) this.structureSyncKey = '';
     if (provider) this.syncSpecialVisualDescriptors();
     if (previousProvider && provider) this.queueProviderRefresh(previousProvider, provider);
+    const hadVisibleCache = this.cachedVisibleProject === this.project;
     this.update(this.project, this.activeBlock, this.renderOptions);
+    if (hadVisibleCache && !requiresStructureResync) this.resyncCurrentFluidProvider();
+    if (!provider && previousFluidEntries.length) this.completeHydrationBatch(this.hydrationGeneration, previousFluidEntries.map((entry) => entry.key));
     this.releaseUnusedRetiredProviders();
+  }
+
+  private resyncCurrentFluidProvider(): void {
+    if (!this.project) return;
+    const visible = this.cachedVisibleProject === this.project && this.cachedVisibleKey === renderFilterKey(this.renderOptions)
+      ? this.cachedVisibleEntries
+      : this.visibleBlocks(this.project, this.renderOptions);
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    this.syncFluidVisuals(visible, worldContext);
   }
   setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined, revision?: number): void {
     if (resolver === this.specialVisualResolver && revision === this.specialVisualRevision) return;
@@ -1125,6 +1158,7 @@ export class ThreeViewportEngine {
       // Undefined keys represent specials, fluids, fallbacks, and other
       // visuals whose dependencies cannot be proven reusable. Refresh those
       // entries, but never invalidate keyed terrain merely for a handoff.
+      if (entry.fluidChunkKey !== undefined || this.fluidCoordinator.isClaimed(key)) continue;
       if (oldKey !== newKey || oldKey === undefined || newKey === undefined) {
         this.hydrationWork.enqueueProviderRefresh({
           token: this.hydrationGeneration,
@@ -1146,7 +1180,7 @@ export class ThreeViewportEngine {
 
   private releaseUnusedRetiredProviders(): void {
     this.providerLifecycle.releaseUnused({
-      referenced: (provider) => [...this.renderedBlocks.values()].some((entry) => entry.provider === provider),
+      referenced: (provider) => [...this.renderedBlocks.values()].some((entry) => entry.provider === provider) || this.fluidCoordinator.referencedProviders().has(provider),
       queued: (provider) => this.hydrationWork.providerRefreshJobs().some((job) => job.key && this.renderedBlocks.get(job.key)?.provider === provider),
     });
   }
@@ -1276,7 +1310,7 @@ export class ThreeViewportEngine {
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
       terrain: { ...terrain, terrainAtlas: { ...terrain.terrainAtlas } },
       staticModels: { ...staticModels },
-      fluids: { ...this.fluidRenderer.diagnostics() },
+      fluids: { ...this.fluidCoordinator.diagnostics() },
       build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed },
     };
   }
@@ -1354,7 +1388,7 @@ export class ThreeViewportEngine {
     if (!full) this.terrainRenderer.syncOccupancy(visible, terrainAffectedPositions);
     this.updateInteriorCulling(visible, full, changed);
     const renderVisible = visible.filter((entry) => {
-      if (this.fluidBlockKeys.has(coordinateKey(entry.block.position))) return false;
+      if (this.fluidCoordinator.isClaimed(coordinateKey(entry.block.position))) return false;
       if (options.exposedFaceRendering === true && isCompiledTerrainEntry(entry)) return true;
       return !this.culledBlockKeys.has(coordinateKey(entry.block.position));
     });
@@ -1435,36 +1469,30 @@ export class ThreeViewportEngine {
   }
 
   private syncFluidVisuals(visible: readonly VisibleBlockEntry[], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, changedPositions?: readonly VoxelCoordinate[]): void {
-    const records: FluidChunkRecord[] = [];
-    if (!this.visualProvider?.fluidRenderResolver || !this.visualProvider.fluidTexture) {
-      this.fluidSyncGeneration += 1;
-      this.fluidRenderer.clear();
-      for (const key of this.fluidBlockKeys) { const entry = this.renderedBlocks.get(key); if (entry?.fluidChunkKey !== undefined) this.renderedBlocks.delete(key); }
-      this.fluidBlockKeys.clear();
-      return;
-    }
-    const resolver = this.visualProvider?.fluidRenderResolver ?? vanillaFluidRenderResolver;
-    for (const entry of visible) {
-      const state = resolver.resolve(entry.block, worldContext);
-      if (!state) continue;
-      const key = coordinateKey(entry.block.position);
-      this.fluidBlockKeys.add(key);
-      const previous = this.renderedBlocks.get(key);
-      if (previous && previous.fluidChunkKey === undefined) this.removeBlockEntry(key, previous);
-      this.renderedBlocks.set(key, { key, block: entry.block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(entry.block.position) });
-      records.push({ block: entry.block, state, role: entry.role === 'reference' ? 'reference' : 'normal' });
-    }
+    const records = this.visualProvider?.fluidRenderResolver && this.visualProvider.fluidTexture
+      ? visible.flatMap((entry) => {
+        const state = this.visualProvider!.fluidRenderResolver!.resolve(entry.block, worldContext);
+        return state ? [{ block: entry.block, state, role: entry.role === 'reference' ? 'reference' as const : 'normal' as const }] : [];
+      })
+      : [];
+    const visibleByKey = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     const nextKeys = new Set(records.map((record) => coordinateKey(record.block.position)));
-    for (const key of [...this.fluidBlockKeys]) {
+    for (const key of this.fluidCoordinator.claimedKeys()) {
       if (nextKeys.has(key)) continue;
-      this.fluidBlockKeys.delete(key);
       const entry = this.renderedBlocks.get(key);
       if (entry?.fluidChunkKey !== undefined) this.renderedBlocks.delete(key);
     }
-    const generation = ++this.fluidSyncGeneration;
-    void this.fluidRenderer.sync(records, worldContext, changedPositions).then(() => {
-      if (generation === this.fluidSyncGeneration) { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); }
-    });
+    for (const record of records) {
+      const key = coordinateKey(record.block.position);
+      const entry = visibleByKey.get(key);
+      if (!entry) continue;
+      const previous = this.renderedBlocks.get(key);
+      if (previous && previous.fluidChunkKey === undefined) this.removeBlockEntry(key, previous);
+      this.renderedBlocks.set(key, { key, block: entry.block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(entry.block.position) });
+    }
+    if (!records.length && !this.visualProvider?.fluidRenderResolver) this.fluidCoordinator.clear();
+    const hydrationGeneration = this.hydrationGeneration;
+    void this.fluidCoordinator.sync(records, worldContext, hydrationGeneration, changedPositions).then(() => { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); });
   }
 
   private terrainCandidate(key: string, next: VisibleBlockEntry, worldContext: TerrainHydrationCandidate['worldContext'], options: ViewportRenderOptions): TerrainHydrationCandidate | undefined {
@@ -1818,6 +1846,10 @@ export class ThreeViewportEngine {
 
   private completeHydrationPart(token: number, kind: 'block' | 'decoration', key: string): void {
     this.hydrationProgressTracker.complete(token, kind, key);
+  }
+
+  private completeHydrationBatch(token: number, keys: readonly string[]): void {
+    this.hydrationProgressTracker.completeBatch(token, 'block', keys);
   }
 
   private publishHydrationProgress(progress: ViewportHydrationProgress): void {
@@ -2313,7 +2345,6 @@ export class ThreeViewportEngine {
     this.invalidateStaticModelDiagnostics();
     entry.revision += 1;
     if (entry.fluidChunkKey !== undefined) {
-      this.fluidBlockKeys.delete(key);
       if (this.renderedBlocks.get(key) === entry) this.renderedBlocks.delete(key);
       return;
     }
@@ -2342,7 +2373,7 @@ export class ThreeViewportEngine {
   }
 
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); this.fluidRenderer.clear(); this.fluidBlockKeys.clear(); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); this.fluidCoordinator.clear(); this.releaseUnusedRetiredProviders(); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -2462,7 +2493,7 @@ export class ThreeViewportEngine {
       if (entry) {
         add(entry.fallback);
         add(entry.object);
-        if (entry.fluidChunkKey !== undefined) for (const object of this.fluidRenderer.objectsForVoxel(key)) add(object);
+        if (entry.fluidChunkKey !== undefined) for (const object of this.fluidCoordinator.objectsForVoxel(key)) add(object);
         for (const membership of entry.surfaceFaceMemberships ?? this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
         if (entry.instanceBatchKey) for (const part of this.instanceBatches.get(entry.instanceBatchKey)?.parts ?? []) add(part);
       } else {
@@ -2557,7 +2588,7 @@ export class ThreeViewportEngine {
     const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld).normalize() ?? new THREE.Vector3();
     const point = hit.point.clone().sub(normal.multiplyScalar(.002));
     const candidate = { x: Math.floor(point.x), y: Math.floor(point.y), z: Math.floor(point.z) };
-    return this.fluidRenderer.hasVoxel(coordinateKey(candidate)) ? candidate : undefined;
+    return this.fluidCoordinator.hasVoxel(coordinateKey(candidate)) ? candidate : undefined;
   }
 
   /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
@@ -2624,7 +2655,7 @@ export class ThreeViewportEngine {
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
     this.clearSurfaceFaceResources();
-    this.fluidRenderer.dispose();
+    this.fluidCoordinator.dispose();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
     this.instanceRenderer.clear();
@@ -3040,14 +3071,14 @@ export class ThreeViewportEngine {
       staticModelRejected: staticModelMetrics.rejected,
       staticModelBatchCount: this.instanceBatches.size,
       staticModelInstanceMeshCount: renderCost.instance.meshCount,
-      fluidLogicalVoxels: this.fluidRenderer.diagnostics().fluidLogicalVoxels,
-      fluidChunks: this.fluidRenderer.diagnostics().fluidChunks,
-      fluidChunkMeshes: this.fluidRenderer.diagnostics().fluidChunkMeshes,
-      fluidStandaloneMeshes: this.fluidRenderer.diagnostics().fluidStandaloneMeshes,
-      fluidFacesPotential: this.fluidRenderer.diagnostics().fluidFacesPotential,
-      fluidFacesCulled: this.fluidRenderer.diagnostics().fluidFacesCulled,
-      fluidFacesEmitted: this.fluidRenderer.diagnostics().fluidFacesEmitted,
-      fluidMaterialBuckets: this.fluidRenderer.diagnostics().fluidMaterialBuckets,
+      fluidLogicalVoxels: this.fluidCoordinator.diagnostics().fluidLogicalVoxels,
+      fluidChunks: this.fluidCoordinator.diagnostics().fluidChunks,
+      fluidChunkMeshes: this.fluidCoordinator.diagnostics().fluidChunkMeshes,
+      fluidStandaloneMeshes: this.fluidCoordinator.diagnostics().fluidStandaloneMeshes,
+      fluidFacesPotential: this.fluidCoordinator.diagnostics().fluidFacesPotential,
+      fluidFacesCulled: this.fluidCoordinator.diagnostics().fluidFacesCulled,
+      fluidFacesEmitted: this.fluidCoordinator.diagnostics().fluidFacesEmitted,
+      fluidMaterialBuckets: this.fluidCoordinator.diagnostics().fluidMaterialBuckets,
       standaloneBlockObjects: renderCost.standaloneBlockObjects,
       standaloneBlockMeshes: renderCost.standaloneBlockMeshes,
       standaloneTransparentMeshes: renderCost.standaloneTransparentMeshes,

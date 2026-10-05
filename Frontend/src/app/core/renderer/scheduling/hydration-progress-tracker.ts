@@ -75,14 +75,18 @@ export class HydrationProgressTracker {
   }
 
   complete(generation: number, kind: ProgressPart, key: string): void {
-    if (kind === 'block') {
-      if (!this.blockScope.has(key)) return;
-      this.completedBlocks.add(key);
-    } else {
-      if (!this.decorationScope.has(key)) return;
-      this.completedDecorations.add(key);
-    }
+    this.completeKeys(generation, kind, [key]);
+  }
+
+  completeBatch(generation: number, kind: ProgressPart, keys: readonly string[]): void {
+    this.completeKeys(generation, kind, keys);
+  }
+
+  private completeKeys(generation: number, kind: ProgressPart, keys: readonly string[]): void {
     if (this.progress.generation !== generation) return;
+    const scope = kind === 'block' ? this.blockScope : this.decorationScope;
+    const completedSet = kind === 'block' ? this.completedBlocks : this.completedDecorations;
+    for (const key of keys) if (scope.has(key)) completedSet.add(key);
     const blocksTotal = this.blockScope.size;
     const decorationsTotal = this.decorationScope.size;
     const total = blocksTotal + decorationsTotal;

@@ -13,6 +13,7 @@ import { coordinateKey } from '../../domain/coordinates';
 import { viewportThemePalette } from './viewport-theme';
 import { RendererDiagnostics } from './renderer-diagnostics';
 import { blockMutationHint } from '../../editor/mutations/project-mutation-hint';
+import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 
 describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
@@ -1648,6 +1649,58 @@ describe('provider handoff hydration ownership', () => {
     engine.dispose();
     firstProvider.dispose();
     secondProvider.dispose();
+  });
+
+  it('keeps fluids chunk-owned across provider replacement and completes their hydration', async () => {
+    const texture = new THREE.DataTexture(new Uint8Array([80, 140, 220, 255]), 1, 1); texture.needsUpdate = true;
+    const makeProvider = (contractKey: string) => ({
+      create: vi.fn(async () => resolvedVisual()),
+      fluidRenderContractKey: contractKey,
+      fluidRenderResolver: vanillaFluidRenderResolver,
+      fluidTexture: async () => texture,
+      thumbnailUrl: () => undefined,
+    }) as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [0, 1, 16].map((x) => ({ kind: 'resolved', id: 'minecraft:water', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state: { level: '0' } }));
+    const project = { ...base, size: { x: 17, y: 1, z: 1 }, blocks, decorations: [] };
+    const engine = new ThreeViewportEngine();
+    const providerA = makeProvider('fluid-A');
+    engine.setVisualProvider(providerA);
+    engine.update(project, undefined);
+    await settleHydration(200, engine);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 3, total: 3, percent: 100 });
+    expect(engine.runtimeTraceSample().fluids).toMatchObject({ fluidDetectedVoxels: 3, fluidCommittedVoxels: 3, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0, fluidStandaloneMeshes: 0 });
+    const providerB = makeProvider('fluid-B');
+    engine.setVisualProvider(providerB);
+    await settleHydration(200, engine);
+    expect(providerB.create).not.toHaveBeenCalled();
+    expect(engine.runtimeTraceSample().fluids).toMatchObject({ fluidDetectedVoxels: 3, fluidCommittedVoxels: 3, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0, fluidStandaloneMeshes: 0 });
+    expect(engine.performanceEvidence().standaloneBlockObjects).toBe(0);
+    engine.dispose(); texture.dispose();
+  });
+
+  it('terminates fluid ownership with placeholders when the provider is removed', async () => {
+    const texture = new THREE.DataTexture(new Uint8Array([80, 140, 220, 255]), 1, 1); texture.needsUpdate = true;
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [0, 1].map((x) => ({ kind: 'resolved', id: 'minecraft:water', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state: { level: '0' } }));
+    const project = { ...base, size: { x: 2, y: 1, z: 1 }, blocks, decorations: [] };
+    const engine = new ThreeViewportEngine();
+    const provider = {
+      create: vi.fn(async () => resolvedVisual()),
+      fluidRenderContractKey: 'fluid-removal',
+      fluidRenderResolver: vanillaFluidRenderResolver,
+      fluidTexture: async () => texture,
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await settleHydration(200, engine);
+    engine.setVisualProvider(undefined);
+    await settleHydration(200, engine);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 2, total: 2, percent: 100 });
+    expect(engine.runtimeTraceSample().fluids).toMatchObject({ fluidDetectedVoxels: 0, fluidLogicalVoxels: 0, fluidChunks: 0, fluidOrphanedLogicalCount: 0, fluidStandaloneMeshes: 0 });
+    expect(provider.create).not.toHaveBeenCalled();
+    engine.dispose(); texture.dispose();
   });
 
   it('keeps placeholders stable without a provider and does not create a runaway queue', async () => {

@@ -2430,6 +2430,12 @@ Fluid chunk records are kept separate from opaque terrain ownership. Shared
 faces are culled by resolver connectivity identity, including chunk boundaries,
 and flow-angle UVs remain per-face. The viewport trace exposes fluid logical
 voxels, chunk meshes, face counts, material buckets, rebuilds, render-layer
-counts, and fallback counts. No water-only chunk renderer, greedy meshing, LOD,
-camera change, placement change, hydration fairness change, or Y-layer fluid
-implementation was added.
+counts, and fallback counts. Fluid lifecycle is coordinated by
+`FluidRenderCoordinator`: detected, pending, committed, fallback, and orphaned
+keys are generation-aware, and hydration completes only after a committed
+chunk/fallback representation. Provider handoffs keep old committed chunks and
+provider leases alive until the replacement commits atomically; stale A->B->C
+builds cannot replace the current generation. Provider refresh skips claimed
+fluid voxels, so they cannot return as standalone provider objects. No
+water-only chunk renderer, greedy meshing, LOD, camera change, placement change,
+hydration fairness change, or Y-layer fluid implementation was added.
