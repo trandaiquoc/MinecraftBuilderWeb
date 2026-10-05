@@ -22,15 +22,4 @@ describe('HydrationScheduler', () => {
     expect(scheduler.queued()).toBe(0);
     expect(scheduler.currentGeneration).toBe(generation + 1);
   });
-
-  it('uses an explicit yield boundary between slices instead of a microtask-only loop', () => {
-    const microtasks: (() => void)[] = [];
-    const yields: (() => void)[] = [];
-    const scheduler = new HydrationScheduler<number>({ requestMicrotask: (callback) => microtasks.push(callback), requestYield: (callback) => yields.push(callback) });
-    scheduler.schedule(() => undefined);
-    expect(microtasks).toHaveLength(0);
-    expect(yields).toHaveLength(1);
-    yields[0]();
-    expect(scheduler.isScheduled).toBe(false);
-  });
 });

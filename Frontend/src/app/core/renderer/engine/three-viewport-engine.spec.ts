@@ -1877,36 +1877,6 @@ describe('selection visualization scalability', () => {
     expect(geometries.every((geometry) => geometry === geometries[0])).toBe(true);
     engine.dispose();
   });
-
-  it('does not report structural complete while provider work is unresolved', async () => {
-    let resolveVisual: ((value: unknown) => void) | undefined;
-    const pendingVisual = new Promise((resolve) => { resolveVisual = resolve; });
-    const provider = { create: () => pendingVisual, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
-    const base = rendererBenchmarkProject('small');
-    const project = { ...base, blocks: base.blocks.slice(0, 1), decorations: [] };
-    const engine = new ThreeViewportEngine();
-    engine.setVisualProvider(provider);
-    engine.update(project, undefined);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'hydrating', total: 1 });
-    resolveVisual?.({ object: new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()), resolved: { diagnostics: [], support: 'full' }, mode: 'real', diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } });
-    await settleHydration(40, engine);
-    expect(engine.hydrationProgress().status).toBe('complete');
-    engine.dispose();
-  });
-
-  it('promotes late provider visuals without mass-clearing provisional ownership', async () => {
-    const base = rendererBenchmarkProject('small');
-    const project = { ...base, blocks: base.blocks.slice(0, 20), decorations: [] };
-    const engine = new ThreeViewportEngine();
-    engine.update(project, undefined);
-    expect(engine.rendererOwnershipDiagnostics().placeholderVisualCount).toBeGreaterThan(0);
-    engine.setVisualProvider(axisCubeProvider('late-provider'));
-    expect(engine.rendererOwnershipDiagnostics().placeholderVisualCount).toBeGreaterThan(0);
-    await settleHydration(80, engine);
-    expect(engine.rendererOwnershipDiagnostics().placeholderVisualCount).toBe(0);
-    engine.dispose();
-  });
 });
 
 function cubeFaceTemplates(materials: readonly THREE.Material[]): readonly InstancePartTemplate[] {

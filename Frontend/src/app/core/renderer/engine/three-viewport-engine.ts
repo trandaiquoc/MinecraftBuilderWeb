@@ -724,11 +724,7 @@ export class ThreeViewportEngine {
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
   private readonly hydrationProgressTracker = new HydrationProgressTracker(
     () => this.instrumentation.record('hydrationProgressRegressions'),
-    (progress) => {
-      this.runtimeTrace?.record('hydration-progress', { generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent });
-      if (progress.status === 'complete') this.runtimeTrace?.record('hydration-generation-end', { generation: progress.generation, completed: progress.completed, total: progress.total });
-    },
-    () => this.isStructuralCompletionReady(),
+    (progress) => this.runtimeTrace?.record('hydration-progress', { generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent }),
   );
   private hemisphereLight?: THREE.HemisphereLight;
   private keyLight?: THREE.DirectionalLight;
@@ -786,7 +782,6 @@ export class ThreeViewportEngine {
       onTerminal: (generation, keys) => {
         if (generation !== this.hydrationGeneration || this.disposed) return;
         this.completeHydrationBatch(generation, keys);
-        this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
         this.releaseUnusedRetiredProviders();
         this.invalidateStaticModelDiagnostics();
         this.scheduleRender();
@@ -1048,14 +1043,13 @@ export class ThreeViewportEngine {
     // A provider becoming available for the first time must promote the
     // placeholder-only scene. A handoff between live providers is different:
     // existing terrain remains authoritative until a changed visual commits.
-    const requiresStructureResync = !provider;
+    const requiresStructureResync = !previousProvider || !provider;
     if (requiresStructureResync) this.structureSyncKey = '';
     if (provider) this.syncSpecialVisualDescriptors();
     if (previousProvider && provider) this.queueProviderRefresh(previousProvider, provider);
     if (!provider) { this.providerConvergence.reset(this.providerGeneration); this.publishProviderConvergence(); }
     const hadVisibleCache = this.cachedVisibleProject === this.project;
     this.update(this.project, this.activeBlock, this.renderOptions);
-    if (!previousProvider && provider) this.queueProviderPromotion();
     if (hadVisibleCache && !requiresStructureResync) this.resyncCurrentFluidProvider();
     if (!provider && previousFluidEntries.length) this.completeHydrationBatch(this.hydrationGeneration, previousFluidEntries.map((entry) => entry.key));
     this.releaseUnusedRetiredProviders();
@@ -1210,39 +1204,6 @@ export class ThreeViewportEngine {
     if (this.hydrationWork.queuedProviderRefresh()) this.scheduleHydrationPump();
   }
 
-  /** Promotes provisional fallback visuals without invalidating the current scene. */
-  private queueProviderPromotion(): void {
-    if (!this.project || !this.visualProvider) return;
-    const visible = this.cachedVisibleProject === this.project && this.cachedVisibleKey === renderFilterKey(this.renderOptions)
-      ? this.cachedVisibleMap
-      : new Map(this.visibleBlocks(this.project, this.renderOptions).map((entry) => [coordinateKey(entry.block.position), entry] as const));
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
-    let queued = 0;
-    for (const [key, entry] of visible) {
-      const current = this.renderedBlocks.get(key);
-      if (current && this.isCommittedRenderedEntry(key, current) && !this.placeholderSignatures.has(key)) continue;
-      if (this.pendingHydrationSignatures.get(key) === entry.signature) continue;
-      this.pendingHydrationSignatures.set(key, entry.signature);
-      this.placeholderSignatures.delete(key);
-      this.hydrationWork.enqueueRegular({
-        token: this.hydrationGeneration,
-        key,
-        block: entry.block,
-        signature: entry.signature,
-        role: entry.role,
-        worldContext,
-        options: this.renderOptions,
-        allowInstancing: true,
-        surfaceFastPathEligible: this.renderOptions.exposedFaceRendering === true && entry.role === 'normal' && entry.occlusionClass === 'opaque-full-cube',
-        surfaceVisibleEntries: visible,
-      });
-      queued += 1;
-    }
-    if (!queued) return;
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
-    this.scheduleHydrationPump();
-  }
-
   private releaseUnusedRetiredProviders(): void {
     this.providerLifecycle.releaseUnused({
       referenced: (provider) => [...this.renderedBlocks.values()].some((entry) => entry.provider === provider) || this.fluidCoordinator.referencedProviders().has(provider),
@@ -1273,18 +1234,7 @@ export class ThreeViewportEngine {
       if (incrementalMutation && project && mutationHint) {
         this.applyIncrementalMutation(project, options, mutationHint);
       } else {
-        if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) {
-          const reason = projectIdentityChanged
-            ? previousProject ? 'different-project' : 'initial-project-load'
-            : renderFilterKey(previousOptions) !== renderFilterKey(options)
-              ? 'render-filter-change'
-              : !this.visualProvider
-                ? 'provider-contract-change'
-                : inPlaceBlockMutation && mutationHint
-                  ? 'local-full-fallback'
-                  : 'same-project-reconcile';
-          this.cancelHydration(reason);
-        }
+        if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) this.cancelHydration();
         this.reconcileStructure(project, options, full);
       }
       this.structureSyncKey = syncKey;
@@ -1382,12 +1332,12 @@ export class ThreeViewportEngine {
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
       hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.cachedVisibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
-      render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, frameSequence: counters.actualSceneRenders, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.filter((child) => child.visible).length + this.decorationsGroup.children.filter((child) => child.visible).length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain.terrainChunkMeshes, standaloneMeshCount: standaloneBlockObjects, renderRegionCount: renderRegions.size },
+      render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.filter((child) => child.visible).length + this.decorationsGroup.children.filter((child) => child.visible).length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain.terrainChunkMeshes, standaloneMeshCount: standaloneBlockObjects, renderRegionCount: renderRegions.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision, providerConvergence: this.providerConvergence.snapshot() },
       terrain: { ...terrain, terrainAtlas: { ...terrain.terrainAtlas } },
       staticModels: { ...staticModels },
       fluids: { ...this.fluidCoordinator.diagnostics() },
-      build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed, hydrationScheduler: this.hydrationScheduler.metrics() },
+      build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed },
     };
   }
 
@@ -1821,9 +1771,8 @@ export class ThreeViewportEngine {
         if (candidate) failed.push(candidate);
       }
       this.enqueueFailedTerrainCandidates(failed);
-        this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
+      this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
       this.recordProviderCacheStats();
-        this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
       this.scheduleRender();
       if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     }).catch(() => {
@@ -1982,7 +1931,7 @@ export class ThreeViewportEngine {
     this.hydrationProgressTracker.setDecorationScope(ids);
   }
 
-  private beginHydrationProgress(_blocksWork: number, _decorationsWork: number, lane: 'initial' | 'local' | 'provider' = this.hydrationLane): void {
+  private beginHydrationProgress(_blocksWork: number, _decorationsWork: number, lane: 'initial' | 'local' | 'provider' = 'initial'): void {
     this.hydrationLane = lane;
     this.hydrationProgressTracker.setLane(lane);
     this.hydrationProgressTracker.begin(this.hydrationGeneration);
@@ -2158,25 +2107,10 @@ export class ThreeViewportEngine {
     if (processed > 0) this.scheduleRender();
   }
 
-  private cancelHydration(reason: 'initial-project-load' | 'different-project' | 'render-filter-change' | 'provider-contract-change' | 'local-full-fallback' | 'same-project-reconcile' | 'dispose' = 'same-project-reconcile'): void {
+  private cancelHydration(): void {
     if (this.cameraGestureInProgress || this.pressedActions.size > 0) this.instrumentation.record('cameraOnlyGenerationChanges');
     this.hydrationGeneration += 1;
     this.instrumentation.record('hydrationGenerations');
-    this.hydrationLane = 'initial';
-    this.hydrationProgressTracker.setLane('initial');
-    this.runtimeTrace?.record('hydration-generation-start', {
-      reason,
-      previousGeneration: this.hydrationGeneration - 1,
-      generation: this.hydrationGeneration,
-      projectId: this.project?.id,
-      projectRevision: this.project?.metadata.updatedAt,
-      providerGeneration: this.providerGeneration,
-      specialVisualRevision: this.specialVisualRevision,
-      visibleLogicalCount: this.cachedVisibleEntries.length,
-      mutationHint: reason === 'local-full-fallback',
-      renderFilter: renderFilterKey(this.renderOptions),
-      assetStatusRevision: this.specialVisualRevision,
-    });
     if (this.queuedBlockHydrationJobs() || this.hydrationRunning) this.instrumentation.record('cancelledHydrations');
     this.hydrationWork.clearPending();
     this.pendingHydrationSignatures.clear();
@@ -2205,11 +2139,6 @@ export class ThreeViewportEngine {
       const keys = [...this.pendingHydrationCompletionKeys];
       this.pendingHydrationCompletionKeys.clear();
       this.completeHydrationBatch(token, keys);
-      // Completion callbacks can make the structural gate true without a
-      // subsequent queue transition. Re-evaluate immediately so a fully
-      // owned fallback/real representation cannot remain falsely hydrating
-      // until the watchdog fires.
-      if (token === this.hydrationGeneration) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(token) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
     };
     if (typeof queueMicrotask === 'function') queueMicrotask(flush); else Promise.resolve().then(flush);
   }
@@ -2838,7 +2767,7 @@ export class ThreeViewportEngine {
     this.clearInput();
     this.terminalReconciler.dispose();
     this.cancelPendingHover(false);
-    this.cancelHydration('dispose');
+    this.cancelHydration();
     const provider = this.visualProvider;
     this.cameraRenderPending = false;
     this.cameraInteraction.clear();
@@ -3438,27 +3367,10 @@ export class ThreeViewportEngine {
     for (const entry of visible) {
       const key = coordinateKey(entry.block.position);
       const current = this.renderedBlocks.get(key);
-      const knownFallback = !this.visualProvider && this.placeholderSignatures.get(key) === entry.signature;
-      const terminalVisual = !!current && current.signature === entry.signature && !this.pendingHydrationSignatures.has(key) && !this.placeholderIndices.has(key);
-      if (this.fluidCoordinator.isClaimed(key) ? !this.fluidCoordinator.isTerminal(key) : !knownFallback && !terminalVisual && !this.isCommittedRenderedEntry(key, current ?? { key, block: entry.block, signature: '', role: entry.role, revision: 0 })) return false;
+      if (this.fluidCoordinator.isClaimed(key) ? !this.fluidCoordinator.isTerminal(key) : !this.isCommittedRenderedEntry(key, current ?? { key, block: entry.block, signature: '', role: entry.role, revision: 0 })) return false;
     }
     const decorations = (this.project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, this.project!.groups));
     return decorations.every((decoration) => this.renderedDecorations.get(decoration.instanceId)?.signature === `${decorationSignature(decoration)}|${this.decorationRevision}`);
-  }
-
-  /** Structural completion is an ownership fact, never just a logical-count fact. */
-  private isStructuralCompletionReady(): boolean {
-    const counts = this.hydrationWork.counts();
-    const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;
-    if (counts.regularQueued || counts.providerRefreshQueued || counts.providerRefreshRunning || currentGenerationRunning) return false;
-    if (this.queuedDecorationHydrationJobs() || this.terrainHydrationPending) return false;
-    const fluid = this.fluidCoordinator.diagnostics();
-    if (fluid.fluidPendingVoxels > 0) return false;
-    // Coarse occupancy placeholders are provisional. A provider-produced
-    // fallback visual is terminal once its job has completed and ownership
-    // has no pending signature.
-    if (this.visualProvider && (this.pendingHydrationSignatures.size || this.placeholderIndices.size)) return false;
-    return this.hydrationOwnershipComplete();
   }
 
   terrainOwnershipFor(key: string): TerrainOwnershipEvidence | undefined {

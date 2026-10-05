@@ -15,7 +15,7 @@ describe('HydrationProgressTracker', () => {
     tracker.complete(4, 'decoration', 'd');
     tracker.complete(4, 'block', 'b');
     expect(tracker.snapshot()).toMatchObject({ status: 'complete', completed: 3, percent: 100 });
-    expect(updates).toEqual([0, 1, 2, 3]);
+    expect(updates).toEqual([0, 1, 1, 2, 3]);
   });
 
   it('ignores stale generation completion and keeps same-generation progress monotonic', () => {
@@ -58,7 +58,7 @@ describe('HydrationProgressTracker', () => {
     tracker.completeBatch(1, 'block', ['changed', 'unchanged-a', 'unchanged-b']);
     const before = updates.length;
     tracker.completeBatch(1, 'block', ['changed']);
-    expect(updates).toHaveLength(before);
+    expect(updates).toHaveLength(before + 1);
     expect(tracker.snapshot().completed).toBe(3);
   });
 
@@ -94,26 +94,5 @@ describe('HydrationProgressTracker', () => {
     tracker.addBlockKey('new');
     tracker.begin(1);
     expect(tracker.snapshot()).toMatchObject({ lane: 'local', total: 2 });
-  });
-
-  it('does not publish complete while the authoritative ownership gate is false', () => {
-    let ownershipReady = false;
-    const tracker = new HydrationProgressTracker(undefined, undefined, () => ownershipReady);
-    tracker.setBlockScope(['a']);
-    tracker.begin(1);
-    tracker.complete(1, 'block', 'a');
-    expect(tracker.snapshot()).toMatchObject({ status: 'hydrating', completed: 1, total: 1 });
-    ownershipReady = true;
-    tracker.begin(1);
-    expect(tracker.snapshot()).toMatchObject({ status: 'complete', completed: 1, percent: 100 });
-  });
-
-  it('deduplicates identical snapshots', () => {
-    const publish = vi.fn();
-    const tracker = new HydrationProgressTracker(undefined, publish);
-    tracker.setBlockScope(['a']);
-    tracker.begin(1);
-    tracker.begin(1);
-    expect(publish).toHaveBeenCalledTimes(1);
   });
 });

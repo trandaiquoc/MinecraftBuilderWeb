@@ -147,34 +147,4 @@ describe('ViewportRuntimeTrace', () => {
     expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['anomaly:progress-regression', 'anomaly:hydration-generation-change']));
     expect(document?.summary.hydration.progressRegressionCount).toBeGreaterThan(0);
   });
-
-  it('deduplicates repeated progress snapshots and stale frame stalls', () => {
-    let current = sample({ render: { frameDurationMs: 2097.465, frameSequence: 7 } });
-    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => current });
-    trace.start('dedupe');
-    trace.record('hydration-progress', { generation: 1, status: 'complete', completed: 10, total: 10, percent: 100 });
-    trace.record('hydration-progress', { generation: 1, status: 'complete', completed: 10, total: 10, percent: 100 });
-    trace.captureSample('stale-a');
-    trace.captureSample('stale-b');
-    current = sample({ render: { frameDurationMs: 2097.465, frameSequence: 8 } });
-    trace.captureSample('new-frame');
-    const document = trace.stop();
-    expect(document?.timeline.filter((event) => event.type === 'hydration-progress')).toHaveLength(1);
-    expect(document?.summary.anomalies.filter((entry) => entry.type === 'frame-stall-over-100ms')).toHaveLength(2);
-  });
-
-  it('returns a copied trace string without requiring a download', async () => {
-    const writeText = vi.fn(async () => undefined);
-    vi.stubGlobal('navigator', { clipboard: { writeText } });
-    try {
-      const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
-      const api = trace.getApi();
-      api.start('copy');
-      const text = await api.stopAndCopy();
-      expect(text).toContain('minecraftbuilder.viewport-trace.v1');
-      expect(writeText).toHaveBeenCalledWith(text);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
 });

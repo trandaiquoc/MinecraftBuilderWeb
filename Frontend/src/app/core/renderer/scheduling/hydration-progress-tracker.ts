@@ -40,11 +40,7 @@ export class HydrationProgressTracker {
   private progress: HydrationProgressSnapshot = idleProgress(0);
   private lane: HydrationLane = 'initial';
 
-  constructor(
-    private readonly onRegression?: () => void,
-    private readonly onPublish?: (progress: HydrationProgressSnapshot) => void,
-    private readonly canComplete: () => boolean = () => true,
-  ) {}
+  constructor(private readonly onRegression?: () => void, private readonly onPublish?: (progress: HydrationProgressSnapshot) => void) {}
 
   snapshot(): HydrationProgressSnapshot { return this.progress; }
 
@@ -108,10 +104,7 @@ export class HydrationProgressTracker {
     const blocksCompleted = this.completedBlocks.size;
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
-    if (completed >= total) {
-      this.publish({ generation, status: this.canComplete() ? 'complete' : 'hydrating', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: this.canComplete() ? 100 : 99.999, lane: this.lane });
-      return;
-    }
+    if (completed >= total) return;
     this.publish({ generation, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100, lane: this.lane });
   }
 
@@ -135,8 +128,7 @@ export class HydrationProgressTracker {
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
     if (completed >= total) {
-      const complete = this.canComplete();
-      this.publish({ generation, status: complete ? 'complete' : 'hydrating', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: complete ? 100 : 99.999, lane: this.lane });
+      this.publish({ generation, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100, lane: this.lane });
       return;
     }
     this.publish({ generation, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0, lane: this.lane });
@@ -150,8 +142,7 @@ export class HydrationProgressTracker {
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
     if (!total) { this.publish(idleProgress(generation)); return; }
-    const complete = completed >= total && this.canComplete();
-    this.publish({ generation, status: complete ? 'complete' : 'hydrating', completed: Math.min(completed, total), total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: complete ? 100 : completed >= total ? 99.999 : completed / total * 100, lane: this.lane });
+    this.publish({ generation, status: completed >= total ? 'complete' : 'hydrating', completed: Math.min(completed, total), total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed >= total ? 100 : completed / total * 100, lane: this.lane });
   }
 
   reset(generation: number): void {
@@ -173,7 +164,6 @@ export class HydrationProgressTracker {
 
   publish(next: HydrationProgressSnapshot): void {
     const current = this.progress;
-    if (sameProgress(current, next)) return;
     const sameScope = current.generation === next.generation && current.total > 0 && (next.total === current.total || next.total === 0);
     if (sameScope && (next.completed < current.completed || next.total === 0 || next.blocksCompleted < current.blocksCompleted || next.decorationsCompleted < current.decorationsCompleted)) {
       this.onRegression?.();
@@ -183,17 +173,4 @@ export class HydrationProgressTracker {
     this.onPublish?.(next);
     for (const listener of this.listeners) listener(next);
   }
-}
-
-function sameProgress(left: HydrationProgressSnapshot, right: HydrationProgressSnapshot): boolean {
-  return left.generation === right.generation
-    && left.status === right.status
-    && left.completed === right.completed
-    && left.total === right.total
-    && left.blocksCompleted === right.blocksCompleted
-    && left.blocksTotal === right.blocksTotal
-    && left.decorationsCompleted === right.decorationsCompleted
-    && left.decorationsTotal === right.decorationsTotal
-    && left.percent === right.percent
-    && left.lane === right.lane;
 }
