@@ -387,10 +387,10 @@ describe('camera movement input contract', () => {
   });
 
   it('traces the reason and pre-clear ownership when a project identity restarts hydration', async () => {
-    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const provider = rendererBenchmarkVisualProvider();
     const base = rendererBenchmarkProject('small');
     const project = { ...base, blocks: base.blocks.slice(0, 8), decorations: [] };
-    const reopened = { ...project, metadata: { ...project.metadata, updatedAt: '2026-10-05T00:00:01.000Z' } };
+    const reopened = { ...project, blocks: [{ ...project.blocks[0], state: { changed: 'true' } }, ...project.blocks.slice(1)] };
     const engine = new ThreeViewportEngine();
     engine.setVisualProvider(provider);
     engine.update(project, undefined);
@@ -1018,9 +1018,11 @@ describe('camera movement input contract', () => {
     engine.update(project, undefined);
     await settleHydration(40, engine);
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', completed: 1, total: 1 });
+    const generation = engine.hydrationProgress().generation;
 
     const reopened = { ...project, blocks: project.blocks.map((block) => ({ ...block, state: { ...block.state } })) };
     engine.update(reopened, undefined);
+    expect(engine.hydrationProgress().generation).toBe(generation);
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', completed: 1, total: 1, blocksCompleted: 1 });
     expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, running: 0, orphanedHydrationCount: 0 });
     engine.dispose();
