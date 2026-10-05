@@ -1869,8 +1869,18 @@ export class ThreeViewportEngine {
     const key = coordinateKey(entry.block.position);
     const previous = this.culledBlockKeys.has(key);
     if (culled === previous) return;
-    if (culled) { this.culledBlockKeys.add(key); this.instrumentation.record('interiorBlocksCulled'); }
-    else { this.culledBlockKeys.delete(key); this.instrumentation.record('interiorBlocksCulled', -1); }
+    if (culled) {
+      this.culledBlockKeys.add(key);
+      this.instrumentation.record('interiorBlocksCulled');
+      // An intentionally omitted interior voxel is still a terminal renderer
+      // outcome. Credit it at the ownership transition rather than leaving it
+      // in the structural hydration scope forever.
+      this.completeHydrationPart(this.hydrationGeneration, 'block', key);
+    } else {
+      this.culledBlockKeys.delete(key);
+      this.instrumentation.record('interiorBlocksCulled', -1);
+      this.hydrationProgressTracker.invalidate('block', key);
+    }
   }
 
   private visibleSelection(project: ProjectDocument | undefined, options: ViewportRenderOptions): { readonly selected?: VoxelCoordinate; readonly positions?: readonly VoxelCoordinate[]; readonly kind?: string; readonly count?: number; readonly bounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly box?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } } {
