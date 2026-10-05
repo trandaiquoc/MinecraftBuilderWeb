@@ -53,7 +53,7 @@ import { CameraInteractionController } from '../scheduling/camera-interaction-co
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
 import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
-import type { HydrationProgressSnapshot, HydrationStatus } from '../scheduling/hydration-progress-tracker';
+import type { HydrationLane, HydrationProgressSnapshot, HydrationStatus } from '../scheduling/hydration-progress-tracker';
 import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
 import { ProviderRefreshCoordinator } from '../provider/provider-refresh-coordinator';
 import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
@@ -718,7 +718,7 @@ export class ThreeViewportEngine {
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
   private readonly hydrationProgressTracker = new HydrationProgressTracker(
     () => this.instrumentation.record('hydrationProgressRegressions'),
-    (progress) => this.runtimeTrace?.record('hydration-progress', { generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent }),
+    (progress) => this.runtimeTrace?.record('hydration-progress', { lane: progress.lane ?? 'structural', generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent }),
   );
   private hemisphereLight?: THREE.HemisphereLight;
   private keyLight?: THREE.DirectionalLight;
@@ -1671,7 +1671,7 @@ export class ThreeViewportEngine {
     if (!terrainResult.pending) this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate));
     if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true);
     this.updateHydrationOrder();
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), 'local');
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     // InstanceBatchRenderer updates swap-back ownership atomically for every
     // touched entry. Full ownership reconciliation remains on structural
@@ -1920,8 +1920,12 @@ export class ThreeViewportEngine {
     if (adopted.length) this.hydrationProgressTracker.adoptDecorationIds(this.hydrationGeneration, adopted);
   }
 
-  private beginHydrationProgress(_blocksWork: number, _decorationsWork: number): void {
-    this.hydrationProgressTracker.begin(this.hydrationGeneration);
+  private hydrationLane: HydrationLane = 'structural';
+
+  private beginHydrationProgress(_blocksWork: number, _decorationsWork: number, lane = this.hydrationLane): void {
+    this.hydrationLane = lane;
+    this.hydrationProgressTracker.setLane(lane);
+    this.hydrationProgressTracker.begin(this.hydrationGeneration, lane);
   }
 
   private completeHydrationPart(token: number, kind: 'block' | 'decoration', key: string): void {
@@ -2106,6 +2110,8 @@ export class ThreeViewportEngine {
     this.hydrationTimer = undefined;
     this.hydrationScheduled = false;
     this.hydrationProgressTracker.clear();
+    this.hydrationLane = 'structural';
+    this.hydrationProgressTracker.setLane('structural');
     this.resetHydrationProgress();
   }
 

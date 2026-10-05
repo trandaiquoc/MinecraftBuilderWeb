@@ -54,4 +54,11 @@ describe('ViewportHydrationStatusService', () => {
     service.publish(owner, progress({ generation: 2, total: 100, percent: 10, completed: 10, blocksCompleted: 10 }));
     expect(service.status()?.activity).toBe('build');
   });
+
+  it('does not expose local edit hydration as global loading', () => {
+    const service = new ViewportHydrationStatusService();
+    const owner = service.claim();
+    service.publish(owner, progress({ lane: 'local', total: 20, completed: 1, percent: 5 }));
+    expect(service.status()).toBeUndefined();
+  });
 });

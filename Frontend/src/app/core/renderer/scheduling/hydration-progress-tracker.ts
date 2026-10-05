@@ -1,7 +1,9 @@
 export type HydrationStatus = 'idle' | 'hydrating' | 'complete';
+export type HydrationLane = 'structural' | 'local';
 
 export interface HydrationProgressSnapshot {
   readonly generation: number;
+  readonly lane?: HydrationLane;
   readonly status: HydrationStatus;
   readonly completed: number;
   readonly total: number;
@@ -14,8 +16,9 @@ export interface HydrationProgressSnapshot {
 
 type ProgressPart = 'block' | 'decoration';
 
-const idleProgress = (generation: number): HydrationProgressSnapshot => ({
+const idleProgress = (generation: number, lane: HydrationLane = 'structural'): HydrationProgressSnapshot => ({
   generation,
+  lane,
   status: 'idle',
   completed: 0,
   total: 0,
@@ -34,6 +37,7 @@ export class HydrationProgressTracker {
   private readonly completedDecorations = new Set<string>();
   private readonly listeners = new Set<(progress: HydrationProgressSnapshot) => void>();
   private progress: HydrationProgressSnapshot = idleProgress(0);
+  private lane: HydrationLane = 'structural';
 
   constructor(private readonly onRegression?: () => void, private readonly onPublish?: (progress: HydrationProgressSnapshot) => void) {}
 
@@ -84,17 +88,17 @@ export class HydrationProgressTracker {
     const decorationsTotal = this.decorationScope.size;
     const total = blocksTotal + decorationsTotal;
     if (!total) {
-      this.publish(idleProgress(generation));
+      this.publish(idleProgress(generation, this.lane));
       return;
     }
     const blocksCompleted = this.completedBlocks.size;
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
     if (completed >= total) {
-      this.publish({ generation, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100 });
+      this.publish({ generation, lane: this.lane, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100 });
       return;
     }
-    this.publish({ generation, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
+    this.publish({ generation, lane: this.lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
   }
 
   setDecorationScope(ids: readonly string[]): void {
@@ -104,19 +108,22 @@ export class HydrationProgressTracker {
     for (const id of next) this.decorationScope.add(id);
   }
 
-  begin(generation: number): void {
+  setLane(lane: HydrationLane): void { this.lane = lane; }
+
+  begin(generation: number, lane = this.lane): void {
+    this.lane = lane;
     const blocksTotal = this.blockScope.size;
     const decorationsTotal = this.decorationScope.size;
     const total = blocksTotal + decorationsTotal;
     if (!total) {
-      this.publish(idleProgress(generation));
+      this.publish(idleProgress(generation, lane));
       return;
     }
     const blocksCompleted = this.completedBlocks.size;
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
     if (completed >= total) return;
-    this.publish({ generation, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
+    this.publish({ generation, lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
   }
 
   complete(generation: number, kind: ProgressPart, key: string): void {
@@ -139,16 +146,16 @@ export class HydrationProgressTracker {
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
     if (completed >= total) {
-      this.publish({ generation, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100 });
+      this.publish({ generation, lane: this.lane, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100 });
       return;
     }
-    this.publish({ generation, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0 });
+    this.publish({ generation, lane: this.lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0 });
   }
 
   reset(generation: number): void {
     this.completedBlocks.clear();
     this.completedDecorations.clear();
-    this.publish(idleProgress(generation));
+    this.publish(idleProgress(generation, this.lane));
   }
 
   invalidate(kind: ProgressPart, key: string): void {
@@ -163,6 +170,8 @@ export class HydrationProgressTracker {
   }
 
   publish(next: HydrationProgressSnapshot): void {
+    if (next.lane !== undefined) this.lane = next.lane;
+    else next = { ...next, lane: this.lane };
     const current = this.progress;
     const sameScope = current.generation === next.generation && current.total > 0 && (next.total === current.total || next.total === 0);
     if (sameScope && (next.completed < current.completed || next.total === 0 || next.blocksCompleted < current.blocksCompleted || next.decorationsCompleted < current.decorationsCompleted)) {

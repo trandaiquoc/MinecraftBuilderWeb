@@ -85,4 +85,13 @@ describe('HydrationProgressTracker', () => {
     tracker.adoptBlockKeys(2, ['pending']);
     expect(tracker.snapshot()).toMatchObject({ completed: 2, status: 'complete' });
   });
+
+  it('keeps local edit progress distinct from structural hydration', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['changed']);
+    tracker.begin(3, 'local');
+    expect(tracker.snapshot()).toMatchObject({ lane: 'local', status: 'hydrating' });
+    tracker.complete(3, 'block', 'changed');
+    expect(tracker.snapshot()).toMatchObject({ lane: 'local', status: 'complete' });
+  });
 });

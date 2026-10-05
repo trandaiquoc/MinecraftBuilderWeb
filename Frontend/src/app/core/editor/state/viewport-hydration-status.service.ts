@@ -35,6 +35,9 @@ export class ViewportHydrationStatusService {
 
   publish(owner: number, progress: ViewportHydrationProgress): void {
     if (owner !== this.activeOwner) return;
+    // Local edits use the renderer's progress accounting for completion, but
+    // must not reopen the global initial-load/import status surface.
+    if (progress.lane === 'local') return;
     if (progress.status !== 'hydrating' || progress.total <= 0) {
       this.clearVisibleState();
       return;
