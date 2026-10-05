@@ -8,25 +8,28 @@ const MOD_STORE_NAME = 'external-mods';
 const DATABASE_VERSION = 2;
 
 export class IndexedDbAssetCache {
-  async load(version = VANILLA_ASSET_VERSION): Promise<SerializedVanillaAssets | undefined> {
+  async load(version = VANILLA_ASSET_VERSION, signal?: AbortSignal): Promise<SerializedVanillaAssets | undefined> {
+    throwIfAborted(signal);
     const database = await openDatabase();
-    const stored = await request<CachedVanillaAssets | undefined>(database, STORE_NAME, 'readonly', (store) => store.get(version));
+    const stored = await request<CachedVanillaAssets | undefined>(database, STORE_NAME, 'readonly', (store) => store.get(version), signal);
     if (!stored) return undefined;
     const bundle = migrateCachedVanillaAssets(stored, version);
-    if (stored.schemaVersion !== bundle.schemaVersion) await request(database, STORE_NAME, 'readwrite', (store) => store.put({ ...bundle, id: version }));
+    if (stored.schemaVersion !== bundle.schemaVersion) await request(database, STORE_NAME, 'readwrite', (store) => store.put({ ...bundle, id: version }), signal);
     return bundle;
   }
 
-  async save(bundle: SerializedVanillaAssets): Promise<void> {
+  async save(bundle: SerializedVanillaAssets, signal?: AbortSignal): Promise<void> {
+    throwIfAborted(signal);
     const database = await openDatabase();
-    await request(database, STORE_NAME, 'readwrite', (store) => store.put({ ...bundle, id: bundle.minecraftVersion }));
+    await request(database, STORE_NAME, 'readwrite', (store) => store.put({ ...bundle, id: bundle.minecraftVersion }), signal);
   }
   async listVanillaVersions(): Promise<readonly string[]> { const database = await openDatabase(); const values = await request<CachedVanillaAssets[]>(database, STORE_NAME, 'readonly', (store) => store.getAll()); return values.map((value) => value.minecraftVersion).filter((value): value is string => typeof value === 'string').sort(); }
-  async deleteVanilla(version: string): Promise<void> { const database = await openDatabase(); await request(database, STORE_NAME, 'readwrite', (store) => store.delete(version)); }
+  async deleteVanilla(version: string, signal?: AbortSignal): Promise<void> { throwIfAborted(signal); const database = await openDatabase(); await request(database, STORE_NAME, 'readwrite', (store) => store.delete(version), signal); }
 
-  async loadExternalMods(): Promise<readonly SerializedExternalMod[]> {
+  async loadExternalMods(signal?: AbortSignal): Promise<readonly SerializedExternalMod[]> {
+    throwIfAborted(signal);
     const database = await openDatabase();
-    const values = await request<CachedExternalMod[]>(database, MOD_STORE_NAME, 'readonly', (store) => store.getAll());
+    const values = await request<CachedExternalMod[]>(database, MOD_STORE_NAME, 'readonly', (store) => store.getAll(), signal);
     return values.filter((value) => value.schemaVersion === EXTERNAL_MOD_CACHE_SCHEMA_VERSION);
   }
 
@@ -35,9 +38,10 @@ export class IndexedDbAssetCache {
     await request(database, MOD_STORE_NAME, 'readwrite', (store) => store.put({ ...mod, id: mod.sourceId }), signal);
   }
 
-  async deleteExternalMod(sourceId: string): Promise<void> {
+  async deleteExternalMod(sourceId: string, signal?: AbortSignal): Promise<void> {
+    throwIfAborted(signal);
     const database = await openDatabase();
-    await request(database, MOD_STORE_NAME, 'readwrite', (store) => store.delete(sourceId));
+    await request(database, MOD_STORE_NAME, 'readwrite', (store) => store.delete(sourceId), signal);
   }
 }
 

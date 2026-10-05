@@ -45,14 +45,17 @@ export class EditorStatusBarComponent {
   protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionCount())); }
   protected projectSizeLabel(): string { const size = this.workspace.project()?.size; return size ? `X ${size.x} · Y ${size.y} · Z ${size.z}` : ''; }
   protected assetStatus(): ReturnType<typeof deriveAssetBootstrapStatus> { return deriveAssetBootstrapStatus(this.assets.status(), this.assets.contentRestore(), this.assets.downloadProgress()); }
-  protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods'; }
+  protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods' || this.hydration.status()?.activity === 'content'; }
   protected assetProgressPercent(status: ReturnType<typeof deriveAssetBootstrapStatus>): number | null {
+    const contentHydration = this.hydration.status();
+    if (contentHydration?.activity === 'content') return Math.max(0, Math.min(100, Math.round(contentHydration.progress.percent)));
     if (status.kind === 'downloading' && status.percent !== undefined) return Math.max(0, Math.min(100, Math.round(status.percent)));
     if (status.kind === 'restoring-mods' && status.total && status.current !== undefined) return Math.max(0, Math.min(100, Math.round(status.current / status.total * 100)));
     return null;
   }
   protected assetStatusLabel(): string {
     const status = this.assetStatus();
+    if (this.hydration.status()?.activity === 'content') return this.i18n.t('updatingBlockAssets');
     if (status.kind === 'loading-cache') return this.i18n.t('checkingAssetCache');
     if (status.kind === 'downloading') return `${this.i18n.t('downloadingAsset')}${status.percent === undefined ? '' : ` ${status.percent}%`}`;
     if (status.kind === 'preparing') return this.i18n.t('preparingAssets');

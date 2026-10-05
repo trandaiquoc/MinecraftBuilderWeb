@@ -1,4 +1,11 @@
-export async function yieldToBrowser(): Promise<void> {
+export async function yieldToBrowser(signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  const schedulerApi = (globalThis as typeof globalThis & { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (schedulerApi?.yield) {
+    await schedulerApi.yield();
+    signal?.throwIfAborted();
+    return;
+  }
   await new Promise<void>((resolve) => {
     if (typeof MessageChannel !== 'undefined') {
       const channel = new MessageChannel();
@@ -8,6 +15,7 @@ export async function yieldToBrowser(): Promise<void> {
     }
     setTimeout(resolve, 0);
   });
+  signal?.throwIfAborted();
 }
 
 /** Keeps long synchronous catalog loops within a small frame-friendly slice. */

@@ -208,7 +208,7 @@ export class ExternalModProvider implements ContentSourceProvider {
       binary.push({ path, data: storageBuffer(data) });
       onProgress?.({ processed: index + 1, total: entries.length });
       sliceItems++;
-      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(); throwIfAborted(signal); budget.reset(); sliceItems = 0; }
+      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(signal); throwIfAborted(signal); budget.reset(); sliceItems = 0; }
     }
     throwIfAborted(signal);
     const { compatibility: _compatibility, projectMinecraftVersion: _projectMinecraftVersion, canActivate: _canActivate, ...versionIndependentReport } = this.report;
@@ -245,7 +245,7 @@ export class ExternalModProvider implements ContentSourceProvider {
       if (record) records.push(record);
       onProgress?.({ processed: index + 1, total: context.blockstatePaths.length });
       sliceItems++;
-      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(); throwIfAborted(signal); budget.reset(); sliceItems = 0; }
+      if (budget.shouldYield(sliceItems)) { await yieldToBrowser(signal); throwIfAborted(signal); budget.reset(); sliceItems = 0; }
     }
     throwIfAborted(signal);
     const catalog = this.finishCatalog(records, context);

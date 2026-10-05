@@ -91,7 +91,7 @@ export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onP
     }
     onProgress?.({ phase: 'extracting-resources', processed: Math.min(offset + batch.length, entries.length), total: entries.length });
     extraction.progress();
-    await yieldToBrowser();
+    await yieldToBrowser(signal);
     throwIfAborted(extraction.signal);
   } } finally { extraction.stop(); }
   const fingerprintWatchdog = createPhaseWatchdog('checking-compatibility', signal);

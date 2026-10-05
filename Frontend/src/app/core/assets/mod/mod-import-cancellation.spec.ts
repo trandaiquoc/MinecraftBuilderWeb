@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPhaseWatchdog, ModImportTimeoutError } from './mod-import-cancellation';
+import { combineAbortSignals, createPhaseWatchdog, isAbortError, ModImportTimeoutError } from './mod-import-cancellation';
 
 describe('mod import cancellation policy', () => {
   afterEach(() => vi.useRealTimers());
@@ -31,5 +31,17 @@ describe('mod import cancellation policy', () => {
     parent.abort();
     expect(watchdog.signal.aborted).toBe(true);
     watchdog.stop();
+  });
+
+  it('combines caller and session cancellation and preserves abort reason', () => {
+    const caller = new AbortController();
+    const session = new AbortController();
+    const reason = new Error('superseded');
+    const combined = combineAbortSignals(caller.signal, session.signal);
+    session.abort(reason);
+    expect(combined.signal?.aborted).toBe(true);
+    expect(combined.signal?.reason).toBe(reason);
+    expect(isAbortError(new DOMException('cancelled', 'AbortError'))).toBe(true);
+    combined.dispose();
   });
 });

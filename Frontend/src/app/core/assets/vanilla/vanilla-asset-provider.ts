@@ -17,6 +17,8 @@ import { resolveResourceLocation } from '../../content/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
 import { ContentIntrospectionEngine, SemanticManifestEvidenceProvider } from '../../content/content-introspection';
 import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
+import { yieldToBrowser } from '../cooperative-yield';
+import { throwIfAborted } from '../mod/mod-import-cancellation';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -66,8 +68,9 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   private readonly json: Readonly<Record<string, unknown>>;
   private readonly binary: ReadonlyMap<string, Uint8Array>;
 
-  static async fromJar(file: Blob, minecraftVersion = VANILLA_ASSET_VERSION, sourceName = 'Imported Minecraft assets'): Promise<VanillaAssetProvider> {
-    const archive = await ZipArchive.open(file);
+  static async fromJar(file: Blob, minecraftVersion = VANILLA_ASSET_VERSION, sourceName = 'Imported Minecraft assets', signal?: AbortSignal): Promise<VanillaAssetProvider> {
+    throwIfAborted(signal);
+    const archive = await ZipArchive.open(file, undefined, signal);
     const entries = archive.entries.filter((entry) => RESOURCE_PATH.test(entry.name) || BLOCK_TAG_PATH.test(entry.name) || DECORATION_DATA_PATH.test(entry.name));
     const totalSize = entries.reduce((sum, entry) => sum + entry.uncompressedSize, 0);
     if (!entries.length) throw new Error('The selected archive contains no Minecraft asset resources');
@@ -75,13 +78,15 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     const json: Record<string, unknown> = {};
     const binary = new Map<string, Uint8Array>();
     for (let offset = 0; offset < entries.length; offset += 32) {
+      throwIfAborted(signal);
       const batch = entries.slice(offset, offset + 32);
-      const decoded = await Promise.all(batch.map(async (entry) => ({ entry, bytes: await entry.read() })));
+      const decoded = await Promise.all(batch.map(async (entry) => ({ entry, bytes: await entry.read(signal) })));
       for (const { entry, bytes } of decoded) {
         if (entry.name.endsWith('.json') || entry.name.endsWith('.png.mcmeta')) {
           try { json[entry.name] = JSON.parse(new TextDecoder().decode(bytes)); }
           catch { throw new Error(`Invalid JSON resource: ${entry.name}`); }
         } else binary.set(entry.name, bytes);
+      await yieldToBrowser(signal);
       }
     }
     return new VanillaAssetProvider(sourceName, minecraftVersion, json, binary);

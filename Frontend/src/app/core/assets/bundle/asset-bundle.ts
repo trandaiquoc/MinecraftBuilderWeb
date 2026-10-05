@@ -16,7 +16,7 @@ export interface AssetBundleSource {
 
 /** Explicit File API source. Keeping it here means future mod imports share the same source contract. */
 export class JarImportSource {
-  async load(file: File, minecraftVersion = '1.21.1'): Promise<VanillaAssetBundle> { return vanillaBundle((await VanillaAssetProvider.fromJar(file, minecraftVersion, file.name)).serialize(), file.name); }
+  async load(file: File, minecraftVersion = '1.21.1', signal?: AbortSignal): Promise<VanillaAssetBundle> { return vanillaBundle((await VanillaAssetProvider.fromJar(file, minecraftVersion, file.name, signal)).serialize(), file.name); }
 }
 
 export class IndexedDbAssetBundleSource implements AssetBundleSource {

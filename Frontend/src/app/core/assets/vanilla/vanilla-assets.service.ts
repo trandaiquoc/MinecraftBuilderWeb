@@ -23,7 +23,8 @@ import { PaintingVariantCatalogService } from '../../decorations/catalog/paintin
 import { ThumbnailTaskPriority, ThumbnailTaskQueue } from './thumbnail-task-queue';
 import { yieldToBrowser } from '../cooperative-yield';
 import { validateJarUpload } from '../mod/jar-upload-validation';
-import { createPhaseWatchdog, throwIfAborted } from '../mod/mod-import-cancellation';
+import { createPhaseWatchdog, isAbortError, throwIfAborted } from '../mod/mod-import-cancellation';
+import { ContentOperationCoordinator } from '../content-operation-coordinator';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -65,8 +66,10 @@ export class VanillaAssetsService {
   readonly importedMods = signal<readonly ImportedModSummary[]>([]);
   readonly compatibilityReport = signal<CompatibilityReport | undefined>(undefined);
   private loadRequest = 0;
-  private inFlight?: { readonly version: string; readonly promise: Promise<void> };
+  private inFlight?: { readonly version: string; readonly promise: Promise<void>; readonly controller: AbortController };
   private restoringExternalMods = false;
+  private restoreResumeQueued = false;
+  private readonly contentOperations = new ContentOperationCoordinator();
 
   constructor() {
     effect(() => { const version = this.workspace.project()?.metadata.minecraftVersion; if (version) void this.ensureVersion(version); });
@@ -74,52 +77,61 @@ export class VanillaAssetsService {
   }
 
   async importJar(file: File): Promise<void> {
-    validateJarUpload(file);
-    const request = ++this.loadRequest;
-    const protection = this.activity.protect(`Importing ${file.name}`);
-    this.status.set('importing'); this.message.set('');
-    this.activity.begin('manual-import', `Reading ${file.name}`);
-    try {
-      const bundle = await new JarImportSource().load(file, this.activeVersion());
-      const provider = providerFromBundle(bundle);
-      provider.assertUsable();
-      await this.cache.save(provider.serialize());
-      await this.activateVersion(provider, request);
-      this.activity.finish('manual-import', `Imported ${file.name}`);
-    } catch (error) {
-      this.status.set('import-required'); this.message.set(error instanceof Error ? error.message : 'Unable to import Minecraft assets');
-      this.activity.fail('manual-import', this.message());
-    } finally {
-      this.activity.releaseProtected(protection);
-    }
+    return this.contentOperations.run('foreground', async (signal) => {
+      validateJarUpload(file);
+      const request = ++this.loadRequest;
+      const protection = this.activity.protect(`Importing ${file.name}`);
+      this.status.set('importing'); this.message.set('');
+      this.activity.begin('manual-import', `Reading ${file.name}`);
+      try {
+        const bundle = await new JarImportSource().load(file, this.activeVersion(), signal);
+        throwIfAborted(signal);
+        const provider = providerFromBundle(bundle);
+        provider.assertUsable();
+        await this.cache.save(provider.serialize(), signal);
+        await this.activateVersion(provider, request, signal);
+        this.activity.finish('manual-import', `Imported ${file.name}`);
+      } catch (error) {
+        if (isAbortError(error) || signal.aborted) return;
+        this.status.set('import-required'); this.message.set(error instanceof Error ? error.message : 'Unable to import Minecraft assets');
+        this.activity.fail('manual-import', this.message());
+      } finally {
+        this.activity.releaseProtected(protection);
+      }
+    });
   }
 
   async importModJar(file: File, signal?: AbortSignal): Promise<ModImportReport> {
-    const protection = this.activity.protect(`Importing ${file.name}`);
-    this.activity.begin('mod-import', `Reading ${file.name}`, 'mod');
-    try {
-      const prepared = await this.inspectModJar(file, undefined, signal);
-      let provider: ExternalModProvider | undefined;
-      let activated = false;
+    const operation = this.contentOperations.run('foreground', async (sessionSignal) => {
+      const protection = this.activity.protect(`Importing ${file.name}`);
+      this.activity.begin('mod-import', `Reading ${file.name}`, 'mod');
       try {
-        provider = commitModImport(prepared, (progress) => this.reportModProgress(progress), signal);
-        this.assertExternalSourceAvailable(provider);
-        this.reportModProgress({ phase: 'saving-cache' });
-        const serialized = await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }), signal);
-        this.reportModProgress({ phase: 'finalizing-cache' });
-        await this.cache.saveExternalMod(serialized, signal);
-        this.reportModProgress({ phase: 'activating' });
-        this.activateExternal(provider);
-        activated = true;
-        this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
-        return provider.report;
-      } finally { prepared.dispose(); if (provider && !activated) provider.dispose(); }
-    } catch (error) {
-      this.activity.fail('mod-import', error instanceof Error ? error.message : 'Mod import failed', 'mod');
-      throw error;
-    } finally {
-      this.activity.releaseProtected(protection);
-    }
+        const prepared = await this.inspectModJar(file, undefined, sessionSignal);
+        let provider: ExternalModProvider | undefined;
+        let activated = false;
+        try {
+          provider = commitModImport(prepared, (progress) => this.reportModProgress(progress), sessionSignal);
+          this.assertExternalSourceAvailable(provider);
+          this.reportModProgress({ phase: 'saving-cache' });
+          const serialized = await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }), sessionSignal);
+          this.reportModProgress({ phase: 'finalizing-cache' });
+          await this.cache.saveExternalMod(serialized, sessionSignal);
+          this.reportModProgress({ phase: 'activating' });
+          throwIfAborted(sessionSignal);
+          this.activateExternal(provider);
+          activated = true;
+          this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
+          return provider.report;
+        } finally { prepared.dispose(); if (provider && !activated) provider.dispose(); }
+      } catch (error) {
+        if (isAbortError(error) || sessionSignal.aborted) throw error;
+        this.activity.fail('mod-import', error instanceof Error ? error.message : 'Mod import failed', 'mod');
+        throw error;
+      } finally {
+        this.activity.releaseProtected(protection);
+      }
+    }, signal);
+    return operation.finally(() => this.scheduleExternalModRestore());
   }
 
   async inspectModJar(file: File, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<PreparedModImport> {
@@ -175,40 +187,47 @@ export class VanillaAssetsService {
   }
 
   async commitPreparedModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<ModImportReport> {
-    throwIfAborted(signal);
-    const reportProgress = (progress: ModImportProgress): void => { onProgress?.(progress); this.reportModProgress(progress); };
-    const provider = commitModImport(prepared, reportProgress, signal);
-    let activated = false;
-    try {
-      this.assertExternalSourceAvailable(provider);
-      reportProgress({ phase: 'saving-cache' });
-      const saveWatchdog = createPhaseWatchdog('saving-cache', signal);
-      let serialized;
-      try { serialized = await provider.serializeForCacheAsync((progress) => { saveWatchdog.progress(); reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }); }, saveWatchdog.signal); }
-      finally { saveWatchdog.stop(); }
-      reportProgress({ phase: 'finalizing-cache' });
-      const finalizeWatchdog = createPhaseWatchdog('finalizing-cache', signal);
-      try { await this.cache.saveExternalMod(serialized, finalizeWatchdog.signal); }
-      finally { finalizeWatchdog.stop(); }
-      throwIfAborted(signal);
-      const activationWatchdog = createPhaseWatchdog('activating', signal);
-      try { reportProgress({ phase: 'activating' }); throwIfAborted(activationWatchdog.signal); this.activateExternal(provider); }
-      finally { activationWatchdog.stop(); }
-      activated = true;
-      return provider.report;
-    } finally { if (!activated) provider.dispose(); }
+    const operation = this.contentOperations.run('foreground', async (sessionSignal) => {
+      throwIfAborted(sessionSignal);
+      const reportProgress = (progress: ModImportProgress): void => { onProgress?.(progress); this.reportModProgress(progress); };
+      const provider = commitModImport(prepared, reportProgress, sessionSignal);
+      let activated = false;
+      try {
+        this.assertExternalSourceAvailable(provider);
+        reportProgress({ phase: 'saving-cache' });
+        const saveWatchdog = createPhaseWatchdog('saving-cache', sessionSignal);
+        let serialized;
+        try { serialized = await provider.serializeForCacheAsync((progress) => { saveWatchdog.progress(); reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }); }, saveWatchdog.signal); }
+        finally { saveWatchdog.stop(); }
+        reportProgress({ phase: 'finalizing-cache' });
+        const finalizeWatchdog = createPhaseWatchdog('finalizing-cache', sessionSignal);
+        try { await this.cache.saveExternalMod(serialized, finalizeWatchdog.signal); }
+        finally { finalizeWatchdog.stop(); }
+        throwIfAborted(sessionSignal);
+        const activationWatchdog = createPhaseWatchdog('activating', sessionSignal);
+        try { reportProgress({ phase: 'activating' }); throwIfAborted(activationWatchdog.signal); this.activateExternal(provider); }
+        finally { activationWatchdog.stop(); }
+        activated = true;
+        return provider.report;
+      } finally { if (!activated) provider.dispose(); }
+    }, signal);
+    return operation.finally(() => this.scheduleExternalModRestore());
   }
 
-  async removeMod(sourceId: string): Promise<void> {
-    if (!this.sources.providerForSource(sourceId)) return;
-    this.transitionThumbnailGeneration(() => {
-      this.sources.remove(sourceId);
-      this.paintingCatalog.removeSource(sourceId);
-      this.library.removeSource(sourceId);
-      this.replaceVisualProvider();
-    });
-    this.importedMods.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
-    await this.cache.deleteExternalMod(sourceId);
+  async removeMod(sourceId: string, signal?: AbortSignal): Promise<void> {
+    const operation = this.contentOperations.run('foreground', async (sessionSignal) => {
+      if (!this.sources.providerForSource(sourceId)) return;
+      throwIfAborted(sessionSignal);
+      this.transitionThumbnailGeneration(() => {
+        this.sources.remove(sourceId);
+        this.paintingCatalog.removeSource(sourceId);
+        this.library.removeSource(sourceId);
+        this.replaceVisualProvider();
+      });
+      this.importedMods.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
+      await this.cache.deleteExternalMod(sourceId, sessionSignal);
+    }, signal);
+    return operation.finally(() => this.scheduleExternalModRestore());
   }
 
   private reportModProgress(progress: ModImportProgress): void {
@@ -217,9 +236,11 @@ export class VanillaAssetsService {
 
   async redownload(): Promise<void> { await this.ensureVersion(this.activeVersion(), true); }
   async removeCachedVersion(version = this.activeVersion()): Promise<void> {
-    if (version === this.activeVersion()) { this.loadRequest += 1; this.inFlight = undefined; }
-    await this.cache.deleteVanilla(version); await this.refreshCachedVersions();
-    if (version === this.activeVersion()) { this.clearActiveSources(); this.compatibilityReport.set(undefined); this.status.set('no-assets'); this.sourceName.set(''); this.message.set(''); this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 })); this.activity.event('cache', `Removed cached assets for Java ${version}`, 'info', 'cache'); }
+    return this.contentOperations.run('foreground', async (signal) => {
+      if (version === this.activeVersion()) { this.loadRequest += 1; this.inFlight?.controller.abort(signal.reason); this.inFlight = undefined; }
+      await this.cache.deleteVanilla(version, signal); await this.refreshCachedVersions();
+      if (version === this.activeVersion()) { this.clearActiveSources(); this.compatibilityReport.set(undefined); this.status.set('no-assets'); this.sourceName.set(''); this.message.set(''); this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 })); this.activity.event('cache', `Removed cached assets for Java ${version}`, 'info', 'cache'); }
+    });
   }
 
   exportCompatibilityReport(): CompatibilityReport | undefined {
@@ -323,20 +344,23 @@ export class VanillaAssetsService {
   private ensureVersion(version: string, force = false): Promise<void> {
     if (!shouldStartVersionLoad(this.provider()?.minecraftVersion, this.status(), version, this.inFlight?.version, force)) return this.inFlight?.promise ?? Promise.resolve();
     const request = ++this.loadRequest;
-    this.activeVersion.set(version); this.status.set('loading-cache'); this.contentRestore.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 }); this.message.set(''); this.downloadProgress.set(undefined); this.compatibilityReport.set(undefined); this.clearActiveSources();
-    const promise = this.loadVersion(version, request).finally(() => { if (this.inFlight?.promise === promise) this.inFlight = undefined; });
-    this.inFlight = { version, promise };
+    const controller = new AbortController();
+    const promise = this.contentOperations.run('background', async (signal) => {
+      this.activeVersion.set(version); this.status.set('loading-cache'); this.contentRestore.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 }); this.message.set(''); this.downloadProgress.set(undefined); this.compatibilityReport.set(undefined); this.clearActiveSources();
+      return this.loadVersion(version, request, signal);
+    }, controller.signal).finally(() => { if (this.inFlight?.promise === promise) this.inFlight = undefined; });
+    this.inFlight = { version, promise, controller };
     return promise;
   }
 
-  private async loadVersion(version: string, request: number): Promise<void> {
+  private async loadVersion(version: string, request: number, signal: AbortSignal): Promise<void> {
     this.activity.begin('cache', `Checking cached assets for Java ${version}`, 'cache');
     try {
-      const cached = await this.cache.load(version);
+      const cached = await this.cache.load(version, signal);
       if (request !== this.loadRequest) return;
       if (cached) {
         this.activity.event('cache', `Cached assets found for Java ${version}`, 'success', 'cache');
-        await this.activateVersion(providerFromBundle({ ...cached, id: `vanilla-${version}`, type: 'vanilla', version, namespaces: ['minecraft'], manifest: { format: 'minecraft-builder-asset-bundle', version: 1 } }), request);
+        await this.activateVersion(providerFromBundle({ ...cached, id: `vanilla-${version}`, type: 'vanilla', version, namespaces: ['minecraft'], manifest: { format: 'minecraft-builder-asset-bundle', version: 1 } }), request, signal);
         return;
       }
       this.activity.event('cache', `No cached assets found for Java ${version}`, 'info', 'cache');
@@ -344,19 +368,19 @@ export class VanillaAssetsService {
       const protection = this.activity.protect(`Downloading Minecraft Java ${version}`);
       this.activity.begin('metadata', `Resolving official Mojang metadata for Java ${version}`);
       try {
-        const provider = await this.official.load(version, (progress) => { if (request !== this.loadRequest) return; this.downloadProgress.set(progress); this.activity.update({ loaded: progress.loaded, ...(progress.total !== undefined ? { total: progress.total } : {}) }, progress.phase === 'download' ? `Downloading Minecraft Java ${version}` : undefined); });
+        const provider = await this.official.load(version, (progress) => { if (request !== this.loadRequest) return; this.downloadProgress.set(progress); this.activity.update({ loaded: progress.loaded, ...(progress.total !== undefined ? { total: progress.total } : {}) }, progress.phase === 'download' ? `Downloading Minecraft Java ${version}` : undefined); }, signal);
         this.activity.event('download', `Official client downloaded for Java ${version}`, 'success');
         provider.assertUsable();
-        await this.cache.save(provider.serialize());
+        await this.cache.save(provider.serialize(), signal);
         this.activity.event('cache', `Saved normalized assets for Java ${version}`, 'success', 'cache');
         await this.refreshCachedVersions();
         if (request !== this.loadRequest) return;
-        await this.activateVersion(provider, request);
+        await this.activateVersion(provider, request, signal);
       } finally {
         this.activity.releaseProtected(protection);
       }
     } catch (error) {
-      if (request !== this.loadRequest) return;
+      if (request !== this.loadRequest || signal.aborted || isAbortError(error)) return;
       const message = error instanceof Error ? error.message : 'Unable to load official Minecraft assets';
       const unsupported = /resource format is not supported|no Minecraft asset resources|incomplete/i.test(message);
       this.status.set(unsupported ? 'unsupported-format' : 'offline'); this.contentRestore.set({ phase: 'error', current: 0, total: 0, failed: 1 }); this.message.set(message);
@@ -364,12 +388,13 @@ export class VanillaAssetsService {
       this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 }));
       this.activity.fail('assets', message, 'vanilla');
       this.library.load({ minecraftVersion: version, sourceId: 'vanilla', sourceName: 'Vanilla', blocks: [] });
-      await this.restoreExternalMods(version);
+      await this.restoreExternalMods(version, signal);
     }
   }
 
-  private async activateVersion(provider: VanillaAssetProvider, request = this.loadRequest): Promise<void> {
+  private async activateVersion(provider: VanillaAssetProvider, request = this.loadRequest, signal?: AbortSignal): Promise<void> {
     if (request !== this.loadRequest) return;
+    throwIfAborted(signal);
     provider.assertUsable();
     const version = provider.minecraftVersion;
     const registry = version === VANILLA_ASSET_VERSION ? await loadVanillaBlockRegistry() : undefined;
@@ -377,6 +402,7 @@ export class VanillaAssetsService {
     if (version === VANILLA_ASSET_VERSION) {
       try { itemRegistry = await loadVanillaItemRegistry(); } catch { itemRegistry = undefined; }
     }
+    throwIfAborted(signal);
     this.clearActiveSources();
     const catalog = provider.catalog(registry, itemRegistry);
     this.transitionThumbnailGeneration(() => {
@@ -393,7 +419,7 @@ export class VanillaAssetsService {
     this.sourceName.set(provider.sourceName); this.activeVersion.set(version); this.status.set('ready'); this.contentRestore.set({ phase: 'vanilla', current: 0, total: 0, failed: 0, sourceName: provider.sourceName }); this.message.set('');
     this.activity.finish('assets', `${provider.diagnostics().resourceFormat.label}; Java ${version} ready`);
     void this.generateCompatibilityReport(provider, request);
-    await this.restoreExternalMods(version);
+    await this.restoreExternalMods(version, signal);
   }
 
   private async generateCompatibilityReport(provider: VanillaAssetProvider, request: number): Promise<void> {
@@ -483,13 +509,14 @@ export class VanillaAssetsService {
     this.importedMods.set([]); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
   }
 
-  private async restoreExternalMods(version: string): Promise<void> {
+  private async restoreExternalMods(version: string, signal?: AbortSignal): Promise<void> {
     let stored: readonly import('../mod/external-mod-provider').SerializedExternalMod[] = [];
-    try { stored = await this.cache.loadExternalMods(); } catch { this.contentRestore.set({ phase: 'partial', current: 0, total: 0, failed: 1 }); return; }
+    try { stored = await this.cache.loadExternalMods(signal); } catch (error) { if (isAbortError(error) || signal?.aborted) throw error; this.contentRestore.set({ phase: 'partial', current: 0, total: 0, failed: 1 }); return; }
+    throwIfAborted(signal);
     const total = stored.length;
     this.contentRestore.set({ phase: total ? 'restoring-mods' : 'ready', current: 0, total, failed: 0 });
     if (!total) return;
-    await yieldToBrowser();
+    await yieldToBrowser(signal);
     let failed = 0; let current = 0;
     this.activity.begin('mod-restore', `Restoring imported Mods (0 / ${total})`, 'mod');
     this.restoringExternalMods = true;
@@ -497,15 +524,23 @@ export class VanillaAssetsService {
       for (const serialized of stored) {
         let sourceName = serialized.metadata?.displayName;
         try {
+          throwIfAborted(signal);
+          const existing = this.sources.providerForSource(serialized.sourceId) as ExternalModProvider | undefined;
+          if (existing && (!serialized.fingerprint || existing.fingerprint === serialized.fingerprint)) {
+            current += 1;
+            this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
+            await yieldToBrowser(signal);
+            continue;
+          }
           const provider = ExternalModProvider.deserialize(serialized, version);
           sourceName = provider.metadata.displayName;
           if (provider.report.canActivate === false) failed += 1;
-          else { await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`)); this.activateExternal(provider); }
-        } catch { failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
+          else { await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`), signal); throwIfAborted(signal); this.activateExternal(provider); }
+        } catch (error) { if (isAbortError(error) || signal?.aborted) throw error; failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */ }
         current += 1;
         this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
         this.activity.update({ loaded: current, total }, sourceName ? `Restoring imported Mods (${current} / ${total}): ${sourceName}` : `Restoring imported Mods (${current} / ${total})`);
-        await yieldToBrowser();
+        await yieldToBrowser(signal);
       }
     } finally {
       this.restoringExternalMods = false;
@@ -513,6 +548,18 @@ export class VanillaAssetsService {
     }
     this.contentRestore.set(contentRestoreAfterMods(total, failed));
     this.activity.finish('mod-restore', failed ? `Imported Mods restored with ${failed} warning${failed === 1 ? '' : 's'}` : 'Imported Mods restored', 'mod');
+  }
+
+  private scheduleExternalModRestore(): void {
+    if (this.restoreResumeQueued || this.status() !== 'ready' || this.restoringExternalMods) return;
+    this.restoreResumeQueued = true;
+    queueMicrotask(() => {
+      this.restoreResumeQueued = false;
+      if (this.status() !== 'ready' || this.restoringExternalMods) return;
+      void this.contentOperations.run('background', (signal) => this.restoreExternalMods(this.activeVersion(), signal)).catch((error) => {
+        if (!isAbortError(error)) this.activity.event('mod-restore', error instanceof Error ? error.message : 'Imported Mod restore failed', 'warning', 'mod');
+      });
+    });
   }
 
   private async refreshCachedVersions(): Promise<void> { try { this.cachedVersions.set(await this.cache.listVanillaVersions()); } catch { /* Cache availability is reported by the active load. */ } }

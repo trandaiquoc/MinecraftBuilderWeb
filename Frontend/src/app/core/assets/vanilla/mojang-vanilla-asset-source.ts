@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { VanillaAssetProvider } from './vanilla-asset-provider';
+import { throwIfAborted } from '../mod/mod-import-cancellation';
 
 const VERSION_MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const OFFICIAL_METADATA_HOST = 'piston-meta.mojang.com';
@@ -16,10 +17,10 @@ export class MojangVersionService {
   readonly loading = signal(false);
   private loaded?: Promise<readonly MojangRelease[]>;
 
-  async loadReleases(): Promise<readonly MojangRelease[]> {
+  async loadReleases(signal?: AbortSignal): Promise<readonly MojangRelease[]> {
     if (this.loaded) return this.loaded;
     this.loading.set(true);
-    this.loaded = fetch(VERSION_MANIFEST_URL).then(async (response) => {
+    this.loaded = fetch(VERSION_MANIFEST_URL, { signal }).then(async (response) => {
       if (!response.ok) throw new Error(`Unable to load Minecraft versions (${response.status})`);
       const manifest = await response.json() as VersionManifest;
       const releases = (manifest.versions ?? []).flatMap((item) => typeof item.id === 'string' && item.type === 'release' && typeof item.url === 'string' && isTrustedMetadataUrl(item.url) ? [{ id: item.id, type: 'release' as const, url: item.url, ...(typeof item.releaseTime === 'string' ? { releaseTime: item.releaseTime } : {}) }] : []);
@@ -35,25 +36,29 @@ export type VanillaDownloadPhase = 'metadata' | 'download' | 'verify' | 'normali
 export interface VanillaDownloadProgress { readonly phase: VanillaDownloadPhase; readonly loaded: number; readonly total?: number; }
 
 export class MojangVanillaAssetSource {
-  async load(version: string, onProgress?: (progress: VanillaDownloadProgress) => void): Promise<VanillaAssetProvider> {
+  async load(version: string, onProgress?: (progress: VanillaDownloadProgress) => void, signal?: AbortSignal): Promise<VanillaAssetProvider> {
+    throwIfAborted(signal);
     onProgress?.({ phase: 'metadata', loaded: 0 });
-    const manifestResponse = await fetch(VERSION_MANIFEST_URL);
+    const manifestResponse = await fetch(VERSION_MANIFEST_URL, { signal });
+    throwIfAborted(signal);
     if (!manifestResponse.ok) throw new Error(`Unable to load Minecraft versions (${manifestResponse.status})`);
     const manifest = await manifestResponse.json() as VersionManifest;
     const release = (manifest.versions ?? []).find((item) => item.id === version && item.type === 'release' && typeof item.url === 'string');
     if (!release || !isTrustedMetadataUrl(release.url as string)) throw new Error(`Minecraft release ${version} was not found in Mojang metadata.`);
-    const metadataResponse = await fetch(release.url as string);
+    const metadataResponse = await fetch(release.url as string, { signal });
+    throwIfAborted(signal);
     if (!metadataResponse.ok) throw new Error(`Unable to load Minecraft ${version} metadata (${metadataResponse.status})`);
     const metadata = await metadataResponse.json() as VersionMetadata;
     const client = metadata.downloads?.client;
     if (!client || typeof client.url !== 'string' || !isTrustedClientUrl(client.url)) throw new Error(`Mojang did not provide a trusted client download for Minecraft ${version}.`);
     const expectedSize = typeof client.size === 'number' && Number.isFinite(client.size) ? client.size : undefined;
     const expectedSha1 = typeof client.sha1 === 'string' ? client.sha1.toLowerCase() : undefined;
-    const response = await fetch(client.url);
+    const response = await fetch(client.url, { signal });
+    throwIfAborted(signal);
     if (!response.ok || !response.body) throw new Error(`Unable to download Minecraft ${version} (${response.status})`);
     const contentLength = Number(response.headers.get('content-length') ?? 0) || expectedSize;
     if (contentLength && contentLength > MAX_CLIENT_BYTES) throw new Error('The Minecraft client JAR is larger than the supported download limit.');
-    const bytes = await readResponse(response, contentLength, (loaded) => onProgress?.({ phase: 'download', loaded, total: contentLength }));
+    const bytes = await readResponse(response, contentLength, (loaded) => onProgress?.({ phase: 'download', loaded, total: contentLength }), signal);
     if (!bytes.length || bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new Error('The Mojang client download is not a valid JAR/ZIP file.');
     if (expectedSize !== undefined && bytes.byteLength !== expectedSize) throw new Error('The Mojang client download size does not match its metadata.');
     onProgress?.({ phase: 'verify', loaded: bytes.byteLength, total: bytes.byteLength });
@@ -65,21 +70,24 @@ export class MojangVanillaAssetSource {
     }
     onProgress?.({ phase: 'normalize', loaded: 0, total: bytes.byteLength });
     const blobBytes = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-    return VanillaAssetProvider.fromJar(new Blob([blobBytes]), version, 'Mojang official assets');
+    return VanillaAssetProvider.fromJar(new Blob([blobBytes]), version, 'Mojang official assets', signal);
   }
 }
 
-async function readResponse(response: Response, total: number | undefined, progress: (loaded: number) => void): Promise<Uint8Array> {
+async function readResponse(response: Response, total: number | undefined, progress: (loaded: number) => void, signal?: AbortSignal): Promise<Uint8Array> {
+  throwIfAborted(signal);
   const reader = response.body!.getReader();
   const chunks: Uint8Array[] = [];
   let loaded = 0;
   while (true) {
+    throwIfAborted(signal);
     const next = await reader.read();
     if (next.done) break;
     loaded += next.value.byteLength;
     if (loaded > MAX_CLIENT_BYTES) throw new Error('The Minecraft client download is larger than the supported limit.');
     chunks.push(next.value); progress(loaded);
   }
+  throwIfAborted(signal);
   const bytes = new Uint8Array(loaded);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }

@@ -41,7 +41,7 @@ export class ZipArchive {
       if (uncompressedSize > MAX_ENTRY_SIZE) throw new Error(`ZIP entry is too large: ${name}`);
       entries.push({ name, compressedSize, uncompressedSize, read: (entrySignal) => readEntry(bytes, view, localOffset, method, compressedSize, uncompressedSize, name, entrySignal ?? signal) });
       cursor += 46 + nameLength + extraLength + commentLength;
-      if ((index + 1) % 256 === 0) { await yieldToBrowser(); throwIfAborted(signal); }
+      if ((index + 1) % 256 === 0) { await yieldToBrowser(signal); throwIfAborted(signal); }
     }
     return new ZipArchive(bytes, entries);
   }
