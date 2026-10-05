@@ -982,6 +982,31 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('adopts committed ownership when the same logical project is reopened', async () => {
+    const provider = {
+      create: vi.fn(async () => {
+        const object = new THREE.Group();
+        object.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      reusableVisualKey: () => undefined,
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 1), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await settleHydration(40, engine);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', completed: 1, total: 1 });
+
+    const reopened = { ...project, blocks: project.blocks.map((block) => ({ ...block, state: { ...block.state } })) };
+    engine.update(reopened, undefined);
+    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', completed: 1, total: 1, blocksCompleted: 1 });
+    expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, running: 0, orphanedHydrationCount: 0 });
+    engine.dispose();
+  });
+
   it('reaches exactly 100 percent when every fallback visual is finalized', async () => {
     const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const base = rendererBenchmarkProject('small');

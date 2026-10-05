@@ -117,6 +117,7 @@ export class FluidRenderCoordinator {
 
   claimedKeys(): ReadonlySet<string> { return new Set(this.detected.keys()); }
   isClaimed(key: string): boolean { return this.detected.has(key); }
+  isTerminal(key: string): boolean { return this.committed.has(key) || this.fallback.has(key); }
   objectsForVoxel(key: string): readonly THREE.Object3D[] { return this.renderer.objectsForVoxel(key); }
   hasVoxel(key: string): boolean { return this.renderer.hasVoxel(key); }
   referencedProviders(): ReadonlySet<RetainableProvider> { return this.retiredProviderLeases; }

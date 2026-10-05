@@ -74,4 +74,15 @@ describe('HydrationProgressTracker', () => {
     tracker.removeBlockKey('new');
     expect(tracker.snapshot().completed).toBe(1);
   });
+
+  it('adopts committed renderer ownership into a fresh generation', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['committed', 'pending']);
+    tracker.reset(2);
+    tracker.begin(2);
+    tracker.adoptBlockKeys(2, ['committed']);
+    expect(tracker.snapshot()).toMatchObject({ generation: 2, total: 2, completed: 1, status: 'hydrating' });
+    tracker.adoptBlockKeys(2, ['pending']);
+    expect(tracker.snapshot()).toMatchObject({ completed: 2, status: 'complete' });
+  });
 });

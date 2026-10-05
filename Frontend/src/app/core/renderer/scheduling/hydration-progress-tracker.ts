@@ -66,6 +66,37 @@ export class HydrationProgressTracker {
 
   isBlockComplete(key: string): boolean { return this.completedBlocks.has(key); }
 
+  /** Adopt only representations already proven committed by the renderer. */
+  adoptBlockKeys(generation: number, keys: readonly string[]): void {
+    if (this.progress.generation !== generation) return;
+    for (const key of keys) if (this.blockScope.has(key)) this.completedBlocks.add(key);
+    this.publishCurrent(generation);
+  }
+
+  adoptDecorationIds(generation: number, ids: readonly string[]): void {
+    if (this.progress.generation !== generation) return;
+    for (const id of ids) if (this.decorationScope.has(id)) this.completedDecorations.add(id);
+    this.publishCurrent(generation);
+  }
+
+  private publishCurrent(generation: number): void {
+    const blocksTotal = this.blockScope.size;
+    const decorationsTotal = this.decorationScope.size;
+    const total = blocksTotal + decorationsTotal;
+    if (!total) {
+      this.publish(idleProgress(generation));
+      return;
+    }
+    const blocksCompleted = this.completedBlocks.size;
+    const decorationsCompleted = this.completedDecorations.size;
+    const completed = blocksCompleted + decorationsCompleted;
+    if (completed >= total) {
+      this.publish({ generation, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100 });
+      return;
+    }
+    this.publish({ generation, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
+  }
+
   setDecorationScope(ids: readonly string[]): void {
     const next = new Set(ids);
     for (const id of this.completedDecorations) if (!next.has(id)) this.completedDecorations.delete(id);

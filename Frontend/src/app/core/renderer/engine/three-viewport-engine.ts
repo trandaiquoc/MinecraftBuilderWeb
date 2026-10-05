@@ -54,6 +54,7 @@ import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
 import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
 import type { HydrationProgressSnapshot, HydrationStatus } from '../scheduling/hydration-progress-tracker';
+import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
 import { ProviderRefreshCoordinator } from '../provider/provider-refresh-coordinator';
 import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
 import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
@@ -1358,6 +1359,7 @@ export class ThreeViewportEngine {
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const visible = this.visibleBlocks(project, options);
     this.setHydrationBlockScope(visible);
+    this.adoptCommittedBlockOwnership(visible);
     this.cachedVisibleEntries = [...visible];
     this.cachedVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     this.cachedVisibleIndices.clear();
@@ -1874,8 +1876,48 @@ export class ThreeViewportEngine {
     this.hydrationProgressTracker.setBlockScope(entries.map((entry) => coordinateKey(entry.block.position)));
   }
 
+  private adoptCommittedBlockOwnership(entries: readonly VisibleBlockEntry[]): void {
+    const candidates = entries.map((entry) => {
+      const key = coordinateKey(entry.block.position);
+      const rendered = this.renderedBlocks.get(key);
+      const committed = !!rendered
+        && rendered.signature === entry.signature
+        && rendered.role === entry.role
+        && !this.pendingHydrationSignatures.has(key)
+        && !this.placeholderSignatures.has(key)
+        && !this.placeholderIndices.has(key)
+        && this.hasCommittedBlockOwnership(key, rendered);
+      return { key, signature: entry.signature, committedSignature: committed ? entry.signature : undefined, visible: true, committed };
+    });
+    const adopted = adoptCommittedHydrationKeys(candidates);
+    if (adopted.length) this.hydrationProgressTracker.adoptBlockKeys(this.hydrationGeneration, adopted);
+  }
+
+  private hasCommittedBlockOwnership(key: string, entry: RenderedBlockEntry): boolean {
+    return entry.terrainChunkKey !== undefined
+      || this.terrainRenderer.isRepresented(key)
+      || entry.surfaceFaceMemberships !== undefined
+      || this.surfaceFaceOwnership.has(key)
+      || (entry.object !== undefined && entry.object !== entry.fallback)
+      || entry.instanceBatchKey !== undefined
+      || this.instanceOwnershipIndex.has(key)
+      || entry.fallback?.userData['renderMode'] !== undefined
+      || (entry.fluidChunkKey !== undefined && this.fluidCoordinator.isTerminal(key));
+  }
+
   private setHydrationDecorationScope(ids: readonly string[]): void {
     this.hydrationProgressTracker.setDecorationScope(ids);
+  }
+
+  private adoptCommittedDecorationOwnership(entries: readonly PlacedDecoration[]): void {
+    const adopted = entries
+      .filter((decoration) => {
+        const entry = this.renderedDecorations.get(decoration.instanceId);
+        return entry?.signature === `${decorationSignature(decoration)}|${this.decorationRevision}`
+          && !this.pendingDecorationSignatures.has(decoration.instanceId);
+      })
+      .map((decoration) => decoration.instanceId);
+    if (adopted.length) this.hydrationProgressTracker.adoptDecorationIds(this.hydrationGeneration, adopted);
   }
 
   private beginHydrationProgress(_blocksWork: number, _decorationsWork: number): void {
@@ -2422,6 +2464,7 @@ export class ThreeViewportEngine {
     }
     const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (!options.isolatedGroupId || decorationHasGroup(decoration, options.isolatedGroupId)) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
     this.setHydrationDecorationScope(visible.map((decoration) => decoration.instanceId));
+    this.adoptCommittedDecorationOwnership(visible);
     const map = new Map(visible.map((decoration) => [decoration.instanceId, decoration] as const));
     this.decorationHydrationQueue = this.decorationHydrationQueue.filter((job) => decorationSignature(map.get(job.id)) === decorationSignature(job.decoration));
     this.decorationHydrationQueueHead = 0;
