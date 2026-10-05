@@ -12,6 +12,7 @@ import type { TerrainAtlasMode } from './atlas/terrain-texture-atlas';
 import { TerrainMeshWorkerPool, type TerrainMeshWorkerPoolEvidence, type TerrainWorkerLike } from './terrain-mesh-worker-pool';
 import type { TerrainMeshFace, TerrainMeshJob, TerrainMeshResult, TerrainMeshTemplateData } from './terrain-mesh-protocol';
 import { TerrainCommitScheduler, type TerrainCommitSchedulerEvidence } from './terrain-commit-scheduler';
+import { TerrainCommitDiagnostics, type TerrainCommitDiagnosticsEvidence, type TerrainCommitMetrics } from './terrain-commit-diagnostics';
 
 export interface TerrainSurfaceRecord {
   readonly key: string;
@@ -41,6 +42,9 @@ export interface TerrainApplyResult {
   readonly rebuiltChunks: readonly string[];
   readonly representedKeys: readonly string[];
   readonly failedKeys: readonly string[];
+  /** Keys whose hydration was invalidated by the originating mutation. */
+  readonly hydrationCandidateKeys?: readonly string[];
+  readonly commitMetrics?: TerrainCommitMetrics;
   readonly pending?: boolean;
   readonly disposition?: TerrainApplyDisposition;
 }
@@ -67,6 +71,7 @@ export interface TerrainRendererEvidence {
   readonly terrainAtlas: TerrainAtlasEvidence;
   readonly terrainWorker: TerrainMeshWorkerPoolEvidence;
   readonly terrainCommit: TerrainCommitSchedulerEvidence;
+  readonly terrainCommitDiagnostics: TerrainCommitDiagnosticsEvidence;
 }
 
 export interface ChunkSurfaceRendererOptions {
@@ -75,7 +80,7 @@ export interface ChunkSurfaceRendererOptions {
   readonly terrainAtlasMode?: TerrainAtlasMode;
   /** Test seam for proving that logical records are not committed early. */
   readonly shouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
-  readonly onTiming?: (stage: 'terrain.flushNow' | 'terrain.rebuildChunk' | 'terrain.meshTerrainChunk' | 'terrain.worker' | 'terrain.commit', durationMs: number) => void;
+  readonly onTiming?: (stage: string, durationMs: number) => void;
   readonly isTimingEnabled?: () => boolean;
   readonly workerCount?: number;
   readonly workerFactory?: () => TerrainWorkerLike;
@@ -108,10 +113,12 @@ export class ChunkSurfaceRenderer {
   private readonly occupancy = new TerrainOccupancy();
   private readonly dirtyChunks = new Set<string>();
   private readonly ownership = new Map<string, TerrainOwnershipEvidence>();
+  private readonly ownershipKeysByChunk = new Map<string, Set<string>>();
   private readonly chunkRevisions = new Map<string, number>();
   private readonly chunkWork = new Map<string, TerrainChunkWorkState>();
   private readonly workerPool: TerrainMeshWorkerPool;
   private readonly commitScheduler: TerrainCommitScheduler;
+  private readonly commitDiagnostics = new TerrainCommitDiagnostics();
   private workerJobSequence = 0;
   private flushTimer?: ReturnType<typeof setTimeout>;
   private rebuildCount = 0;
@@ -162,6 +169,7 @@ export class ChunkSurfaceRenderer {
       this.records.clear();
       this.recordsByChunk.clear();
       this.ownership.clear();
+      this.ownershipKeysByChunk.clear();
       this.chunkRevisions.clear();
       this.chunkWork.clear();
       this.dirtyChunks.clear();
@@ -179,7 +187,7 @@ export class ChunkSurfaceRenderer {
   }
 
   /** Applies a bounded local voxel delta without replacing records or occupancy. */
-  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true): TerrainApplyResult {
+  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true, hydrationCandidateKeys: readonly string[] = changes.map((change) => change.key)): TerrainApplyResult {
     if (!changes.length) return emptyTerrainApplyResult();
     for (const change of changes) {
       if (change.before && (!change.after || change.before.key !== change.after.key)) this.removeRecord(change.before);
@@ -190,7 +198,7 @@ export class ChunkSurfaceRenderer {
     const dirty = dirtyTerrainChunkKeys(changes.map((change) => change.position));
     this.options.record('incrementalChunkInvalidations', dirty.size);
     for (const key of dirty) this.dirtyChunks.add(key);
-    if (flush) return this.flushNow(changes.map((change) => change.key), 1);
+    if (flush) return this.flushNow(changes.map((change) => change.key), 1, hydrationCandidateKeys);
     this.scheduleFlush();
     return emptyTerrainApplyResult(changes.map((change) => change.key));
   }
@@ -225,16 +233,16 @@ export class ChunkSurfaceRenderer {
     this.scheduleFlush();
   }
 
-  flushNow(changedKeys: readonly string[] = [], priority = 0): TerrainApplyResult {
+  flushNow(changedKeys: readonly string[] = [], priority = 0, hydrationCandidateKeys: readonly string[] = changedKeys): TerrainApplyResult {
     const timing = !!this.options.onTiming && (this.options.isTimingEnabled?.() ?? true);
     const started = timing ? performance.now() : 0;
     if (this.flushTimer !== undefined) { clearTimeout(this.flushTimer); this.flushTimer = undefined; }
     const dirty = [...this.dirtyChunks];
     this.dirtyChunks.clear();
     if (this.workerPool.supported) {
-      for (const key of dirty) this.queueWorkerChunk(key, changedKeys, priority);
+      for (const key of dirty) this.queueWorkerChunk(key, changedKeys, priority, hydrationCandidateKeys);
       if (timing) this.options.onTiming?.('terrain.flushNow', performance.now() - started);
-      return { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [], pending: dirty.length > 0 };
+      return { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], pending: dirty.length > 0 };
     }
     const rebuiltChunks: string[] = [];
     const representedKeys = new Set<string>();
@@ -246,7 +254,7 @@ export class ChunkSurfaceRenderer {
       for (const item of result.representedKeys) representedKeys.add(item);
       for (const item of result.failedKeys) failedKeys.add(item);
     }
-    const result = { changedKeys: [...new Set(changedKeys)], rebuiltChunks, representedKeys: [...representedKeys], failedKeys: [...failedKeys] };
+    const result = { changedKeys: [...new Set(changedKeys)], rebuiltChunks, representedKeys: [...representedKeys], failedKeys: [...failedKeys], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)] };
     if (timing) this.options.onTiming?.('terrain.flushNow', performance.now() - started);
     return result;
   }
@@ -272,6 +280,7 @@ export class ChunkSurfaceRenderer {
       terrainBulkBatches: this.bulkBatches,
       terrainWorker: this.workerPool.evidence(),
       terrainCommit: this.commitScheduler.evidence(),
+      terrainCommitDiagnostics: this.commitDiagnostics.evidence(),
       terrainAtlas: { ...(this.terrainAtlas?.evidence() ?? { terrainAtlasPages: 0, terrainAtlasSprites: 0, terrainAtlasCacheHits: 0, terrainAtlasInsertions: 0, terrainAtlasMaterials: 0, terrainAtlasCompatibleFaces: 0, terrainAtlasFallbackFaces: 0 }), terrainAtlasChunkBuckets: this.chunkMeshCount },
     };
   }
@@ -284,6 +293,7 @@ export class ChunkSurfaceRenderer {
     this.records.clear();
     this.recordsByChunk.clear();
     this.ownership.clear();
+    this.ownershipKeysByChunk.clear();
     this.chunkRevisions.clear();
     this.chunkWork.clear();
     this.dirtyChunks.clear();
@@ -300,7 +310,7 @@ export class ChunkSurfaceRenderer {
     this.flushTimer = setTimeout(() => { this.flushTimer = undefined; this.flushNow(); }, 0);
   }
 
-  private queueWorkerChunk(key: string, changedKeys: readonly string[], priority = 0): void {
+  private queueWorkerChunk(key: string, changedKeys: readonly string[], priority = 0, hydrationCandidateKeys: readonly string[] = changedKeys): void {
     const chunk = parseChunkKey(key);
     if (!chunk) return;
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
@@ -314,7 +324,7 @@ export class ChunkSurfaceRenderer {
       if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
       this.chunkWork.delete(key);
-      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], disposition: 'chunk-removed' });
+      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], disposition: 'chunk-removed' });
       return;
     }
     const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], number>();
@@ -346,7 +356,7 @@ export class ChunkSurfaceRenderer {
       this.options.onTiming?.('terrain.worker', result.cpuMs);
       this.commitScheduler.enqueue(() => {
         const started = performance.now();
-        this.commitWorkerResult(key, entries, result);
+        this.commitWorkerResult(key, entries, result, priority, hydrationCandidateKeys);
         this.options.onTiming?.('terrain.commit', performance.now() - started);
       }, 1);
     }).catch(() => {
@@ -363,7 +373,10 @@ export class ChunkSurfaceRenderer {
     return { origin, size: 18, opaque };
   }
 
-  private commitWorkerResult(key: string, records: readonly TerrainSurfaceRecord[], result: TerrainMeshResult): void {
+  private commitWorkerResult(key: string, records: readonly TerrainSurfaceRecord[], result: TerrainMeshResult, priority: number, hydrationCandidateKeys: readonly string[]): void {
+    const commitStarted = performance.now();
+    const metrics: TerrainCommitMetrics = { chunkKey: key, priority, recordsInChunk: records.length, representedKeys: 0, emittedKeys: result.emittedKeys.length, fullyOccludedKeys: result.fullyOccludedKeys.length, failedKeys: result.unrepresentedExposedKeys.length, meshBucketCount: result.buckets.length, geometryVertices: result.buckets.reduce((count, bucket) => count + bucket.positions.length / 3, 0), geometryIndices: result.buckets.reduce((count, bucket) => count + bucket.indices.length, 0), ownershipRemoved: 0, ownershipInserted: 0, hydrationCandidateKeys: hydrationCandidateKeys.length, hydrationCompletedKeys: 0, hydrationPublishCount: 0 };
+    const validateStarted = performance.now();
     const currentRevision = this.chunkRevisions.get(key);
     const generation = this.options.terrainGeneration?.() ?? 0;
     const providerGeneration = this.options.providerGeneration?.() ?? 0;
@@ -373,6 +386,7 @@ export class ChunkSurfaceRenderer {
     const staleProvider = providerGeneration !== result.providerGeneration;
     const replacementPending = this.dirtyChunks.has(key) && work?.jobId === result.jobId;
     const superseded = work?.jobId !== result.jobId || replacementPending;
+    this.recordCommitStage('terrain.commit.validate', validateStarted, metrics);
     if (!staleRevision && !staleGeneration && !staleProvider && !superseded && work?.completed) return;
     if (staleRevision || staleGeneration || staleProvider || superseded) {
       this.workerPool.markStaleResult();
@@ -391,8 +405,11 @@ export class ChunkSurfaceRenderer {
       }
       return;
     }
+    const materialStarted = performance.now();
     const materials = new Map<string, THREE.Material>();
     for (const record of records) for (const face of record.compiledTemplates ?? this.compiledTemplateCache.get(record.templates) ?? []) if (!materials.has(face.bucketKey)) materials.set(face.bucketKey, face.material);
+    this.recordCommitStage('terrain.commit.materialLookup', materialStarted, metrics);
+    const geometryStarted = performance.now();
     const buckets: CompiledTerrainChunk['buckets'][number][] = result.buckets.map((bucket) => {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(bucket.positions, 3));
@@ -411,6 +428,7 @@ export class ChunkSurfaceRenderer {
       fullyOccludedKeys: result.fullyOccludedKeys,
       unrepresentedExposedKeys: result.unrepresentedExposedKeys,
     };
+    this.recordCommitStage('terrain.commit.geometryWrap', geometryStarted, metrics);
     const previous = this.chunks.get(key);
     const shouldCommit = this.options.shouldCommitChunk?.(key, compiled) ?? true;
     const represented = [...compiled.emittedKeys, ...compiled.fullyOccludedKeys];
@@ -423,16 +441,28 @@ export class ChunkSurfaceRenderer {
       if (!shouldCommit) this.options.record('terrainAsyncCommitPolicyRejected');
       else this.options.record('terrainAsyncAllUnrepresentedResults');
       if (work) work.completed = true;
-      this.options.onAsyncApply?.(records, { changedKeys: records.map((record) => record.key), rebuiltChunks: [], representedKeys: [], failedKeys: [...new Set(failedKeys)], disposition: !shouldCommit ? 'commit-policy-rejected' : 'all-unrepresented' });
+      const apply = { changedKeys: [...new Set(hydrationCandidateKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [...new Set(failedKeys)], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], commitMetrics: metrics, disposition: !shouldCommit ? 'commit-policy-rejected' as const : 'all-unrepresented' as const };
+      const asyncStarted = performance.now();
+      this.options.onAsyncApply?.(records, apply);
+      this.recordCommitStage('terrain.commit.asyncApply', asyncStarted, metrics);
+      this.finishCommitDiagnostics(metrics, commitStarted, apply);
       return;
     }
-    this.installCompiledChunk(key, compiled, previous, result.revision);
+    const sceneSwapStarted = performance.now();
+    const ownership = this.installCompiledChunk(key, compiled, previous, result.revision);
+    this.recordCommitStage('terrain.commit.sceneSwap', sceneSwapStarted, metrics);
+    metrics.ownershipRemoved = ownership.removed;
+    metrics.ownershipInserted = ownership.inserted;
     if (work) work.completed = true;
     if (failed.length) {
       this.options.record('terrainAsyncPartialFailureResults');
     } else this.options.record('terrainAsyncAcceptedResults');
-    const apply: TerrainApplyResult = { changedKeys: records.map((record) => record.key), rebuiltChunks: [key], representedKeys: represented, failedKeys: failed, disposition: failed.length ? 'partial-unrepresented' : 'accepted' };
+    metrics.representedKeys = represented.length;
+    const apply: TerrainApplyResult = { changedKeys: [...new Set(hydrationCandidateKeys)], rebuiltChunks: [key], representedKeys: represented, failedKeys: failed, hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], commitMetrics: metrics, disposition: failed.length ? 'partial-unrepresented' : 'accepted' };
+    const asyncStarted = performance.now();
     this.options.onAsyncApply?.(records, apply);
+    this.recordCommitStage('terrain.commit.asyncApply', asyncStarted, metrics);
+    this.finishCommitDiagnostics(metrics, commitStarted, apply);
   }
 
   private commitWorkerFailure(key: string, records: readonly TerrainSurfaceRecord[], changedKeys: readonly string[], job: TerrainMeshJob): void {
@@ -446,7 +476,7 @@ export class ChunkSurfaceRenderer {
     this.options.onAsyncApply?.(records, { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: records.map((record) => record.key), disposition: 'worker-failure' });
   }
 
-  private installCompiledChunk(key: string, compiled: CompiledTerrainChunk, previous: TerrainChunkObject | undefined, revision: number): void {
+  private installCompiledChunk(key: string, compiled: CompiledTerrainChunk, previous: TerrainChunkObject | undefined, revision: number): { readonly removed: number; readonly inserted: number } {
     this.rebuildCount += 1;
     this.blocksCompiled += compiled.blocksCompiled;
     this.facesEmitted += compiled.facesEmitted;
@@ -466,10 +496,17 @@ export class ChunkSurfaceRenderer {
     }
     if (previous) this.disposeChunk(previous);
     if (meshes.length) this.chunks.set(key, { key, chunk: compiled.chunk, meshes }); else this.chunks.delete(key);
-    this.clearChunkOwnership(key);
+    const ownershipStarted = performance.now();
+    const removed = this.clearChunkOwnership(key);
     const emitted = new Set(compiled.emittedKeys), occluded = new Set(compiled.fullyOccludedKeys);
-    for (const item of [...compiled.emittedKeys, ...compiled.fullyOccludedKeys]) this.ownership.set(item, { key: item, chunkKey: key, revision, facesEmitted: emitted.has(item) ? 1 : 0, fullyOccluded: occluded.has(item) });
-    for (const item of compiled.unrepresentedExposedKeys) this.ownership.delete(item);
+    const ownershipKeys = new Set<string>();
+    for (const item of [...compiled.emittedKeys, ...compiled.fullyOccludedKeys]) { this.ownership.set(item, { key: item, chunkKey: key, revision, facesEmitted: emitted.has(item) ? 1 : 0, fullyOccluded: occluded.has(item) }); ownershipKeys.add(item); }
+    this.ownershipKeysByChunk.set(key, ownershipKeys);
+    for (const item of compiled.unrepresentedExposedKeys) { this.ownership.delete(item); ownershipKeys.delete(item); }
+    this.ownershipKeysByChunk.set(key, ownershipKeys);
+    this.commitDiagnostics.recordStage('terrain.commit.ownership', Math.max(0, performance.now() - ownershipStarted));
+    this.options.onTiming?.('terrain.commit.ownership', Math.max(0, performance.now() - ownershipStarted));
+    return { removed, inserted: ownershipKeys.size };
   }
 
   private rebuildChunk(key: string): { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[] } | undefined {
@@ -528,21 +565,44 @@ export class ChunkSurfaceRenderer {
       this.disposeChunk(previous);
       this.chunks.delete(key);
     }
+    const ownershipStarted = performance.now();
     this.clearChunkOwnership(key);
     const emittedKeys = new Set(compiled.emittedKeys);
     const occludedKeys = new Set(compiled.fullyOccludedKeys);
+    const ownershipKeys = new Set<string>();
     for (const item of represented) {
       this.ownership.set(item, { key: item, chunkKey: key, revision, facesEmitted: emittedKeys.has(item) ? 1 : 0, fullyOccluded: occludedKeys.has(item) });
+      ownershipKeys.add(item);
     }
-    if (failed.length) for (const item of failed) this.ownership.delete(item);
+    this.ownershipKeysByChunk.set(key, ownershipKeys);
+    if (failed.length) for (const item of failed) { this.ownership.delete(item); ownershipKeys.delete(item); }
+    this.ownershipKeysByChunk.set(key, ownershipKeys);
+    this.recordCommitStage('terrain.commit.ownership', ownershipStarted, { chunkKey: key, priority: 0, recordsInChunk: compiled.emittedKeys.length + compiled.fullyOccludedKeys.length, representedKeys: represented.length, emittedKeys: compiled.emittedKeys.length, fullyOccludedKeys: compiled.fullyOccludedKeys.length, failedKeys: failed.length, meshBucketCount: compiled.buckets.length, geometryVertices: 0, geometryIndices: 0, ownershipRemoved: 0, ownershipInserted: ownershipKeys.size, hydrationCandidateKeys: 0, hydrationCompletedKeys: 0, hydrationPublishCount: 0 });
     if (!meshes.length && represented.some((item) => !occludedKeys.has(item))) {
       return finish({ representedKeys: [], failedKeys: [...new Set([...failed, ...represented.filter((item) => !occludedKeys.has(item))])] });
     }
     return finish({ representedKeys: represented, failedKeys: failed });
   }
 
-  private clearChunkOwnership(chunkKey: string): void {
-    for (const [key, ownership] of this.ownership) if (ownership.chunkKey === chunkKey) this.ownership.delete(key);
+  private clearChunkOwnership(chunkKey: string): number {
+    const keys = this.ownershipKeysByChunk.get(chunkKey);
+    if (!keys) return 0;
+    for (const key of keys) this.ownership.delete(key);
+    this.ownershipKeysByChunk.delete(chunkKey);
+    return keys.size;
+  }
+
+  private recordCommitStage(stage: string, started: number, metrics: TerrainCommitMetrics): void {
+    const duration = Math.max(0, performance.now() - started);
+    this.commitDiagnostics.recordStage(stage, duration);
+    this.options.onTiming?.(stage, duration);
+  }
+
+  private finishCommitDiagnostics(metrics: TerrainCommitMetrics, started: number, result: TerrainApplyResult): void {
+    metrics.hydrationCompletedKeys = (result.hydrationCandidateKeys ?? result.changedKeys).filter((key) => result.representedKeys.includes(key)).length;
+    metrics.hydrationPublishCount = metrics.hydrationCompletedKeys > 0 ? 1 : 0;
+    this.commitDiagnostics.recordCommit({ ...metrics, totalMs: Math.max(0, performance.now() - started) });
+    this.options.onTiming?.('terrain.commit.total', Math.max(0, performance.now() - started));
   }
 
   private disposeChunk(chunk: TerrainChunkObject): void {

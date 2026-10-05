@@ -52,6 +52,20 @@ export class HydrationProgressTracker {
     for (const key of next) this.blockScope.add(key);
   }
 
+  addBlockKey(key: string): void {
+    this.blockScope.add(key);
+    this.completedBlocks.delete(key);
+  }
+
+  removeBlockKey(key: string): void {
+    this.blockScope.delete(key);
+    this.completedBlocks.delete(key);
+  }
+
+  hasBlockKey(key: string): boolean { return this.blockScope.has(key); }
+
+  isBlockComplete(key: string): boolean { return this.completedBlocks.has(key); }
+
   setDecorationScope(ids: readonly string[]): void {
     const next = new Set(ids);
     for (const id of this.completedDecorations) if (!next.has(id)) this.completedDecorations.delete(id);

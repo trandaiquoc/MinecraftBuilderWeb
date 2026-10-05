@@ -3,6 +3,7 @@ import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { coordinateKey } from '../../domain/coordinates';
 import { buildFluidFallbackMeshData, buildFluidMeshData, FluidMeshRecord, fluidChunkKey } from './fluid-mesh-core';
 import { FluidRenderResolver, FluidWorldLookup, ResolvedFluidRenderState } from './fluid-state';
+import { fluidMaterialCacheKey, fluidMaterialDescriptor } from './fluid-material-key';
 
 export interface FluidChunkRecord { readonly block: PlacedBlock; readonly state: ResolvedFluidRenderState; readonly role?: 'normal' | 'reference'; }
 export interface FluidChunkChange { readonly position: VoxelCoordinate; readonly before?: FluidChunkRecord; readonly after?: FluidChunkRecord; }
@@ -244,7 +245,7 @@ export class FluidChunkRenderer {
     if (buildFallback) for (const record of records) fallbackKeys.add(coordinateKey(record.block.position));
     for (const bucket of data.buckets) {
       const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute(bucket.positions, 3)); geometry.setAttribute('normal', new THREE.Float32BufferAttribute(bucket.normals, 3)); geometry.setAttribute('uv', new THREE.Float32BufferAttribute(bucket.uvs, 2)); geometry.setIndex(bucket.indices);
-      const materialKey = `${providerContractKey(provider)}|${bucket.materialKey}|${bucket.texture}|${bucket.renderLayer}`;
+      const materialKey = fluidMaterialCacheKey(providerContractKey(provider), fluidMaterialDescriptor(bucket, bucket.texture));
       let material = this.materialCache.get(materialKey);
       if (!material) {
         this.descriptorCacheMisses += 1;

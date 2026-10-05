@@ -49,4 +49,29 @@ describe('HydrationProgressTracker', () => {
     tracker.completeBatch(8, 'block', ['fluid-a', 'fluid-b']);
     expect(tracker.snapshot()).toMatchObject({ status: 'complete', completed: 3, total: 3, percent: 100 });
   });
+
+  it('does not republish unchanged chunk members for a one-key local edit', () => {
+    const updates: number[] = [];
+    const tracker = new HydrationProgressTracker(undefined, (progress) => updates.push(progress.completed));
+    tracker.setBlockScope(['changed', 'unchanged-a', 'unchanged-b']);
+    tracker.begin(1);
+    tracker.completeBatch(1, 'block', ['changed', 'unchanged-a', 'unchanged-b']);
+    const before = updates.length;
+    tracker.completeBatch(1, 'block', ['changed']);
+    expect(updates).toHaveLength(before + 1);
+    expect(tracker.snapshot().completed).toBe(3);
+  });
+
+  it('adds new local keys without invalidating already completed neighbors', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['existing']);
+    tracker.begin(1);
+    tracker.complete(1, 'block', 'existing');
+    tracker.addBlockKey('new');
+    expect(tracker.snapshot().completed).toBe(1);
+    tracker.begin(1);
+    expect(tracker.snapshot()).toMatchObject({ total: 2, completed: 1 });
+    tracker.removeBlockKey('new');
+    expect(tracker.snapshot().completed).toBe(1);
+  });
 });

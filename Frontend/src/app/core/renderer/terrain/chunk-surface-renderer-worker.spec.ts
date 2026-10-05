@@ -60,6 +60,29 @@ describe('chunk surface renderer worker commit path', () => {
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
+  it('keeps chunk ownership broad while keeping local hydration candidates bounded', async () => {
+    const group = new THREE.Group();
+    const worker = new DeferredWorker();
+    const applied: Array<{ readonly hydrationCandidateKeys?: readonly string[] }> = [];
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => worker, workerCount: 1, onAsyncApply: (_records, result) => applied.push(result), record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first = blockAt(0); const second = blockAt(1);
+    const record = (block: PlacedBlock): TerrainSurfaceRecord => ({ key: key(block), block, templates });
+    renderer.bulkUpsert([record(first), record(second)], undefined, [first.position, second.position], { initial: true });
+    worker.resolve();
+    await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0));
+    const changed = { ...first, state: { powered: 'true' } };
+    renderer.applyBlockChanges([{ key: key(changed), position: changed.position, before: record(first), after: record(changed), afterOpaque: true }], true, [key(changed)]);
+    worker.resolve();
+    await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0));
+    const last = applied.at(-1)!;
+    expect(last.hydrationCandidateKeys).toEqual([key(changed)]);
+    expect(renderer.ownershipFor(key(second))).toBeDefined();
+    expect(renderer.evidence().terrainCommitDiagnostics.stages['terrain.commit.geometryWrap']).toBeDefined();
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('reschedules a result from an older terrain generation exactly once and keeps ownership pending', async () => {
     const group = new THREE.Group();
     const worker = new DeferredWorker();

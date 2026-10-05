@@ -2,6 +2,7 @@ import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { fluidCornerHeightsResolved, fluidVelocityResolved, FluidRenderResolver, FluidWorldLookup, ResolvedFluidRenderState } from './fluid-state';
 import { shouldCullFluidFace } from './fluid-face-occlusion';
 import { fluidSideUv } from './fluid-surface-sampler';
+import { fluidMaterialDescriptor, fluidMaterialIdentityKey } from './fluid-material-key';
 
 export interface FluidMeshRecord { readonly block: PlacedBlock; readonly state: ResolvedFluidRenderState; }
 export interface FluidMeshBucket {
@@ -39,7 +40,7 @@ export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: F
     const flowAngle = Math.hypot(velocity.x, velocity.z) > 1e-6 ? Math.atan2(velocity.z, velocity.x) - Math.PI / 2 : 0;
     const flowing = Math.hypot(velocity.x, velocity.z) > 1e-6;
     const texture = flowing ? state.flowTexture : state.stillTexture;
-    const bucketKey = `${state.materialKey}|${state.renderLayer}|${texture}|${state.tint ?? ''}|${state.opacity ?? ''}|${state.depthWrite}|${state.doubleSided}`;
+    const bucketKey = fluidMaterialIdentityKey(fluidMaterialDescriptor(state, texture));
     let bucket = buckets.get(bucketKey);
     if (!bucket) {
       bucket = { materialKey: state.materialKey, fluidTypeId: state.fluidTypeId, renderLayer: state.renderLayer, texture, tint: state.tint, opacity: state.opacity, doubleSided: state.doubleSided, depthWrite: state.depthWrite, positions: [], normals: [], uvs: [], indices: [], voxelKeys: [], facesPotential: 0, facesCulled: 0, facesEmitted: 0 };

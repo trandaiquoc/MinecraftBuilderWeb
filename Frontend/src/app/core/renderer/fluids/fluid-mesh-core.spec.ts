@@ -61,4 +61,30 @@ describe('generic fluid mesh core', () => {
     const result = buildFluidMeshData([{ block: water, state: vanillaFluidRenderResolver.resolve(water)! }], world, vanillaFluidRenderResolver);
     expect(result.fluidFacesCulled).toBe(2);
   });
+
+  it('restores the same semantic mesh after a neighboring edit is undone', () => {
+    const water = block('minecraft:water');
+    const support = block('minecraft:stone', { x: 1, y: 0, z: 0 });
+    const resolver = vanillaFluidRenderResolver;
+    const snapshot = (worldBlocks: readonly PlacedBlock[]) => {
+      const result = buildFluidMeshData([{ block: water, state: resolver.resolve(water)! }], worldFor(worldBlocks), resolver);
+      return result.buckets.map((bucket) => ({
+        key: bucket.materialKey,
+        texture: bucket.texture,
+        tint: bucket.tint,
+        opacity: bucket.opacity,
+        depthWrite: bucket.depthWrite,
+        doubleSided: bucket.doubleSided,
+        positions: bucket.positions,
+        normals: bucket.normals,
+        uvs: bucket.uvs,
+        indices: bucket.indices,
+        faces: bucket.facesEmitted,
+      }));
+    };
+    const initial = snapshot([water, support]);
+    snapshot([water]);
+    const restored = snapshot([water, support]);
+    expect(restored).toEqual(initial);
+  });
 });
