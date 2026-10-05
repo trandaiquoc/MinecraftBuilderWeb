@@ -2415,3 +2415,21 @@ ownership remains chunk-local and its worker/commit pipeline is unchanged.
 The 110,592-voxel (`48^3`) steady-state fixture is opt-in through
 `RENDERER_BENCHMARK=1`; it is intentionally excluded from the normal fast test
 run. No visual LOD or greedy meshing was added.
+
+## Generic chunked fluid rendering
+
+Fluid world visuals now resolve through a registry-backed `FluidRenderResolver`
+contract. Vanilla water and lava are adapters; the chunk mesh core only uses
+descriptor-provided connectivity, material, texture, level, flow, and render
+layer semantics. `FluidChunkRenderer` owns 16x16x16 spatial buckets, logical
+voxel ownership, local dirty rebuilds, shared material caching, and fluid
+diagnostics. The existing standalone provider path remains available for
+single-block previews and fallback behavior.
+
+Fluid chunk records are kept separate from opaque terrain ownership. Shared
+faces are culled by resolver connectivity identity, including chunk boundaries,
+and flow-angle UVs remain per-face. The viewport trace exposes fluid logical
+voxels, chunk meshes, face counts, material buckets, rebuilds, render-layer
+counts, and fallback counts. No water-only chunk renderer, greedy meshing, LOD,
+camera change, placement change, hydration fairness change, or Y-layer fluid
+implementation was added.

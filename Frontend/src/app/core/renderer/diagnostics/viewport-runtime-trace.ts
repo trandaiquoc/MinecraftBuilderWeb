@@ -22,6 +22,7 @@ export interface ViewportTraceSample {
   readonly terrain?: Readonly<Record<string, unknown>>;
   readonly build?: Readonly<Record<string, unknown>>;
   readonly staticModels?: Readonly<Record<string, unknown>>;
+  readonly fluids?: Readonly<Record<string, unknown>>;
 }
 
 export interface ViewportTraceMetadata { readonly [key: string]: unknown; }
@@ -71,6 +72,7 @@ export interface ViewportTraceSummary {
   readonly responsiveness: { readonly heartbeatSamples: number; readonly approximateFps: number; readonly frameIntervalP50?: number; readonly frameIntervalP95?: number; readonly frameIntervalP99?: number; readonly maxFrameInterval?: number; readonly framesOver16_7ms: number; readonly framesOver33ms: number; readonly framesOver50ms: number; readonly framesOver100ms: number; readonly framesOver250ms: number; readonly longTaskObserverSupported: boolean; readonly longTaskCount: number; readonly longTaskTotalMs: number; readonly longTaskMaxMs?: number; readonly longTaskP95Ms?: number };
   readonly build: Readonly<Record<string, unknown>>;
   readonly staticModels: Readonly<Record<string, unknown>>;
+  readonly fluids: Readonly<Record<string, unknown>>;
   readonly anomalies: readonly ViewportTraceAnomaly[];
   readonly segments: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   readonly recorder: Readonly<Record<string, unknown>>;
@@ -494,6 +496,7 @@ export class ViewportRuntimeTrace {
         responsiveness: { heartbeatSamples: this.heartbeatAggregate.observedCount, approximateFps: durationMs > 0 ? this.heartbeatAggregate.observedCount / (durationMs / 1000) : 0, frameIntervalP50: this.heartbeatAggregate.summary().p50Ms, frameIntervalP95: this.heartbeatAggregate.summary().p95Ms, frameIntervalP99: percentile(heartbeatIntervals, .99), maxFrameInterval: Number.isFinite(this.heartbeatAggregate.max) ? this.heartbeatAggregate.max : undefined, framesOver16_7ms: this.heartbeatOver16_7, framesOver33ms: this.heartbeatOver33, framesOver50ms: this.heartbeatOver50, framesOver100ms: this.heartbeatOver100, framesOver250ms: this.heartbeatOver250, longTaskObserverSupported: this.longTaskObserverSupported, longTaskCount: this.longTaskAggregate.observedCount, longTaskTotalMs: this.longTaskAggregate.total, longTaskMaxMs: Number.isFinite(this.longTaskAggregate.max) ? this.longTaskAggregate.max : undefined, longTaskP95Ms: this.longTaskAggregate.summary().p95Ms },
         build: { terrainChunkRebuildsDelta: deltaCounter('terrainChunkRebuilds'), terrainBlocksCompiledDelta: deltaCounter('terrainBlocksCompiled'), terrainFacesEmittedDelta: deltaCounter('terrainFacesEmitted'), terrainFacesCulledDelta: deltaCounter('terrainFacesCulled'), incrementalTerrainChunkRebuildsDelta: deltaCounter('incrementalTerrainChunkRebuilds'), terrainBulkBatchesDelta: deltaCounter('terrainBulkBatches'), hydrationBatchesDelta: deltaCounter('hydrationBatches'), fullReconcileFallbacksDelta: deltaCounter('fullReconcileFallbacks'), fullVisibleScansDelta: deltaCounter('fullVisibleScans'), occupancyFullRebuildsDelta: deltaCounter('occupancyFullRebuilds'), providerObjectCreationsDelta: deltaCounter('providerObjectCreations'), reusableTemplateCreationsDelta: deltaCounter('reusableTemplateCreations'), durationSamples: durationSummary },
         staticModels: last?.staticModels ? { ...last.staticModels } : {},
+        fluids: last?.fluids ? { ...last.fluids } : {},
         anomalies: this.anomalies.toArray(),
         segments: this.segmentSummaries(samples, durationMs),
         recorder: { traceRecordCount: this.traceRecordCount, captureSampleCount: this.captureSampleCount, throttledHydrationEvents: this.throttledHydrationEvents, throttledControlsChangeEvents: this.throttledControlsChangeEvents, throttledRenderEvents: this.throttledRenderEvents, controlsChangeCount: this.controlsChangeCount, renderRequestCount: this.renderRequestCount, renderFrameCount: this.renderFrameCount, movementFrameCount: this.movementFrameCount, heartbeatStoredSampleCount: this.heartbeatIntervals.length, heartbeatDroppedSampleCount: this.heartbeatIntervals.droppedCount, rawEventsStoredByPriority: { critical: this.criticalEvents.length, normal: this.normalEvents.length, noisy: this.noisyEvents.length, retainedMarks: this.retainedMarks.length }, rawEventsDroppedByPriority: { critical: this.criticalEvents.droppedCount, normal: this.normalEvents.droppedCount, noisy: this.noisyEvents.droppedCount }, droppedSampleCount: this.samples.droppedCount },

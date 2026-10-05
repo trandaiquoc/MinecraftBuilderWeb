@@ -6,7 +6,7 @@ import { RenderableAssetResourceProvider } from '../../assets/content-source/con
 import { NormalizedSpecialVisualDescriptor, SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
 import { createFluidGeometry } from '../fluids/fluid-geometry';
-import { fluidKindForBlockId, FluidWorldLookup } from '../fluids/fluid-state';
+import { FluidRenderResolver, vanillaFluidRenderResolver, FluidWorldLookup } from '../fluids/fluid-state';
 import { resolveResourceLocation, resourcePath } from '../../content/resource-location';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 
@@ -68,6 +68,8 @@ export interface BlockVisualProvider {
   occlusionClass?(block: PlacedBlock): OcclusionClass;
   /** Stable key for generic, opaque visuals that may reuse an instancing template. */
   reusableVisualKey?(block: PlacedBlock, context?: BlockVisualWorldContext): string | undefined;
+  fluidRenderResolver?: FluidRenderResolver;
+  fluidTexture?(resource: string): Promise<THREE.Texture | undefined>;
   thumbnailUrl(blockId: string, state: Readonly<Record<string, string>>): string | undefined;
   perspectiveThumbnail?(blockId: string, state: Readonly<Record<string, string>>): Promise<string | undefined>;
   perspectiveItemThumbnail?(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult>;
@@ -105,9 +107,20 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
 
   constructor(private readonly assets: RenderableAssetResourceProvider, private readonly loadTexture = (url: string) => new THREE.TextureLoader().loadAsync(url)) { this.resolver = new BlockModelResolver(assets); this.specialVisuals = new SpecialBlockVisualRegistry(assets); }
 
+  readonly fluidRenderResolver = vanillaFluidRenderResolver;
+
+  async fluidTexture(resource: string): Promise<THREE.Texture | undefined> {
+    try {
+      const texture = await this.texture(resource);
+      return texture ? this.staticFluidTexture(resource, texture) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async create(block: PlacedBlock, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
     const resolved = this.resolve(block.id, block.state);
-    if (fluidKindForBlockId(block.id)) return this.createFluid(block, resolved, context);
+    if (this.fluidRenderResolver.resolve(block, context)) return this.createFluid(block, resolved, context);
     const resources = resolved.trace.textureResources;
     const texturePaths = resources.map(texturePath);
     const compatibleSpecial = this.specialVisuals.resolveCompatible(block);
@@ -165,7 +178,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   reusableVisualKey(block: PlacedBlock): string | undefined {
     const stateKey = `${block.id}|${Object.entries(block.state).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => `${name}=${value}`).join(',')}`;
     if (this.reusableKeyCache.has(stateKey)) return this.reusableKeyCache.get(stateKey);
-    if (fluidKindForBlockId(block.id)) return undefined;
+    if (this.fluidRenderResolver.resolve(block)) return undefined;
     const specialKey = this.specialVisuals.reusableVisualKey(block);
     if (specialKey) { this.reusableKeyCache.set(stateKey, specialKey); return specialKey; }
     if (this.specialVisuals.resolveCompatible(block)) return undefined;
@@ -186,7 +199,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 
   private resolveOcclusionClass(block: PlacedBlock): OcclusionClass {
-    if (block.kind !== 'resolved' || block.namespace !== 'minecraft' || fluidKindForBlockId(block.id) || this.specialVisuals.resolveCompatible(block)) return 'non-occluding';
+    if (block.kind !== 'resolved' || block.namespace !== 'minecraft' || this.fluidRenderResolver.resolve(block) || this.specialVisuals.resolveCompatible(block)) return 'non-occluding';
     const resolved = this.resolve(block.id, block.state);
     if (resolved.support !== 'full' || resolved.diagnostics.length !== 0 || resolved.parts.length !== 1) return 'unknown';
     const part = resolved.parts[0];
@@ -199,15 +212,16 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
   }
 
   private async createFluid(block: PlacedBlock, resolved: ResolvedBlockModel, context?: BlockVisualWorldContext): Promise<BlockVisualResult> {
-    const kind = fluidKindForBlockId(block.id)!; const resources = kind === 'water' ? ['minecraft:block/water_still', 'minecraft:block/water_flow'] : ['minecraft:block/lava_still', 'minecraft:block/lava_flow'];
+    const fluid = this.fluidRenderResolver.resolve(block, context); if (!fluid) return { resolved, mode: 'fallback', diagnostics: [{ code: 'MODEL_NOT_FOUND', message: `No fluid descriptor for ${block.id}` }], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } };
+    const resources = [fluid.stillTexture, fluid.flowTexture];
     const diagnostics: BlockRenderDiagnostic[] = []; const textures = await Promise.all(resources.map(async (resource) => {
       const path = texturePath(resource); if (!this.assets.readBinary(path)) { diagnostics.push({ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${path}`, resource: path }); return undefined; }
       const texture = await this.texture(resource); if (!texture) diagnostics.push({ code: 'TEXTURE_DECODE_FAILED', message: `Texture could not be decoded: ${path}`, resource: path }); return texture;
     }));
-    const geometry = createFluidGeometry(block, context); if (!geometry) return { resolved, mode: 'fallback', diagnostics: [{ code: 'GEOMETRY_BUILD_FAILED', message: `Could not build fluid geometry for ${block.id}` }], trace: { texturePaths: resources.map(texturePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(texturePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: false, meshBuilt: false } };
+    const geometry = createFluidGeometry(block, context, this.fluidRenderResolver); if (!geometry) return { resolved, mode: 'fallback', diagnostics: [{ code: 'GEOMETRY_BUILD_FAILED', message: `Could not build fluid geometry for ${block.id}` }], trace: { texturePaths: resources.map(texturePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(texturePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: false, meshBuilt: false } };
     const state = block.state['level'] ?? '0'; const flowing = geometry.flowAngle !== 0; const texture = this.staticFluidTexture(resources[flowing ? 1 : 0], textures[flowing ? 1 : 0]);
-    const material = kind === 'water' ? new THREE.MeshLambertMaterial({ map: texture, color: 0x3f76e4, transparent: true, depthWrite: false, side: THREE.DoubleSide }) : new THREE.MeshLambertMaterial({ map: texture, color: 0xffffff, transparent: false, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geometry.geometry, material); const root = new THREE.Group(); root.add(mesh); root.userData['fluidKind'] = kind; root.userData['fluidLevel'] = state; root.userData['fluidFlowAngle'] = geometry.flowAngle; root.userData['fluidRenderLayer'] = kind === 'water' ? 'translucent' : 'solid';
+    const material = new THREE.MeshLambertMaterial({ map: texture, color: fluid.tint ?? 0xffffff, transparent: fluid.renderLayer === 'translucent', opacity: fluid.opacity ?? 1, depthWrite: fluid.depthWrite, side: fluid.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+    const mesh = new THREE.Mesh(geometry.geometry, material); const root = new THREE.Group(); root.add(mesh); root.userData['fluidKind'] = fluid.kind; root.userData['fluidTypeId'] = fluid.fluidTypeId; root.userData['fluidLevel'] = state; root.userData['fluidFlowAngle'] = geometry.flowAngle; root.userData['fluidRenderLayer'] = fluid.renderLayer;
     return { object: root, resolved, mode: diagnostics.length ? 'partial' : 'real', diagnostics, trace: { texturePaths: resources.map(texturePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(texturePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(root)) } };
   }
 

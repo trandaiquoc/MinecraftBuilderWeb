@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateFluidHeight, fluidCornerHeights, fluidStateForBlock } from './fluid-state';
+import { calculateFluidHeight, fluidCornerHeights, fluidStateForBlock, RegistryFluidRenderResolver, vanillaFluidRenderResolver } from './fluid-state';
 
 const block = (id: string, level: string, y = 0) => ({ kind: 'resolved' as const, id, namespace: 'minecraft', position: { x: 0, y, z: 0 }, state: { level } });
 
@@ -17,5 +17,12 @@ describe('static vanilla fluid state', () => {
     const world = new Map([['0,0,0', lower], ['0,1,0', upper]]);
     const corners = fluidCornerHeights(lower.position, fluidStateForBlock(lower)!, { getBlock: (position) => world.get(`${position.x},${position.y},${position.z}`) });
     expect(corners.northWest).toBe(1); expect(corners.southEast).toBe(1);
+  });
+
+  it('keeps vanilla identity in the generic resolver and preserves waterlogged sampling', () => {
+    const water = block('minecraft:water', '0');
+    expect(vanillaFluidRenderResolver.resolve(water)).toMatchObject({ fluidTypeId: 'minecraft:water', connectivityKey: 'minecraft:water', stillTexture: 'minecraft:block/water_still' });
+    const fake = new RegistryFluidRenderResolver().register('mod:fluid', (value) => ({ ...fluidStateForBlock(water)!, fluidTypeId: 'mod:fluid', connectivityKey: 'mod:fluid', materialKey: 'mod:fluid', renderLayer: 'translucent' as const, stillTexture: 'mod:block/still', flowTexture: 'mod:block/flow', doubleSided: true, depthWrite: false }));
+    expect(fake.resolve({ ...water, id: 'mod:fluid', namespace: 'mod' })?.connectivityKey).toBe('mod:fluid');
   });
 });

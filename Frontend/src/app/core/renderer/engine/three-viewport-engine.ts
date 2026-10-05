@@ -68,6 +68,9 @@ import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
 import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
+import { FluidChunkRenderer, type FluidChunkRecord } from '../fluids/fluid-chunk-renderer';
+import { fluidChunkKey } from '../fluids/fluid-mesh-core';
+import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -154,6 +157,14 @@ export interface ViewportPerformanceEvidence {
   readonly staticModelRejected: Readonly<Record<string, number>>;
   readonly staticModelBatchCount: number;
   readonly staticModelInstanceMeshCount: number;
+  readonly fluidLogicalVoxels: number;
+  readonly fluidChunks: number;
+  readonly fluidChunkMeshes: number;
+  readonly fluidStandaloneMeshes: number;
+  readonly fluidFacesPotential: number;
+  readonly fluidFacesCulled: number;
+  readonly fluidFacesEmitted: number;
+  readonly fluidMaterialBuckets: number;
   readonly standaloneBlockObjects: number;
   readonly standaloneBlockMeshes: number;
   readonly standaloneTransparentMeshes: number;
@@ -428,6 +439,7 @@ interface RenderedBlockEntry {
   staticModelAttempted?: boolean;
   staticModelDecision?: ReturnType<StaticModelBatchRenderer['decisionFor']>;
   staticModelFamily?: string;
+  fluidChunkKey?: string;
 }
 
 interface RenderedDecorationEntry {
@@ -676,6 +688,9 @@ export class ThreeViewportEngine {
   private readonly pendingTerrainTemplates = new Map<string, Promise<readonly SurfaceFaceTemplate[] | undefined>>();
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer: StaticModelBatchRenderer;
+  private readonly fluidRenderer = new FluidChunkRenderer(this.blocksGroup);
+  private readonly fluidBlockKeys = new Set<string>();
+  private fluidSyncGeneration = 0;
   private get instanceBatches(): Map<string, InstanceBatch> { return this.instanceRenderer.batches; }
   private get instanceOwnershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
   /** Compatibility view for diagnostics/tests; ownership remains in the batching module. */
@@ -984,7 +999,9 @@ export class ThreeViewportEngine {
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
     const previousProvider = this.visualProvider;
+    this.fluidSyncGeneration += 1;
     this.visualProvider = provider;
+    this.fluidRenderer.setProvider(provider?.fluidRenderResolver && provider.fluidTexture ? { resolver: provider.fluidRenderResolver, texture: provider.fluidTexture.bind(provider) } : undefined);
     this.providerLifecycle.transition(previousProvider, provider);
     this.providerStats = undefined;
     this.runtimeTrace?.record('provider-generation', { providerGeneration: this.providerGeneration, hasProvider: !!provider });
@@ -1259,6 +1276,7 @@ export class ThreeViewportEngine {
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
       terrain: { ...terrain, terrainAtlas: { ...terrain.terrainAtlas } },
       staticModels: { ...staticModels },
+      fluids: { ...this.fluidRenderer.diagnostics() },
       build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed },
     };
   }
@@ -1330,11 +1348,13 @@ export class ThreeViewportEngine {
       for (const neighbor of coordinateNeighbors(position)) if (allVisibleMap.has(coordinateKey(neighbor))) changed.add(coordinateKey(neighbor));
     }
     const terrainAffectedPositions = [...changed].map((key) => allVisibleMap.get(key)?.block.position ?? this.previousVisibleBlockPositions.get(key)).filter((position): position is VoxelCoordinate => !!position);
+    this.syncFluidVisuals(visible, worldContext, full ? undefined : terrainAffectedPositions);
     // Initial terrain occupancy is committed together with the first bulk
     // terrain batch. Incremental edits retain the existing conservative sync.
     if (!full) this.terrainRenderer.syncOccupancy(visible, terrainAffectedPositions);
     this.updateInteriorCulling(visible, full, changed);
     const renderVisible = visible.filter((entry) => {
+      if (this.fluidBlockKeys.has(coordinateKey(entry.block.position))) return false;
       if (options.exposedFaceRendering === true && isCompiledTerrainEntry(entry)) return true;
       return !this.culledBlockKeys.has(coordinateKey(entry.block.position));
     });
@@ -1348,7 +1368,7 @@ export class ThreeViewportEngine {
       return !!next && job.signature === next.signature;
     });
     if (full) this.instrumentation.record('fullSceneRebuilds');
-    for (const [key, entry] of this.renderedBlocks) if (!visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.pendingHydrationSignatures.delete(key); this.placeholderSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
+    for (const [key, entry] of this.renderedBlocks) if (entry.fluidChunkKey === undefined && !visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.pendingHydrationSignatures.delete(key); this.placeholderSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
     for (const key of this.placeholderIndices.keys()) if (!visibleMap.has(key)) this.removePlaceholderVisual(key);
     for (const key of this.pendingHydrationSignatures.keys()) if (!visibleMap.has(key)) this.pendingHydrationSignatures.delete(key);
     for (const key of this.placeholderSignatures.keys()) if (!visibleMap.has(key)) this.placeholderSignatures.delete(key);
@@ -1412,6 +1432,39 @@ export class ThreeViewportEngine {
     this.previousVisibleBlockPositions.clear();
     for (const entry of visible) this.previousVisibleBlockPositions.set(coordinateKey(entry.block.position), { ...entry.block.position });
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
+  }
+
+  private syncFluidVisuals(visible: readonly VisibleBlockEntry[], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, changedPositions?: readonly VoxelCoordinate[]): void {
+    const records: FluidChunkRecord[] = [];
+    if (!this.visualProvider?.fluidRenderResolver || !this.visualProvider.fluidTexture) {
+      this.fluidSyncGeneration += 1;
+      this.fluidRenderer.clear();
+      for (const key of this.fluidBlockKeys) { const entry = this.renderedBlocks.get(key); if (entry?.fluidChunkKey !== undefined) this.renderedBlocks.delete(key); }
+      this.fluidBlockKeys.clear();
+      return;
+    }
+    const resolver = this.visualProvider?.fluidRenderResolver ?? vanillaFluidRenderResolver;
+    for (const entry of visible) {
+      const state = resolver.resolve(entry.block, worldContext);
+      if (!state) continue;
+      const key = coordinateKey(entry.block.position);
+      this.fluidBlockKeys.add(key);
+      const previous = this.renderedBlocks.get(key);
+      if (previous && previous.fluidChunkKey === undefined) this.removeBlockEntry(key, previous);
+      this.renderedBlocks.set(key, { key, block: entry.block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(entry.block.position) });
+      records.push({ block: entry.block, state, role: entry.role === 'reference' ? 'reference' : 'normal' });
+    }
+    const nextKeys = new Set(records.map((record) => coordinateKey(record.block.position)));
+    for (const key of [...this.fluidBlockKeys]) {
+      if (nextKeys.has(key)) continue;
+      this.fluidBlockKeys.delete(key);
+      const entry = this.renderedBlocks.get(key);
+      if (entry?.fluidChunkKey !== undefined) this.renderedBlocks.delete(key);
+    }
+    const generation = ++this.fluidSyncGeneration;
+    void this.fluidRenderer.sync(records, worldContext, changedPositions).then(() => {
+      if (generation === this.fluidSyncGeneration) { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); }
+    });
   }
 
   private terrainCandidate(key: string, next: VisibleBlockEntry, worldContext: TerrainHydrationCandidate['worldContext'], options: ViewportRenderOptions): TerrainHydrationCandidate | undefined {
@@ -2259,6 +2312,11 @@ export class ThreeViewportEngine {
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
     this.invalidateStaticModelDiagnostics();
     entry.revision += 1;
+    if (entry.fluidChunkKey !== undefined) {
+      this.fluidBlockKeys.delete(key);
+      if (this.renderedBlocks.get(key) === entry) this.renderedBlocks.delete(key);
+      return;
+    }
     if (entry.terrainChunkKey !== undefined || this.terrainRenderer.has(key)) this.terrainRenderer.remove(key);
     const hasSurfaceVisual = entry.surfaceFaceMemberships !== undefined || this.surfaceFaceOwnership.has(key);
     if (hasSurfaceVisual) this.removeSurfaceFaceVisual(key, entry);
@@ -2284,7 +2342,7 @@ export class ThreeViewportEngine {
   }
 
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); this.fluidRenderer.clear(); this.fluidBlockKeys.clear(); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -2404,6 +2462,7 @@ export class ThreeViewportEngine {
       if (entry) {
         add(entry.fallback);
         add(entry.object);
+        if (entry.fluidChunkKey !== undefined) for (const object of this.fluidRenderer.objectsForVoxel(key)) add(object);
         for (const membership of entry.surfaceFaceMemberships ?? this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
         if (entry.instanceBatchKey) for (const part of this.instanceBatches.get(entry.instanceBatchKey)?.parts ?? []) add(part);
       } else {
@@ -2413,6 +2472,7 @@ export class ThreeViewportEngine {
       if (placeholder) add(this.placeholderBatches.get(placeholder.batchKey)?.mesh);
       if (!objects.length) continue;
       const intersection = this.raycaster.intersectObjects(objects, true).find((hit) => {
+        if (hit.object.userData['fluidChunk'] === true) { const fluidHit = this.fluidCoordinateFromHit(hit); return !!fluidHit && coordinateKey(fluidHit) === key; }
         const hitPosition = blockCoordinateFromHit(hit);
         return !hitPosition || coordinateKey(hitPosition) === key;
       });
@@ -2447,7 +2507,7 @@ export class ThreeViewportEngine {
       faceNormal = ddaHit.normal;
       hitPoint = ddaHit.point;
     } else if (blockHit) {
-      block = blockCoordinateFromHit(blockHit);
+      block = blockCoordinateFromHit(blockHit) ?? this.fluidCoordinateFromHit(blockHit);
       if (block) {
         const surfaceDirection = surfaceFaceDirectionFromHit(blockHit);
         const normal = surfaceDirection ? surfaceFaceNormal(surfaceDirection) : (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
@@ -2459,7 +2519,7 @@ export class ThreeViewportEngine {
       if (groundHit) { target = targetFromGridHit(groundHit.point); faceNormal = { x: 0, y: 1, z: 0 }; hitPoint = groundHit.point; }
     }
     if (blockHit) {
-      const hitVoxel = blockCoordinateFromHit(blockHit);
+      const hitVoxel = blockCoordinateFromHit(blockHit) ?? this.fluidCoordinateFromHit(blockHit);
       if (hitVoxel && (planeY === undefined || hitVoxel.y === planeY)) block = hitVoxel;
     }
     const facing = active?.state['facing'];
@@ -2490,6 +2550,14 @@ export class ThreeViewportEngine {
     if (previewStarted) { const elapsed = Math.max(0, performance.now() - previewStarted); this.instrumentation.record('placementPreviewCount'); this.instrumentation.record('placementPreviewMaxMs', Math.max(0, elapsed - this.instrumentation.snapshot().placementPreviewMaxMs)); }
     this.recordSpatialLookupDelta();
     return { target, block, placement: placement.status ? { status: placement.status, plan: placement.plan } : undefined, faceNormal, placementContext, decoration, decorationPlan, decorationDistance: decorationHit?.distance, blockDistance: ddaHit?.distance ?? blockHit?.distance };
+  }
+
+  private fluidCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
+    if (hit.object.userData['fluidChunk'] !== true) return undefined;
+    const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld).normalize() ?? new THREE.Vector3();
+    const point = hit.point.clone().sub(normal.multiplyScalar(.002));
+    const candidate = { x: Math.floor(point.x), y: Math.floor(point.y), z: Math.floor(point.z) };
+    return this.fluidRenderer.hasVoxel(coordinateKey(candidate)) ? candidate : undefined;
   }
 
   /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
@@ -2556,6 +2624,7 @@ export class ThreeViewportEngine {
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
     this.clearSurfaceFaceResources();
+    this.fluidRenderer.dispose();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
     this.instanceRenderer.clear();
@@ -2971,6 +3040,14 @@ export class ThreeViewportEngine {
       staticModelRejected: staticModelMetrics.rejected,
       staticModelBatchCount: this.instanceBatches.size,
       staticModelInstanceMeshCount: renderCost.instance.meshCount,
+      fluidLogicalVoxels: this.fluidRenderer.diagnostics().fluidLogicalVoxels,
+      fluidChunks: this.fluidRenderer.diagnostics().fluidChunks,
+      fluidChunkMeshes: this.fluidRenderer.diagnostics().fluidChunkMeshes,
+      fluidStandaloneMeshes: this.fluidRenderer.diagnostics().fluidStandaloneMeshes,
+      fluidFacesPotential: this.fluidRenderer.diagnostics().fluidFacesPotential,
+      fluidFacesCulled: this.fluidRenderer.diagnostics().fluidFacesCulled,
+      fluidFacesEmitted: this.fluidRenderer.diagnostics().fluidFacesEmitted,
+      fluidMaterialBuckets: this.fluidRenderer.diagnostics().fluidMaterialBuckets,
       standaloneBlockObjects: renderCost.standaloneBlockObjects,
       standaloneBlockMeshes: renderCost.standaloneBlockMeshes,
       standaloneTransparentMeshes: renderCost.standaloneTransparentMeshes,

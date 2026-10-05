@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ThreeViewportEngine } from '../engine/three-viewport-engine';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import { benchmarkBlock, rendererBenchmarkProject, rendererBenchmarkVisualProvider } from './renderer-benchmark-fixtures';
+import * as THREE from 'three';
+import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
+import { RegistryFluidRenderResolver, vanillaFluidRenderResolver } from '../fluids/fluid-state';
 
 describe('explicit renderer benchmark', () => {
   it('measures medium and large incremental updates only when explicitly requested', async () => {
@@ -87,6 +90,31 @@ describe('explicit renderer benchmark', () => {
     console.info(`[renderer benchmark] mega logical=${evidence.terrainLogicalBlocks} terrainMeshes=${evidence.terrainChunkMeshes} terrainTriangles=${evidence.terrainTriangleCount} regions=${evidence.renderRegionCount} instanceMembers=${evidence.instanceMembers} instanceBatches=${evidence.regionalInstanceBatchCount} surfaceBatches=${evidence.regionalSurfaceBatchCount} staticCandidates=${evidence.staticModelCandidates} staticBatchable=${evidence.staticModelBatchable} staticBatchedMembers=${evidence.staticModelBatchedMembers} staticCache=${evidence.staticModelTemplateCacheHits}/${evidence.staticModelTemplateCacheMisses} providerAvoided=${evidence.providerObjectsAvoidedByStaticCache} staticRejected=${JSON.stringify(evidence.staticModelRejected)} staticModels=${JSON.stringify(staticModels)} standaloneMeshes=${evidence.standaloneBlockMeshes} objects=${evidence.object3dCount} meshes=${evidence.meshCount} calls=${evidence.renderCalls} triangles=${evidence.triangles} hydration=${evidence.hydrationQueue}/${evidence.hydrationRunning}`);
     provider.dispose();
     engine.dispose();
+  });
+
+  it('measures generic chunked fluid representation when explicitly requested', { timeout: 120000 }, async () => {
+    const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['FLUID_BENCHMARK'] === '1';
+    if (!benchmarkEnabled) return;
+    const blocks = [] as ReturnType<typeof benchmarkBlock>[];
+    const map = new Map<string, ReturnType<typeof benchmarkBlock>>();
+    for (let y = 0; y < 16; y += 1) for (let z = 0; z < 32; z += 1) for (let x = 0; x < 32; x += 1) {
+      const id = x >= 30 && z >= 30 ? 'minecraft:lava' : 'minecraft:water';
+      const value = { ...benchmarkBlock(blocks.length, { x, y, z }), id, namespace: 'minecraft', state: { level: '0' } };
+      blocks.push(value); map.set(`${x},${y},${z}`, value);
+    }
+    const resolver = new RegistryFluidRenderResolver();
+    resolver.register('minecraft:water', (block, world) => vanillaFluidRenderResolver.resolve(block, world)!);
+    resolver.register('minecraft:lava', (block, world) => vanillaFluidRenderResolver.resolve(block, world)!);
+    resolver.register('mod:test_fluid', (block, world) => ({ ...vanillaFluidRenderResolver.resolve({ ...block, id: 'minecraft:water' }, world)!, fluidTypeId: 'mod:test_fluid', connectivityKey: 'mod:test-fluid', materialKey: 'mod:test-fluid', stillTexture: 'mod:block/test_still', flowTexture: 'mod:block/test_flow', tint: 0x55aa55 }));
+    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
+    renderer.setProvider({ resolver, texture: async () => texture });
+    await renderer.sync(blocks.map((block) => ({ block, state: resolver.resolve(block)! })), { getBlock: (position) => map.get(`${position.x},${position.y},${position.z}`) });
+    const evidence = renderer.diagnostics();
+    expect(evidence.fluidLogicalVoxels).toBe(blocks.length);
+    expect(evidence.fluidStandaloneMeshes).toBe(0);
+    expect(evidence.fluidChunkMeshes).toBeLessThan(blocks.length / 100);
+    console.info(`[fluid benchmark] logical=${evidence.fluidLogicalVoxels} chunks=${evidence.fluidChunks} meshes=${evidence.fluidChunkMeshes} materials=${evidence.fluidMaterialBuckets} emitted=${evidence.fluidFacesEmitted} culled=${evidence.fluidFacesCulled} byType=${JSON.stringify(evidence.fluidByType)}`);
+    renderer.dispose(); texture.dispose();
   });
 });
 

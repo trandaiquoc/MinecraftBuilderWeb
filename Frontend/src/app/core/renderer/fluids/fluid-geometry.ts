@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
-import { fluidCornerHeights, fluidKindForBlockId, fluidStateForBlock, fluidVelocity, FluidWorldLookup } from './fluid-state';
+import { fluidCornerHeightsResolved, fluidVelocityResolved, FluidRenderResolver, FluidWorldLookup, vanillaFluidRenderResolver } from './fluid-state';
 
 export interface FluidGeometryResult { readonly geometry: THREE.BufferGeometry; readonly faceCount: number; readonly flowAngle: number; }
 
-export function createFluidGeometry(block: PlacedBlock, world?: FluidWorldLookup): FluidGeometryResult | undefined {
-  const state = fluidStateForBlock(block); if (!state) return undefined;
-  const corners = fluidCornerHeights(block.position, state, world); const velocity = fluidVelocity(block.position, state, world);
+export function createFluidGeometry(block: PlacedBlock, world?: FluidWorldLookup, resolver: FluidRenderResolver = vanillaFluidRenderResolver): FluidGeometryResult | undefined {
+  const state = resolver.resolve(block, world); if (!state) return undefined;
+  const lookup = world ?? { getBlock: (position: PlacedBlock['position']) => position.x === block.position.x && position.y === block.position.y && position.z === block.position.z ? block : undefined };
+  const corners = fluidCornerHeightsResolved(block.position, state, lookup, resolver); const velocity = fluidVelocityResolved(block.position, state, lookup, resolver);
   const flowAngle = velocity.x || velocity.z ? Math.atan2(velocity.z, velocity.x) - Math.PI / 2 : 0;
   const positions: number[] = []; const uvs: number[] = []; const indices: number[] = []; let faces = 0;
   const quad = (vertices: readonly (readonly [number, number, number])[], uv: readonly (readonly [number, number])[], flipWinding = false): void => {
@@ -15,7 +16,7 @@ export function createFluidGeometry(block: PlacedBlock, world?: FluidWorldLookup
   };
   const hNW = corners.northWest - .001; const hNE = corners.northEast - .001; const hSW = corners.southWest - .001; const hSE = corners.southEast - .001;
   const topUv = rotateUv([[0, 0], [1, 0], [1, 1], [0, 1]], flowAngle);
-  const same = (dx: number, dy: number, dz: number): boolean => fluidKindForBlockId(world?.getBlock({ x: block.position.x + dx, y: block.position.y + dy, z: block.position.z + dz })?.id ?? '') === state.kind;
+  const same = (dx: number, dy: number, dz: number): boolean => resolver.resolve(lookup.getBlock({ x: block.position.x + dx, y: block.position.y + dy, z: block.position.z + dz }), lookup)?.connectivityKey === state.connectivityKey;
   if (!same(0, 1, 0)) quad([[0, hNW, 0], [1, hNE, 0], [1, hSE, 1], [0, hSW, 1]], topUv, true);
   if (!same(0, -1, 0)) quad([[0, 0, 1], [1, 0, 1], [1, 0, 0], [0, 0, 0]], [[0, 1], [1, 1], [1, 0], [0, 0]], true);
   if (!same(0, 0, -1)) quad([[0, 0, .001], [1, 0, .001], [1, hNE, .001], [0, hNW, .001]], [[0, 1], [1, 1], [1, 0], [0, 0]], true);
