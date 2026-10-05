@@ -38,10 +38,16 @@ describe('static model batch renderer', () => {
     const makeObject = () => { const root = new THREE.Group(); root.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())); return root; };
     for (let index = 0; index < 10; index += 1) {
       const position = { x: index, y: 0, z: 0 }; const key = `${index},0,0`; fixtureState.entries.set(key, {});
-      expect(fixtureState.renderer.tryAdd(makeObject(), block(position), key, 'stone-template')).toBeDefined();
+      if (index === 0) expect(fixtureState.renderer.tryAdd(makeObject(), block(position), key, 'stone-template')).toBeDefined();
+      else {
+        const cached = fixtureState.renderer.templateFor('stone-template');
+        expect(cached).toBeDefined();
+        expect(fixtureState.renderer.addFromTemplates(cached!.templates, block(position), key, 'cached-template', cached)).toBeDefined();
+      }
     }
     expect(fixtureState.renderer.batches.size).toBe(3);
     expect(fixtureState.renderer.metrics()).toMatchObject({ batchable: 1, batchedMembers: 10, templateCacheHits: 9, templateCacheMisses: 1, providerObjectsAvoidedByStaticCache: 9 });
+    expect(fixtureState.renderer.shouldAttempt(false, 'stone-template')).toBe(true);
     fixtureState.renderer.clear(); geometry.dispose();
   });
 
@@ -51,6 +57,14 @@ describe('static model batch renderer', () => {
     expect(state.renderer.addFromTemplates([template()], first, firstKey)).toBeDefined();
     expect(state.renderer.addFromTemplates([template()], second, secondKey)).toBeDefined();
     expect(state.renderer.batches.size).toBe(2);
+    state.renderer.clear();
+  });
+
+  it('records reusable-key coverage without mixing missing keys into classifier rejection', () => {
+    const state = fixture();
+    state.renderer.recordReusableKey('stone', 'generic-json');
+    state.renderer.recordReusableKey(undefined, 'signs');
+    expect(state.renderer.metrics()).toMatchObject({ reusableKeyRequested: 2, reusableKeyReturned: 1, reusableKeyMissing: 1, reusableKeyMissingByFamily: { signs: 1 } });
     state.renderer.clear();
   });
 

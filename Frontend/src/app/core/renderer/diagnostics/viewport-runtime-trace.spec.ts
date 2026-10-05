@@ -26,12 +26,14 @@ describe('ViewportRuntimeTrace', () => {
   });
 
   it('records lifecycle, marks, summary and stable JSON', () => {
-    const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 12, minecraftVersion: '1.21.1' }), sample: () => sample() });
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 12, minecraftVersion: '1.21.1' }), sample: () => sample({ staticModels: { standaloneLogical: 4, standaloneReasonCounts: { transparent: 2 } } }) });
     trace.start('idle-build'); trace.mark('checkpoint');
     const document = trace.stop();
     expect(document?.schema).toBe('minecraftbuilder.viewport-trace.v1');
     expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['trace-start', 'mark', 'trace-stop']));
     expect(document?.metadata['projectBlocks']).toBe(12);
+    expect(document?.samples.at(-1)?.staticModels?.['standaloneLogical']).toBe(4);
+    expect(document?.summary.staticModels['standaloneLogical']).toBe(4);
     expect(stableTraceJson(document)).toContain('idle-build');
   });
 

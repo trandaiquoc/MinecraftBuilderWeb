@@ -1371,7 +1371,7 @@ describe('incremental project mutation reconciliation', () => {
   });
 
   it('keeps fallback ownership when a local terrain chunk commit is rejected', async () => {
-    const provider = axisCubeProvider();
+    const provider = axisCubeProvider('fallback', false);
     const blocks = [0, 1].map((x) => ({ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y: 1, z: 1 }, state: {} }));
     const engine = new ThreeViewportEngine(undefined, { terrainAtlasMode: 'on', terrainShouldCommitChunk: () => false });
     engine.setVisualProvider(provider);
@@ -1382,7 +1382,24 @@ describe('incremental project mutation reconciliation', () => {
     expect(engine.terrainOwnershipFor(coordinateKey(blocks[0].position))).toBeUndefined();
     expect(engine.terrainOwnershipFor(coordinateKey(blocks[1].position))).toBeUndefined();
     expect([...internal.renderedBlocks.values()].every((entry) => entry.terrainChunkKey === undefined)).toBe(true);
+    expect(engine.performanceEvidence().staticModelBatchedMembers).toBe(blocks.length);
     expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toEqual(expect.arrayContaining(blocks.map((block) => coordinateKey(block.position))));
+    engine.dispose();
+  });
+
+  it('re-enters an existing static batch after an incremental local edit', async () => {
+    const base = rendererBenchmarkProject('small');
+    const before = { ...base, blocks: base.blocks.slice(0, 256), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(axisCubeProvider());
+    engine.update(before, undefined);
+    await settleHydration(100, engine);
+    const changed = { ...before.blocks[0], state: { axis: 'x' } };
+    const after = { ...before, blocks: before.blocks.map((block, index) => index === 0 ? changed : block) };
+    engine.update(after, undefined, {}, blockMutationHint([{ position: changed.position, before: before.blocks[0], after: changed }], 'state-edit'));
+    await settleHydration(100, engine);
+    expect(engine.performanceEvidence().staticModelBatchedMembers).toBe(after.blocks.length);
+    expect(engine.performanceEvidence().standaloneBlockObjects).toBe(0);
     engine.dispose();
   });
 
@@ -1589,6 +1606,22 @@ describe('provider handoff hydration ownership', () => {
     engine.dispose();
   });
 
+  it('re-enters static batching when a provider refresh is queued with instancing disabled', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 256), decorations: [] };
+    const engine = new ThreeViewportEngine();
+    const firstProvider = axisCubeProvider('provider-a');
+    const secondProvider = axisCubeProvider('provider-b');
+    engine.setVisualProvider(firstProvider);
+    engine.update(project, undefined);
+    await settleHydration(100, engine);
+    engine.setVisualProvider(secondProvider);
+    await settleHydration(100, engine);
+    expect(engine.performanceEvidence().staticModelBatchedMembers).toBe(project.blocks.length);
+    expect(engine.performanceEvidence().standaloneBlockObjects).toBe(0);
+    engine.dispose();
+  });
+
   it('keeps keyed terrain and logical progress intact across a live provider handoff', async () => {
     const base = rendererBenchmarkProject('small');
     const project = { ...base, blocks: base.blocks.slice(0, 32), decorations: [] };
@@ -1790,7 +1823,7 @@ function cubeFaceTemplates(materials: readonly THREE.Material[]): readonly Insta
   return transforms.map((matrix, index) => ({ geometry: new THREE.PlaneGeometry(1, 1), material: materials[index], matrix }));
 }
 
-function axisCubeProvider(): BlockVisualProvider {
+function axisCubeProvider(keyPrefix = 'oak-log', fullCubeFaces = true): BlockVisualProvider {
   const directions = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
   const transforms = [
     new THREE.Matrix4().setPosition(.5, .5, 1),
@@ -1801,18 +1834,19 @@ function axisCubeProvider(): BlockVisualProvider {
     new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(0, .5, .5),
   ];
   return {
-    reusableVisualKey: (block: PlacedBlock) => `oak-log-${String(block.state['axis'] ?? 'y')}`,
+    reusableVisualKey: (block: PlacedBlock) => `${keyPrefix}-${String(block.state['axis'] ?? 'y')}`,
     occlusionClass: () => 'opaque-full-cube',
     thumbnailUrl: () => undefined,
     create: async () => {
       const object = new THREE.Group();
-      directions.forEach((direction, index) => {
+      if (fullCubeFaces) directions.forEach((direction, index) => {
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x887766 }));
         mesh.applyMatrix4(transforms[index]);
         mesh.userData['face'] = direction;
         mesh.userData['cullface'] = direction;
         object.add(mesh);
       });
+      else object.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x887766 })));
       return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
     },
   } as unknown as BlockVisualProvider;

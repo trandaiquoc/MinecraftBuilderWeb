@@ -27,6 +27,17 @@ export interface StaticModelBatchMetrics {
   readonly templateCacheMisses: number;
   readonly providerObjectsAvoidedByStaticCache: number;
   readonly rejected: Readonly<Record<string, number>>;
+  readonly reusableKeyRequested: number;
+  readonly reusableKeyReturned: number;
+  readonly reusableKeyMissing: number;
+  readonly reusableKeyMissingByFamily: Readonly<Record<string, number>>;
+}
+
+export interface StaticModelDecision {
+  readonly classification: 'batchable' | 'rejected';
+  readonly kind: StaticModelClassificationKind;
+  readonly reason: string;
+  readonly templatePartCount?: number;
 }
 
 /** Owns static provider classification, template reuse, regional batches and membership. */
@@ -38,6 +49,12 @@ export class StaticModelBatchRenderer {
   private batchable = 0;
   private templateCacheHits = 0;
   private templateCacheMisses = 0;
+  private providerObjectsAvoidedByStaticCache = 0;
+  private reusableKeyRequested = 0;
+  private reusableKeyReturned = 0;
+  private reusableKeyMissing = 0;
+  private readonly reusableKeyMissingByFamily = new Map<string, number>();
+  private readonly decisions = new Map<string, StaticModelDecision>();
 
   constructor(private readonly options: StaticModelBatchRendererOptions) {
     this.delegate = new InstanceBatchRenderer({
@@ -56,19 +73,36 @@ export class StaticModelBatchRenderer {
   get batches(): Map<string, InstanceBatch> { return this.delegate.batches; }
   get ownershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.delegate.ownershipIndex; }
 
+  shouldAttempt(allowInstancing: boolean, reusableKey: string | undefined): boolean {
+    return allowInstancing || this.batches.size > 0 || reusableKey !== undefined && this.templateCache.has(reusableKey);
+  }
+
+  recordReusableKey(key: string | undefined, family = 'unknown'): void {
+    this.reusableKeyRequested += 1;
+    if (key !== undefined) { this.reusableKeyReturned += 1; return; }
+    this.reusableKeyMissing += 1;
+    this.reusableKeyMissingByFamily.set(family, (this.reusableKeyMissingByFamily.get(family) ?? 0) + 1);
+  }
+
   templateFor(key: string): CompiledInstanceTemplates | undefined {
     const template = this.templateCache.get(key);
-    if (template) this.templateCacheHits += 1;
+    if (template) { this.templateCacheHits += 1; this.providerObjectsAvoidedByStaticCache += 1; }
     return template;
   }
 
   tryAdd(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey: string | undefined, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
     const cached = reusableKey ? this.templateCache.get(reusableKey) : undefined;
-    if (cached) { this.templateCacheHits += 1; return this.delegate.addFromTemplates(cached.templates, block.position, key, source, cached); }
+    if (cached) {
+      this.templateCacheHits += 1;
+      const result = this.delegate.addFromTemplates(cached.templates, block.position, key, source, cached);
+      this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: 'reusable-template-cache', templatePartCount: cached.templates.length });
+      return result;
+    }
     this.candidates += 1;
     const classification = classifyStaticModel(object, this.options.instrumentation);
     if (!classification.compiled) {
       this.reject(classification.kind);
+      this.decisions.set(key, { classification: 'rejected', kind: classification.kind, reason: classification.reason ?? classification.kind });
       return undefined;
     }
     this.batchable += 1;
@@ -77,14 +111,19 @@ export class StaticModelBatchRenderer {
       this.templateCache.set(reusableKey, classification.compiled);
       this.options.instrumentation.record('reusableTemplateCreations');
     }
-    return this.delegate.addFromTemplates(classification.compiled.templates, block.position, key, source, classification.compiled);
+    const result = this.delegate.addFromTemplates(classification.compiled.templates, block.position, key, source, classification.compiled);
+    this.decisions.set(key, { classification: 'batchable', kind: classification.kind, reason: 'classified-static-model', templatePartCount: classification.compiled.templates.length });
+    return result;
   }
 
   addFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates): { readonly batchKey: string; readonly index: number } | undefined {
-    return this.delegate.addFromTemplates(templates, block.position, key, source, compiled ?? compileInstanceTemplates(templates, this.options.instrumentation));
+    const resolvedCompiled = compiled ?? compileInstanceTemplates(templates, this.options.instrumentation);
+    const result = this.delegate.addFromTemplates(templates, block.position, key, source, resolvedCompiled);
+    this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: compiled ? 'reusable-template-cache' : 'precompiled-static-model', templatePartCount: resolvedCompiled.templates.length });
+    return result;
   }
 
-  remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void { this.delegate.remove(key, entry, source); }
+  remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void { this.delegate.remove(key, entry, source); this.decisions.delete(key); }
   memberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] { return this.delegate.memberships(key, scanAll); }
   removeOrphaned(key: string, source: 'rollback' | 'reconcile', entry?: InstanceBatchEntry): void { this.delegate.removeOrphaned(key, source, entry); }
   removeMembership(batchKey: string, index: number, key: string): boolean { return this.delegate.removeMembership(batchKey, index, key); }
@@ -96,8 +135,13 @@ export class StaticModelBatchRenderer {
     for (const batch of this.batches.values()) batchedMembers += batch.keys.length;
     const rejected: Record<string, number> = {};
     for (const [reason, count] of this.rejectionCounts) rejected[reason] = count;
-    return { candidates: this.candidates, batchable: this.batchable, batchedMembers, templateCacheHits: this.templateCacheHits, templateCacheMisses: this.templateCacheMisses, providerObjectsAvoidedByStaticCache: this.templateCacheHits, rejected };
+    const reusableKeyMissingByFamily: Record<string, number> = {};
+    for (const [family, count] of this.reusableKeyMissingByFamily) reusableKeyMissingByFamily[family] = count;
+    return { candidates: this.candidates, batchable: this.batchable, batchedMembers, templateCacheHits: this.templateCacheHits, templateCacheMisses: this.templateCacheMisses, providerObjectsAvoidedByStaticCache: this.providerObjectsAvoidedByStaticCache, rejected, reusableKeyRequested: this.reusableKeyRequested, reusableKeyReturned: this.reusableKeyReturned, reusableKeyMissing: this.reusableKeyMissing, reusableKeyMissingByFamily };
   }
+
+  decisionFor(key: string): StaticModelDecision | undefined { return this.decisions.get(key); }
+  templatePartCounts(): readonly { readonly key: string; readonly partCount: number }[] { return [...this.templateCache.entries()].map(([key, compiled]) => ({ key, partCount: compiled.templates.length })); }
 
   clearTemplates(): void {
     const compiled = [...this.templateCache.values()];
@@ -109,7 +153,12 @@ export class StaticModelBatchRenderer {
     }
   }
 
-  clear(): void { this.delegate.clear(); this.clearTemplates(); }
+  resetMetrics(): void {
+    this.candidates = 0; this.batchable = 0; this.templateCacheHits = 0; this.templateCacheMisses = 0; this.providerObjectsAvoidedByStaticCache = 0;
+    this.reusableKeyRequested = 0; this.reusableKeyReturned = 0; this.reusableKeyMissing = 0; this.reusableKeyMissingByFamily.clear(); this.rejectionCounts.clear(); this.decisions.clear();
+  }
+
+  clear(): void { this.delegate.clear(); this.clearTemplates(); this.resetMetrics(); }
 
   private reject(kind: StaticModelClassificationKind): void { this.rejectionCounts.set(kind, (this.rejectionCounts.get(kind) ?? 0) + 1); }
 }
