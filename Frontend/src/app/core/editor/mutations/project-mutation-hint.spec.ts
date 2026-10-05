@@ -9,7 +9,14 @@ describe('project mutation hints', () => {
   it('contains the known block delta without diffing a project snapshot', () => {
     const hint = blockMutationHint([{ position: before.position, before, after }], 'state-edit');
     expect(hint.kind).toBe('block-delta');
+    expect(hint.origin).toBe('editor');
     expect(hint.changes[0]).toMatchObject({ before, after });
+  });
+
+  it('keeps content resolution provenance typed and reversible', () => {
+    const hint = blockMutationHint([{ position: before.position, before, after }], 'content-resolution', 'content-resolution');
+    expect(hint.origin).toBe('content-resolution');
+    expect(invertProjectMutationHint(hint).origin).toBe('content-resolution');
   });
 
   it('inverts forward and inverse values for undo', () => {

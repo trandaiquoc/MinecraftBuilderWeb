@@ -1562,7 +1562,7 @@ export class ThreeViewportEngine {
   }
 
   private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
-    const lane: HydrationLane = hint.source === 'content-resolution' ? 'content' : 'local';
+    const lane: HydrationLane = hint.origin === 'content-resolution' ? 'content' : 'local';
     const tracePrefix = lane === 'content' ? 'content-resolution' : 'local-edit';
     this.runtimeTrace?.record(`${tracePrefix}-start`, { source: hint.source ?? 'unknown', changes: hint.changes.length });
     this.runtimeTrace?.record('incremental-reconcile', { changedVoxelCount: hint.changes.length, source: hint.source ?? 'unknown' });

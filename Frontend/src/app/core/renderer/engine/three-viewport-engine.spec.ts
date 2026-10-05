@@ -1364,7 +1364,7 @@ describe('camera movement input contract', () => {
     engine.update(before, undefined);
     await settleHydration(20, engine);
     const beforeCounters = engine.rendererCounters();
-    engine.update(after, undefined, {}, blockMutationHint([{ position: afterBlock.position, before: before.blocks[0], after: afterBlock }], 'content-resolution'));
+    engine.update(after, undefined, {}, blockMutationHint([{ position: afterBlock.position, before: before.blocks[0], after: afterBlock }], 'content-resolution', 'content-resolution'));
     await settleHydration(20, engine);
     const counters = engine.rendererCounters();
     expect(counters.incrementalBlockReconciles).toBe(beforeCounters.incrementalBlockReconciles + 1);

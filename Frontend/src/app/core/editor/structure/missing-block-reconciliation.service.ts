@@ -26,7 +26,7 @@ export class MissingBlockReconciliationService {
     const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id));
     if (token !== this.operationToken || this.workspace.project() !== project || this.library.catalogRevision() !== revision) return;
     if (result.project !== project && result.changes.length) {
-      const hint = blockMutationHint(result.changes, 'content-resolution');
+      const hint = blockMutationHint(result.changes, 'content-resolution', 'content-resolution');
       this.mutationHints.publish(project, result.project, hint);
       this.runtimeIndex.adoptTransition(project, result.project, hint);
       this.workspace.project.set(result.project);
