@@ -1026,45 +1026,6 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
-  it('adopts an already-culled block when a structural generation re-enters', async () => {
-    const provider = rendererBenchmarkVisualProvider();
-    const base = rendererBenchmarkProject('small');
-    const blocks = Array.from({ length: 27 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 3, y: Math.floor(index / 9), z: Math.floor(index / 3) % 3 } }));
-    const project = { ...base, size: { x: 3, y: 3, z: 3 }, blocks, decorations: [] };
-    const engine = new ThreeViewportEngine();
-    engine.setVisualProvider(provider);
-    engine.update(project, undefined);
-    await settleHydration();
-    const rendered = (engine as unknown as { renderedBlocks: Map<string, unknown> }).renderedBlocks;
-    expect(rendered.has('1,1,1')).toBe(false);
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 27, blocksTotal: 27 });
-
-    const generation = engine.hydrationProgress().generation;
-    engine.update({ ...project, metadata: { ...project.metadata, name: 'Reopened' } }, undefined);
-    await settleHydration();
-    expect(engine.hydrationProgress().generation).toBeGreaterThan(generation);
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 27, blocksTotal: 27, percent: 100 });
-    engine.dispose();
-  });
-
-  it('invalidates culling completion when a previously hidden block becomes exposed', async () => {
-    const provider = rendererBenchmarkVisualProvider();
-    const base = rendererBenchmarkProject('small');
-    const blocks = Array.from({ length: 27 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 3, y: Math.floor(index / 9), z: Math.floor(index / 3) % 3 } }));
-    const project = { ...base, size: { x: 3, y: 3, z: 3 }, blocks, decorations: [] };
-    const engine = new ThreeViewportEngine();
-    engine.setVisualProvider(provider);
-    engine.update(project, undefined);
-    await settleHydration();
-    const edited = { ...project, blocks: blocks.filter((block) => !(block.position.x === 1 && block.position.y === 1 && block.position.z === 0)) };
-    engine.update(edited, undefined);
-    await settleHydration();
-    expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 26, blocksTotal: 26, percent: 100 });
-    const rendered = (engine as unknown as { renderedBlocks: Map<string, unknown> }).renderedBlocks;
-    expect(rendered.has('1,1,1')).toBe(true);
-    engine.dispose();
-  });
-
   it('reaches exactly 100 percent when every fallback visual is finalized', async () => {
     const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const base = rendererBenchmarkProject('small');

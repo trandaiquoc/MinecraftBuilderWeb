@@ -1374,6 +1374,7 @@ export class ThreeViewportEngine {
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const visible = this.visibleBlocks(project, options);
     this.setHydrationBlockScope(visible);
+    this.adoptCommittedBlockOwnership(visible);
     this.cachedVisibleEntries = [...visible];
     this.cachedVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     this.cachedVisibleIndices.clear();
@@ -1414,9 +1415,6 @@ export class ThreeViewportEngine {
     // terrain batch. Incremental edits retain the existing conservative sync.
     if (!full) this.terrainRenderer.syncOccupancy(visible, terrainAffectedPositions);
     this.updateInteriorCulling(visible, full, changed);
-    // Culling is a terminal ownership family even when it intentionally has
-    // no RenderedBlockEntry. Adopt only after the current culling state exists.
-    this.adoptCommittedBlockOwnership(visible);
     const renderVisible = visible.filter((entry) => {
       if (this.fluidCoordinator.isClaimed(coordinateKey(entry.block.position))) return false;
       if (options.exposedFaceRendering === true && isCompiledTerrainEntry(entry)) return true;
@@ -1897,13 +1895,13 @@ export class ThreeViewportEngine {
     const candidates = entries.map((entry) => {
       const key = coordinateKey(entry.block.position);
       const rendered = this.renderedBlocks.get(key);
-      const committed = this.culledBlockKeys.has(key) || (!!rendered
+      const committed = !!rendered
         && rendered.signature === entry.signature
         && rendered.role === entry.role
         && !this.pendingHydrationSignatures.has(key)
         && !this.placeholderSignatures.has(key)
         && !this.placeholderIndices.has(key)
-        && this.hasCommittedBlockOwnership(key, rendered));
+        && this.hasCommittedBlockOwnership(key, rendered);
       return { key, signature: entry.signature, committedSignature: committed ? entry.signature : undefined, visible: true, committed };
     });
     const adopted = adoptCommittedHydrationKeys(candidates);
