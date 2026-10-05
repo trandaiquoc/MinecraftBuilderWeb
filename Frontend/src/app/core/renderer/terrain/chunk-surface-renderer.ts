@@ -42,7 +42,16 @@ export interface TerrainApplyResult {
   readonly representedKeys: readonly string[];
   readonly failedKeys: readonly string[];
   readonly pending?: boolean;
+  readonly disposition?: TerrainApplyDisposition;
 }
+
+export type TerrainApplyDisposition =
+  | 'accepted'
+  | 'partial-unrepresented'
+  | 'all-unrepresented'
+  | 'commit-policy-rejected'
+  | 'worker-failure'
+  | 'chunk-removed';
 
 export interface TerrainRendererEvidence {
   readonly terrainChunks: number;
@@ -82,6 +91,13 @@ interface TerrainChunkObject {
   readonly meshes: THREE.Mesh[];
 }
 
+interface TerrainChunkWorkState {
+  readonly revision: number;
+  readonly jobId: number;
+  replacementRequested: boolean;
+  completed: boolean;
+}
+
 /** Owns compiled opaque terrain meshes while leaving project/editor data elsewhere. */
 export class ChunkSurfaceRenderer {
   readonly templateCache = new Map<string, readonly SurfaceFaceTemplate[]>();
@@ -93,6 +109,7 @@ export class ChunkSurfaceRenderer {
   private readonly dirtyChunks = new Set<string>();
   private readonly ownership = new Map<string, TerrainOwnershipEvidence>();
   private readonly chunkRevisions = new Map<string, number>();
+  private readonly chunkWork = new Map<string, TerrainChunkWorkState>();
   private readonly workerPool: TerrainMeshWorkerPool;
   private readonly commitScheduler: TerrainCommitScheduler;
   private workerJobSequence = 0;
@@ -146,6 +163,7 @@ export class ChunkSurfaceRenderer {
       this.recordsByChunk.clear();
       this.ownership.clear();
       this.chunkRevisions.clear();
+      this.chunkWork.clear();
       this.dirtyChunks.clear();
     }
     if (occupancyEntries) this.occupancy.replace(occupancyEntries);
@@ -267,6 +285,7 @@ export class ChunkSurfaceRenderer {
     this.recordsByChunk.clear();
     this.ownership.clear();
     this.chunkRevisions.clear();
+    this.chunkWork.clear();
     this.dirtyChunks.clear();
     for (const templates of this.templateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateCache.clear();
@@ -294,7 +313,8 @@ export class ChunkSurfaceRenderer {
       const previous = this.chunks.get(key);
       if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
-      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [] });
+      this.chunkWork.delete(key);
+      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], disposition: 'chunk-removed' });
       return;
     }
     const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], number>();
@@ -321,6 +341,7 @@ export class ChunkSurfaceRenderer {
       occupancy: this.occupancyHalo(chunk),
       priority,
     };
+    this.chunkWork.set(key, { revision, jobId: job.jobId, replacementRequested: false, completed: false });
     void this.workerPool.submit(job).then((result) => {
       this.options.onTiming?.('terrain.worker', result.cpuMs);
       this.commitScheduler.enqueue(() => {
@@ -329,7 +350,7 @@ export class ChunkSurfaceRenderer {
         this.options.onTiming?.('terrain.commit', performance.now() - started);
       }, 1);
     }).catch(() => {
-      this.options.onAsyncApply?.(entries, { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: entries.map((entry) => entry.key) });
+      this.commitWorkerFailure(key, entries, changedKeys, job);
     });
   }
 
@@ -346,8 +367,28 @@ export class ChunkSurfaceRenderer {
     const currentRevision = this.chunkRevisions.get(key);
     const generation = this.options.terrainGeneration?.() ?? 0;
     const providerGeneration = this.options.providerGeneration?.() ?? 0;
-    if (currentRevision !== result.revision || generation !== result.generation || providerGeneration !== result.providerGeneration) {
+    const work = this.chunkWork.get(key);
+    const staleRevision = currentRevision !== result.revision;
+    const staleGeneration = generation !== result.generation;
+    const staleProvider = providerGeneration !== result.providerGeneration;
+    const replacementPending = this.dirtyChunks.has(key) && work?.jobId === result.jobId;
+    const superseded = work?.jobId !== result.jobId || replacementPending;
+    if (!staleRevision && !staleGeneration && !staleProvider && !superseded && work?.completed) return;
+    if (staleRevision || staleGeneration || staleProvider || superseded) {
       this.workerPool.markStaleResult();
+      if (staleRevision) this.options.record('terrainAsyncStaleRevisionResults');
+      if (staleGeneration) this.options.record('terrainAsyncStaleGenerationResults');
+      if (staleProvider) this.options.record('terrainAsyncStaleProviderResults');
+      if (superseded) this.options.record('terrainAsyncSupersededResults');
+      const currentRecords = this.recordsByChunk.get(key);
+      if (currentRecords?.size && !replacementPending && work?.jobId === result.jobId && work.revision === result.revision && !work.replacementRequested) {
+        work.replacementRequested = true;
+        this.dirtyChunks.add(key);
+        this.options.record('terrainAsyncRescheduledChunks');
+        this.scheduleFlush();
+      } else if (currentRecords?.size && (staleGeneration || staleProvider) && !work) {
+        this.options.record('terrainAsyncRejectedWithoutReplacement');
+      }
       return;
     }
     const materials = new Map<string, THREE.Material>();
@@ -374,15 +415,35 @@ export class ChunkSurfaceRenderer {
     const shouldCommit = this.options.shouldCommitChunk?.(key, compiled) ?? true;
     const represented = [...compiled.emittedKeys, ...compiled.fullyOccludedKeys];
     const failed = [...compiled.unrepresentedExposedKeys];
-    if (!shouldCommit || failed.length > 0 && represented.length === 0) {
+    if (!shouldCommit || records.length > 0 && represented.length === 0) {
       for (const bucket of buckets) { bucket.geometry.dispose(); if (!materials.has(bucket.key)) bucket.material.dispose(); }
-      this.clearChunkOwnership(key);
-      this.workerPool.markStaleResult();
+      const failedKeys = !shouldCommit || records.length && represented.length === 0
+        ? records.map((record) => record.key)
+        : failed;
+      if (!shouldCommit) this.options.record('terrainAsyncCommitPolicyRejected');
+      else this.options.record('terrainAsyncAllUnrepresentedResults');
+      if (work) work.completed = true;
+      this.options.onAsyncApply?.(records, { changedKeys: records.map((record) => record.key), rebuiltChunks: [], representedKeys: [], failedKeys: [...new Set(failedKeys)], disposition: !shouldCommit ? 'commit-policy-rejected' : 'all-unrepresented' });
       return;
     }
     this.installCompiledChunk(key, compiled, previous, result.revision);
-    const apply: TerrainApplyResult = { changedKeys: records.map((record) => record.key), rebuiltChunks: [key], representedKeys: represented, failedKeys: failed };
+    if (work) work.completed = true;
+    if (failed.length) {
+      this.options.record('terrainAsyncPartialFailureResults');
+    } else this.options.record('terrainAsyncAcceptedResults');
+    const apply: TerrainApplyResult = { changedKeys: records.map((record) => record.key), rebuiltChunks: [key], representedKeys: represented, failedKeys: failed, disposition: failed.length ? 'partial-unrepresented' : 'accepted' };
     this.options.onAsyncApply?.(records, apply);
+  }
+
+  private commitWorkerFailure(key: string, records: readonly TerrainSurfaceRecord[], changedKeys: readonly string[], job: TerrainMeshJob): void {
+    if (this.chunkWork.get(key)?.jobId !== job.jobId || this.chunkRevisions.get(key) !== job.revision) {
+      this.options.record('terrainAsyncSupersededResults');
+      return;
+    }
+    const work = this.chunkWork.get(key);
+    if (work) work.completed = true;
+    this.options.record('terrainAsyncWorkerFailures');
+    this.options.onAsyncApply?.(records, { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: records.map((record) => record.key), disposition: 'worker-failure' });
   }
 
   private installCompiledChunk(key: string, compiled: CompiledTerrainChunk, previous: TerrainChunkObject | undefined, revision: number): void {
@@ -441,11 +502,9 @@ export class ChunkSurfaceRenderer {
     const shouldCommit = this.options.shouldCommitChunk?.(key, compiled) ?? true;
     const represented = [...compiled.emittedKeys, ...compiled.fullyOccludedKeys];
     const failed = [...compiled.unrepresentedExposedKeys];
-    if (!shouldCommit || failed.length > 0 && represented.length === 0) {
+    if (!shouldCommit || entries.length > 0 && represented.length === 0) {
       for (const bucket of compiled.buckets) { bucket.geometry.dispose(); if (!bucket.material.userData['sharedTerrainAtlasMaterial']) bucket.material.dispose(); }
-      if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
-      this.clearChunkOwnership(key);
-      return finish({ representedKeys: [], failedKeys: [...new Set([...failed, ...represented])] });
+      return finish({ representedKeys: [], failedKeys: [...new Set(!shouldCommit || represented.length === 0 ? entries.map((entry) => entry.key) : [...failed, ...represented])] });
     }
     const meshes: THREE.Mesh[] = [];
     const bounds = terrainChunkBounds(chunk);

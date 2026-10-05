@@ -96,6 +96,18 @@ export interface RendererCounters {
   readonly terrainTemplateResolutions: number;
   readonly terrainTemplateCacheHits: number;
   readonly terrainBulkBatches: number;
+  readonly terrainAsyncAcceptedResults: number;
+  readonly terrainAsyncStaleRevisionResults: number;
+  readonly terrainAsyncStaleGenerationResults: number;
+  readonly terrainAsyncStaleProviderResults: number;
+  readonly terrainAsyncSupersededResults: number;
+  readonly terrainAsyncRescheduledChunks: number;
+  readonly terrainAsyncCommitPolicyRejected: number;
+  readonly terrainAsyncAllUnrepresentedResults: number;
+  readonly terrainAsyncPartialFailureResults: number;
+  readonly terrainAsyncWorkerFailures: number;
+  readonly terrainAsyncFallbackKeys: number;
+  readonly terrainAsyncRejectedWithoutReplacement: number;
   readonly hintedProjectMutations: number;
   readonly incrementalBlockReconciles: number;
   readonly incrementalChangedVoxels: number;
@@ -205,6 +217,18 @@ const EMPTY_COUNTERS: RendererCounters = {
   terrainTemplateResolutions: 0,
   terrainTemplateCacheHits: 0,
   terrainBulkBatches: 0,
+  terrainAsyncAcceptedResults: 0,
+  terrainAsyncStaleRevisionResults: 0,
+  terrainAsyncStaleGenerationResults: 0,
+  terrainAsyncStaleProviderResults: 0,
+  terrainAsyncSupersededResults: 0,
+  terrainAsyncRescheduledChunks: 0,
+  terrainAsyncCommitPolicyRejected: 0,
+  terrainAsyncAllUnrepresentedResults: 0,
+  terrainAsyncPartialFailureResults: 0,
+  terrainAsyncWorkerFailures: 0,
+  terrainAsyncFallbackKeys: 0,
+  terrainAsyncRejectedWithoutReplacement: 0,
   hintedProjectMutations: 0,
   incrementalBlockReconciles: 0,
   incrementalChangedVoxels: 0,

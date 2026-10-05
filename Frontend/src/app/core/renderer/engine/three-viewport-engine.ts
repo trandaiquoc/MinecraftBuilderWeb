@@ -195,6 +195,18 @@ export interface ViewportPerformanceEvidence {
   readonly terrainTemplateCacheHits: number;
   readonly terrainLogicalBlocks: number;
   readonly terrainBulkBatches: number;
+  readonly terrainAsyncAcceptedResults: number;
+  readonly terrainAsyncStaleRevisionResults: number;
+  readonly terrainAsyncStaleGenerationResults: number;
+  readonly terrainAsyncStaleProviderResults: number;
+  readonly terrainAsyncSupersededResults: number;
+  readonly terrainAsyncRescheduledChunks: number;
+  readonly terrainAsyncCommitPolicyRejected: number;
+  readonly terrainAsyncAllUnrepresentedResults: number;
+  readonly terrainAsyncPartialFailureResults: number;
+  readonly terrainAsyncWorkerFailures: number;
+  readonly terrainAsyncFallbackKeys: number;
+  readonly terrainAsyncRejectedWithoutReplacement: number;
   readonly terrainAtlasMode: TerrainAtlasMode;
   readonly terrainAtlasPages: number;
   readonly terrainAtlasSprites: number;
@@ -750,6 +762,7 @@ export class ThreeViewportEngine {
       isCameraInteracting: () => this.isCameraInteracting(),
       onAsyncApply: (records, result) => {
         this.commitTerrainRecords(records, result);
+        if (result.failedKeys.length) this.enqueueFailedTerrainKeys(result.failedKeys);
         this.scheduleRender();
         if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
       },
@@ -1594,15 +1607,36 @@ export class ThreeViewportEngine {
       // Promise.all is intentionally normalized above; this is only a guard
       // for an unexpected coordinator failure.
       this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
+      this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key));
     });
   }
 
   private enqueueFailedTerrainCandidates(candidates: readonly TerrainHydrationCandidate[]): void {
-    for (const candidate of candidates) {
-      const current = this.renderedBlocks.get(candidate.key);
-      if (!current || current.signature !== candidate.next.signature) continue;
-      this.hydrationWork.enqueueRegular({ token: this.hydrationGeneration, key: candidate.key, block: candidate.next.block, signature: candidate.next.signature, role: candidate.next.role, worldContext: candidate.worldContext, options: this.renderOptions, allowInstancing: false, surfaceFastPathEligible: false, surfaceVisibleEntries: this.cachedVisibleMap });
+    this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key));
+  }
+
+  /** Reconstructs fallback work from current viewport state after an async terrain disposition. */
+  private enqueueFailedTerrainKeys(keys: readonly string[]): void {
+    const candidates = new Set<string>();
+    for (const key of keys) {
+      const next = this.cachedVisibleMap.get(key);
+      const current = this.renderedBlocks.get(key);
+      if (!next || !current || current.signature !== next.signature) continue;
+      if (this.runningHydrationKeys.get(key) === this.hydrationGeneration) continue;
+      candidates.add(key);
     }
+    if (!candidates.size) return;
+    this.hydrationWork.removePendingKeys(candidates);
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    for (const key of candidates) {
+      const next = this.cachedVisibleMap.get(key);
+      if (!next) continue;
+      this.hydrationWork.enqueueRegular({ token: this.hydrationGeneration, key, block: next.block, signature: next.signature, role: next.role, worldContext, options: this.renderOptions, allowInstancing: false, surfaceFastPathEligible: false, surfaceVisibleEntries: this.cachedVisibleMap });
+    }
+    this.instrumentation.record('terrainAsyncFallbackKeys', candidates.size);
+    this.updateHydrationOrder();
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    this.scheduleHydrationPump();
   }
 
   private resolveTerrainTemplates(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: TerrainHydrationCandidate['worldContext'], provider: BlockVisualProvider): Promise<readonly SurfaceFaceTemplate[] | undefined> {
@@ -2026,8 +2060,8 @@ export class ThreeViewportEngine {
       void visualPromise.then((visual) => {
         if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
         fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
-        if (visual.terrainTemplates) {
-          this.terrainRenderer.cacheTemplates(reusableKey!, visual.terrainTemplates);
+        if (surfaceFastPathEligible && visual.terrainTemplates && reusableKey) {
+          this.terrainRenderer.cacheTemplates(reusableKey, visual.terrainTemplates);
           if (this.addTerrainVisual(block, entry.key, visual.terrainTemplates)) {
             entry.terrainChunkKey = chunkKey(block.position); entry.reusableVisualKey = reusableKey;
             this.blocksGroup.remove(fallback);
@@ -3000,6 +3034,18 @@ export class ThreeViewportEngine {
       terrainTemplateCacheHits: terrain.terrainTemplateCacheHits,
       terrainLogicalBlocks: terrain.terrainLogicalBlocks,
       terrainBulkBatches: terrain.terrainBulkBatches,
+      terrainAsyncAcceptedResults: counters.terrainAsyncAcceptedResults,
+      terrainAsyncStaleRevisionResults: counters.terrainAsyncStaleRevisionResults,
+      terrainAsyncStaleGenerationResults: counters.terrainAsyncStaleGenerationResults,
+      terrainAsyncStaleProviderResults: counters.terrainAsyncStaleProviderResults,
+      terrainAsyncSupersededResults: counters.terrainAsyncSupersededResults,
+      terrainAsyncRescheduledChunks: counters.terrainAsyncRescheduledChunks,
+      terrainAsyncCommitPolicyRejected: counters.terrainAsyncCommitPolicyRejected,
+      terrainAsyncAllUnrepresentedResults: counters.terrainAsyncAllUnrepresentedResults,
+      terrainAsyncPartialFailureResults: counters.terrainAsyncPartialFailureResults,
+      terrainAsyncWorkerFailures: counters.terrainAsyncWorkerFailures,
+      terrainAsyncFallbackKeys: counters.terrainAsyncFallbackKeys,
+      terrainAsyncRejectedWithoutReplacement: counters.terrainAsyncRejectedWithoutReplacement,
       terrainAtlasMode: this.terrainAtlasMode,
       terrainAtlasPages: terrain.terrainAtlas.terrainAtlasPages,
       terrainAtlasSprites: terrain.terrainAtlas.terrainAtlasSprites,
