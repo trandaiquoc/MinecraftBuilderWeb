@@ -728,7 +728,6 @@ export class ThreeViewportEngine {
   private syncedProject?: ProjectDocument;
   private syncedBlockCount?: number;
   private syncedBlocksReference?: readonly ProjectDocument['blocks'][number][];
-  private readonly projectBlockSignatureCache = new WeakMap<ProjectDocument, ReadonlyMap<string, string>>();
   private decorationSyncKey = '';
   private syncedDecorationProject?: ProjectDocument;
   private decorationRevision = 0;
@@ -1220,15 +1219,13 @@ export class ThreeViewportEngine {
     if (blockInputChanged || inPlaceBlockMutation) {
       const projectIdentityChanged = project !== this.syncedProject;
       const incrementalProjectChange = projectIdentityChanged && !full && this.renderedBlocks.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
-      const equivalentProjectReplacement = projectIdentityChanged && !inPlaceBlockMutation && !full && !mutationHint && this.isEquivalentProjectReplacement(project, this.syncedProject);
       if (incrementalMutation && project && mutationHint) {
         this.applyIncrementalMutation(project, options, mutationHint);
       } else {
-        if (full || !incrementalProjectChange && (inPlaceBlockMutation || projectIdentityChanged && !equivalentProjectReplacement)) {
+        if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) {
           const reason: HydrationCancellationReason = inPlaceBlockMutation ? 'in-place-project-mutation' : full ? 'structure-sync-key-changed' : 'project-identity-changed';
           this.cancelHydration(reason, {
             projectIdentityChanged,
-            equivalentProjectReplacement,
             structureSyncKeyChanged: full,
             renderFilterChanged: renderFilterKey(previousOptions) !== renderFilterKey(options),
             previousProjectId: this.syncedProject?.id,
@@ -1537,29 +1534,6 @@ export class ThreeViewportEngine {
     const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
     this.instrumentation.record('blockSignatureComputations');
     return { block, role, signature: `${blockRenderSignature(block)}|${role}|${options.referenceOpacity ?? .28}`, occlusionClass: this.visualProvider?.occlusionClass?.(block) ?? 'unknown' };
-  }
-
-  /**
-   * Project object replacement is common during restore/import. Compare the
-   * renderer-relevant block content once for that explicit replacement so a
-   * new object reference does not masquerade as a structural mutation.
-   */
-  private isEquivalentProjectReplacement(project: ProjectDocument | undefined, previous: ProjectDocument | undefined): boolean {
-    if (!project || !previous || project.id !== previous.id || project.size.x !== previous.size.x || project.size.y !== previous.size.y || project.size.z !== previous.size.z) return false;
-    const next = this.projectBlockSignatures(project);
-    const prior = this.projectBlockSignatures(previous);
-    if (next.size !== project.blocks.length || prior.size !== previous.blocks.length || next.size !== prior.size) return false;
-    for (const [key, signature] of prior) if (next.get(key) !== signature) return false;
-    return true;
-  }
-
-  private projectBlockSignatures(project: ProjectDocument): ReadonlyMap<string, string> {
-    const cached = this.projectBlockSignatureCache.get(project);
-    if (cached) return cached;
-    const signatures = new Map<string, string>();
-    for (const block of project.blocks) signatures.set(coordinateKey(block.position), blockRenderSignature(block));
-    this.projectBlockSignatureCache.set(project, signatures);
-    return signatures;
   }
 
   private cacheVisibleEntry(key: string, entry: VisibleBlockEntry): void {
