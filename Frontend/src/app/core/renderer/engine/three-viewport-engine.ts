@@ -1562,7 +1562,9 @@ export class ThreeViewportEngine {
   }
 
   private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
-    this.runtimeTrace?.record('local-edit-start', { source: hint.source ?? 'unknown', changes: hint.changes.length });
+    const lane: HydrationLane = hint.source === 'content-resolution' ? 'content' : 'local';
+    const tracePrefix = lane === 'content' ? 'content-resolution' : 'local-edit';
+    this.runtimeTrace?.record(`${tracePrefix}-start`, { source: hint.source ?? 'unknown', changes: hint.changes.length });
     this.runtimeTrace?.record('incremental-reconcile', { changedVoxelCount: hint.changes.length, source: hint.source ?? 'unknown' });
     this.instrumentation.record('hintedProjectMutations');
     this.instrumentation.record('incrementalBlockReconciles');
@@ -1571,11 +1573,15 @@ export class ThreeViewportEngine {
     const changedKeys = new Set(delta.mutatedKeys);
     const affectedPositions = new Map(delta.affectedPositions);
     const hintedKeys = new Set(delta.hintedKeys);
+    if (lane === 'content') this.runtimeTrace?.record('content-resolution-delta', { changed: hint.changes.length, affected: affectedPositions.size });
     for (const change of hint.changes) {
       const beforeKey = change.before ? coordinateKey(change.before.position) : coordinateKey(change.position);
       const afterKey = change.after ? coordinateKey(change.after.position) : coordinateKey(change.position);
       if (change.before && !change.after) this.hydrationProgressTracker.removeBlockKey(beforeKey);
-      if (change.after && !this.hydrationProgressTracker.hasBlockKey(afterKey)) this.hydrationProgressTracker.addBlockKey(afterKey);
+      if (change.after) {
+        if (!this.hydrationProgressTracker.hasBlockKey(afterKey)) this.hydrationProgressTracker.addBlockKey(afterKey);
+        else this.hydrationProgressTracker.invalidate('block', afterKey);
+      }
       this.spatialIndex?.replace(change.before?.position, change.after);
       if (change.after) this.structuralSpecialVisualIds.add(change.after.id);
     }
@@ -1688,13 +1694,13 @@ export class ThreeViewportEngine {
     if (!terrainResult.pending) this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate));
     if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true);
     this.updateHydrationOrder();
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), 'local');
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), lane);
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     // InstanceBatchRenderer updates swap-back ownership atomically for every
     // touched entry. Full ownership reconciliation remains on structural
     // rebuilds and diagnostics, not on the local edit hot path.
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
-    this.runtimeTrace?.record('local-edit-end', { mutatedKeys: changedKeys.size, dependencyKeys: delta.dependencyKeys.size, terrainChunks: terrainResult.rebuiltChunks.length, terrainPending: terrainResult.pending ?? false });
+    this.runtimeTrace?.record(`${tracePrefix}-end`, { mutatedKeys: changedKeys.size, dependencyKeys: delta.dependencyKeys.size, terrainChunks: terrainResult.rebuiltChunks.length, terrainPending: terrainResult.pending ?? false });
   }
 
   private commitTerrainRecords(records: Iterable<TerrainSurfaceRecord>, result: TerrainApplyResult): void {

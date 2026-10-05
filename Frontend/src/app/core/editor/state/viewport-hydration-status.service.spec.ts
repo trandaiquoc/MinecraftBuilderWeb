@@ -61,4 +61,11 @@ describe('ViewportHydrationStatusService', () => {
     service.publish(owner, progress({ lane: 'local', total: 20, completed: 1, percent: 5 }));
     expect(service.status()).toBeUndefined();
   });
+
+  it('labels content reconciliation as block asset work', () => {
+    const service = new ViewportHydrationStatusService();
+    const owner = service.claim();
+    service.publish(owner, progress({ lane: 'content', total: 40, completed: 1, percent: 2.5 }));
+    expect(service.status()).toMatchObject({ activity: 'content', progress: { lane: 'content' } });
+  });
 });
