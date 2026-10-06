@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blocksForLayers, clampLayer, adjacentOccupiedLayer, jumpOccupiedLayer, occupiedLayers, visibleLayerSet } from './y-layer';
+import { blocksForLayers, clampLayer, adjacentOccupiedLayer, jumpOccupiedLayer, occupiedLayers, planYLayerProjectionDelta, visibleLayerSet } from './y-layer';
 import { PlacedBlock } from '../../domain/project.types';
 
 const blocks: PlacedBlock[] = [
@@ -21,5 +21,21 @@ describe('Y-layer projection', () => {
     expect([...visibleLayerSet(2, blocks, 'previous-current-next')]).toEqual([1, 2, 3]);
     expect(blocksForLayers(blocks, 1, 'current-only')).toHaveLength(1);
     expect(blocksForLayers(blocks, 2, 'all-below')).toHaveLength(1);
+  });
+
+  it('uses an indexed layer projection without scanning unrelated layers', () => {
+    const index = {
+      blocksAtY: (y: number) => blocks.filter((block) => block.position.y === y),
+      occupiedLayers: () => [1, 3],
+      allBlocks: () => blocks,
+    };
+    expect(occupiedLayers(blocks, index)).toEqual([1, 3]);
+    expect(blocksForLayers(blocks, 1, 'all-below', index)).toHaveLength(1);
+  });
+
+  it('plans only boundary layers for all-below and whole-structure changes', () => {
+    expect(planYLayerProjectionDelta(20, 'all-below', 21, 'all-below')).toEqual({ changed: true, changedLayers: [20, 21] });
+    expect(planYLayerProjectionDelta(20, 'whole-structure', 21, 'whole-structure')).toEqual({ changed: true, changedLayers: [20, 21] });
+    expect(planYLayerProjectionDelta(20, 'current-only', 21, 'current-only').changed).toBe(true);
   });
 });

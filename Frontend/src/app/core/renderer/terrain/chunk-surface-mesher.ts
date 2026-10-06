@@ -14,6 +14,7 @@ export interface TerrainMeshEntry {
   readonly position: VoxelCoordinate;
   readonly templates: readonly SurfaceFaceTemplate[];
   readonly compiledTemplates?: readonly PrecompiledTerrainFace[];
+  readonly role?: 'normal' | 'reference';
 }
 
 /** Immutable face data prepared once per reusable terrain signature. */
@@ -89,18 +90,22 @@ export interface CompiledTerrainChunk {
 /** CPU-only surface compiler. It emits one quad's triangles directly into chunk buffers. */
 export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonly TerrainMeshEntry[], occupancy: TerrainOccupancy, atlas?: TerrainTextureAtlas): CompiledTerrainChunk {
   const materialByBucket = new Map<string, THREE.Material>();
-  const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], number>();
+  const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], Map<'normal' | 'reference', number>>();
   const templates: TerrainMeshTemplateData[] = [];
   const prepared = entries.map((entry) => {
     const compiled = entry.compiledTemplates ?? precompileTerrainTemplates(entry.templates, atlas);
     const faces = pureFaces(compiled);
-    let templateIndex = templateIndexes.get(compiled);
+    const role = entry.role ?? 'normal';
+    const roleIndexes = templateIndexes.get(compiled) ?? new Map<'normal' | 'reference', number>();
+    templateIndexes.set(compiled, roleIndexes);
+    let templateIndex = roleIndexes.get(role);
     if (templateIndex === undefined) {
       templateIndex = templates.length;
-      templateIndexes.set(compiled, templateIndex);
-      templates.push({ faces });
+      roleIndexes.set(role, templateIndex);
+      templates.push({ faces: faces.map((face) => ({ ...face, bucketKey: terrainPresentationBucketKey(face.bucketKey, role) })) });
       for (const template of compiled) {
-        if (!materialByBucket.has(template.bucketKey)) materialByBucket.set(template.bucketKey, template.material);
+        const bucketKey = terrainPresentationBucketKey(template.bucketKey, role);
+        if (!materialByBucket.has(bucketKey)) materialByBucket.set(bucketKey, template.material);
       }
     }
     return { key: entry.key, position: [entry.position.x, entry.position.y, entry.position.z] as [number, number, number], templateIndex };
@@ -127,6 +132,14 @@ export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonl
     fullyOccludedKeys: result.fullyOccludedKeys,
     unrepresentedExposedKeys: result.unrepresentedExposedKeys,
   };
+}
+
+export function terrainPresentationBucketKey(bucketKey: string, role: 'normal' | 'reference' = 'normal'): string {
+  return `${bucketKey}|render-role:${role}`;
+}
+
+export function terrainPresentationRole(bucketKey: string): 'normal' | 'reference' {
+  return bucketKey.endsWith('|render-role:reference') ? 'reference' : 'normal';
 }
 
 function pureFaces(compiled: readonly PrecompiledTerrainFace[]): readonly { direction: SurfaceFaceDirection; bucketKey: string; positions: Float32Array; normals: Float32Array; uvs: Float32Array }[] {

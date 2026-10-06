@@ -25,4 +25,18 @@ describe('ProjectBlockRuntimeIndex', () => {
     expect(index.get({ x: 0, y: 0, z: 0 })).toBe(after.blocks[0]);
     expect(index.rebuildCountFor('hint-before-mismatch')).toBe(1);
   });
+
+  it('maintains an O(1)-per-layer view through hinted edits', () => {
+    const first = { ...block(0), position: { x: 0, y: 4, z: 0 } };
+    const second = { ...block(1), position: { x: 1, y: 8, z: 0 } };
+    const before = project([first, second]);
+    const moved = { ...first, position: { x: 0, y: 9, z: 0 } };
+    const after = { ...before, blocks: [moved, second] };
+    const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
+    expect(index.blocksAtY(4)).toHaveLength(1);
+    expect(index.adoptTransition(before, after, blockMutationHint([{ position: first.position, before: first, after: moved }]))).toBe(true);
+    expect(index.blocksAtY(4)).toHaveLength(0);
+    expect(index.blocksAtY(9)).toEqual([moved]);
+    expect(index.occupiedLayers()).toEqual([8, 9]);
+  });
 });

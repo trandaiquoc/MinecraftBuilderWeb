@@ -5,7 +5,7 @@ import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-rendere
 import { TerrainOccupancy } from './chunk-occupancy';
 import { relevantTerrainChunks, terrainChunkBounds, terrainChunkKey, worldToTerrainChunk, type TerrainChunkCoordinate } from './chunk-coordinate';
 import { dirtyTerrainChunkKeys } from './chunk-dirty-tracker';
-import { meshTerrainChunk, precompileTerrainTemplates, type CompiledTerrainChunk, type PrecompiledTerrainFace } from './chunk-surface-mesher';
+import { meshTerrainChunk, precompileTerrainTemplates, terrainPresentationBucketKey, terrainPresentationRole, type CompiledTerrainChunk, type PrecompiledTerrainFace } from './chunk-surface-mesher';
 import type { TerrainClassificationEntry } from './terrain-classifier';
 import { TerrainTextureAtlas, type TerrainAtlasEvidence } from './atlas/terrain-texture-atlas';
 import type { TerrainAtlasMode } from './atlas/terrain-texture-atlas';
@@ -19,6 +19,7 @@ export interface TerrainSurfaceRecord {
   readonly block: PlacedBlock;
   readonly templates: readonly SurfaceFaceTemplate[];
   readonly compiledTemplates?: readonly PrecompiledTerrainFace[];
+  readonly role?: 'normal' | 'reference';
 }
 
 export interface TerrainBlockChange {
@@ -128,6 +129,7 @@ export class ChunkSurfaceRenderer {
   private templateResolutions = 0;
   private templateCacheHits = 0;
   private bulkBatches = 0;
+  private referenceOpacity = .28;
   readonly terrainAtlas?: TerrainTextureAtlas;
 
   constructor(private readonly options: ChunkSurfaceRendererOptions) {
@@ -266,6 +268,16 @@ export class ChunkSurfaceRenderer {
     }
   }
 
+  setReferenceOpacity(opacity: number): void {
+    this.referenceOpacity = Math.max(0, Math.min(1, opacity));
+    this.applyMaterial((material) => {
+      if (material.userData['terrainRole'] !== 'reference') return;
+      material.transparent = true;
+      material.opacity = this.referenceOpacity;
+      material.needsUpdate = true;
+    });
+  }
+
   evidence(): TerrainRendererEvidence {
     return {
       terrainChunks: this.chunks.size,
@@ -335,7 +347,7 @@ export class ChunkSurfaceRenderer {
       if (templateIndex === undefined) {
         templateIndex = templates.length;
         templateIndexes.set(compiled, templateIndex);
-        const faces: TerrainMeshFace[] = compiled.map((face) => ({ direction: face.direction, bucketKey: face.bucketKey, positions: new Float32Array(face.positions), normals: new Float32Array(face.normals), uvs: new Float32Array(face.uvs) }));
+        const faces: TerrainMeshFace[] = compiled.map((face) => ({ direction: face.direction, bucketKey: terrainPresentationBucketKey(face.bucketKey, entry.role ?? 'normal'), positions: new Float32Array(face.positions), normals: new Float32Array(face.normals), uvs: new Float32Array(face.uvs) }));
         templates.push({ faces });
       }
       return { key: entry.key, position: [entry.block.position.x, entry.block.position.y, entry.block.position.z] as [number, number, number], templateIndex };
@@ -407,7 +419,10 @@ export class ChunkSurfaceRenderer {
     }
     const materialStarted = performance.now();
     const materials = new Map<string, THREE.Material>();
-    for (const record of records) for (const face of record.compiledTemplates ?? this.compiledTemplateCache.get(record.templates) ?? []) if (!materials.has(face.bucketKey)) materials.set(face.bucketKey, face.material);
+    for (const record of records) for (const face of record.compiledTemplates ?? this.compiledTemplateCache.get(record.templates) ?? []) {
+      const bucketKey = terrainPresentationBucketKey(face.bucketKey, record.role ?? 'normal');
+      if (!materials.has(bucketKey)) materials.set(bucketKey, face.material);
+    }
     this.recordCommitStage('terrain.commit.materialLookup', materialStarted, metrics);
     const geometryStarted = performance.now();
     const buckets: CompiledTerrainChunk['buckets'][number][] = result.buckets.map((bucket) => {
@@ -491,7 +506,11 @@ export class ChunkSurfaceRenderer {
       bucket.geometry.boundingBox = new THREE.Box3(new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z), new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z));
       bucket.geometry.boundingSphere = bucket.geometry.boundingBox.getBoundingSphere(new THREE.Sphere());
       const mesh = new THREE.Mesh(bucket.geometry, bucket.material.clone());
-      mesh.frustumCulled = true; mesh.userData['terrainChunk'] = key; mesh.userData['terrainBucket'] = bucket.key; mesh.userData['terrainFaces'] = bucket.faceCount; mesh.userData['realModel'] = true;
+      const material = mesh.material as THREE.Material;
+      const role = terrainPresentationRole(bucket.key);
+      material.userData['terrainRole'] = role;
+      if (role === 'reference') { material.transparent = true; material.opacity = this.referenceOpacity; material.needsUpdate = true; }
+      mesh.frustumCulled = true; mesh.userData['terrainChunk'] = key; mesh.userData['terrainBucket'] = bucket.key; mesh.userData['terrainRole'] = role; mesh.userData['terrainFaces'] = bucket.faceCount; mesh.userData['realModel'] = true;
       this.options.blocksGroup.add(mesh); meshes.push(mesh);
     }
     if (previous) this.disposeChunk(previous);
@@ -526,7 +545,7 @@ export class ChunkSurfaceRenderer {
       return finish({ representedKeys: [], failedKeys: [] });
     }
     const meshStarted = timing ? performance.now() : 0;
-    const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy, this.terrainAtlas);
+    const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, role: entry.role ?? 'normal', compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy, this.terrainAtlas);
     if (timing) this.options.onTiming?.('terrain.meshTerrainChunk', performance.now() - meshStarted);
     this.rebuildCount += 1;
     this.blocksCompiled += compiled.blocksCompiled;
@@ -550,9 +569,14 @@ export class ChunkSurfaceRenderer {
       geometry.boundingBox = new THREE.Box3(new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z), new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z));
       geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(new THREE.Sphere());
       const mesh = new THREE.Mesh(geometry, bucket.material.clone());
+      const material = mesh.material as THREE.Material;
+      const role = terrainPresentationRole(bucket.key);
+      material.userData['terrainRole'] = role;
+      if (role === 'reference') { material.transparent = true; material.opacity = this.referenceOpacity; material.needsUpdate = true; }
       mesh.frustumCulled = true;
       mesh.userData['terrainChunk'] = key;
       mesh.userData['terrainBucket'] = bucket.key;
+      mesh.userData['terrainRole'] = role;
       mesh.userData['terrainFaces'] = bucket.faceCount;
       mesh.userData['realModel'] = true;
       this.options.blocksGroup.add(mesh);

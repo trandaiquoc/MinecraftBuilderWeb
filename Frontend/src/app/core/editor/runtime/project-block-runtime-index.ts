@@ -18,12 +18,17 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private sizeSignature = '';
   private blocksByKey = new Map<string, PlacedBlock>();
   private indicesByKey = new Map<string, number>();
+  private blocksByY = new Map<number, Map<string, PlacedBlock>>();
   private readonly rebuildReasons = new Map<string, number>();
   private generation = 0;
   private indicesComplete = true;
 
   ensure(project: ProjectDocument): void {
     if (this.project === project && this.blocksReference === project.blocks && this.sizeSignature === sizeOf(project.size) && this.blocksByKey.size === project.blocks.length) return;
+    if (this.project?.id === project.id && this.blocksReference === project.blocks && this.sizeSignature === sizeOf(project.size) && this.blocksByKey.size === project.blocks.length) {
+      this.project = project;
+      return;
+    }
     this.rebuild(project, this.project ? 'project-transition' : 'initial');
   }
 
@@ -34,6 +39,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       this.sizeSignature = '';
       this.blocksByKey.clear();
       this.indicesByKey.clear();
+      this.blocksByY.clear();
       this.indicesComplete = true;
       this.generation += 1;
       return;
@@ -75,14 +81,20 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       const index = this.indicesByKey.get(beforeKey);
       this.blocksByKey.delete(beforeKey);
       this.indicesByKey.delete(beforeKey);
+      this.removeFromLayer(beforeKey, change.before?.position ?? change.position);
       if (change.after && index !== undefined) {
         const afterKey = coordinateKey(change.after.position);
         this.blocksByKey.set(afterKey, change.after);
         this.indicesByKey.set(afterKey, index);
+        this.addToLayer(afterKey, change.after);
       }
     }
     for (const change of changes) {
-      if (change.after && !this.blocksByKey.has(coordinateKey(change.after.position))) this.blocksByKey.set(coordinateKey(change.after.position), change.after);
+      if (change.after && !this.blocksByKey.has(coordinateKey(change.after.position))) {
+        const afterKey = coordinateKey(change.after.position);
+        this.blocksByKey.set(afterKey, change.after);
+        this.addToLayer(afterKey, change.after);
+      }
     }
     this.indicesComplete = true;
     let appendIndex = from.blocks.length;
@@ -103,6 +115,9 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   get(position: VoxelCoordinate): PlacedBlock | undefined { return this.blocksByKey.get(coordinateKey(position)); }
   has(position: VoxelCoordinate): boolean { return this.blocksByKey.has(coordinateKey(position)); }
   indexOf(position: VoxelCoordinate): number | undefined { return this.indicesComplete ? this.indicesByKey.get(coordinateKey(position)) : undefined; }
+  blocksAtY(y: number): readonly PlacedBlock[] { return [...(this.blocksByY.get(y)?.values() ?? [])]; }
+  occupiedLayers(): readonly number[] { return [...this.blocksByY.keys()].sort((left, right) => left - right); }
+  allBlocks(): readonly PlacedBlock[] { return this.project?.blocks ?? []; }
   get currentProject(): ProjectDocument | undefined { return this.project; }
   get currentGeneration(): number { return this.generation; }
   get rebuildCount(): number { return [...this.rebuildReasons.values()].reduce((sum, count) => sum + count, 0); }
@@ -127,12 +142,27 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private rebuild(project: ProjectDocument, reason: string): void {
     this.blocksByKey = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
     this.indicesByKey = new Map(project.blocks.map((block, index) => [coordinateKey(block.position), index] as const));
+    this.blocksByY = new Map();
+    for (const block of project.blocks) this.addToLayer(coordinateKey(block.position), block);
     this.indicesComplete = true;
     this.project = project;
     this.blocksReference = project.blocks;
     this.sizeSignature = sizeOf(project.size);
     this.generation += 1;
     this.rebuildReasons.set(reason, (this.rebuildReasons.get(reason) ?? 0) + 1);
+  }
+
+  private addToLayer(key: string, block: PlacedBlock): void {
+    const layer = this.blocksByY.get(block.position.y) ?? new Map<string, PlacedBlock>();
+    layer.set(key, block);
+    this.blocksByY.set(block.position.y, layer);
+  }
+
+  private removeFromLayer(key: string, position: VoxelCoordinate): void {
+    const layer = this.blocksByY.get(position.y);
+    if (!layer) return;
+    layer.delete(key);
+    if (!layer.size) this.blocksByY.delete(position.y);
   }
 }
 

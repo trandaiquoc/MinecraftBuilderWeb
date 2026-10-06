@@ -15,3 +15,8 @@ export interface TerrainClassificationEntry {
 export function isCompiledTerrainEntry(entry: TerrainClassificationEntry): boolean {
   return isConfirmedOpaqueFullCube(entry);
 }
+
+/** Reference layers may use terrain geometry, but never contribute occlusion. */
+export function isTerrainRenderableEntry(entry: TerrainClassificationEntry): boolean {
+  return (entry.role === 'normal' || entry.role === 'reference') && entry.block.kind === 'resolved' && entry.occlusionClass === 'opaque-full-cube';
+}

@@ -26,6 +26,17 @@ describe('compiled terrain surface mesher', () => {
     for (const template of [...first, ...second]) template.geometry.dispose();
   });
 
+  it('marks reference terrain buckets without adding reference blocks to occupancy', () => {
+    const material = new THREE.MeshBasicMaterial();
+    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
+    const occupancy = new TerrainOccupancy();
+    const compiled = meshTerrainChunk({ x: 0, y: 0, z: 0 }, [{ key: 'reference', position: block.position, templates: cubeTemplates(material), role: 'reference' }], occupancy);
+    expect(compiled.buckets.every((bucket) => bucket.key.endsWith('|render-role:reference'))).toBe(true);
+    expect(occupancy.size()).toBe(0);
+    for (const bucket of compiled.buckets) bucket.geometry.dispose();
+    material.dispose();
+  });
+
   it('culls interior and cross-chunk faces while preserving the complete 48 cubed outer shell', () => {
     const size = 48;
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff });

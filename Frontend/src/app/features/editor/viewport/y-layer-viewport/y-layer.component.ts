@@ -3,7 +3,7 @@ import { ActiveBlockService } from '../../../../core/blocks/placement-palette/ac
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
-import { adjacentOccupiedLayer, blocksForLayers, clampLayer, jumpOccupiedLayer, layerCoordinate, YLayerVisibility } from '../../../../core/editor/viewport/y-layer';
+import { adjacentOccupiedLayer, clampLayer, jumpOccupiedLayer, layerCoordinate, YLayerVisibility } from '../../../../core/editor/viewport/y-layer';
 import { placementFeedbackForHit } from '../../../../core/renderer/interaction/viewport-hit-resolver';
 import { isPointerClick } from '../../../../core/editor/input/interaction';
 import { EditorToolService } from '../../../../core/editor/state/tool.service';
@@ -19,6 +19,7 @@ import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
+import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { ThemeService } from '../../../../core/ui/theme/theme.service';
 import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-theme';
@@ -39,6 +40,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly host = viewChild<ElementRef<HTMLElement>>('host');
   protected readonly workspace = inject(WorkspaceStateService);
   private readonly mutationHints = inject(ProjectMutationHintService);
+  private readonly layerIndex = inject(ProjectBlockRuntimeIndex);
   private readonly editor = inject(StructureEditorService);
   private readonly active = inject(ActiveBlockService);
   private readonly library = inject(BlockLibraryService);
@@ -72,6 +74,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly engine = new ThreeViewportEngine();
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
+  private readonly layerIndexSync = effect(() => { const project = this.workspace.project(); if (project) this.layerIndex.ensure(project); this.engine.setLayerIndex(this.layerIndex); });
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
   private pickConsumed = false;
@@ -94,7 +97,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.layerIndexSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }
@@ -111,8 +114,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected currentY(): number { return this.workspace.project()?.editorSettings.currentY ?? 0; }
   protected setLayer(value: string): void { const project = this.workspace.project(); if (!project) return; const y = clampLayer(Number(value), project.size); this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, currentY: y } }); }
   protected stepLayer(direction: -1 | 1): void { const project = this.workspace.project(); if (project) this.setLayer(String(clampLayer(this.currentY() + direction, project.size))); }
-  protected jumpLayer(target: 'first' | 'last'): void { const project = this.workspace.project(); if (project) this.setLayer(String(jumpOccupiedLayer(project.blocks, this.currentY(), target))); }
-  protected jumpAdjacent(direction: -1 | 1): void { const project = this.workspace.project(); if (project) this.setLayer(String(clampLayer(adjacentOccupiedLayer(this.currentY(), project.blocks, direction), project.size))); }
+  protected jumpLayer(target: 'first' | 'last'): void { const project = this.workspace.project(); if (project) this.setLayer(String(jumpOccupiedLayer(project.blocks, this.currentY(), target, this.layerIndex))); }
+  protected jumpAdjacent(direction: -1 | 1): void { const project = this.workspace.project(); if (project) this.setLayer(String(clampLayer(adjacentOccupiedLayer(this.currentY(), project.blocks, direction, this.layerIndex), project.size))); }
   protected setVisibility(value: string): void { const project = this.workspace.project(); if (!project) return; this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, layerVisibility: value as YLayerVisibility } }); }
   protected resize(): void { this.engine.resize(); }
   protected pointerMove(event: PointerEvent): void { this.engine.hover(event, this.workspace.project(), this.active.active(), this.currentY(), this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }

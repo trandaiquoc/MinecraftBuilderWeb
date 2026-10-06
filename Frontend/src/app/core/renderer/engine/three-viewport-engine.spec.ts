@@ -1938,6 +1938,26 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
+  it('changes whole-structure Y-layer roles through a bounded layer delta', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('stress');
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    engine.setLayerIndex(layerIndex);
+    const options = { layerY: 0, visibility: 'whole-structure' as const, exposedFaceRendering: true };
+    engine.update(project, undefined, options);
+    const before = engine.rendererCounters();
+    const next = { ...project, editorSettings: { ...project.editorSettings, currentY: 1 } };
+    engine.update(next, undefined, { ...options, layerY: 1 });
+    const after = engine.rendererCounters();
+    expect(after.fullVisibleScans).toBe(before.fullVisibleScans);
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.structuralReconciles).toBe(before.structuralReconciles);
+    expect(after.incrementalBlockReconciles).toBe(before.incrementalBlockReconciles + 1);
+    engine.dispose();
+  });
+
   it('uses one aggregate bounds helper for the existing 20k fixture', () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('stress');

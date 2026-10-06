@@ -77,4 +77,20 @@ describe('InstanceBatchRenderer', () => {
     renderer.clear();
     geometry.dispose(); material.dispose();
   });
+
+  it('keeps reference members in a separate material batch and updates opacity in place', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new InstanceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => '0,0,0', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), record: () => undefined, getEntry: () => undefined, disposeMergedTemplateGeometry: () => undefined });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+    renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'normal');
+    renderer.addFromTemplates(templates, { x: 1, y: 0, z: 0 }, 'reference', 'provider-async', undefined, 'reference');
+    expect(renderer.batches.size).toBe(2);
+    const reference = [...renderer.batches.values()].find((batch) => batch.renderRole === 'reference');
+    expect(reference?.parts[0].material).toMatchObject({ transparent: true, opacity: .28 });
+    renderer.setReferenceOpacity(.5);
+    expect(reference?.parts[0].material).toMatchObject({ opacity: .5 });
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
 });
