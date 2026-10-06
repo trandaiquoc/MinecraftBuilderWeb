@@ -80,10 +80,21 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
+  private readonly finalizationSync = effect(() => {
+    const restore = this.assets.contentRestore();
+    const terminal = restore.phase === 'ready' || restore.phase === 'partial' || restore.phase === 'error';
+    this.engine.setMissingBlocksTerminal(terminal);
+    this.hydrationStatus.setSourceRestoreState(this.hydrationOwner, { terminal, pending: !terminal, failed: restore.phase === 'error' });
+    this.hydrationStatus.setFinalizationAuditHooks(this.hydrationOwner, () => {
+      const progress = this.engine.finalizationAuditProgress();
+      const finalization = progress.finalization;
+      return { input: { progress, sourceRestoreTerminal: terminal, sourceRestorePending: !terminal, sourceRestoreFailed: restore.phase === 'error', providerRefreshPlanning: progress.providerRefreshPlanning, providerRefreshQueued: progress.providerRefreshQueued, providerRefreshRunning: progress.providerRefreshRunning, terrainPending: progress.terrainPending }, ownershipComplete: !!finalization && finalization.finalReadyBlocks + finalization.permanentMissingBlocks >= finalization.expectedBlocks };
+    }, () => this.engine.reconcileFinalizationAccounting());
+  });
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }

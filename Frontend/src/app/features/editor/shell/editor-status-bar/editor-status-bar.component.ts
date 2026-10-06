@@ -45,8 +45,22 @@ export class EditorStatusBarComponent {
   protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionCount())); }
   protected projectSizeLabel(): string { const size = this.workspace.project()?.size; return size ? `X ${size.x} · Y ${size.y} · Z ${size.z}` : ''; }
   protected assetStatus(): ReturnType<typeof deriveAssetBootstrapStatus> { return deriveAssetBootstrapStatus(this.assets.status(), this.assets.contentRestore(), this.assets.downloadProgress()); }
-  protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods' || this.hydration.status()?.activity === 'content'; }
+  protected finalizationState() { return this.hydration.finalization(); }
+  protected assetDataStatus(status: ReturnType<typeof deriveAssetBootstrapStatus>): 'invalid' | 'warning' | 'valid' | 'unknown' {
+    const finalization = this.finalizationState();
+    if (finalization?.warning) return 'warning';
+    if (finalization?.loading) return 'unknown';
+    return status.kind === 'unavailable' ? 'invalid' : status.kind === 'partial' ? 'warning' : status.kind === 'ready' ? 'valid' : 'unknown';
+  }
+  protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { const finalization = this.finalizationState(); return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods' || !!finalization?.loading; }
   protected assetProgressPercent(status: ReturnType<typeof deriveAssetBootstrapStatus>): number | null {
+    const finalization = this.finalizationState();
+    if (finalization?.loading) {
+      if (finalization.indeterminate || !finalization.finalization?.expectedBlocks) return null;
+      const progress = finalization.progress;
+      if (!progress?.finalization) return Math.max(0, Math.min(100, Math.round(progress?.percent ?? 0)));
+      return Math.max(0, Math.min(100, Math.round(finalization.finalization.finalReadyBlocks / finalization.finalization.expectedBlocks * 100)));
+    }
     const contentHydration = this.hydration.status();
     if (contentHydration?.activity === 'content') return Math.max(0, Math.min(100, Math.round(contentHydration.progress.percent)));
     if (status.kind === 'downloading' && status.percent !== undefined) return Math.max(0, Math.min(100, Math.round(status.percent)));
@@ -55,6 +69,9 @@ export class EditorStatusBarComponent {
   }
   protected assetStatusLabel(): string {
     const status = this.assetStatus();
+    const finalization = this.finalizationState();
+    if (finalization?.loading) return this.i18n.t('updatingBlockAssets');
+    if (finalization?.warning && finalization.finalization?.permanentMissingBlocks) return this.i18n.t('missingAssetsWarning').replace('{count}', this.formatCount(finalization.finalization.permanentMissingBlocks));
     if (this.hydration.status()?.activity === 'content') return this.i18n.t('updatingBlockAssets');
     if (status.kind === 'loading-cache') return this.i18n.t('checkingAssetCache');
     if (status.kind === 'downloading') return `${this.i18n.t('downloadingAsset')}${status.percent === undefined ? '' : ` ${status.percent}%`}`;
@@ -64,7 +81,13 @@ export class EditorStatusBarComponent {
     if (status.kind === 'unavailable') return this.i18n.t('assetsUnavailableForBrowser');
     return this.i18n.t('assetsReady');
   }
-  protected hydrationStatus(): ViewportHydrationStatusSnapshot | undefined { return this.hydration.status(); }
+  protected finalizationCount(): string | undefined {
+    const finalization = this.finalizationState();
+    if (!finalization?.loading || finalization.indeterminate || !finalization.finalization) return undefined;
+    const value = finalization.finalization;
+    return `${this.formatCount(value.finalReadyBlocks)} / ${this.formatCount(value.expectedBlocks)} ${this.i18n.t('viewportHydrationBlocks')}`;
+  }
+  protected hydrationStatus(): ViewportHydrationStatusSnapshot | undefined { return this.finalizationState()?.loading ? undefined : this.hydration.status(); }
   protected hydrationStatusLabel(snapshot: ViewportHydrationStatusSnapshot): string {
     const label = snapshot.activity === 'content' ? this.i18n.t('updatingBlockAssets') : this.i18n.t(snapshot.activity === 'import' ? 'importingStructure' : 'buildingStructure');
     return `${label} · ${this.formatPercent(snapshot.progress.percent)}%`;

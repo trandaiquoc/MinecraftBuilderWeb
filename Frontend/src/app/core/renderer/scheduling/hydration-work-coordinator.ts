@@ -82,6 +82,13 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     for (const key of [...this.providerRefreshKeys]) if (!this.runningProviderRefreshKeys.has(key)) this.providerRefreshKeys.delete(key);
   }
 
+  /** Drops only provider-refresh work; regular hydration remains untouched. */
+  clearPendingProviderRefresh(): void {
+    this.providerRefreshQueue = [];
+    this.providerRefreshHead = 0;
+    for (const key of [...this.providerRefreshKeys]) if (!this.runningProviderRefreshKeys.has(key)) this.providerRefreshKeys.delete(key);
+  }
+
   compact(): void {
     if (this.regularHead > 0) { this.regularQueue = this.regularQueue.slice(this.regularHead); this.regularHead = 0; }
     if (this.providerRefreshHead > 0) { this.providerRefreshQueue = this.providerRefreshQueue.slice(this.providerRefreshHead); this.providerRefreshHead = 0; }

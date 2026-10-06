@@ -10,8 +10,9 @@
   </div>
   <div class="status-right">
     @if (assetStatus(); as asset) {
-      <span class="asset-status" [attr.data-status]="asset.kind === 'unavailable' ? 'invalid' : asset.kind === 'partial' ? 'warning' : asset.kind === 'ready' ? 'valid' : 'unknown'" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true">
+      <span class="asset-status" [attr.data-status]="assetDataStatus(asset)" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true">
         <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
+        @if (finalizationCount(); as count) { <span class="asset-status-count">{{ count }}</span> }
         @if (assetLoading(asset)) {
           <span class="asset-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="assetProgressPercent(asset)" [attr.aria-label]="assetStatusLabel()"><span class="asset-progress-fill" [class.indeterminate]="assetProgressPercent(asset) === null" [style.width.%]="assetProgressPercent(asset)"></span></span>
         }

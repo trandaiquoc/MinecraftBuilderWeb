@@ -12,6 +12,15 @@ export interface HydrationProgressSnapshot {
   readonly decorationsCompleted: number;
   readonly decorationsTotal: number;
   readonly percent: number;
+  readonly finalization?: HydrationFinalizationSnapshot;
+}
+
+export interface HydrationFinalizationSnapshot {
+  readonly expectedBlocks: number;
+  readonly finalReadyBlocks: number;
+  readonly provisionalMissingBlocks: number;
+  readonly permanentMissingBlocks: number;
+  readonly pendingBlocks: number;
 }
 
 type ProgressPart = 'block' | 'decoration';
@@ -35,6 +44,8 @@ export class HydrationProgressTracker {
   private readonly completedBlocks = new Set<string>();
   private readonly decorationScope = new Set<string>();
   private readonly completedDecorations = new Set<string>();
+  private readonly provisionalMissingBlocks = new Set<string>();
+  private readonly permanentMissingBlocks = new Set<string>();
   private readonly listeners = new Set<(progress: HydrationProgressSnapshot) => void>();
   private progress: HydrationProgressSnapshot = idleProgress(0);
   private lane: HydrationLane = 'structural';
@@ -54,16 +65,37 @@ export class HydrationProgressTracker {
     for (const key of this.completedBlocks) if (!next.has(key)) this.completedBlocks.delete(key);
     this.blockScope.clear();
     for (const key of next) this.blockScope.add(key);
+    for (const key of this.provisionalMissingBlocks) if (!next.has(key)) this.provisionalMissingBlocks.delete(key);
+    for (const key of this.permanentMissingBlocks) if (!next.has(key)) this.permanentMissingBlocks.delete(key);
   }
 
   addBlockKey(key: string): void {
     this.blockScope.add(key);
     this.completedBlocks.delete(key);
+    this.provisionalMissingBlocks.delete(key);
+    this.permanentMissingBlocks.delete(key);
   }
 
   removeBlockKey(key: string): void {
     this.blockScope.delete(key);
     this.completedBlocks.delete(key);
+    this.provisionalMissingBlocks.delete(key);
+    this.permanentMissingBlocks.delete(key);
+  }
+
+  setMissingBlockState(key: string, state: 'provisional' | 'permanent' | 'pending'): void {
+    if (!this.blockScope.has(key)) return;
+    this.completedBlocks.delete(key);
+    this.provisionalMissingBlocks.delete(key);
+    this.permanentMissingBlocks.delete(key);
+    if (state === 'provisional') this.provisionalMissingBlocks.add(key);
+    if (state === 'permanent') this.permanentMissingBlocks.add(key);
+    this.publishCurrent(this.progress.generation);
+  }
+
+  clearMissingBlockState(key: string): void {
+    this.provisionalMissingBlocks.delete(key);
+    this.permanentMissingBlocks.delete(key);
   }
 
   hasBlockKey(key: string): boolean { return this.blockScope.has(key); }
@@ -94,11 +126,12 @@ export class HydrationProgressTracker {
     const blocksCompleted = this.completedBlocks.size;
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
-    if (completed >= total) {
-      this.publish({ generation, lane: this.lane, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100 });
+    const finalization = this.finalization(blocksTotal, blocksCompleted);
+    if (completed + this.permanentMissingBlocks.size >= total) {
+      this.publish({ generation, lane: this.lane, status: 'complete', completed, total, blocksCompleted, blocksTotal, decorationsCompleted: decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0, finalization });
       return;
     }
-    this.publish({ generation, lane: this.lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
+    this.publish({ generation, lane: this.lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0, finalization });
   }
 
   setDecorationScope(ids: readonly string[]): void {
@@ -122,8 +155,12 @@ export class HydrationProgressTracker {
     const blocksCompleted = this.completedBlocks.size;
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
-    if (completed >= total) return;
-    this.publish({ generation, lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100 });
+    const finalization = this.finalization(blocksTotal, blocksCompleted);
+    if (completed + this.permanentMissingBlocks.size >= total) {
+      this.publish({ generation, lane, status: 'complete', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0, finalization });
+      return;
+    }
+    this.publish({ generation, lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: completed / total * 100, finalization });
   }
 
   complete(generation: number, kind: ProgressPart, key: string): void {
@@ -145,11 +182,12 @@ export class HydrationProgressTracker {
     const blocksCompleted = this.completedBlocks.size;
     const decorationsCompleted = this.completedDecorations.size;
     const completed = blocksCompleted + decorationsCompleted;
-    if (completed >= total) {
-      this.publish({ generation, lane: this.lane, status: 'complete', completed: total, total, blocksCompleted: blocksTotal, blocksTotal, decorationsCompleted: decorationsTotal, decorationsTotal, percent: 100 });
+    const finalization = this.finalization(blocksTotal, blocksCompleted);
+    if (completed + this.permanentMissingBlocks.size >= total) {
+      this.publish({ generation, lane: this.lane, status: 'complete', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0, finalization });
       return;
     }
-    this.publish({ generation, lane: this.lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0 });
+    this.publish({ generation, lane: this.lane, status: 'hydrating', completed, total, blocksCompleted, blocksTotal, decorationsCompleted, decorationsTotal, percent: total ? completed / total * 100 : 0, finalization });
   }
 
   reset(generation: number): void {
@@ -167,6 +205,18 @@ export class HydrationProgressTracker {
     this.completedBlocks.clear();
     this.decorationScope.clear();
     this.completedDecorations.clear();
+    this.provisionalMissingBlocks.clear();
+    this.permanentMissingBlocks.clear();
+  }
+
+  private finalization(expectedBlocks: number, finalReadyBlocks: number): HydrationFinalizationSnapshot {
+    return {
+      expectedBlocks,
+      finalReadyBlocks,
+      provisionalMissingBlocks: this.provisionalMissingBlocks.size,
+      permanentMissingBlocks: this.permanentMissingBlocks.size,
+      pendingBlocks: Math.max(0, expectedBlocks - finalReadyBlocks - this.provisionalMissingBlocks.size - this.permanentMissingBlocks.size),
+    };
   }
 
   publish(next: HydrationProgressSnapshot): void {

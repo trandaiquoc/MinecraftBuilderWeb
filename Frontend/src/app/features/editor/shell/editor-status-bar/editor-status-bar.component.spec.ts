@@ -61,10 +61,10 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
     assets.contentRestore.set({ phase: 'ready', current: 0, total: 0, failed: 0 });
     hydration.publish(owner, { generation: 1, status: 'hydrating', completed: 15080, total: 20000, blocksCompleted: 15080, blocksTotal: 20000, decorationsCompleted: 0, decorationsTotal: 0, percent: 75.4 });
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.asset-status')?.textContent).toContain('Assets ready');
-    expect(fixture.nativeElement.querySelector('.hydration-status')?.textContent).toContain('Building structure');
-    expect(fixture.nativeElement.querySelector('.hydration-status')?.textContent).toContain('15,080 / 20,000');
-    expect((fixture.nativeElement.querySelector('.hydration-progress-track') as HTMLElement).getAttribute('aria-valuenow')).toBe('75.4');
+    expect(fixture.nativeElement.querySelector('.asset-status')?.textContent).toContain('Updating block assets');
+    expect(fixture.nativeElement.querySelector('.asset-status')?.textContent).toContain('15,080 / 20,000');
+    expect(fixture.nativeElement.querySelector('.hydration-status')).toBeNull();
+    expect((fixture.nativeElement.querySelector('.asset-progress-track') as HTMLElement).getAttribute('aria-valuenow')).toBe('75');
     hydration.publish(owner, { generation: 1, status: 'complete', completed: 20000, total: 20000, blocksCompleted: 20000, blocksTotal: 20000, decorationsCompleted: 0, decorationsTotal: 0, percent: 100 });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.hydration-status')).toBeNull();

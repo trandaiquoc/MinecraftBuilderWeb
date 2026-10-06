@@ -94,4 +94,14 @@ describe('HydrationProgressTracker', () => {
     tracker.complete(3, 'block', 'changed');
     expect(tracker.snapshot()).toMatchObject({ lane: 'local', status: 'complete' });
   });
+
+  it('keeps provisional and permanent missing blocks out of final-ready counts', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['known', 'pending', 'missing']);
+    tracker.setMissingBlockState('pending', 'provisional');
+    tracker.setMissingBlockState('missing', 'permanent');
+    tracker.begin(4);
+    tracker.complete(4, 'block', 'known');
+    expect(tracker.snapshot()).toMatchObject({ status: 'hydrating', completed: 1, blocksCompleted: 1, finalization: { expectedBlocks: 3, finalReadyBlocks: 1, provisionalMissingBlocks: 1, permanentMissingBlocks: 1, pendingBlocks: 0 } });
+  });
 });
