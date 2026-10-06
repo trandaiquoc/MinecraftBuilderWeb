@@ -1,0 +1,17 @@
+<div class="missing-assets-backdrop" role="presentation">
+  <section class="missing-assets-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" tabindex="-1" autofocus [attr.aria-labelledby]="'missing-assets-title'">
+    <header class="missing-assets-header">
+      <div><h2 id="missing-assets-title">{{ i18n.t('missingAssetsTitle') }}</h2><p>{{ i18n.t('missingAssetsDialogText') }}</p></div>
+      <button type="button" class="ui-close-button" [attr.aria-label]="i18n.t('close')" [title]="i18n.t('close')" (click)="closed.emit()"><svg lucideX aria-hidden="true"></svg></button>
+    </header>
+    <div class="missing-assets-list">
+      @for (group of summary().groups; track group.namespace) {
+        <article class="missing-assets-group">
+          <div class="missing-assets-group-heading"><div><strong>{{ group.sourceName ?? group.namespace }}</strong><code>{{ group.namespace }}</code></div><b>{{ group.blockCount.toLocaleString(i18n.locale()) }}</b></div>
+          <small>{{ i18n.t('missingAssetsBlockCount').replace('{count}', group.blockCount.toLocaleString(i18n.locale())) }} · {{ i18n.t('missingAssetsUniqueIds').replace('{count}', group.uniqueBlockCount.toLocaleString(i18n.locale())) }}</small>
+          @if (group.blockIds.length) { <div class="missing-assets-ids">@for (id of group.blockIds; track id) { <code>{{ id }}</code> } @if (group.uniqueBlockCount > group.blockIds.length) { <span>+{{ (group.uniqueBlockCount - group.blockIds.length).toLocaleString(i18n.locale()) }}</span> }</div> }
+        </article>
+      } @empty { <p class="missing-assets-empty">{{ i18n.t('missingAssetsEmpty') }}</p> }
+    </div>
+  </section>
+</div>

@@ -1,4 +1,4 @@
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import type { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
@@ -14,6 +14,7 @@ export class MissingBlockReconciliationService {
   private readonly library = inject(BlockLibraryService);
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
+  readonly activity = signal<'idle' | 'running'>('idle');
   private operationToken = 0;
   private readonly trigger = effect((onCleanup) => {
     const controller = new AbortController();
@@ -21,18 +22,23 @@ export class MissingBlockReconciliationService {
     const project = this.workspace.project();
     const revision = this.library.catalogRevision();
     const token = ++this.operationToken;
-    if (!project || !project.blocks.some((block) => block.kind === 'missing')) return;
+    if (!project || !project.blocks.some((block) => block.kind === 'missing')) { this.activity.set('idle'); return; }
+    this.activity.set('running');
     void this.reconcile(project, revision, token, controller.signal).catch((error) => { if (!isAbortError(error)) throw error; });
   });
 
   private async reconcile(project: ProjectDocument, revision: number, token: number, signal: AbortSignal): Promise<void> {
-    const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id), undefined, undefined, signal);
-    if (token !== this.operationToken || this.workspace.project() !== project || this.library.catalogRevision() !== revision) return;
-    if (result.project !== project && result.changes.length) {
-      const hint = blockMutationHint(result.changes, 'content-resolution', 'content-resolution');
-      this.mutationHints.publish(project, result.project, hint);
-      this.runtimeIndex.adoptTransition(project, result.project, hint);
-      this.workspace.project.set(result.project);
+    try {
+      const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id), undefined, undefined, signal);
+      if (token !== this.operationToken || this.workspace.project() !== project || this.library.catalogRevision() !== revision) return;
+      if (result.project !== project && result.changes.length) {
+        const hint = blockMutationHint(result.changes, 'content-resolution', 'content-resolution');
+        this.mutationHints.publish(project, result.project, hint);
+        this.runtimeIndex.adoptTransition(project, result.project, hint);
+        this.workspace.project.set(result.project);
+      }
+    } finally {
+      if (token === this.operationToken) this.activity.set('idle');
     }
   }
 }

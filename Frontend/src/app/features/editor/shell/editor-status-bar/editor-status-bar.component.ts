@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { humanizeDecorationName } from '../../../../core/decorations/decoration-display';
@@ -11,8 +11,11 @@ import { WorkspaceStateService } from '../../../../core/workspace/workspace-stat
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { deriveAssetBootstrapStatus, VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ViewportHydrationStatusService, ViewportHydrationStatusSnapshot } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
+import { MissingProjectContentSummaryService } from '../../../../core/editor/state/missing-project-content-summary';
+import { MissingAssetsDialogComponent } from './missing-assets-dialog.component';
 
-@Component({ selector: 'app-editor-status-bar', templateUrl: './editor-status-bar.component.html', styleUrl: './editor-status-bar.component.scss' })
+@Component({ selector: 'app-editor-status-bar', imports: [MissingAssetsDialogComponent], templateUrl: './editor-status-bar.component.html', styleUrl: './editor-status-bar.component.scss' })
 export class EditorStatusBarComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly mode = inject(EditorModeService);
@@ -22,10 +25,15 @@ export class EditorStatusBarComponent {
   protected readonly workspace = inject(WorkspaceStateService);
   protected readonly assets = inject(VanillaAssetsService);
   protected readonly hydration = inject(ViewportHydrationStatusService);
+  protected readonly missingReconciliation = inject(MissingBlockReconciliationService);
+  private readonly missingContent = inject(MissingProjectContentSummaryService);
   protected readonly library = inject(BlockLibraryService);
   protected readonly decorations = inject(DecorationService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   protected readonly selectionCount = computed(() => this.selection.count(this.workspace.project()));
+  protected readonly missingSummary = this.missingContent.summary;
+  protected readonly missingDialogOpen = signal(false);
+  private readonly closeMissingDialogWhenResolved = effect(() => { if (this.missingDialogOpen() && this.missingSummary().totalMissingBlocks === 0) this.missingDialogOpen.set(false); });
   protected readonly activePlacement = computed<ActivePlacementStatus | undefined>(() => {
     const activeBlock = this.library.activeBlock.active();
     if (activeBlock) {
@@ -48,13 +56,15 @@ export class EditorStatusBarComponent {
   protected finalizationState() { return this.hydration.finalization(); }
   protected assetDataStatus(status: ReturnType<typeof deriveAssetBootstrapStatus>): 'invalid' | 'warning' | 'valid' | 'unknown' {
     const finalization = this.finalizationState();
+    if (this.missingWarningVisible()) return 'warning';
     if (finalization?.warning) return 'warning';
     if (finalization?.loading) return 'unknown';
     return status.kind === 'unavailable' ? 'invalid' : status.kind === 'partial' ? 'warning' : status.kind === 'ready' ? 'valid' : 'unknown';
   }
-  protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { const finalization = this.finalizationState(); return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods' || !!finalization?.loading; }
+  protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { const finalization = this.finalizationState(); return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods' || !!finalization?.loading || this.missingReconciliation.activity() === 'running'; }
   protected assetProgressPercent(status: ReturnType<typeof deriveAssetBootstrapStatus>): number | null {
     const finalization = this.finalizationState();
+    if (this.missingReconciliation.activity() === 'running') return null;
     if (finalization?.loading) {
       if (finalization.indeterminate || !finalization.finalization?.expectedBlocks) return null;
       const progress = finalization.progress;
@@ -70,8 +80,8 @@ export class EditorStatusBarComponent {
   protected assetStatusLabel(): string {
     const status = this.assetStatus();
     const finalization = this.finalizationState();
-    if (finalization?.loading) return this.i18n.t('updatingBlockAssets');
-    if (finalization?.warning && finalization.finalization?.permanentMissingBlocks) return this.i18n.t('missingAssetsWarning').replace('{count}', this.formatCount(finalization.finalization.permanentMissingBlocks));
+    if (finalization?.loading || this.missingReconciliation.activity() === 'running') return this.i18n.t('updatingBlockAssets');
+    if (this.missingWarningVisible()) return this.i18n.t('missingAssetsWarning').replace('{count}', this.formatCount(this.missingSummary().totalMissingBlocks));
     if (this.hydration.status()?.activity === 'content') return this.i18n.t('updatingBlockAssets');
     if (status.kind === 'loading-cache') return this.i18n.t('checkingAssetCache');
     if (status.kind === 'downloading') return `${this.i18n.t('downloadingAsset')}${status.percent === undefined ? '' : ` ${status.percent}%`}`;
@@ -81,6 +91,11 @@ export class EditorStatusBarComponent {
     if (status.kind === 'unavailable') return this.i18n.t('assetsUnavailableForBrowser');
     return this.i18n.t('assetsReady');
   }
+  protected missingWarningVisible(): boolean {
+    const finalization = this.finalizationState();
+    return this.missingSummary().totalMissingBlocks > 0 && this.missingReconciliation.activity() === 'idle' && !finalization?.loading && this.hydration.status()?.activity !== 'content';
+  }
+  protected openMissingAssets(): void { if (this.missingWarningVisible()) this.missingDialogOpen.set(true); }
   protected finalizationCount(): string | undefined {
     const finalization = this.finalizationState();
     if (!finalization?.loading || finalization.indeterminate || !finalization.finalization) return undefined;

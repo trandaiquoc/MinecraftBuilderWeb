@@ -7,6 +7,9 @@ import { DecorationService } from '../../../../core/decorations/decoration.servi
 import { ProjectAutosaveService } from '../../../../core/persistence/autosave/project-autosave.service';
 import { EditorStatusBarComponent } from './editor-status-bar.component';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
+import type { ProjectDocument } from '../../../../core/domain/project.types';
+import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
 
 describe('EditorStatusBarComponent asset bootstrap status', () => {
   it('renders determinate Mod restore progress and removes it when ready', async () => {
@@ -35,7 +38,7 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
   });
 
   it('renders indeterminate loading and partial warning states without a loading bar when complete', async () => {
-    await TestBed.configureTestingModule({ imports: [EditorStatusBarComponent], providers: [{ provide: ProjectAutosaveService, useValue: { status: signal('saved'), error: signal(undefined) } }] }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [EditorStatusBarComponent], providers: [{ provide: ProjectAutosaveService, useValue: { status: signal('saved'), error: signal(undefined) } }, { provide: MissingBlockReconciliationService, useValue: { activity: signal<'idle' | 'running'>('idle') } }] }).compileComponents();
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
     const assets = TestBed.inject(VanillaAssetsService);
     assets.status.set('loading-cache');
@@ -137,5 +140,33 @@ describe('EditorStatusBarComponent active placement status', () => {
     const status = fixture.nativeElement.querySelector('.active-placement-status') as HTMLElement;
     expect(status.textContent).toContain('Active block');
     expect(status.textContent).not.toContain('Active decoration');
+  });
+});
+
+describe('EditorStatusBarComponent missing-content warning', () => {
+  it('uses the current project Missing blocks and opens actionable details', async () => {
+    await TestBed.configureTestingModule({ imports: [EditorStatusBarComponent], providers: [{ provide: ProjectAutosaveService, useValue: { status: signal('saved'), error: signal(undefined) } }, { provide: MissingBlockReconciliationService, useValue: { activity: signal<'idle' | 'running'>('idle') } }] }).compileComponents();
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const fixture = TestBed.createComponent(EditorStatusBarComponent);
+    const project: ProjectDocument = {
+      schemaVersion: 3,
+      id: 'missing-status-project',
+      metadata: { name: 'Missing status', minecraftVersion: '1.21.1', createdAt: '2026-01-01', updatedAt: '2026-01-01' },
+      size: { x: 4, y: 4, z: 4 }, structureMode: 'vanilla-structure-block',
+      blocks: [{ kind: 'missing', id: 'unknown:missing_block', namespace: 'unknown', position: { x: 0, y: 0, z: 0 }, state: {} }],
+      groups: [], editorSettings: { currentY: 0, layerVisibility: 'whole-structure', referenceLayerOpacity: .28 },
+    };
+    workspace.project.set(project);
+    TestBed.flushEffects();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    const warning = fixture.nativeElement.querySelector('.asset-status--action') as HTMLButtonElement | null;
+    expect(warning?.textContent).toContain('Missing assets for 1 blocks');
+    warning?.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.missing-assets-dialog')?.textContent).toContain('unknown');
+    (fixture.nativeElement.querySelector('.missing-assets-dialog .ui-close-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.asset-status--action')).not.toBeNull();
   });
 });
