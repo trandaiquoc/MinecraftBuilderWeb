@@ -230,6 +230,12 @@ export interface ViewportPerformanceEvidence {
   readonly terrainTemplateCacheHits: number;
   readonly terrainLogicalBlocks: number;
   readonly terrainBulkBatches: number;
+  readonly terrainCandidateOwnershipTotal: number;
+  readonly terrainCandidateFanoutTotal: number;
+  readonly maxHydrationCandidatesPerChunk: number;
+  readonly maxRecordsPerChunk: number;
+  readonly terrainCommitCandidateChecks: number;
+  readonly terrainCommitRepresentedLookupChecks: number;
   readonly terrainAsyncAcceptedResults: number;
   readonly terrainAsyncStaleRevisionResults: number;
   readonly terrainAsyncStaleGenerationResults: number;
@@ -3901,6 +3907,12 @@ export class ThreeViewportEngine {
       terrainTemplateCacheHits: terrain.terrainTemplateCacheHits,
       terrainLogicalBlocks: terrain.terrainLogicalBlocks,
       terrainBulkBatches: terrain.terrainBulkBatches,
+      terrainCandidateOwnershipTotal: terrain.terrainCandidateOwnershipTotal,
+      terrainCandidateFanoutTotal: terrain.terrainCandidateFanoutTotal,
+      maxHydrationCandidatesPerChunk: terrain.maxHydrationCandidatesPerChunk,
+      maxRecordsPerChunk: terrain.maxRecordsPerChunk,
+      terrainCommitCandidateChecks: terrain.terrainCommitCandidateChecks,
+      terrainCommitRepresentedLookupChecks: terrain.terrainCommitRepresentedLookupChecks,
       terrainAsyncAcceptedResults: counters.terrainAsyncAcceptedResults,
       terrainAsyncStaleRevisionResults: counters.terrainAsyncStaleRevisionResults,
       terrainAsyncStaleGenerationResults: counters.terrainAsyncStaleGenerationResults,

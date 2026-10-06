@@ -83,6 +83,34 @@ describe('chunk surface renderer worker commit path', () => {
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
+  it('publishes hydration completion only to the owning chunk on a multi-chunk flush', async () => {
+    const group = new THREE.Group();
+    const workers: DeferredWorker[] = [];
+    const applied: Array<{ readonly rebuiltChunks: readonly string[]; readonly hydrationCandidateKeys?: readonly string[] }> = [];
+    const renderer = new ChunkSurfaceRenderer({
+      blocksGroup: group,
+      workerFactory: () => { const worker = new DeferredWorker(); workers.push(worker); return worker; },
+      workerCount: 2,
+      onAsyncApply: (_records, result) => applied.push({ rebuiltChunks: result.rebuiltChunks, hydrationCandidateKeys: result.hydrationCandidateKeys }),
+      record: () => undefined,
+    });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first = blockAt(0);
+    const second = blockAt(16);
+    const record = (block: PlacedBlock): TerrainSurfaceRecord => ({ key: key(block), block, templates });
+    renderer.bulkUpsert([record(first), record(second)], undefined, [first.position, second.position], { initial: true });
+    expect(workers).toHaveLength(2);
+    for (const worker of workers) worker.resolve();
+    await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(applied.filter((result) => result.rebuiltChunks.length)).toEqual(expect.arrayContaining([
+      { rebuiltChunks: ['0,0,0'], hydrationCandidateKeys: [key(first)] },
+      { rebuiltChunks: ['1,0,0'], hydrationCandidateKeys: [key(second)] },
+    ]));
+    expect(renderer.evidence().terrainCandidateFanoutTotal).toBe(2);
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('reschedules a result from an older terrain generation exactly once and keeps ownership pending', async () => {
     const group = new THREE.Group();
     const worker = new DeferredWorker();

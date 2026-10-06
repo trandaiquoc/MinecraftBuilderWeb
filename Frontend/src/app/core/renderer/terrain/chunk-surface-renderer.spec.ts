@@ -58,6 +58,42 @@ describe('chunk surface renderer ownership', () => {
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
+  it('assigns each initial hydration candidate to one owning chunk only', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const blocks = [blockAt({ x: 0, y: 0, z: 0 }), blockAt({ x: 16, y: 0, z: 0 }), blockAt({ x: 32, y: 0, z: 0 })];
+    const records = blocks.map((block) => ({ key: voxelKey(block.position), block, templates }));
+    renderer.bulkUpsert(records, blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const })), blocks.map((block) => block.position), { initial: true });
+    expect(renderer.evidence()).toMatchObject({
+      terrainCandidateOwnershipTotal: 3,
+      terrainCandidateFanoutTotal: 3,
+      maxHydrationCandidatesPerChunk: 1,
+      maxRecordsPerChunk: 1,
+    });
+    renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('keeps a boundary neighbor rebuild geometry-only for hydration accounting', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first = blockAt({ x: 15, y: 0, z: 0 });
+    const neighbor = blockAt({ x: 16, y: 0, z: 0 });
+    const initial = [first, neighbor];
+    renderer.bulkUpsert(initial.map((block) => ({ key: voxelKey(block.position), block, templates })), initial.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const })), initial.map((block) => block.position), { initial: true });
+    const before = renderer.evidence();
+    const changed = { ...first, state: { powered: 'true' } };
+    renderer.applyBlockChanges([{ key: voxelKey(changed.position), position: changed.position, before: { key: voxelKey(first.position), block: first, templates }, after: { key: voxelKey(changed.position), block: changed, templates }, afterOpaque: true }], true, [voxelKey(changed.position)]);
+    const after = renderer.evidence();
+    expect(after.terrainCandidateOwnershipTotal - before.terrainCandidateOwnershipTotal).toBe(1);
+    expect(after.terrainCandidateFanoutTotal - before.terrainCandidateFanoutTotal).toBe(1);
+    expect(after.maxHydrationCandidatesPerChunk).toBe(1);
+    renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('keeps the 48 cubed initial generation near one build per populated chunk', () => {
     const group = new THREE.Group();
     const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
