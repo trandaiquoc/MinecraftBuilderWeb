@@ -45,6 +45,17 @@ describe('ViewportHydrationStatusService', () => {
     expect(service.status()).toBeUndefined();
   });
 
+  it('can reactivate a retained viewport owner after a mode switch', () => {
+    const service = new ViewportHydrationStatusService();
+    const first = service.claim();
+    const second = service.claim();
+    service.activate(first);
+    service.publish(first, progress({ total: 100, completed: 25, percent: 25 }));
+    expect(service.status()?.progress.completed).toBe(25);
+    service.publish(second, progress({ total: 100, completed: 90, percent: 90 }));
+    expect(service.status()?.progress.completed).toBe(25);
+  });
+
   it('uses generic build activity after an import generation is consumed', () => {
     const service = new ViewportHydrationStatusService();
     const owner = service.claim();

@@ -20,6 +20,24 @@ describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
   camera.position.set(0, 2, 4); camera.lookAt(0, 2, 0);
 
+  it('suspends viewport work without disposing the retained engine', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    engine.suspend();
+    engine.update(project, undefined);
+
+    expect(engine.isSuspended).toBe(true);
+    expect(engine.performanceEvidence().hydrationQueue).toBe(0);
+    engine.cameraKeyDown('move-forward');
+    expect(engine.performanceEvidence().cameraMovementFrames).toBe(0);
+
+    engine.resume();
+    expect(engine.isSuspended).toBe(false);
+    engine.update(project, undefined);
+    expect(engine.performanceEvidence().hydrationQueue).toBeGreaterThanOrEqual(0);
+    engine.dispose();
+  });
+
   it('remembers brightness before initialization and updates the mapping without rebuilding visuals', () => {
     const engine = new ThreeViewportEngine();
     engine.setBlockBrightness(0);

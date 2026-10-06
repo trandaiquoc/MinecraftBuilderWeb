@@ -48,6 +48,19 @@ export class ViewportHydrationStatusService {
     return owner;
   }
 
+  /** Makes a retained viewport the sole owner of the visible hydration status. */
+  activate(owner: number): void {
+    if (owner === this.activeOwner) return;
+    this.activeOwner = owner;
+    this.clearVisibleState();
+    this.finalizationCoordinator.reset();
+    this.finalization.set(undefined);
+    this.lastProgress = undefined;
+    this.sourceRestoreTerminal = true;
+    this.sourceRestorePending = false;
+    this.sourceRestoreFailed = false;
+  }
+
   markNextActivity(activity: ViewportHydrationActivity): void { this.nextActivity = activity; }
 
   setSourceRestoreState(owner: number, state: { readonly terminal: boolean; readonly pending: boolean; readonly failed?: boolean }): void {

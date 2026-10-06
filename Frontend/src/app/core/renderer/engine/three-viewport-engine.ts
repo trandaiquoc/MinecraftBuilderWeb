@@ -712,6 +712,9 @@ export class ThreeViewportEngine {
   private placementPlanProvider?: PlacementPlanProvider;
   private ghostGeneration = 0;
   private disposed = false;
+  private suspended = false;
+  private suspendedNeedsRefresh = false;
+  private deferredProviderRefresh?: { readonly previous: BlockVisualProvider; readonly next: BlockVisualProvider };
   private renderCount = 0;
   private canvasSize = { width: 0, height: 0 };
   private themeApplied = false;
@@ -911,6 +914,45 @@ export class ThreeViewportEngine {
     this.scheduleRender();
   }
 
+  /** Pauses a retained viewport without releasing its scene, camera, or GPU resources. */
+  suspend(): void {
+    if (this.disposed || this.suspended) return;
+    this.suspended = true;
+    this.cancelPendingHover(true);
+    this.endEditorPointerGesture();
+    this.clearInput();
+    this.cameraGestureInProgress = false;
+    this.cameraMovementInProgress = false;
+    this.cameraRenderPending = false;
+    this.renderScheduler.cancel();
+    this.hydrationScheduler.cancel();
+    this.hydrationScheduled = false;
+    this.hydrationTimer = undefined;
+    this.providerRefreshPlanner.cancel();
+    this.providerRefreshPlanning = false;
+    this.providerRefreshProgress = undefined;
+    this.providerRefreshGeneration += 1;
+  }
+
+  /** Resumes a retained viewport and lets its owner perform the current-state sync. */
+  resume(): void {
+    if (this.disposed || !this.suspended) return;
+    this.suspended = false;
+    if (this.suspendedNeedsRefresh) {
+      this.structureSyncKey = '';
+      this.decorationSyncKey = '';
+      this.suspendedNeedsRefresh = false;
+    }
+    const deferred = this.deferredProviderRefresh;
+    this.deferredProviderRefresh = undefined;
+    if (deferred && this.project && this.visualProvider === deferred.next) this.queueProviderRefresh(deferred.previous, deferred.next);
+    this.resize();
+    if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
+    this.scheduleRender();
+  }
+
+  get isSuspended(): boolean { return this.suspended; }
+
   applyTheme(palette: ViewportThemePalette): void {
     this.palette = palette;
     this.themeApplied = true;
@@ -987,8 +1029,8 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
-  cameraKeyDown(action: MovementAction): void { if (this.disposed) return; this.runtimeTrace?.record('movement-keydown', { action }); this.cameraInteraction.press(action); this.markCameraInteraction(); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { this.runtimeTrace?.record('movement-keyup', { action }); this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.requestCameraRender(); }
+  cameraKeyDown(action: MovementAction): void { if (this.disposed || this.suspended) return; this.runtimeTrace?.record('movement-keydown', { action }); this.cameraInteraction.press(action); this.markCameraInteraction(); this.startCameraMovement(); }
+  cameraKeyUp(action: MovementAction): void { if (this.disposed || this.suspended) return; this.runtimeTrace?.record('movement-keyup', { action }); this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.requestCameraRender(); }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.mouseBindings = { ...bindings };
@@ -1050,7 +1092,7 @@ export class ThreeViewportEngine {
   }
 
   resize(): void {
-    if (!this.renderer || !this.container) return;
+    if (this.suspended || !this.renderer || !this.container) return;
     this.updatePixelRatioTargets();
     this.applyPixelRatio(this.staticPixelRatio);
     const { width, height } = this.container.getBoundingClientRect();
@@ -1093,8 +1135,15 @@ export class ThreeViewportEngine {
     const requiresStructureResync = !previousProvider || !provider;
     if (requiresStructureResync) this.structureSyncKey = '';
     if (provider) this.syncSpecialVisualDescriptors();
-    if (previousProvider && provider) this.queueProviderRefresh(previousProvider, provider);
+    if (previousProvider && provider) {
+      if (this.suspended) this.deferredProviderRefresh = { previous: this.deferredProviderRefresh?.previous ?? previousProvider, next: provider };
+      else this.queueProviderRefresh(previousProvider, provider);
+    }
     const hadVisibleCache = this.cachedVisibleProject === this.project;
+    if (this.suspended) {
+      this.suspendedNeedsRefresh = true;
+      return;
+    }
     this.update(this.project, this.activeBlock, this.renderOptions);
     if (hadVisibleCache && !requiresStructureResync) this.resyncCurrentFluidProvider();
     if (!provider && previousFluidEntries.length) this.completeHydrationBatch(this.hydrationGeneration, previousFluidEntries.map((entry) => entry.key));
@@ -1132,6 +1181,10 @@ export class ThreeViewportEngine {
     if (resolver === this.specialVisualResolver && revision === this.specialVisualRevision) return;
     this.specialVisualResolver = resolver;
     this.specialVisualRevision = revision;
+    if (this.suspended) {
+      this.suspendedNeedsRefresh = true;
+      return;
+    }
     if (this.syncSpecialVisualDescriptors()) {
       if (this.visualProvider) this.queueProviderRefresh(this.visualProvider, this.visualProvider);
       this.update(this.project, this.activeBlock, this.renderOptions);
@@ -1146,30 +1199,35 @@ export class ThreeViewportEngine {
     this.decorationTextureCache = provider ? new DecorationTextureCache(provider, undefined, () => this.scheduleRender()) : undefined;
     this.decorationTextureUrl = provider;
     this.decorationRevision += 1;
+    if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemResourceProvider(provider: ((itemId: string) => readonly string[]) | undefined): void {
     if (provider === this.decorationItemResources) return;
     this.decorationItemResources = provider;
     this.decorationRevision += 1;
+    if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemVisualProvider(provider: ((itemId: string) => ResolvedItemVisual | undefined) | undefined): void {
     if (provider === this.decorationItemVisual) return;
     this.decorationItemVisual = provider;
     this.decorationRevision += 1;
+    if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemPreviewProvider(provider: ((item: ItemStackData) => Promise<string | undefined>) | undefined): void {
     if (provider === this.decorationItemPreview) return;
     this.decorationItemPreview = provider;
     this.decorationRevision += 1;
+    if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setPaintingTextureResolver(provider: ((variantId: string) => string | undefined) | undefined): void {
     if (provider === this.paintingResource) return;
     this.paintingResource = provider;
     this.decorationRevision += 1;
+    if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
@@ -1178,6 +1236,7 @@ export class ThreeViewportEngine {
     if (this.definitionResolver === resolver) return;
     this.definitionResolver = resolver;
     this.structureBlockGuideKey = '';
+    if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
@@ -1225,6 +1284,11 @@ export class ThreeViewportEngine {
    */
   private queueProviderRefresh(previousProvider: BlockVisualProvider, nextProvider: BlockVisualProvider): void {
     if (!this.project) return;
+    if (this.suspended) {
+      this.deferredProviderRefresh = { previous: this.deferredProviderRefresh?.previous ?? previousProvider, next: nextProvider };
+      this.suspendedNeedsRefresh = true;
+      return;
+    }
     this.providerRefreshPlanner.cancel();
     this.hydrationWork.clearPendingProviderRefresh();
     const planGeneration = ++this.providerRefreshGeneration;
@@ -1310,6 +1374,18 @@ export class ThreeViewportEngine {
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
+    if (this.suspended) {
+      const nextDecorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
+      this.suspendedNeedsRefresh = this.suspendedNeedsRefresh
+        || project !== this.syncedProject
+        || project?.blocks !== this.syncedBlocksReference
+        || project?.size.x !== this.syncedProject?.size.x
+        || project?.size.y !== this.syncedProject?.size.y
+        || project?.size.z !== this.syncedProject?.size.z
+        || renderFilterKey(previousOptions) !== renderFilterKey(options)
+        || nextDecorationKey !== this.decorationSyncKey;
+      return;
+    }
     const inPlaceBlockMutation = project === this.syncedProject && project !== undefined && (project.blocks !== this.syncedBlocksReference || project.blocks.length !== this.syncedBlockCount);
     this.ensureSpatialIndex(project, incrementalMutation || layerProjectionOnly ? false : inPlaceBlockMutation, incrementalMutation || layerProjectionOnly);
     this.syncSpecialVisualDescriptors();
@@ -2147,7 +2223,7 @@ export class ThreeViewportEngine {
   }
 
   private scheduleHydrationPump(delay: boolean | number = false): void {
-    if (this.disposed) return;
+    if (this.disposed || this.suspended) return;
     const run = () => { this.hydrationScheduled = false; this.hydrationTimer = undefined; this.processHydrationBatch(); };
     if (this.hydrationScheduler.isScheduled) return;
     this.hydrationScheduler.schedule(run, !delay ? undefined : typeof delay === 'number' ? delay : 0);
@@ -2162,6 +2238,7 @@ export class ThreeViewportEngine {
   private compactConsumedHydrationQueues(): void { this.hydrationWork.compactConsumed(); if (this.decorationHydrationQueueHead === this.decorationHydrationQueue.length) { this.decorationHydrationQueue = []; this.decorationHydrationQueueHead = 0; } }
 
   private processHydrationBatch(): void {
+    if (this.disposed || this.suspended) return;
     const traceActive = !!this.runtimeTrace?.isActive;
     const batchStarted = traceActive ? performance.now() : 0;
     const token = this.hydrationGeneration;
@@ -2328,11 +2405,12 @@ export class ThreeViewportEngine {
   }
 
   private scheduleRender(): void {
-    if (this.disposed) return;
+    if (this.disposed || this.suspended) return;
     this.renderScheduler.request(() => this.renderFrame());
   }
 
   private renderFrame(): void {
+    if (this.disposed || this.suspended) return;
     if (this.cameraRenderPending) {
       this.cameraRenderPending = false;
       this.instrumentation.record('cameraRendersExecuted');
@@ -2718,11 +2796,13 @@ export class ThreeViewportEngine {
   }
 
   hit(event: PointerEvent, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
+    if (this.disposed || this.suspended) return {};
     return this.performHit(event.clientX, event.clientY, project, active, planeY, showGhost);
   }
 
   /** Coalesces hover work to one raycast per animation frame. Commit paths use hit() synchronously. */
   hover(event: PointerEvent, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY: number | undefined, showGhost: boolean, listener: ViewportHoverListener): void {
+    if (this.disposed || this.suspended) return;
     if (this.cameraGestureInProgress) { this.instrumentation.record('hoverRaycastsSuppressedDuringCamera'); return; }
     if (this.pendingHover) this.instrumentation.record('hoverPointerMovesCoalesced');
     this.pendingHover = { clientX: event.clientX, clientY: event.clientY, project, active, planeY, showGhost, listener };
