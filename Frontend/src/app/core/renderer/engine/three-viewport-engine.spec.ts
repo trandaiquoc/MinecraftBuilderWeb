@@ -1975,6 +1975,9 @@ describe('selection visualization scalability', () => {
     expect(after.structuralReconciles).toBe(before.structuralReconciles);
     expect(after.incrementalBlockReconciles).toBe(before.incrementalBlockReconciles);
     expect(after.yLayerProjectionCommits).toBe(before.yLayerProjectionCommits + 1);
+    expect(after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks).toBe(8192);
+    expect(after.blockSignatureComputations - before.blockSignatureComputations).toBe(8192);
+    expect(after.yLayerProjectionMaxCommitMs).toBeGreaterThanOrEqual(0);
     engine.dispose();
   });
 

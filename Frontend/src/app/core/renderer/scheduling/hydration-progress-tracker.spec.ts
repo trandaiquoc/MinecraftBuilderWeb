@@ -75,6 +75,22 @@ describe('HydrationProgressTracker', () => {
     expect(tracker.snapshot().completed).toBe(1);
   });
 
+  it('publishes one snapshot for a batched projection scope delta', () => {
+    const updates: number[] = [];
+    const tracker = new HydrationProgressTracker(undefined, (progress) => updates.push(progress.total));
+    tracker.setBlockScope(['old', 'kept']);
+    tracker.begin(1);
+    updates.length = 0;
+
+    tracker.applyBlockScopeDelta({ add: ['new'], remove: ['old'], invalidate: ['kept'], missing: new Map([['new', 'provisional']]) });
+
+    expect(updates).toEqual([2]);
+    expect(tracker.hasBlockKey('old')).toBe(false);
+    expect(tracker.hasBlockKey('new')).toBe(true);
+    expect(tracker.isBlockComplete('kept')).toBe(false);
+    expect(tracker.snapshot().finalization?.provisionalMissingBlocks).toBe(1);
+  });
+
   it('keeps completion accounting scoped to the latest visible projection', () => {
     const tracker = new HydrationProgressTracker();
     tracker.setBlockScope(['visible-old', 'visible-current']);

@@ -121,6 +121,13 @@ export interface RendererCounters {
   readonly yLayerProjectionAddedVisible: number;
   readonly yLayerProjectionRemovedVisible: number;
   readonly yLayerProjectionRoleChanged: number;
+  readonly yLayerProjectionFluidBlocksVisited: number;
+  readonly yLayerProjectionCommitMs: number;
+  readonly yLayerProjectionMaxCommitMs: number;
+  readonly yLayerProjectionSlices: number;
+  readonly yLayerProjectionYields: number;
+  readonly yLayerProjectionCancellations: number;
+  readonly yLayerProjectionMaxSliceMs: number;
   readonly staleHydrationCompletionsIgnored: number;
   readonly fullReconcileFallbacks: number;
   readonly fullVisibleScans: number;
@@ -251,6 +258,13 @@ const EMPTY_COUNTERS: RendererCounters = {
   yLayerProjectionAddedVisible: 0,
   yLayerProjectionRemovedVisible: 0,
   yLayerProjectionRoleChanged: 0,
+  yLayerProjectionFluidBlocksVisited: 0,
+  yLayerProjectionCommitMs: 0,
+  yLayerProjectionMaxCommitMs: 0,
+  yLayerProjectionSlices: 0,
+  yLayerProjectionYields: 0,
+  yLayerProjectionCancellations: 0,
+  yLayerProjectionMaxSliceMs: 0,
   staleHydrationCompletionsIgnored: 0,
   fullReconcileFallbacks: 0,
   fullVisibleScans: 0,
@@ -272,5 +286,9 @@ export class RendererDiagnostics {
 
   record<K extends keyof RendererCounters>(counter: K, amount = 1): void {
     this.counters[counter] += amount;
+  }
+
+  recordMax<K extends keyof RendererCounters>(counter: K, value: number): void {
+    this.counters[counter] = Math.max(this.counters[counter], value);
   }
 }

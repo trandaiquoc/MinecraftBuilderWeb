@@ -92,6 +92,31 @@ describe('explicit renderer benchmark', () => {
     engine.dispose();
   });
 
+  it('measures cooperative All-below projection scrubbing for the opt-in 110k fixture', { timeout: 120000 }, async () => {
+    const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['Y_LAYER_PROJECTION_BENCHMARK'] === '1';
+    if (!benchmarkEnabled) return;
+    const project = rendererBenchmarkProject('mega');
+    const byY = new Map<number, ReturnType<typeof benchmarkBlock>[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    const diagnostics = new RendererDiagnostics();
+    const engine = new ThreeViewportEngine(diagnostics);
+    engine.setLayerIndex(layerIndex);
+    engine.update(project, undefined, { layerY: 0, visibility: 'all-below', layerIndex });
+    await settleHydration(20, engine);
+    const before = diagnostics.snapshot();
+    engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 47 } }, undefined, { layerY: 47, visibility: 'all-below', layerIndex });
+    const expectedSlices = project.size.y * Math.ceil((project.size.x * project.size.z) / 256);
+    for (let index = 0; index < 3000 && diagnostics.snapshot().yLayerProjectionSlices < expectedSlices; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+    const after = diagnostics.snapshot();
+    expect(after.yLayerProjectionSlices).toBeGreaterThan(1);
+    expect(after.yLayerProjectionSlices).toBe(expectedSlices);
+    expect(after.yLayerProjectionYields).toBeGreaterThan(0);
+    expect(after.yLayerProjectionCancellations).toBe(0);
+    console.info(`[y-layer benchmark] blocks=${project.blocks.length} changed=${after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks} slices=${after.yLayerProjectionSlices} yields=${after.yLayerProjectionYields} maxSliceMs=${after.yLayerProjectionMaxSliceMs.toFixed(2)} maxCommitMs=${after.yLayerProjectionMaxCommitMs.toFixed(2)} fullVisibleScans=${after.fullVisibleScans - before.fullVisibleScans} occupancyFull=${after.occupancyFullRebuilds - before.occupancyFullRebuilds} occupancyDelta=${after.occupancyDeltaUpdates - before.occupancyDeltaUpdates}`);
+    engine.dispose();
+  });
+
   it('measures generic chunked fluid representation when explicitly requested', { timeout: 120000 }, async () => {
     const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['FLUID_BENCHMARK'] === '1';
     if (!benchmarkEnabled) return;
