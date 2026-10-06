@@ -14,6 +14,7 @@ import { decorationHasGroup, isDecorationLocked, removeDecorationGroup } from '.
 import { decorationAabb, decorationInBounds, decorationOverlaps, directionVector, paintingSupportFootprint, supportsDecoration } from '../../decorations/placement/decoration-placement';
 import { paintingVariant, type PlacedDecoration } from '../../decorations/decoration.types';
 import { DecorationService } from '../../decorations/decoration.service';
+import { metadataMutationHint } from '../mutations/project-mutation-hint';
 
 export interface GroupMovePreview { readonly groupId: string; readonly offset: VoxelCoordinate; readonly positions: readonly VoxelCoordinate[]; readonly decorationIds: readonly string[]; readonly valid: boolean; readonly reason?: 'bounds' | 'collision' | 'locked' | 'support'; }
 
@@ -40,12 +41,12 @@ export class GroupService {
     const trimmed = name.trim();
     if (!trimmed) return false;
     let createdId: string | undefined;
-    const changed = this.history.execute('Create group', (project) => {
+    const changed = this.history.executeWithMutation('Create group', (project) => {
       if (this.hasName(project, trimmed)) return undefined;
       createdId = nextGroupId(project.groups);
       const group: ProjectGroup = { id: createdId, name: trimmed, visible: true, locked: false };
       return this.withGroups(project, [...project.groups, group]);
-    });
+    }, () => metadataMutationHint([], [], 'group-create'));
     if (changed) this.activeGroupId.set(createdId);
     return changed;
   }
@@ -63,15 +64,15 @@ export class GroupService {
   renameActive(name: string): boolean { const id = this.activeGroupId(); return id ? this.rename(id, name) : false; }
   rename(id: string, name: string): boolean {
     const trimmed = name.trim(); if (!trimmed) return false;
-    return this.history.execute('Rename group', (project) => project.groups.some((group) => group.id === id) && !this.hasName(project, trimmed, id) ? this.withGroups(project, project.groups.map((group) => group.id === id ? { ...group, name: trimmed } : group)) : undefined);
+    return this.history.executeWithMutation('Rename group', (project) => project.groups.some((group) => group.id === id) && !this.hasName(project, trimmed, id) ? this.withGroups(project, project.groups.map((group) => group.id === id ? { ...group, name: trimmed } : group)) : undefined, (before, after) => groupMetadataHint(before, after, id, 'group-rename'));
   }
   setActiveVisible(visible: boolean): boolean { const id = this.activeGroupId(); return id ? this.setVisible(id, visible) : false; }
-  setVisible(id: string, visible: boolean): boolean { return this.history.execute('Set group visibility', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups(normalized, normalized.groups.map((group) => group.id === id ? { ...group, visible } : group)) : undefined; }); }
+  setVisible(id: string, visible: boolean): boolean { return this.history.executeWithMutation('Set group visibility', (project) => project.groups.some((group) => group.id === id) ? this.withGroups(project, project.groups.map((group) => group.id === id ? { ...group, visible } : group)) : undefined, (before, after) => groupMetadataHint(before, after, id, 'group-visibility', 'visibility')); }
   setActiveLocked(locked: boolean): boolean { const id = this.activeGroupId(); return id ? this.setLocked(id, locked) : false; }
-  setLocked(id: string, locked: boolean): boolean { return this.history.execute('Set group lock', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups(normalized, normalized.groups.map((group) => group.id === id ? { ...group, locked } : group)) : undefined; }); }
+  setLocked(id: string, locked: boolean): boolean { return this.history.executeWithMutation('Set group lock', (project) => project.groups.some((group) => group.id === id) ? this.withGroups(project, project.groups.map((group) => group.id === id ? { ...group, locked } : group)) : undefined, (before, after) => groupMetadataHint(before, after, id, 'group-lock')); }
   deleteActive(): boolean { const id = this.activeGroupId(); return id ? this.delete(id) : false; }
   delete(id: string): boolean {
-    const changed = this.history.execute('Delete group', (project) => { const normalized = this.normalize(project); return normalized.groups.some((group) => group.id === id) ? this.withGroups({ ...normalized, blocks: normalized.blocks.map((block) => removeGroup(block, id)), decorations: normalized.decorations?.map((decoration) => removeDecorationGroup(decoration, id)) }, normalized.groups.filter((group) => group.id !== id)) : undefined; });
+    const changed = this.history.executeWithMutation('Delete group', (project) => project.groups.some((group) => group.id === id) ? this.withGroups({ ...project, blocks: project.blocks.map((block) => removeGroup(block, id)), decorations: project.decorations?.map((decoration) => removeDecorationGroup(decoration, id)) }, project.groups.filter((group) => group.id !== id)) : undefined, (before, after) => groupMetadataHint(before, after, id, 'group-delete'));
     if (changed && this.activeGroupId() === id) this.select(undefined);
     if (changed && this.isolatedGroupId() === id) this.isolatedGroupId.set(undefined);
     return changed;
@@ -119,13 +120,17 @@ export class GroupService {
   }
 
   private mutateSelected(label: string, groupId: string, map: (block: PlacedBlock) => PlacedBlock): boolean {
-    return this.history.execute(label, (project) => {
+    let touchedPositions: readonly VoxelCoordinate[] = [];
+    let touchedDecorationIds: readonly string[] = [];
+    return this.history.executeWithMutation(label, (project) => {
       const normalized = this.normalize(project); const selected = this.selectedBlocks(normalized); const target = normalized.groups.find((group) => group.id === groupId);
       const selectedDecorationId = this.decorations?.selectedId(); const selectedDecoration = selectedDecorationId ? normalized.decorations?.find((decoration) => decoration.instanceId === selectedDecorationId) : undefined;
       if ((!selected.length && !selectedDecoration) || !target || target.locked || selected.some((block) => isBlockLocked(block, normalized.groups)) || !!selectedDecoration && isDecorationLocked(selectedDecoration, normalized.groups)) return undefined;
       const keys = new Set(selected.map((block) => coordinateKey(block.position)));
+      touchedPositions = selected.map((block) => block.position);
+      touchedDecorationIds = selectedDecoration ? [selectedDecoration.instanceId] : [];
       return { ...normalized, blocks: normalized.blocks.map((block) => keys.has(coordinateKey(block.position)) ? map(block) : block), decorations: normalized.decorations?.map((decoration) => decoration.instanceId === selectedDecorationId ? (label.startsWith('Add') ? { ...decoration, groupIds: [...(decoration.groupIds ?? []), ...(decoration.groupIds?.includes(groupId) ? [] : [groupId])] } : removeDecorationGroup(decoration, groupId)) : decoration), metadata: { ...normalized.metadata, updatedAt: new Date().toISOString() } };
-    });
+    }, (before, after) => metadataHintForPositions(before, after, touchedPositions, touchedDecorationIds, label.toLowerCase()));
   }
   private hasName(project: ProjectDocument, name: string, exceptId?: string): boolean { const normalized = normalizeGroupName(name); return project.groups.some((group) => group.id !== exceptId && normalizeGroupName(group.name) === normalized); }
   private withGroups(project: ProjectDocument, groups: readonly ProjectGroup[]): ProjectDocument { return { ...project, groups, metadata: { ...project.metadata, updatedAt: new Date().toISOString() } }; }
@@ -164,3 +169,21 @@ function decorationSupportValid(project: ProjectDocument, decoration: PlacedDeco
 }
 
 function translated(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }
+
+function groupMetadataHint(before: ProjectDocument, after: ProjectDocument, groupId: string, source: string, presentation: 'metadata' | 'visibility' = 'metadata') {
+  const positions = [...before.blocks.filter((block) => hasGroup(block, groupId)), ...after.blocks.filter((block) => hasGroup(block, groupId))].map((block) => block.position);
+  const decorations = [...(before.decorations ?? []), ...(after.decorations ?? [])].filter((decoration, index, all) => decorationHasGroup(decoration, groupId) && all.findIndex((candidate) => candidate.instanceId === decoration.instanceId) === index).map((decoration) => decoration.instanceId);
+  return metadataHintForPositions(before, after, positions, decorations, source, presentation);
+}
+
+function metadataHintForPositions(before: ProjectDocument, after: ProjectDocument, positions: readonly VoxelCoordinate[], decorationIds: readonly string[], source: string, presentation: 'metadata' | 'visibility' = 'metadata') {
+  const uniquePositions = new Set(positions.map((position) => coordinateKey(position)));
+  const beforeBlocks = new Map(before.blocks.map((block) => [coordinateKey(block.position), block] as const));
+  const afterBlocks = new Map(after.blocks.map((block) => [coordinateKey(block.position), block] as const));
+  const changes = [...uniquePositions].map((key) => ({ position: afterBlocks.get(key)?.position ?? beforeBlocks.get(key)?.position!, before: beforeBlocks.get(key), after: afterBlocks.get(key) })).filter((change) => !!change.position);
+  const uniqueDecorationIds = new Set(decorationIds);
+  const beforeDecorations = new Map((before.decorations ?? []).map((decoration) => [decoration.instanceId, decoration] as const));
+  const afterDecorations = new Map((after.decorations ?? []).map((decoration) => [decoration.instanceId, decoration] as const));
+  const decorationChanges = [...uniqueDecorationIds].map((id) => ({ id, before: beforeDecorations.get(id), after: afterDecorations.get(id) }));
+  return metadataMutationHint(changes, decorationChanges, source, presentation);
+}

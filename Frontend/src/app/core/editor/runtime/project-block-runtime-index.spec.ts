@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlacedBlock, ProjectDocument } from '../../domain/project.types';
-import { blockMutationHint } from '../mutations/project-mutation-hint';
+import { blockMutationHint, metadataMutationHint } from '../mutations/project-mutation-hint';
 import { ProjectBlockRuntimeIndex } from './project-block-runtime-index';
 
 const block = (x: number, state: Record<string, string> = {}): PlacedBlock => ({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state });
@@ -91,5 +91,20 @@ describe('ProjectBlockRuntimeIndex', () => {
     const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
     expect(index.adoptTransition(before, after, blockMutationHint([{ position: beforeBlock.position, before: beforeBlock, after: afterBlock }]))).toBe(true);
     expect(index.usageForId('minecraft:stone')).toMatchObject({ count: 1, resolvedCount: 1, missingCount: 0 });
+  });
+
+  it('adopts group membership metadata without usage revision or index rebuild', () => {
+    const beforeBlock = { ...typedBlock(0, 'minecraft:stone'), groupIds: undefined };
+    const afterBlock = { ...beforeBlock, groupIds: ['roof'] };
+    const before = project([beforeBlock]);
+    const after = { ...before, blocks: [afterBlock], groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }] };
+    const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
+    const rebuilds = index.rebuildCount;
+    const usageRevision = index.usageRevision();
+    expect(index.adoptTransition(before, after, metadataMutationHint([{ position: beforeBlock.position, before: beforeBlock, after: afterBlock }], [], 'group-membership'))).toBe(true);
+    expect(index.get(afterBlock.position)).toBe(afterBlock);
+    expect(index.usageForId('minecraft:stone')).toEqual({ id: 'minecraft:stone', namespace: 'minecraft', count: 1, resolvedCount: 1, missingCount: 0 });
+    expect(index.usageRevision()).toBe(usageRevision);
+    expect(index.rebuildCount).toBe(rebuilds);
   });
 });

@@ -62,6 +62,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
 
   /** Applies a history/editor transition without scanning the new snapshot. */
   adoptTransition(from: ProjectDocument, to: ProjectDocument, hint: ProjectMutationHint | undefined): boolean {
+    if (hint?.kind === 'metadata-delta') return this.adoptMetadataTransition(from, to, hint);
     if (!this.isCompatibleTransition(from, to, hint)) {
       this.rebuild(to, this.reasonForInvalidTransition(from, to, hint));
       return false;
@@ -126,6 +127,41 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     this.sizeSignature = sizeOf(to.size);
     this.generation += 1;
     this.usageRevisionState.update((revision) => revision + 1);
+    return true;
+  }
+
+  private adoptMetadataTransition(from: ProjectDocument, to: ProjectDocument, hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>): boolean {
+    if (this.project !== from || from.id !== to.id || !sameSize(from.size, to.size) || from.blocks.length !== to.blocks.length) {
+      this.rebuild(to, 'invalid-metadata-transition');
+      return false;
+    }
+    for (const change of hint.changes) {
+      const before = change.before;
+      const after = change.after;
+      if (!before || !after || coordinateKey(before.position) !== coordinateKey(after.position)) {
+        this.rebuild(to, 'invalid-metadata-change');
+        return false;
+      }
+      const key = coordinateKey(before.position);
+      if (this.blocksByKey.get(key) !== before || before.id !== after.id || before.namespace !== after.namespace) {
+        this.rebuild(to, 'metadata-before-mismatch');
+        return false;
+      }
+    }
+    for (const change of hint.changes) {
+      const before = change.before!;
+      const after = change.after!;
+      const key = coordinateKey(before.position);
+      this.blocksByKey.set(key, after);
+      this.blocksByY.get(before.position.y)?.set(key, after);
+      this.blocksById.get(before.id)?.set(key, after);
+    }
+    this.project = to;
+    this.blocksReference = to.blocks;
+    this.sizeSignature = sizeOf(to.size);
+    this.generation += 1;
+    // Group membership/visibility is metadata. Usage counts and their
+    // revision remain stable because registry ID/state/position do not move.
     return true;
   }
 

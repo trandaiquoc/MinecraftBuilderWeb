@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockMutationHint, invertProjectMutationHint } from './project-mutation-hint';
+import { blockMutationHint, invertProjectMutationHint, metadataMutationHint } from './project-mutation-hint';
 import { boundedProjectMutationChanges } from './project-mutation-diff';
 
 const before = { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 2, z: 3 }, state: {} };
@@ -22,6 +22,13 @@ describe('project mutation hints', () => {
   it('inverts forward and inverse values for undo', () => {
     const inverse = invertProjectMutationHint(blockMutationHint([{ position: before.position, before, after }]));
     expect(inverse.changes[0]).toMatchObject({ before: after, after: before });
+  });
+
+  it('represents group metadata as a reversible bounded transition', () => {
+    const grouped = { ...before, groupIds: ['roof'] };
+    const hint = metadataMutationHint([{ position: before.position, before, after: grouped }], [], 'group-membership');
+    expect(hint.kind).toBe('metadata-delta');
+    expect(invertProjectMutationHint(hint).changes[0]).toMatchObject({ before: grouped, after: before });
   });
 
   it('does not emit an unchanged affected/support position', () => {

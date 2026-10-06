@@ -12,7 +12,7 @@ import type { ContentSpecialVisualDescriptor } from '../../content/content-intro
 import { coordinateKey } from '../../domain/coordinates';
 import { viewportThemePalette } from './viewport-theme';
 import { RendererDiagnostics } from './renderer-diagnostics';
-import { blockMutationHint } from '../../editor/mutations/project-mutation-hint';
+import { blockMutationHint, metadataMutationHint } from '../../editor/mutations/project-mutation-hint';
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
 
@@ -112,14 +112,24 @@ describe('camera movement input contract', () => {
     expect(direction.z).toBeLessThan(0); expect(direction.y).toBe(1);
   });
 
-  it('keeps horizontal and vertical movement speeds independent', () => {
+  it('uses the same translation speed for horizontal and vertical movement', () => {
     const horizontal = cameraMovementDelta(new Set(['KeyW']), camera, 12, 3, 1);
     const vertical = cameraMovementDelta(new Set(['Space']), camera, 12, 3, 1);
     const combined = cameraMovementDelta(new Set(['KeyW', 'Space']), camera, 12, 3, 1);
     expect(horizontal.length()).toBeCloseTo(12);
-    expect(vertical.y).toBe(3);
-    expect(combined.y).toBe(3);
+    expect(vertical.y).toBe(12);
+    expect(combined.y).toBe(12);
     expect(combined.z).toBeCloseTo(horizontal.z);
+  });
+
+  it('keeps vertical movement aligned with adaptive speed at near, medium, and far distances', async () => {
+    const { effectiveCameraMovementSpeed } = await import('../scheduling/camera-movement-speed');
+    for (const distance of [8, 16, 40]) {
+      const speed = effectiveCameraMovementSpeed(15, distance);
+      const horizontal = cameraMovementDelta(new Set(['KeyD']), camera, speed, 1, 1);
+      const vertical = cameraMovementDelta(new Set(['Space']), camera, speed, 1, 1);
+      expect(vertical.length() / horizontal.length()).toBeCloseTo(1);
+    }
   });
 
   it('coalesces hover pointer moves and suppresses them during camera gestures', async () => {
@@ -1336,6 +1346,40 @@ describe('camera movement input contract', () => {
     const after = engine.rendererCounters();
     expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
     expect(after.blockVisualCreations).toBe(before.blockVisualCreations);
+    engine.dispose();
+  });
+
+  it('adopts visible-group membership as metadata without a structural scan', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const before = rendererBenchmarkProject('small');
+    const beforeBlock = before.blocks[0];
+    const afterBlock = { ...beforeBlock, groupIds: ['roof'] };
+    const after = { ...before, blocks: before.blocks.map((block, index) => index === 0 ? afterBlock : block), groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(before, undefined); await settleHydration();
+    const counters = engine.rendererCounters();
+    engine.update(after, undefined, {}, metadataMutationHint([{ position: beforeBlock.position, before: beforeBlock, after: afterBlock }], [], 'group-membership'));
+    const next = engine.rendererCounters();
+    expect(next.fullVisibleScans).toBe(counters.fullVisibleScans);
+    expect(next.fullSceneRebuilds).toBe(counters.fullSceneRebuilds);
+    expect(next.terrainChunkRebuilds).toBe(counters.terrainChunkRebuilds);
+    engine.dispose();
+  });
+
+  it('applies group hide/show as a bounded visibility delta', async () => {
+    const provider = { create: vi.fn(async () => ({ object: undefined, resolved: { diagnostics: [], support: 'fallback' as const }, mode: 'fallback' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const block = { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {}, groupIds: ['roof'] };
+    const visible = { ...rendererBenchmarkProject('small'), blocks: [block], groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }] };
+    const hidden = { ...visible, groups: [{ ...visible.groups[0], visible: false }] };
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(visible, undefined); await settleHydration();
+    const before = engine.rendererCounters();
+    engine.update(hidden, undefined, {}, metadataMutationHint([{ position: block.position, before: block, after: block }], [], 'group-visibility', 'visibility'));
+    const afterHide = engine.rendererCounters();
+    expect(afterHide.fullVisibleScans).toBe(before.fullVisibleScans);
+    expect(afterHide.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    engine.update(visible, undefined, {}, metadataMutationHint([{ position: block.position, before: block, after: block }], [], 'group-visibility', 'visibility'));
+    const afterShow = engine.rendererCounters();
+    expect(afterShow.fullVisibleScans).toBe(before.fullVisibleScans);
+    expect(afterShow.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
     engine.dispose();
   });
 

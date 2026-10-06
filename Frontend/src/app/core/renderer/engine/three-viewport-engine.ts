@@ -457,7 +457,7 @@ export interface ViewportProjectionState {
 
 interface RenderedBlockEntry {
   readonly key: string;
-  readonly block: ProjectDocument['blocks'][number];
+  block: ProjectDocument['blocks'][number];
   readonly signature: string;
   readonly role: 'normal' | 'reference' | 'missing';
   fallback?: THREE.Mesh;
@@ -481,7 +481,7 @@ interface RenderedBlockEntry {
 
 interface RenderedDecorationEntry {
   readonly id: string;
-  readonly decoration: PlacedDecoration;
+  decoration: PlacedDecoration;
   readonly signature: string;
   readonly object: THREE.Object3D;
 }
@@ -1433,6 +1433,7 @@ export class ThreeViewportEngine {
     const projectionDelta = planYLayerProjectionDelta(projectionBase.layerY, projectionBase.visibility, options.layerY, options.visibility, options.layerIndex ?? this.layerIndex);
     const layerProjectionOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && !mutationHint && projectionDelta.changed && previousOptions.visibility === options.visibility && !!options.visibility && options.layerY !== undefined && previousOptions.layerY !== undefined && renderFilterKey(previousOptions) === renderFilterKey(options);
     const incrementalMutation = !!project && !!previousProject && project !== previousProject && !!mutationHint && nextSyncKey === previousSyncKey && renderFilterKey(previousOptions) === renderFilterKey(options) && this.cachedVisibleProject === previousProject && this.spatialIndexProject === previousProject;
+    const metadataMutation = mutationHint?.kind === 'metadata-delta';
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
@@ -1462,7 +1463,8 @@ export class ThreeViewportEngine {
       const projectIdentityChanged = project !== this.syncedProject;
       const incrementalProjectChange = projectIdentityChanged && !full && this.renderedBlocks.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
       if (incrementalMutation && project && mutationHint) {
-        this.applyIncrementalMutation(project, options, mutationHint);
+        if (metadataMutation) this.applyMetadataMutation(previousProject!, previousOptions, project, options, mutationHint);
+        else this.applyIncrementalMutation(project, options, mutationHint);
       } else {
         if (full || !incrementalProjectChange && (projectIdentityChanged || inPlaceBlockMutation)) {
           const reason: HydrationCancellationReason = inPlaceBlockMutation ? 'in-place-project-mutation' : full ? 'structure-sync-key-changed' : 'project-identity-changed';
@@ -1499,11 +1501,14 @@ export class ThreeViewportEngine {
       if (previousOptions.referenceOpacity !== options.referenceOpacity) this.setReferenceOpacity(options.referenceOpacity ?? .28);
     }
     if (decorationInputChanged) {
-      if (!blockInputChanged) this.cancelDecorationHydration();
+      if (metadataMutation && project && previousProject) this.applyMetadataDecorationMutation(previousProject, previousOptions, project, options, mutationHint!);
+      else if (!blockInputChanged) this.cancelDecorationHydration();
       this.decorationSyncKey = decorationKey;
       this.syncedDecorationProject = project;
-      this.reconcileDecorations(project, options, false);
-      this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+      if (!metadataMutation) {
+        this.reconcileDecorations(project, options, false);
+        this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+      }
     }
     if (!blockInputChanged && !inPlaceBlockMutation && !decorationInputChanged) this.instrumentation.record('overlayOnlyUpdates');
     this.setProjectBounds(project);
@@ -2090,6 +2095,55 @@ export class ThreeViewportEngine {
     }
     if (fluidChanges.length) void this.fluidCoordinator.syncDelta(fluidChanges, [...changes.values()].map((change) => change.position), worldContext, this.hydrationGeneration).then(() => { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); });
     return afterKeys;
+  }
+
+  private applyMetadataMutation(previousProject: ProjectDocument, previousOptions: ViewportRenderOptions, project: ProjectDocument, options: ViewportRenderOptions, hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>): void {
+    const visibilityChanges: Array<{ readonly position: VoxelCoordinate; readonly before?: ProjectDocument['blocks'][number]; readonly after?: ProjectDocument['blocks'][number] }> = [];
+    for (const change of hint.changes) {
+      const before = change.before;
+      const after = change.after;
+      if (!before || !after) continue;
+      const beforeVisible = isBlockVisibleForViewport(before, previousProject, { ...previousOptions, layerIndex: previousOptions.layerIndex ?? this.layerIndex });
+      const afterVisible = isBlockVisibleForViewport(after, project, { ...options, layerIndex: options.layerIndex ?? this.layerIndex });
+      if (beforeVisible !== afterVisible) visibilityChanges.push({ position: after.position, before, after });
+      else {
+        this.spatialIndex?.replace(before.position, after);
+        if (afterVisible) this.cacheVisibleEntry(coordinateKey(after.position), this.visibleEntry(after, options));
+        const rendered = this.renderedBlocks.get(coordinateKey(after.position));
+        if (rendered) rendered.block = after;
+      }
+    }
+    if (visibilityChanges.length) {
+      this.applyIncrementalMutation(project, options, blockMutationHint(visibilityChanges, hint.source ?? 'group-visibility'));
+    } else {
+      this.spatialIndexProject = project;
+      this.spatialIndexBlocksReference = project.blocks;
+      this.cachedVisibleProject = project;
+      this.cachedVisibleKey = renderFilterKey(options);
+    }
+    this.runtimeTrace?.record('group-metadata-delta', { source: hint.source ?? 'unknown', changedBlocks: hint.changes.length, visibilityChangedBlocks: visibilityChanges.length });
+    this.scheduleRender();
+  }
+
+  private applyMetadataDecorationMutation(previousProject: ProjectDocument, previousOptions: ViewportRenderOptions, project: ProjectDocument, options: ViewportRenderOptions, hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>): void {
+    const visible = (decoration: PlacedDecoration | undefined, current: ProjectDocument, currentOptions: ViewportRenderOptions): boolean => !!decoration && isDecorationVisible(decoration, current.groups) && (!currentOptions.isolatedGroupId || decorationHasGroup(decoration, currentOptions.isolatedGroupId)) && (currentOptions.layerY === undefined || decoration.anchor.y === currentOptions.layerY || currentOptions.visibility === 'whole-structure' || currentOptions.visibility === 'all-below' && decoration.anchor.y <= (currentOptions.layerY ?? decoration.anchor.y));
+    for (const change of hint.decorationChanges ?? []) {
+      const beforeVisible = visible(change.before, previousProject, previousOptions);
+      const afterVisible = visible(change.after, project, options);
+      const current = this.renderedDecorations.get(change.id);
+      if (beforeVisible && afterVisible && current && change.after) current.decoration = change.after;
+      else if (beforeVisible && !afterVisible && current) {
+        this.removeDecorationEntry(change.id, current);
+        this.pendingDecorationSignatures.delete(change.id);
+        this.decorationHydrationQueue = this.decorationHydrationQueue.filter((job) => job.id !== change.id);
+      } else if (!beforeVisible && afterVisible && change.after && !current) {
+        const signature = `${decorationSignature(change.after)}|${this.decorationRevision}`;
+        this.pendingDecorationSignatures.set(change.id, signature);
+        this.decorationHydrationQueue.push({ token: this.hydrationGeneration, id: change.id, decoration: change.after, signature });
+      }
+    }
+    this.decorationHydrationQueueHead = 0;
+    if (this.decorationHydrationQueue.length) this.scheduleHydrationPump();
   }
 
   private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
@@ -4571,12 +4625,12 @@ export class ThreeViewportEngine {
     this.markCameraInteraction();
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
     const horizontalSpeed = effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, cameraDistance);
-    const direction = cameraActionMovementDelta(keys, this.camera, horizontalSpeed, this.controlConfiguration.verticalMoveSpeed, delta);
+    const direction = cameraActionMovementDelta(keys, this.camera, horizontalSpeed, delta);
     if (!direction.lengthSq()) return;
     this.camera.position.add(direction);
     this.controls.target.add(direction);
     this.instrumentation.record('cameraMovementFrames');
-    this.runtimeTrace?.record('movement-frame', { actions: [...keys], deltaSeconds: delta, configuredHorizontalSpeed: this.controlConfiguration.cameraMoveSpeed, configuredVerticalSpeed: this.controlConfiguration.verticalMoveSpeed, distance: cameraDistance, movementScale: cameraMovementScale(cameraDistance), effectiveHorizontalSpeed: horizontalSpeed });
+    this.runtimeTrace?.record('movement-frame', { actions: [...keys], deltaSeconds: delta, configuredHorizontalSpeed: this.controlConfiguration.cameraMoveSpeed, configuredVerticalSpeed: this.controlConfiguration.verticalMoveSpeed, distance: cameraDistance, movementScale: cameraMovementScale(cameraDistance), effectiveHorizontalSpeed: horizontalSpeed, effectiveVerticalSpeed: horizontalSpeed });
     this.cameraMovementInProgress = true;
     try {
       this.controls.update();
@@ -4694,14 +4748,14 @@ export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE
   if (keys.has('KeyW')) direction.add(forward); if (keys.has('KeyS')) direction.sub(forward); if (keys.has('KeyD')) direction.add(right); if (keys.has('KeyA')) direction.sub(right); if (keys.has('Space')) direction.y += 1; if (keys.has('ShiftLeft') || keys.has('ShiftRight')) direction.y -= 1;
   return direction;
 }
-function cameraActionMovementDelta(actions: ReadonlySet<MovementAction>, camera: THREE.Camera, horizontalSpeed: number, verticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
+function cameraActionMovementDelta(actions: ReadonlySet<MovementAction>, camera: THREE.Camera, translationSpeed: number, deltaSeconds: number): THREE.Vector3 {
   const direction = new THREE.Vector3();
   const horizontal = new Set<string>();
   if (actions.has('move-forward')) horizontal.add('KeyW'); if (actions.has('move-backward')) horizontal.add('KeyS'); if (actions.has('move-left')) horizontal.add('KeyA'); if (actions.has('move-right')) horizontal.add('KeyD');
   const horizontalDirection = cameraMovementDirection(horizontal, camera);
-  if (horizontalDirection.lengthSq()) direction.add(horizontalDirection.normalize().multiplyScalar(deltaSeconds * horizontalSpeed));
-  if (actions.has('move-up')) direction.y += deltaSeconds * verticalSpeed;
-  if (actions.has('move-down')) direction.y -= deltaSeconds * verticalSpeed;
+  if (horizontalDirection.lengthSq()) direction.add(horizontalDirection.normalize().multiplyScalar(deltaSeconds * translationSpeed));
+  if (actions.has('move-up')) direction.y += deltaSeconds * translationSpeed;
+  if (actions.has('move-down')) direction.y -= deltaSeconds * translationSpeed;
   return direction;
 }
 
@@ -4715,12 +4769,12 @@ function emptyResolvedModel(block: ProjectDocument['blocks'][number]): ResolvedB
     trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [], modelResources: [], parentResources: [], elementCount: 0, faceCount: 0, textureResources: [] },
   };
 }
-export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Camera, horizontalSpeed: number, verticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
+export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Camera, translationSpeed: number, _legacyVerticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
   const horizontalKeys = new Set([...keys].filter((key) => key === 'KeyW' || key === 'KeyA' || key === 'KeyS' || key === 'KeyD'));
   const direction = cameraMovementDirection(horizontalKeys, camera);
-  if (direction.lengthSq()) direction.normalize().multiplyScalar(deltaSeconds * horizontalSpeed);
+  if (direction.lengthSq()) direction.normalize().multiplyScalar(deltaSeconds * translationSpeed);
   const verticalDirection = (keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0);
-  direction.y += verticalDirection * deltaSeconds * verticalSpeed;
+  direction.y += verticalDirection * deltaSeconds * translationSpeed;
   return direction;
 }
 export function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
