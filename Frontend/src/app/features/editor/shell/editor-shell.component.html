@@ -5,6 +5,23 @@
     <main class="editor-startup-state"><p class="eyebrow">{{ i18n.t('appName') }}</p><h1>{{ i18n.t('noProjectToRestore') }}</h1><p>{{ i18n.t('noProjectToRestoreHint') }}</p><button type="button" (click)="backToProjects()">{{ i18n.t('back') }}</button></main>
   } @else if (workspace.restoreStatus() === 'error') {
     <main class="editor-startup-state"><p class="eyebrow">{{ i18n.t('appName') }}</p><h1>{{ i18n.t('projectRestoreError') }}</h1><p role="alert">{{ i18n.t('projectRestoreErrorHint') }}</p><div><button type="button" (click)="retryRestore()">{{ i18n.t('retry') }}</button><button type="button" class="secondary" (click)="backToProjects()">{{ i18n.t('back') }}</button></div></main>
+  } @else if (workspace.restoreStatus() === 'recovery-pending' || workspace.restoreStatus() === 'recovery-error') {
+    @if (workspace.recoveryCandidate(); as recovery) {
+      <main class="editor-startup-state recovery-startup-state">
+        <p class="eyebrow">{{ i18n.t('appName') }}</p>
+        <h1>{{ recovery.valid ? i18n.t('recoveryAvailable') : i18n.t('recoveryInvalid') }}</h1>
+        <p class="recovery-project-name"><strong>{{ recovery.project.metadata?.name ?? i18n.t('recoverySnapshot') }}</strong>@if (recovery.metadata.persistedAt) { <span>· {{ recovery.metadata.persistedAt }}</span> }@if (recovery.mainProject?.metadata?.updatedAt) { <span>· {{ recovery.mainProject?.metadata?.updatedAt }}</span> }</p>
+        <p>{{ recovery.valid ? i18n.t('recoveryAvailableHint') : i18n.t('recoveryInvalidHint') }}</p>
+        @if (workspace.restoreError(); as error) { <p class="startup-error" role="alert">{{ error }}</p> }
+        <div class="startup-actions">
+          @if (recovery.valid) { <button type="button" (click)="restoreRecovery()">{{ i18n.t('restoreRecovery') }}</button> }
+          <button type="button" class="secondary" (click)="discardRecovery()">{{ i18n.t('discardRecovery') }}</button>
+          @if (recovery.mainProject) { <button type="button" class="secondary" (click)="continueWithMain()">{{ i18n.t('continueWithSavedProject') }}</button> }
+        </div>
+      </main>
+    } @else {
+      <main class="editor-startup-state"><p class="eyebrow">{{ i18n.t('appName') }}</p><h1>{{ i18n.t('projectRestoreError') }}</h1><p role="alert">{{ workspace.restoreError() }}</p><button type="button" (click)="retryRestore()">{{ i18n.t('retry') }}</button></main>
+    }
   } @else {
   <header class="shell-header" [class.menu-open]="activeMenu() !== undefined || cameraMenuOpen()">
     <div class="app-menu-row" [class.menu-open]="activeMenu() !== undefined">

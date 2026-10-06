@@ -36,7 +36,6 @@ import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help/shortcu
 import { AssetManagerDialogComponent } from '../tools/asset-manager/asset-manager-dialog.component';
 import { ProjectDiagnosticsDialogComponent } from '../tools/diagnostics/project-diagnostics-dialog.component';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
-import { VanillaAssetsService } from '../../../core/assets/vanilla/vanilla-assets.service';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
@@ -69,7 +68,6 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly autosave = inject(ProjectAutosaveService);
   protected readonly layout = inject(EditorLayoutPreferencesService);
   private readonly dialogs = inject(DialogService);
-  private readonly assets = inject(VanillaAssetsService);
   private readonly editor = inject(StructureEditorService);
   private readonly router = inject(Router);
   private readonly library = inject(BlockLibraryService);
@@ -202,8 +200,10 @@ export class EditorShellComponent implements OnDestroy {
   protected chooseEditorBackground(background: 'dark' | 'light'): void { this.theme.setEditorBackground(background); this.closeMenus(); }
   protected setEditorMode(mode: '3d' | 'y-layer'): void { this.changeEditorMode(mode); this.closeMenus(); }
   protected retryRestore(): void { void this.workspace.restore(new IndexedDbProjectStore()); }
+  protected restoreRecovery(): void { void this.workspace.restoreRecovery(); }
+  protected discardRecovery(): void { void this.workspace.discardRecovery(); }
+  protected continueWithMain(): void { this.workspace.continueWithMain(); }
   protected async backToProjects(): Promise<void> {
-    if (!await this.confirmLeavingProtectedAssetOperation()) return;
     await this.router.navigateByUrl('/');
   }
   protected openDrawer(side: 'left' | 'right', event: Event): void {
@@ -216,8 +216,7 @@ export class EditorShellComponent implements OnDestroy {
     if (returnFocus) { const opener = this.drawerOpener; this.drawerOpener = undefined; opener?.focus(); }
   }
   protected async navigateToProjects(): Promise<void> {
-    if (!await this.confirmLeavingProtectedAssetOperation()) return;
-    this.closeMenus(); await this.autosave.flush().catch(() => undefined); await this.router.navigateByUrl('/');
+    this.closeMenus(); await this.router.navigateByUrl('/');
   }
   protected async saveProject(): Promise<void> {
     this.closeMenus();
@@ -448,17 +447,6 @@ export class EditorShellComponent implements OnDestroy {
 
   private currentViewport(): ViewportComponent | YLayerComponent | undefined {
     return this.mode.mode() === '3d' ? this.threeDViewport() : this.yLayerViewport();
-  }
-  private async confirmLeavingProtectedAssetOperation(): Promise<boolean> {
-    if (!this.assets.activity.hasProtectedOperation()) return true;
-    return this.dialogs.confirm({
-      title: this.i18n.t('assetOperationLeaveTitle'),
-      text: this.i18n.t('assetOperationLeaveText'),
-      confirmButtonText: this.i18n.t('leave'),
-      cancelButtonText: this.i18n.t('stay'),
-      icon: 'warning',
-      destructive: true,
-    });
   }
   private clampSidebarWidth(side: 'left' | 'right', width: number): number {
     const total = this.editorBody()?.nativeElement.clientWidth || (typeof window === 'undefined' ? 1024 : window.innerWidth);

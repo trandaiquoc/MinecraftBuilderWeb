@@ -63,6 +63,60 @@ describe('WorkspaceStateService', () => {
     workspace.clearRememberedProject('project-a', storage);
     expect(values.has(ACTIVE_PROJECT_KEY)).toBe(false);
   });
+
+  it('holds a newer recovery snapshot before activating the viewport', async () => {
+    const main = project('active', '2026-02-01');
+    const recovered = { ...main, metadata: { ...main.metadata, updatedAt: '2026-02-02' }, editorSettings: { ...main.editorSettings, currentY: 1 } };
+    const store = recordStore(main, recovered, 'main-token', 'recovery-token');
+    const workspace = new WorkspaceStateService();
+    expect(await workspace.restore(store, { getItem: () => 'active', setItem: () => undefined })).toBeUndefined();
+    expect(workspace.restoreStatus()).toBe('recovery-pending');
+    expect(workspace.project()).toBeUndefined();
+    await workspace.restoreRecovery();
+    expect(workspace.restoreStatus()).toBe('ready');
+    expect(workspace.project()?.editorSettings.currentY).toBe(1);
+  });
+
+  it('auto-cleans a recovery snapshot whose token matches the main record', async () => {
+    const main = project('active', '2026-02-01');
+    const store = recordStore(main, { ...main }, 'same-token', 'same-token');
+    const workspace = new WorkspaceStateService();
+    await workspace.restore(store, { getItem: () => 'active', setItem: () => undefined });
+    expect(workspace.restoreStatus()).toBe('ready');
+    expect(await store.openRecoverySnapshot('active')).toBeUndefined();
+  });
+
+  it('treats a legacy recovery record without a token as pending', async () => {
+    const main = project('active', '2026-02-01');
+    const store = recordStore(main, { ...main, editorSettings: { ...main.editorSettings, currentY: 1 } }, 'main-token', undefined);
+    const workspace = new WorkspaceStateService();
+    await workspace.restore(store, { getItem: () => 'active', setItem: () => undefined });
+    expect(workspace.restoreStatus()).toBe('recovery-pending');
+  });
+
+  it('does not activate invalid recovery and can continue with the valid main project', async () => {
+    const main = project('active', '2026-02-01');
+    const invalid = { ...main, metadata: { ...main.metadata, name: '' } };
+    const store = recordStore(main, invalid, 'main-token', 'recovery-token');
+    const workspace = new WorkspaceStateService();
+    await workspace.restore(store, { getItem: () => 'active', setItem: () => undefined });
+    expect(workspace.restoreStatus()).toBe('recovery-error');
+    expect(workspace.project()).toBeUndefined();
+    workspace.continueWithMain();
+    expect(workspace.project()?.id).toBe('active');
+    expect(workspace.project()?.metadata.name).toBe('active');
+  });
+
+  it('discards recovery before activating the saved main project', async () => {
+    const main = project('active', '2026-02-01');
+    const recovered = { ...main, editorSettings: { ...main.editorSettings, currentY: 1 } };
+    const store = recordStore(main, recovered, 'main-token', 'recovery-token');
+    const workspace = new WorkspaceStateService();
+    await workspace.restore(store, { getItem: () => 'active', setItem: () => undefined });
+    await expect(workspace.discardRecovery()).resolves.toBe(true);
+    expect(workspace.project()?.editorSettings.currentY).toBe(0);
+    expect(await store.openRecoverySnapshot('active')).toBeUndefined();
+  });
 });
 
 function memoryStore(projects: readonly ProjectDocument[], onOpen?: () => void): ProjectStore {
@@ -71,5 +125,23 @@ function memoryStore(projects: readonly ProjectDocument[], onOpen?: () => void):
     list: async () => projects.map((item) => ({ id: item.id, name: item.metadata.name, minecraftVersion: item.metadata.minecraftVersion, size: item.size, structureMode: item.structureMode, updatedAt: item.metadata.updatedAt })).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     open: async (id) => { onOpen?.(); return projects.find((item) => item.id === id); },
     saveRecoverySnapshot: async () => undefined, openRecoverySnapshot: async () => undefined, deleteRecoverySnapshot: async () => undefined,
+  };
+}
+
+function recordStore(main: ProjectDocument, recovery: ProjectDocument | undefined, mainToken: string | undefined, recoveryToken: string | undefined): ProjectStore {
+  let currentMain = structuredClone(main);
+  let currentRecovery = recovery ? structuredClone(recovery) : undefined;
+  return {
+    create: async (value) => { currentMain = structuredClone(value); },
+    exists: async (id) => id === currentMain.id,
+    open: async (id) => id === currentMain.id ? structuredClone(currentMain) : undefined,
+    openRecord: async (id) => id === currentMain.id ? { project: structuredClone(currentMain), metadata: { persistenceToken: mainToken } } : undefined,
+    save: async (value) => { currentMain = structuredClone(value); },
+    delete: async () => undefined,
+    list: async () => [{ id: currentMain.id, name: currentMain.metadata.name, minecraftVersion: currentMain.metadata.minecraftVersion, size: currentMain.size, structureMode: currentMain.structureMode, updatedAt: currentMain.metadata.updatedAt }],
+    saveRecoverySnapshot: async (value) => { currentRecovery = structuredClone(value); },
+    openRecoverySnapshot: async (id) => id === currentRecovery?.id ? structuredClone(currentRecovery) : undefined,
+    openRecoveryRecord: async (id) => id === currentRecovery?.id ? { project: structuredClone(currentRecovery), metadata: { persistenceToken: recoveryToken } } : undefined,
+    deleteRecoverySnapshot: async () => { currentRecovery = undefined; },
   };
 }
