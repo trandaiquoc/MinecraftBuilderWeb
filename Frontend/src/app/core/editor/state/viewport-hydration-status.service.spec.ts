@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ViewportHydrationStatusService } from './viewport-hydration-status.service';
+import { VIEWPORT_HYDRATION_STATUS_DELAY_MS, ViewportHydrationStatusService } from './viewport-hydration-status.service';
 import type { ViewportHydrationProgress } from '../../renderer/engine/three-viewport-engine';
 
 function progress(overrides: Partial<ViewportHydrationProgress> = {}): ViewportHydrationProgress {
@@ -29,6 +29,19 @@ describe('ViewportHydrationStatusService', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('cancels a delayed loading surface when work completes before it appears', () => {
+    vi.useFakeTimers();
+    try {
+      const service = new ViewportHydrationStatusService();
+      const owner = service.claim();
+      service.publish(owner, progress({ total: 1, completed: 0, percent: 0 }));
+      service.publish(owner, progress({ status: 'complete', completed: 1, total: 1, blocksCompleted: 1, blocksTotal: 1, percent: 100, finalization: { expectedBlocks: 1, finalReadyBlocks: 1, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+      vi.advanceTimersByTime(VIEWPORT_HYDRATION_STATUS_DELAY_MS + 1);
+      expect(service.status()).toBeUndefined();
+      expect(service.finalization()).toMatchObject({ loading: false, ready: true });
+    } finally { vi.useRealTimers(); }
   });
 
   it('clears completion and ignores stale owners after a viewport switch', () => {
@@ -64,6 +77,21 @@ describe('ViewportHydrationStatusService', () => {
     expect(service.status()?.activity).toBe('import');
     service.publish(owner, progress({ generation: 2, total: 100, percent: 10, completed: 10, blocksCompleted: 10 }));
     expect(service.status()?.activity).toBe('build');
+  });
+
+  it('does not allow an old owner or generation timer to resurrect loading', () => {
+    vi.useFakeTimers();
+    try {
+      const service = new ViewportHydrationStatusService();
+      const oldOwner = service.claim();
+      service.publish(oldOwner, progress({ generation: 1, total: 1, completed: 0, percent: 0 }));
+      const currentOwner = service.claim();
+      service.publish(currentOwner, progress({ generation: 2, status: 'complete', completed: 1, total: 1, blocksCompleted: 1, blocksTotal: 1, percent: 100, finalization: { expectedBlocks: 1, finalReadyBlocks: 1, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+      vi.advanceTimersByTime(VIEWPORT_HYDRATION_STATUS_DELAY_MS + 1);
+      expect(service.status()).toBeUndefined();
+      service.publish(oldOwner, progress({ generation: 1, total: 1, completed: 1, percent: 100 }));
+      expect(service.status()).toBeUndefined();
+    } finally { vi.useRealTimers(); }
   });
 
   it('does not expose local edit hydration as global loading', () => {

@@ -78,6 +78,13 @@ export class ViewportHydrationStatusService {
     this.finalizationCoordinator.setAuditHooks(audit, reconcile);
   }
 
+  /** Re-evaluates the latest authoritative producer state without forcing readiness. */
+  settleIfTerminal(): void {
+    if (this.activeOwner === undefined || !this.lastProgress) return;
+    this.refreshFinalization();
+    if (!this.finalization()?.loading && this.lastProgress.status !== 'hydrating') this.clearVisibleState();
+  }
+
   publish(owner: number, progress: ViewportHydrationProgress): void {
     if (owner !== this.activeOwner) return;
     // Local edits use the renderer's progress accounting for completion, but

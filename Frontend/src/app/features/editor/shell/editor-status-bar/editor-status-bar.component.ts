@@ -34,6 +34,12 @@ export class EditorStatusBarComponent {
   protected readonly missingSummary = this.missingContent.summary;
   protected readonly missingDialogOpen = signal(false);
   private readonly closeMissingDialogWhenResolved = effect(() => { if (this.missingDialogOpen() && this.missingSummary().totalMissingBlocks === 0) this.missingDialogOpen.set(false); });
+  private readonly settleExternalTerminalState = effect(() => {
+    this.missingReconciliation.activity();
+    this.assets.status();
+    this.assets.contentRestore();
+    this.hydration.settleIfTerminal();
+  });
   protected readonly activePlacement = computed<ActivePlacementStatus | undefined>(() => {
     const activeBlock = this.library.activeBlock.active();
     if (activeBlock) {

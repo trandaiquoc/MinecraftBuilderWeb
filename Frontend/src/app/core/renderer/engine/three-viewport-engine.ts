@@ -1350,8 +1350,20 @@ export class ThreeViewportEngine {
         this.publishProviderRefreshProgress();
         if (this.hydrationWork.queuedProviderRefresh()) this.scheduleHydrationPump();
       },
-      onCancel: () => { if (planGeneration === this.providerRefreshGeneration) this.runtimeTrace?.record('provider-refresh-planning-cancelled', { generation: planGeneration }); },
-      onError: (error) => { if (planGeneration === this.providerRefreshGeneration) this.runtimeTrace?.record('provider-refresh-planning-error', { generation: planGeneration, message: error instanceof Error ? error.message : String(error) }); },
+      onCancel: () => {
+        if (planGeneration !== this.providerRefreshGeneration) return;
+        this.providerRefreshPlanning = false;
+        this.providerRefreshProgress = undefined;
+        this.runtimeTrace?.record('provider-refresh-planning-cancel-terminal', { generation: planGeneration });
+        this.publishProviderRefreshProgress();
+      },
+      onError: (error) => {
+        if (planGeneration !== this.providerRefreshGeneration) return;
+        this.providerRefreshPlanning = false;
+        this.providerRefreshProgress = undefined;
+        this.runtimeTrace?.record('provider-refresh-planning-error-terminal', { generation: planGeneration, message: error instanceof Error ? error.message : String(error) });
+        this.publishProviderRefreshProgress();
+      },
     });
   }
 

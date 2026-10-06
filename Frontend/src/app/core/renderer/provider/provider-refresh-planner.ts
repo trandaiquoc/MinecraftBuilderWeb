@@ -59,7 +59,7 @@ export class ProviderRefreshPlanner<TInput, TJob> {
   private async run(
     inputs: readonly TInput[],
     classify: (input: TInput) => { readonly considered: boolean; readonly job?: TJob },
-    callbacks: { readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void; readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void },
+    callbacks: { readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void; readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void; readonly onCancel?: () => void },
     budget: CooperativeWorkBudget,
     yieldWork: (signal?: AbortSignal) => Promise<void>,
     signal: AbortSignal,
@@ -72,7 +72,7 @@ export class ProviderRefreshPlanner<TInput, TJob> {
     const jobs: TJob[] = [];
     for (let index = 0; index < inputs.length; index += 1) {
       signal.throwIfAborted();
-      if (generation !== this.generation) return;
+      if (generation !== this.generation) { callbacks.onCancel?.(); return; }
       const sliceStarted = performance.now();
       const result = classify(inputs[index]);
       if (result.considered) considered += 1;
@@ -89,7 +89,7 @@ export class ProviderRefreshPlanner<TInput, TJob> {
         }
       }
     }
-    if (generation !== this.generation || signal.aborted) return;
+    if (generation !== this.generation || signal.aborted) { callbacks.onCancel?.(); return; }
     this.controller = undefined;
     callbacks.onComplete({ jobs, processed: inputs.length, considered, queued: jobs.length, maxSliceMs, yields, durationMs: performance.now() - startedAt });
   }
