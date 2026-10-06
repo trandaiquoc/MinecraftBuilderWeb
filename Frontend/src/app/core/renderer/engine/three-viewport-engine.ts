@@ -576,7 +576,12 @@ export class ThreeViewportEngine {
   private readonly blocksGroup = new THREE.Group();
   private readonly decorationsGroup = new THREE.Group();
   private readonly canonicalRoot = new THREE.Group();
-  private readonly isolationPresentation = new GroupIsolationPresentation(this.canonicalRoot, () => this.scheduleRender());
+  private readonly isolationPresentation = new GroupIsolationPresentation(this.canonicalRoot, {
+    onChanged: () => this.scheduleRender(),
+    onCommitted: (keys) => this.commitIsolatePresentation(keys),
+    onDeactivated: () => this.clearCommittedIsolatePresentation(),
+    onFailed: () => { this.requestedIsolatedKeys.clear(); this.scheduleRender(); },
+  });
   private readonly structureBlockGuideGroup = new THREE.Group();
   private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x4b9cff, transparent: true, opacity: 0.35 }));
   private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false }));
@@ -681,6 +686,8 @@ export class ThreeViewportEngine {
   private lastIsolatedGroupId?: string;
   private lastIsolatedGroupPositions?: readonly VoxelCoordinate[];
   private isolatedKeys = new Set<string>();
+  private requestedIsolatedKeys = new Set<string>();
+  private lastCommittedIsolateKey = '';
   private activeBlock?: ActiveBlock;
   private showStructureBlockGuide = true;
   private renderOptions: ViewportRenderOptions = {};
@@ -1519,8 +1526,8 @@ export class ThreeViewportEngine {
     }
     if (isolatePresentationChanged) {
       if (options.isolatedGroupId) this.applyIsolatePresentation(project, options);
-      else { this.isolatedKeys.clear(); this.isolationPresentation.deactivate(); }
-    } else if (this.isolationPresentation.isActive() && (project !== previousProject || !!mutationHint)) {
+      else { this.requestedIsolatedKeys.clear(); this.isolationPresentation.deactivate(); }
+    } else if (this.isolationPresentation.state() !== 'inactive' && (project !== previousProject || !!mutationHint)) {
       this.refreshIsolatePresentation(project, options);
     }
     if (!blockInputChanged && !inPlaceBlockMutation && !decorationInputChanged) this.instrumentation.record('overlayOnlyUpdates');
@@ -2161,13 +2168,13 @@ export class ThreeViewportEngine {
 
   private applyIsolatePresentation(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
     if (!project || !options.isolatedGroupId) {
-      this.isolatedKeys.clear();
+      this.requestedIsolatedKeys.clear();
       this.isolationPresentation.deactivate();
       return;
     }
     const positions = options.isolatedGroupPositions ?? [];
     const keys = new Set(positions.map((position) => coordinateKey(position)));
-    this.isolatedKeys = keys;
+    this.requestedIsolatedKeys = keys;
     const blocks = this.isolateBlockSnapshots(project, keys);
     const decorations: IsolateDecorationVisualSnapshot[] = [];
     for (const current of this.renderedDecorations.values()) {
@@ -2185,12 +2192,37 @@ export class ThreeViewportEngine {
         getDefinition: (blockId) => this.definitionResolver?.(blockId),
         getOcclusionClass: (block) => this.visualProvider?.occlusionClass?.(block) ?? 'unknown',
       },
+      isolateKeys: keys,
     };
-    this.isolationPresentation.activate(snapshot);
+    this.isolationPresentation.prepare(snapshot);
   }
 
   private refreshIsolatePresentation(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
-    if (this.isolationPresentation.isActive() && options.isolatedGroupId) this.applyIsolatePresentation(project, options);
+    if (this.isolationPresentation.state() !== 'inactive' && options.isolatedGroupId) this.applyIsolatePresentation(project, options);
+  }
+
+  private commitIsolatePresentation(keys: ReadonlySet<string>): void {
+    this.isolatedKeys = new Set(keys);
+    const project = this.syncedProject;
+    if (project) {
+      const selection = this.visibleSelection(project, this.renderOptions);
+      this.updateSelection(selection.selected, selection.positions, selection.kind, selection.count, selection.bounds, selection.box);
+      this.updateActiveGroup(project, this.renderOptions.activeGroupId, this.renderOptions.activeGroupPositions);
+      this.updateBlockUsageHighlight(this.blockUsageHighlightId, this.blockUsageHighlightPositions);
+    }
+    this.scheduleRender();
+  }
+
+  private clearCommittedIsolatePresentation(): void {
+    this.isolatedKeys.clear();
+    const project = this.syncedProject;
+    if (project) {
+      const selection = this.visibleSelection(project, this.renderOptions);
+      this.updateSelection(selection.selected, selection.positions, selection.kind, selection.count, selection.bounds, selection.box);
+      this.updateActiveGroup(project, this.renderOptions.activeGroupId, this.renderOptions.activeGroupPositions);
+      this.updateBlockUsageHighlight(this.blockUsageHighlightId, this.blockUsageHighlightPositions);
+    }
+    this.scheduleRender();
   }
 
   private isolateBlockSnapshots(project: ProjectDocument, keys: ReadonlySet<string>): readonly IsolateBlockVisualSnapshot[] {
@@ -4423,12 +4455,12 @@ export class ThreeViewportEngine {
   }
 
   private updateActiveGroup(project: ProjectDocument | undefined, activeGroupId: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void {
-    if (project === this.lastActiveGroupProject && activeGroupId === this.lastActiveGroupId && positions === this.lastActiveGroupPositions && this.renderOptions.isolatedGroupId === this.lastIsolatedGroupId && this.renderOptions.isolatedGroupPositions === this.lastIsolatedGroupPositions) return;
+    const committedIsolateKey = this.isolationPresentation.isActive() ? [...this.isolatedKeys].sort().join('|') : '';
+    if (project === this.lastActiveGroupProject && activeGroupId === this.lastActiveGroupId && positions === this.lastActiveGroupPositions && committedIsolateKey === this.lastCommittedIsolateKey) return;
     this.lastActiveGroupProject = project;
     this.lastActiveGroupId = activeGroupId;
     this.lastActiveGroupPositions = positions;
-    this.lastIsolatedGroupId = this.renderOptions.isolatedGroupId;
-    this.lastIsolatedGroupPositions = this.renderOptions.isolatedGroupPositions;
+    this.lastCommittedIsolateKey = committedIsolateKey;
     for (const child of [...this.scene.children]) {
       if (child.userData['groupHighlight']) { child.traverse((object) => { if (object instanceof THREE.LineSegments && !object.userData['sharedGroupHighlight']) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.scene.remove(child); }
     }
@@ -4436,8 +4468,8 @@ export class ThreeViewportEngine {
     const group = project.groups.find((entry) => entry.id === activeGroupId);
     const color = group?.locked ? this.palette.lockedGroup : this.palette.group;
     this.groupHighlightMaterial.color.setHex(color);
-    const isolatedKeys = new Set(this.renderOptions.isolatedGroupPositions?.map((position) => `${position.x},${position.y},${position.z}`));
-    const visiblePositions = (positions ?? []).filter((position) => !this.renderOptions.isolatedGroupId || isolatedKeys.has(`${position.x},${position.y},${position.z}`));
+    const isolateCommitted = this.isolationPresentation.isActive();
+    const visiblePositions = (positions ?? []).filter((position) => !isolateCommitted || this.isolatedKeys.has(`${position.x},${position.y},${position.z}`));
     const aggregateGroup = visiblePositions.length > DETAILED_SELECTION_OUTLINE_LIMIT;
     if (aggregateGroup) {
       const bounds = boundsOfPositions(visiblePositions);
@@ -4451,7 +4483,7 @@ export class ThreeViewportEngine {
     const positionKeys = new Set(positions?.map((position) => `${position.x},${position.y},${position.z}`));
     for (const position of aggregateGroup ? [] : visiblePositions) {
       const key = `${position.x},${position.y},${position.z}`;
-      if (!positionKeys.has(key) || !this.cachedVisibleMap.has(key) || (this.renderOptions.isolatedGroupId && !isolatedKeys.has(key))) continue;
+      if (!positionKeys.has(key) || !this.cachedVisibleMap.has(key) || isolateCommitted && !this.isolatedKeys.has(key)) continue;
       const block = this.spatialIndex?.get(position);
       if (!block || !isBlockVisible(block, project.groups)) continue;
       const outline = new THREE.LineSegments(this.groupHighlightGeometry, this.groupHighlightMaterial);
@@ -4461,7 +4493,7 @@ export class ThreeViewportEngine {
       outline.renderOrder = 1000;
       this.scene.add(outline);
     }
-    for (const decoration of (project.decorations ?? []).filter((entry) => decorationHasGroup(entry, activeGroupId) && isDecorationVisible(entry, project.groups) && (!this.renderOptions.isolatedGroupId || decorationHasGroup(entry, this.renderOptions.isolatedGroupId)))) {
+    for (const decoration of (project.decorations ?? []).filter((entry) => decorationHasGroup(entry, activeGroupId) && isDecorationVisible(entry, project.groups) && (!isolateCommitted || decorationHasGroup(entry, this.renderOptions.isolatedGroupId ?? '')))) {
       const bounds = decorationAabb(decoration);
       const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(.04, bounds.max.x - bounds.min.x + .08), Math.max(.04, bounds.max.y - bounds.min.y + .08), Math.max(.04, bounds.max.z - bounds.min.z + .08))), new THREE.LineBasicMaterial({ color }));
       outline.position.set((bounds.min.x + bounds.max.x) / 2, (bounds.min.y + bounds.max.y) / 2, (bounds.min.z + bounds.max.z) / 2);

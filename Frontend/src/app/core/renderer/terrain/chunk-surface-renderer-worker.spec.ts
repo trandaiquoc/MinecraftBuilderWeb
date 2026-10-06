@@ -60,6 +60,32 @@ describe('chunk surface renderer worker commit path', () => {
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
+  it('settles only after the worker commit, and resolves cancellation on dispose', async () => {
+    const group = new THREE.Group();
+    const worker = new DeferredWorker();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => worker, workerCount: 1, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const block = interiorBlockAt(0);
+    const record: TerrainSurfaceRecord = { key: key(block), block, templates };
+    renderer.bulkUpsert([record], [{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }], [block.position], { initial: true });
+    let settled = false;
+    const pending = renderer.whenSettled().then((result) => { settled = true; return result; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    worker.resolve();
+    const result = await pending;
+    expect(result.status).toBe('settled');
+    expect(settled).toBe(true);
+
+    const second = blockAt(1);
+    renderer.bulkUpsert([{ ...record, key: key(second), block: second }], [{ block: second, role: 'normal', occlusionClass: 'opaque-full-cube' }], [second.position], { initial: true });
+    const cancelled = renderer.whenSettled();
+    renderer.dispose();
+    expect((await cancelled).status).toBe('cancelled');
+    material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('keeps chunk ownership broad while keeping local hydration candidates bounded', async () => {
     const group = new THREE.Group();
     const worker = new DeferredWorker();

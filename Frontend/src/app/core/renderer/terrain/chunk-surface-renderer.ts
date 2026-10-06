@@ -50,6 +50,11 @@ export interface TerrainApplyResult {
   readonly disposition?: TerrainApplyDisposition;
 }
 
+export interface TerrainSettlement {
+  readonly status: 'settled' | 'failed' | 'cancelled';
+  readonly failedKeys: readonly string[];
+}
+
 export type TerrainApplyDisposition =
   | 'accepted'
   | 'partial-unrepresented'
@@ -125,6 +130,9 @@ export class ChunkSurfaceRenderer {
   private readonly chunkRevisions = new Map<string, number>();
   private readonly chunkWork = new Map<string, TerrainChunkWorkState>();
   private readonly pendingHydrationCandidatesByChunk = new Map<string, Set<string>>();
+  private settlementGeneration = 0;
+  private settlementFailedKeys = new Set<string>();
+  private readonly settlementWaiters = new Map<number, Array<(result: TerrainSettlement) => void>>();
   private readonly workerPool: TerrainMeshWorkerPool;
   private readonly commitScheduler: TerrainCommitScheduler;
   private readonly commitDiagnostics = new TerrainCommitDiagnostics();
@@ -159,6 +167,17 @@ export class ChunkSurfaceRenderer {
   ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.ownership.get(key); }
   isRepresented(key: string): boolean { return this.ownership.has(key); }
 
+  /** Resolves when the current batch has reached a terminal worker/commit state. */
+  whenSettled(): Promise<TerrainSettlement> {
+    const generation = this.settlementGeneration;
+    if (this.isSettlementReady()) return Promise.resolve(this.settlementResult());
+    return new Promise((resolve) => {
+      const waiters = this.settlementWaiters.get(generation) ?? [];
+      waiters.push(resolve);
+      this.settlementWaiters.set(generation, waiters);
+    });
+  }
+
   /** Returns immutable record references for a presentation-only subset. */
   recordsForKeys(keys: ReadonlySet<string>): readonly TerrainSurfaceRecord[] {
     return [...keys].map((key) => this.records.get(key)).filter((record): record is TerrainSurfaceRecord => !!record);
@@ -182,6 +201,7 @@ export class ChunkSurfaceRenderer {
 
   /** Registers one generation/batch and compiles its dirty chunks exactly once. */
   bulkUpsert(records: readonly TerrainSurfaceRecord[], occupancyEntries?: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[] = [], options: { readonly initial?: boolean; readonly flush?: boolean } = {}): TerrainApplyResult {
+    this.beginSettlement();
     this.bulkBatches += 1;
     this.options.record('terrainBulkBatches');
     if (options.initial) {
@@ -211,6 +231,7 @@ export class ChunkSurfaceRenderer {
   /** Applies a bounded local voxel delta without replacing records or occupancy. */
   applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true, hydrationCandidateKeys: readonly string[] = changes.map((change) => change.key)): TerrainApplyResult {
     if (!changes.length) return emptyTerrainApplyResult();
+    this.beginSettlement();
     for (const change of changes) {
       if (change.before && (!change.after || change.before.key !== change.after.key)) this.removeRecord(change.before);
       if (change.after) this.indexRecord(change.after);
@@ -233,6 +254,7 @@ export class ChunkSurfaceRenderer {
 
   upsert(record: TerrainSurfaceRecord, flush = false): boolean {
     if (record.templates.length !== 6) return false;
+    this.beginSettlement();
     const previous = this.records.get(record.key);
     this.indexRecord(record);
     if (!previous || coordinateKey(previous.block.position) !== coordinateKey(record.block.position)) {
@@ -250,6 +272,7 @@ export class ChunkSurfaceRenderer {
   remove(key: string): void {
     const previous = this.records.get(key);
     if (!previous) return;
+    this.beginSettlement();
     this.removeRecord(previous);
     for (const chunk of relevantTerrainChunks(previous.block.position)) this.dirtyChunks.add(terrainChunkKey(chunk));
     this.scheduleFlush();
@@ -266,6 +289,7 @@ export class ChunkSurfaceRenderer {
     if (this.workerPool.supported) {
       for (const key of dirty) this.queueWorkerChunk(key, localChangedKeys.get(key) ?? [], priority, localCandidates.get(key) ?? []);
       if (timing) this.options.onTiming?.('terrain.flushNow', performance.now() - started);
+      this.notifySettlementIfReady();
       return { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], pending: dirty.length > 0 };
     }
     const rebuiltChunks: string[] = [];
@@ -280,6 +304,8 @@ export class ChunkSurfaceRenderer {
     }
     const result = { changedKeys: [...new Set(changedKeys)], rebuiltChunks, representedKeys: [...representedKeys], failedKeys: [...failedKeys], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)] };
     if (timing) this.options.onTiming?.('terrain.flushNow', performance.now() - started);
+    for (const key of failedKeys) this.settlementFailedKeys.add(key);
+    this.notifySettlementIfReady();
     return result;
   }
 
@@ -327,6 +353,7 @@ export class ChunkSurfaceRenderer {
   }
 
   clear(): void {
+    this.cancelSettlement();
     if (this.flushTimer !== undefined) clearTimeout(this.flushTimer);
     this.flushTimer = undefined;
     for (const chunk of this.chunks.values()) this.disposeChunk(chunk);
@@ -352,6 +379,44 @@ export class ChunkSurfaceRenderer {
   }
 
   dispose(): void { this.clear(); this.commitScheduler.dispose(); this.workerPool.dispose(); }
+
+  private beginSettlement(): void {
+    const previous = this.settlementWaiters.get(this.settlementGeneration);
+    if (previous?.length) for (const resolve of previous) resolve({ status: 'cancelled', failedKeys: [] });
+    this.settlementWaiters.delete(this.settlementGeneration);
+    this.settlementGeneration += 1;
+    this.settlementFailedKeys.clear();
+  }
+
+  private cancelSettlement(): void {
+    const waiters = this.settlementWaiters.get(this.settlementGeneration);
+    if (waiters?.length) for (const resolve of waiters) resolve({ status: 'cancelled', failedKeys: [] });
+    this.settlementWaiters.delete(this.settlementGeneration);
+    this.settlementGeneration += 1;
+    this.settlementFailedKeys.clear();
+  }
+
+  private settlementResult(): TerrainSettlement {
+    const failedKeys = [...this.settlementFailedKeys];
+    return { status: failedKeys.length ? 'failed' : 'settled', failedKeys };
+  }
+
+  private isSettlementReady(): boolean {
+    if (this.flushTimer !== undefined || this.dirtyChunks.size > 0) return false;
+    if ([...this.chunkWork.values()].some((work) => !work.completed)) return false;
+    const worker = this.workerPool.evidence();
+    const commits = this.commitScheduler.evidence();
+    return worker.terrainWorkerQueued === 0 && worker.terrainWorkerRunning === 0 && commits.terrainCommitQueueDepth === 0;
+  }
+
+  private notifySettlementIfReady(): void {
+    if (!this.isSettlementReady()) return;
+    const waiters = this.settlementWaiters.get(this.settlementGeneration);
+    if (!waiters?.length) return;
+    this.settlementWaiters.delete(this.settlementGeneration);
+    const result = this.settlementResult();
+    for (const resolve of waiters) resolve(result);
+  }
 
   private scheduleFlush(): void {
     if (this.flushTimer !== undefined) return;
@@ -455,6 +520,7 @@ export class ChunkSurfaceRenderer {
       } else if (currentRecords?.size && (staleGeneration || staleProvider) && !work) {
         this.options.record('terrainAsyncRejectedWithoutReplacement');
       }
+      this.notifySettlementIfReady();
       return;
     }
     const materialStarted = performance.now();
@@ -493,6 +559,7 @@ export class ChunkSurfaceRenderer {
       const failedKeys = !shouldCommit || records.length && represented.length === 0
         ? records.map((record) => record.key)
         : failed;
+      for (const failedKey of failedKeys) this.settlementFailedKeys.add(failedKey);
       if (!shouldCommit) this.options.record('terrainAsyncCommitPolicyRejected');
       else this.options.record('terrainAsyncAllUnrepresentedResults');
       if (work) work.completed = true;
@@ -502,6 +569,7 @@ export class ChunkSurfaceRenderer {
       this.options.onAsyncApply?.(records, apply);
       this.recordCommitStage('terrain.commit.asyncApply', asyncStarted, metrics);
       this.finishCommitDiagnostics(metrics, commitStarted, apply);
+      this.notifySettlementIfReady();
       return;
     }
     const sceneSwapStarted = performance.now();
@@ -516,10 +584,12 @@ export class ChunkSurfaceRenderer {
     metrics.representedKeys = represented.length;
     this.completePendingHydrationCandidates(key, hydrationCandidateKeys, [...represented, ...failed]);
     const apply: TerrainApplyResult = { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: represented, failedKeys: failed, hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], commitMetrics: metrics, disposition: failed.length ? 'partial-unrepresented' : 'accepted' };
+    for (const failedKey of failed) this.settlementFailedKeys.add(failedKey);
     const asyncStarted = performance.now();
     this.options.onAsyncApply?.(records, apply);
     this.recordCommitStage('terrain.commit.asyncApply', asyncStarted, metrics);
     this.finishCommitDiagnostics(metrics, commitStarted, apply);
+    this.notifySettlementIfReady();
   }
 
   private commitWorkerFailure(key: string, records: readonly TerrainSurfaceRecord[], changedKeys: readonly string[], job: TerrainMeshJob): void {
@@ -530,8 +600,10 @@ export class ChunkSurfaceRenderer {
     const work = this.chunkWork.get(key);
     if (work) work.completed = true;
     this.pendingHydrationCandidatesByChunk.delete(key);
+    for (const record of records) this.settlementFailedKeys.add(record.key);
     this.options.record('terrainAsyncWorkerFailures');
     this.options.onAsyncApply?.(records, { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: records.map((record) => record.key), disposition: 'worker-failure' });
+    this.notifySettlementIfReady();
   }
 
   private installCompiledChunk(key: string, compiled: CompiledTerrainChunk, previous: TerrainChunkObject | undefined, revision: number): { readonly removed: number; readonly inserted: number } {
