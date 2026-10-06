@@ -1,7 +1,7 @@
 import { migrateProject } from '../../domain/migrations';
 import { DEFAULT_MINECRAFT_VERSION, ProjectDocument } from '../../domain/project.types';
 import { normalizeStructureModeForSize } from '../../domain/structure-size-policy';
-import { ProjectStore, ProjectSummary } from './project-store.port';
+import { ProjectPersistenceMetadata, ProjectRecord, ProjectStore, ProjectSummary } from './project-store.port';
 
 const DATABASE_NAME = 'minecraft-builder';
 const DATABASE_VERSION = 5;
@@ -9,7 +9,7 @@ const PROJECTS_STORE = 'projects';
 const PROJECT_SUMMARIES_STORE = 'project-summaries';
 const RECOVERY_STORE = 'recovery-snapshots';
 
-interface StoredProject { readonly id: string; readonly name: string; readonly minecraftVersion?: string; readonly updatedAt: string; readonly document: ProjectDocument; }
+interface StoredProject { readonly id: string; readonly name: string; readonly minecraftVersion?: string; readonly updatedAt: string; readonly document: ProjectDocument; readonly persistenceToken?: string; readonly persistedAt?: string; }
 
 export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' | 'name' | 'minecraftVersion' | 'updatedAt'> & Partial<Pick<ProjectSummary, 'size' | 'structureMode'>> & { readonly document?: ProjectDocument }): ProjectSummary {
   const migrated = record.document ? migrateProject(record.document) : undefined;
@@ -23,14 +23,15 @@ export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' 
 export class IndexedDbProjectStore implements ProjectStore {
   private readonly database: Promise<IDBDatabase>;
   constructor(databaseName = DATABASE_NAME) { this.database = openDatabase(databaseName); }
-  async create(project: ProjectDocument): Promise<void> { await this.writeProject(project, true); }
+  async create(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void> { await this.writeProject(project, true, metadata); }
   async exists(id: string): Promise<boolean> {
     const database = await this.database;
     const key = await runRequest<IDBValidKey | undefined>(database, PROJECTS_STORE, 'readonly', (store) => store.getKey(id));
     return key !== undefined;
   }
   async open(id: string): Promise<ProjectDocument | undefined> { return this.read(PROJECTS_STORE, id); }
-  async save(project: ProjectDocument): Promise<void> { await this.writeProject(project, false); }
+  async openRecord(id: string): Promise<ProjectRecord | undefined> { return this.readRecord(PROJECTS_STORE, id); }
+  async save(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void> { await this.writeProject(project, false, metadata); }
   async delete(id: string): Promise<void> {
     const database = await this.database;
     await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, RECOVERY_STORE], 'readwrite', (transaction) => {
@@ -44,19 +45,20 @@ export class IndexedDbProjectStore implements ProjectStore {
     const records = await readAll<ProjectSummary>(database, PROJECT_SUMMARIES_STORE);
     return records.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
-  async saveRecoverySnapshot(project: ProjectDocument): Promise<void> {
+  async saveRecoverySnapshot(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void> {
     const database = await this.database;
-    await runRequest(database, RECOVERY_STORE, 'readwrite', (store) => store.put(toStoredProject(project)));
+    await runRequest(database, RECOVERY_STORE, 'readwrite', (store) => store.put(toStoredProject(project, metadata)));
   }
   async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { return this.read(RECOVERY_STORE, id); }
+  async openRecoveryRecord(id: string): Promise<ProjectRecord | undefined> { return this.readRecord(RECOVERY_STORE, id, false); }
   async deleteRecoverySnapshot(id: string): Promise<void> {
     const database = await this.database;
     await runRequest(database, RECOVERY_STORE, 'readwrite', (store) => store.delete(id));
   }
-  private async writeProject(project: ProjectDocument, requireAbsent: boolean): Promise<void> {
+  private async writeProject(project: ProjectDocument, requireAbsent: boolean, metadata?: ProjectPersistenceMetadata): Promise<void> {
     const database = await this.database;
     const normalized = migrateProject(project);
-    const document = toStoredProject(normalized);
+    const document = toStoredProject(normalized, metadata);
     await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE], 'readwrite', (transaction) => {
       const projects = transaction.objectStore(PROJECTS_STORE);
       if (requireAbsent) projects.add(document); else projects.put(document);
@@ -68,11 +70,16 @@ export class IndexedDbProjectStore implements ProjectStore {
     const record = await runRequest<StoredProject | undefined>(database, storeName, 'readonly', (store) => store.get(id));
     return record ? migrateProject(record.document) : undefined;
   }
+  private async readRecord(storeName: string, id: string, migrate = true): Promise<ProjectRecord | undefined> {
+    const database = await this.database;
+    const record = await runRequest<StoredProject | undefined>(database, storeName, 'readonly', (store) => store.get(id));
+    return record ? { project: migrate ? migrateProject(record.document) : record.document, metadata: { persistenceToken: record.persistenceToken, persistedAt: record.persistedAt } } : undefined;
+  }
 }
 
-function toStoredProject(project: ProjectDocument): StoredProject {
+function toStoredProject(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): StoredProject {
   const normalized = migrateProject(project);
-  return { id: normalized.id, name: normalized.metadata.name, minecraftVersion: normalized.metadata.minecraftVersion, updatedAt: normalized.metadata.updatedAt, document: normalized };
+  return { id: normalized.id, name: normalized.metadata.name, minecraftVersion: normalized.metadata.minecraftVersion, updatedAt: normalized.metadata.updatedAt, document: normalized, ...metadata };
 }
 function toSummary(project: ProjectDocument): ProjectSummary {
   const normalized = migrateProject(project);

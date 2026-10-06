@@ -9,14 +9,26 @@ export interface ProjectSummary {
   readonly updatedAt: string;
 }
 
+export interface ProjectPersistenceMetadata {
+  readonly persistenceToken?: string;
+  readonly persistedAt?: string;
+}
+
+export interface ProjectRecord {
+  readonly project: ProjectDocument;
+  readonly metadata: ProjectPersistenceMetadata;
+}
+
 export interface ProjectStore {
-  create(project: ProjectDocument): Promise<void>;
+  create(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void>;
   exists(id: string): Promise<boolean>;
   open(id: string): Promise<ProjectDocument | undefined>;
-  save(project: ProjectDocument): Promise<void>;
+  openRecord?(id: string): Promise<ProjectRecord | undefined>;
+  save(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void>;
   delete(id: string): Promise<void>;
   list(): Promise<readonly ProjectSummary[]>;
-  saveRecoverySnapshot(project: ProjectDocument): Promise<void>;
+  saveRecoverySnapshot(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void>;
   openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined>;
+  openRecoveryRecord?(id: string): Promise<ProjectRecord | undefined>;
   deleteRecoverySnapshot(id: string): Promise<void>;
 }

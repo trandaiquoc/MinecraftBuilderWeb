@@ -2439,3 +2439,23 @@ builds cannot replace the current generation. Provider refresh skips claimed
 fluid voxels, so they cannot return as standalone provider objects. No
 water-only chunk renderer, greedy meshing, LOD, camera change, placement change,
 hydration fairness change, or Y-layer fluid implementation was added.
+
+## Revision-safe recovery and editor leave
+
+Project persistence records now carry an optional persistence token. Autosave
+writes the recovery snapshot before the canonical project and treats recovery
+cleanup as a separate warning after the canonical save is safe. Older records
+without tokens remain recovery-pending instead of being silently discarded.
+Startup keeps the workspace inactive while a recovery decision is pending;
+Restore writes the recovery document to the main record before cleanup, while
+Discard deletes the recovery record before continuing with the saved project.
+Internal editor navigation is guarded by one deduplicated leave decision that
+flushes unsafe revisions, preserves the protected asset-operation warning, and
+offers Stay or Leave anyway when persistence fails. `beforeunload` is attached
+only while the latest revision is genuinely unsafe to lose.
+
+Development recovery testing is available without production UI through the
+dev-only `window.__mbRecoveryDiagnostics` hook:
+`await __mbRecoveryDiagnostics.stageFromCurrentProject()` stages the active
+document, `await __mbRecoveryDiagnostics.clear(projectId)` removes a snapshot,
+and `await __mbRecoveryDiagnostics.inspect(projectId)` reads its record.

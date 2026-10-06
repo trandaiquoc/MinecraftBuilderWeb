@@ -89,6 +89,18 @@ describe('local persistence helpers', () => {
     autosave.dispose(); vi.useRealTimers();
   });
 
+  it('writes recovery, then main, then cleanup in that exact order', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    const events: string[] = [];
+    const writeRecovery = store.saveRecoverySnapshot.bind(store); const writeMain = store.save.bind(store); const deleteRecovery = store.deleteRecoverySnapshot.bind(store);
+    store.saveRecoverySnapshot = async (value) => { events.push('recovery'); await writeRecovery(value); };
+    store.save = async (value) => { events.push('main'); await writeMain(value); };
+    store.deleteRecoverySnapshot = async (id) => { events.push('cleanup'); await deleteRecovery(id); };
+    const persistence = new ProjectPersistenceService(store, 0);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1))); await persistence.flushAutosave();
+    expect(events).toEqual(['recovery', 'main', 'cleanup']);
+  });
+
   it('persists derived states, multi-group memberships, and multi-block parts as one final document', async () => {
     const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
     const changed: ProjectDocument = {
@@ -169,6 +181,28 @@ describe('local persistence helpers', () => {
 
     await expect(persistence.delete(project.id)).rejects.toThrow('quota');
     expect(await store.open(project.id)).toBeDefined();
+  });
+
+  it('treats recovery cleanup failure as a separate warning after the main save is safe', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    store.deleteRecoverySnapshot = async () => { throw new Error('cleanup'); };
+    const warnings: unknown[] = []; const persistence = new ProjectPersistenceService(store, 0, undefined, (error) => warnings.push(error));
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await expect(persistence.flushAutosave()).resolves.toBeUndefined();
+    expect(persistence.dirtyState.isDirty).toBe(false);
+    expect(warnings).toHaveLength(1);
+    expect(await store.open(project.id)).toEqual(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    expect(await store.openRecoverySnapshot(project.id)).toBeDefined();
+  });
+
+  it('keeps recovery data and dirty state when the recovery write fails', async () => {
+    const store = new MemoryProjectStore(); await store.create(project);
+    store.saveRecoverySnapshot = async () => { throw new Error('recovery quota'); };
+    const persistence = new ProjectPersistenceService(store, 0);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await expect(persistence.flushAutosave()).rejects.toThrow('recovery quota');
+    expect(persistence.dirtyState.isDirty).toBe(true);
+    expect(await store.open(project.id)).toEqual(project);
   });
 
   it('deletes by summary id without opening the full project document', async () => {
