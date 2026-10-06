@@ -10,6 +10,8 @@ import { ViewportHydrationStatusService } from '../../../../core/editor/state/vi
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import type { ProjectDocument } from '../../../../core/domain/project.types';
 import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
+import { EditorModeService } from '../../../../core/editor/state/editor-mode.service';
+import { EditorSessionService } from '../../../../core/editor/state/editor-session.service';
 
 describe('EditorStatusBarComponent asset bootstrap status', () => {
   it('renders determinate Mod restore progress and removes it when ready', async () => {
@@ -140,6 +142,30 @@ describe('EditorStatusBarComponent active placement status', () => {
     const status = fixture.nativeElement.querySelector('.active-placement-status') as HTMLElement;
     expect(status.textContent).toContain('Active block');
     expect(status.textContent).not.toContain('Active decoration');
+  });
+});
+
+describe('EditorStatusBarComponent Y-layer preview', () => {
+  it('shows transient Current Y without changing the persisted project', async () => {
+    await TestBed.configureTestingModule({ imports: [EditorStatusBarComponent], providers: [{ provide: ProjectAutosaveService, useValue: { status: signal('saved'), error: signal(undefined) } }] }).compileComponents();
+    const fixture = TestBed.createComponent(EditorStatusBarComponent);
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const mode = TestBed.inject(EditorModeService);
+    const session = TestBed.inject(EditorSessionService);
+    const current: ProjectDocument = {
+      schemaVersion: 3,
+      id: 'layer-preview-status',
+      metadata: { name: 'Layer preview', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' },
+      size: { x: 4, y: 8, z: 4 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [],
+      editorSettings: { currentY: 1, layerVisibility: 'whole-structure', referenceLayerOpacity: .28 },
+    };
+    workspace.project.set(current);
+    mode.mode.set('y-layer');
+    session.previewCurrentY(current.id, 6);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Current Y: 6');
+    expect(workspace.project()?.editorSettings.currentY).toBe(1);
   });
 });
 
