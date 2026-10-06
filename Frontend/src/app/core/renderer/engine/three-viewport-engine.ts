@@ -1086,8 +1086,9 @@ export class ThreeViewportEngine {
     if (this.missingBlocksTerminal === terminal) return;
     this.missingBlocksTerminal = terminal;
     for (const entry of this.cachedVisibleEntries) {
-      if (entry.block.kind === 'missing') this.hydrationProgressTracker.setMissingBlockState(coordinateKey(entry.block.position), terminal ? 'permanent' : 'provisional');
+      if (entry.block.kind === 'missing') this.hydrationProgressTracker.syncMissingBlockState(coordinateKey(entry.block.position), terminal ? 'permanent' : 'provisional');
     }
+    this.hydrationProgressTracker.refresh();
     this.scheduleRender();
   }
 
@@ -1655,14 +1656,18 @@ export class ThreeViewportEngine {
     for (const change of hint.changes) {
       const beforeKey = change.before ? coordinateKey(change.before.position) : coordinateKey(change.position);
       const afterKey = change.after ? coordinateKey(change.after.position) : coordinateKey(change.position);
+      if (change.before && change.after && beforeKey !== afterKey) this.hydrationProgressTracker.removeBlockKey(beforeKey);
       if (change.before && !change.after) this.hydrationProgressTracker.removeBlockKey(beforeKey);
       if (change.after) {
         if (!this.hydrationProgressTracker.hasBlockKey(afterKey)) this.hydrationProgressTracker.addBlockKey(afterKey);
         else this.hydrationProgressTracker.invalidate('block', afterKey);
+        this.hydrationProgressTracker.syncMissingBlockState(afterKey, change.after.kind === 'missing' ? (this.missingBlocksTerminal ? 'permanent' : 'provisional') : 'resolved');
       }
       this.spatialIndex?.replace(change.before?.position, change.after);
       if (change.after) this.structuralSpecialVisualIds.add(change.after.id);
     }
+    this.hydrationProgressTracker.refresh();
+    if (lane === 'content') this.recordMissingAccountingInvariant('content-resolution-delta');
     this.syncSpecialVisualDescriptors();
     this.instrumentation.record('incrementalChangedVoxels', affectedPositions.size);
     this.spatialIndexProject = project;
@@ -1977,9 +1982,16 @@ export class ThreeViewportEngine {
     this.hydrationProgressTracker.setBlockScope(entries.map((entry) => coordinateKey(entry.block.position)));
     for (const entry of entries) {
       const key = coordinateKey(entry.block.position);
-      if (entry.block.kind === 'missing') this.hydrationProgressTracker.setMissingBlockState(key, this.missingBlocksTerminal ? 'permanent' : 'provisional');
-      else this.hydrationProgressTracker.clearMissingBlockState(key);
+      this.hydrationProgressTracker.syncMissingBlockState(key, entry.block.kind === 'missing' ? (this.missingBlocksTerminal ? 'permanent' : 'provisional') : 'resolved');
     }
+    this.hydrationProgressTracker.refresh();
+  }
+
+  private recordMissingAccountingInvariant(checkpoint: string): void {
+    if (!this.runtimeDiagnosticsEnabled && !this.runtimeTrace?.isActive) return;
+    const projectMissing = new Set((this.project?.blocks ?? []).filter((block) => block.kind === 'missing').map((block) => coordinateKey(block.position)));
+    const staleKeys = this.hydrationProgressTracker.missingStateKeys().filter((key) => !projectMissing.has(key));
+    if (staleKeys.length) this.runtimeTrace?.record('missing-accounting-anomaly', { checkpoint, staleKeys: staleKeys.length });
   }
 
   private adoptCommittedBlockOwnership(entries: readonly VisibleBlockEntry[]): void {
@@ -3435,6 +3447,7 @@ export class ThreeViewportEngine {
 
   /** Bounded watchdog-only ownership audit; never called from the frame loop. */
   finalizationAuditProgress(): ViewportHydrationProgress {
+    this.recordMissingAccountingInvariant('finalization-audit');
     const progress = this.finalizationProgress();
     if (!this.project || this.cachedVisibleProject !== this.project) return progress;
     let finalReadyBlocks = 0;

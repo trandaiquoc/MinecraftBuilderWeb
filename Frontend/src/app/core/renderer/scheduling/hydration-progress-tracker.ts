@@ -84,19 +84,27 @@ export class HydrationProgressTracker {
   }
 
   setMissingBlockState(key: string, state: 'provisional' | 'permanent' | 'pending'): void {
+    this.syncMissingBlockState(key, state);
+    this.publishCurrent(this.progress.generation);
+  }
+
+  /** Updates Missing ownership without publishing once per item in a batch. */
+  syncMissingBlockState(key: string, state: 'resolved' | 'provisional' | 'permanent' | 'pending'): void {
     if (!this.blockScope.has(key)) return;
-    this.completedBlocks.delete(key);
+    if (state !== 'resolved') this.completedBlocks.delete(key);
     this.provisionalMissingBlocks.delete(key);
     this.permanentMissingBlocks.delete(key);
     if (state === 'provisional') this.provisionalMissingBlocks.add(key);
     if (state === 'permanent') this.permanentMissingBlocks.add(key);
-    this.publishCurrent(this.progress.generation);
   }
 
   clearMissingBlockState(key: string): void {
-    this.provisionalMissingBlocks.delete(key);
-    this.permanentMissingBlocks.delete(key);
+    this.syncMissingBlockState(key, 'resolved');
   }
+
+  refresh(): void { this.publishCurrent(this.progress.generation); }
+
+  missingStateKeys(): readonly string[] { return [...this.provisionalMissingBlocks, ...this.permanentMissingBlocks]; }
 
   hasBlockKey(key: string): boolean { return this.blockScope.has(key); }
 

@@ -104,4 +104,33 @@ describe('HydrationProgressTracker', () => {
     tracker.complete(4, 'block', 'known');
     expect(tracker.snapshot()).toMatchObject({ status: 'hydrating', completed: 1, blocksCompleted: 1, finalization: { expectedBlocks: 3, finalReadyBlocks: 1, provisionalMissingBlocks: 1, permanentMissingBlocks: 1, pendingBlocks: 0 } });
   });
+
+  it('clears provisional and permanent Missing state when a block becomes resolved', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['provisional', 'permanent']);
+    tracker.setMissingBlockState('provisional', 'provisional');
+    tracker.setMissingBlockState('permanent', 'permanent');
+    tracker.syncMissingBlockState('provisional', 'resolved');
+    tracker.syncMissingBlockState('permanent', 'resolved');
+    tracker.refresh();
+    expect(tracker.missingStateKeys()).toEqual([]);
+    expect(tracker.snapshot().finalization).toMatchObject({ provisionalMissingBlocks: 0, permanentMissingBlocks: 0 });
+  });
+
+  it('classifies every incremental state transition deterministically', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['block']);
+    tracker.begin(1);
+    tracker.syncMissingBlockState('block', 'provisional');
+    tracker.refresh();
+    expect(tracker.snapshot().finalization?.provisionalMissingBlocks).toBe(1);
+    tracker.syncMissingBlockState('block', 'permanent');
+    tracker.refresh();
+    expect(tracker.snapshot().finalization?.permanentMissingBlocks).toBe(1);
+    tracker.syncMissingBlockState('block', 'resolved');
+    tracker.refresh();
+    expect(tracker.snapshot().finalization?.permanentMissingBlocks).toBe(0);
+    tracker.removeBlockKey('block');
+    expect(tracker.missingStateKeys()).toEqual([]);
+  });
 });
