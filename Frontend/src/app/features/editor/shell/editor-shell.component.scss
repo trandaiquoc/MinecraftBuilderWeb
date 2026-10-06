@@ -382,11 +382,20 @@
   display: block;
   background: var(--editor-viewport-bg);
 }
-.viewport > app-viewport,
-.viewport > app-y-layer {
+.viewport-session {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.viewport-session-active {
+  visibility: visible;
+  pointer-events: auto;
 }
 .viewport-placeholder {
   display: grid;

@@ -189,10 +189,15 @@
     </div>
     @if (leftDrawerOpen() || rightDrawerOpen()) { <button type="button" class="drawer-backdrop" aria-label="{{ i18n.t('closePanel') }}" (click)="closeDrawers()"></button> }
     <main #viewportHost class="viewport" [attr.aria-label]="i18n.t('viewport')" (window:resize)="clampMovePanel()">
-      @if (mode.mode() === '3d') {
-        <app-viewport></app-viewport>
-      } @else {
-        <app-y-layer></app-y-layer>
+      @if (visitedModes().has('3d')) {
+        <div class="viewport-session" [class.viewport-session-active]="mode.mode() === '3d'">
+          <app-viewport [viewportActive]="mode.mode() === '3d'"></app-viewport>
+        </div>
+      }
+      @if (visitedModes().has('y-layer')) {
+        <div class="viewport-session" [class.viewport-session-active]="mode.mode() === 'y-layer'">
+          <app-y-layer [viewportActive]="mode.mode() === 'y-layer'"></app-y-layer>
+        </div>
       }
       @if (groups.activeGroup(); as active) {
         @if (movePanelVisible()) {
