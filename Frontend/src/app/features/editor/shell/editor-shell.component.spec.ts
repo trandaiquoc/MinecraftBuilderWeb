@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EditorShellComponent } from './editor-shell.component';
+import { AMBIGUOUS_RELEASE_GRACE_MS, EditorShellComponent } from './editor-shell.component';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
@@ -27,7 +27,7 @@ describe('editor shell movement/delete routing', () => {
     installIndexedDbStub();
     await TestBed.configureTestingModule({ imports: [EditorShellComponent] }).compileComponents();
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   it('opens and closes the Structure NBT export dialog from the File action', () => {
     const fixture = TestBed.createComponent(EditorShellComponent);
@@ -140,15 +140,37 @@ describe('editor shell movement/delete routing', () => {
     fixture.destroy();
   });
 
-  it('clears the whole movement session after an unidentifiable release', () => {
+  it('debounces an unidentifiable release while preserving known movement ownership', () => {
+    vi.useFakeTimers();
     const fixture = TestBed.createComponent(EditorShellComponent);
     const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
     const shell = withFakeViewport(fixture.componentInstance, calls);
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: '', cancelable: true }));
-    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Unidentified', code: '', cancelable: true }));
+    for (let index = 0; index < 8; index += 1) shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Unidentified', code: '', cancelable: true }));
     expect(calls.down.mock.calls.map(([action]) => action)).toEqual(['move-left']);
+    expect(calls.clear).not.toHaveBeenCalled();
+    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(1);
+    vi.advanceTimersByTime(AMBIGUOUS_RELEASE_GRACE_MS - 1);
+    expect(calls.clear).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
     expect(calls.clear).toHaveBeenCalledTimes(1);
     expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    fixture.destroy();
+  });
+
+  it('cancels ambiguous-release reconciliation when the identified key continues', () => {
+    vi.useFakeTimers();
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const calls = { down: vi.fn(), up: vi.fn(), clear: vi.fn() };
+    const shell = withFakeViewport(fixture.componentInstance, calls);
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD', cancelable: true }));
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Unidentified', code: '', cancelable: true }));
+    shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD', repeat: true, cancelable: true }));
+    vi.advanceTimersByTime(AMBIGUOUS_RELEASE_GRACE_MS);
+    expect(calls.clear).not.toHaveBeenCalled();
+    expect(calls.down.mock.calls.map(([action]) => action)).toEqual(['move-right']);
+    shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'd', code: 'KeyD', cancelable: true }));
+    expect(calls.up.mock.calls.map(([action]) => action)).toEqual(['move-right']);
     fixture.destroy();
   });
 
@@ -178,7 +200,7 @@ describe('editor shell movement/delete routing', () => {
     shell.handleEditorShortcut(secondDelete);
     expect(secondDelete.defaultPrevented).toBe(true);
     expect(deleteSelection).not.toHaveBeenCalled();
-    expect(calls.clear).toHaveBeenCalledTimes(2);
+    expect(calls.clear).not.toHaveBeenCalled();
     fixture.destroy();
   });
 

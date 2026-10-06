@@ -42,6 +42,8 @@ import { StructureJsonImportDialogComponent } from '../structure-json/structure-
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
 import type { ViewportPerformanceEvidence } from '../../../core/renderer/engine/three-viewport-engine';
 
+export const AMBIGUOUS_RELEASE_GRACE_MS = 150;
+
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
@@ -126,6 +128,7 @@ export class EditorShellComponent implements OnDestroy {
   private sidebarDrag?: { readonly side: 'left' | 'right'; readonly pointerId: number; readonly startX: number; readonly origin: number };
   private readonly pressedMovementActions = new MovementKeyOwnership();
   private keyboardStreamState: 'synchronized' | 'uncertain' = 'synchronized';
+  private ambiguousReleaseTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     void this.workspace.restore(new IndexedDbProjectStore());
@@ -351,6 +354,7 @@ export class EditorShellComponent implements OnDestroy {
         event.preventDefault();
         return;
       }
+      this.cancelAmbiguousRelease();
       const previous = this.pressedMovementActions.actionFor(owner);
       if (previous === action) {
         event.preventDefault();
@@ -376,10 +380,12 @@ export class EditorShellComponent implements OnDestroy {
   protected handleEditorKeyup(event: KeyboardEvent): void {
     const key = movementPhysicalKey(event);
     if (!key) {
-      this.invalidateMovementSession();
+      this.scheduleAmbiguousRelease();
       if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
       return;
     }
+    this.cancelAmbiguousRelease();
+    this.keyboardStreamState = 'synchronized';
     const action = this.pressedMovementActions.actionFor(key);
     if (!action) return;
     this.releaseMovementOwner(key, action);
@@ -391,6 +397,7 @@ export class EditorShellComponent implements OnDestroy {
   protected handleWindowBlur(_event?: FocusEvent): void { this.clearPressedMovementActions(); }
 
   protected clearPressedMovementActions(): void {
+    this.cancelAmbiguousRelease();
     this.pressedMovementActions.clear();
     this.currentViewport()?.clearCameraInput();
     this.keyboardStreamState = 'synchronized';
@@ -402,6 +409,20 @@ export class EditorShellComponent implements OnDestroy {
   }
 
   private invalidateMovementSession(): void { this.keyboardStreamState = 'uncertain'; this.pressedMovementActions.clear(); this.currentViewport()?.clearCameraInput(); }
+  private scheduleAmbiguousRelease(): void {
+    this.keyboardStreamState = 'uncertain';
+    if (this.ambiguousReleaseTimer !== undefined) clearTimeout(this.ambiguousReleaseTimer);
+    this.ambiguousReleaseTimer = setTimeout(() => {
+      this.ambiguousReleaseTimer = undefined;
+      if (this.pressedMovementActions.ownerCount() > 0) this.clearPressedMovementActions();
+      else this.keyboardStreamState = 'synchronized';
+    }, AMBIGUOUS_RELEASE_GRACE_MS);
+  }
+  private cancelAmbiguousRelease(): void {
+    if (this.ambiguousReleaseTimer === undefined) return;
+    clearTimeout(this.ambiguousReleaseTimer);
+    this.ambiguousReleaseTimer = undefined;
+  }
   private changeEditorMode(mode: '3d' | 'y-layer'): void { if (this.mode.mode() === mode) return; this.clearPressedMovementActions(); this.mode.setMode(mode); }
 
   private executeKeyboardAction(action: KeyboardAction): boolean {
