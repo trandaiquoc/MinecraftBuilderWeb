@@ -124,6 +124,11 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (isDevMode() && typeof window !== 'undefined') {
       this.engine.setRuntimeDiagnosticsEnabled(true);
+      // Arm the bounded dev trace before mount so the first hydration/update
+      // is included. The user can replace it with a fresh run through the
+      // exposed diagnostics API before a focused interaction sequence.
+      this.viewportTrace.start('16d-a-session');
+      this.viewportTrace.mark('BOOTSTRAP_3D');
       this.engine.setRuntimeTrace(this.viewportTrace);
       window.__mbViewportDiagnostics = this.runtimeDiagnosticsCommand;
     }
@@ -148,6 +153,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       else delete window.__minecraftBuilderDiagnostics;
     }
     this.engine.setRuntimeTrace(undefined);
+    this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
     this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.viewportStatus.release(this.viewportStatusOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.viewportStatusSync.destroy(); this.toolSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();

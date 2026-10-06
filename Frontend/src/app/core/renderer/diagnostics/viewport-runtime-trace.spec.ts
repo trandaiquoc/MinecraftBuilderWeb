@@ -135,6 +135,22 @@ describe('ViewportRuntimeTrace', () => {
     expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['controls-start', 'first-gesture-before']));
   });
 
+  it('emits before/after counter deltas for each named runtime phase', () => {
+    let current = sample({ counters: { actualSceneRenders: 2, fullSceneRebuilds: 1, terrainChunkRebuilds: 4 } });
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 110_592 }), sample: () => current });
+    trace.start('16d-a');
+    trace.mark('LOCAL_PLACE');
+    current = sample({ counters: { actualSceneRenders: 3, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 7 } });
+    trace.mark('LOCAL_DELETE');
+    const document = trace.stop();
+    const phase = document?.summary.segments['LOCAL_PLACE'];
+    expect(phase).toMatchObject({
+      before: expect.objectContaining({ fullSceneRebuilds: 1, terrainChunkRebuilds: 4 }),
+      after: expect.objectContaining({ terrainChunkRebuilds: 5 }),
+      counterDeltas: expect.objectContaining({ fullSceneRebuilds: 0, terrainChunkRebuilds: 1, actualSceneRenders: 1 }),
+    });
+  });
+
   it('keeps regressions and generation evidence as critical timeline events', () => {
     let current = sample({ hydration: { completed: 10, generation: 1 } });
     const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => current });

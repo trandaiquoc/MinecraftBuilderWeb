@@ -223,7 +223,7 @@ export class ViewportRuntimeTrace {
   private hydrationProgressObserved = false;
   private traceRecordCount = 0;
   private captureSampleCount = 0;
-  private readonly markedSegments: { readonly label: string; readonly t: number }[] = [];
+  private readonly markedSegments: { readonly label: string; readonly t: number; readonly sample?: ViewportTraceSample & { readonly t: number; readonly reason: string } }[] = [];
   private firstCounters?: Readonly<Record<string, unknown>>;
   private lastCounters?: Readonly<Record<string, unknown>>;
   private hydrationAggregate = { startCompleted: undefined as number | undefined, latestCompleted: undefined as number | undefined, generationStart: undefined as number | undefined, generationEnd: undefined as number | undefined, regressions: 0 };
@@ -257,7 +257,14 @@ export class ViewportRuntimeTrace {
     this.observeLongTasks();
   }
 
-  mark(label: string): void { if (!this.active) return; const normalized = label.slice(0, 120); const t = this.elapsed(); this.markedSegments.push({ label: normalized, t }); this.pushEvent('mark', { label: normalized }, 'critical', t); this.captureSample(`mark:${normalized.slice(0, 40)}`); }
+  mark(label: string): void {
+    if (!this.active) return;
+    const normalized = label.slice(0, 120);
+    const t = this.elapsed();
+    this.pushEvent('mark', { label: normalized }, 'critical', t);
+    const captured = this.captureSample(`mark:${normalized.slice(0, 40)}`);
+    this.markedSegments.push({ label: normalized, t, ...(captured ? { sample: captured } : {}) });
+  }
 
   record(type: string, payload?: Readonly<Record<string, unknown>>): void {
     if (!this.active) return;
@@ -354,17 +361,19 @@ export class ViewportRuntimeTrace {
     const triangles = numeric(sample.render?.['triangles']); if (triangles !== undefined) this.renderAggregate.triangles.add(triangles);
   }
 
-  captureSample(reason = 'manual'): void {
-    if (!this.active) return;
+  captureSample(reason = 'manual'): (ViewportTraceSample & { readonly t: number; readonly reason: string }) | undefined {
+    if (!this.active) return undefined;
     this.captureSampleCount += 1;
     let sample: ViewportTraceSample;
-    try { sample = this.hooks.sample(); } catch { return; }
+    try { sample = this.hooks.sample(); } catch { return undefined; }
     const t = this.elapsed();
-    this.samples.push({ ...sample, t, reason });
+    const captured = { ...sample, t, reason };
+    this.samples.push(captured);
     this.updateAggregates(sample);
     this.detectAnomalies(sample, t);
     this.lastSample = sample;
     this.lastSampleTime = t;
+    return captured;
   }
 
   stop(): ViewportTraceDocument | undefined {
@@ -509,9 +518,32 @@ export class ViewportRuntimeTrace {
     for (let index = 0; index < markers.length - 1; index++) {
       const marker = markers[index]; const next = markers[index + 1];
       const range = samples.filter((sample) => sample.t >= marker.t && sample.t <= next.t);
-      const first = range[0]; const last = range.at(-1);
+      const first = marker.sample ?? range[0]; const last = next.sample ?? range.at(-1);
       const completed = range.map((sample) => numeric(sample.hydration?.['completed'])).filter((value): value is number => value !== undefined);
-      result[marker.label] = { startMs: marker.t, durationMs: Math.max(0, next.t - marker.t), hydrationCompletedDelta: (completed.at(-1) ?? 0) - (completed[0] ?? 0), generationStart: numeric(first?.hydration?.['generation']), generationEnd: numeric(last?.hydration?.['generation']), terrainChunkRebuildsDelta: counterDelta(first, last, 'terrainChunkRebuilds'), terrainBulkBatchesDelta: counterDelta(first, last, 'terrainBulkBatches'), structuralReconcilesDelta: counterDelta(first, last, 'structuralReconciles'), fullSceneRebuildsDelta: counterDelta(first, last, 'fullSceneRebuilds'), providerGenerationStart: numeric(first?.generations?.['providerGeneration']), providerGenerationEnd: numeric(last?.generations?.['providerGeneration']), renderCountDelta: counterDelta(first, last, 'actualSceneRenders'), cameraStartDistance: first?.camera?.distance, cameraEndDistance: last?.camera?.distance, cameraOffsetDrift: first?.camera && last?.camera ? distance3(first.camera.offset, last.camera.offset) : 0 };
+      const beforeCounters = numericCounters(first?.counters as Readonly<Record<string, unknown>> | undefined);
+      const afterCounters = numericCounters(last?.counters as Readonly<Record<string, unknown>> | undefined);
+      const counterDeltas = counterDeltaMap(beforeCounters, afterCounters);
+      result[marker.label] = {
+        label: marker.label,
+        startMs: marker.t,
+        durationMs: Math.max(0, next.t - marker.t),
+        before: beforeCounters,
+        after: afterCounters,
+        counterDeltas,
+        hydrationCompletedDelta: (completed.at(-1) ?? 0) - (completed[0] ?? 0),
+        generationStart: numeric(first?.hydration?.['generation']),
+        generationEnd: numeric(last?.hydration?.['generation']),
+        terrainChunkRebuildsDelta: counterDeltas['terrainChunkRebuilds'] ?? 0,
+        terrainBulkBatchesDelta: counterDeltas['terrainBulkBatches'] ?? 0,
+        structuralReconcilesDelta: counterDeltas['structuralReconciles'] ?? 0,
+        fullSceneRebuildsDelta: counterDeltas['fullSceneRebuilds'] ?? 0,
+        providerGenerationStart: numeric(first?.generations?.['providerGeneration']),
+        providerGenerationEnd: numeric(last?.generations?.['providerGeneration']),
+        renderCountDelta: counterDeltas['actualSceneRenders'] ?? 0,
+        cameraStartDistance: first?.camera?.distance,
+        cameraEndDistance: last?.camera?.distance,
+        cameraOffsetDrift: first?.camera && last?.camera ? distance3(first.camera.offset, last.camera.offset) : 0,
+      };
     }
     return result;
   }
@@ -531,7 +563,14 @@ function requestFrame(callback: FrameRequestCallback): number { return typeof re
 function cancelFrame(frame: number): void { if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame); else clearTimeout(frame); }
 function numeric(value: unknown): number | undefined { return typeof value === 'number' && Number.isFinite(value) ? value : undefined; }
 function priorityOrder(priority: ViewportTraceEventPriority | undefined): number { return priority === 'critical' ? 0 : priority === 'normal' ? 1 : 2; }
-function counterDelta(first: (ViewportTraceSample & { readonly t: number; readonly reason: string }) | undefined, last: (ViewportTraceSample & { readonly t: number; readonly reason: string }) | undefined, key: string): number { const firstCounters = (first?.counters ?? {}) as Readonly<Record<string, unknown>>; const lastCounters = (last?.counters ?? {}) as Readonly<Record<string, unknown>>; return Math.max(0, (numeric(lastCounters[key]) ?? 0) - (numeric(firstCounters[key]) ?? 0)); }
+function numericCounters(value: Readonly<Record<string, unknown>> | undefined): Readonly<Record<string, number>> {
+  if (!value) return {};
+  return Object.fromEntries(Object.entries(value).flatMap(([key, entry]) => { const number = numeric(entry); return number === undefined ? [] : [[key, number]]; }));
+}
+function counterDeltaMap(before: Readonly<Record<string, number>>, after: Readonly<Record<string, number>>): Readonly<Record<string, number>> {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return Object.fromEntries([...keys].sort().map((key) => [key, Math.max(0, (after[key] ?? 0) - (before[key] ?? 0))]));
+}
 function distance3(a: TraceVector3, b: TraceVector3): number { return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z); }
 function angleDegrees(a: TraceVector3, b: TraceVector3): number { const al = Math.hypot(a.x, a.y, a.z); const bl = Math.hypot(b.x, b.y, b.z); if (!al || !bl) return 0; return Math.acos(Math.min(1, Math.max(-1, (a.x * b.x + a.y * b.y + a.z * b.z) / (al * bl)))) * 180 / Math.PI; }
 function quaternionAngle(a: readonly [number, number, number, number], b: readonly [number, number, number, number]): number { return Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 2 * 180 / Math.PI; }

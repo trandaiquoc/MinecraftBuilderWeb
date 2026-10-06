@@ -2464,3 +2464,15 @@ The editor status bar reports the exact `ProjectDocument.blocks.length` count
 and the current viewport coordinate. Hover coordinates come from the existing
 3D/Y-Layer hit callback, with owner-aware handoff and project-ID checks so a
 retained inactive viewport cannot publish or clear another mode's status.
+
+## Final performance audit trace
+
+Development 3D viewport sessions arm the existing bounded `ViewportRuntimeTrace`
+before the first mount/update. The trace remains observational and is exposed at
+`window.__minecraftBuilderDiagnostics.viewportTrace`; calling `start()` resets a
+focused run, `mark('PHASE')` creates a named boundary, and `stopAndDownload()`
+exports one JSON evidence package. Each named segment now includes numeric
+renderer counter `before`, `after`, and `counterDeltas` snapshots alongside the
+existing hydration, camera, render, responsiveness, and long-task summaries.
+The 110,592-block fixture remains opt-in; a browser run against the real
+approximately 108k project is required before claiming real-runtime PASS.
