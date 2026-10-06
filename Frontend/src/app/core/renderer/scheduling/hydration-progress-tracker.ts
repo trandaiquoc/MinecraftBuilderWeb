@@ -23,6 +23,13 @@ export interface HydrationFinalizationSnapshot {
   readonly pendingBlocks: number;
 }
 
+export interface HydrationBlockScopeDelta {
+  readonly add?: readonly string[];
+  readonly remove?: readonly string[];
+  readonly invalidate?: readonly string[];
+  readonly missing?: ReadonlyMap<string, 'resolved' | 'provisional' | 'permanent' | 'pending'>;
+}
+
 type ProgressPart = 'block' | 'decoration';
 
 const idleProgress = (generation: number, lane: HydrationLane = 'structural'): HydrationProgressSnapshot => ({
@@ -69,6 +76,15 @@ export class HydrationProgressTracker {
     for (const key of next) this.blockScope.add(key);
     for (const key of this.provisionalMissingBlocks) if (!next.has(key)) this.provisionalMissingBlocks.delete(key);
     for (const key of this.permanentMissingBlocks) if (!next.has(key)) this.permanentMissingBlocks.delete(key);
+  }
+
+  /** Applies one projection/local scope delta without publishing per key. */
+  applyBlockScopeDelta(delta: HydrationBlockScopeDelta, publish = true): void {
+    for (const key of delta.remove ?? []) this.removeBlockKey(key);
+    for (const key of delta.add ?? []) this.addBlockKey(key);
+    for (const key of delta.invalidate ?? []) this.completedBlocks.delete(key);
+    for (const [key, state] of delta.missing ?? []) this.syncMissingBlockState(key, state);
+    if (publish) this.refresh();
   }
 
   addBlockKey(key: string): void {

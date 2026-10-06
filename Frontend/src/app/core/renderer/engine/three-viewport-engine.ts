@@ -53,7 +53,7 @@ import { CameraInteractionController } from '../scheduling/camera-interaction-co
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
 import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
-import type { HydrationFinalizationSnapshot, HydrationLane, HydrationProgressSnapshot, HydrationStatus } from '../scheduling/hydration-progress-tracker';
+import type { HydrationBlockScopeDelta, HydrationFinalizationSnapshot, HydrationLane, HydrationProgressSnapshot, HydrationStatus } from '../scheduling/hydration-progress-tracker';
 import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
 import { ProviderRefreshCoordinator } from '../provider/provider-refresh-coordinator';
 import { ProviderRefreshPlanner, type ProviderRefreshPlannerProgress } from '../provider/provider-refresh-planner';
@@ -75,7 +75,7 @@ import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
 import { fluidChunkKey } from '../fluids/fluid-mesh-core';
 import { planLocalRenderDelta } from '../mutations/local-render-delta';
 import { applyLocalFluidDelta } from '../mutations/local-fluid-render-delta';
-import type { FluidWorldLookup } from '../fluids/fluid-state';
+import type { FluidWorldLookup, ResolvedFluidRenderState } from '../fluids/fluid-state';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -542,6 +542,7 @@ export const VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH = 8;
 export const VIEWPORT_CAMERA_IDLE_GRACE_MS = 160;
 export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
 export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
+const Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT = 256;
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
@@ -640,6 +641,9 @@ export class ThreeViewportEngine {
   private pendingProjection?: { readonly project: ProjectDocument; readonly options: ViewportRenderOptions };
   private projectionFrame?: number;
   private projectionRevision = 0;
+  private projectionWorkToken = 0;
+  /** Layers touched by a cooperative job that has not reached a coherent projection yet. */
+  private readonly inFlightProjectionLayers = new Set<number>();
   private readonly projectionKeyRevisions = new Map<string, number>();
   private structuralSpecialVisualIds = new Set<string>();
   private cachedBoundsKey = '';
@@ -1590,19 +1594,24 @@ export class ThreeViewportEngine {
       const base = this.committedProjection;
       if (!base || base.project.id !== pending.project.id || base.project.blocks !== pending.project.blocks) return;
       const delta = planYLayerProjectionDelta(base.options.layerY, base.options.visibility, pending.options.layerY, pending.options.visibility, pending.options.layerIndex ?? this.layerIndex);
-      if (!delta.changedLayers.length) return;
+      const changedLayers = [...new Set([...delta.changedLayers, ...this.inFlightProjectionLayers])].sort((left, right) => left - right);
+      if (!changedLayers.length) return;
       this.projectionRevision += 1;
-      this.applyLayerProjectionDelta(pending.project, pending.options, delta.changedLayers);
-      this.committedProjection = { project: pending.project, options: pending.options };
-      this.syncedProject = pending.project;
-      this.syncedBlockCount = pending.project.blocks.length;
-      this.syncedBlocksReference = pending.project.blocks;
-      this.structureSyncKey = `${pending.project.id}|${pending.project.size.x},${pending.project.size.y},${pending.project.size.z}|${renderFilterKey(pending.options)}`;
-      this.instrumentation.record('yLayerProjectionCommits');
+      void this.applyLayerProjectionWork(pending.project, pending.options, changedLayers).then((completed) => {
+        if (!completed || this.disposed) return;
+        this.committedProjection = { project: pending.project, options: pending.options };
+        this.syncedProject = pending.project;
+        this.syncedBlockCount = pending.project.blocks.length;
+        this.syncedBlocksReference = pending.project.blocks;
+        this.structureSyncKey = `${pending.project.id}|${pending.project.size.x},${pending.project.size.y},${pending.project.size.z}|${renderFilterKey(pending.options)}`;
+        this.instrumentation.record('yLayerProjectionCommits');
+      });
     });
   }
 
   private cancelPendingProjection(): void {
+    this.projectionWorkToken += 1;
+    this.inFlightProjectionLayers.clear();
     if (this.projectionFrame !== undefined) cancelViewportFrame(this.projectionFrame);
     this.projectionFrame = undefined;
     this.pendingProjection = undefined;
@@ -1815,38 +1824,186 @@ export class ThreeViewportEngine {
     this.cachedVisibleIndices.delete(key);
   }
 
-  private applyLayerProjectionDelta(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[]): void {
-    const nextVisible = this.visibleBlocks(project, options, false);
-    const previousVisible = this.cachedVisibleMap;
-    const nextMap = new Map(nextVisible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
+  private async applyLayerProjectionWork(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[]): Promise<boolean> {
+    const token = ++this.projectionWorkToken;
+    const layerIndex = options.layerIndex ?? this.layerIndex;
+    const blocksForLayer = (layer: number): readonly ProjectDocument['blocks'][number][] => layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
+    const cooperative = options.visibility === 'all-below' && changedLayers.length > 8;
+    if (!cooperative) {
+      if (token !== this.projectionWorkToken) return false;
+      this.applyLayerProjectionDelta(project, options, changedLayers);
+      this.inFlightProjectionLayers.clear();
+      return token === this.projectionWorkToken;
+    }
+
+    const batches: Array<{ readonly layers: readonly number[]; readonly blocks: ReadonlyMap<number, readonly ProjectDocument['blocks'][number][]> }> = [];
+    for (const layer of changedLayers) {
+      const blocks = blocksForLayer(layer);
+      if (!blocks.length) {
+        batches.push({ layers: [layer], blocks: new Map([[layer, []]]) });
+        continue;
+      }
+      for (let start = 0; start < blocks.length; start += Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT) {
+        batches.push({ layers: [layer], blocks: new Map([[layer, blocks.slice(start, start + Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT)]]) });
+      }
+    }
+
+    for (let index = 0; index < batches.length; index += 1) {
+      if (token !== this.projectionWorkToken) {
+        this.instrumentation.record('yLayerProjectionCancellations');
+        return false;
+      }
+      const slice = batches[index];
+      const sliceLayers = slice.layers;
+      for (const layer of sliceLayers) this.inFlightProjectionLayers.add(layer);
+      const started = performance.now();
+      this.applyLayerProjectionDelta(project, options, sliceLayers, slice.blocks, false, false);
+      const sliceMs = performance.now() - started;
+      this.instrumentation.record('yLayerProjectionSlices');
+      this.instrumentation.recordMax('yLayerProjectionMaxSliceMs', sliceMs);
+      if (index + 1 < batches.length) {
+        this.instrumentation.record('yLayerProjectionYields');
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    }
+    this.updateHydrationOrder();
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+    this.inFlightProjectionLayers.clear();
+    return token === this.projectionWorkToken;
+  }
+
+  private applyLayerProjectionDelta(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], blockOverrides?: ReadonlyMap<number, readonly ProjectDocument['blocks'][number][]>, flushTerrain = true, publishProgress = true): void {
+    const started = performance.now();
+    const layerIndex = options.layerIndex ?? this.layerIndex;
+    const blocksForLayer = (layer: number): readonly ProjectDocument['blocks'][number][] => blockOverrides?.get(layer) ?? layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
+    const changes = new Map<string, { readonly before?: VisibleBlockEntry; readonly after?: VisibleBlockEntry; readonly position: VoxelCoordinate }>();
+    for (const layer of changedLayers) {
+      for (const block of blocksForLayer(layer)) {
+        const key = coordinateKey(block.position);
+        if (changes.has(key)) continue;
+        const before = this.cachedVisibleMap.get(key);
+        const after = isBlockVisibleForViewport(block, project, { ...options, layerIndex }) ? this.visibleEntry(block, options) : undefined;
+        if (before?.signature === after?.signature && before?.role === after?.role) continue;
+        changes.set(key, { before, after, position: block.position });
+      }
+    }
+
     let addedVisible = 0;
     let removedVisible = 0;
     let roleChanged = 0;
-    let changedBlocks = 0;
-    const keys = new Set([...previousVisible.keys(), ...nextMap.keys()]);
-    for (const key of keys) {
-      const before = previousVisible.get(key);
-      const after = nextMap.get(key);
-      if (!before && after) addedVisible += 1;
-      else if (before && !after) removedVisible += 1;
-      else if (before && after && before.role !== after.role) roleChanged += 1;
-      if (before?.signature !== after?.signature) changedBlocks += 1;
+    const added: string[] = [];
+    const removed: string[] = [];
+    const invalidated: string[] = [];
+    const missing = new Map<string, 'resolved' | 'provisional' | 'permanent'>();
+    for (const [key, change] of changes) {
+      if (!change.before && change.after) { addedVisible += 1; added.push(key); }
+      else if (change.before && !change.after) { removedVisible += 1; removed.push(key); }
+      else if (change.before && change.after) { roleChanged += change.before.role !== change.after.role ? 1 : 0; invalidated.push(key); }
+      if (change.after) missing.set(key, change.after.block.kind === 'missing' ? (this.missingBlocksTerminal ? 'permanent' : 'provisional') : 'resolved');
+      if (change.after) this.cacheVisibleEntry(key, change.after);
+      else this.removeCachedVisibleEntry(key);
+      if (change.after) this.previousVisibleBlockPositions.set(key, { ...change.position });
+      else this.previousVisibleBlockPositions.delete(key);
     }
+    this.cachedVisibleProject = project;
+    this.cachedVisibleKey = renderFilterKey(options);
+    const changedProjectionKeys = new Set(changes.keys());
+    if (!changedProjectionKeys.size) {
+      const durationMs = performance.now() - started;
+      this.instrumentation.record('yLayerProjectionCommitMs', durationMs);
+      this.instrumentation.recordMax('yLayerProjectionMaxCommitMs', durationMs);
+      return;
+    }
+    const scopeDelta: HydrationBlockScopeDelta = { add: added, remove: removed, invalidate: invalidated, missing };
+    this.hydrationProgressTracker.applyBlockScopeDelta(scopeDelta, false);
     this.instrumentation.record('yLayerProjectionChangedLayers', changedLayers.length);
-    this.instrumentation.record('yLayerProjectionChangedBlocks', changedBlocks);
+    this.instrumentation.record('yLayerProjectionChangedBlocks', changes.size);
     this.instrumentation.record('yLayerProjectionAddedVisible', addedVisible);
     this.instrumentation.record('yLayerProjectionRemovedVisible', removedVisible);
     this.instrumentation.record('yLayerProjectionRoleChanged', roleChanged);
-    const changedProjectionKeys = new Set<string>();
-    for (const key of keys) if (previousVisible.get(key)?.signature !== nextMap.get(key)?.signature) changedProjectionKeys.add(key);
     this.hydrationWork.removePendingKeys(changedProjectionKeys);
     this.bumpProjectionRevisions(changedProjectionKeys);
     for (const key of changedProjectionKeys) {
       this.pendingHydrationSignatures.delete(key);
       this.placeholderSignatures.delete(key);
     }
-    this.reconcileStructure(project, options, false, nextVisible, true);
-    this.runtimeTrace?.record('y-layer-projection-delta', { layers: changedLayers, changedBlocks, addedVisible, removedVisible, roleChanged, projectionRevision: this.projectionRevision });
+
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const fluidKeys = this.syncProjectionFluidDelta(changes, worldContext);
+    this.updateInteriorCullingDelta(changes);
+    const terrainChanges: TerrainBlockChange[] = [];
+    const allowInstancing = this.cachedVisibleEntries.length >= VIEWPORT_INSTANCE_THRESHOLD || this.instanceBatches.size > 0;
+    for (const [key, change] of changes) {
+      const current = this.renderedBlocks.get(key);
+      if (!change.after) {
+        if (current) this.removeBlockEntry(key, current);
+        else this.terrainRenderer.remove(key);
+        this.removePlaceholderVisual(key);
+        terrainChanges.push({ key, position: change.position, afterOpaque: false });
+        continue;
+      }
+      if (fluidKeys.has(key)) continue;
+      if (current && (current.signature !== change.after.signature || current.role !== change.after.role)) this.removeBlockEntry(key, current);
+      this.ensurePlaceholderVisual(key, change.after.block, change.after.role);
+      this.pendingHydrationSignatures.set(key, change.after.signature);
+      if (!this.visualProvider) {
+        this.pendingHydrationSignatures.delete(key);
+        this.placeholderSignatures.set(key, change.after.signature);
+        terrainChanges.push({ key, position: change.position, afterOpaque: false });
+        continue;
+      }
+      this.placeholderSignatures.delete(key);
+      this.hydrationWork.enqueueRegular({ token: this.hydrationGeneration, projectionRevision: this.projectionRevisionForKey(key), key, block: change.after.block, signature: change.after.signature, role: change.after.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && isCompiledTerrainEntry(change.after), surfaceVisibleEntries: this.cachedVisibleMap });
+      terrainChanges.push({ key, position: change.position, afterOpaque: isCompiledTerrainEntry(change.after) });
+    }
+    if (terrainChanges.length) this.terrainRenderer.applyBlockChanges(terrainChanges, flushTerrain, [...changedProjectionKeys]);
+    if (publishProgress) {
+      this.updateHydrationOrder();
+      this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+      if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+    }
+    const durationMs = performance.now() - started;
+    this.instrumentation.record('yLayerProjectionCommitMs', durationMs);
+    this.instrumentation.recordMax('yLayerProjectionMaxCommitMs', durationMs);
+    this.runtimeTrace?.record('y-layer-projection-delta', { layers: changedLayers, changedBlocks: changes.size, addedVisible, removedVisible, roleChanged, projectionRevision: this.projectionRevision, durationMs });
+  }
+
+  private updateInteriorCullingDelta(changes: ReadonlyMap<string, { readonly before?: VisibleBlockEntry; readonly after?: VisibleBlockEntry; readonly position: VoxelCoordinate }>): void {
+    const dirty = new Set<string>();
+    for (const change of changes.values()) {
+      dirty.add(coordinateKey(change.position));
+      for (const neighbor of coordinateNeighbors(change.position)) dirty.add(coordinateKey(neighbor));
+    }
+    for (const key of dirty) {
+      const entry = this.cachedVisibleMap.get(key);
+      if (!entry) { if (this.culledBlockKeys.delete(key)) this.instrumentation.record('interiorBlocksCulled', -1); continue; }
+      this.instrumentation.record('interiorCullingChecks');
+      this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, this.cachedVisibleMap));
+    }
+  }
+
+  private syncProjectionFluidDelta(changes: ReadonlyMap<string, { readonly before?: VisibleBlockEntry; readonly after?: VisibleBlockEntry; readonly position: VoxelCoordinate }>, worldContext: FluidWorldLookup): ReadonlySet<string> {
+    const resolver = this.visualProvider?.fluidRenderResolver;
+    if (!resolver || !this.visualProvider?.fluidTexture) return new Set<string>();
+    const fluidChanges: Array<{ readonly position: VoxelCoordinate; readonly before?: { readonly block: ProjectDocument['blocks'][number]; readonly state: ResolvedFluidRenderState; readonly role: 'normal' | 'reference' }; readonly after?: { readonly block: ProjectDocument['blocks'][number]; readonly state: ResolvedFluidRenderState; readonly role: 'normal' | 'reference' } }> = [];
+    const afterKeys = new Set<string>();
+    for (const [key, change] of changes) {
+      const beforeState = change.before && resolver.resolve(change.before.block, worldContext);
+      const afterState = change.after && resolver.resolve(change.after.block, worldContext);
+      this.instrumentation.record('yLayerProjectionFluidBlocksVisited', 1);
+      const before = beforeState ? { block: change.before!.block, state: beforeState, role: change.before!.role === 'reference' ? 'reference' as const : 'normal' as const } : undefined;
+      const after = afterState ? { block: change.after!.block, state: afterState, role: change.after!.role === 'reference' ? 'reference' as const : 'normal' as const } : undefined;
+      if (after) afterKeys.add(key);
+      if (before || after) fluidChanges.push({ position: change.position, before, after });
+      const current = this.renderedBlocks.get(key);
+      if (after) {
+        if (current && current.fluidChunkKey === undefined) this.removeBlockEntry(key, current);
+        this.renderedBlocks.set(key, { key, block: after.block, signature: change.after!.signature, role: change.after!.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(after.block.position) });
+      } else if (current?.fluidChunkKey !== undefined) this.renderedBlocks.delete(key);
+    }
+    if (fluidChanges.length) void this.fluidCoordinator.syncDelta(fluidChanges, [...changes.values()].map((change) => change.position), worldContext, this.hydrationGeneration).then(() => { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); });
+    return afterKeys;
   }
 
   private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
