@@ -18,6 +18,7 @@ export interface InstanceBatch {
   readonly parts: readonly THREE.InstancedMesh[];
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
+  readonly renderRole: 'normal' | 'reference';
 }
 
 export interface InstanceBatchRendererOptions {
@@ -48,6 +49,7 @@ export class InstanceBatchRenderer {
     key: string,
     source: 'provider-async' | 'cached-template' = 'provider-async',
     compiled?: CompiledInstanceTemplates,
+    renderRole: 'normal' | 'reference' = 'normal',
   ): { readonly batchKey: string; readonly index: number } | undefined {
     const resolved = compiled ?? compileInstanceTemplates(templates);
     const existingEntry = this.options.getEntry(key);
@@ -55,7 +57,7 @@ export class InstanceBatchRenderer {
     if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
     else if (this.ownershipIndex.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);
     const region = this.options.regionPolicy?.key(position) ?? this.options.chunkKey(position);
-    const baseKey = `${region}|${resolved.signature}`;
+    const baseKey = `${region}|${resolved.signature}|role:${renderRole}`;
     let segment = 0;
     let batchKey = `${baseKey}|segment:${segment}`;
     let batch = this.batches.get(batchKey);
@@ -67,7 +69,8 @@ export class InstanceBatchRenderer {
     if (!batch) {
       const parts = resolved.templates.map((template) => {
         const material = template.material.clone();
-        material.transparent = false;
+        material.transparent = renderRole === 'reference';
+        material.opacity = renderRole === 'reference' ? this.referenceOpacity : 1;
         material.depthWrite = true;
         const mesh = new THREE.InstancedMesh(template.geometry, material, this.options.capacity);
         mesh.count = 0;
@@ -82,7 +85,7 @@ export class InstanceBatchRenderer {
         return mesh;
       });
       this.options.record('instancedBoundsComputations', parts.length);
-      batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [] };
+      batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
       this.batches.set(batchKey, batch);
       this.options.record('instancedBatchCreations');
       this.options.record('instancedMeshCount', parts.length);
@@ -107,6 +110,19 @@ export class InstanceBatchRenderer {
     this.options.setEntryObject?.(key, batchKey, index, batch.parts[0]);
     this.options.trace?.('after-insert', key, source);
     return { batchKey, index };
+  }
+
+  private referenceOpacity = .28;
+
+  setReferenceOpacity(opacity: number): void {
+    this.referenceOpacity = Math.max(0, Math.min(1, opacity));
+    for (const batch of this.batches.values()) {
+      if (batch.renderRole !== 'reference') continue;
+      for (const part of batch.parts) {
+        const materials = Array.isArray(part.material) ? part.material : [part.material];
+        for (const material of materials) { material.transparent = true; material.opacity = this.referenceOpacity; material.needsUpdate = true; }
+      }
+    }
   }
 
   remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void {

@@ -90,11 +90,11 @@ export class StaticModelBatchRenderer {
     return template;
   }
 
-  tryAdd(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey: string | undefined, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
+  tryAdd(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey: string | undefined, source: 'provider-async' | 'cached-template' = 'provider-async', renderRole: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
     const cached = reusableKey ? this.templateCache.get(reusableKey) : undefined;
     if (cached) {
       this.templateCacheHits += 1;
-      const result = this.delegate.addFromTemplates(cached.templates, block.position, key, source, cached);
+      const result = this.delegate.addFromTemplates(cached.templates, block.position, key, source, cached, renderRole);
       this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: 'reusable-template-cache', templatePartCount: cached.templates.length });
       return result;
     }
@@ -111,14 +111,14 @@ export class StaticModelBatchRenderer {
       this.templateCache.set(reusableKey, classification.compiled);
       this.options.instrumentation.record('reusableTemplateCreations');
     }
-    const result = this.delegate.addFromTemplates(classification.compiled.templates, block.position, key, source, classification.compiled);
+    const result = this.delegate.addFromTemplates(classification.compiled.templates, block.position, key, source, classification.compiled, renderRole);
     this.decisions.set(key, { classification: 'batchable', kind: classification.kind, reason: 'classified-static-model', templatePartCount: classification.compiled.templates.length });
     return result;
   }
 
-  addFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates): { readonly batchKey: string; readonly index: number } | undefined {
+  addFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates, renderRole: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
     const resolvedCompiled = compiled ?? compileInstanceTemplates(templates, this.options.instrumentation);
-    const result = this.delegate.addFromTemplates(templates, block.position, key, source, resolvedCompiled);
+    const result = this.delegate.addFromTemplates(templates, block.position, key, source, resolvedCompiled, renderRole);
     this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: compiled ? 'reusable-template-cache' : 'precompiled-static-model', templatePartCount: resolvedCompiled.templates.length });
     return result;
   }
@@ -159,6 +159,8 @@ export class StaticModelBatchRenderer {
   }
 
   clear(): void { this.delegate.clear(); this.clearTemplates(); this.resetMetrics(); }
+
+  setReferenceOpacity(opacity: number): void { this.delegate.setReferenceOpacity(opacity); }
 
   private reject(kind: StaticModelClassificationKind): void { this.rejectionCounts.set(kind, (this.rejectionCounts.get(kind) ?? 0) + 1); }
 }

@@ -942,6 +942,22 @@ export class ThreeViewportEngine {
     if (this.renderer) this.scheduleRender();
   }
 
+  /** Updates reference presentation without invalidating model or terrain caches. */
+  setReferenceOpacity(value: number): void {
+    const opacity = Math.max(0, Math.min(1, value));
+    this.renderOptions = { ...this.renderOptions, referenceOpacity: opacity };
+    this.fallbackMaterials.reference.transparent = true;
+    this.fallbackMaterials.reference.opacity = opacity;
+    this.placeholderMaterials.reference.transparent = true;
+    this.placeholderMaterials.reference.opacity = opacity;
+    this.instanceRenderer.setReferenceOpacity(opacity);
+    for (const entry of this.renderedBlocks.values()) {
+      if (entry.role !== 'reference' || !entry.object || entry.instanceBatchKey !== undefined || entry.terrainChunkKey !== undefined || entry.surfaceFaceMemberships !== undefined) continue;
+      applyReferenceOpacityToObject(entry.object, opacity);
+    }
+    this.scheduleRender();
+  }
+
   lighting(): ViewportLighting { return viewportLightingForBrightness(this.blockBrightness); }
 
   private applyBlockBrightness(): void {
@@ -1283,6 +1299,7 @@ export class ThreeViewportEngine {
     const previousOptions = this.renderOptions;
     const previousSyncKey = this.structureSyncKey;
     const nextSyncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}` : 'empty';
+    const referenceOpacityOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && renderFilterKey(previousOptions) === renderFilterKey(options) && previousOptions.referenceOpacity !== options.referenceOpacity;
     const incrementalMutation = !!project && !!previousProject && project !== previousProject && !!mutationHint && nextSyncKey === previousSyncKey && renderFilterKey(previousOptions) === renderFilterKey(options) && this.cachedVisibleProject === previousProject && this.spatialIndexProject === previousProject;
     this.project = project;
     this.activeBlock = active;
@@ -1291,7 +1308,7 @@ export class ThreeViewportEngine {
     this.ensureSpatialIndex(project, incrementalMutation ? false : inPlaceBlockMutation, incrementalMutation);
     this.syncSpecialVisualDescriptors();
     const syncKey = nextSyncKey;
-    const blockInputChanged = project !== this.syncedProject || syncKey !== this.structureSyncKey;
+    const blockInputChanged = !referenceOpacityOnly && (project !== this.syncedProject || syncKey !== this.structureSyncKey);
     const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
     const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
     const full = syncKey !== this.structureSyncKey;
@@ -1321,6 +1338,14 @@ export class ThreeViewportEngine {
       this.syncedProject = project;
       this.syncedBlockCount = project?.blocks.length;
       this.syncedBlocksReference = project?.blocks;
+    }
+    if (referenceOpacityOnly) {
+      this.setReferenceOpacity(options.referenceOpacity ?? .28);
+      this.cachedVisibleProject = project;
+      this.syncedProject = project;
+      this.syncedBlockCount = project?.blocks.length;
+      this.syncedBlocksReference = project?.blocks;
+      this.structureSyncKey = syncKey;
     }
     if (decorationInputChanged) {
       if (!blockInputChanged) this.cancelDecorationHydration();
@@ -2343,18 +2368,14 @@ export class ThreeViewportEngine {
         child.userData['voxel'] = job.block.position;
         child.userData['renderRole'] = job.role;
         child.userData['realModel'] = true;
-        if (child instanceof THREE.Mesh && job.role === 'reference') {
-          const materials = Array.isArray(child.material) ? child.material : [child.material];
-          for (const material of materials) { material.transparent = true; material.opacity = job.options.referenceOpacity ?? .28; }
-        }
       });
       this.removeBlockEntry(job.key, entry);
       const replacement: RenderedBlockEntry = { key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider };
-      const staticBatchingAllowed = job.role === 'normal' && this.instanceRenderer.shouldAttempt(true, reusableKey);
+      const staticBatchingAllowed = job.role !== 'missing' && this.instanceRenderer.shouldAttempt(true, reusableKey);
       replacement.reusableVisualKey = reusableKey;
       replacement.staticModelAttempted = staticBatchingAllowed;
       replacement.staticModelFamily = visualFamily(object) ?? familyFromReusableKey(reusableKey);
-      const instance = staticBatchingAllowed ? this.addInstanceVisual(object, job.block, job.key, reusableKey, 'provider-async') : undefined;
+      const instance = staticBatchingAllowed ? this.addInstanceVisual(object, job.block, job.key, reusableKey, 'provider-async', job.role) : undefined;
       if (instance) {
         replacement.instanceBatchKey = instance.batchKey;
         replacement.instanceIndex = instance.index;
@@ -2362,6 +2383,7 @@ export class ThreeViewportEngine {
         replacement.staticModelDecision = this.instanceRenderer.decisionFor(job.key);
         disposeObject(object);
       } else {
+        if (job.role === 'reference') applyReferenceOpacityToObject(object, job.options.referenceOpacity ?? .28);
         replacement.staticModelDecision = this.instanceRenderer.decisionFor(job.key);
         replacement.object = object;
         this.blocksGroup.add(object);
@@ -2394,8 +2416,8 @@ export class ThreeViewportEngine {
     this.renderedBlocks.set(entry.key, entry);
     const providerAvailable = !!this.visualProvider && block.kind !== 'missing';
     const provider = this.visualProvider;
-    const reusableKey = providerAvailable && role === 'normal' ? this.requestReusableVisualKey(provider!, block, worldContext) : undefined;
-    const staticBatchingAllowed = providerAvailable && role === 'normal' && this.instanceRenderer.shouldAttempt(allowInstancing || surfaceFastPathEligible, reusableKey);
+    const reusableKey = providerAvailable ? this.requestReusableVisualKey(provider!, block, worldContext) : undefined;
+    const staticBatchingAllowed = providerAvailable && role !== 'missing' && this.instanceRenderer.shouldAttempt(allowInstancing || surfaceFastPathEligible, reusableKey);
     entry.staticModelAttempted = staticBatchingAllowed;
     entry.staticModelFamily = familyFromReusableKey(reusableKey) ?? entry.staticModelFamily;
     const cachedTemplates = reusableKey ? this.instanceRenderer.templateFor(reusableKey) : undefined;
@@ -2418,7 +2440,7 @@ export class ThreeViewportEngine {
       }
     }
     if (providerAvailable && cachedTemplates && !surfaceFastPathEligible && staticBatchingAllowed) {
-      const instance = this.addInstanceVisualFromTemplates(cachedTemplates.templates, block, entry.key, 'cached-template', cachedTemplates);
+      const instance = this.addInstanceVisualFromTemplates(cachedTemplates.templates, block, entry.key, 'cached-template', cachedTemplates, role === 'reference' ? 'reference' : 'normal');
       if (instance) {
         this.instrumentation.record('reusableTemplateCacheHits');
         this.instrumentation.record('cachedTemplateInsertions');
@@ -2451,7 +2473,7 @@ export class ThreeViewportEngine {
         if (!visual.object) return;
         const object = visual.object; object.userData['realModel'] = true; applyBlockBrightnessToObject(object, this.blockBrightness); translateVisualToVoxel(object, block.position);
         object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
-        object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; if (child instanceof THREE.Mesh && isReference) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const item of materials) { item.transparent = true; item.opacity = options.referenceOpacity ?? .28; } } });
+        object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; });
         let surfaceMemberships: readonly SurfaceFaceMembership[] | undefined;
         let terrainCompiled = false;
         if (surfaceFastPathEligible && reusableKey) {
@@ -2468,12 +2490,12 @@ export class ThreeViewportEngine {
           }
         }
         entry.reusableVisualKey = reusableKey; entry.staticModelAttempted = staticBatchingAllowed; entry.staticModelFamily = visualFamily(object) ?? entry.staticModelFamily;
-        const instance = !terrainCompiled && surfaceMemberships === undefined && staticBatchingAllowed ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async') : undefined;
+        const instance = !terrainCompiled && surfaceMemberships === undefined && staticBatchingAllowed ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async', role === 'reference' ? 'reference' : 'normal') : undefined;
         this.blocksGroup.remove(fallback);
         if (terrainCompiled) { entry.terrainChunkKey = chunkKey(block.position); entry.reusableVisualKey = reusableKey; disposeObject(object); }
         else if (surfaceMemberships !== undefined) { entry.surfaceFaceMemberships = surfaceMemberships; entry.surfaceExposedFaceCount = surfaceMemberships.length; entry.surfaceNeighborFacesCulled = 6 - surfaceMemberships.length; entry.object = surfaceMemberships.length ? this.surfaceFaceBatches.get(surfaceMemberships[0].batchKey)?.mesh : undefined; disposeObject(object); }
         else if (instance) { entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0]; entry.staticModelDecision = this.instanceRenderer.decisionFor(entry.key); disposeObject(object); }
-        else { entry.staticModelDecision = this.instanceRenderer.decisionFor(entry.key); this.blocksGroup.add(object); entry.object = object; }
+        else { if (isReference) applyReferenceOpacityToObject(object, options.referenceOpacity ?? .28); entry.staticModelDecision = this.instanceRenderer.decisionFor(entry.key); this.blocksGroup.add(object); entry.object = object; }
         this.recordProviderCacheStats(); this.scheduleRender();
       }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; this.rollbackPartialInstanceVisual(entry.key); fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
     } else onComplete?.();
@@ -2544,12 +2566,12 @@ export class ThreeViewportEngine {
     this.terrainRenderer.clear();
   }
 
-  private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async'): { readonly batchKey: string; readonly index: number } | undefined {
-    return this.instanceRenderer.tryAdd(object, block, key, reusableKey, source);
+  private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async', role: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
+    return this.instanceRenderer.tryAdd(object, block, key, reusableKey, source, role);
   }
 
-  private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates): { readonly batchKey: string; readonly index: number } | undefined {
-    return this.instanceRenderer.addFromTemplates(templates, block, key, source, compiled);
+  private addInstanceVisualFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates, role: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
+    return this.instanceRenderer.addFromTemplates(templates, block, key, source, compiled, role);
   }
 
   private removeInstanceVisual(key: string, entry: RenderedBlockEntry): void {
@@ -4044,6 +4066,13 @@ function requestViewportFrame(callback: FrameRequestCallback): number {
 function toTraceVector(value: THREE.Vector3): TraceVector3 { return { x: value.x, y: value.y, z: value.z }; }
 function visualFamily(object: THREE.Object3D): string | undefined { let family: unknown; object.traverse((child) => { family ??= child.userData['specialVisualFamily']; }); return typeof family === 'string' ? family : undefined; }
 function familyFromReusableKey(key: string | undefined): string | undefined { const prefix = 'special-template-v1|'; return key?.startsWith(prefix) ? key.slice(prefix.length).split('|', 1)[0] : undefined; }
+function applyReferenceOpacityToObject(object: THREE.Object3D, opacity: number): void {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) { material.transparent = true; material.opacity = opacity; material.needsUpdate = true; }
+  });
+}
 
 function cancelViewportFrame(frame: number): void {
   if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
@@ -4118,7 +4147,7 @@ function compareEmptySnapshots(firstEmpty: ViewportGhostSceneSnapshot, secondEmp
   };
 }
 function renderFilterKey(options: ViewportRenderOptions): string {
-  return stableValue({ layerY: options.layerY, visibility: options.visibility, referenceOpacity: options.referenceOpacity, isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions, exposedFaceRendering: options.exposedFaceRendering === true });
+  return stableValue({ layerY: options.layerY, visibility: options.visibility, isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions, exposedFaceRendering: options.exposedFaceRendering === true });
 }
 function isHorizontalDirection(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
 export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE.Camera): THREE.Vector3 {
