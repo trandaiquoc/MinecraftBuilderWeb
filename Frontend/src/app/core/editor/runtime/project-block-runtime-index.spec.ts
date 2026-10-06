@@ -4,6 +4,7 @@ import { blockMutationHint } from '../mutations/project-mutation-hint';
 import { ProjectBlockRuntimeIndex } from './project-block-runtime-index';
 
 const block = (x: number, state: Record<string, string> = {}): PlacedBlock => ({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state });
+const typedBlock = (x: number, id: string, kind: 'resolved' | 'missing' = 'resolved', state: Record<string, string> = {}): PlacedBlock => ({ kind, id, namespace: id.split(':')[0] ?? '', position: { x, y: 0, z: 0 }, state });
 const project = (blocks: readonly PlacedBlock[]): ProjectDocument => ({ schemaVersion: 3, id: 'runtime-index', metadata: { name: 'Runtime', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 20000, y: 2, z: 2 }, structureMode: 'huge-structure-blocks', blocks, groups: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .28 } });
 
 describe('ProjectBlockRuntimeIndex', () => {
@@ -38,5 +39,57 @@ describe('ProjectBlockRuntimeIndex', () => {
     expect(index.blocksAtY(4)).toHaveLength(0);
     expect(index.blocksAtY(9)).toEqual([moved]);
     expect(index.occupiedLayers()).toEqual([8, 9]);
+  });
+
+  it('builds exact-id usage buckets in the same traversal as the spatial index', () => {
+    const blocks = [typedBlock(0, 'minecraft:stone'), typedBlock(1, 'minecraft:stone'), typedBlock(2, 'minecraft:stone'), typedBlock(3, 'minecraft:dirt'), typedBlock(4, 'minecraft:dirt'), typedBlock(5, 'mod:block', 'missing'), typedBlock(6, 'mod:block', 'missing'), typedBlock(7, 'mod:block', 'missing'), typedBlock(8, 'mod:block', 'missing')];
+    const index = new ProjectBlockRuntimeIndex(); index.ensure(project(blocks));
+    expect(index.uniqueBlockIdCount()).toBe(3);
+    expect(index.usageForId('minecraft:stone')).toEqual({ id: 'minecraft:stone', namespace: 'minecraft', count: 3, resolvedCount: 3, missingCount: 0 });
+    expect(index.usageForId('mod:block')).toEqual({ id: 'mod:block', namespace: 'mod', count: 4, resolvedCount: 0, missingCount: 4 });
+    expect(index.blocksForId('minecraft:stone')).toHaveLength(3);
+  });
+
+  it('updates usage counts and resolved state incrementally without rebuilding', () => {
+    const stone = typedBlock(0, 'minecraft:stone');
+    const missing = typedBlock(1, 'mod:block', 'missing');
+    const before = project([stone, missing]);
+    const added = typedBlock(2, 'minecraft:dirt');
+    const resolved = typedBlock(1, 'mod:block', 'resolved');
+    const after = { ...before, blocks: [stone, resolved, added] };
+    const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
+    const rebuilds = index.rebuildCount;
+    expect(index.adoptTransition(before, after, blockMutationHint([
+      { position: added.position, after: added },
+      { position: missing.position, before: missing, after: resolved },
+    ]))).toBe(true);
+    expect(index.rebuildCount).toBe(rebuilds);
+    expect(index.usageForId('minecraft:dirt')?.count).toBe(1);
+    expect(index.usageForId('mod:block')).toMatchObject({ count: 1, resolvedCount: 1, missingCount: 0 });
+  });
+
+  it('removes zero-count buckets and handles replacement, undo, and redo deltas', () => {
+    const stone = typedBlock(0, 'minecraft:stone');
+    const dirt = typedBlock(1, 'minecraft:dirt');
+    const before = project([stone, dirt]);
+    const replaced = typedBlock(0, 'minecraft:gold_block');
+    const after = { ...before, blocks: [replaced, dirt] };
+    const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
+    expect(index.adoptTransition(before, after, blockMutationHint([{ position: stone.position, before: stone, after: replaced }]))).toBe(true);
+    expect(index.usageForId('minecraft:stone')).toBeUndefined();
+    expect(index.usageForId('minecraft:gold_block')?.count).toBe(1);
+    expect(index.adoptTransition(after, before, blockMutationHint([{ position: replaced.position, before: replaced, after: stone }]))).toBe(true);
+    expect(index.usageForId('minecraft:stone')?.count).toBe(1);
+    expect(index.usageForId('minecraft:gold_block')).toBeUndefined();
+  });
+
+  it('ignores same-id state changes for usage totals', () => {
+    const beforeBlock = typedBlock(0, 'minecraft:stone', 'resolved', { facing: 'north' });
+    const afterBlock = typedBlock(0, 'minecraft:stone', 'resolved', { facing: 'south' });
+    const before = project([beforeBlock]);
+    const after = { ...before, blocks: [afterBlock] };
+    const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
+    expect(index.adoptTransition(before, after, blockMutationHint([{ position: beforeBlock.position, before: beforeBlock, after: afterBlock }]))).toBe(true);
+    expect(index.usageForId('minecraft:stone')).toMatchObject({ count: 1, resolvedCount: 1, missingCount: 0 });
   });
 });

@@ -1,8 +1,16 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { coordinateKey } from '../../domain/coordinates';
 import type { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import type { ProjectMutationHint } from '../mutations/project-mutation-hint';
+
+export interface ProjectBlockUsageEntry {
+  readonly id: string;
+  readonly namespace: string;
+  readonly count: number;
+  readonly resolvedCount: number;
+  readonly missingCount: number;
+}
 
 /**
  * Derived, process-local block lookup for editor commands.
@@ -19,7 +27,10 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private blocksByKey = new Map<string, PlacedBlock>();
   private indicesByKey = new Map<string, number>();
   private blocksByY = new Map<number, Map<string, PlacedBlock>>();
+  private blocksById = new Map<string, Map<string, PlacedBlock>>();
   private readonly rebuildReasons = new Map<string, number>();
+  private readonly usageRevisionState = signal(0);
+  readonly usageRevision = this.usageRevisionState.asReadonly();
   private generation = 0;
   private indicesComplete = true;
 
@@ -40,8 +51,10 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       this.blocksByKey.clear();
       this.indicesByKey.clear();
       this.blocksByY.clear();
+      this.blocksById.clear();
       this.indicesComplete = true;
       this.generation += 1;
+      this.usageRevisionState.update((revision) => revision + 1);
       return;
     }
     this.ensure(project);
@@ -82,11 +95,13 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       this.blocksByKey.delete(beforeKey);
       this.indicesByKey.delete(beforeKey);
       this.removeFromLayer(beforeKey, change.before?.position ?? change.position);
+      if (change.before) this.removeFromUsage(change.before);
       if (change.after && index !== undefined) {
         const afterKey = coordinateKey(change.after.position);
         this.blocksByKey.set(afterKey, change.after);
         this.indicesByKey.set(afterKey, index);
         this.addToLayer(afterKey, change.after);
+        this.addToUsage(afterKey, change.after);
       }
     }
     for (const change of changes) {
@@ -94,6 +109,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
         const afterKey = coordinateKey(change.after.position);
         this.blocksByKey.set(afterKey, change.after);
         this.addToLayer(afterKey, change.after);
+        this.addToUsage(afterKey, change.after);
       }
     }
     this.indicesComplete = true;
@@ -109,6 +125,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     this.blocksReference = to.blocks;
     this.sizeSignature = sizeOf(to.size);
     this.generation += 1;
+    this.usageRevisionState.update((revision) => revision + 1);
     return true;
   }
 
@@ -118,6 +135,25 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   blocksAtY(y: number): readonly PlacedBlock[] { return [...(this.blocksByY.get(y)?.values() ?? [])]; }
   occupiedLayers(): readonly number[] { return [...this.blocksByY.keys()].sort((left, right) => left - right); }
   allBlocks(): readonly PlacedBlock[] { return this.project?.blocks ?? []; }
+  usageEntries(): readonly ProjectBlockUsageEntry[] {
+    return [...this.blocksById.entries()].map(([id, blocks]) => {
+      let resolvedCount = 0;
+      let missingCount = 0;
+      for (const block of blocks.values()) block.kind === 'missing' ? missingCount += 1 : resolvedCount += 1;
+      return { id, namespace: blocks.values().next().value?.namespace ?? namespaceOf(id), count: blocks.size, resolvedCount, missingCount };
+    });
+  }
+  usageForId(id: string): ProjectBlockUsageEntry | undefined {
+    const blocks = this.blocksById.get(id);
+    if (!blocks?.size) return undefined;
+    let resolvedCount = 0;
+    let missingCount = 0;
+    for (const block of blocks.values()) block.kind === 'missing' ? missingCount += 1 : resolvedCount += 1;
+    return { id, namespace: blocks.values().next().value?.namespace ?? namespaceOf(id), count: blocks.size, resolvedCount, missingCount };
+  }
+  blocksForId(id: string): readonly PlacedBlock[] { return [...(this.blocksById.get(id)?.values() ?? [])]; }
+  blockCountForId(id: string): number { return this.blocksById.get(id)?.size ?? 0; }
+  uniqueBlockIdCount(): number { return this.blocksById.size; }
   get currentProject(): ProjectDocument | undefined { return this.project; }
   get currentGeneration(): number { return this.generation; }
   get rebuildCount(): number { return [...this.rebuildReasons.values()].reduce((sum, count) => sum + count, 0); }
@@ -140,16 +176,24 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   }
 
   private rebuild(project: ProjectDocument, reason: string): void {
-    this.blocksByKey = new Map(project.blocks.map((block) => [coordinateKey(block.position), block] as const));
-    this.indicesByKey = new Map(project.blocks.map((block, index) => [coordinateKey(block.position), index] as const));
+    this.blocksByKey = new Map();
+    this.indicesByKey = new Map();
     this.blocksByY = new Map();
-    for (const block of project.blocks) this.addToLayer(coordinateKey(block.position), block);
+    this.blocksById = new Map();
+    for (const [index, block] of project.blocks.entries()) {
+      const key = coordinateKey(block.position);
+      this.blocksByKey.set(key, block);
+      this.indicesByKey.set(key, index);
+      this.addToLayer(key, block);
+      this.addToUsage(key, block);
+    }
     this.indicesComplete = true;
     this.project = project;
     this.blocksReference = project.blocks;
     this.sizeSignature = sizeOf(project.size);
     this.generation += 1;
     this.rebuildReasons.set(reason, (this.rebuildReasons.get(reason) ?? 0) + 1);
+    this.usageRevisionState.update((revision) => revision + 1);
   }
 
   private addToLayer(key: string, block: PlacedBlock): void {
@@ -164,6 +208,20 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     layer.delete(key);
     if (!layer.size) this.blocksByY.delete(position.y);
   }
+
+  private addToUsage(key: string, block: PlacedBlock): void {
+    const blocks = this.blocksById.get(block.id) ?? new Map<string, PlacedBlock>();
+    blocks.set(key, block);
+    this.blocksById.set(block.id, blocks);
+  }
+
+  private removeFromUsage(block: PlacedBlock): void {
+    const key = coordinateKey(block.position);
+    const blocks = this.blocksById.get(block.id);
+    if (!blocks) return;
+    blocks.delete(key);
+    if (!blocks.size) this.blocksById.delete(block.id);
+  }
 }
 
 /** Shared fallback for direct unit-test construction outside Angular DI. */
@@ -171,3 +229,4 @@ export const defaultProjectBlockRuntimeIndex = new ProjectBlockRuntimeIndex();
 
 function sameSize(left: ProjectSize, right: ProjectSize): boolean { return left.x === right.x && left.y === right.y && left.z === right.z; }
 function sizeOf(size: ProjectSize): string { return `${size.x},${size.y},${size.z}`; }
+function namespaceOf(id: string): string { return id.includes(':') ? id.slice(0, id.indexOf(':')) : ''; }
