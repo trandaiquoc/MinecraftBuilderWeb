@@ -281,6 +281,14 @@ export interface ViewportHydrationDiagnostics {
   readonly providerRefreshQueued: number;
   readonly regularRunning: number;
   readonly providerRefreshRunning: number;
+  readonly providerRefreshPlanning: boolean;
+  readonly providerRefreshPlanningProcessed: number;
+  readonly providerRefreshPlanningTotal: number;
+  readonly providerRefreshPlanningConsidered: number;
+  readonly providerRefreshPlanningQueued: number;
+  readonly providerRefreshPlanningMaxSliceMs: number;
+  readonly providerRefreshPlanningYields: number;
+  readonly providerRefreshPlanningDurationMs: number;
 }
 export interface VisibleSceneDiagnostics {
   readonly expectedVisibleVoxelCount: number;
@@ -757,6 +765,7 @@ export class ThreeViewportEngine {
   private providerRefreshPlanning = false;
   private providerRefreshGeneration = 0;
   private readonly providerRefreshPlanner = new ProviderRefreshPlanner<ProviderRefreshCandidate, BlockHydrationJob>();
+  private providerRefreshPlanningDiagnostics = { processed: 0, total: 0, considered: 0, queued: 0, maxSliceMs: 0, yields: 0, durationMs: 0 };
   private providerStats?: VisualCacheStats;
   private hydrationGeneration = 0;
   private readonly pendingHydrationSignatures = new Map<string, string>();
@@ -1200,6 +1209,7 @@ export class ThreeViewportEngine {
     const planGeneration = ++this.providerRefreshGeneration;
     this.providerRefreshPlanning = true;
     this.providerRefreshProgress = undefined;
+    this.providerRefreshPlanningDiagnostics = { processed: 0, total: 0, considered: 0, queued: 0, maxSliceMs: 0, yields: 0, durationMs: 0 };
     this.runtimeTrace?.record('provider-refresh-planning-start', { generation: planGeneration });
     this.publishProviderRefreshProgress();
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
@@ -1236,11 +1246,16 @@ export class ThreeViewportEngine {
         },
       };
     }, {
-      onProgress: (progress: ProviderRefreshPlannerProgress) => this.runtimeTrace?.record('provider-refresh-planning-progress', { ...progress }),
+      onProgress: (progress: ProviderRefreshPlannerProgress) => {
+        if (planGeneration !== this.providerRefreshGeneration) return;
+        this.providerRefreshPlanningDiagnostics = { ...this.providerRefreshPlanningDiagnostics, processed: progress.processed, total: progress.total, considered: progress.considered, queued: progress.queued, maxSliceMs: progress.maxSliceMs, yields: progress.yields };
+        this.runtimeTrace?.record('provider-refresh-planning-progress', { ...progress });
+      },
       onComplete: (result) => {
         if (planGeneration !== this.providerRefreshGeneration) return;
         this.providerRefreshPlanning = false;
         const queued = result.jobs.reduce((count, job) => count + (this.hydrationWork.enqueueProviderRefresh(job) ? 1 : 0), 0);
+        this.providerRefreshPlanningDiagnostics = { processed: result.processed, total: inputs.length, considered: result.considered, queued, maxSliceMs: result.maxSliceMs, yields: result.yields, durationMs: result.durationMs };
         this.runtimeTrace?.record('provider-refresh-planning-end', { generation: planGeneration, considered: result.considered, queued, processed: result.processed, durationMs: result.durationMs, maxSliceMs: result.maxSliceMs, yields: result.yields });
         this.runtimeTrace?.record('provider-refresh-queued', { queued });
         if (queued) {
@@ -3504,6 +3519,14 @@ export class ThreeViewportEngine {
       providerRefreshQueued: workCounts.providerRefreshQueued,
       regularRunning: workCounts.regularRunning,
       providerRefreshRunning: workCounts.providerRefreshRunning,
+      providerRefreshPlanning: this.providerRefreshPlanning,
+      providerRefreshPlanningProcessed: this.providerRefreshPlanningDiagnostics.processed,
+      providerRefreshPlanningTotal: this.providerRefreshPlanningDiagnostics.total,
+      providerRefreshPlanningConsidered: this.providerRefreshPlanningDiagnostics.considered,
+      providerRefreshPlanningQueued: this.providerRefreshPlanningDiagnostics.queued,
+      providerRefreshPlanningMaxSliceMs: this.providerRefreshPlanningDiagnostics.maxSliceMs,
+      providerRefreshPlanningYields: this.providerRefreshPlanningDiagnostics.yields,
+      providerRefreshPlanningDurationMs: this.providerRefreshPlanningDiagnostics.durationMs,
     };
   }
 
