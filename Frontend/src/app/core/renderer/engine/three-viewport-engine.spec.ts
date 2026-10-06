@@ -2021,6 +2021,23 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
+  it('moves only the existing Y-layer guides for a preview value', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure' });
+    const before = engine.rendererCounters();
+    const internals = engine as unknown as { editingPlane?: THREE.Mesh; editingGrid?: THREE.LineSegments };
+
+    engine.setEditingPlanePreviewY(5);
+
+    expect(internals.editingPlane?.position.y).toBeCloseTo(5.002);
+    expect(internals.editingGrid?.position.y).toBeCloseTo(5.004);
+    const after = engine.rendererCounters();
+    expect(after.yLayerProjectionRequests).toBe(before.yLayerProjectionRequests);
+    expect(after.regularHydrationStarted).toBe(before.regularHydrationStarted);
+    engine.dispose();
+  });
+
   it('updates reference opacity without structural or hydration work', () => {
     const engine = new ThreeViewportEngine();
     const base = rendererBenchmarkProject('small');

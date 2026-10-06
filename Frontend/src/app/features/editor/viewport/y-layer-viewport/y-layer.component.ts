@@ -125,8 +125,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
 
   protected currentY(): number { return this.session.displayCurrentY(this.workspace.project()); }
   private committedY(): number { return this.session.committedCurrentY(this.workspace.project()); }
-  protected previewLayer(value: string): void { const project = this.workspace.project(); if (!project || this.projectionBusy()) return; this.session.previewCurrentY(project.id, clampLayer(Number(value), project.size)); }
-  protected commitLayer(value: string): void { const project = this.workspace.project(); if (!project || this.projectionBusy()) return; const y = clampLayer(Number(value), project.size); this.session.clearCurrentYPreview(project.id); if (project.editorSettings.currentY === y) return; this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, currentY: y } }); }
+  protected previewLayer(value: string): void { const project = this.workspace.project(); if (!project || this.projectionBusy()) return; const y = clampLayer(Number(value), project.size); this.session.previewCurrentY(project.id, y); this.engine.setEditingPlanePreviewY(y); }
+  protected commitLayer(value: string): void { const project = this.workspace.project(); if (!project || this.projectionBusy()) return; const y = clampLayer(Number(value), project.size); this.session.clearCurrentYPreview(project.id); if (project.editorSettings.currentY === y) { this.engine.setEditingPlanePreviewY(y); return; } this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, currentY: y } }); }
   protected setLayer(value: string): void { this.commitLayer(value); }
   protected stepLayer(direction: -1 | 1): void { const project = this.workspace.project(); if (project && !this.projectionBusy()) this.setLayer(String(clampLayer(this.currentY() + direction, project.size))); }
   protected jumpLayer(target: 'first' | 'last'): void { const project = this.workspace.project(); if (project && !this.projectionBusy()) this.setLayer(String(jumpOccupiedLayer(project.blocks, this.currentY(), target, this.layerIndex))); }

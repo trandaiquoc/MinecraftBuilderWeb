@@ -4086,6 +4086,14 @@ export class ThreeViewportEngine {
     this.editingGrid.visible = true;
   }
 
+  /** Moves only the existing Y-layer guides; it never changes projection state. */
+  setEditingPlanePreviewY(y: number): void {
+    if (this.disposed || !this.editingPlane || !this.editingGrid) return;
+    this.editingPlane.position.y = y + 0.002;
+    this.editingGrid.position.y = y + 0.004;
+    this.scheduleRender();
+  }
+
   clearGhost(): void {
     const changed = this.ghost.visible || !!this.ghostModel?.visible;
     this.ghost.visible = false;
