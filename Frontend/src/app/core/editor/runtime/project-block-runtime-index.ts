@@ -125,10 +125,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     this.blocksReference = to.blocks;
     this.sizeSignature = sizeOf(to.size);
     this.generation += 1;
-    // Group membership/metadata transitions replace block object references,
-    // but they do not change block-id usage. Keep the usage revision stable so
-    // Block Usage consumers do not rebuild for editor-only metadata changes.
-    if (hint.usageChanged !== false) this.usageRevisionState.update((revision) => revision + 1);
+    this.usageRevisionState.update((revision) => revision + 1);
     return true;
   }
 
@@ -168,13 +165,13 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       && sameSize(from.size, to.size)
       && !!hint
       && hint.kind === 'block-delta'
-      && (hint.changes.length > 0 || hint.metadataOnly === true)
+      && hint.changes.length > 0;
   }
 
   private reasonForInvalidTransition(from: ProjectDocument, to: ProjectDocument, hint: ProjectMutationHint | undefined): string {
     if (this.project !== from) return 'stale-index';
     if (from.id !== to.id || !sameSize(from.size, to.size)) return 'project-identity-or-size-change';
-    if (!hint || hint.kind !== 'block-delta' || (!hint.changes.length && !hint.metadataOnly)) return 'missing-or-empty-hint';
+    if (!hint || hint.kind !== 'block-delta' || !hint.changes.length) return 'missing-or-empty-hint';
     return 'invalid-hint';
   }
 
