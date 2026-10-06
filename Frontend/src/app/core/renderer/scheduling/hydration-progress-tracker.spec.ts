@@ -75,6 +75,21 @@ describe('HydrationProgressTracker', () => {
     expect(tracker.snapshot().completed).toBe(1);
   });
 
+  it('keeps completion accounting scoped to the latest visible projection', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['visible-old', 'visible-current']);
+    tracker.begin(7);
+    tracker.complete(7, 'block', 'visible-old');
+    tracker.setBlockScope(['visible-current', 'visible-new']);
+    tracker.begin(7);
+
+    tracker.complete(7, 'block', 'visible-old');
+
+    expect(tracker.snapshot()).toMatchObject({ total: 2, completed: 0, blocksCompleted: 0, status: 'hydrating' });
+    expect(tracker.isBlockComplete('visible-old')).toBe(false);
+    expect(tracker.hasBlockKey('visible-new')).toBe(true);
+  });
+
   it('adopts committed renderer ownership into a fresh generation', () => {
     const tracker = new HydrationProgressTracker();
     tracker.setBlockScope(['committed', 'pending']);

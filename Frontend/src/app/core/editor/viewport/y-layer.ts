@@ -11,20 +11,25 @@ export interface YLayerProjectionDelta {
   readonly changed: boolean;
 }
 
-export function planYLayerProjectionDelta(previousY: number | undefined, previousMode: YLayerVisibility | undefined, nextY: number | undefined, nextMode: YLayerVisibility | undefined): YLayerProjectionDelta {
+export function planYLayerProjectionDelta(previousY: number | undefined, previousMode: YLayerVisibility | undefined, nextY: number | undefined, nextMode: YLayerVisibility | undefined, index?: LayerBlockIndex): YLayerProjectionDelta {
   if (previousY === nextY && previousMode === nextMode) return { changedLayers: [], changed: false };
   if (previousY === undefined || nextY === undefined || previousMode === undefined || nextMode === undefined || previousMode !== nextMode) return { changedLayers: [], changed: true };
-  const affected = (y: number, mode: YLayerVisibility): readonly number[] => {
+  const occupiedBetween = (left: number, right: number): readonly number[] => {
+    const min = Math.min(left, right);
+    const max = Math.max(left, right);
+    return index ? index.occupiedLayers().filter((layer) => layer >= min && layer <= max) : [left, right];
+  };
+  const affected = (y: number, mode: YLayerVisibility, otherY: number): readonly number[] => {
     switch (mode) {
       case 'current-only': return [y];
       case 'current-previous': return [y - 1, y];
       case 'current-next': return [y, y + 1];
       case 'previous-current-next': return [y - 1, y, y + 1];
-      case 'all-below':
+      case 'all-below': return occupiedBetween(y, otherY);
       case 'whole-structure': return [y];
     }
   };
-  return { changedLayers: [...new Set([...affected(previousY, previousMode), ...affected(nextY, nextMode)])], changed: true };
+  return { changedLayers: [...new Set([...affected(previousY, previousMode, nextY), ...affected(nextY, nextMode, previousY)])].sort((left, right) => left - right), changed: true };
 }
 
 export type YLayerVisibility = 'current-only' | 'current-previous' | 'current-next' | 'previous-current-next' | 'all-below' | 'whole-structure';

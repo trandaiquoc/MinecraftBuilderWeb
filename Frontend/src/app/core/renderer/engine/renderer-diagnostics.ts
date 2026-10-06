@@ -113,6 +113,15 @@ export interface RendererCounters {
   readonly incrementalChangedVoxels: number;
   readonly incrementalChunkInvalidations: number;
   readonly incrementalTerrainChunkRebuilds: number;
+  readonly yLayerProjectionRequests: number;
+  readonly yLayerProjectionCommits: number;
+  readonly yLayerProjectionRequestsCoalesced: number;
+  readonly yLayerProjectionChangedLayers: number;
+  readonly yLayerProjectionChangedBlocks: number;
+  readonly yLayerProjectionAddedVisible: number;
+  readonly yLayerProjectionRemovedVisible: number;
+  readonly yLayerProjectionRoleChanged: number;
+  readonly staleHydrationCompletionsIgnored: number;
   readonly fullReconcileFallbacks: number;
   readonly fullVisibleScans: number;
   readonly occupancyFullRebuilds: number;
@@ -234,6 +243,15 @@ const EMPTY_COUNTERS: RendererCounters = {
   incrementalChangedVoxels: 0,
   incrementalChunkInvalidations: 0,
   incrementalTerrainChunkRebuilds: 0,
+  yLayerProjectionRequests: 0,
+  yLayerProjectionCommits: 0,
+  yLayerProjectionRequestsCoalesced: 0,
+  yLayerProjectionChangedLayers: 0,
+  yLayerProjectionChangedBlocks: 0,
+  yLayerProjectionAddedVisible: 0,
+  yLayerProjectionRemovedVisible: 0,
+  yLayerProjectionRoleChanged: 0,
+  staleHydrationCompletionsIgnored: 0,
   fullReconcileFallbacks: 0,
   fullVisibleScans: 0,
   occupancyFullRebuilds: 0,

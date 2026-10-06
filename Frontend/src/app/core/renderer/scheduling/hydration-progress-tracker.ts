@@ -62,6 +62,8 @@ export class HydrationProgressTracker {
 
   setBlockScope(keys: readonly string[]): void {
     const next = new Set(keys);
+    const scopeChanged = next.size !== this.blockScope.size || [...next].some((key) => !this.blockScope.has(key));
+    if (scopeChanged) this.progress = idleProgress(this.progress.generation, this.lane);
     for (const key of this.completedBlocks) if (!next.has(key)) this.completedBlocks.delete(key);
     this.blockScope.clear();
     for (const key of next) this.blockScope.add(key);
@@ -144,6 +146,8 @@ export class HydrationProgressTracker {
 
   setDecorationScope(ids: readonly string[]): void {
     const next = new Set(ids);
+    const scopeChanged = next.size !== this.decorationScope.size || [...next].some((id) => !this.decorationScope.has(id));
+    if (scopeChanged) this.progress = idleProgress(this.progress.generation, this.lane);
     for (const id of this.completedDecorations) if (!next.has(id)) this.completedDecorations.delete(id);
     this.decorationScope.clear();
     for (const id of next) this.decorationScope.add(id);

@@ -33,9 +33,14 @@ describe('Y-layer projection', () => {
     expect(blocksForLayers(blocks, 1, 'all-below', index)).toHaveLength(1);
   });
 
-  it('plans only boundary layers for all-below and whole-structure changes', () => {
-    expect(planYLayerProjectionDelta(20, 'all-below', 21, 'all-below')).toEqual({ changed: true, changedLayers: [20, 21] });
-    expect(planYLayerProjectionDelta(20, 'whole-structure', 21, 'whole-structure')).toEqual({ changed: true, changedLayers: [20, 21] });
+  it('plans every occupied layer crossed by a non-adjacent all-below jump', () => {
+    const index = { blocksAtY: (y: number) => blocks.filter((block) => block.position.y === y), occupiedLayers: () => [1, 3, 5, 10, 20, 40, 79], allBlocks: () => blocks };
+    expect(planYLayerProjectionDelta(79, 'all-below', 20, 'all-below', index)).toEqual({ changed: true, changedLayers: [20, 40, 79] });
+    expect(planYLayerProjectionDelta(20, 'all-below', 79, 'all-below', index)).toEqual({ changed: true, changedLayers: [20, 40, 79] });
+  });
+
+  it('keeps whole-structure role changes bounded to the old and new current layers', () => {
+    expect(planYLayerProjectionDelta(20, 'whole-structure', 79, 'whole-structure')).toEqual({ changed: true, changedLayers: [20, 79] });
     expect(planYLayerProjectionDelta(20, 'current-only', 21, 'current-only')).toEqual({ changed: true, changedLayers: [20, 21] });
     expect(planYLayerProjectionDelta(20, 'previous-current-next', 21, 'previous-current-next').changedLayers).toEqual([19, 20, 21, 22]);
   });
