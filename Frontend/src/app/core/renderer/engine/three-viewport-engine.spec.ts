@@ -1488,6 +1488,73 @@ describe('camera movement input contract', () => {
   });
 });
 
+describe('group isolation presentation', () => {
+  it('keeps structural identity and canonical hydration ownership across isolate cycles', () => {
+    const base = rendererBenchmarkProject('small');
+    const project: ProjectDocument = {
+      ...base,
+      blocks: base.blocks.slice(0, 2).map((block, index) => ({ ...block, position: { x: index, y: 0, z: 0 }, groupIds: index === 0 ? ['roof'] : [] })),
+      groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }],
+      decorations: [],
+    };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, undefined);
+    const internal = engine as unknown as { structureSyncKey: string; hydrationGeneration: number; cachedVisibleMap: Map<string, unknown> };
+    const beforeKey = internal.structureSyncKey;
+    const beforeGeneration = internal.hydrationGeneration;
+    const beforeVisibleKeys = [...internal.cachedVisibleMap.keys()];
+    const before = engine.rendererCounters();
+
+    engine.update(project, undefined, { isolatedGroupId: 'roof', isolatedGroupPositions: [{ x: 0, y: 0, z: 0 }] });
+    expect(internal.structureSyncKey).toBe(beforeKey);
+    expect(engine.rendererCounters().fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(engine.rendererCounters().fullReconcileFallbacks).toBe(before.fullReconcileFallbacks);
+    expect(engine.rendererCounters().fullVisibleScans).toBe(before.fullVisibleScans);
+    expect(internal.hydrationGeneration).toBe(beforeGeneration);
+    expect([...internal.cachedVisibleMap.keys()]).toEqual(beforeVisibleKeys);
+    expect(engine.isolationDiagnostics()).toMatchObject({ active: true, targetBlocks: 1 });
+
+    engine.update(project, undefined, {});
+    expect(internal.structureSyncKey).toBe(beforeKey);
+    expect(engine.rendererCounters().fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(engine.rendererCounters().fullReconcileFallbacks).toBe(before.fullReconcileFallbacks);
+    expect(engine.rendererCounters().fullVisibleScans).toBe(before.fullVisibleScans);
+    expect(internal.hydrationGeneration).toBe(beforeGeneration);
+    expect([...internal.cachedVisibleMap.keys()]).toEqual(beforeVisibleKeys);
+    expect(engine.isolationDiagnostics()).toMatchObject({ active: false, targetBlocks: 0 });
+    engine.dispose();
+  });
+
+  it('builds a bounded terrain presentation from canonical records without rebuilding canonical terrain', async () => {
+    const base = rendererBenchmarkProject('small');
+    const first: PlacedBlock = { ...base.blocks[0], id: 'minecraft:oak_log', position: { x: 1, y: 0, z: 1 }, groupIds: ['roof'] };
+    const neighbor: PlacedBlock = { ...base.blocks[1], id: 'minecraft:oak_log', position: { x: 2, y: 0, z: 1 }, groupIds: [] };
+    const project: ProjectDocument = { ...base, size: { x: 6, y: 2, z: 6 }, blocks: [first, neighbor], groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }], decorations: [] };
+    const engine = new ThreeViewportEngine(undefined, { terrainAtlasMode: 'on' });
+    engine.setVisualProvider(axisCubeProvider());
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await settleHydration(40, engine);
+    const key = coordinateKey(first.position);
+    const beforeOwnership = engine.terrainOwnershipFor(key);
+    expect(beforeOwnership).toBeDefined();
+    const before = engine.rendererCounters();
+
+    engine.update(project, undefined, { exposedFaceRendering: true, isolatedGroupId: 'roof', isolatedGroupPositions: [first.position] });
+    expect(engine.isolationDiagnostics()).toMatchObject({ active: true, targetBlocks: 1, terrainChunks: 1 });
+    expect(engine.rendererOwnershipDiagnostics().blockLikeSceneObjectsOutsideBlocksGroup).toBe(0);
+    expect(engine.terrainOwnershipFor(key)).toEqual(beforeOwnership);
+    expect(engine.rendererCounters().terrainBulkBatches).toBe(before.terrainBulkBatches);
+
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    const after = engine.rendererCounters();
+    expect(engine.isolationDiagnostics()).toMatchObject({ active: false, targetBlocks: 0 });
+    expect(engine.terrainOwnershipFor(key)).toEqual(beforeOwnership);
+    expect(after.terrainChunkRebuilds).toBe(before.terrainChunkRebuilds);
+    expect(after.terrainBulkBatches).toBe(before.terrainBulkBatches);
+    engine.dispose();
+  });
+});
+
 describe('incremental project mutation reconciliation', () => {
   it('keeps an oak-log terrain voxel physically owned across y to x to z to y transitions', async () => {
     const provider = axisCubeProvider();

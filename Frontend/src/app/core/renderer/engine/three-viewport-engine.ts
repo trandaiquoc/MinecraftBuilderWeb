@@ -76,6 +76,7 @@ import { fluidChunkKey } from '../fluids/fluid-mesh-core';
 import { planLocalRenderDelta } from '../mutations/local-render-delta';
 import { applyLocalFluidDelta } from '../mutations/local-fluid-render-delta';
 import type { FluidWorldLookup, ResolvedFluidRenderState } from '../fluids/fluid-state';
+import { GroupIsolationPresentation, type GroupIsolationSnapshot, type IsolateBlockVisualSnapshot, type IsolateDecorationVisualSnapshot } from '../isolation/group-isolation-presentation';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -574,6 +575,8 @@ export class ThreeViewportEngine {
   private readonly pointer = new THREE.Vector2();
   private readonly blocksGroup = new THREE.Group();
   private readonly decorationsGroup = new THREE.Group();
+  private readonly canonicalRoot = new THREE.Group();
+  private readonly isolationPresentation = new GroupIsolationPresentation(this.canonicalRoot, () => this.scheduleRender());
   private readonly structureBlockGuideGroup = new THREE.Group();
   private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x4b9cff, transparent: true, opacity: 0.35 }));
   private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false }));
@@ -677,6 +680,7 @@ export class ThreeViewportEngine {
   private lastActiveGroupPositions?: readonly VoxelCoordinate[];
   private lastIsolatedGroupId?: string;
   private lastIsolatedGroupPositions?: readonly VoxelCoordinate[];
+  private isolatedKeys = new Set<string>();
   private activeBlock?: ActiveBlock;
   private showStructureBlockGuide = true;
   private renderOptions: ViewportRenderOptions = {};
@@ -911,8 +915,10 @@ export class ThreeViewportEngine {
     this.keyLight = new THREE.DirectionalLight(0xffffff, 1); this.keyLight.position.set(6, 10, 7);
     this.scene.add(this.hemisphereLight, this.keyLight);
     this.applyBlockBrightness();
-    this.scene.add(this.blocksGroup);
-    this.scene.add(this.decorationsGroup);
+    this.canonicalRoot.name = 'canonicalProjectRoot';
+    this.canonicalRoot.add(this.blocksGroup, this.decorationsGroup);
+    this.scene.add(this.canonicalRoot);
+    this.scene.add(this.isolationPresentation.root);
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
     this.scene.add(this.structureBlockGuideGroup);
     this.ghost.visible = false;
@@ -1426,6 +1432,7 @@ export class ThreeViewportEngine {
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
     const previousProject = this.project;
     const previousOptions = this.renderOptions;
+    const isolatePresentationChanged = isolateKey(previousOptions) !== isolateKey(options);
     const previousSyncKey = this.structureSyncKey;
     const nextSyncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}` : 'empty';
     const referenceOpacityOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && renderFilterKey(previousOptions) === renderFilterKey(options) && previousOptions.referenceOpacity !== options.referenceOpacity;
@@ -1509,6 +1516,12 @@ export class ThreeViewportEngine {
         this.reconcileDecorations(project, options, false);
         this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
       }
+    }
+    if (isolatePresentationChanged) {
+      if (options.isolatedGroupId) this.applyIsolatePresentation(project, options);
+      else { this.isolatedKeys.clear(); this.isolationPresentation.deactivate(); }
+    } else if (this.isolationPresentation.isActive() && (project !== previousProject || !!mutationHint)) {
+      this.refreshIsolatePresentation(project, options);
     }
     if (!blockInputChanged && !inPlaceBlockMutation && !decorationInputChanged) this.instrumentation.record('overlayOnlyUpdates');
     this.setProjectBounds(project);
@@ -1973,7 +1986,7 @@ export class ThreeViewportEngine {
         const key = coordinateKey(block.position);
         if (changes.has(key)) continue;
         const before = this.cachedVisibleMap.get(key);
-        const after = isBlockVisibleForViewport(block, project, { ...options, layerIndex }) ? this.visibleEntry(block, options) : undefined;
+        const after = isBlockVisibleForViewport(block, project, { ...canonicalRenderOptions(options), layerIndex }) ? this.visibleEntry(block, options) : undefined;
         if (before?.signature === after?.signature && before?.role === after?.role) continue;
         changes.set(key, { before, after, position: block.position });
       }
@@ -2103,8 +2116,8 @@ export class ThreeViewportEngine {
       const before = change.before;
       const after = change.after;
       if (!before || !after) continue;
-      const beforeVisible = isBlockVisibleForViewport(before, previousProject, { ...previousOptions, layerIndex: previousOptions.layerIndex ?? this.layerIndex });
-      const afterVisible = isBlockVisibleForViewport(after, project, { ...options, layerIndex: options.layerIndex ?? this.layerIndex });
+      const beforeVisible = isBlockVisibleForViewport(before, previousProject, { ...canonicalRenderOptions(previousOptions), layerIndex: previousOptions.layerIndex ?? this.layerIndex });
+      const afterVisible = isBlockVisibleForViewport(after, project, { ...canonicalRenderOptions(options), layerIndex: options.layerIndex ?? this.layerIndex });
       if (beforeVisible !== afterVisible) visibilityChanges.push({ position: after.position, before, after });
       else {
         this.spatialIndex?.replace(before.position, after);
@@ -2126,7 +2139,7 @@ export class ThreeViewportEngine {
   }
 
   private applyMetadataDecorationMutation(previousProject: ProjectDocument, previousOptions: ViewportRenderOptions, project: ProjectDocument, options: ViewportRenderOptions, hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>): void {
-    const visible = (decoration: PlacedDecoration | undefined, current: ProjectDocument, currentOptions: ViewportRenderOptions): boolean => !!decoration && isDecorationVisible(decoration, current.groups) && (!currentOptions.isolatedGroupId || decorationHasGroup(decoration, currentOptions.isolatedGroupId)) && (currentOptions.layerY === undefined || decoration.anchor.y === currentOptions.layerY || currentOptions.visibility === 'whole-structure' || currentOptions.visibility === 'all-below' && decoration.anchor.y <= (currentOptions.layerY ?? decoration.anchor.y));
+    const visible = (decoration: PlacedDecoration | undefined, current: ProjectDocument, currentOptions: ViewportRenderOptions): boolean => !!decoration && isDecorationVisible(decoration, current.groups) && (currentOptions.layerY === undefined || decoration.anchor.y === currentOptions.layerY || currentOptions.visibility === 'whole-structure' || currentOptions.visibility === 'all-below' && decoration.anchor.y <= (currentOptions.layerY ?? decoration.anchor.y));
     for (const change of hint.decorationChanges ?? []) {
       const beforeVisible = visible(change.before, previousProject, previousOptions);
       const afterVisible = visible(change.after, project, options);
@@ -2144,6 +2157,78 @@ export class ThreeViewportEngine {
     }
     this.decorationHydrationQueueHead = 0;
     if (this.decorationHydrationQueue.length) this.scheduleHydrationPump();
+  }
+
+  private applyIsolatePresentation(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
+    if (!project || !options.isolatedGroupId) {
+      this.isolatedKeys.clear();
+      this.isolationPresentation.deactivate();
+      return;
+    }
+    const positions = options.isolatedGroupPositions ?? [];
+    const keys = new Set(positions.map((position) => coordinateKey(position)));
+    this.isolatedKeys = keys;
+    const blocks = this.isolateBlockSnapshots(project, keys);
+    const decorations: IsolateDecorationVisualSnapshot[] = [];
+    for (const current of this.renderedDecorations.values()) {
+      const decoration = current.decoration;
+      if (!decorationHasGroup(decoration, options.isolatedGroupId) || !isDecorationVisible(decoration, project.groups)) continue;
+      decorations.push({ id: decoration.instanceId, decoration, object: current.object });
+    }
+    const blockMap = new Map(blocks.map((entry) => [entry.key, entry.block] as const));
+    const snapshot: GroupIsolationSnapshot = {
+      blocks,
+      decorations,
+      fluidProvider: this.fluidCoordinator.providerSnapshot(),
+      fluidWorld: {
+        getBlock: (position) => blockMap.get(coordinateKey(position)),
+        getDefinition: (blockId) => this.definitionResolver?.(blockId),
+        getOcclusionClass: (block) => this.visualProvider?.occlusionClass?.(block) ?? 'unknown',
+      },
+    };
+    this.isolationPresentation.activate(snapshot);
+  }
+
+  private refreshIsolatePresentation(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
+    if (this.isolationPresentation.isActive() && options.isolatedGroupId) this.applyIsolatePresentation(project, options);
+  }
+
+  private isolateBlockSnapshots(project: ProjectDocument, keys: ReadonlySet<string>): readonly IsolateBlockVisualSnapshot[] {
+    const terrainRecords = this.terrainRenderer.recordsForKeys(keys);
+    const terrainByKey = new Map(terrainRecords.map((record) => [record.key, record] as const));
+    const fluidByKey = new Map(this.fluidCoordinator.recordsForKeys(keys).map((record) => [coordinateKey(record.block.position), record] as const));
+    const snapshots: IsolateBlockVisualSnapshot[] = [];
+    for (const key of keys) {
+      const [x, y, z] = key.split(',').map(Number);
+      const block = this.spatialIndex?.get({ x, y, z });
+      if (!block || !isBlockVisible(block, project.groups)) continue;
+      const entry = this.renderedBlocks.get(key);
+      const terrain = terrainByKey.get(key);
+      const fluid = fluidByKey.get(key);
+      let instanceTemplates: InstancePartTemplate[] | undefined;
+      if (entry?.instanceBatchKey !== undefined) instanceTemplates = [...(this.instanceBatches.get(entry.instanceBatchKey)?.templates ?? [])];
+      let surfaceTemplates: SurfaceFaceTemplate[] | undefined;
+      let surfaceDirections: Set<SurfaceFaceDirection> | undefined;
+      if (entry?.surfaceFaceMemberships?.length && entry.reusableVisualKey) {
+        const cached = this.surfaceTemplateCache.get(entry.reusableVisualKey);
+        if (cached) {
+          surfaceTemplates = [...cached];
+          surfaceDirections = new Set(entry.surfaceFaceMemberships.flatMap((membership) => {
+            const direction = this.surfaceFaceBatches.get(membership.batchKey)?.directions[membership.index];
+            return direction ? [direction] : [];
+          }));
+          // Canonical surface membership may have culled a face against a
+          // neighbour that is intentionally absent from the isolate view.
+          // Re-expose those faces without touching canonical ownership.
+          for (const direction of ['north', 'south', 'east', 'west', 'up', 'down'] as const) {
+            if (!keys.has(coordinateKey(surfaceNeighbor(entry.block.position, direction)))) surfaceDirections.add(direction);
+          }
+        }
+      }
+      const standalone = entry && !terrain && !fluid && !instanceTemplates && !surfaceTemplates ? entry.object ?? entry.fallback : undefined;
+      snapshots.push({ key, block, terrain, fluid, instanceTemplates, surfaceTemplates, surfaceDirections, standalone });
+    }
+    return snapshots;
   }
 
   private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
@@ -2182,7 +2267,7 @@ export class ThreeViewportEngine {
     this.cachedVisibleKey = renderFilterKey(options);
     for (const [key, position] of affectedPositions) {
       const block = this.spatialIndex?.get(position);
-      if (block && isBlockVisibleForViewport(block, project, options)) this.cacheVisibleEntry(key, this.visibleEntry(block, options));
+      if (block && isBlockVisibleForViewport(block, project, canonicalRenderOptions(options))) this.cacheVisibleEntry(key, this.visibleEntry(block, options));
       else this.removeCachedVisibleEntry(key);
       if (block) this.previousVisibleBlockPositions.set(key, { ...block.position });
       else this.previousVisibleBlockPositions.delete(key);
@@ -2432,7 +2517,7 @@ export class ThreeViewportEngine {
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions, countScan = true): readonly VisibleBlockEntry[] {
     if (countScan) this.instrumentation.record('fullVisibleScans');
-    return visibleBlockEntries(project, { ...options, layerIndex: options.layerIndex ?? this.layerIndex }).map((block) => {
+    return visibleBlockEntries(project, { ...canonicalRenderOptions(options), layerIndex: options.layerIndex ?? this.layerIndex }).map((block) => {
       return this.visibleEntry(block, options);
     });
   }
@@ -2480,12 +2565,13 @@ export class ThreeViewportEngine {
     const cachedProjection = this.canUseCachedVisibleProjection(project, options);
     const visible = cachedProjection ? this.cachedVisibleEntries : this.visibleBlocks(project, options);
     const visibleKeys = cachedProjection ? this.cachedVisibleMap : new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
-    const positions = (options.selectedPositions ?? []).filter((position) => visibleKeys.has(coordinateKey(position)));
-    const selected = options.selected && visibleKeys.has(coordinateKey(options.selected)) ? options.selected : undefined;
+    const isInProjection = (position: VoxelCoordinate): boolean => visibleKeys.has(coordinateKey(position)) && (!this.isolationPresentation.isActive() || this.isolatedKeys.has(coordinateKey(position)));
+    const positions = (options.selectedPositions ?? []).filter(isInProjection);
+    const selected = options.selected && isInProjection(options.selected) ? options.selected : undefined;
     const inBounds = (position: VoxelCoordinate, bounds: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }): boolean => position.x >= bounds.min.x && position.x <= bounds.max.x && position.y >= bounds.min.y && position.y <= bounds.max.y && position.z >= bounds.min.z && position.z <= bounds.max.z;
-    const boundedVisible = options.selectionBounds ? visible.filter((entry) => inBounds(entry.block.position, options.selectionBounds!)).map((entry) => entry.block.position) : [];
+    const boundedVisible = options.selectionBounds ? visible.filter((entry) => inBounds(entry.block.position, options.selectionBounds!) && isInProjection(entry.block.position)).map((entry) => entry.block.position) : [];
     const bounds = options.selectionBounds ? boundsOfPositions(boundedVisible) : undefined;
-    const box = options.selectionBox && visible.some((entry) => inBounds(entry.block.position, options.selectionBox!)) ? options.selectionBox : undefined;
+    const box = options.selectionBox && visible.some((entry) => inBounds(entry.block.position, options.selectionBox!) && isInProjection(entry.block.position)) ? options.selectionBox : undefined;
     const count = options.selectionBounds ? boundedVisible.length : positions.length || (selected ? 1 : 0);
     return { selected, positions, kind: options.selectionKind, count, bounds, box };
   }
@@ -3162,7 +3248,7 @@ export class ThreeViewportEngine {
       this.setHydrationDecorationScope([]);
       return;
     }
-    const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (!options.isolatedGroupId || decorationHasGroup(decoration, options.isolatedGroupId)) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
+    const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
     this.setHydrationDecorationScope(visible.map((decoration) => decoration.instanceId));
     this.adoptCommittedDecorationOwnership(visible);
     const map = new Map(visible.map((decoration) => [decoration.instanceId, decoration] as const));
@@ -3247,7 +3333,7 @@ export class ThreeViewportEngine {
       (position) => {
         const key = coordinateKey(position);
         const entry = this.cachedVisibleMap.get(key);
-        if (!entry || this.culledBlockKeys.has(key)) return 'skip';
+        if (!entry || this.culledBlockKeys.has(key) || this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return 'skip';
         if (entry.role === 'normal' && entry.occlusionClass === 'opaque-full-cube') return 'hit';
         return 'fallback';
       },
@@ -3267,6 +3353,7 @@ export class ThreeViewportEngine {
   private preciseCandidatePick(candidates: readonly VoxelRaycastCandidate[]): { readonly position: VoxelCoordinate; readonly normal: FaceNormal; readonly point: THREE.Vector3; readonly distance: number } | undefined {
     for (const candidate of candidates) {
       const key = coordinateKey(candidate.position);
+      if (this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) continue;
       const entry = this.renderedBlocks.get(key);
       const objects: THREE.Object3D[] = [];
       const add = (object: THREE.Object3D | undefined) => { if (object && !objects.some((existing) => existing.uuid === object.uuid)) objects.push(object); };
@@ -3282,6 +3369,7 @@ export class ThreeViewportEngine {
       } else {
         for (const membership of this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
       }
+      if (this.isolationPresentation.isActive()) for (const object of this.isolationPresentation.objectsForKey(key)) add(object);
       const placeholder = this.placeholderIndices.get(key);
       if (placeholder) add(this.placeholderBatches.get(placeholder.batchKey)?.mesh);
       if (!objects.length) continue;
@@ -3304,9 +3392,11 @@ export class ThreeViewportEngine {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const decorationHit = this.raycaster.intersectObjects(this.decorationsGroup.children, true)[0];
+    const decorationRoot = this.isolationPresentation.isActive() ? this.isolationPresentation.root : this.decorationsGroup;
+    const blockRoot = this.isolationPresentation.isActive() ? this.isolationPresentation.root : this.blocksGroup;
+    const decorationHit = this.raycaster.intersectObjects(decorationRoot.children, true).find((hit) => !!hit.object.userData['decoration']);
     const ddaHit = planeY === undefined ? this.ddaPick(project) : undefined;
-    const blockHit = planeY === undefined ? undefined : this.raycaster.intersectObjects(this.blocksGroup.children, true)[0];
+    const blockHit = planeY === undefined ? undefined : this.raycaster.intersectObjects(blockRoot.children, true).find((hit) => !hit.object.userData['decoration']);
     const decoration = decorationHit?.object.userData['decoration'] as PlacedDecoration | undefined;
     let target: VoxelCoordinate | undefined;
     let block: VoxelCoordinate | undefined;
@@ -3371,7 +3461,8 @@ export class ThreeViewportEngine {
     const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld).normalize() ?? new THREE.Vector3();
     const point = hit.point.clone().sub(normal.multiplyScalar(.002));
     const candidate = { x: Math.floor(point.x), y: Math.floor(point.y), z: Math.floor(point.z) };
-    return this.fluidCoordinator.hasVoxel(coordinateKey(candidate)) ? candidate : undefined;
+    const key = coordinateKey(candidate);
+    return this.isolationPresentation.isActive() ? this.isolationPresentation.fluidCoordinateOwner(key) ? candidate : undefined : this.fluidCoordinator.hasVoxel(key) ? candidate : undefined;
   }
 
   /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
@@ -3432,6 +3523,8 @@ export class ThreeViewportEngine {
     this.cancelPendingHover(false);
     this.cancelPendingProjection();
     this.cancelHydration('dispose');
+    this.isolationPresentation.dispose();
+    this.isolatedKeys.clear();
     const provider = this.visualProvider;
     this.cameraRenderPending = false;
     this.cameraInteraction.clear();
@@ -3621,7 +3714,9 @@ export class ThreeViewportEngine {
     };
     const sceneRoot = (object: THREE.Object3D): THREE.Object3D => {
       let root = object;
-      while (root.parent && root.parent !== this.scene) root = root.parent;
+      // Keep the canonical project children as diagnostic owners even though
+      // they now sit below the dedicated canonical root.
+      while (root.parent && root.parent !== this.scene && root.parent !== this.canonicalRoot) root = root.parent;
       return root;
     };
     const sceneOwner = (object: THREE.Object3D): string => {
@@ -3631,7 +3726,7 @@ export class ThreeViewportEngine {
         [this.ghostModel, 'ghostModel'], [this.movePreviewGroup, 'movePreviewGroup'], [this.decorationGhostGroup, 'decorationGhostGroup'],
         [this.decorationSelectionGroup, 'decorationSelectionGroup'], [this.logicalSelectionGroup, 'logicalSelectionGroup'], [this.structureBlockGuideGroup, 'structureBlockGuide'],
         [this.projectGrid, 'projectGrid'], [this.ground, 'ground'], [this.editingPlane, 'editingPlane'], [this.boundsBox, 'boundsBox'],
-        [this.selectionOutline, 'selectionOutline'], [this.selectionBox, 'selectionBox'],
+        [this.selectionOutline, 'selectionOutline'], [this.selectionBox, 'selectionBox'], [this.isolationPresentation.root, 'groupIsolationPresentation'],
       ];
       if (root === this.blocksGroup) {
         if (object instanceof THREE.InstancedMesh && object.userData['placeholder'] === true) return 'placeholderBatches';
@@ -3677,7 +3772,8 @@ export class ThreeViewportEngine {
       visibleMeshCount += 1;
       const owner = sceneOwner(object);
       const ownedByBlocksGroup = isOwnedByBlocksGroup(object);
-      if (!ownedByBlocksGroup) {
+      const isIsolationPresentationMesh = owner === 'groupIsolationPresentation';
+      if (!ownedByBlocksGroup && !isIsolationPresentationMesh) {
         outsideBlocksGroupOwners.push(`${owner}/${object.type}:${object.uuid}`);
         const key = voxelFromObject(object); if (key) addStale(key);
       }
@@ -3823,6 +3919,10 @@ export class ThreeViewportEngine {
 
   rendererCounters(): RendererCounters {
     return this.instrumentation.snapshot();
+  }
+
+  isolationDiagnostics() {
+    return this.isolationPresentation.diagnostics();
   }
 
   performanceEvidence(): ViewportPerformanceEvidence {
@@ -4336,7 +4436,8 @@ export class ThreeViewportEngine {
     const group = project.groups.find((entry) => entry.id === activeGroupId);
     const color = group?.locked ? this.palette.lockedGroup : this.palette.group;
     this.groupHighlightMaterial.color.setHex(color);
-    const visiblePositions = positions ?? [];
+    const isolatedKeys = new Set(this.renderOptions.isolatedGroupPositions?.map((position) => `${position.x},${position.y},${position.z}`));
+    const visiblePositions = (positions ?? []).filter((position) => !this.renderOptions.isolatedGroupId || isolatedKeys.has(`${position.x},${position.y},${position.z}`));
     const aggregateGroup = visiblePositions.length > DETAILED_SELECTION_OUTLINE_LIMIT;
     if (aggregateGroup) {
       const bounds = boundsOfPositions(visiblePositions);
@@ -4348,7 +4449,6 @@ export class ThreeViewportEngine {
       }
     }
     const positionKeys = new Set(positions?.map((position) => `${position.x},${position.y},${position.z}`));
-    const isolatedKeys = new Set(this.renderOptions.isolatedGroupPositions?.map((position) => `${position.x},${position.y},${position.z}`));
     for (const position of aggregateGroup ? [] : visiblePositions) {
       const key = `${position.x},${position.y},${position.z}`;
       if (!positionKeys.has(key) || !this.cachedVisibleMap.has(key) || (this.renderOptions.isolatedGroupId && !isolatedKeys.has(key))) continue;
@@ -4383,7 +4483,7 @@ export class ThreeViewportEngine {
     const visible = positions.filter((position) => {
       const key = coordinateKey(position);
       const entry = this.cachedVisibleMap.get(key);
-      return !!entry && entry.block.id === id;
+      return !!entry && entry.block.id === id && (!this.isolationPresentation.isActive() || this.isolatedKeys.has(key));
     });
     if (!visible.length) {
       overlay.visible = false;
@@ -4739,7 +4839,23 @@ function compareEmptySnapshots(firstEmpty: ViewportGhostSceneSnapshot, secondEmp
 }
 function renderFilterKey(options: ViewportRenderOptions): string {
   const layerY = options.visibility ? undefined : options.layerY;
-  return stableValue({ layerY, visibility: options.visibility, isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions, exposedFaceRendering: options.exposedFaceRendering === true });
+  return stableValue({ layerY, visibility: options.visibility, exposedFaceRendering: options.exposedFaceRendering === true });
+}
+function isolateKey(options: ViewportRenderOptions): string { return stableValue({ isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions }); }
+function canonicalRenderOptions(options: ViewportRenderOptions): ViewportRenderOptions {
+  if (options.isolatedGroupId === undefined && options.isolatedGroupPositions === undefined) return options;
+  const { isolatedGroupId: _isolatedGroupId, isolatedGroupPositions: _isolatedGroupPositions, ...canonical } = options;
+  return canonical;
+}
+function surfaceNeighbor(position: VoxelCoordinate, direction: SurfaceFaceDirection): VoxelCoordinate {
+  switch (direction) {
+    case 'north': return { x: position.x, y: position.y, z: position.z - 1 };
+    case 'south': return { x: position.x, y: position.y, z: position.z + 1 };
+    case 'east': return { x: position.x + 1, y: position.y, z: position.z };
+    case 'west': return { x: position.x - 1, y: position.y, z: position.z };
+    case 'up': return { x: position.x, y: position.y + 1, z: position.z };
+    case 'down': return { x: position.x, y: position.y - 1, z: position.z };
+  }
 }
 function isHorizontalDirection(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
 export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE.Camera): THREE.Vector3 {

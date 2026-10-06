@@ -159,6 +159,11 @@ export class ChunkSurfaceRenderer {
   ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.ownership.get(key); }
   isRepresented(key: string): boolean { return this.ownership.has(key); }
 
+  /** Returns immutable record references for a presentation-only subset. */
+  recordsForKeys(keys: ReadonlySet<string>): readonly TerrainSurfaceRecord[] {
+    return [...keys].map((key) => this.records.get(key)).filter((record): record is TerrainSurfaceRecord => !!record);
+  }
+
   syncOccupancy(entries: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[], initial = false): void {
     this.occupancy.replace(entries);
     this.options.record('occupancyFullRebuilds');

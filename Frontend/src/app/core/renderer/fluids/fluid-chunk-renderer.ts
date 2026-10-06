@@ -91,6 +91,13 @@ export class FluidChunkRenderer {
     this.providerRebuildRequired = true;
   }
 
+  /** Read-only logical records used by presentation-only projections. */
+  recordsForKeys(keys: ReadonlySet<string>): readonly FluidChunkRecord[] {
+    return [...keys].map((key) => this.records.get(key)).filter((record): record is FluidChunkRecord => !!record);
+  }
+
+  providerSnapshot(): FluidChunkVisualProvider | undefined { return this.provider; }
+
   sync(records: readonly FluidChunkRecord[], world: FluidWorldLookup, changedPositions?: readonly VoxelCoordinate[]): Promise<FluidChunkSyncResult> {
     const epoch = this.epoch;
     const task = this.syncQueue.then(() => this.syncNow(records, world, changedPositions, epoch));
