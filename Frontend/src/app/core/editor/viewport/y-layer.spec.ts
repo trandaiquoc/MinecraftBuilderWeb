@@ -36,6 +36,7 @@ describe('Y-layer projection', () => {
   it('plans only boundary layers for all-below and whole-structure changes', () => {
     expect(planYLayerProjectionDelta(20, 'all-below', 21, 'all-below')).toEqual({ changed: true, changedLayers: [20, 21] });
     expect(planYLayerProjectionDelta(20, 'whole-structure', 21, 'whole-structure')).toEqual({ changed: true, changedLayers: [20, 21] });
-    expect(planYLayerProjectionDelta(20, 'current-only', 21, 'current-only').changed).toBe(true);
+    expect(planYLayerProjectionDelta(20, 'current-only', 21, 'current-only')).toEqual({ changed: true, changedLayers: [20, 21] });
+    expect(planYLayerProjectionDelta(20, 'previous-current-next', 21, 'previous-current-next').changedLayers).toEqual([19, 20, 21, 22]);
   });
 });

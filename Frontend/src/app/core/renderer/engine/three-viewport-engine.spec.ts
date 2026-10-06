@@ -1958,6 +1958,25 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
+  it('updates reference opacity without structural or hydration work', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, editorSettings: { ...base.editorSettings, layerVisibility: 'whole-structure' as const, currentY: 0, referenceLayerOpacity: .28 } };
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', referenceOpacity: .28 });
+    const before = engine.rendererCounters();
+    const generation = engine.hydrationDiagnostics().generation;
+    const next = { ...project, editorSettings: { ...project.editorSettings, referenceLayerOpacity: .45 } };
+    engine.update(next, undefined, { layerY: 0, visibility: 'whole-structure', referenceOpacity: .45 });
+    const after = engine.rendererCounters();
+    const internals = engine as unknown as { fallbackMaterials: { reference: THREE.MeshLambertMaterial }; placeholderMaterials: { reference: THREE.MeshBasicMaterial } };
+    expect(after.structuralReconciles).toBe(before.structuralReconciles);
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(engine.hydrationDiagnostics().generation).toBe(generation);
+    expect(internals.fallbackMaterials.reference.opacity).toBe(.45);
+    expect(internals.placeholderMaterials.reference.opacity).toBe(.45);
+    engine.dispose();
+  });
+
   it('uses one aggregate bounds helper for the existing 20k fixture', () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('stress');

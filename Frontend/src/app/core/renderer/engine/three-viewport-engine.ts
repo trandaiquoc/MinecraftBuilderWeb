@@ -1305,7 +1305,7 @@ export class ThreeViewportEngine {
     const nextSyncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}` : 'empty';
     const referenceOpacityOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && renderFilterKey(previousOptions) === renderFilterKey(options) && previousOptions.referenceOpacity !== options.referenceOpacity;
     const projectionDelta = planYLayerProjectionDelta(previousOptions.layerY, previousOptions.visibility, options.layerY, options.visibility);
-    const layerProjectionOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && !mutationHint && projectionDelta.changed && previousOptions.visibility === options.visibility && (options.visibility === 'all-below' || options.visibility === 'whole-structure') && renderFilterKey(previousOptions) === renderFilterKey(options);
+    const layerProjectionOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && !mutationHint && projectionDelta.changed && previousOptions.visibility === options.visibility && !!options.visibility && options.layerY !== undefined && previousOptions.layerY !== undefined && renderFilterKey(previousOptions) === renderFilterKey(options);
     const incrementalMutation = !!project && !!previousProject && project !== previousProject && !!mutationHint && nextSyncKey === previousSyncKey && renderFilterKey(previousOptions) === renderFilterKey(options) && this.cachedVisibleProject === previousProject && this.spatialIndexProject === previousProject;
     this.project = project;
     this.activeBlock = active;
@@ -4176,7 +4176,7 @@ function compareEmptySnapshots(firstEmpty: ViewportGhostSceneSnapshot, secondEmp
   };
 }
 function renderFilterKey(options: ViewportRenderOptions): string {
-  const layerY = options.visibility === 'all-below' || options.visibility === 'whole-structure' ? undefined : options.layerY;
+  const layerY = options.visibility ? undefined : options.layerY;
   return stableValue({ layerY, visibility: options.visibility, isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions, exposedFaceRendering: options.exposedFaceRendering === true });
 }
 function isHorizontalDirection(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }

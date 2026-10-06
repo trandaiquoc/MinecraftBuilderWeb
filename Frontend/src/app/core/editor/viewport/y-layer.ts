@@ -13,9 +13,18 @@ export interface YLayerProjectionDelta {
 
 export function planYLayerProjectionDelta(previousY: number | undefined, previousMode: YLayerVisibility | undefined, nextY: number | undefined, nextMode: YLayerVisibility | undefined): YLayerProjectionDelta {
   if (previousY === nextY && previousMode === nextMode) return { changedLayers: [], changed: false };
-  if (previousY === undefined || nextY === undefined || previousMode !== nextMode) return { changedLayers: [], changed: true };
-  if (previousMode !== 'all-below' && previousMode !== 'whole-structure') return { changedLayers: [], changed: true };
-  return { changedLayers: [...new Set([previousY, nextY])], changed: true };
+  if (previousY === undefined || nextY === undefined || previousMode === undefined || nextMode === undefined || previousMode !== nextMode) return { changedLayers: [], changed: true };
+  const affected = (y: number, mode: YLayerVisibility): readonly number[] => {
+    switch (mode) {
+      case 'current-only': return [y];
+      case 'current-previous': return [y - 1, y];
+      case 'current-next': return [y, y + 1];
+      case 'previous-current-next': return [y - 1, y, y + 1];
+      case 'all-below':
+      case 'whole-structure': return [y];
+    }
+  };
+  return { changedLayers: [...new Set([...affected(previousY, previousMode), ...affected(nextY, nextMode)])], changed: true };
 }
 
 export type YLayerVisibility = 'current-only' | 'current-previous' | 'current-next' | 'previous-current-next' | 'all-below' | 'whole-structure';
@@ -49,6 +58,8 @@ export function visibleLayerSet(currentY: number, blocks: readonly PlacedBlock[]
 }
 
 export function blocksForLayers(blocks: readonly PlacedBlock[], currentY: number, mode: YLayerVisibility, index?: LayerBlockIndex): readonly PlacedBlock[] {
+  if (mode === 'whole-structure') return index?.allBlocks() ?? blocks;
+  if (mode === 'all-below' && !index) return blocks.filter((block) => block.position.y <= currentY);
   if (index) {
     const layers = visibleLayerSet(currentY, blocks, mode, index);
     return [...layers].flatMap((layer) => index.blocksAtY(layer));
