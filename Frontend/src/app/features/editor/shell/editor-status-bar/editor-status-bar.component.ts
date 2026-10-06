@@ -14,6 +14,7 @@ import { ViewportHydrationStatusService, ViewportHydrationStatusSnapshot } from 
 import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
 import { MissingProjectContentSummaryService } from '../../../../core/editor/state/missing-project-content-summary';
 import { MissingAssetsDialogComponent } from './missing-assets-dialog.component';
+import { EditorSessionService } from '../../../../core/editor/state/editor-session.service';
 
 @Component({ selector: 'app-editor-status-bar', imports: [MissingAssetsDialogComponent], templateUrl: './editor-status-bar.component.html', styleUrl: './editor-status-bar.component.scss' })
 export class EditorStatusBarComponent {
@@ -29,6 +30,7 @@ export class EditorStatusBarComponent {
   private readonly missingContent = inject(MissingProjectContentSummaryService);
   protected readonly library = inject(BlockLibraryService);
   protected readonly decorations = inject(DecorationService);
+  private readonly session = inject(EditorSessionService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   protected readonly selectionCount = computed(() => this.selection.count(this.workspace.project()));
   protected readonly missingSummary = this.missingContent.summary;
@@ -58,6 +60,7 @@ export class EditorStatusBarComponent {
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected selectionSummaryLabel(): string { return this.i18n.t('selectionSummary').replace('{count}', String(this.selectionCount())); }
   protected projectSizeLabel(): string { const size = this.workspace.project()?.size; return size ? `X ${size.x} · Y ${size.y} · Z ${size.z}` : ''; }
+  protected currentLayer(): number { return this.session.currentY(this.workspace.project()); }
   protected assetStatus(): ReturnType<typeof deriveAssetBootstrapStatus> { return deriveAssetBootstrapStatus(this.assets.status(), this.assets.contentRestore(), this.assets.downloadProgress()); }
   protected finalizationState() { return this.hydration.finalization(); }
   protected assetDataStatus(status: ReturnType<typeof deriveAssetBootstrapStatus>): 'invalid' | 'warning' | 'valid' | 'unknown' {

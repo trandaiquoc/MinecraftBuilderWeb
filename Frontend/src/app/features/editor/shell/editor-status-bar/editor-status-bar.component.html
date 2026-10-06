@@ -4,7 +4,7 @@
     <span>{{ tool.active() === 'place' ? i18n.t('toolPlace') : i18n.t('toolSelect') }}</span>
     @if (activePlacement(); as active) { <span class="active-placement-status" [attr.data-placement-kind]="active.kind" [attr.title]="active.label"><span class="active-placement-label">{{ active.kind === 'block' ? i18n.t('activeBlock') : i18n.t('activeDecoration') }}:</span> <span class="active-placement-value">{{ active.label }}</span></span> }
     <span [attr.data-status]="autosave.status() === 'error' ? 'invalid' : autosave.status() === 'saved' ? 'valid' : 'warning'" [attr.title]="autosave.error()">{{ saveStatusLabel() }}</span>
-    @if (mode.mode() === 'y-layer') { <span>{{ i18n.t('currentLayer') }}: {{ workspace.project()?.editorSettings?.currentY ?? 0 }}</span> }
+    @if (mode.mode() === 'y-layer') { <span>{{ i18n.t('currentLayer') }}: {{ currentLayer() }}</span> }
     @if (selectionCount() > 1) { <span>{{ selectionSummaryLabel() }}</span> }
     @if (workspace.project(); as project) { <span class="project-size-status" [attr.aria-label]="projectSizeLabel()">{{ projectSizeLabel() }}</span> }
   </div>
