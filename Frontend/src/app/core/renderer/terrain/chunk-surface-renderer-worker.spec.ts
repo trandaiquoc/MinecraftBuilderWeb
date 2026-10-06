@@ -142,7 +142,8 @@ describe('chunk surface renderer worker commit path', () => {
     const worker = new DeferredWorker();
     let providerGeneration = 0;
     const counters = new Map<string, number>();
-    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => worker, workerCount: 1, providerGeneration: () => providerGeneration, record: (name, delta = 1) => counters.set(name, (counters.get(name) ?? 0) + delta) });
+    const applied: Array<{ readonly hydrationCandidateKeys?: readonly string[] }> = [];
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => worker, workerCount: 1, providerGeneration: () => providerGeneration, onAsyncApply: (_records, result) => applied.push(result), record: (name, delta = 1) => counters.set(name, (counters.get(name) ?? 0) + delta) });
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const templates = cubeTemplates(material);
     const block = interiorBlockAt(0);
@@ -158,6 +159,9 @@ describe('chunk surface renderer worker commit path', () => {
     await Promise.resolve();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(group.children).toHaveLength(1);
+    expect(applied.filter((result) => result.hydrationCandidateKeys?.length)).toHaveLength(1);
+    expect(applied.at(-1)?.hydrationCandidateKeys).toEqual([key(block)]);
+    expect(renderer.evidence().terrainPendingHydrationCandidates).toBe(0);
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 

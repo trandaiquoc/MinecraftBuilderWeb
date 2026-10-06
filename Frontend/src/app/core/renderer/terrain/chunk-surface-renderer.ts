@@ -75,6 +75,7 @@ export interface TerrainRendererEvidence {
   readonly maxRecordsPerChunk: number;
   readonly terrainCommitCandidateChecks: number;
   readonly terrainCommitRepresentedLookupChecks: number;
+  readonly terrainPendingHydrationCandidates: number;
   readonly terrainAtlas: TerrainAtlasEvidence;
   readonly terrainWorker: TerrainMeshWorkerPoolEvidence;
   readonly terrainCommit: TerrainCommitSchedulerEvidence;
@@ -123,6 +124,7 @@ export class ChunkSurfaceRenderer {
   private readonly ownershipKeysByChunk = new Map<string, Set<string>>();
   private readonly chunkRevisions = new Map<string, number>();
   private readonly chunkWork = new Map<string, TerrainChunkWorkState>();
+  private readonly pendingHydrationCandidatesByChunk = new Map<string, Set<string>>();
   private readonly workerPool: TerrainMeshWorkerPool;
   private readonly commitScheduler: TerrainCommitScheduler;
   private readonly commitDiagnostics = new TerrainCommitDiagnostics();
@@ -186,6 +188,7 @@ export class ChunkSurfaceRenderer {
       this.ownershipKeysByChunk.clear();
       this.chunkRevisions.clear();
       this.chunkWork.clear();
+      this.pendingHydrationCandidatesByChunk.clear();
       this.dirtyChunks.clear();
     }
     if (occupancyEntries) this.occupancy.replace(occupancyEntries);
@@ -310,6 +313,7 @@ export class ChunkSurfaceRenderer {
       maxRecordsPerChunk: this.maxRecordsPerChunk,
       terrainCommitCandidateChecks: this.terrainCommitCandidateChecks,
       terrainCommitRepresentedLookupChecks: this.terrainCommitRepresentedLookupChecks,
+      terrainPendingHydrationCandidates: [...this.pendingHydrationCandidatesByChunk.values()].reduce((total, candidates) => total + candidates.size, 0),
       terrainWorker: this.workerPool.evidence(),
       terrainCommit: this.commitScheduler.evidence(),
       terrainCommitDiagnostics: this.commitDiagnostics.evidence(),
@@ -328,6 +332,7 @@ export class ChunkSurfaceRenderer {
     this.ownershipKeysByChunk.clear();
     this.chunkRevisions.clear();
     this.chunkWork.clear();
+    this.pendingHydrationCandidatesByChunk.clear();
     this.dirtyChunks.clear();
     for (const templates of this.templateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateCache.clear();
@@ -352,8 +357,10 @@ export class ChunkSurfaceRenderer {
     const chunk = parseChunkKey(key);
     if (!chunk) return;
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
+    if (!entries.length) this.pendingHydrationCandidatesByChunk.delete(key);
+    const attemptHydrationCandidates = entries.length ? this.retainHydrationCandidates(key, hydrationCandidateKeys) : [];
     this.maxRecordsPerChunk = Math.max(this.maxRecordsPerChunk, entries.length);
-    this.maxHydrationCandidatesPerChunk = Math.max(this.maxHydrationCandidatesPerChunk, hydrationCandidateKeys.length);
+    this.maxHydrationCandidatesPerChunk = Math.max(this.maxHydrationCandidatesPerChunk, attemptHydrationCandidates.length);
     const previousRevision = this.chunkRevisions.get(key) ?? 0;
     const revision = previousRevision + 1;
     this.chunkRevisions.set(key, revision);
@@ -364,7 +371,7 @@ export class ChunkSurfaceRenderer {
       if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
       this.chunkWork.delete(key);
-      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], disposition: 'chunk-removed' });
+      this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [], disposition: 'chunk-removed' });
       return;
     }
     const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], number>();
@@ -396,7 +403,7 @@ export class ChunkSurfaceRenderer {
       this.options.onTiming?.('terrain.worker', result.cpuMs);
       this.commitScheduler.enqueue(() => {
         const started = performance.now();
-        this.commitWorkerResult(key, entries, result, priority, changedKeys, hydrationCandidateKeys);
+        this.commitWorkerResult(key, entries, result, priority, changedKeys, attemptHydrationCandidates);
         this.options.onTiming?.('terrain.commit', performance.now() - started);
       }, 1);
     }).catch(() => {
@@ -484,6 +491,7 @@ export class ChunkSurfaceRenderer {
       if (!shouldCommit) this.options.record('terrainAsyncCommitPolicyRejected');
       else this.options.record('terrainAsyncAllUnrepresentedResults');
       if (work) work.completed = true;
+      this.pendingHydrationCandidatesByChunk.delete(key);
       const apply = { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [...new Set(failedKeys)], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], commitMetrics: metrics, disposition: !shouldCommit ? 'commit-policy-rejected' as const : 'all-unrepresented' as const };
       const asyncStarted = performance.now();
       this.options.onAsyncApply?.(records, apply);
@@ -501,6 +509,7 @@ export class ChunkSurfaceRenderer {
       this.options.record('terrainAsyncPartialFailureResults');
     } else this.options.record('terrainAsyncAcceptedResults');
     metrics.representedKeys = represented.length;
+    this.completePendingHydrationCandidates(key, hydrationCandidateKeys, [...represented, ...failed]);
     const apply: TerrainApplyResult = { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: represented, failedKeys: failed, hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], commitMetrics: metrics, disposition: failed.length ? 'partial-unrepresented' : 'accepted' };
     const asyncStarted = performance.now();
     this.options.onAsyncApply?.(records, apply);
@@ -515,6 +524,7 @@ export class ChunkSurfaceRenderer {
     }
     const work = this.chunkWork.get(key);
     if (work) work.completed = true;
+    this.pendingHydrationCandidatesByChunk.delete(key);
     this.options.record('terrainAsyncWorkerFailures');
     this.options.onAsyncApply?.(records, { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: records.map((record) => record.key), disposition: 'worker-failure' });
   }
@@ -661,6 +671,22 @@ export class ChunkSurfaceRenderer {
     metrics.hydrationPublishCount = metrics.hydrationCompletedKeys > 0 ? 1 : 0;
     this.commitDiagnostics.recordCommit({ ...metrics, totalMs: Math.max(0, performance.now() - started) });
     this.options.onTiming?.('terrain.commit.total', Math.max(0, performance.now() - started));
+  }
+
+  private retainHydrationCandidates(chunkKey: string, candidates: readonly string[]): readonly string[] {
+    const pending = this.pendingHydrationCandidatesByChunk.get(chunkKey) ?? new Set<string>();
+    for (const candidate of candidates) pending.add(candidate);
+    if (pending.size) this.pendingHydrationCandidatesByChunk.set(chunkKey, pending);
+    return [...pending];
+  }
+
+  private completePendingHydrationCandidates(chunkKey: string, candidates: readonly string[], represented: readonly string[]): void {
+    const pending = this.pendingHydrationCandidatesByChunk.get(chunkKey);
+    if (!pending) return;
+    const representedKeys = new Set(represented);
+    for (const candidate of candidates) if (representedKeys.has(candidate)) pending.delete(candidate);
+    if (pending.size) this.pendingHydrationCandidatesByChunk.set(chunkKey, pending);
+    else this.pendingHydrationCandidatesByChunk.delete(chunkKey);
   }
 
   private indexHydrationCandidates(keys: readonly string[]): ReadonlyMap<string, readonly string[]> {

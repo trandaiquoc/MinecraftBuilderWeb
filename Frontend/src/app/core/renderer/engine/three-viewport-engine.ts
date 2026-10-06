@@ -236,6 +236,7 @@ export interface ViewportPerformanceEvidence {
   readonly maxRecordsPerChunk: number;
   readonly terrainCommitCandidateChecks: number;
   readonly terrainCommitRepresentedLookupChecks: number;
+  readonly terrainPendingHydrationCandidates: number;
   readonly terrainAsyncAcceptedResults: number;
   readonly terrainAsyncStaleRevisionResults: number;
   readonly terrainAsyncStaleGenerationResults: number;
@@ -3913,6 +3914,7 @@ export class ThreeViewportEngine {
       maxRecordsPerChunk: terrain.maxRecordsPerChunk,
       terrainCommitCandidateChecks: terrain.terrainCommitCandidateChecks,
       terrainCommitRepresentedLookupChecks: terrain.terrainCommitRepresentedLookupChecks,
+      terrainPendingHydrationCandidates: terrain.terrainPendingHydrationCandidates,
       terrainAsyncAcceptedResults: counters.terrainAsyncAcceptedResults,
       terrainAsyncStaleRevisionResults: counters.terrainAsyncStaleRevisionResults,
       terrainAsyncStaleGenerationResults: counters.terrainAsyncStaleGenerationResults,
