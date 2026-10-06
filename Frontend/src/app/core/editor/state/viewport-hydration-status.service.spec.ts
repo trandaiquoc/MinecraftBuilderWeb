@@ -76,4 +76,19 @@ describe('ViewportHydrationStatusService', () => {
     service.publish(owner, progress({ lane: 'content', total: 40, completed: 0, percent: 0 }));
     expect(service.status()).toMatchObject({ activity: 'content', progress: { total: 40, completed: 0 } });
   });
+
+  it('settles unresolved blocks as a warning and reopens when content arrives', () => {
+    const service = new ViewportHydrationStatusService();
+    const owner = service.claim();
+    service.setSourceRestoreState(owner, { terminal: true, pending: false });
+    service.publish(owner, progress({ status: 'complete', completed: 100, total: 120, blocksCompleted: 100, blocksTotal: 120, percent: 83.3, finalization: { expectedBlocks: 120, finalReadyBlocks: 100, provisionalMissingBlocks: 0, permanentMissingBlocks: 20, pendingBlocks: 0 } }));
+    expect(service.status()).toBeUndefined();
+    expect(service.finalization()).toMatchObject({ phase: 'warning', loading: false, warning: true });
+
+    service.publish(owner, progress({ lane: 'content', completed: 100, total: 20, blocksCompleted: 100, blocksTotal: 20, percent: 0, finalization: { expectedBlocks: 120, finalReadyBlocks: 100, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 20 } }));
+    expect(service.finalization()).toMatchObject({ phase: 'updating', loading: true });
+    expect(service.status()?.progress.lane).toBe('content');
+    service.publish(owner, progress({ lane: 'content', status: 'complete', completed: 20, total: 20, blocksCompleted: 20, blocksTotal: 20, percent: 100, finalization: { expectedBlocks: 120, finalReadyBlocks: 120, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+    expect(service.finalization()).toMatchObject({ phase: 'ready', loading: false, ready: true });
+  });
 });
