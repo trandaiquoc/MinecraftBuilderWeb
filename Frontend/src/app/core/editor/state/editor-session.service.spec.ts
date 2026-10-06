@@ -26,9 +26,13 @@ describe('EditorSessionService Y-layer preview', () => {
     for (let y = 21; y <= 120; y += 1) session.previewCurrentY(current.id, y);
 
     expect(session.currentY(current)).toBe(120);
+    expect(session.displayCurrentY(current)).toBe(120);
+    expect(session.committedCurrentY(current)).toBe(20);
+    expect(session.hasCurrentYPreview(current)).toBe(true);
     expect(workspace.project()).toBe(current);
     session.clearCurrentYPreview(current.id);
     expect(session.currentY(current)).toBe(20);
+    expect(session.hasCurrentYPreview(current)).toBe(false);
   });
 
   it('does not leak a preview to another project', () => {

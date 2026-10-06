@@ -2001,6 +2001,26 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
+  it('reports projection activity until changed Y-layer ownership settles', async () => {
+    const engine = new ThreeViewportEngine();
+    const states: string[] = [];
+    const unsubscribe = engine.onProjectionActivity((state) => states.push(state.activity));
+    const project = rendererBenchmarkProject('small');
+    const options = { layerY: 0, visibility: 'whole-structure' as const };
+
+    engine.update(project, undefined, options);
+    engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 1 } }, undefined, { ...options, layerY: 1 });
+    expect(engine.projectionActivity().activity).toBe('applying');
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(states).toContain('applying');
+    expect(states).toContain('settling');
+    expect(engine.projectionActivity().activity).toBe('idle');
+    unsubscribe();
+    engine.dispose();
+  });
+
   it('updates reference opacity without structural or hydration work', () => {
     const engine = new ThreeViewportEngine();
     const base = rendererBenchmarkProject('small');

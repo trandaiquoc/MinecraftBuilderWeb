@@ -16,11 +16,22 @@ export class EditorSessionService {
   private readonly decorations = inject(DecorationService);
   private readonly currentYPreview = signal<{ readonly projectId: string; readonly y: number } | undefined>(undefined);
 
-  currentY(project: ProjectDocument | undefined): number {
+  /** The layer shown in the controls, including an uncommitted scrub preview. */
+  displayCurrentY(project: ProjectDocument | undefined): number {
     if (!project) return 0;
     const preview = this.currentYPreview();
     return preview?.projectId === project.id ? preview.y : project.editorSettings.currentY;
   }
+
+  /** The layer that is persisted and therefore authoritative for rendering/editing. */
+  committedCurrentY(project: ProjectDocument | undefined): number { return project?.editorSettings.currentY ?? 0; }
+
+  hasCurrentYPreview(project: ProjectDocument | undefined): boolean {
+    return !!project && this.currentYPreview()?.projectId === project.id;
+  }
+
+  /** Backward-compatible effective-layer accessor for status surfaces. */
+  currentY(project: ProjectDocument | undefined): number { return this.displayCurrentY(project); }
 
   previewCurrentY(projectId: string, y: number): void { this.currentYPreview.set({ projectId, y }); }
 

@@ -441,6 +441,13 @@ export interface ViewportControlConfiguration {
   readonly verticalMoveSpeed: number;
 }
 
+export type ViewportProjectionActivity = 'idle' | 'applying' | 'settling';
+
+export interface ViewportProjectionState {
+  readonly activity: ViewportProjectionActivity;
+  readonly revision: number;
+}
+
 interface RenderedBlockEntry {
   readonly key: string;
   readonly block: ProjectDocument['blocks'][number];
@@ -642,6 +649,11 @@ export class ThreeViewportEngine {
   private projectionFrame?: number;
   private projectionRevision = 0;
   private projectionWorkToken = 0;
+  private projectionActivityState: ViewportProjectionActivity = 'idle';
+  private projectionActivityRevision = 0;
+  private readonly projectionActivityListeners = new Set<(state: ViewportProjectionState) => void>();
+  private readonly projectionPendingKeys = new Set<string>();
+  private projectionSettlementTimer?: ReturnType<typeof setTimeout>;
   /** Layers touched by a cooperative job that has not reached a coherent projection yet. */
   private readonly inFlightProjectionLayers = new Set<number>();
   private readonly projectionKeyRevisions = new Map<string, number>();
@@ -1582,6 +1594,7 @@ export class ThreeViewportEngine {
   private scheduleLayerProjectionCommit(project: ProjectDocument, options: ViewportRenderOptions): void {
     this.pendingProjection = { project, options };
     this.instrumentation.record('yLayerProjectionRequests');
+    this.setProjectionActivity('applying', this.projectionRevision + 1);
     if (this.projectionFrame !== undefined) {
       this.instrumentation.record('yLayerProjectionRequestsCoalesced');
       return;
@@ -1590,13 +1603,24 @@ export class ThreeViewportEngine {
       this.projectionFrame = undefined;
       const pending = this.pendingProjection;
       this.pendingProjection = undefined;
-      if (!pending || this.disposed || this.suspended) return;
+      if (!pending || this.disposed || this.suspended) {
+        this.setProjectionActivity('idle', this.projectionActivityRevision);
+        return;
+      }
       const base = this.committedProjection;
-      if (!base || base.project.id !== pending.project.id || base.project.blocks !== pending.project.blocks) return;
+      if (!base || base.project.id !== pending.project.id || base.project.blocks !== pending.project.blocks) {
+        this.setProjectionActivity('idle', this.projectionActivityRevision);
+        return;
+      }
       const delta = planYLayerProjectionDelta(base.options.layerY, base.options.visibility, pending.options.layerY, pending.options.visibility, pending.options.layerIndex ?? this.layerIndex);
       const changedLayers = [...new Set([...delta.changedLayers, ...this.inFlightProjectionLayers])].sort((left, right) => left - right);
-      if (!changedLayers.length) return;
+      if (!changedLayers.length) {
+        this.setProjectionActivity('idle', this.projectionActivityRevision);
+        return;
+      }
       this.projectionRevision += 1;
+      this.projectionActivityRevision = this.projectionRevision;
+      this.projectionPendingKeys.clear();
       void this.applyLayerProjectionWork(pending.project, pending.options, changedLayers).then((completed) => {
         if (!completed || this.disposed) return;
         this.committedProjection = { project: pending.project, options: pending.options };
@@ -1605,6 +1629,8 @@ export class ThreeViewportEngine {
         this.syncedBlocksReference = pending.project.blocks;
         this.structureSyncKey = `${pending.project.id}|${pending.project.size.x},${pending.project.size.y},${pending.project.size.z}|${renderFilterKey(pending.options)}`;
         this.instrumentation.record('yLayerProjectionCommits');
+        this.setProjectionActivity('settling', this.projectionRevision);
+        this.scheduleProjectionSettlementCheck(this.projectionRevision);
       });
     });
   }
@@ -1612,9 +1638,43 @@ export class ThreeViewportEngine {
   private cancelPendingProjection(): void {
     this.projectionWorkToken += 1;
     this.inFlightProjectionLayers.clear();
+    this.projectionPendingKeys.clear();
+    if (this.projectionSettlementTimer !== undefined) clearTimeout(this.projectionSettlementTimer);
+    this.projectionSettlementTimer = undefined;
     if (this.projectionFrame !== undefined) cancelViewportFrame(this.projectionFrame);
     this.projectionFrame = undefined;
     this.pendingProjection = undefined;
+    this.setProjectionActivity('idle', this.projectionRevision);
+  }
+
+  private setProjectionActivity(activity: ViewportProjectionActivity, revision: number): void {
+    if (this.projectionActivityState === activity && this.projectionActivityRevision === revision) return;
+    this.projectionActivityState = activity;
+    this.projectionActivityRevision = revision;
+    const state = this.projectionActivity();
+    for (const listener of this.projectionActivityListeners) listener(state);
+  }
+
+  private scheduleProjectionSettlementCheck(revision: number): void {
+    if (this.disposed || this.projectionActivityRevision !== revision || this.projectionActivityState !== 'settling') return;
+    if (this.projectionSettlementTimer !== undefined) return;
+    this.projectionSettlementTimer = setTimeout(() => {
+      this.projectionSettlementTimer = undefined;
+      if (this.disposed || this.projectionActivityRevision !== revision || this.projectionActivityState !== 'settling') return;
+      const settled = [...this.projectionPendingKeys].every((key) => this.projectionKeySettled(key));
+      if (settled) {
+        this.projectionPendingKeys.clear();
+        this.setProjectionActivity('idle', revision);
+      } else this.scheduleProjectionSettlementCheck(revision);
+    }, 0);
+  }
+
+  private projectionKeySettled(key: string): boolean {
+    if (!this.cachedVisibleMap.has(key)) return true;
+    if (this.culledBlockKeys.has(key) || this.placeholderSignatures.has(key)) return true;
+    if (this.pendingHydrationSignatures.has(key) || this.runningHydrationKeys.has(key)) return false;
+    const entry = this.renderedBlocks.get(key);
+    return !!entry && this.hasCommittedBlockOwnership(key, entry);
   }
 
   private projectionRevisionForKey(key: string): number { return this.projectionKeyRevisions.get(key) ?? 0; }
@@ -1916,6 +1976,7 @@ export class ThreeViewportEngine {
       return;
     }
     const scopeDelta: HydrationBlockScopeDelta = { add: added, remove: removed, invalidate: invalidated, missing };
+    for (const key of changedProjectionKeys) this.projectionPendingKeys.add(key);
     this.hydrationProgressTracker.applyBlockScopeDelta(scopeDelta, false);
     this.instrumentation.record('yLayerProjectionChangedLayers', changedLayers.length);
     this.instrumentation.record('yLayerProjectionChangedBlocks', changes.size);
@@ -3950,6 +4011,16 @@ export class ThreeViewportEngine {
 
   onHydrationProgress(listener: (progress: ViewportHydrationProgress) => void): () => void {
     return this.hydrationProgressTracker.onProgress((progress) => listener(this.withProviderRefreshProgress(progress)));
+  }
+
+  onProjectionActivity(listener: (state: ViewportProjectionState) => void): () => void {
+    this.projectionActivityListeners.add(listener);
+    listener(this.projectionActivity());
+    return () => this.projectionActivityListeners.delete(listener);
+  }
+
+  projectionActivity(): ViewportProjectionState {
+    return { activity: this.projectionActivityState, revision: this.projectionActivityRevision };
   }
 
   private withProviderRefreshProgress(progress: HydrationProgressSnapshot): ViewportHydrationProgress {
