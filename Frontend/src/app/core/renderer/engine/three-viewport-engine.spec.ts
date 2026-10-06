@@ -1956,7 +1956,7 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
-  it('changes whole-structure Y-layer roles through a bounded layer delta', () => {
+  it('changes whole-structure Y-layer roles through a bounded layer delta', async () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('stress');
     const byY = new Map<number, PlacedBlock[]>();
@@ -1968,11 +1968,33 @@ describe('selection visualization scalability', () => {
     const before = engine.rendererCounters();
     const next = { ...project, editorSettings: { ...project.editorSettings, currentY: 1 } };
     engine.update(next, undefined, { ...options, layerY: 1 });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const after = engine.rendererCounters();
     expect(after.fullVisibleScans).toBe(before.fullVisibleScans);
     expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
     expect(after.structuralReconciles).toBe(before.structuralReconciles);
-    expect(after.incrementalBlockReconciles).toBe(before.incrementalBlockReconciles + 1);
+    expect(after.incrementalBlockReconciles).toBe(before.incrementalBlockReconciles);
+    expect(after.yLayerProjectionCommits).toBe(before.yLayerProjectionCommits + 1);
+    engine.dispose();
+  });
+
+  it('coalesces rapid whole-structure Y-layer requests and commits only the latest projection', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    const options = { layerY: 0, visibility: 'whole-structure' as const };
+    engine.update(project, undefined, options);
+    const before = engine.rendererCounters();
+
+    engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 1 } }, undefined, { ...options, layerY: 1 });
+    engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 2 } }, undefined, { ...options, layerY: 2 });
+    engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 3 } }, undefined, { ...options, layerY: 3 });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const after = engine.rendererCounters();
+    expect(after.yLayerProjectionRequests).toBe(before.yLayerProjectionRequests + 3);
+    expect(after.yLayerProjectionRequestsCoalesced).toBe(before.yLayerProjectionRequestsCoalesced + 2);
+    expect(after.yLayerProjectionCommits).toBe(before.yLayerProjectionCommits + 1);
+    expect(after.incrementalBlockReconciles).toBe(before.incrementalBlockReconciles);
     engine.dispose();
   });
 
