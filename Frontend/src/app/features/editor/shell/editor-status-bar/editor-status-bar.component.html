@@ -6,6 +6,8 @@
     <span [attr.data-status]="autosave.status() === 'error' ? 'invalid' : autosave.status() === 'saved' ? 'valid' : 'warning'" [attr.title]="autosave.error()">{{ saveStatusLabel() }}</span>
     @if (mode.mode() === 'y-layer') { <span>{{ i18n.t('currentLayer') }}: {{ currentLayer() }}</span> }
     @if (selectionCount() > 1) { <span>{{ selectionSummaryLabel() }}</span> }
+    @if (statusCoordinate(); as coordinate) { <span class="coordinate-status" [attr.title]="coordinateTitle()">{{ coordinateLabel() }}</span> }
+    @if (workspace.project()) { <span class="block-count-status">{{ i18n.t('totalBlocks') }}: {{ projectBlockCount().toLocaleString(i18n.locale()) }}</span> }
     @if (workspace.project(); as project) { <span class="project-size-status" [attr.aria-label]="projectSizeLabel()">{{ projectSizeLabel() }}</span> }
   </div>
   <div class="status-right">

@@ -7,6 +7,12 @@ import { ProjectPersistenceService, ProjectSaveStatus } from '../project-persist
 
 export type EditorSaveStatus = 'saved' | 'pending' | 'saving' | 'error';
 
+export function applyBeforeUnloadGuard(event: BeforeUnloadEvent, unsafeDirty: boolean): void {
+  if (!unsafeDirty) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProjectAutosaveService implements OnDestroy {
   private readonly workspace = inject(WorkspaceStateService);
@@ -20,7 +26,7 @@ export class ProjectAutosaveService implements OnDestroy {
   readonly savedRevision = signal(0);
   readonly unsafeDirty = signal(false);
   readonly cleanupWarning = signal<string | undefined>(undefined);
-  private readonly beforeUnload = (event: BeforeUnloadEvent): void => { if (!this.unsafeDirty()) return; event.preventDefault(); event.returnValue = ''; };
+  private readonly beforeUnload = (event: BeforeUnloadEvent): void => applyBeforeUnloadGuard(event, this.unsafeDirty());
   private beforeUnloadAttached = false;
   private readonly synchronization = effect(() => {
     const project = this.workspace.project();

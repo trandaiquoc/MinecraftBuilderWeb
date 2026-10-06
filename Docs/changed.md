@@ -2459,3 +2459,8 @@ dev-only `window.__mbRecoveryDiagnostics` hook:
 `await __mbRecoveryDiagnostics.stageFromCurrentProject()` stages the active
 document, `await __mbRecoveryDiagnostics.clear(projectId)` removes a snapshot,
 and `await __mbRecoveryDiagnostics.inspect(projectId)` reads its record.
+
+The editor status bar reports the exact `ProjectDocument.blocks.length` count
+and the current viewport coordinate. Hover coordinates come from the existing
+3D/Y-Layer hit callback, with owner-aware handoff and project-ID checks so a
+retained inactive viewport cannot publish or clear another mode's status.

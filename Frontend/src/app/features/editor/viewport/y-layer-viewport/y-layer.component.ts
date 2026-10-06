@@ -19,6 +19,7 @@ import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
+import { ViewportStatusService, hoverCoordinateForHit } from '../../../../core/editor/viewport/viewport-status.service';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { ThemeService } from '../../../../core/ui/theme/theme.service';
@@ -63,6 +64,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly itemVisuals = inject(ItemVisualService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
+  private readonly viewportStatus = inject(ViewportStatusService);
   private readonly session = inject(EditorSessionService);
   private readonly resolveSpecialVisual = (id: string) => this.library.get(id)?.specialVisual;
   private readonly resolveBlockDefinition = (id: string) => this.library.get(id);
@@ -85,6 +87,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private projectionIndicatorRevision?: number;
   private readonly projectionActivityUnsubscribe = this.engine.onProjectionActivity((state) => this.handleProjectionActivity(state));
   private readonly hydrationOwner = this.hydrationStatus.claim();
+  private readonly viewportStatusOwner = this.viewportStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
   private readonly layerIndexSync = effect(() => { const project = this.workspace.project(); if (project) this.layerIndex.ensure(project); this.engine.setLayerIndex(this.layerIndex); });
   private pointerStart?: { x: number; y: number };
@@ -92,6 +95,12 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private pickConsumed = false;
   private boxCornerStart?: VoxelCoordinate;
   private readonly lifecycleSync = effect(() => { if (this.viewportActive()) { this.hydrationStatus.activate(this.hydrationOwner); this.engine.resume(); } else this.engine.suspend(); });
+  private readonly viewportStatusSync = effect(() => {
+    const active = this.viewportActive();
+    const projectId = this.workspace.project()?.id;
+    if (active) this.viewportStatus.activate(this.viewportStatusOwner, projectId);
+    else this.viewportStatus.deactivate(this.viewportStatusOwner);
+  });
   private readonly sync = effect(() => { const activeViewport = this.viewportActive(); const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: this.committedY(), visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), groupMovePreview: this.groups.movePreview() }, activeViewport ? this.mutationHints.consume(project, 'y-layer-viewport') : undefined); });
   private readonly usageHighlightSync = effect(() => { this.layerIndex.usageRevision(); const id = this.usageHighlight.highlightedBlockId(); this.engine.setBlockUsageHighlight(id, id ? this.layerIndex.blocksForId(id).map((block) => ({ ...block.position })) : undefined); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
@@ -112,7 +121,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); this.engine.restoreCamera(this.cameraState.get('y-layer')); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.session.clearCurrentYPreview(this.workspace.project()?.id); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.layerIndexSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.engine.cameraState(); if (state) this.cameraState.set('y-layer', state); this.session.clearCurrentYPreview(this.workspace.project()?.id); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.viewportStatus.release(this.viewportStatusOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.viewportStatusSync.destroy(); this.layerIndexSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }
@@ -136,8 +145,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected jumpAdjacent(direction: -1 | 1): void { const project = this.workspace.project(); if (project && !this.projectionBusy()) this.setLayer(String(clampLayer(adjacentOccupiedLayer(this.currentY(), project.blocks, direction, this.layerIndex), project.size))); }
   protected setVisibility(value: string): void { const project = this.workspace.project(); if (!project || this.projectionBusy()) return; this.session.clearCurrentYPreview(project.id); if (project.editorSettings.layerVisibility === value) return; this.workspace.project.set({ ...project, editorSettings: { ...project.editorSettings, layerVisibility: value as YLayerVisibility } }); }
   protected resize(): void { if (this.viewportActive()) this.engine.resize(); }
-  protected pointerMove(event: PointerEvent): void { if (!this.viewportActive()) return; if (this.projectionBusy()) { this.clearInteractionFeedback(); return; } this.engine.hover(event, this.workspace.project(), this.active.active(), this.committedY(), this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }
-  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const feedback = placementFeedbackForHit(hit, !!activeDecoration); this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(feedback?.status ?? 'invalid'); this.placementFeedback.set(feedback); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  protected pointerMove(event: PointerEvent): void { if (!this.viewportActive()) return; if (this.projectionBusy()) { this.clearInteractionFeedback(); return; } const project = this.workspace.project(); this.engine.hover(event, project, this.active.active(), this.committedY(), this.tool.active() === 'place', (hit) => this.applyHoverHit(hit, project?.id)); }
+  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit, projectId?: string): void { const activeDecoration = this.decorations.active(); const feedback = placementFeedbackForHit(hit, !!activeDecoration); this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(feedback?.status ?? 'invalid'); this.placementFeedback.set(feedback); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); this.viewportStatus.publish(this.viewportStatusOwner, projectId, hoverCoordinateForHit(hit), feedback?.status ?? hit.placement?.status ?? 'invalid'); }
   protected pointerDown(event: PointerEvent): void {
     if (!this.viewportActive()) return;
     if (this.projectionBusy()) return;
@@ -223,6 +232,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     if (event) this.releasePointer(event);
     this.engine.endEditorPointerGesture();
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.boxCornerStart = undefined; this.engine.clearInput();
+    this.viewportStatus.clear(this.viewportStatusOwner);
   }
   private capturePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.setPointerCapture && !target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId); }
   private releasePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.releasePointerCapture && target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId); }
@@ -258,7 +268,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     }, Y_LAYER_PROJECTION_STATUS_DELAY_MS);
   }
 
-  private clearInteractionFeedback(): void { this.engine.clearGhost(); this.placementFeedback.set(undefined); this.decorationReason.set(''); this.target.set(''); }
+  private clearInteractionFeedback(): void { this.engine.clearGhost(); this.placementFeedback.set(undefined); this.decorationReason.set(''); this.target.set(''); this.viewportStatus.clear(this.viewportStatusOwner); }
 }
 
 function isEditorMouseAction(action: MouseAction | undefined): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {

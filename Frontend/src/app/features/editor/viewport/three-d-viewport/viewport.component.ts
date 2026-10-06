@@ -37,6 +37,7 @@ import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/te
 import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
+import { ViewportStatusService, hoverCoordinateForHit } from '../../../../core/editor/viewport/viewport-status.service';
 import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 
 declare global {
@@ -68,6 +69,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
   private readonly usageHighlight = inject(BlockUsageHighlightService);
+  private readonly viewportStatus = inject(ViewportStatusService);
   private readonly resolveSpecialVisual = (id: string) => this.library.get(id)?.specialVisual;
   private readonly resolveBlockDefinition = (id: string) => this.library.get(id);
   private readonly resolveDecorationTexture = (resource: string) => this.assets.sources.resources.textureUrl(resource);
@@ -84,6 +86,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();
   private readonly terrainAtlasProbeCommand = (blockId = 'minecraft:stone', state: Readonly<Record<string, string>> = {}) => runTerrainAtlasProbe(this.engine, this.assets.visualProvider(), blockId, state);
   private readonly hydrationOwner = this.hydrationStatus.claim();
+  private readonly viewportStatusOwner = this.viewportStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
@@ -92,8 +95,14 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private freeSpaceDragStart?: { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane };
   private readonly onNativePointerMove = (event: PointerEvent) => this.pointerMove(event);
   private readonly lifecycleSync = effect(() => { if (this.viewportActive()) { this.hydrationStatus.activate(this.hydrationOwner); this.engine.resume(); } else this.engine.suspend(); });
+  private readonly viewportStatusSync = effect(() => {
+    const active = this.viewportActive();
+    const projectId = this.workspace.project()?.id;
+    if (active) this.viewportStatus.activate(this.viewportStatusOwner, projectId);
+    else this.viewportStatus.deactivate(this.viewportStatusOwner);
+  });
   private readonly sync = effect(() => { const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
-  private readonly toolSync = effect(() => { this.tool.active(); this.engine.clearGhost(); });
+  private readonly toolSync = effect(() => { this.tool.active(); this.engine.clearGhost(); this.viewportStatus.clear(this.viewportStatusOwner); });
   private readonly usageHighlightSync = effect(() => { this.runtimeIndex.usageRevision(); const id = this.usageHighlight.highlightedBlockId(); this.engine.setBlockUsageHighlight(id, id ? this.runtimeIndex.blocksForId(id).map((block) => ({ ...block.position })) : undefined); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });
@@ -141,7 +150,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.setRuntimeTrace(undefined);
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.toolSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.viewportStatus.release(this.viewportStatusOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.viewportStatusSync.destroy(); this.toolSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }
@@ -159,8 +168,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
 
   protected resize(): void { if (this.viewportActive()) this.engine.resize(); }
   protected statusLabel(): string { return this.i18n.t(this.placementFeedback()?.status ?? 'invalid'); }
-  protected pointerMove(event: PointerEvent): void { if (!this.viewportActive()) return; this.engine.hover(event, this.workspace.project(), this.active.active(), undefined, this.tool.active() === 'place', (hit) => this.applyHoverHit(hit)); }
-  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit): void { const activeDecoration = this.decorations.active(); const feedback = placementFeedbackForHit(hit, !!activeDecoration); this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(feedback?.status ?? 'invalid'); this.placementFeedback.set(feedback); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); }
+  protected pointerMove(event: PointerEvent): void { if (!this.viewportActive()) return; const project = this.workspace.project(); this.engine.hover(event, project, this.active.active(), undefined, this.tool.active() === 'place', (hit) => this.applyHoverHit(hit, project?.id)); }
+  private applyHoverHit(hit: import('../../../../core/renderer/engine/three-viewport-engine').ViewportHit, projectId?: string): void { const activeDecoration = this.decorations.active(); const feedback = placementFeedbackForHit(hit, !!activeDecoration); this.decorationReason.set(activeDecoration ? hit.decorationPlan?.reason ?? '' : ''); this.engine.setGhostStatus(feedback?.status ?? 'invalid'); this.placementFeedback.set(feedback); this.target.set(hit.target ? `${hit.target.x}, ${hit.target.y}, ${hit.target.z}` : ''); this.viewportStatus.publish(this.viewportStatusOwner, projectId, hoverCoordinateForHit(hit), feedback?.status ?? hit.placement?.status ?? 'invalid'); }
   protected pointerDown(event: PointerEvent): void {
     if (!this.viewportActive()) return;
     const action = this.input.mouseActionForEvent(event);
@@ -270,13 +279,14 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined;
-    this.engine.clearGhost(); this.placementFeedback.set(undefined); this.decorationReason.set(''); this.target.set('');
+    this.engine.clearGhost(); this.placementFeedback.set(undefined); this.decorationReason.set(''); this.target.set(''); this.viewportStatus.clear(this.viewportStatusOwner);
   }
   protected cancelPointer(event?: PointerEvent): void {
     if (!this.viewportActive()) return;
     if (event) this.releasePointer(event);
     this.engine.endEditorPointerGesture();
     this.pointerStart = undefined; this.gestureAction = undefined; this.pickConsumed = false; this.faceDragStart = undefined; this.freeSpaceDragStart = undefined; this.engine.clearInput();
+    this.viewportStatus.clear(this.viewportStatusOwner);
   }
   private capturePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.setPointerCapture && !target.hasPointerCapture(event.pointerId)) target.setPointerCapture(event.pointerId); }
   private releasePointer(event: PointerEvent): void { const target = event.currentTarget as HTMLElement | null; if (target?.releasePointerCapture && target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId); }

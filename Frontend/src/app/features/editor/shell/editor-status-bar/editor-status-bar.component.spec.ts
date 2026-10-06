@@ -12,6 +12,8 @@ import type { ProjectDocument } from '../../../../core/domain/project.types';
 import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
 import { EditorModeService } from '../../../../core/editor/state/editor-mode.service';
 import { EditorSessionService } from '../../../../core/editor/state/editor-session.service';
+import { ViewportStatusService } from '../../../../core/editor/viewport/viewport-status.service';
+import { SelectionService } from '../../../../core/editor/selection/selection.service';
 
 describe('EditorStatusBarComponent asset bootstrap status', () => {
   it('renders determinate Mod restore progress and removes it when ready', async () => {
@@ -194,5 +196,58 @@ describe('EditorStatusBarComponent missing-content warning', () => {
     (fixture.nativeElement.querySelector('.missing-assets-dialog .ui-close-button') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.asset-status--action')).not.toBeNull();
+  });
+});
+
+describe('EditorStatusBarComponent project coordinates', () => {
+  const project: ProjectDocument = {
+    schemaVersion: 3,
+    id: 'coordinate-status-project',
+    metadata: { name: 'Coordinates', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' },
+    size: { x: 8, y: 6, z: 4 }, structureMode: 'vanilla-structure-block',
+    blocks: [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 3, z: 1 }, state: {} },
+      { kind: 'resolved', id: 'minecraft:dirt', namespace: 'minecraft', position: { x: 5, y: 0, z: 2 }, state: {} },
+    ], groups: [], editorSettings: { currentY: 0, layerVisibility: 'whole-structure', referenceLayerOpacity: .28 },
+  };
+
+  async function createFixture(): Promise<ReturnType<typeof TestBed.createComponent<EditorStatusBarComponent>>> {
+    await TestBed.configureTestingModule({ imports: [EditorStatusBarComponent], providers: [{ provide: ProjectAutosaveService, useValue: { status: signal('saved'), error: signal(undefined) } }] }).compileComponents();
+    const workspace = TestBed.inject(WorkspaceStateService);
+    workspace.project.set(project);
+    return TestBed.createComponent(EditorStatusBarComponent);
+  }
+
+  it('shows exact block count and dimensions without a coordinate when nothing is selected', async () => {
+    const fixture = await createFixture();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Total blocks: 2');
+    expect(fixture.nativeElement.textContent).toContain('X 8 · Y 6 · Z 4');
+    expect(fixture.nativeElement.querySelector('.coordinate-status')).toBeNull();
+  });
+
+  it('shows one selected coordinate, suppresses it for multiple blocks, and gives hover priority', async () => {
+    const fixture = await createFixture();
+    const selection = TestBed.inject(SelectionService);
+    const status = TestBed.inject(ViewportStatusService);
+    const owner = status.claim();
+    status.activate(owner, project.id);
+    selection.select(project.blocks[0].position);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.coordinate-status')?.textContent).toContain('X 2 · Y 3 · Z 1');
+
+    selection.selectBox({ min: { x: 0, y: 0, z: 0 }, max: { x: 5, y: 5, z: 3 } });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.coordinate-status')).toBeNull();
+
+    selection.select(project.blocks[0].position);
+    status.publish(owner, project.id, { x: 7, y: 1, z: 2 }, 'valid');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.coordinate-status')?.textContent).toContain('X 7 · Y 1 · Z 2');
+    status.clear(owner);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.coordinate-status')?.textContent).toContain('X 2 · Y 3 · Z 1');
+    status.release(owner);
+    selection.clear();
   });
 });
