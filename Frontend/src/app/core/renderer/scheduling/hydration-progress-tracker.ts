@@ -124,6 +124,13 @@ export class HydrationProgressTracker {
 
   missingStateKeys(): readonly string[] { return [...this.provisionalMissingBlocks, ...this.permanentMissingBlocks]; }
 
+  /** Returns the current scope keys that still need a terminal representation. */
+  incompleteBlockKeys(): readonly string[] {
+    return [...this.blockScope].filter((key) => !this.completedBlocks.has(key) && !this.permanentMissingBlocks.has(key));
+  }
+
+  isPermanentMissing(key: string): boolean { return this.permanentMissingBlocks.has(key); }
+
   hasBlockKey(key: string): boolean { return this.blockScope.has(key); }
 
   isBlockComplete(key: string): boolean { return this.completedBlocks.has(key); }

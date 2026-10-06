@@ -144,6 +144,15 @@ export class ChunkSurfaceRenderer {
   has(key: string): boolean { return this.records.has(key); }
   ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.ownership.get(key); }
   isRepresented(key: string): boolean { return this.ownership.has(key); }
+  /** True while a worker/commit owns the voxel's current chunk. */
+  hasPending(key: string): boolean {
+    const record = this.records.get(key);
+    if (!record) return false;
+    return [...relevantTerrainChunks(record.block.position)].some((chunk) => {
+      const work = this.chunkWork.get(terrainChunkKey(chunk));
+      return !!work && !work.completed;
+    });
+  }
 
   syncOccupancy(entries: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[], initial = false): void {
     this.occupancy.replace(entries);

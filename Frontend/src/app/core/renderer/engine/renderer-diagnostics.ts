@@ -133,6 +133,23 @@ export interface RendererCounters {
   readonly fullVisibleScans: number;
   readonly occupancyFullRebuilds: number;
   readonly occupancyDeltaUpdates: number;
+  readonly projectIdentityChanges: number;
+  readonly structuralInputChanges: number;
+  readonly metadataOnlyProjectChanges: number;
+  readonly visibilityDeltaChanges: number;
+  readonly suspendedUpdates: number;
+  readonly suspendedIgnoredMetadataUpdates: number;
+  readonly suspendedQueuedBlockDeltas: number;
+  readonly resumeFullReconciles: number;
+  readonly resumeDeltaReconciles: number;
+  readonly groupMembershipDeltaBlocks: number;
+  readonly groupVisibilityDeltaBlocks: number;
+  readonly highlightRebuilds: number;
+  readonly highlightInstances: number;
+  readonly highlightRegions: number;
+  readonly highlightBuildMs: number;
+  readonly finalizationOrphanCount: number;
+  readonly finalizationOrphanSample: number;
 }
 
 const EMPTY_COUNTERS: RendererCounters = {
@@ -270,6 +287,23 @@ const EMPTY_COUNTERS: RendererCounters = {
   fullVisibleScans: 0,
   occupancyFullRebuilds: 0,
   occupancyDeltaUpdates: 0,
+  projectIdentityChanges: 0,
+  structuralInputChanges: 0,
+  metadataOnlyProjectChanges: 0,
+  visibilityDeltaChanges: 0,
+  suspendedUpdates: 0,
+  suspendedIgnoredMetadataUpdates: 0,
+  suspendedQueuedBlockDeltas: 0,
+  resumeFullReconciles: 0,
+  resumeDeltaReconciles: 0,
+  groupMembershipDeltaBlocks: 0,
+  groupVisibilityDeltaBlocks: 0,
+  highlightRebuilds: 0,
+  highlightInstances: 0,
+  highlightRegions: 0,
+  highlightBuildMs: 0,
+  finalizationOrphanCount: 0,
+  finalizationOrphanSample: 0,
 };
 
 /** Small opt-in counters for renderer tests and local baseline measurements. */

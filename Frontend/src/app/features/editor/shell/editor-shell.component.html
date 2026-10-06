@@ -327,11 +327,8 @@
           <button type="button" role="tab" id="right-sidebar-tab-selection" aria-controls="right-sidebar-panel-selection" [attr.aria-selected]="rightSidebarTab() === 'selection'" [class.active]="rightSidebarTab() === 'selection'" (click)="rightSidebarTab.set('selection')">{{ i18n.t('selection') }}</button>
           <button type="button" role="tab" id="right-sidebar-tab-usage" aria-controls="right-sidebar-panel-usage" [attr.aria-selected]="rightSidebarTab() === 'block-usage'" [class.active]="rightSidebarTab() === 'block-usage'" (click)="rightSidebarTab.set('block-usage')">{{ i18n.t('blockUsage') }}</button>
         </div>
-        @if (rightSidebarTab() === 'selection') {
-          <div id="right-sidebar-panel-selection" role="tabpanel" aria-labelledby="right-sidebar-tab-selection"><app-selection-inspector></app-selection-inspector></div>
-        } @else {
-          <div id="right-sidebar-panel-usage" class="right-sidebar-usage" role="tabpanel" aria-labelledby="right-sidebar-tab-usage"><app-block-usage-panel></app-block-usage-panel></div>
-        }
+        <div id="right-sidebar-panel-selection" [hidden]="rightSidebarTab() !== 'selection'" role="tabpanel" aria-labelledby="right-sidebar-tab-selection"><app-selection-inspector></app-selection-inspector></div>
+        <div id="right-sidebar-panel-usage" class="right-sidebar-usage" [hidden]="rightSidebarTab() !== 'block-usage'" role="tabpanel" aria-labelledby="right-sidebar-tab-usage"><app-block-usage-panel></app-block-usage-panel></div>
       </aside>
     }
     @if (layout.preferences().quickBarVisible) {

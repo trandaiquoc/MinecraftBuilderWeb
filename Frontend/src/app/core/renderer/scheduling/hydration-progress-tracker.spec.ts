@@ -117,6 +117,16 @@ describe('HydrationProgressTracker', () => {
     expect(tracker.snapshot()).toMatchObject({ completed: 2, status: 'complete' });
   });
 
+  it('exposes only non-terminal scope keys for orphan ownership repair', () => {
+    const tracker = new HydrationProgressTracker();
+    tracker.setBlockScope(['ready', 'pending', 'missing']);
+    tracker.setMissingBlockState('missing', 'permanent');
+    tracker.begin(3);
+    tracker.adoptBlockKeys(3, ['ready']);
+    expect(tracker.incompleteBlockKeys()).toEqual(['pending']);
+    expect(tracker.isPermanentMissing('missing')).toBe(true);
+  });
+
   it('keeps local edit progress distinct from structural hydration', () => {
     const tracker = new HydrationProgressTracker();
     tracker.setBlockScope(['changed']);

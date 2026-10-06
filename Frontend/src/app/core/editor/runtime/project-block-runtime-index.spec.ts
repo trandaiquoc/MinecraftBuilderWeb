@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlacedBlock, ProjectDocument } from '../../domain/project.types';
-import { blockMutationHint } from '../mutations/project-mutation-hint';
+import { blockMetadataMutationHint, blockMutationHint, metadataMutationHint } from '../mutations/project-mutation-hint';
 import { ProjectBlockRuntimeIndex } from './project-block-runtime-index';
 
 const block = (x: number, state: Record<string, string> = {}): PlacedBlock => ({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state });
@@ -91,5 +91,20 @@ describe('ProjectBlockRuntimeIndex', () => {
     const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
     expect(index.adoptTransition(before, after, blockMutationHint([{ position: beforeBlock.position, before: beforeBlock, after: afterBlock }]))).toBe(true);
     expect(index.usageForId('minecraft:stone')).toMatchObject({ count: 1, resolvedCount: 1, missingCount: 0 });
+  });
+
+  it('adopts group metadata without changing usage revision or rebuilding buckets', () => {
+    const original = typedBlock(0, 'minecraft:stone');
+    const grouped = { ...original, groupIds: ['roof'] };
+    const before = project([original]);
+    const after = { ...before, blocks: [grouped], groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }] };
+    const index = new ProjectBlockRuntimeIndex(); index.ensure(before);
+    const revision = index.usageRevision();
+    expect(index.adoptTransition(before, after, blockMetadataMutationHint([{ position: original.position, before: original, after: grouped }]))).toBe(true);
+    expect(index.usageRevision()).toBe(revision);
+    expect(index.rebuildCount).toBe(1);
+    expect(index.blocksForId('minecraft:stone')[0]).toBe(grouped);
+    expect(index.adoptTransition(after, { ...after, metadata: { ...after.metadata, updatedAt: 'later' } }, metadataMutationHint('group-rename'))).toBe(true);
+    expect(index.usageRevision()).toBe(revision);
   });
 });
