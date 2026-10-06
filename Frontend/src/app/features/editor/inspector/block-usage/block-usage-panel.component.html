@@ -1,0 +1,16 @@
+<section class="block-usage-panel" aria-labelledby="block-usage-title">
+  <div class="usage-heading"><div><h2 id="block-usage-title">{{ i18n.t('blockUsage') }}</h2><p>{{ i18n.t('blockUsageHint') }}</p></div>@if (highlight.highlightedBlockId()) { <button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="clearHighlight()">{{ i18n.t('clearHighlight') }}</button> }</div>
+  <div class="usage-metrics"><div><span>{{ i18n.t('totalBlocks') }}</span><strong>{{ formatCount(totalBlocks()) }}</strong></div><div><span>{{ i18n.t('uniqueTypes') }}</span><strong>{{ formatCount(uniqueTypes()) }}</strong></div><div><span>{{ i18n.t('missingBlocks') }}</span><strong>{{ formatCount(missingBlocks()) }}</strong></div></div>
+  <label class="usage-search"><span>{{ i18n.t('searchBlockUsage') }}</span><input type="search" [value]="query()" (input)="search($event)" [placeholder]="i18n.t('searchBlockUsagePlaceholder')" /></label>
+  <label class="usage-sort"><span>{{ i18n.t('sortBy') }}</span><select [value]="sort()" (change)="setSort($event)"><option value="count-desc">{{ i18n.t('countDescending') }}</option><option value="count-asc">{{ i18n.t('countAscending') }}</option><option value="name-asc">{{ i18n.t('nameAscending') }}</option><option value="name-desc">{{ i18n.t('nameDescending') }}</option></select></label>
+  @if (usageRows().length) {
+    <cdk-virtual-scroll-viewport class="usage-list" itemSize="72" [attr.aria-label]="i18n.t('blockUsage')">
+      <article *cdkVirtualFor="let row of usageRows(); trackBy: trackRow" class="usage-row" [class.highlighted]="isHighlighted(row.entry.id)" [class.missing]="row.entry.missingCount > 0" thumbnailVisibility [thumbnailVisibilityEpoch]="assets.thumbnailEpoch()" (thumbnailVisible)="requestThumbnail(row, $event)">
+        <button type="button" class="usage-row-button" [attr.aria-pressed]="isHighlighted(row.entry.id)" [attr.aria-label]="i18n.t('highlightBlockUsage') + ': ' + row.displayName" (click)="toggleHighlight(row.entry.id)">
+          <span class="usage-thumbnail">@if (row.item && assets.thumbnailUrlForItem(row.item); as thumbnail) { <img [src]="thumbnail" alt="" /> } @else { <span aria-hidden="true">{{ row.entry.missingCount ? '?' : '◇' }}</span> }</span>
+          <span class="usage-copy"><strong>{{ row.displayName }}</strong><code>{{ row.entry.id }}</code><small>{{ row.source }} · {{ formatCount(row.entry.count) }} · {{ percentage(row.entry.count) }}@if (row.entry.missingCount) { · {{ row.entry.missingCount }} {{ i18n.t('missingShort') }} }</small></span>
+        </button>
+      </article>
+    </cdk-virtual-scroll-viewport>
+  } @else { <p class="muted usage-empty">{{ query() ? i18n.t('noBlockUsageResults') : i18n.t('noBlockUsage') }}</p> }
+</section>

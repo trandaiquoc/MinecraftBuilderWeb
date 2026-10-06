@@ -30,6 +30,7 @@ import { LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX }
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { GroupsPanelComponent } from '../groups/groups-panel/groups-panel.component';
 import { SelectionInspectorComponent } from '../inspector/selection-inspector/selection-inspector.component';
+import { BlockUsagePanelComponent } from '../inspector/block-usage/block-usage-panel.component';
 import { EditorStatusBarComponent } from './editor-status-bar/editor-status-bar.component';
 import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help/shortcuts-help-dialog.component';
 import { AssetManagerDialogComponent } from '../tools/asset-manager/asset-manager-dialog.component';
@@ -45,7 +46,7 @@ export function hasEditorSelectionState(decorationSelected: boolean, logicalCoun
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, BlockUsagePanelComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -91,6 +92,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly structureNbtExportOpen = signal(false);
   protected readonly leftDrawerOpen = signal(false);
   protected readonly rightDrawerOpen = signal(false);
+  protected readonly rightSidebarTab = signal<'selection' | 'block-usage'>('selection');
   private drawerOpener?: HTMLElement;
   private readonly editorBody = viewChild<ElementRef<HTMLElement>>('editorBody');
   private readonly leftDragWidth = signal<number | undefined>(undefined);

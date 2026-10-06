@@ -254,7 +254,11 @@
 .right-panel {
   border-right: 0;
   border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
 }
+.right-sidebar-tabs { margin-bottom: .7rem; }
+.right-sidebar-usage { min-height: 0; flex: 1 1 auto; }
 .panel h2 {
   margin: 0 0 1rem;
   font-size: 0.9rem;

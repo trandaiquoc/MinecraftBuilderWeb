@@ -323,8 +323,15 @@
     @if (layout.preferences().rightSidebarVisible) {
       <aside class="panel right-panel" [class.drawer-open]="rightDrawerOpen()">
         <button type="button" class="drawer-close ui-close-button" uiTooltip="{{ i18n.t('closePanel') }}" (click)="closeDrawers()" [attr.aria-label]="i18n.t('closePanel')"><svg lucideX aria-hidden="true"></svg></button>
-        <h2>{{ i18n.t('selection') }}</h2>
-        <app-selection-inspector></app-selection-inspector>
+        <div class="sidebar-tabs right-sidebar-tabs" role="tablist" [attr.aria-label]="i18n.t('inspector')">
+          <button type="button" role="tab" id="right-sidebar-tab-selection" aria-controls="right-sidebar-panel-selection" [attr.aria-selected]="rightSidebarTab() === 'selection'" [class.active]="rightSidebarTab() === 'selection'" (click)="rightSidebarTab.set('selection')">{{ i18n.t('selection') }}</button>
+          <button type="button" role="tab" id="right-sidebar-tab-usage" aria-controls="right-sidebar-panel-usage" [attr.aria-selected]="rightSidebarTab() === 'block-usage'" [class.active]="rightSidebarTab() === 'block-usage'" (click)="rightSidebarTab.set('block-usage')">{{ i18n.t('blockUsage') }}</button>
+        </div>
+        @if (rightSidebarTab() === 'selection') {
+          <div id="right-sidebar-panel-selection" role="tabpanel" aria-labelledby="right-sidebar-tab-selection"><app-selection-inspector></app-selection-inspector></div>
+        } @else {
+          <div id="right-sidebar-panel-usage" class="right-sidebar-usage" role="tabpanel" aria-labelledby="right-sidebar-tab-usage"><app-block-usage-panel></app-block-usage-panel></div>
+        }
       </aside>
     }
     @if (layout.preferences().quickBarVisible) {
