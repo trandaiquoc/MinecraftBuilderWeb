@@ -35,10 +35,13 @@ export class BlockUsagePanelComponent {
   protected readonly query = signal('');
   protected readonly sort = signal<UsageSort>('count-desc');
 
-  protected readonly totalBlocks = computed(() => this.workspace.project()?.blocks.length ?? 0);
-  protected readonly usageRows = computed<readonly UsageRow[]>(() => {
+  constructor() {
     const project = this.workspace.project();
     if (project) this.runtimeIndex.ensure(project);
+  }
+
+  protected readonly totalBlocks = computed(() => this.workspace.project()?.blocks.length ?? 0);
+  protected readonly usageRows = computed<readonly UsageRow[]>(() => {
     this.runtimeIndex.usageRevision();
     const catalogRevision = this.library.catalogRevision();
     void catalogRevision;
