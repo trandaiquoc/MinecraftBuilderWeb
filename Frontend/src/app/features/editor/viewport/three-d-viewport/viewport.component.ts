@@ -35,6 +35,8 @@ import { ViewportHydrationStatusService } from '../../../../core/editor/state/vi
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
 import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/terrain-atlas-browser-runner';
 import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
+import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
+import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
 import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 
 declare global {
@@ -64,6 +66,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly itemVisuals = inject(ItemVisualService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
   private readonly mutationHints = inject(ProjectMutationHintService);
+  private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
+  private readonly usageHighlight = inject(BlockUsageHighlightService);
   private readonly resolveSpecialVisual = (id: string) => this.library.get(id)?.specialVisual;
   private readonly resolveBlockDefinition = (id: string) => this.library.get(id);
   private readonly resolveDecorationTexture = (resource: string) => this.assets.sources.resources.textureUrl(resource);
@@ -90,6 +94,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly lifecycleSync = effect(() => { if (this.viewportActive()) { this.hydrationStatus.activate(this.hydrationOwner); this.engine.resume(); } else this.engine.suspend(); });
   private readonly sync = effect(() => { const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
   private readonly toolSync = effect(() => { this.tool.active(); this.engine.clearGhost(); });
+  private readonly usageHighlightSync = effect(() => { this.runtimeIndex.usageRevision(); const id = this.usageHighlight.highlightedBlockId(); this.engine.setBlockUsageHighlight(id, id ? this.runtimeIndex.blocksForId(id).map((block) => ({ ...block.position })) : undefined); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });
   private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
@@ -136,7 +141,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.setRuntimeTrace(undefined);
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.toolSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.toolSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

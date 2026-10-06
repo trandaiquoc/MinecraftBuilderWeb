@@ -82,7 +82,7 @@ export interface ViewportHit { readonly target?: VoxelCoordinate; readonly place
 export type ViewportHoverListener = (hit: ViewportHit) => void;
 type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined, lookup?: ReadonlyBlockLookup) => PlacementPlan | undefined;
 type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
-export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly layerIndex?: LayerBlockIndex; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
+export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly layerIndex?: LayerBlockIndex; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly highlightedBlockId?: string; readonly highlightedBlockPositions?: readonly VoxelCoordinate[]; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
 export interface ViewportEngineOptions {
   readonly terrainAtlasMode?: TerrainAtlasMode;
   /** Narrow test seam for validating atomic terrain ownership commits. */
@@ -577,6 +577,11 @@ export class ThreeViewportEngine {
   private readonly logicalSelectionGroup = new THREE.Group();
   private readonly logicalSelectionGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04));
   private readonly logicalSelectionMaterial = new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false });
+  private readonly blockUsageHighlightGeometry = new THREE.BoxGeometry(.98, .98, .98);
+  private readonly blockUsageHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x62d8ff, transparent: true, opacity: .2, depthTest: false, depthWrite: false });
+  private blockUsageHighlight?: THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
+  private blockUsageHighlightCapacity = 0;
+  private readonly blockUsageHighlightMatrix = new THREE.Matrix4();
   private readonly groupHighlightGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.12, 1.12, 1.12));
   private readonly groupHighlightMaterial = new THREE.LineBasicMaterial({ color: 0x58d8d0 });
   private structureBlockGuideKey = '';
@@ -668,6 +673,8 @@ export class ThreeViewportEngine {
   private activeBlock?: ActiveBlock;
   private showStructureBlockGuide = true;
   private renderOptions: ViewportRenderOptions = {};
+  private blockUsageHighlightId?: string;
+  private blockUsageHighlightPositions?: readonly VoxelCoordinate[];
   private hasCameraFrame = false;
   private readonly renderOnControlChange = () => {
     this.instrumentation.record('controlChangeEvents');
@@ -911,6 +918,13 @@ export class ThreeViewportEngine {
     this.scene.add(this.selectionBox);
     this.scene.add(this.movePreviewGroup);
     this.scene.add(this.logicalSelectionGroup);
+    this.blockUsageHighlight = new THREE.InstancedMesh(this.blockUsageHighlightGeometry, this.blockUsageHighlightMaterial, 1);
+    this.blockUsageHighlight.visible = false;
+    this.blockUsageHighlight.count = 0;
+    this.blockUsageHighlight.frustumCulled = false;
+    this.blockUsageHighlight.renderOrder = 1900;
+    this.blockUsageHighlight.userData['blockUsageHighlight'] = true;
+    this.scene.add(this.blockUsageHighlight);
     this.scene.add(this.decorationGhostGroup);
     this.scene.add(this.decorationSelectionGroup);
     this.camera.position.set(12, 10, 12);
@@ -999,6 +1013,7 @@ export class ThreeViewportEngine {
     this.logicalSelectionGroup.traverse((object) => { if (object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.selection); });
     this.scene.traverse((object) => { if (object.userData['groupHighlight'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(object.userData['groupLocked'] ? palette.lockedGroup : palette.group); });
     this.movePreviewGroup.traverse((object) => { if (object instanceof THREE.Mesh) (object.material as THREE.MeshBasicMaterial).color.setHex(object.userData['previewInvalid'] ? palette.invalid : palette.valid); });
+    this.blockUsageHighlightMaterial.color.setHex(palette.group);
     const ghostStatus = this.ghost.userData['status'] as PlacementStatus | undefined;
     if (ghostStatus) (this.ghost.material as THREE.MeshBasicMaterial).color.setHex(colorForStatus(this.palette, ghostStatus));
     this.scheduleRender();
@@ -1011,6 +1026,7 @@ export class ThreeViewportEngine {
   }
 
   setLayerIndex(index: LayerBlockIndex | undefined): void { this.layerIndex = index; }
+  setBlockUsageHighlight(id: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void { this.blockUsageHighlightId = id; this.blockUsageHighlightPositions = positions; this.updateBlockUsageHighlight(id, positions); this.scheduleRender(); }
 
   /** Updates reference presentation without invalidating model or terrain caches. */
   setReferenceOpacity(value: number): void {
@@ -1489,6 +1505,8 @@ export class ThreeViewportEngine {
     const visualSelection = this.visibleSelection(project, options);
     this.updateSelection(visualSelection.selected, visualSelection.positions, visualSelection.kind, visualSelection.count, visualSelection.bounds, visualSelection.box);
     this.updateActiveGroup(project, options.activeGroupId, options.activeGroupPositions);
+    if (Object.prototype.hasOwnProperty.call(options, 'highlightedBlockId') || Object.prototype.hasOwnProperty.call(options, 'highlightedBlockPositions')) { this.blockUsageHighlightId = options.highlightedBlockId; this.blockUsageHighlightPositions = options.highlightedBlockPositions; }
+    this.updateBlockUsageHighlight(this.blockUsageHighlightId, this.blockUsageHighlightPositions);
     this.updateMovePreview(project, options.groupMovePreview);
     this.updateGhostModel(active, this.ghostPlan);
     this.clearDecorationGhost();
@@ -3074,7 +3092,7 @@ export class ThreeViewportEngine {
   }
 
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); this.fluidCoordinator.clear(); this.releaseUnusedRetiredProviders(); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.projectionKeyRevisions.clear(); this.committedProjection = undefined; this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); this.fluidCoordinator.clear(); this.releaseUnusedRetiredProviders(); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.projectionKeyRevisions.clear(); this.committedProjection = undefined; this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; if (this.blockUsageHighlight) { this.blockUsageHighlight.visible = false; this.blockUsageHighlight.count = 0; } }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -3367,6 +3385,7 @@ export class ThreeViewportEngine {
     for (const child of this.decorationsGroup.children) disposeObject(child);
     this.decorationsGroup.clear();
     for (const child of [...this.logicalSelectionGroup.children]) this.logicalSelectionGroup.remove(child);
+    if (this.blockUsageHighlight) { this.scene.remove(this.blockUsageHighlight); this.blockUsageHighlight = undefined; }
     for (const child of [...this.decorationGhostGroup.children]) disposeObject(child); this.decorationGhostGroup.clear();
     for (const child of [...this.decorationSelectionGroup.children]) disposeObject(child); this.decorationSelectionGroup.clear();
     this.renderedBlocks.clear(); this.renderedDecorations.clear();
@@ -3388,6 +3407,8 @@ export class ThreeViewportEngine {
     (this.selectionOutline.material as THREE.Material).dispose();
     this.logicalSelectionGeometry.dispose();
     this.logicalSelectionMaterial.dispose();
+    this.blockUsageHighlightGeometry.dispose();
+    this.blockUsageHighlightMaterial.dispose();
     this.groupHighlightGeometry.dispose();
     this.groupHighlightMaterial.dispose();
     this.selectionBox.geometry.dispose();
@@ -4281,6 +4302,46 @@ export class ThreeViewportEngine {
       outline.renderOrder = 1000;
       this.scene.add(outline);
     }
+  }
+
+  private updateBlockUsageHighlight(id: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void {
+    const overlay = this.blockUsageHighlight;
+    if (!overlay) return;
+    if (!id || !positions?.length) {
+      overlay.visible = false;
+      overlay.count = 0;
+      return;
+    }
+    const visible = positions.filter((position) => {
+      const key = coordinateKey(position);
+      const entry = this.cachedVisibleMap.get(key);
+      return !!entry && entry.block.id === id;
+    });
+    if (!visible.length) {
+      overlay.visible = false;
+      overlay.count = 0;
+      return;
+    }
+    if (visible.length > this.blockUsageHighlightCapacity) {
+      const replacement = new THREE.InstancedMesh(this.blockUsageHighlightGeometry, this.blockUsageHighlightMaterial, visible.length);
+      replacement.frustumCulled = false;
+      replacement.renderOrder = 1900;
+      replacement.userData['blockUsageHighlight'] = true;
+      if (overlay.parent) overlay.parent.remove(overlay);
+      this.blockUsageHighlight = replacement;
+      this.blockUsageHighlightCapacity = visible.length;
+      this.scene.add(replacement);
+    }
+    const target = this.blockUsageHighlight;
+    if (!target) return;
+    target.count = visible.length;
+    for (let index = 0; index < visible.length; index += 1) {
+      const position = visible[index];
+      this.blockUsageHighlightMatrix.makeTranslation(position.x + .5, position.y + .5, position.z + .5);
+      target.setMatrixAt(index, this.blockUsageHighlightMatrix);
+    }
+    target.instanceMatrix.needsUpdate = true;
+    target.visible = true;
   }
 
   private updateStructureBlockGuide(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
