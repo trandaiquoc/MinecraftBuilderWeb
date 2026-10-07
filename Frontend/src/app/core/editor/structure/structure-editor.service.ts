@@ -156,6 +156,8 @@ export class StructureEditorService {
       const blocks = ProjectBlockArrayMutator.replace(project, directAfter, this.runtimeIndex);
         const result = rules.refresh({ ...project, blocks }, [position], overlayBlockLookup(this.runtimeIndex, directAfter)); this.lastValidation = result.validation;
         if (!result.project) return undefined;
+        const invariant = rules.validateMutation(result.project, directAfter.map((part) => part.position), result.project.blocks);
+        if (invariant) { this.lastValidation = invariant; return undefined; }
         mutationHint = blockMutationHint([...directAfter, ...(result.changedBlocks ?? [])].map((after) => ({ position: after.position, before: this.runtimeIndex.get(after.position), after })), 'blockstate-edit');
         return pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } });
     }, () => mutationHint);
@@ -183,8 +185,11 @@ export class StructureEditorService {
       }
       const directAfter = parts.map((part) => ({ ...part, state: logicalPartState(part, rotated.state!, definition.behavior) }));
       const updated = { ...project, blocks: ProjectBlockArrayMutator.replace(project, directAfter, this.runtimeIndex) };
-      const result = this.rules().refresh(updated, [position], overlayBlockLookup(this.runtimeIndex, directAfter)); this.lastValidation = result.validation;
+      const rules = this.rules();
+      const result = rules.refresh(updated, [position], overlayBlockLookup(this.runtimeIndex, directAfter)); this.lastValidation = result.validation;
       if (!result.project) return undefined;
+      const invariant = rules.validateMutation(result.project, directAfter.map((part) => part.position), result.project.blocks);
+      if (invariant) { this.lastValidation = invariant; return undefined; }
       mutationHint = blockMutationHint([...directAfter, ...(result.changedBlocks ?? [])].map((after) => ({ position: after.position, before: this.runtimeIndex.get(after.position), after })), 'rotate-block');
       return pruneInvalidDecorations({ ...result.project, metadata: { ...result.project.metadata, updatedAt: new Date().toISOString() } });
     }, () => mutationHint);

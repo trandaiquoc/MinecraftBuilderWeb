@@ -18,6 +18,24 @@ function makeEditor(project: ProjectDocument): { editor: StructureEditorService;
 
 const project: ProjectDocument = { schemaVersion: 1, id: 'editor', metadata: { name: 'Editor', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [{ kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' } }], groups: [], editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: .28 } };
 
+function useAttachedFaceDefinition(setup: ReturnType<typeof makeEditor>, id: string): void {
+  setup.library.replaceSource({
+    minecraftVersion: '1.21.1', sourceId: id.split(':')[0], sourceName: id.startsWith('minecraft:') ? 'Minecraft' : 'External test mod',
+    blocks: [{
+      id, displayName: id, defaultState: { facing: 'up', waterlogged: 'false' },
+      stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+      resources: { textures: [] }, support: 'full', behavior: { kind: 'attached-six-face-placement', facingProperty: 'facing' },
+    }],
+  });
+}
+
+function attachedFaceProject(id: string, supports: readonly PlacedBlock[]): ProjectDocument {
+  return { ...project, blocks: [
+    ...supports,
+    { kind: 'resolved', id, namespace: id.split(':')[0]!, position: { x: 2, y: 1, z: 2 }, state: { facing: 'north', waterlogged: 'true' } },
+  ] };
+}
+
 describe('StructureEditorService mutations', () => {
   it('uses the active/project supplied by the viewport provider for preview planning', () => {
     const setup = makeEditor({ ...project, blocks: [] });
@@ -107,6 +125,55 @@ describe('StructureEditorService mutations', () => {
     ] };
     const { editor, workspace } = makeEditor(bed); const before = structuredClone(bed);
     expect(editor.updateBlockState({ x: 3, y: 1, z: 3 }, 'facing', 'east')).toBe(false); expect(workspace.project()).toEqual(before);
+  });
+
+  it.each(['minecraft:small_amethyst_bud', 'external:sky_tumblestone_cluster'])('rejects unsupported attached-face rotation atomically for %s', (id) => {
+    const support = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 3 }, state: {} } satisfies PlacedBlock;
+    const setup = makeEditor(attachedFaceProject(id, [support])); useAttachedFaceDefinition(setup, id);
+    const before = structuredClone(setup.workspace.project());
+    expect(setup.editor.rotateBlock({ x: 2, y: 1, z: 2 })).toBe(false);
+    expect(setup.workspace.project()).toEqual(before);
+    expect(setup.editor.validation()).toMatchObject({ status: 'invalid', reason: 'missing-support' });
+    expect(setup.history.canUndo()).toBe(false);
+  });
+
+  it.each(['minecraft:small_amethyst_bud', 'external:sky_tumblestone_cluster'])('allows supported attached-face rotation and preserves waterlogged for %s', (id) => {
+    const supports = [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 3 }, state: {} },
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 1, z: 2 }, state: {} },
+    ] satisfies readonly PlacedBlock[];
+    const setup = makeEditor(attachedFaceProject(id, supports)); useAttachedFaceDefinition(setup, id);
+    expect(setup.editor.rotateBlock({ x: 2, y: 1, z: 2 })).toBe(true);
+    expect(setup.workspace.project()!.blocks.find((block) => block.id === id)?.state).toMatchObject({ facing: 'east', waterlogged: 'true' });
+    expect(setup.history.canUndo()).toBe(true);
+    expect(setup.history.undo()).toBe(true);
+    expect(setup.workspace.project()!.blocks.find((block) => block.id === id)?.state['facing']).toBe('north');
+    expect(setup.history.redo()).toBe(true);
+    expect(setup.workspace.project()!.blocks.find((block) => block.id === id)?.state['facing']).toBe('east');
+  });
+
+  it.each(['minecraft:small_amethyst_bud', 'external:sky_tumblestone_cluster'])('rejects unsupported attached-face state edits atomically for %s', (id) => {
+    const support = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 3 }, state: {} } satisfies PlacedBlock;
+    const setup = makeEditor(attachedFaceProject(id, [support])); useAttachedFaceDefinition(setup, id);
+    const before = structuredClone(setup.workspace.project());
+    expect(setup.editor.updateBlockState({ x: 2, y: 1, z: 2 }, 'facing', 'east')).toBe(false);
+    expect(setup.workspace.project()).toEqual(before);
+    expect(setup.editor.validation()).toMatchObject({ status: 'invalid', reason: 'missing-support' });
+    expect(setup.history.canUndo()).toBe(false);
+  });
+
+  it.each(['minecraft:small_amethyst_bud', 'external:sky_tumblestone_cluster'])('allows supported attached-face state edits and preserves waterlogged for %s', (id) => {
+    const supports = [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 3 }, state: {} },
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 1, z: 2 }, state: {} },
+    ] satisfies readonly PlacedBlock[];
+    const setup = makeEditor(attachedFaceProject(id, supports)); useAttachedFaceDefinition(setup, id);
+    expect(setup.editor.updateBlockState({ x: 2, y: 1, z: 2 }, 'facing', 'east')).toBe(true);
+    expect(setup.workspace.project()!.blocks.find((block) => block.id === id)?.state).toMatchObject({ facing: 'east', waterlogged: 'true' });
+    expect(setup.history.undo()).toBe(true);
+    expect(setup.workspace.project()!.blocks.find((block) => block.id === id)?.state['facing']).toBe('north');
+    expect(setup.history.redo()).toBe(true);
+    expect(setup.workspace.project()!.blocks.find((block) => block.id === id)?.state['facing']).toBe('east');
   });
 
   it('stacks matching candles in place, preserves state and group membership, and undoes each increment', () => {

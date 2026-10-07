@@ -41,6 +41,24 @@ export class BlockRuleEngine {
     return this.validateSupport(project, block, definition, source);
   }
 
+  /**
+   * Validates mutation candidates whose behavior requires a supported face.
+   *
+   * Refresh intentionally preserves some unsupported blocks so the editor can
+   * report them without silently destroying data. Mutations that explicitly
+   * change an attached block's state use this narrower invariant to reject a
+   * newly unsupported orientation atomically.
+   */
+  validateMutation(project: ProjectDocument, positions: readonly VoxelCoordinate[], source: BlockSource = project.blocks): RuleValidation | undefined {
+    for (const position of positions) {
+      const block = find(source, position);
+      if (!block || this.definition(block.id)?.behavior?.kind !== 'attached-six-face-placement') continue;
+      const validation = this.validateSupport(project, block, this.definition(block.id), source);
+      if (validation.status === 'invalid') return validation;
+    }
+    return undefined;
+  }
+
   place(project: ProjectDocument, requestedBlock: PlacedBlock, context?: PlacementContext, lookup?: ReadonlyBlockLookup): RuleMutationResult {
     const prepared = this.preparePlacement(requestedBlock, context);
     if (!prepared) return invalid('missing-support', [requestedBlock.position]);
