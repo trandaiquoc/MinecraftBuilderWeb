@@ -6,6 +6,7 @@ import { placementFeedbackForHit } from '../../../../core/renderer/interaction/v
 import { isPointerClick } from '../../../../core/editor/input/interaction';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { EditorToolService } from '../../../../core/editor/state/tool.service';
+import type { EditorTool } from '../../../../core/editor/state/tool.service';
 import { CameraStateService } from '../../../../core/editor/camera/camera-state.service';
 import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
@@ -88,6 +89,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly hydrationOwner = this.hydrationStatus.claim();
   private readonly viewportStatusOwner = this.viewportStatus.claim();
   private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
+  private previousTool?: EditorTool;
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
   private pickConsumed = false;
@@ -102,7 +104,13 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     else this.viewportStatus.deactivate(this.viewportStatusOwner);
   });
   private readonly sync = effect(() => { const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
-  private readonly toolSync = effect(() => { this.tool.active(); this.engine.clearGhost(); this.viewportStatus.clear(this.viewportStatusOwner); });
+  private readonly toolSync = effect(() => {
+    const tool = this.tool.active();
+    if (!shouldClearGhostForToolChange(this.previousTool, tool)) return;
+    this.previousTool = tool;
+    this.engine.clearGhost();
+    this.viewportStatus.clear(this.viewportStatusOwner);
+  });
   private readonly usageHighlightSync = effect(() => { this.runtimeIndex.usageRevision(); const id = this.usageHighlight.highlightedBlockId(); this.engine.setBlockUsageHighlight(id, id ? this.runtimeIndex.blocksForId(id).map((block) => ({ ...block.position })) : undefined); });
   private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
   private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });
@@ -301,6 +309,10 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
   cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
   clearCameraInput(): void { this.engine.clearInput(); }
+}
+
+export function shouldClearGhostForToolChange(previousTool: EditorTool | undefined, nextTool: EditorTool): boolean {
+  return previousTool !== nextTool;
 }
 
 

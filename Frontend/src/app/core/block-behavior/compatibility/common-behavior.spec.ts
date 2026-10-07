@@ -93,6 +93,7 @@ describe('common resource behavior evaluation', () => {
     };
     const result = evaluateCommonBehavior(record('example:tumblestone', definitions, 'example:block/tumblestone', { behaviorEvidenceRequired: true }), { readJson: () => blockstate });
     expect(result.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'wall' });
+    expect(result.defaultState).toMatchObject({ north: 'none', east: 'none', south: 'none', west: 'none', up: 'true' });
   });
 
   it('does not infer an external wall from the schema without blockstate part evidence', () => {

@@ -102,7 +102,7 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   }
 
   const wall = contract(definitions, { north: ['none', 'low', 'tall'], east: ['none', 'low', 'tall'], south: ['none', 'low', 'tall'], west: ['none', 'low', 'tall'], up: booleanValues });
-  if (wall.complete && isWallEvidence(blockstate, record.resources.model, record)) return complete(record, definitions, 'walls', { kind: 'horizontal-connect', family: 'wall', connectionGroup: 'wall', compatibleGroups: ['wall'], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west', 'up'] }, deriveResourceDefaultState(definitions), 'compatible-common');
+  if (wall.complete && isWallEvidence(blockstate, record.resources.model, record)) return complete(record, definitions, 'walls', { kind: 'horizontal-connect', family: 'wall', connectionGroup: 'wall', compatibleGroups: ['wall'], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west', 'up'] }, wallState(definitions, record.defaultState), 'compatible-common');
   if (wall.partial && isWallEvidence(blockstate, record.resources.model, record)) return changed(record, definitions, defaultState, 'walls', 'Wall connection properties are not compatible with the common rule.');
 
   const stairs = contract(definitions, { facing: horizontal, half: ['top', 'bottom'], shape: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] });
@@ -171,6 +171,9 @@ function markDerived(definitions: readonly BlockStateDefinition[], behavior: Blo
 
 function doorState(definitions: readonly BlockStateDefinition[]): Readonly<Record<string, string>> { return mergeValidDefaults(definitions, { facing: 'north', half: 'lower', hinge: 'left', open: 'false', powered: 'false' }); }
 function buttonState(definitions: readonly BlockStateDefinition[]): Readonly<Record<string, string>> { return mergeValidDefaults(definitions, { face: 'floor', facing: 'north', powered: 'false' }); }
+function wallState(definitions: readonly BlockStateDefinition[], source: Readonly<Record<string, string>>): Readonly<Record<string, string>> {
+  return mergeValidDefaults(definitions, { ...source, north: 'none', east: 'none', south: 'none', west: 'none', up: 'true' });
+}
 function preferredValue(name: string, values: readonly string[]): string | undefined {
   const preferences: Readonly<Record<string, string>> = { facing: 'north', half: 'bottom', part: 'foot', type: 'bottom', shape: 'straight', hinge: 'left', open: 'false', powered: 'false', waterlogged: 'false', lit: 'false', attached: 'false', hanging: 'false', axis: 'y', face: 'floor', rotation: '0', candles: '1', level: '0', honey_level: '0', in_wall: 'false', up: 'true' };
   const value = preferences[name];
