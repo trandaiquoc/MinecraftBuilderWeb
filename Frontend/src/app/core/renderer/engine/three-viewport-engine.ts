@@ -25,7 +25,7 @@ import { applyDecorationItemPreview, createDecorationVisual, DecorationTextureCa
 import type { ItemStackData } from '../../items/item-stack.types';
 import type { ActiveDecoration } from '../../decorations/decoration.service';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
-import { DEFAULT_MOUSE_BINDINGS, MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
+import { MouseAction } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
 import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighting } from './viewport-lighting';
 import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, applyStructureGuideBrightnessToObject, setBlockBrightnessBaseColor, STRUCTURE_GUIDE_BRIGHTNESS } from './block-brightness';
@@ -49,7 +49,8 @@ import type { SurfaceFaceBatch, SurfaceFaceMembership, SurfaceFaceTemplate } fro
 import { collectStaticModelDiagnostics, type StaticModelDiagnosticSnapshot } from '../diagnostics/static-model-diagnostics';
 import { RenderRegionPolicy } from '../batching/render-region-policy';
 import { RenderScheduler } from '../scheduling/render-scheduler';
-import { CameraInteractionController } from '../scheduling/camera-interaction-controller';
+import { ViewportHostLifecycleAdapter } from '../scheduling/viewport-host-lifecycle';
+import { ViewportCameraInputController, cancelViewportFrame, requestViewportFrame } from '../scheduling/viewport-camera-input-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
 import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
@@ -636,7 +637,6 @@ export class ThreeViewportEngine {
     onInvalidation: () => this.instrumentation.record('renderInvalidations'),
     onCoalesced: () => { this.instrumentation.record('renderInvalidationsCoalesced'); this.instrumentation.record('coalescedRenderRequests'); },
   });
-  private readonly cameraInteraction = new CameraInteractionController({ idleGraceMs: VIEWPORT_CAMERA_IDLE_GRACE_MS });
   private readonly hydrationScheduler = new HydrationScheduler<never>();
   private ghostModel?: THREE.Group;
   private ghostModelKey = '';
@@ -653,7 +653,14 @@ export class ThreeViewportEngine {
   private projectGrid?: THREE.LineSegments;
   private boundsBox?: THREE.Box3Helper;
   private container?: HTMLElement;
-  private resizeObserver?: ResizeObserver;
+  private readonly hostLifecycle = new ViewportHostLifecycleAdapter({
+    onResize: () => this.resize(),
+    onPointerDownCapture: (event) => this.onCanvasPointerDownCapture(event),
+    onPointerUpCapture: (event) => this.onCanvasPointerUpCapture(event),
+    onWheelCapture: (event) => this.onCanvasWheelCapture(event),
+    onWindowBlur: () => this.onWindowBlur(),
+    onVisibilityChange: () => this.onVisibilityChange(),
+  });
   private project?: ProjectDocument;
   private spatialIndex?: ProjectBlockSpatialIndex;
   private spatialIndexProject?: ProjectDocument;
@@ -697,7 +704,6 @@ export class ThreeViewportEngine {
   private readonly renderOnControlChange = () => {
     this.instrumentation.record('controlChangeEvents');
     this.runtimeTrace?.record('controls-change');
-    this.markCameraInteraction();
     if (this.cameraMovementInProgress) {
       this.instrumentation.record('cameraChangeEventsDuringMovement');
       this.instrumentation.record('cameraRenderRequestsSuppressed');
@@ -706,44 +712,33 @@ export class ThreeViewportEngine {
     this.requestCameraRender();
   };
   private cameraMovementInProgress = false;
-  private cameraGestureInProgress = false;
+  private get cameraGestureInProgress(): boolean { return this.cameraInput.gestureInProgress; }
+  private set cameraGestureInProgress(value: boolean) { this.cameraInput.gestureInProgress = value; }
   private readonly onControlStart = () => {
     this.runtimeTrace?.record('controls-start');
-    this.cameraInteraction.beginGesture();
-    this.cameraGestureInProgress = true;
     this.cancelPendingHover(true);
     this.ghost.visible = false;
     if (this.ghostModel) this.ghostModel.visible = false;
     this.clearDecorationGhost();
     this.requestCameraRender();
   };
-  private readonly onControlEnd = () => { this.runtimeTrace?.record('controls-end'); this.cameraInteraction.endGesture(); this.cameraGestureInProgress = false; this.requestCameraRender(); };
-  private cameraMoveFrame?: number;
-  private get pressedActions(): Set<MovementAction> { return this.cameraInteraction.pressedActions as Set<MovementAction>; }
-  private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
+  private readonly onControlEnd = () => { this.runtimeTrace?.record('controls-end'); this.requestCameraRender(); };
+  private get cameraMoveFrame(): number | undefined { return this.cameraInput.movementFrame; }
+  private set cameraMoveFrame(value: number | undefined) { this.cameraInput.movementFrame = value; }
+  private get pressedActions(): Set<MovementAction> { return this.cameraInput.pressedActions as Set<MovementAction>; }
+  private get cameraInteraction() { return this.cameraInput.interaction; }
+  private get mouseBindings(): Readonly<Record<MouseAction, string>> { return this.cameraInput.currentMouseBindings; }
+  private get temporaryMouseButton() { return this.cameraInput.temporaryButton; }
+  private set temporaryMouseButton(value: { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined } | undefined) { this.cameraInput.temporaryButton = value; }
   private readonly onWindowBlur = () => { this.runtimeTrace?.record('blur'); this.clearInput(); };
   private readonly onVisibilityChange = () => { this.runtimeTrace?.record('visibilitychange', { hidden: document.hidden }); if (document.hidden) this.clearInput(); };
   private readonly onCanvasPointerDownCapture = (event: PointerEvent) => {
-    const action = mouseActionForEvent(event, this.mouseBindings);
-    if (!action || !this.controls) return;
-    const key = event.button === 0 ? 'LEFT' : event.button === 1 ? 'MIDDLE' : event.button === 2 ? 'RIGHT' : undefined;
-    if (!key) return;
-    const mapped = this.controls.mouseButtons[key];
-    if (action === 'orbit-camera' || action === 'pan-camera') {
-      this.runtimeTrace?.record('pointer-camera-start', { button: event.button, action });
-      if (mapped === undefined) { this.temporaryMouseButton = { key, previous: mapped }; this.controls.mouseButtons[key] = action === 'orbit-camera' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN; }
-      return;
-    }
-    if (action !== 'primary-action' && action !== 'delete-target') return;
-    if (mapped !== undefined) { event.preventDefault(); this.temporaryMouseButton = { key, previous: mapped }; delete this.controls.mouseButtons[key]; }
+    this.cameraInput.pointerDownCapture(event);
   };
-  private readonly onCanvasPointerUpCapture = (event: PointerEvent) => { if (this.temporaryMouseButton) this.runtimeTrace?.record('pointer-camera-end', { button: event.button }); this.restoreTemporaryMouseButton(); };
+  private readonly onCanvasPointerUpCapture = (event: PointerEvent) => { this.cameraInput.pointerUpCapture(event); };
   private readonly onCanvasWheelCapture = (event: WheelEvent) => {
-    const action = mouseActionForEvent(event, this.mouseBindings);
-    if (action !== 'zoom-in' && action !== 'zoom-out') { event.preventDefault(); event.stopImmediatePropagation(); return; }
-    event.preventDefault(); event.stopImmediatePropagation(); this.applyWheelZoom(action, event.deltaY, event.deltaMode);
+    this.cameraInput.wheelCapture(event);
   };
-  private temporaryMouseButton?: { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined };
   private palette: ViewportThemePalette = viewportThemePalette('dark');
   private visualProvider?: BlockVisualProvider;
   private decorationTextureUrl?: (resource: string) => string | undefined;
@@ -766,6 +761,25 @@ export class ThreeViewportEngine {
   private canvasSize = { width: 0, height: 0 };
   private themeApplied = false;
   private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9 };
+  private readonly cameraInput = new ViewportCameraInputController(
+    () => this.controls,
+    {
+      isSuspended: () => this.suspended,
+      onControlChange: () => this.renderOnControlChange(),
+      onControlStart: () => this.onControlStart(),
+      onControlEnd: () => this.onControlEnd(),
+      onPointerCameraStart: (button, action) => this.runtimeTrace?.record('pointer-camera-start', { button, action }),
+      onPointerCameraEnd: (button) => this.runtimeTrace?.record('pointer-camera-end', { button }),
+      onInteractionMarked: (until) => {
+        this.cameraInteractingUntil = until;
+        if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
+      },
+      onMovementFrame: (actions, delta) => this.moveCamera(actions, delta),
+      onWheel: (action, deltaY, deltaMode) => this.applyWheelZoom(action, deltaY, deltaMode),
+    },
+    this.controlConfiguration,
+    VIEWPORT_CAMERA_IDLE_GRACE_MS,
+  );
   private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
   private readonly hydrationWork = new HydrationWorkCoordinator<BlockHydrationJob>({ concurrency: VIEWPORT_VISUAL_CONCURRENCY, regularReservedCapacity: 4, providerRefreshCapacity: 2 });
   private get hydrationRunning(): number { return this.hydrationWork.runningTotal(); }
@@ -918,7 +932,7 @@ export class ThreeViewportEngine {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.updatePixelRatioTargets();
     this.renderer.setPixelRatio(this.staticPixelRatio);
-    container.appendChild(this.renderer.domElement);
+    this.hostLifecycle.mount(container, this.renderer.domElement);
     this.applyTheme(this.palette);
     this.hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x394454, 1);
     this.keyLight = new THREE.DirectionalLight(0xffffff, 1); this.keyLight.position.set(6, 10, 7);
@@ -956,18 +970,7 @@ export class ThreeViewportEngine {
     delete this.controls.mouseButtons.LEFT;
     this.controls.enableZoom = false;
     this.controls.enablePan = true;
-    this.applyControlConfiguration();
-    this.applyMouseBindings();
-    this.controls.addEventListener('change', this.renderOnControlChange);
-    this.controls.addEventListener('start', this.onControlStart);
-    this.controls.addEventListener('end', this.onControlEnd);
-    this.renderer.domElement.addEventListener('pointerdown', this.onCanvasPointerDownCapture, true);
-    this.renderer.domElement.addEventListener('pointerup', this.onCanvasPointerUpCapture, true);
-    this.renderer.domElement.addEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
-    this.renderer.domElement.addEventListener('wheel', this.onCanvasWheelCapture, { capture: true, passive: false });
-    document.addEventListener('focusin', this.onWindowBlur); window.addEventListener('blur', this.onWindowBlur); document.addEventListener('visibilitychange', this.onVisibilityChange);
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(container);
+    this.cameraInput.attachControls(this.controls);
     this.resize();
     if (this.project) this.resetCamera();
     else this.frameBounds(projectCameraBounds(VIEWPORT_BOOTSTRAP_SIZE));
@@ -1083,7 +1086,7 @@ export class ThreeViewportEngine {
 
   setControlConfiguration(configuration: ViewportControlConfiguration): void {
     this.controlConfiguration = { ...configuration };
-    this.applyControlConfiguration();
+    this.cameraInput.setControlConfiguration(this.controlConfiguration);
   }
 
   setStructureBlockGuideVisible(visible: boolean): void {
@@ -1092,48 +1095,14 @@ export class ThreeViewportEngine {
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
-  cameraKeyDown(action: MovementAction): void { if (this.disposed || this.suspended) return; this.runtimeTrace?.record('movement-keydown', { action }); this.cameraInteraction.press(action); this.markCameraInteraction(); this.startCameraMovement(); }
-  cameraKeyUp(action: MovementAction): void { if (this.disposed || this.suspended) return; this.runtimeTrace?.record('movement-keyup', { action }); this.cameraInteraction.release(action); if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.requestCameraRender(); }
+  cameraKeyDown(action: MovementAction): void { if (this.disposed || this.suspended) return; this.runtimeTrace?.record('movement-keydown', { action }); this.cameraInput.cameraKeyDown(action); }
+  cameraKeyUp(action: MovementAction): void { if (this.disposed || this.suspended) return; this.runtimeTrace?.record('movement-keyup', { action }); this.cameraInput.cameraKeyUp(action); }
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
-    this.mouseBindings = { ...bindings };
-    this.applyMouseBindings();
+    this.cameraInput.setMouseBindings(bindings);
   }
 
-  private applyControlConfiguration(): void {
-    if (!this.controls) return;
-    this.controls.rotateSpeed = this.controlConfiguration.orbitSensitivity;
-    this.controls.panSpeed = this.controlConfiguration.panSensitivity;
-    this.controls.zoomSpeed = this.controlConfiguration.zoomSensitivity;
-  }
-
-  private applyMouseBindings(): void {
-    if (!this.controls) return;
-    delete this.controls.mouseButtons.LEFT;
-    delete this.controls.mouseButtons.MIDDLE;
-    delete this.controls.mouseButtons.RIGHT;
-    const orbit = this.unmodifiedMouseButton('orbit-camera');
-    const pan = this.unmodifiedMouseButton('pan-camera');
-    if (orbit === 'LeftClick') this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-    if (orbit === 'MiddleClick') this.controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
-    if (orbit === 'RightClick') this.controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-    if (pan === 'LeftClick') this.controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
-    if (pan === 'MiddleClick') this.controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
-    if (pan === 'RightClick') this.controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-  }
-
-  private restoreTemporaryMouseButton(): void {
-    if (!this.controls || !this.temporaryMouseButton) return;
-    const { key, previous } = this.temporaryMouseButton;
-    if (previous === undefined) delete this.controls.mouseButtons[key];
-    else this.controls.mouseButtons[key] = previous;
-    this.temporaryMouseButton = undefined;
-  }
-
-  private unmodifiedMouseButton(action: MouseAction): string | undefined {
-    const binding = this.mouseBindings[action].split('|').find((value) => !value.includes('+'));
-    return binding;
-  }
+  private restoreTemporaryMouseButton(): void { this.cameraInput.endEditorPointerGesture(); }
 
   private applyWheelZoom(action: WheelZoomAction, deltaY: number, deltaMode: number): void {
     if (!this.controls) return;
@@ -2740,12 +2709,11 @@ export class ThreeViewportEngine {
   }
 
   private isCameraInteracting(): boolean {
-    return this.cameraGestureInProgress || this.cameraInteraction.isActive() || this.pressedActions.size > 0 || performance.now() < this.cameraInteractingUntil;
+    return this.cameraInput.isCameraInteracting() || performance.now() < this.cameraInteractingUntil;
   }
 
   private markCameraInteraction(): void {
-    this.cameraInteractingUntil = this.cameraInteraction.mark();
-    if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
+    this.cameraInput.markCameraInteraction();
   }
 
   private updatePixelRatioTargets(): void {
@@ -3569,17 +3537,9 @@ export class ThreeViewportEngine {
     if (this.disposed) return;
     this.disposed = true;
     this.decorationTextureCache?.dispose(); this.decorationTextureCache = undefined;
-    this.resizeObserver?.disconnect();
-    this.controls?.removeEventListener('change', this.renderOnControlChange);
-    this.controls?.removeEventListener('start', this.onControlStart);
-    this.controls?.removeEventListener('end', this.onControlEnd);
+    this.hostLifecycle.dispose();
+    this.cameraInput.dispose();
     this.controls?.dispose();
-    this.renderer?.domElement.removeEventListener('pointerdown', this.onCanvasPointerDownCapture, true);
-    this.renderer?.domElement.removeEventListener('pointerup', this.onCanvasPointerUpCapture, true);
-    this.renderer?.domElement.removeEventListener('pointercancel', this.onCanvasPointerUpCapture, true);
-    this.renderer?.domElement.removeEventListener('wheel', this.onCanvasWheelCapture, true);
-    if (typeof document !== 'undefined') { document.removeEventListener('focusin', this.onWindowBlur); document.removeEventListener('visibilitychange', this.onVisibilityChange); }
-    if (typeof window !== 'undefined') window.removeEventListener('blur', this.onWindowBlur);
     this.clearInput();
     this.cancelPendingHover(false);
     this.cancelPendingProjection();
@@ -3588,7 +3548,6 @@ export class ThreeViewportEngine {
     this.isolatedKeys.clear();
     const provider = this.visualProvider;
     this.cameraRenderPending = false;
-    this.cameraInteraction.clear();
     this.renderScheduler.dispose();
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
@@ -4372,7 +4331,7 @@ export class ThreeViewportEngine {
     visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
     const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.scheduleRender();
   }
-  clearInput(): void { this.cameraInteraction.clear(); if (this.cameraMoveFrame !== undefined) { cancelViewportFrame(this.cameraMoveFrame); this.cameraMoveFrame = undefined; } }
+  clearInput(): void { this.cameraInput.clearInput(); }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
@@ -4776,19 +4735,6 @@ export class ThreeViewportEngine {
   /** Chunk bounds are conservative and assigned once at batch creation. */
   private flushInstanceBatchBounds(): void { }
 
-  private startCameraMovement(): void {
-    if (this.cameraMoveFrame !== undefined) return;
-    let previous = performance.now();
-    const step = (now: number) => {
-      this.cameraMoveFrame = undefined;
-      const rawDeltaMs = now - previous;
-      const delta = Math.min(rawDeltaMs / 1000, .1);
-      previous = now;
-      this.moveCamera(this.pressedActions, delta);
-      if (this.pressedActions.size) this.cameraMoveFrame = requestViewportFrame(step);
-    };
-    this.cameraMoveFrame = requestViewportFrame(step);
-  }
   private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     if (!this.controls || !keys.size) return;
     this.markCameraInteraction();
@@ -4819,10 +4765,6 @@ function cameraYaw(camera: THREE.Camera): number {
   return THREE.MathUtils.radToDeg(Math.atan2(-forward.x, forward.z));
 }
 
-function requestViewportFrame(callback: FrameRequestCallback): number {
-  return typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(() => callback(performance.now()), 0) as unknown as number;
-}
-
 function toTraceVector(value: THREE.Vector3): TraceVector3 { return { x: value.x, y: value.y, z: value.z }; }
 function visualFamily(object: THREE.Object3D): string | undefined { let family: unknown; object.traverse((child) => { family ??= child.userData['specialVisualFamily']; }); return typeof family === 'string' ? family : undefined; }
 function familyFromReusableKey(key: string | undefined): string | undefined { const prefix = 'special-template-v1|'; return key?.startsWith(prefix) ? key.slice(prefix.length).split('|', 1)[0] : undefined; }
@@ -4832,11 +4774,6 @@ function applyReferenceOpacityToObject(object: THREE.Object3D, opacity: number):
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of materials) { material.transparent = true; material.opacity = opacity; material.needsUpdate = true; }
   });
-}
-
-function cancelViewportFrame(frame: number): void {
-  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
-  else clearTimeout(frame as unknown as ReturnType<typeof setTimeout>);
 }
 
 function vectorValue(vector: THREE.Vector3): CameraVector { return { x: vector.x, y: vector.y, z: vector.z }; }
