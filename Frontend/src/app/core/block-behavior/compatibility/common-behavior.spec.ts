@@ -105,6 +105,22 @@ describe('common resource behavior evaluation', () => {
     expect(result.behavior).toBeUndefined();
   });
 
+  it('classifies a six-face attached resource fingerprint without relying on its registry name', () => {
+    const blockstate = { variants: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/crystal' }])) };
+    const result = evaluateCommonBehavior(record('example:crystal_like', [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }], 'example:block/crystal_like', { behaviorEvidenceRequired: true }), {
+      readJson: (path) => path === 'assets/example/models/block/crystal_like.json' ? { parent: 'minecraft:block/cross' } : blockstate,
+    });
+    expect(result.behavior).toMatchObject({ kind: 'attached-six-face-placement', facingProperty: 'facing' });
+  });
+
+  it('does not classify a six-face lookalike when the resource shape is not face-attached', () => {
+    const blockstate = { variants: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/cube' }])) };
+    const result = evaluateCommonBehavior(record('example:directional_cube', [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }], 'example:block/cube', { behaviorEvidenceRequired: true }), {
+      readJson: (path) => path === 'assets/example/models/block/cube.json' ? { parent: 'minecraft:block/cube_all' } : blockstate,
+    });
+    expect(result.behavior).toBeUndefined();
+  });
+
   it('recognizes external stairs from state schema plus shape model selection', () => {
     const definitions = [
       { name: 'facing', values: ['north', 'east', 'south', 'west'] },

@@ -103,6 +103,53 @@ describe('ExternalModProvider', () => {
     expect(lookalike.behavior).toBeUndefined();
   });
 
+  it('keeps an external wall isolated and defaults every connection to none', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'wall-evidence', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/example/blockstates/tumblestone.json', { variants: {
+          'north=none,east=none,south=none,west=none,up=true': { model: 'example:block/tumblestone' },
+          'north=low,east=none,south=none,west=none,up=true': { model: 'example:block/tumblestone' },
+          'north=tall,east=none,south=none,west=none,up=false': { model: 'example:block/tumblestone' },
+          'north=none,east=low,south=none,west=none,up=true': { model: 'example:block/tumblestone' },
+          'north=none,east=tall,south=none,west=none,up=false': { model: 'example:block/tumblestone' },
+          'north=none,east=none,south=low,west=none,up=true': { model: 'example:block/tumblestone' },
+          'north=none,east=none,south=tall,west=none,up=false': { model: 'example:block/tumblestone' },
+          'north=none,east=none,south=none,west=low,up=true': { model: 'example:block/tumblestone' },
+          'north=none,east=none,south=none,west=tall,up=false': { model: 'example:block/tumblestone' },
+        } }],
+      ]),
+      resources: new Map(),
+    });
+    const definition = provider.catalog().blocks[0]!;
+    expect(definition.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'wall' });
+    expect(definition.defaultState).toMatchObject({ north: 'none', east: 'none', south: 'none', west: 'none', up: 'true' });
+  });
+
+  it('reuses the attached six-face contract for an external cross-model fingerprint', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'attached-content', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/example/blockstates/crystal.json', { variants: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/crystal' }])) }],
+        ['assets/example/models/block/crystal.json', { parent: 'minecraft:block/cross' }],
+      ]),
+      resources: new Map(),
+    });
+    expect(provider.catalog().blocks[0]?.behavior).toMatchObject({ kind: 'attached-six-face-placement', facingProperty: 'facing' });
+  });
+
+  it('does not classify an external six-direction cube as an attached block', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'directional-content', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/example/blockstates/cube.json', { variants: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/cube' }])) }],
+        ['assets/example/models/block/cube.json', { parent: 'minecraft:block/cube_all' }],
+      ]),
+      resources: new Map(),
+    });
+    expect(provider.catalog().blocks[0]?.behavior).toBeUndefined();
+  });
+
   it('derives external sign variants from standard tags and unambiguous entity textures', () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'sign-evidence', version: '1.0.0', depends: { minecraft: '1.21.1' } },

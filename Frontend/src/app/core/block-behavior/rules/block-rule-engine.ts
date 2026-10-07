@@ -185,6 +185,10 @@ export class BlockRuleEngine {
       const facing = context?.faceNormal && directionFromSixFaceNormal(context.faceNormal);
       return facing ? { ...block, state: { ...block.state, [behavior.facingProperty]: facing } } : undefined;
     }
+    if (behavior?.kind === 'attached-six-face-placement') {
+      const facing = context?.faceNormal && directionFromSixFaceNormal(context.faceNormal);
+      return facing ? { ...block, state: { ...block.state, [behavior.facingProperty]: facing } } : undefined;
+    }
     if (behavior?.kind === 'head-placement') {
       if (behavior.wall) {
         const facing = context?.faceNormal && directionFromNormal(context.faceNormal);
@@ -259,6 +263,16 @@ export class BlockRuleEngine {
       return valid
         ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, valid] }
         : { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, ...supports] };
+    }
+    if (behavior.kind === 'attached-six-face-placement') {
+      const facing = block.state[behavior.facingProperty] ?? 'up';
+      supportPosition = add(block.position, sixFaceDirectionOffset(oppositeSixFace(facing)));
+      const support = find(source, supportPosition);
+      if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
+      const supportBehavior = this.definition(support.id)?.behavior;
+      return this.isSupportBlock(support.id)
+        ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, supportPosition] }
+        : supportBehavior ? { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] } : { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition] };
     }
     if (behavior.kind === 'floor-supported' || behavior.kind === 'torch-placement') supportPosition = add(block.position, { x: 0, y: -1, z: 0 });
     if (behavior.kind === 'lantern-placement') {
@@ -367,7 +381,7 @@ export class BlockRuleEngine {
     if (!definition) return false;
     const behavior = definition.behavior;
     if (behavior?.kind === 'solid') return true;
-    if (behavior && ['fluid', 'horizontal-connect', 'wall-mounted', 'wall-sign', 'wall-hanging-sign', 'floor-supported', 'torch-placement', 'lantern-placement', 'vertical-chain'].includes(behavior.kind)) return false;
+    if (behavior && ['fluid', 'horizontal-connect', 'wall-mounted', 'wall-sign', 'wall-hanging-sign', 'floor-supported', 'torch-placement', 'lantern-placement', 'vertical-chain', 'attached-six-face-placement'].includes(behavior.kind)) return false;
     return definition.support === 'full' && definition.visualSupport === 'real' && definition.visualClassification === 'standard-json';
   }
 }
@@ -432,6 +446,8 @@ function directionFromSixFaceNormal(normal: { readonly x: number; readonly y: nu
   if (normal.z < 0) return 'north';
   return undefined;
 }
+function sixFaceDirectionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 }, up: { x: 0, y: 1, z: 0 }, down: { x: 0, y: -1, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
+function oppositeSixFace(direction: string): 'north' | 'east' | 'south' | 'west' | 'up' | 'down' { return ({ north: 'south', south: 'north', east: 'west', west: 'east', up: 'down', down: 'up' } as const)[direction as 'north' | 'east' | 'south' | 'west' | 'up' | 'down'] ?? 'down'; }
 function stairHalfFromContext(context: PlacementContext | undefined, fallback: string): string {
   if (!context?.faceNormal) return fallback;
   if (context.faceNormal.y < 0) return 'top';

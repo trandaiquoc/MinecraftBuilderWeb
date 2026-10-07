@@ -92,6 +92,7 @@ function addBehaviorCapabilities(behavior: BlockBehavior | undefined, add: (capa
     case 'paired-horizontal': directional('horizontal'); multiBlock('paired-horizontal'); break;
     case 'candle': break;
     case 'six-face-placement': directional('six-face'); break;
+    case 'attached-six-face-placement': directional('six-face'); attachment('floor', 'wall', 'ceiling'); break;
     case 'decorated-pot-placement': directional('horizontal'); entity('decorated-pot'); break;
     case 'conduit-placement': entity('conduit'); break;
     case 'fluid': add({ kind: 'fluid', fluid: behavior.fluid, evidence: verified }); break;

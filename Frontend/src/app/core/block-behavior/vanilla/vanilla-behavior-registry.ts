@@ -23,6 +23,7 @@ export const VANILLA_BEHAVIOR_COMPATIBILITY: Readonly<Record<BlockBehavior['kind
   'paired-horizontal': { mode: 'common-reusable', evidence: 'foot/head pair contract' },
   candle: { mode: 'common-reusable', evidence: 'candles/lit/waterlogged contract' },
   'six-face-placement': { mode: 'common-reusable', evidence: 'six-direction facing contract' },
+  'attached-six-face-placement': { mode: 'common-reusable', evidence: 'six-direction facing plus verified face-attachment contract' },
   'decorated-pot-placement': { mode: 'common-reusable', evidence: 'facing/waterlogged placement contract' },
   'conduit-placement': { mode: 'common-reusable', evidence: 'waterlogged and entity resource contract' },
   fluid: { mode: 'common-reusable', evidence: 'level/fluid resource contract' },
@@ -79,6 +80,7 @@ export class VanillaBehaviorRegistry {
     for (const id of standingHeadIds) this.explicit.set(`minecraft:${id}`, standingHeadMetadata);
     for (const id of wallHeadIds) this.explicit.set(`minecraft:${id}`, wallHeadMetadata);
     for (const id of vanillaShulkerBoxIds) this.explicit.set(id, shulkerBoxMetadata);
+    for (const id of vanillaAmethystAttachmentIds) this.explicit.set(id, amethystAttachmentMetadata);
     this.explicit.set('minecraft:decorated_pot', decoratedPotMetadata);
     this.explicit.set('minecraft:conduit', conduitMetadata);
     this.explicit.set('minecraft:water', waterMetadata);
@@ -362,6 +364,14 @@ const shulkerBoxMetadata: BehaviorMetadata = {
   behavior: { kind: 'six-face-placement', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'up' },
   stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }],
 };
+const amethystAttachmentMetadata: BehaviorMetadata = {
+  behavior: { kind: 'attached-six-face-placement', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'up', waterlogged: 'false' },
+  stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+};
+
+const vanillaAmethystAttachmentIds = [
+  'minecraft:small_amethyst_bud', 'minecraft:medium_amethyst_bud', 'minecraft:large_amethyst_bud', 'minecraft:amethyst_cluster',
+] as const;
 
 function vanillaTorchMetadata(id: string): BehaviorMetadata | undefined {
   const standing: Readonly<Record<string, string>> = {

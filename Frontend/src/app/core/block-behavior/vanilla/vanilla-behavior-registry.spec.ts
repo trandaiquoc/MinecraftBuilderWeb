@@ -6,7 +6,7 @@ const baseRecord = (id: string): AssetBlockRecord => ({ id, displayName: id, def
 
 describe('VanillaBehaviorRegistry', () => {
   it('has an explicit compatibility strategy for every BlockBehavior kind', () => {
-    const expected = ['solid', 'horizontal-connect', 'stairs', 'wall-mounted', 'wall-sign', 'standing-sign', 'hanging-sign', 'wall-hanging-sign', 'floor-supported', 'vertical-chain', 'lantern-placement', 'torch-placement', 'double-height', 'paired-horizontal', 'candle', 'six-face-placement', 'decorated-pot-placement', 'conduit-placement', 'fluid', 'button', 'head-placement'];
+    const expected = ['solid', 'horizontal-connect', 'stairs', 'wall-mounted', 'wall-sign', 'standing-sign', 'hanging-sign', 'wall-hanging-sign', 'floor-supported', 'vertical-chain', 'lantern-placement', 'torch-placement', 'double-height', 'paired-horizontal', 'candle', 'six-face-placement', 'attached-six-face-placement', 'decorated-pot-placement', 'conduit-placement', 'fluid', 'button', 'head-placement'];
     expect(Object.keys(VANILLA_BEHAVIOR_COMPATIBILITY).sort()).toEqual([...expected].sort());
     expect(Object.values(VANILLA_BEHAVIOR_COMPATIBILITY).every((entry) => entry.evidence.length > 0)).toBe(true);
   });
@@ -85,6 +85,20 @@ describe('VanillaBehaviorRegistry', () => {
       expect(registry.enrich(baseRecord(`minecraft:${id}`))).toMatchObject({ behavior: { kind: 'six-face-placement', facingProperty: 'facing' }, defaultState: { facing: 'up' }, stateDefinitions: expect.arrayContaining([{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }]) });
     }
     expect(registry.enrich(baseRecord('mod:red_shulker_box'))).toEqual(baseRecord('mod:red_shulker_box'));
+  });
+  it('uses the verified attached six-face contract for all vanilla amethyst buds and cluster', () => {
+    const registry = new VanillaBehaviorRegistry();
+    for (const id of ['small_amethyst_bud', 'medium_amethyst_bud', 'large_amethyst_bud', 'amethyst_cluster']) {
+      expect(registry.enrich(baseRecord(`minecraft:${id}`))).toMatchObject({
+        behavior: { kind: 'attached-six-face-placement', facingProperty: 'facing' },
+        defaultState: { facing: 'up', waterlogged: 'false' },
+        stateDefinitions: expect.arrayContaining([
+          { name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] },
+          { name: 'waterlogged', values: ['true', 'false'] },
+        ]),
+      });
+    }
+    expect(registry.enrich(baseRecord('minecraft:shulker_box')).behavior?.kind).toBe('six-face-placement');
   });
   it('adds exact Decorated Pot placement metadata and defaults', () => {
     const result = new VanillaBehaviorRegistry().enrich(baseRecord('minecraft:decorated_pot'));

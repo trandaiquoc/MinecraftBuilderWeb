@@ -74,6 +74,8 @@ export type BlockBehavior =
   | { readonly kind: 'paired-horizontal'; readonly partProperty: 'part'; readonly facingProperty: 'facing'; readonly firstPart: 'foot'; readonly secondPart: 'head' }
   | { readonly kind: 'candle'; readonly candlesProperty: 'candles'; readonly maxCandles: 4 }
   | { readonly kind: 'six-face-placement'; readonly facingProperty: 'facing' }
+  /** Six-direction placement whose facing is the face the block is attached to. */
+  | { readonly kind: 'attached-six-face-placement'; readonly facingProperty: 'facing' }
   | { readonly kind: 'decorated-pot-placement'; readonly facingProperty: 'facing' }
   | { readonly kind: 'conduit-placement'; readonly waterloggedProperty: 'waterlogged' }
   | { readonly kind: 'fluid'; readonly fluid: 'water' | 'lava' }

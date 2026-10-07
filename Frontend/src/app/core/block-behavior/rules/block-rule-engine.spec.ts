@@ -278,6 +278,49 @@ describe('BlockRuleEngine', () => {
     }
   });
 
+  it('places vanilla amethyst buds and clusters on all six supported faces', () => {
+    const attachment = {
+      id: 'minecraft:small_amethyst_bud', namespace: 'minecraft', displayName: 'Small Amethyst Bud',
+      defaultState: { facing: 'up', waterlogged: 'false' },
+      stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+      resources: { textures: [] }, support: 'full' as const, behaviorSupport: 'full' as const, visualSupport: 'real' as const,
+      visualClassification: 'standard-json' as const, defaultStateSource: 'authoritative-report' as const,
+      behavior: { kind: 'attached-six-face-placement' as const, facingProperty: 'facing' as const },
+    };
+    const attachmentEngine = new BlockRuleEngine((id) => id === attachment.id ? attachment : catalog.get(id));
+    const cases = [
+      [{ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 0 }, 'up', { x: 0, y: 1, z: 0 }],
+      [{ x: 0, y: 2, z: 0 }, { x: 0, y: 3, z: 0 }, 'down', { x: 0, y: -1, z: 0 }],
+      [{ x: 0, y: 1, z: 0 }, { x: 0, y: 1, z: 1 }, 'north', { x: 0, y: 0, z: -1 }],
+      [{ x: 0, y: 1, z: 0 }, { x: 0, y: 1, z: -1 }, 'south', { x: 0, y: 0, z: 1 }],
+      [{ x: 1, y: 1, z: 0 }, { x: 0, y: 1, z: 0 }, 'east', { x: 1, y: 0, z: 0 }],
+      [{ x: 1, y: 1, z: 0 }, { x: 2, y: 1, z: 0 }, 'west', { x: -1, y: 0, z: 0 }],
+    ] as const;
+    for (const [target, supportPosition, facing, faceNormal] of cases) {
+      const project = { ...base, blocks: [block('minecraft:stone', supportPosition)] };
+      const result = attachmentEngine.place(project, block(attachment.id, target, { facing: 'up', waterlogged: 'true' }), { faceNormal });
+      expect(result.validation.status, facing).toBe('valid');
+      expect(result.project?.blocks.at(-1)?.state, facing).toMatchObject({ facing, waterlogged: 'true' });
+    }
+  });
+
+  it('rejects a floating amethyst attachment and preserves it as invalid after support removal', () => {
+    const attachment = {
+      id: 'minecraft:amethyst_cluster', namespace: 'minecraft', displayName: 'Amethyst Cluster', defaultState: { facing: 'up', waterlogged: 'false' },
+      stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }, { name: 'waterlogged', values: ['true', 'false'] }], resources: { textures: [] },
+      support: 'full' as const, behaviorSupport: 'full' as const, visualSupport: 'real' as const, visualClassification: 'standard-json' as const, defaultStateSource: 'authoritative-report' as const,
+      behavior: { kind: 'attached-six-face-placement' as const, facingProperty: 'facing' as const },
+    };
+    const attachmentEngine = new BlockRuleEngine((id) => id === attachment.id ? attachment : catalog.get(id));
+    const floating = attachmentEngine.place(base, block(attachment.id, { x: 2, y: 1, z: 2 }), { faceNormal: { x: 0, y: 1, z: 0 } });
+    expect(floating.validation).toMatchObject({ status: 'invalid', reason: 'missing-support' });
+    const supported = attachmentEngine.place({ ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 })] }, block(attachment.id, { x: 2, y: 1, z: 2 }, { facing: 'up', waterlogged: 'true' }), { faceNormal: { x: 0, y: 1, z: 0 } }).project!;
+    const removed = attachmentEngine.delete(supported, { x: 2, y: 0, z: 2 });
+    expect(removed.validation).toMatchObject({ status: 'invalid', reason: 'missing-support' });
+    expect(removed.project?.blocks).toHaveLength(1);
+    expect(removed.project?.blocks[0].state).toMatchObject({ facing: 'up', waterlogged: 'true' });
+  });
+
   it('preserves unsupported standing torch and tall plant data while reporting invalid', () => {
     const support = block('minecraft:stone', { x: 2, y: 0, z: 2 });
     const torch = block('minecraft:torch', { x: 2, y: 1, z: 2 });
