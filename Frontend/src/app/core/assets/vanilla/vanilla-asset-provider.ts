@@ -19,6 +19,7 @@ import { ContentIntrospectionEngine, SemanticManifestEvidenceProvider } from '..
 import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 import { yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../mod/mod-import-cancellation';
+import { deriveVanillaInternalBlockIds } from './vanilla-internal-content';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
@@ -148,6 +149,9 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     const behaviorRegistry = new VanillaBehaviorRegistry(this);
     const resolver = new BlockModelResolver(this);
     const introspection = new ContentIntrospectionEngine(this, this.semanticEvidenceProviders);
+    const authoritativeInternalBlockIds = registry && itemRegistry && this.minecraftVersion === VANILLA_ASSET_VERSION
+      ? deriveVanillaInternalBlockIds(registry, itemRegistry)
+      : new Set<string>();
     const resources = (registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
       const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
     })).filter(({ id }) => !isDecorationEntityId(id));
@@ -174,6 +178,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
           ...verifiedVanillaCapabilityProfile(id),
           ...(normalizedItemEvidence?.placeable === true ? [{ kind: 'direct-placement' as const, evidence: 'verified' as const }] : []),
         ],
+        ...(authoritativeInternalBlockIds.has(id) ? { contentKind: 'internal-block' as const } : {}),
         itemEvidence: normalizedItemEvidence,
       };
       const registryEnriched = behaviorRegistry.enrich(generated);

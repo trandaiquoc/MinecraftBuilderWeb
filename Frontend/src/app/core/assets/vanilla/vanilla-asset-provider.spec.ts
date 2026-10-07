@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VanillaAssetProvider, texturePath } from './vanilla-asset-provider';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { parseVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
+import { parseVanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
+import { buildPlaceableItems, isWorldBlockSerializable, resolveConcreteBlockId } from '../../blocks/placement-palette/placeable-item';
 
 describe('VanillaAssetProvider', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -47,6 +49,39 @@ describe('VanillaAssetProvider', () => {
     const source = provider.catalog();
     expect(source.blocks.find((block) => block.id === 'minecraft:copper_torch')?.itemEvidence).toMatchObject({ itemId: 'minecraft:copper_torch', placeable: true, sourceFormat: 'modern-item-definition' });
     expect(source.blocks.find((block) => block.id === 'minecraft:potted_torchflower')?.itemEvidence).toBeUndefined();
+  });
+
+  it('propagates authoritative internal membership into catalog and palette policy', () => {
+    const registry = parseVanillaBlockRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test report', blocks: [
+      { id: 'minecraft:oak_sign', properties: [{ name: 'rotation', values: ['0'] }], defaultState: { rotation: '0' } },
+      { id: 'minecraft:oak_wall_sign', properties: [{ name: 'facing', values: ['north'] }], defaultState: { facing: 'north' } },
+      { id: 'minecraft:potted_torchflower', properties: [], defaultState: {} },
+      { id: 'minecraft:water', properties: [{ name: 'level', values: ['0'] }], defaultState: { level: '0' } },
+    ] });
+    const itemRegistry = parseVanillaItemRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test item report', items: [{ id: 'minecraft:oak_sign' }] });
+    const provider = new VanillaAssetProvider('fixture.jar', {
+      'assets/minecraft/items/oak_sign.json': { model: { type: 'minecraft:model', model: 'minecraft:block/oak_sign' } },
+      'assets/minecraft/blockstates/oak_sign.json': { variants: { '': { model: 'minecraft:block/oak_sign' } } },
+      'assets/minecraft/blockstates/oak_wall_sign.json': { variants: { facing: { model: 'minecraft:block/oak_wall_sign' } } },
+      'assets/minecraft/blockstates/potted_torchflower.json': { variants: { '': { model: 'minecraft:block/potted_torchflower' } } },
+      'assets/minecraft/blockstates/water.json': { variants: { level: { model: 'minecraft:block/water' } } },
+    }, new Map());
+    const source = provider.catalog(registry, itemRegistry);
+    expect(source.blocks.find((block) => block.id === 'minecraft:potted_torchflower')?.contentKind).toBe('internal-block');
+    expect(source.blocks.find((block) => block.id === 'minecraft:oak_wall_sign')?.contentKind).toBe('internal-block');
+    expect(source.blocks.find((block) => block.id === 'minecraft:water')?.contentKind).toBeUndefined();
+
+    const catalog = new BlockCatalog(); catalog.load(source);
+    const items = buildPlaceableItems(catalog.all(), source.targetItems, true);
+    expect(items.map((item) => item.itemId)).toEqual(['minecraft:oak_sign']);
+    expect(resolveConcreteBlockId(items[0]!, { faceNormal: { x: 1, y: 0, z: 0 } })).toBe('minecraft:oak_wall_sign');
+    expect(isWorldBlockSerializable('minecraft:oak_wall_sign')).toBe(true);
+    expect(catalog.get('minecraft:potted_torchflower')).toMatchObject({ contentKind: 'internal-block' });
+
+    const external = new VanillaAssetProvider('mod.jar', '1.21.1', {
+      'assets/example/blockstates/potted_machine.json': { variants: { '': { model: 'example:block/potted_machine' } } },
+    }, new Map()).catalog();
+    expect(external.blocks.find((block) => block.id === 'example:potted_machine')?.contentKind).toBeUndefined();
   });
 
   it('keeps item registry evidence independent when an item targets a different fluid block', () => {
