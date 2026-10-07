@@ -43,28 +43,26 @@ export function normalizeVoxelCoordinate(position: VoxelCoordinate): VoxelCoordi
   return { x: Math.trunc(position.x), y: Math.trunc(position.y), z: Math.trunc(position.z) };
 }
 
-export function lanternChainAttachmentTarget(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, blocks: readonly PlacedBlock[] | ReadonlyBlockLookup): VoxelCoordinate | undefined {
-  return resolveAttachmentPlacement(activeBlockId, hitPosition, undefined, blocks)?.target;
+export function lanternChainAttachmentTarget(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, blocks: readonly PlacedBlock[] | ReadonlyBlockLookup, definition?: (id: string) => BlockDefinition | undefined): VoxelCoordinate | undefined {
+  return resolveAttachmentPlacement(activeBlockId, hitPosition, undefined, blocks, definition)?.target;
 }
 
 /** Reusable attachment policy; bounds/occupancy are deliberately validated by the normal placement flow. */
 export function resolveAttachmentPlacement(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, hitPoint: { readonly y: number } | undefined, blocks: readonly PlacedBlock[] | ReadonlyBlockLookup, definition?: (id: string) => BlockDefinition | undefined): AttachmentPlacementResult | undefined {
   const hit = blockAt(blocks, hitPosition);
   const activeBehavior = activeBlockId ? definition?.(activeBlockId)?.behavior : undefined;
-  const isHangingSign = activeBehavior?.kind === 'hanging-sign' || (!definition && !!activeBlockId && activeBlockId.startsWith('minecraft:') && activeBlockId.endsWith('_hanging_sign') && !activeBlockId.includes('_wall_hanging_sign'));
+  const isHangingSign = activeBehavior?.kind === 'hanging-sign';
   const hitBehavior = hit ? definition?.(hit.id)?.behavior : undefined;
-  const isVanillaChain = !definition && hit?.id === 'minecraft:chain' && hit.state['axis'] === 'y';
-  const isVerticalChain = (hitBehavior?.kind === 'vertical-chain' && hit?.state[hitBehavior.axisProperty] === hitBehavior.verticalAxis) || isVanillaChain;
-  const hitId = hit?.id ?? '';
-  const isHangingSignBlock = hitBehavior?.kind === 'hanging-sign' || (!definition && hitId.startsWith('minecraft:') && hitId.endsWith('_hanging_sign') && !hitId.includes('_wall_hanging_sign'));
+  const isVerticalChain = hitBehavior?.kind === 'vertical-chain' && hit?.state[hitBehavior.axisProperty] === hitBehavior.verticalAxis;
+  const isHangingSignBlock = hitBehavior?.kind === 'hanging-sign';
   if (isHangingSign && isVerticalChain) return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: {}, snapType: 'hanging-sign-chain' };
   if (isHangingSign && isHangingSignBlock) return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: {}, snapType: 'hanging-sign-stack' };
   if (!isVerticalChain) return undefined;
-  if (activeBehavior?.kind === 'vertical-chain' || (!definition && activeBlockId === 'minecraft:chain')) {
+  if (activeBehavior?.kind === 'vertical-chain') {
     const direction = hitPoint && hitPoint.y < hitPosition.y + .5 ? -1 : 1;
     return { target: { x: hitPosition.x, y: hitPosition.y + direction, z: hitPosition.z }, stateOverride: { axis: 'y' }, snapType: 'chain-extension' };
   }
-  if (activeBehavior?.kind === 'lantern-placement' || (!definition && (activeBlockId === 'minecraft:lantern' || activeBlockId === 'minecraft:soul_lantern'))) return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: { hanging: 'true' }, snapType: 'chain-lantern' };
+  if (activeBehavior?.kind === 'lantern-placement') return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: { hanging: 'true' }, snapType: 'chain-lantern' };
   return undefined;
 }
 

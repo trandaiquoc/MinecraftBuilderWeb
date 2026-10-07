@@ -39,8 +39,8 @@ describe('vanilla placeable item layer', () => {
     const source: AssetBlockRecord[] = [
       { id: 'minecraft:copper_torch', displayName: 'Copper Torch', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', itemEvidence: { itemId: 'minecraft:copper_torch', placeable: true, sourceFormat: 'modern-item-definition' }, placementVariants: { standing: 'minecraft:copper_torch', wall: 'minecraft:copper_wall_torch' } },
       { id: 'minecraft:copper_wall_torch', displayName: 'Copper Wall Torch', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }], resources: { textures: [] }, support: 'full' },
-      { id: 'minecraft:potted_torchflower', displayName: 'Potted Torchflower', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' },
-      { id: 'minecraft:torchflower_crop', displayName: 'Torchflower Crop', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' },
+      { id: 'minecraft:potted_torchflower', displayName: 'Potted Torchflower', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', contentKind: 'internal-block' },
+      { id: 'minecraft:torchflower_crop', displayName: 'Torchflower Crop', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', contentKind: 'internal-block' },
     ];
     const catalog = new BlockCatalog(); catalog.load({ minecraftVersion: '26.3', blocks: source });
     const items = buildPlaceableItems(catalog.all());
@@ -66,7 +66,7 @@ describe('vanilla placeable item layer', () => {
     expect(isNormalBuildingExportEligible('minecraft:item_frame')).toBe(false);
     expect(isNormalBuildingExportEligible('minecraft:potted_torchflower')).toBe(true);
     expect(isWorldBlockSerializable('minecraft:potted_torchflower')).toBe(true);
-    expect(isNormalBuildingPaletteEligible({ id: 'minecraft:potted_torchflower', namespace: 'minecraft' })).toBe(false);
+    expect(isNormalBuildingPaletteEligible({ id: 'minecraft:potted_torchflower', namespace: 'minecraft', contentKind: 'internal-block' })).toBe(false);
   });
   it('does not expose decoration entities as normal block items even if a stale block record exists', () => {
     const catalog = catalogWith('minecraft:item_frame', 'minecraft:glow_item_frame', 'minecraft:painting');

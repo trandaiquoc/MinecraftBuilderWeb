@@ -239,24 +239,19 @@ function addSchemaCandidates(candidates: BehaviorCandidate[], fingerprint: Behav
     if (!contract.present) continue;
     const evidence = evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model', 'relationship']);
     const hasProfileEvidence = fingerprint.trustedFamilies.includes(profile.family) || resourceRelationship(fingerprint, profile.resourceTokens ?? []);
-    // A complete, exact door state contract is itself distinctive evidence.
-    // External content must not need a tag or a name/model token to preserve
-    // a verified double-height door schema, while all other profiles remain
-    // evidence-gated as before.
-    // Door `powered` is a runtime property and is not present in every
-    // blockstate schema (including verified external door resources). Match
-    // the observable contract while preserving any additional properties that
-    // the resource actually declares.
-    const schemaCompatible = profile.family === 'doors' ? exactSchema(definitions, classificationStates) : contract.valid;
-    const distinctiveDoorSchema = profile.family === 'doors' && schemaCompatible;
-    if (schemaCompatible && (hasProfileEvidence || distinctiveDoorSchema)) {
+    // Profiles may explicitly declare a complete observable schema as
+    // distinctive evidence. Runtime-only properties can remain in the
+    // canonical profile without being required by static resources.
+    const schemaCompatible = profile.distinctiveObservableSchema ? exactSchema(definitions, classificationStates) : contract.valid;
+    const distinctiveSchema = profile.distinctiveObservableSchema === true && schemaCompatible;
+    if (schemaCompatible && (hasProfileEvidence || distinctiveSchema)) {
       candidates.push({
         family: profile.family,
         behavior: profile.behavior,
         defaults: validDefaults(definitions, profile.defaults),
         evidence,
         contradictions: [],
-        score: score(evidence) + (fingerprint.trustedFamilies.includes(profile.family) ? 4 : 0) + (distinctiveDoorSchema ? 4 : 0),
+        score: score(evidence) + (fingerprint.trustedFamilies.includes(profile.family) ? 4 : 0) + (distinctiveSchema ? 4 : 0),
       });
     }
     else if (hasProfileEvidence && contract.present) candidates.push(rejected(profile.family, 'state schema conflicts with the candidate contract', evidence));

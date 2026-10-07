@@ -7,7 +7,7 @@ import { texturePath, VanillaAssetProvider } from './vanilla-asset-provider';
 import { VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import type { BlockCapabilityProfile } from '../../blocks/capabilities/block-capability.types';
 import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
-import { classifyBlockDefinition, classifyContent, isDecorationEntityId, isInternalBlockId, isTechnicalBlockId } from '../../content/content-classifier';
+import { classifyBlockDefinition, classifyContent, isDecorationEntityId, isTechnicalBlockId } from '../../content/content-classifier';
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 import type { PlaceableItemDefinition, PlaceableItemEvidence } from '../../blocks/placement-palette/placeable-item';
 
@@ -89,7 +89,7 @@ export function auditPaletteLeaks(
     // example oak_wall_sign). Audit the user-facing/display block, not every
     // concrete voxel used by the logical placement recipe.
     if (isTechnicalBlockId(item.displayBlockId)) return [{ itemId: item.itemId, code: 'TECHNICAL_BLOCK_IN_PALETTE' as const }];
-    if (isInternalBlockId(item.displayBlockId)) return [{ itemId: item.itemId, code: 'INTERNAL_BLOCK_IN_PALETTE' as const }];
+    if (item.contentKind === 'internal-block') return [{ itemId: item.itemId, code: 'INTERNAL_BLOCK_IN_PALETTE' as const }];
     if (!item.concreteBlockIds.every((id) => worldIds.has(id))) return [{ itemId: item.itemId, code: 'ITEM_ONLY_IN_BLOCK_PALETTE' as const }];
     if (itemEvidenceAvailable && !targetIds.has(item.itemId)) return [{ itemId: item.itemId, code: 'ITEM_ONLY_IN_BLOCK_PALETTE' as const }];
     if (item.concreteBlockIds.length === 0) return [{ itemId: item.itemId, code: 'CONTENT_DOMAIN_MISMATCH' as const }];

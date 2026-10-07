@@ -70,7 +70,7 @@ export type BlockBehavior =
   | { readonly kind: 'wall-hanging-sign'; readonly facingProperty: 'facing' }
   | { readonly kind: 'floor-supported' }
   | { readonly kind: 'vertical-chain'; readonly axisProperty: 'axis'; readonly verticalAxis: 'y' }
-  | { readonly kind: 'lantern-placement'; readonly hangingProperty: 'hanging'; readonly chainId: string }
+  | { readonly kind: 'lantern-placement'; readonly hangingProperty: 'hanging' }
   | { readonly kind: 'torch-placement'; readonly wallBlockId: string }
   | { readonly kind: 'double-height'; readonly halfProperty: 'half'; readonly requiresFloor: boolean }
   | { readonly kind: 'paired-horizontal'; readonly partProperty: 'part'; readonly facingProperty: 'facing'; readonly firstPart: 'foot'; readonly secondPart: 'head' }
@@ -101,6 +101,8 @@ export interface BlockDefinition {
   /** Compatibility alias for existing placement code; do not use for coverage reporting. */
   readonly support: BlockSupportLevel;
   readonly behavior?: BlockBehavior;
+  /** Source-observed content-domain classification, when the provider can prove it. */
+  readonly contentKind?: import('../../content/content-classifier').MinecraftContentKind;
   /** Normalized, immutable routing metadata produced by BlockCatalog. Compatibility callers may omit it. */
   readonly capabilities?: BlockCapabilityProfile;
   readonly itemEvidence?: BlockItemEvidence;
@@ -147,6 +149,8 @@ export interface AssetBlockRecord {
   readonly sourceId?: string;
   readonly sourceName?: string;
   readonly behavior?: BlockBehavior;
+  /** Source-observed content-domain classification, when the provider can prove it. */
+  readonly contentKind?: import('../../content/content-classifier').MinecraftContentKind;
   /** Optional trusted hints; final profiles are derived centrally during catalog normalization. */
   readonly capabilities?: readonly BlockCapability[];
   readonly itemEvidence?: BlockItemEvidence;

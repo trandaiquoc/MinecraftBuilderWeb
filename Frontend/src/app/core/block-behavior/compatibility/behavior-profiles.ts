@@ -10,6 +10,8 @@ export interface GenericBehaviorProfile {
    * `requiredStates` without being required for classification.
    */
   readonly observableStates?: Readonly<Record<string, readonly string[]>>;
+  /** Allows a complete observable schema to stand on its own as evidence. */
+  readonly distinctiveObservableSchema?: boolean;
   readonly stateDefinitions: readonly BlockStateDefinition[];
   readonly defaults: Readonly<Record<string, string>>;
   readonly resourceTokens?: readonly string[];
@@ -93,6 +95,7 @@ export const GENERIC_BEHAVIOR_PROFILES = {
     family: 'doors',
     behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true },
     observableStates: { facing: HORIZONTAL, half: ['lower', 'upper'], hinge: ['left', 'right'], open: BOOLEAN },
+    distinctiveObservableSchema: true,
     requiredStates: { facing: HORIZONTAL, half: ['lower', 'upper'], hinge: ['left', 'right'], open: BOOLEAN, powered: BOOLEAN },
     stateDefinitions: [
       { name: 'facing', values: [...HORIZONTAL] }, { name: 'half', values: ['lower', 'upper'], derived: true },
@@ -126,7 +129,7 @@ export const GENERIC_BEHAVIOR_PROFILES = {
   },
   lanterns: {
     family: 'lanterns',
-    behavior: { kind: 'lantern-placement', hangingProperty: 'hanging', chainId: 'minecraft:chain' },
+    behavior: { kind: 'lantern-placement', hangingProperty: 'hanging' },
     requiredStates: { hanging: BOOLEAN, waterlogged: BOOLEAN },
     stateDefinitions: [{ name: 'hanging', values: [...BOOLEAN] }, { name: 'waterlogged', values: [...BOOLEAN] }],
     defaults: { hanging: 'false', waterlogged: 'false' },

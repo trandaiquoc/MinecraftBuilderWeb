@@ -54,7 +54,7 @@ describe('vanilla asset coverage audit', () => {
     const definitions = [block('minecraft:stone'), block('minecraft:potted_torchflower'), block('minecraft:light'), block('minecraft:item_frame')];
     const result = auditPaletteLeaks([
       item('minecraft:item_frame', 'minecraft:item_frame', ['minecraft:item_frame']),
-      item('minecraft:potted_torchflower', 'minecraft:potted_torchflower', ['minecraft:potted_torchflower']),
+      { ...item('minecraft:potted_torchflower', 'minecraft:potted_torchflower', ['minecraft:potted_torchflower']), contentKind: 'internal-block' },
       item('minecraft:light', 'minecraft:light', ['minecraft:light']),
       item('example:missing', 'example:missing', ['example:missing']),
     ], definitions, [{ itemId: 'minecraft:item_frame', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' }], true);

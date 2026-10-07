@@ -4,7 +4,8 @@ import { BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { PlacementContext } from '../../editor/placement/placement';
 import { rankSearchResults } from '../../search/relevance-search';
-import { isInternalBlockId, isTechnicalBlockId, isDecorationEntityId, vanillaTechnicalBlockIds } from '../../content/content-classifier';
+import { isInternalContent, isTechnicalBlockId, isDecorationEntityId, vanillaTechnicalBlockIds } from '../../content/content-classifier';
+import type { MinecraftContentKind } from '../../content/content-classifier';
 import { expandLogicalPlacement, logicalPlacementForBehavior } from '../../block-behavior/logical-objects/logical-placement';
 import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
 
@@ -35,13 +36,14 @@ export interface PlaceableItemDefinition {
   readonly visualSupport: VisualSupportLevel;
   /** Runtime item-backed profile; block definitions remain independent of item catalogs. */
   readonly capabilities: BlockCapabilityProfile;
+  readonly contentKind?: MinecraftContentKind;
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
 // Search metadata stays runtime-only and deliberately outside the catalog
 // contract; ranking is computed only for the current query.
 
-export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName' | 'maxStackSize'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: string; }
+export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName' | 'maxStackSize'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: MinecraftContentKind; }
 
 interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; readonly placementVariants?: BlockPlacementVariants; readonly logicalPlacement?: LogicalPlacementMetadata; }
 
@@ -78,12 +80,13 @@ function manifest(): readonly ManifestEntry[] {
 export const VANILLA_PLACEABLE_MANIFEST = manifest();
 const MANIFEST_BY_CONCRETE = new Map(VANILLA_PLACEABLE_MANIFEST.flatMap((entry) => entry.concreteBlockIds.map((blockId) => [blockId, entry] as const)));
 
-export function isNormalBuildingPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace'>): boolean {
-  return !isTechnicalBlockId(block.id) && !isInternalBlockId(block.id) && !isDecorationEntityId(block.id);
+export function isNormalBuildingPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace' | 'contentKind' | 'itemEvidence'>): boolean {
+  const contentKind = block.contentKind ?? block.itemEvidence?.contentKind;
+  return !isTechnicalBlockId(block.id) && !isInternalContent(contentKind) && !isDecorationEntityId(block.id);
 }
 
 /** A palette policy: can the user choose this ID as an independent item? */
-export function isPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace'>): boolean { return isNormalBuildingPaletteEligible(block); }
+export function isPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace' | 'contentKind' | 'itemEvidence'>): boolean { return isNormalBuildingPaletteEligible(block); }
 
 /** A world policy: valid concrete internal variants remain serializable. */
 export function isWorldBlockSerializable(blockId: string): boolean { return !isTechnicalBlockId(blockId) && !isDecorationEntityId(blockId); }
@@ -176,7 +179,8 @@ function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlock
   const previewBlocks = previewFor(entry, definition, previewState ?? defaultState, logicalPlacement);
   const placementVariants = entry.placementVariants ?? (definition.namespace === 'minecraft' && entry.concreteBlockIds.length > 1 ? { standing: entry.concreteBlockIds[0], wall: entry.concreteBlockIds[1] } : undefined);
   const itemEvidence = definition.sourceId && definition.sourceId !== 'vanilla' ? 'inferred' : 'verified';
-  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, ...(definition.itemEvidence?.maxStackSize === undefined ? {} : { maxStackSize: definition.itemEvidence.maxStackSize }), defaultState, ...(previewState ? { previewState } : {}), concreteBlockIds, ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind, previewRecipe: entry.recipe, ...(logicalPlacement ? { logicalPlacement } : {}), support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks };
+  const contentKind = definition.contentKind ?? definition.itemEvidence?.contentKind;
+  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, ...(definition.itemEvidence?.maxStackSize === undefined ? {} : { maxStackSize: definition.itemEvidence.maxStackSize }), ...(contentKind ? { contentKind } : {}), defaultState, ...(previewState ? { previewState } : {}), concreteBlockIds, ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind, previewRecipe: entry.recipe, ...(logicalPlacement ? { logicalPlacement } : {}), support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks };
 }
 
 function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState, logicalPlacement?: LogicalPlacementMetadata): readonly PlacedBlock[] {

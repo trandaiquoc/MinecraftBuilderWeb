@@ -254,7 +254,7 @@ export class BlockRuleEngine {
     }
     if (behavior?.kind !== 'lantern-placement') return block;
     const above = find(source, add(block.position, { x: 0, y: 1, z: 0 }));
-    const hanging = context?.faceNormal?.y === -1 || (!context?.faceNormal && isVerticalChain(above, behavior.chainId, this.definition));
+    const hanging = context?.faceNormal?.y === -1 || (!context?.faceNormal && isVerticalChain(above, this.definition));
     return { ...block, state: { ...block.state, [behavior.hangingProperty]: hanging ? 'true' : 'false' } };
   }
 
@@ -297,7 +297,7 @@ export class BlockRuleEngine {
       const support = find(source, supportPosition);
       if (!support) return { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] };
       const supportBehavior = this.definition(support.id)?.behavior;
-      if (hanging) return isVerticalChain(support, behavior.chainId, this.definition)
+      if (hanging) return isVerticalChain(support, this.definition)
         ? { status: 'valid', reason: 'ok', affectedPositions: [block.position, supportPosition] }
         : supportBehavior ? { status: 'invalid', reason: 'missing-support', affectedPositions: [block.position, supportPosition] } : { status: 'unknown', reason: 'unknown-behavior', affectedPositions: [block.position, supportPosition] };
     }
@@ -427,8 +427,10 @@ export class BlockRuleEngine {
   }
 }
 
-function isVerticalChain(block: PlacedBlock | undefined, chainId: string, definition: BlockDefinitionLookup): boolean {
-  return !!block && block.id === chainId && definition(block.id)?.behavior?.kind === 'vertical-chain' && block.state['axis'] === 'y';
+function isVerticalChain(block: PlacedBlock | undefined, definition: BlockDefinitionLookup): boolean {
+  if (!block) return false;
+  const behavior = definition(block.id)?.behavior;
+  return behavior?.kind === 'vertical-chain' && block.state[behavior.axisProperty] === behavior.verticalAxis;
 }
 
 function stairShape(block: PlacedBlock, blocks: BlockSource, definition: BlockDefinitionLookup): string {
