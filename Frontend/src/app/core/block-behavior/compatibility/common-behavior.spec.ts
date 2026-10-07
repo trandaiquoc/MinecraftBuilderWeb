@@ -33,13 +33,14 @@ describe('common resource behavior evaluation', () => {
       { name: 'half', values: ['lower', 'upper'] },
       { name: 'hinge', values: ['left', 'right'] },
       { name: 'open', values: ['true', 'false'] },
-      { name: 'powered', values: ['true', 'false'] },
       { name: 'custom_variant', values: ['a', 'b'] },
     ], 'example:block/panel', { behaviorEvidenceRequired: true }));
     expect(result.behavior).toMatchObject({ kind: 'double-height', halfProperty: 'half' });
     expect(result.family).toBe('doors');
     expect(result.classification?.chosenCandidate).toBe('doors');
     expect(result.classification?.selectionReason).toBe('evidence');
+    expect(result.stateDefinitions.map((definition) => definition.name)).not.toContain('powered');
+    expect(result.defaultState).not.toHaveProperty('powered');
   });
 
   it('keeps incomplete or conflicting door-like schemas unknown for external content', () => {
@@ -53,7 +54,6 @@ describe('common resource behavior evaluation', () => {
       { name: 'half', values: ['lower', 'upper'] },
       { name: 'hinge', values: ['left', 'center'] },
       { name: 'open', values: ['true', 'false'] },
-      { name: 'powered', values: ['true', 'false'] },
     ], 'example:block/door_model', { behaviorEvidenceRequired: true }));
     expect(conflicting.behavior).toBeUndefined();
   });

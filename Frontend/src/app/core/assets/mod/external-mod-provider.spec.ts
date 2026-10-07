@@ -49,10 +49,10 @@ describe('ExternalModProvider', () => {
 
   it('classifies and materializes a neutral external door from its complete schema', () => {
     const variants = Object.fromEntries([
-      'facing=north,half=lower,hinge=left,open=false,powered=false',
-      'facing=east,half=upper,hinge=right,open=true,powered=true',
-      'facing=south,half=lower,hinge=left,open=true,powered=false',
-      'facing=west,half=upper,hinge=right,open=false,powered=true',
+      'facing=north,half=lower,hinge=left,open=false',
+      'facing=east,half=upper,hinge=right,open=true',
+      'facing=south,half=lower,hinge=left,open=true',
+      'facing=west,half=upper,hinge=right,open=false',
     ].map((key) => [key, { model: 'example:block/panel' }]));
     const provider = ExternalModProvider.create({
       metadata: { id: 'neutral-door', version: '1.0.0', depends: { minecraft: '1.21.1' } },
@@ -64,6 +64,8 @@ describe('ExternalModProvider', () => {
     const catalog = new BlockCatalog();
     catalog.load(source);
     const definition = catalog.get('example:panel')!;
+    expect(definition.stateDefinitions.map((state) => state.name)).not.toContain('powered');
+    expect(definition.defaultState).not.toHaveProperty('powered');
     expect(definition.logicalPlacement).toMatchObject({ layout: 'vertical-two-part', identityProperty: 'half' });
     const engine = new BlockRuleEngine((id) => catalog.get(id));
     const project = {
@@ -79,6 +81,42 @@ describe('ExternalModProvider', () => {
     const placed = engine.place(project, { kind: 'resolved', id: 'example:panel', namespace: 'example', position: { x: 1, y: 0, z: 1 }, state: definition.defaultState });
     expect(placed.validation.status).toBe('valid');
     expect(placed.project?.blocks.filter((block) => block.id === 'example:panel').map((block) => block.state['half'])).toEqual(['lower', 'upper']);
+  });
+
+  it('uses a trusted wooden_doors tag with the observable schema without inventing powered', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'cobblemon-like', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/example/blockstates/apricorn_door.json', { variants: {
+          'facing=north,half=lower,hinge=left,open=false': { model: 'example:block/apricorn_door' },
+          'facing=east,half=upper,hinge=right,open=true': { model: 'example:block/apricorn_door' },
+          'facing=south,half=lower,hinge=right,open=true': { model: 'example:block/apricorn_door' },
+          'facing=west,half=upper,hinge=left,open=false': { model: 'example:block/apricorn_door' },
+        } }],
+        ['data/minecraft/tags/block/wooden_doors.json', { replace: false, values: ['example:apricorn_door'] }],
+      ]),
+      resources: new Map(),
+    });
+    const definition = provider.catalog().blocks[0]!;
+    expect(definition.behavior).toMatchObject({ kind: 'double-height', halfProperty: 'half' });
+    expect(definition.stateDefinitions.map((state) => state.name)).not.toContain('powered');
+    expect(definition.defaultState).not.toHaveProperty('powered');
+  });
+
+  it('fails closed for a trusted door tag when the observable schema conflicts', () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'bad-door', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([
+        ['assets/example/blockstates/not_door.json', { variants: {
+          'facing=north,half=lower,hinge=center,open=false': { model: 'example:block/not_door' },
+        } }],
+        ['data/minecraft/tags/block/wooden_doors.json', { replace: false, values: ['example:not_door'] }],
+      ]),
+      resources: new Map(),
+    });
+    const definition = provider.catalog().blocks[0]!;
+    expect(definition.behavior).toBeUndefined();
+    expect(definition.behaviorSupport).toBe('unknown');
   });
 
   it('rejects malformed or invalid Fabric metadata', () => {

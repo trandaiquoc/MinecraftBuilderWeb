@@ -234,7 +234,8 @@ function addSchemaCandidates(candidates: BehaviorCandidate[], fingerprint: Behav
     GENERIC_BEHAVIOR_PROFILES.buttons,
   ];
   for (const profile of profiles) {
-    const contract = required(definitions, profile.requiredStates);
+    const classificationStates = profile.observableStates ?? profile.requiredStates;
+    const contract = required(definitions, classificationStates);
     if (!contract.present) continue;
     const evidence = evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model', 'relationship']);
     const hasProfileEvidence = fingerprint.trustedFamilies.includes(profile.family) || resourceRelationship(fingerprint, profile.resourceTokens ?? []);
@@ -242,7 +243,11 @@ function addSchemaCandidates(candidates: BehaviorCandidate[], fingerprint: Behav
     // External content must not need a tag or a name/model token to preserve
     // a verified double-height door schema, while all other profiles remain
     // evidence-gated as before.
-    const schemaCompatible = profile.family === 'doors' ? exactSchema(definitions, profile.requiredStates) : contract.valid;
+    // Door `powered` is a runtime property and is not present in every
+    // blockstate schema (including verified external door resources). Match
+    // the observable contract while preserving any additional properties that
+    // the resource actually declares.
+    const schemaCompatible = profile.family === 'doors' ? exactSchema(definitions, classificationStates) : contract.valid;
     const distinctiveDoorSchema = profile.family === 'doors' && schemaCompatible;
     if (schemaCompatible && (hasProfileEvidence || distinctiveDoorSchema)) {
       candidates.push({

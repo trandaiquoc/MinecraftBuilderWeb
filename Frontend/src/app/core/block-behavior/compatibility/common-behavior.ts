@@ -48,11 +48,12 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   }
 
   const doorProfile = GENERIC_BEHAVIOR_PROFILES.doors;
-  const door = contract(definitions, doorProfile.requiredStates);
+  const doorClassificationStates = doorProfile.observableStates ?? doorProfile.requiredStates;
+  const door = contract(definitions, doorClassificationStates);
   if (door.complete && hasFamilyEvidence(record, doorProfile.family)) {
     return complete(record, definitions, doorProfile.family, doorProfile.behavior, doorState(definitions), 'compatible-common');
   }
-  if (door.partial && hasFamilyEvidence(record, doorProfile.family) && canFillCommon(record, definitions, doorProfile.requiredStates) && hasDoorStateEvidence(definitions)) {
+  if (door.partial && hasFamilyEvidence(record, doorProfile.family) && canFillCommon(record, definitions, doorClassificationStates) && hasDoorStateEvidence(definitions)) {
     return complete(record, definitions, doorProfile.family, doorProfile.behavior, doorState(definitions), 'compatible-common');
   }
   if (door.partial && hasDoorStateEvidence(definitions)) return changed(record, definitions, defaultState, doorProfile.family, 'Door state contract is missing one or more common properties.');
@@ -218,7 +219,7 @@ function usesArbitraryValue(definitions: readonly BlockStateDefinition[]): boole
 }
 
 function hasDoorStateEvidence(definitions: readonly BlockStateDefinition[]): boolean {
-  return hasAny(definitions, ['hinge', 'half']) && hasAny(definitions, ['open', 'powered']);
+  return hasAny(definitions, ['hinge', 'half']) && hasAny(definitions, ['open']);
 }
 function hasButtonStateEvidence(definitions: readonly BlockStateDefinition[]): boolean {
   return hasAny(definitions, ['face', 'powered']);

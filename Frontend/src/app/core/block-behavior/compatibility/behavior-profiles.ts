@@ -4,6 +4,12 @@ export interface GenericBehaviorProfile {
   readonly family: string;
   readonly behavior: BlockBehavior;
   readonly requiredStates: Readonly<Record<string, readonly string[]>>;
+  /**
+   * State properties that are expected to be observable in a block's
+   * resource/state schema. Runtime-only properties may remain in
+   * `requiredStates` without being required for classification.
+   */
+  readonly observableStates?: Readonly<Record<string, readonly string[]>>;
   readonly stateDefinitions: readonly BlockStateDefinition[];
   readonly defaults: Readonly<Record<string, string>>;
   readonly resourceTokens?: readonly string[];
@@ -86,6 +92,7 @@ export const GENERIC_BEHAVIOR_PROFILES = {
   doors: {
     family: 'doors',
     behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true },
+    observableStates: { facing: HORIZONTAL, half: ['lower', 'upper'], hinge: ['left', 'right'], open: BOOLEAN },
     requiredStates: { facing: HORIZONTAL, half: ['lower', 'upper'], hinge: ['left', 'right'], open: BOOLEAN, powered: BOOLEAN },
     stateDefinitions: [
       { name: 'facing', values: [...HORIZONTAL] }, { name: 'half', values: ['lower', 'upper'], derived: true },
