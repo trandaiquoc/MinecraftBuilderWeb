@@ -558,6 +558,7 @@ export class ViewportRuntimeTrace {
         before: beforeCounters,
         after: afterCounters,
         counterDeltas,
+        gaugeDeltas: gaugeDeltaMap(beforeCounters, afterCounters),
         hydrationCompletedDelta: (completed.at(-1) ?? 0) - (completed[0] ?? 0),
         generationStart: numeric(first?.hydration?.['generation']),
         generationEnd: numeric(last?.hydration?.['generation']),
@@ -597,7 +598,11 @@ function numericCounters(value: Readonly<Record<string, unknown>> | undefined): 
 }
 function counterDeltaMap(before: Readonly<Record<string, number>>, after: Readonly<Record<string, number>>): Readonly<Record<string, number>> {
   const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-  return Object.fromEntries([...keys].sort().map((key) => [key, Math.max(0, (after[key] ?? 0) - (before[key] ?? 0))]));
+  return Object.fromEntries([...keys].filter((key) => !GAUGE_COUNTER_KEYS.has(key)).sort().map((key) => [key, Math.max(0, (after[key] ?? 0) - (before[key] ?? 0))]));
+}
+const GAUGE_COUNTER_KEYS = new Set(['instancedMeshCount', 'instancedMembers', 'interiorBlocksCulled']);
+function gaugeDeltaMap(before: Readonly<Record<string, number>>, after: Readonly<Record<string, number>>): Readonly<Record<string, number>> {
+  return Object.fromEntries([...GAUGE_COUNTER_KEYS].filter((key) => key in before || key in after).map((key) => [key, (after[key] ?? 0) - (before[key] ?? 0)]));
 }
 function distance3(a: TraceVector3, b: TraceVector3): number { return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z); }
 function angleDegrees(a: TraceVector3, b: TraceVector3): number { const al = Math.hypot(a.x, a.y, a.z); const bl = Math.hypot(b.x, b.y, b.z); if (!al || !bl) return 0; return Math.acos(Math.min(1, Math.max(-1, (a.x * b.x + a.y * b.y + a.z * b.z) / (al * bl)))) * 180 / Math.PI; }

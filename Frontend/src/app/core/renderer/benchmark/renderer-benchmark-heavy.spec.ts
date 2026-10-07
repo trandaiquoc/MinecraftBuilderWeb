@@ -5,6 +5,8 @@ import { benchmarkBlock, rendererBenchmarkProject, rendererBenchmarkVisualProvid
 import * as THREE from 'three';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
 import { RegistryFluidRenderResolver, vanillaFluidRenderResolver } from '../fluids/fluid-state';
+import { blockMutationHint, metadataMutationHint } from '../../editor/mutations/project-mutation-hint';
+import { relevantTerrainChunks, TERRAIN_CHUNK_SIZE } from '../terrain/chunk-coordinate';
 
 describe('explicit renderer benchmark', () => {
   it('measures medium and large incremental updates only when explicitly requested', async () => {
@@ -64,7 +66,7 @@ describe('explicit renderer benchmark', () => {
     expect(evidence.terrainFacesEmitted).toBeGreaterThan(0);
     expect(counters.instancedMembers).toBeGreaterThan(0);
     expect(evidence.meshCount).toBeLessThan(project.blocks.length / 100);
-    const staticModels = engine.runtimeTraceSample().staticModels ?? {};
+    const staticModels = engine.runtimeTraceHeavySample().staticModels ?? {};
     console.info(`[renderer benchmark] stress CPU/hydration blocks=${evidence.renderedBlocks} renderable=${evidence.renderableBlocks} terrainBlocks=${evidence.terrainLogicalBlocks} terrainChunks=${evidence.terrainChunks} terrainMeshes=${evidence.terrainChunkMeshes} terrainFaces=${evidence.terrainFacesEmitted} culled=${evidence.interiorBlocksCulled} regions=${evidence.renderRegionCount} regionSize=${evidence.renderRegionSize} surfaceFastPath=${evidence.surfaceFastPathBlocks} exposedFaces=${evidence.exposedFaceInstances} neighborFacesCulled=${evidence.neighborFacesCulled} surfaceBatches=${evidence.surfaceFaceBatches} surfaceMeshes=${evidence.surfaceFaceInstancedMeshes} calls=${evidence.renderCalls} triangles=${evidence.triangles} geometries=${evidence.geometries} textures=${evidence.textures} object3d=${evidence.object3dCount} meshes=${evidence.meshCount} visibleMeshes=${evidence.visibleMeshCount} instances=${evidence.instanceMembers} instanceBatches=${evidence.instanceBatches} regionalInstanceBatches=${evidence.regionalInstanceBatchCount} regionalInstanceMeshes=${evidence.regionalInstanceMeshCount} regionalSurfaceBatches=${evidence.regionalSurfaceBatchCount} instanceMaterials=${evidence.instanceMaterialCount} instanceGeometries=${evidence.instanceGeometryCount} staticCandidates=${evidence.staticModelCandidates} staticBatchable=${evidence.staticModelBatchable} staticBatchedMembers=${evidence.staticModelBatchedMembers} staticCache=${evidence.staticModelTemplateCacheHits}/${evidence.staticModelTemplateCacheMisses} providerAvoided=${evidence.providerObjectsAvoidedByStaticCache} staticRejected=${JSON.stringify(evidence.staticModelRejected)} staticModels=${JSON.stringify(staticModels)} standaloneObjects=${evidence.standaloneBlockObjects} standaloneMeshes=${evidence.standaloneBlockMeshes} transparentMeshes=${evidence.transparentMeshCount} opaqueMeshes=${evidence.opaqueMeshCount} providerObjects=${counters.providerObjectCreations} templateCreates=${counters.reusableTemplateCreations} templateHits=${counters.reusableTemplateCacheHits} cachedInsertions=${counters.cachedTemplateInsertions} rawTemplateParts=${counters.rawInstanceTemplateParts} mergedTemplateParts=${counters.mergedInstanceTemplateParts} templatePartsEliminated=${counters.templatePartsEliminated} mergeOperations=${counters.templateMergeOperations} fallbackMeshes=${counters.fallbackMeshCreations} boundsComputations=${counters.instancedBoundsComputations} cameraFrames=${counters.cameraMovementFrames} suppressedCameraRenders=${counters.cameraRenderRequestsSuppressed} queue=${evidence.hydrationQueue} running=${evidence.hydrationRunning} frameMs=${evidence.frameDurationMs.toFixed(2)} hydrationElapsedMs=${Date.now() - started}`);
     provider.dispose();
     engine.dispose();
@@ -86,8 +88,102 @@ describe('explicit renderer benchmark', () => {
     expect(evidence.renderedBlocks).toBeGreaterThan(40_000);
     expect(evidence.terrainLogicalBlocks).toBeGreaterThan(0);
     expect(evidence.renderRegionSize).toBe(32);
-    const staticModels = engine.runtimeTraceSample().staticModels ?? {};
+    const staticModels = engine.runtimeTraceHeavySample().staticModels ?? {};
     console.info(`[renderer benchmark] mega logical=${evidence.terrainLogicalBlocks} terrainMeshes=${evidence.terrainChunkMeshes} terrainTriangles=${evidence.terrainTriangleCount} regions=${evidence.renderRegionCount} instanceMembers=${evidence.instanceMembers} instanceBatches=${evidence.regionalInstanceBatchCount} surfaceBatches=${evidence.regionalSurfaceBatchCount} staticCandidates=${evidence.staticModelCandidates} staticBatchable=${evidence.staticModelBatchable} staticBatchedMembers=${evidence.staticModelBatchedMembers} staticCache=${evidence.staticModelTemplateCacheHits}/${evidence.staticModelTemplateCacheMisses} providerAvoided=${evidence.providerObjectsAvoidedByStaticCache} staticRejected=${JSON.stringify(evidence.staticModelRejected)} staticModels=${JSON.stringify(staticModels)} standaloneMeshes=${evidence.standaloneBlockMeshes} objects=${evidence.object3dCount} meshes=${evidence.meshCount} calls=${evidence.renderCalls} triangles=${evidence.triangles} hydration=${evidence.hydrationQueue}/${evidence.hydrationRunning}`);
+    provider.dispose();
+    engine.dispose();
+  });
+
+  it('runs Prompt 16D-A structural gates on the 110k fixture only when explicitly requested', { timeout: 120000 }, async () => {
+    const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['PROMPT_16D_STRUCTURAL_BENCHMARK'] === '1';
+    if (!benchmarkEnabled) return;
+    const project = rendererBenchmarkProject('mega');
+    const diagnostics = new RendererDiagnostics();
+    const engine = new ThreeViewportEngine(diagnostics);
+    const provider = rendererBenchmarkVisualProvider();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    await settleHydration(600, engine);
+
+    const boundary = { x: TERRAIN_CHUNK_SIZE, y: 0, z: TERRAIN_CHUNK_SIZE };
+    const boundaryChunkLimit = relevantTerrainChunks(boundary).length;
+    const original = project.blocks.find((block) => block.position.x === boundary.x && block.position.y === boundary.y && block.position.z === boundary.z)!;
+    const withoutBoundary = { ...project, blocks: project.blocks.filter((block) => block !== original) };
+    const gates: Record<string, Record<string, number | string>> = {};
+    const snapshot = () => diagnostics.snapshot();
+    const recordGate = (name: string, before: ReturnType<typeof snapshot>, after: ReturnType<typeof snapshot>): void => {
+      gates[name] = {
+        fullSceneRebuilds: after.fullSceneRebuilds - before.fullSceneRebuilds,
+        structuralReconciles: after.structuralReconciles - before.structuralReconciles,
+        fullReconcileFallbacks: after.fullReconcileFallbacks - before.fullReconcileFallbacks,
+        fullVisibleScans: after.fullVisibleScans - before.fullVisibleScans,
+        occupancyFullRebuilds: after.occupancyFullRebuilds - before.occupancyFullRebuilds,
+        terrainChunkRebuilds: after.terrainChunkRebuilds - before.terrainChunkRebuilds,
+        hydrationGenerations: after.hydrationGenerations - before.hydrationGenerations,
+        providerRefreshStarted: after.providerRefreshStarted - before.providerRefreshStarted,
+      };
+    };
+
+    let before = snapshot();
+    engine.update(withoutBoundary, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position: boundary, before: original }], 'benchmark-delete'));
+    await settleHydration(80, engine);
+    let after = snapshot();
+    recordGate('LOCAL_DELETE', before, after);
+
+    before = after;
+    engine.update(project, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position: boundary, after: original }], 'benchmark-place'));
+    await settleHydration(80, engine);
+    after = snapshot();
+    recordGate('LOCAL_PLACE_UNDO_REDO_EQUIVALENT', before, after);
+
+    const beforeTrace = snapshot();
+    const beforeStaticBuilds = Number(engine.runtimeTraceSample().staticModels?.['buildCount'] ?? 0);
+    for (let index = 0; index < 100; index += 1) engine.runtimeTraceSample();
+    const afterTrace = snapshot();
+    const afterStaticBuilds = Number(engine.runtimeTraceSample().staticModels?.['buildCount'] ?? 0);
+    expect(afterTrace.fullVisibleScans - beforeTrace.fullVisibleScans).toBe(0);
+    expect(afterStaticBuilds - beforeStaticBuilds).toBe(0);
+    expect(engine.runtimeTraceHeavySample().staticModels?.['candidates']).toBeDefined();
+    gates['TRACE_LIGHT_SAMPLE_100X'] = { fullSceneRebuilds: 0, fullReconcileFallbacks: 0, fullVisibleScans: 0, occupancyFullRebuilds: 0, hydrationGenerations: 0, providerRefreshStarted: 0, staticModelDiagnosticBuilds: 0 };
+
+    const groupedProject = {
+      ...project,
+      groups: [{ id: 'benchmark-group', name: 'Benchmark', visible: true, locked: false }],
+      blocks: project.blocks.map((block, index) => index === 0 ? { ...block, groupIds: ['benchmark-group'] } : block),
+    };
+    const groupPosition = project.blocks[0].position;
+    before = snapshot();
+    engine.update(groupedProject, undefined, { exposedFaceRendering: true }, metadataMutationHint([{ position: project.blocks[0].position, before: project.blocks[0], after: groupedProject.blocks[0] }], [], 'benchmark-group-metadata'));
+    await settleHydration(20, engine);
+    after = snapshot();
+    recordGate('GROUP_METADATA', before, after);
+
+    const stonePositions = project.blocks.filter((block) => block.id === 'minecraft:stone').map((block) => ({ ...block.position }));
+    before = snapshot();
+    engine.update(groupedProject, undefined, { exposedFaceRendering: true, highlightedBlockId: 'minecraft:stone', highlightedBlockPositions: stonePositions });
+    engine.update(groupedProject, undefined, { exposedFaceRendering: true, highlightedBlockId: undefined, highlightedBlockPositions: undefined });
+    engine.update(groupedProject, undefined, { exposedFaceRendering: true, highlightedBlockId: 'minecraft:stone', highlightedBlockPositions: stonePositions });
+    after = snapshot();
+    recordGate('BLOCK_USAGE_HIGHLIGHT_ON_OFF_ON', before, after);
+
+    before = snapshot();
+    engine.update(groupedProject, undefined, { exposedFaceRendering: true, isolatedGroupId: 'benchmark-group', isolatedGroupPositions: [groupPosition] });
+    engine.update(groupedProject, undefined, { exposedFaceRendering: true });
+    after = snapshot();
+    recordGate('ISOLATE_UNISOLATE', before, after);
+
+    console.info(`[16d-a structural gates] blocks=${project.blocks.length} ${JSON.stringify(gates)}`);
+    for (const [name, result] of Object.entries(gates)) {
+      expect(result['fullSceneRebuilds'], `${name} rebuilt the full scene`).toBe(0);
+      expect(result['fullReconcileFallbacks'], `${name} used a full reconcile fallback`).toBe(0);
+      expect(result['fullVisibleScans'], `${name} performed a full visible scan`).toBe(0);
+      expect(result['occupancyFullRebuilds'], `${name} rebuilt occupancy globally`).toBe(0);
+      expect(result['hydrationGenerations'], `${name} restarted hydration`).toBe(0);
+      expect(result['providerRefreshStarted'], `${name} refreshed the provider`).toBe(0);
+    }
+    expect(gates['LOCAL_DELETE']['terrainChunkRebuilds']).toBeLessThanOrEqual(boundaryChunkLimit);
+    expect(gates['LOCAL_PLACE_UNDO_REDO_EQUIVALENT']['terrainChunkRebuilds']).toBeLessThanOrEqual(boundaryChunkLimit);
+    expect(gates['BLOCK_USAGE_HIGHLIGHT_ON_OFF_ON']['terrainChunkRebuilds']).toBe(0);
     provider.dispose();
     engine.dispose();
   });
@@ -147,6 +243,7 @@ async function settleRendererPromises(rounds = 1): Promise<void> { for (let inde
 async function settleHydration(rounds: number, engine: ThreeViewportEngine): Promise<void> {
   for (let index = 0; index < rounds; index += 1) {
     await settleRendererPromises();
-    if (engine.hydrationDiagnostics().queued === 0 && engine.hydrationDiagnostics().running === 0) return;
+    const hydration = engine.runtimeTraceSample().hydration;
+    if (hydration && hydration['queued'] === 0 && hydration['running'] === 0) return;
   }
 }

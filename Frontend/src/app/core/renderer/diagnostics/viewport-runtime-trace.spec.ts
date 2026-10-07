@@ -158,11 +158,11 @@ describe('ViewportRuntimeTrace', () => {
   });
 
   it('emits before/after counter deltas for each named runtime phase', () => {
-    let current = sample({ counters: { actualSceneRenders: 2, fullSceneRebuilds: 1, terrainChunkRebuilds: 4 } });
+    let current = sample({ counters: { actualSceneRenders: 2, fullSceneRebuilds: 1, terrainChunkRebuilds: 4, instancedMembers: 10 } });
     const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 110_592 }), sample: () => current });
     trace.start('16d-a');
     trace.mark('LOCAL_PLACE');
-    current = sample({ counters: { actualSceneRenders: 3, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 7 } });
+    current = sample({ counters: { actualSceneRenders: 3, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 7, instancedMembers: 4 } });
     trace.mark('LOCAL_DELETE');
     const document = trace.stop();
     const phase = document?.summary.segments['LOCAL_PLACE'];
@@ -170,7 +170,9 @@ describe('ViewportRuntimeTrace', () => {
       before: expect.objectContaining({ fullSceneRebuilds: 1, terrainChunkRebuilds: 4 }),
       after: expect.objectContaining({ terrainChunkRebuilds: 5 }),
       counterDeltas: expect.objectContaining({ fullSceneRebuilds: 0, terrainChunkRebuilds: 1, actualSceneRenders: 1 }),
+      gaugeDeltas: expect.objectContaining({ instancedMembers: -6 }),
     });
+    expect(phase?.['counterDeltas']).not.toHaveProperty('instancedMembers');
   });
 
   it('keeps regressions and generation evidence as critical timeline events', () => {
