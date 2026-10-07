@@ -162,6 +162,32 @@ describe('StructureEditorService mutations', () => {
     expect(setup.history.canUndo()).toBe(false);
   });
 
+  it.each(['minecraft:small_amethyst_bud', 'external:sky_tumblestone_cluster'])('rejects attached-face mutations with unknown support atomically for %s', (id) => {
+    const supports = [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 3 }, state: {} },
+      { kind: 'resolved', id: 'external:unverified_support', namespace: 'external', position: { x: 1, y: 1, z: 2 }, state: {} },
+    ] satisfies readonly PlacedBlock[];
+    const setup = makeEditor(attachedFaceProject(id, supports)); useAttachedFaceDefinition(setup, id);
+    const before = structuredClone(setup.workspace.project());
+    expect(setup.editor.updateBlockState({ x: 2, y: 1, z: 2 }, 'facing', 'east')).toBe(false);
+    expect(setup.workspace.project()).toEqual(before);
+    expect(setup.editor.validation()).toMatchObject({ status: 'unknown', reason: 'unknown-behavior' });
+    expect(setup.history.canUndo()).toBe(false);
+  });
+
+  it.each(['minecraft:small_amethyst_bud', 'external:sky_tumblestone_cluster'])('rejects attached-face rotations with unknown support atomically for %s', (id) => {
+    const supports = [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 3 }, state: {} },
+      { kind: 'resolved', id: 'external:unverified_support', namespace: 'external', position: { x: 1, y: 1, z: 2 }, state: {} },
+    ] satisfies readonly PlacedBlock[];
+    const setup = makeEditor(attachedFaceProject(id, supports)); useAttachedFaceDefinition(setup, id);
+    const before = structuredClone(setup.workspace.project());
+    expect(setup.editor.rotateBlock({ x: 2, y: 1, z: 2 })).toBe(false);
+    expect(setup.workspace.project()).toEqual(before);
+    expect(setup.editor.validation()).toMatchObject({ status: 'unknown', reason: 'unknown-behavior' });
+    expect(setup.history.canUndo()).toBe(false);
+  });
+
   it.each(['minecraft:small_amethyst_bud', 'external:sky_tumblestone_cluster'])('allows supported attached-face state edits and preserves waterlogged for %s', (id) => {
     const supports = [
       { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 2, y: 1, z: 3 }, state: {} },

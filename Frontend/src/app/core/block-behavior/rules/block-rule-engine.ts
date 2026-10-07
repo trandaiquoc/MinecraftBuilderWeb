@@ -54,7 +54,7 @@ export class BlockRuleEngine {
       const block = find(source, position);
       if (!block || this.definition(block.id)?.behavior?.kind !== 'attached-six-face-placement') continue;
       const validation = this.validateSupport(project, block, this.definition(block.id), source);
-      if (validation.status === 'invalid') return validation;
+      if (validation.status !== 'valid') return validation;
     }
     return undefined;
   }
