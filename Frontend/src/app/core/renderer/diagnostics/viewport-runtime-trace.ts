@@ -32,6 +32,8 @@ export interface ViewportTraceHooks {
   readonly metadata: () => ViewportTraceMetadata;
   readonly sample: () => ViewportTraceSample;
   readonly checkpoint?: () => ViewportTraceSample;
+  /** Test seam for verifying that observation sources stop before FINAL collection. */
+  readonly onObservationStop?: () => void;
 }
 
 export interface ViewportRuntimeTraceApi {
@@ -58,6 +60,10 @@ export interface ViewportTraceDocument {
   readonly startedAt: string;
   readonly endedAt: string;
   readonly durationMs: number;
+  /** Duration of the observed workload, excluding final heavy collection. */
+  readonly observedDurationMs: number;
+  /** Recorder wall time, including final heavy collection. */
+  readonly recorderDurationMs: number;
   readonly metadata: ViewportTraceMetadata;
   readonly timeline: readonly ViewportTraceEvent[];
   readonly samples: readonly (ViewportTraceSample & { readonly t: number; readonly reason: string })[];
@@ -70,6 +76,8 @@ export interface ViewportTraceDocument {
 
 export interface ViewportTraceSummary {
   readonly durationMs: number;
+  readonly observedDurationMs: number;
+  readonly recorderDurationMs: number;
   readonly hydration: { readonly startCompleted: number; readonly endCompleted: number; readonly deltaCompleted: number; readonly blocksPerSecond: number; readonly generationStart?: number; readonly generationEnd?: number; readonly progressRegressionCount: number };
   readonly camera: { readonly startDistance?: number; readonly endDistance?: number; readonly minDistance?: number; readonly maxDistance?: number; readonly maxOffsetDrift: number; readonly maxDirectionDriftDegrees: number; readonly maxQuaternionDriftDegrees: number; readonly effectiveMovementSpeedMin?: number; readonly effectiveMovementSpeedMax?: number };
   readonly render: { readonly actualSceneRendersDelta: number; readonly renderRequestsDelta: number; readonly coalescedDelta: number; readonly drawCallsMin?: number; readonly drawCallsMax?: number; readonly trianglesMin?: number; readonly trianglesMax?: number; readonly renderCpuP50?: number; readonly renderCpuP95?: number; readonly renderCpuMax?: number };
@@ -80,7 +88,10 @@ export interface ViewportTraceSummary {
   readonly anomalies: readonly ViewportTraceAnomaly[];
   readonly segments: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   readonly recorder: Readonly<Record<string, unknown>>;
+  /** Backwards-compatible alias for the light-only sample timing aggregate. */
   readonly traceSampleMs: TraceDurationSummary;
+  readonly lightSampleMs: TraceDurationSummary;
+  readonly heavyCheckpointMs: TraceDurationSummary;
 }
 
 export interface ViewportTraceCheckpoint {
@@ -241,7 +252,8 @@ export class ViewportRuntimeTrace {
   private hydrationAggregate = { startCompleted: undefined as number | undefined, latestCompleted: undefined as number | undefined, generationStart: undefined as number | undefined, generationEnd: undefined as number | undefined, regressions: 0 };
   private cameraAggregate = { startDistance: undefined as number | undefined, endDistance: undefined as number | undefined, minDistance: Number.POSITIVE_INFINITY, maxDistance: Number.NEGATIVE_INFINITY, maxOffsetDrift: 0, maxDirectionDriftDegrees: 0, maxQuaternionDriftDegrees: 0, effectiveMin: Number.POSITIVE_INFINITY, effectiveMax: Number.NEGATIVE_INFINITY };
   private renderAggregate = { renderCpu: new NumericAccumulator(), draws: new NumericAccumulator(), triangles: new NumericAccumulator() };
-  private readonly traceSampleAggregate = new NumericAccumulator();
+  private readonly lightSampleAggregate = new NumericAccumulator();
+  private readonly heavyCheckpointAggregate = new NumericAccumulator();
 
   constructor(hooks: ViewportTraceHooks) { this.hooks = hooks; }
 
@@ -259,7 +271,7 @@ export class ViewportRuntimeTrace {
     this.startPerf = now();
     this.startedAt = new Date().toISOString();
     this.criticalEvents.clear(); this.normalEvents.clear(); this.noisyEvents.clear(); this.retainedMarks.length = 0; this.samples.clear(); this.checkpoints.clear(); this.longTasks.clear(); this.memory.clear(); this.anomalies.clear(); this.durationAggregates.clear(); this.heartbeatIntervals.clear(); this.markedSegments.length = 0;
-    this.lastSample = undefined; this.lastSampleTime = 0; this.firstGestureCaptured = false; this.cameraOnlyActive = false; this.longTaskObserverSupported = false; this.movementActions.clear(); this.traceSampleAggregate.observedCount = 0; this.traceSampleAggregate.total = 0; this.traceSampleAggregate.min = Number.POSITIVE_INFINITY; this.traceSampleAggregate.max = Number.NEGATIVE_INFINITY; this.traceSampleAggregate.samples.clear();
+    this.lastSample = undefined; this.lastSampleTime = 0; this.firstGestureCaptured = false; this.cameraOnlyActive = false; this.longTaskObserverSupported = false; this.movementActions.clear(); resetAccumulator(this.lightSampleAggregate); resetAccumulator(this.heavyCheckpointAggregate);
     this.lastHydrationTimelineAt = Number.NEGATIVE_INFINITY; this.lastHydrationTimeline = undefined; this.lastHydrationProgress = undefined; this.lastControlsTimelineAt = Number.NEGATIVE_INFINITY; this.lastRenderTimelineAt = Number.NEGATIVE_INFINITY; this.lastMovementTimelineAt = Number.NEGATIVE_INFINITY;
     this.throttledHydrationEvents = 0; this.throttledControlsChangeEvents = 0; this.throttledRenderEvents = 0; this.traceRecordCount = 0; this.captureSampleCount = 0; this.controlsChangeCount = 0; this.renderRequestCount = 0; this.renderFrameCount = 0; this.movementFrameCount = 0; this.hydrationProgressObserved = false; this.firstCounters = undefined; this.lastCounters = undefined; this.hydrationAggregate = { startCompleted: undefined, latestCompleted: undefined, generationStart: undefined, generationEnd: undefined, regressions: 0 }; this.cameraAggregate = { startDistance: undefined, endDistance: undefined, minDistance: Number.POSITIVE_INFINITY, maxDistance: Number.NEGATIVE_INFINITY, maxOffsetDrift: 0, maxDirectionDriftDegrees: 0, maxQuaternionDriftDegrees: 0, effectiveMin: Number.POSITIVE_INFINITY, effectiveMax: Number.NEGATIVE_INFINITY }; this.renderAggregate = { renderCpu: new NumericAccumulator(), draws: new NumericAccumulator(), triangles: new NumericAccumulator() }; this.heartbeatAggregate.observedCount = 0; this.heartbeatAggregate.total = 0; this.heartbeatAggregate.min = Number.POSITIVE_INFINITY; this.heartbeatAggregate.max = Number.NEGATIVE_INFINITY; this.heartbeatAggregate.samples.clear(); this.heartbeatOver16_7 = 0; this.heartbeatOver33 = 0; this.heartbeatOver50 = 0; this.heartbeatOver100 = 0; this.heartbeatOver250 = 0; this.longTaskAggregate.observedCount = 0; this.longTaskAggregate.total = 0; this.longTaskAggregate.min = Number.POSITIVE_INFINITY; this.longTaskAggregate.max = Number.NEGATIVE_INFINITY; this.longTaskAggregate.samples.clear();
     this.pushEvent('trace-start', { scenario: this.scenario }, 'critical', 0);
@@ -283,7 +295,7 @@ export class ViewportRuntimeTrace {
   checkpoint(label: string): void {
     if (!this.active) return;
     const normalized = label.slice(0, 120);
-    const captured = this.captureSample(`checkpoint:${normalized.slice(0, 40)}`, this.hooks.checkpoint ?? this.hooks.sample);
+    const captured = this.captureSample(`checkpoint:${normalized.slice(0, 40)}`, this.hooks.checkpoint ?? this.hooks.sample, 'heavy');
     if (captured) this.checkpoints.push({ label: normalized, t: captured.t, sample: captured });
   }
 
@@ -382,14 +394,14 @@ export class ViewportRuntimeTrace {
     const triangles = numeric(sample.render?.['triangles']); if (triangles !== undefined) this.renderAggregate.triangles.add(triangles);
   }
 
-  captureSample(reason = 'manual', sampler: () => ViewportTraceSample = this.hooks.sample): (ViewportTraceSample & { readonly t: number; readonly reason: string }) | undefined {
+  captureSample(reason = 'manual', sampler: () => ViewportTraceSample = this.hooks.sample, sampleKind: 'light' | 'heavy' = 'light'): (ViewportTraceSample & { readonly t: number; readonly reason: string }) | undefined {
     if (!this.active) return undefined;
     this.captureSampleCount += 1;
     let sample: ViewportTraceSample;
     const started = now();
     try { sample = sampler(); } catch { return undefined; }
     const traceSampleMs = Math.max(0, now() - started);
-    this.traceSampleAggregate.add(traceSampleMs);
+    (sampleKind === 'heavy' ? this.heavyCheckpointAggregate : this.lightSampleAggregate).add(traceSampleMs);
     const t = this.elapsed();
     const captured = { ...sample, traceSampleMs, t, reason };
     this.samples.push(captured);
@@ -405,10 +417,8 @@ export class ViewportRuntimeTrace {
     if (this.active) {
       const finalSample = this.captureSample('final');
       if (finalSample) this.markedSegments.push({ label: 'FINAL', t: finalSample.t, sample: finalSample });
-      this.checkpoint('FINAL');
-      this.captureSample('stop');
+      const observedDurationMs = this.elapsed();
       this.captureMemory();
-      this.active = false;
       if (this.interval !== undefined) clearInterval(this.interval);
       this.interval = undefined;
       if (this.heartbeatFrame !== undefined) cancelFrame(this.heartbeatFrame);
@@ -418,10 +428,14 @@ export class ViewportRuntimeTrace {
       if (this.firstGestureEndTimer !== undefined) clearTimeout(this.firstGestureEndTimer);
       this.firstGestureEndTimer = undefined;
       this.observer?.disconnect(); this.observer = undefined;
+      this.pushEvent('observation-stop', undefined, 'critical', observedDurationMs);
+      this.hooks.onObservationStop?.();
+      this.checkpoint('FINAL');
+      const recorderDurationMs = this.elapsed();
+      this.active = false;
       const endedAt = new Date().toISOString();
-      const durationMs = Math.max(0, now() - this.startPerf);
-      this.pushEvent('trace-stop', undefined, 'critical', durationMs);
-      this.document = this.buildDocument(endedAt, durationMs);
+      this.pushEvent('trace-stop', undefined, 'critical', observedDurationMs);
+      this.document = this.buildDocument(endedAt, observedDurationMs, recorderDurationMs);
     }
     return this.document;
   }
@@ -504,7 +518,7 @@ export class ViewportRuntimeTrace {
     this.anomalies.push({ type, t, evidence, ...(includeStack ? { stack: new Error().stack } : {}) });
     this.pushEvent(`anomaly:${type}`, evidence, 'critical', t);
   }
-  private buildDocument(endedAt: string, durationMs: number): ViewportTraceDocument {
+  private buildDocument(endedAt: string, durationMs: number, recorderDurationMs = durationMs): ViewportTraceDocument {
     const samples = this.samples.toArray();
     const first = samples[0]; const last = samples.at(-1);
     const hydrationValues = samples.map((sample) => numeric(sample.hydration?.['completed'])).filter((value): value is number => value !== undefined);
@@ -522,10 +536,10 @@ export class ViewportRuntimeTrace {
     const effectiveSpeeds = samples.map((sample) => numeric(sample.build?.['effectiveMovementSpeed'])).filter((value): value is number => value !== undefined);
     const sampleGenerationStart = numeric(first?.hydration?.['generation']); const sampleGenerationEnd = numeric(last?.hydration?.['generation']);
     return {
-      schema: 'minecraftbuilder.viewport-trace.v1', scenario: this.scenario, startedAt: this.startedAt, endedAt, durationMs,
+      schema: 'minecraftbuilder.viewport-trace.v1', scenario: this.scenario, startedAt: this.startedAt, endedAt, durationMs, observedDurationMs: durationMs, recorderDurationMs,
       metadata: this.hooks.metadata(), timeline, samples, checkpoints: this.checkpoints.toArray(), longTasks: this.longTasks.toArray(), memory: this.memory.toArray(), droppedEventCount: this.criticalEvents.droppedCount + this.normalEvents.droppedCount + this.noisyEvents.droppedCount,
       summary: {
-        durationMs,
+        durationMs, observedDurationMs: durationMs, recorderDurationMs,
         hydration: { startCompleted: this.hydrationAggregate.startCompleted ?? hydrationValues[0] ?? 0, endCompleted: this.hydrationAggregate.latestCompleted ?? hydrationValues.at(-1) ?? 0, deltaCompleted: (this.hydrationAggregate.latestCompleted ?? hydrationValues.at(-1) ?? 0) - (this.hydrationAggregate.startCompleted ?? hydrationValues[0] ?? 0), blocksPerSecond: durationMs > 0 ? ((this.hydrationAggregate.latestCompleted ?? hydrationValues.at(-1) ?? 0) - (this.hydrationAggregate.startCompleted ?? hydrationValues[0] ?? 0)) / (durationMs / 1000) : 0, generationStart: this.hydrationAggregate.generationStart ?? sampleGenerationStart, generationEnd: this.hydrationAggregate.generationEnd ?? sampleGenerationEnd, progressRegressionCount: this.hydrationAggregate.regressions || this.anomalies.toArray().filter((entry) => entry.type === 'progress-regression').length },
         camera: { startDistance: this.cameraAggregate.startDistance ?? distances[0], endDistance: this.cameraAggregate.endDistance ?? distances.at(-1), minDistance: Number.isFinite(this.cameraAggregate.minDistance) ? this.cameraAggregate.minDistance : undefined, maxDistance: Number.isFinite(this.cameraAggregate.maxDistance) ? this.cameraAggregate.maxDistance : undefined, maxOffsetDrift: this.cameraAggregate.maxOffsetDrift || this.maxVectorDrift(samples, 'offset'), maxDirectionDriftDegrees: this.cameraAggregate.maxDirectionDriftDegrees || this.maxAngularDrift(samples, 'direction'), maxQuaternionDriftDegrees: this.cameraAggregate.maxQuaternionDriftDegrees || this.maxQuaternionDrift(samples), effectiveMovementSpeedMin: Number.isFinite(this.cameraAggregate.effectiveMin) ? this.cameraAggregate.effectiveMin : effectiveSpeeds.length ? Math.min(...effectiveSpeeds) : undefined, effectiveMovementSpeedMax: Number.isFinite(this.cameraAggregate.effectiveMax) ? this.cameraAggregate.effectiveMax : effectiveSpeeds.length ? Math.max(...effectiveSpeeds) : undefined },
         render: { actualSceneRendersDelta: deltaCounter('actualSceneRenders'), renderRequestsDelta: deltaCounter('cameraRenderRequests'), coalescedDelta: deltaCounter('cameraRenderRequestsCoalesced'), drawCallsMin: this.renderAggregate.draws.observedCount ? this.renderAggregate.draws.min : draws.length ? Math.min(...draws) : undefined, drawCallsMax: this.renderAggregate.draws.observedCount ? this.renderAggregate.draws.max : draws.length ? Math.max(...draws) : undefined, trianglesMin: this.renderAggregate.triangles.observedCount ? this.renderAggregate.triangles.min : triangles.length ? Math.min(...triangles) : undefined, trianglesMax: this.renderAggregate.triangles.observedCount ? this.renderAggregate.triangles.max : triangles.length ? Math.max(...triangles) : undefined, renderCpuP50: this.renderAggregate.renderCpu.summary().p50Ms ?? percentile(renderCpu, .5), renderCpuP95: this.renderAggregate.renderCpu.summary().p95Ms ?? percentile(renderCpu, .95), renderCpuMax: this.renderAggregate.renderCpu.max !== Number.NEGATIVE_INFINITY ? this.renderAggregate.renderCpu.max : renderCpu.length ? Math.max(...renderCpu) : undefined },
@@ -536,7 +550,9 @@ export class ViewportRuntimeTrace {
         anomalies: this.anomalies.toArray(),
         segments: this.segmentSummaries(samples, durationMs),
         recorder: { traceRecordCount: this.traceRecordCount, captureSampleCount: this.captureSampleCount, checkpointCount: this.checkpoints.length, checkpointDroppedCount: this.checkpoints.droppedCount, throttledHydrationEvents: this.throttledHydrationEvents, throttledControlsChangeEvents: this.throttledControlsChangeEvents, throttledRenderEvents: this.throttledRenderEvents, controlsChangeCount: this.controlsChangeCount, renderRequestCount: this.renderRequestCount, renderFrameCount: this.renderFrameCount, movementFrameCount: this.movementFrameCount, heartbeatStoredSampleCount: this.heartbeatIntervals.length, heartbeatDroppedSampleCount: this.heartbeatIntervals.droppedCount, rawEventsStoredByPriority: { critical: this.criticalEvents.length, normal: this.normalEvents.length, noisy: this.noisyEvents.length, retainedMarks: this.retainedMarks.length }, rawEventsDroppedByPriority: { critical: this.criticalEvents.droppedCount, normal: this.normalEvents.droppedCount, noisy: this.noisyEvents.droppedCount }, droppedSampleCount: this.samples.droppedCount },
-        traceSampleMs: this.traceSampleAggregate.summary(),
+        traceSampleMs: this.lightSampleAggregate.summary(),
+        lightSampleMs: this.lightSampleAggregate.summary(),
+        heavyCheckpointMs: this.heavyCheckpointAggregate.summary(),
       },
     };
   }
@@ -587,6 +603,13 @@ export class ViewportRuntimeTrace {
   }
 }
 
+function resetAccumulator(aggregate: NumericAccumulator): void {
+  aggregate.observedCount = 0;
+  aggregate.total = 0;
+  aggregate.min = Number.POSITIVE_INFINITY;
+  aggregate.max = Number.NEGATIVE_INFINITY;
+  aggregate.samples.clear();
+}
 function now(): number { return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now(); }
 function requestFrame(callback: FrameRequestCallback): number { return typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(() => callback(now()), 16) as unknown as number; }
 function cancelFrame(frame: number): void { if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame); else clearTimeout(frame); }
@@ -600,7 +623,14 @@ function counterDeltaMap(before: Readonly<Record<string, number>>, after: Readon
   const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
   return Object.fromEntries([...keys].filter((key) => !GAUGE_COUNTER_KEYS.has(key)).sort().map((key) => [key, Math.max(0, (after[key] ?? 0) - (before[key] ?? 0))]));
 }
-const GAUGE_COUNTER_KEYS = new Set(['instancedMeshCount', 'instancedMembers', 'interiorBlocksCulled']);
+const GAUGE_COUNTER_KEYS = new Set([
+  'instancedMeshCount',
+  'instancedMembers',
+  'interiorBlocksCulled',
+  'surfaceFastPathBlocks',
+  'exposedFaceInstances',
+  'neighborFacesCulled',
+]);
 function gaugeDeltaMap(before: Readonly<Record<string, number>>, after: Readonly<Record<string, number>>): Readonly<Record<string, number>> {
   return Object.fromEntries([...GAUGE_COUNTER_KEYS].filter((key) => key in before || key in after).map((key) => [key, (after[key] ?? 0) - (before[key] ?? 0)]));
 }

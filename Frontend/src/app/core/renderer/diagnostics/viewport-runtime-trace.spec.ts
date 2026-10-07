@@ -56,8 +56,25 @@ describe('ViewportRuntimeTrace', () => {
     expect(heavyCalls).toBe(1);
     const document = trace.stop();
     expect(heavyCalls).toBe(2);
+    expect(lightCalls).toBe(102); // start + 100 explicit light samples + final light sample
     expect(document?.checkpoints.map((checkpoint) => checkpoint.label)).toEqual(['BASELINE', 'FINAL']);
-    expect(document?.summary.traceSampleMs.observedCount).toBe(document?.summary.recorder['captureSampleCount']);
+    expect(document?.summary.traceSampleMs.observedCount).toBe(102);
+    expect(document?.summary.lightSampleMs.observedCount).toBe(102);
+    expect(document?.summary.heavyCheckpointMs.observedCount).toBe(2);
+    expect(document?.summary.recorder['captureSampleCount']).toBe(104);
+  });
+
+  it('stops observation sources before collecting the final heavy checkpoint', () => {
+    const lifecycle: string[] = [];
+    const trace = new ViewportRuntimeTrace({
+      metadata: () => ({}),
+      sample: () => sample(),
+      checkpoint: () => { lifecycle.push('heavy-final'); return sample(); },
+      onObservationStop: () => lifecycle.push('observation-stop'),
+    });
+    trace.start('final-order');
+    trace.stop();
+    expect(lifecycle).toEqual(['observation-stop', 'heavy-final']);
   });
 
   it('detects progress, generation and camera drift during a camera gesture', () => {
@@ -158,21 +175,30 @@ describe('ViewportRuntimeTrace', () => {
   });
 
   it('emits before/after counter deltas for each named runtime phase', () => {
-    let current = sample({ counters: { actualSceneRenders: 2, fullSceneRebuilds: 1, terrainChunkRebuilds: 4, instancedMembers: 10 } });
+    let current = sample({ counters: { actualSceneRenders: 2, fullSceneRebuilds: 1, terrainChunkRebuilds: 4, instancedMembers: 10, surfaceFastPathBlocks: 10, exposedFaceInstances: 30, neighborFacesCulled: 40 } });
     const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 110_592 }), sample: () => current });
     trace.start('16d-a');
     trace.mark('LOCAL_PLACE');
-    current = sample({ counters: { actualSceneRenders: 3, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 7, instancedMembers: 4 } });
+    current = sample({ counters: { actualSceneRenders: 3, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 7, instancedMembers: 4, surfaceFastPathBlocks: 4, exposedFaceInstances: 12, neighborFacesCulled: 20 } });
     trace.mark('LOCAL_DELETE');
+    current = sample({ counters: { actualSceneRenders: 4, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 8, instancedMembers: 7, surfaceFastPathBlocks: 9, exposedFaceInstances: 18, neighborFacesCulled: 25 } });
+    trace.mark('GAUGE_INCREASE');
     const document = trace.stop();
     const phase = document?.summary.segments['LOCAL_PLACE'];
     expect(phase).toMatchObject({
       before: expect.objectContaining({ fullSceneRebuilds: 1, terrainChunkRebuilds: 4 }),
       after: expect.objectContaining({ terrainChunkRebuilds: 5 }),
       counterDeltas: expect.objectContaining({ fullSceneRebuilds: 0, terrainChunkRebuilds: 1, actualSceneRenders: 1 }),
-      gaugeDeltas: expect.objectContaining({ instancedMembers: -6 }),
+      gaugeDeltas: expect.objectContaining({ instancedMembers: -6, surfaceFastPathBlocks: -6, exposedFaceInstances: -18, neighborFacesCulled: -20 }),
     });
     expect(phase?.['counterDeltas']).not.toHaveProperty('instancedMembers');
+    expect(phase?.['counterDeltas']).not.toHaveProperty('surfaceFastPathBlocks');
+    expect(phase?.['counterDeltas']).not.toHaveProperty('exposedFaceInstances');
+    expect(phase?.['counterDeltas']).not.toHaveProperty('neighborFacesCulled');
+    expect(document?.summary.segments['LOCAL_DELETE']).toMatchObject({
+      gaugeDeltas: { instancedMembers: 3, surfaceFastPathBlocks: 5, exposedFaceInstances: 6, neighborFacesCulled: 5 },
+    });
+    expect(document?.summary.segments['LOCAL_DELETE']?.['counterDeltas']).not.toHaveProperty('neighborFacesCulled');
   });
 
   it('keeps regressions and generation evidence as critical timeline events', () => {

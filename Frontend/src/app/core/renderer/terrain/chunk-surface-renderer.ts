@@ -81,6 +81,7 @@ export interface TerrainRendererEvidence {
   readonly terrainCommitCandidateChecks: number;
   readonly terrainCommitRepresentedLookupChecks: number;
   readonly terrainPendingHydrationCandidates: number;
+  readonly terrainPendingHydrationCandidateChunks?: number;
   readonly terrainAtlas: TerrainAtlasEvidence;
   readonly terrainWorker: TerrainMeshWorkerPoolEvidence;
   readonly terrainCommit: TerrainCommitSchedulerEvidence;
@@ -345,6 +346,7 @@ export class ChunkSurfaceRenderer {
       terrainCommitCandidateChecks: this.terrainCommitCandidateChecks,
       terrainCommitRepresentedLookupChecks: this.terrainCommitRepresentedLookupChecks,
       terrainPendingHydrationCandidates: [...this.pendingHydrationCandidatesByChunk.values()].reduce((total, candidates) => total + candidates.size, 0),
+      terrainPendingHydrationCandidateChunks: this.pendingHydrationCandidatesByChunk.size,
       terrainWorker: this.workerPool.evidence(),
       terrainCommit: this.commitScheduler.evidence(),
       terrainCommitDiagnostics: this.commitDiagnostics.evidence(),
@@ -365,7 +367,7 @@ export class ChunkSurfaceRenderer {
       terrainTemplateCacheHits: this.templateCacheHits,
       terrainLogicalBlocks: this.records.size,
       terrainBulkBatches: this.bulkBatches,
-      terrainPendingHydrationCandidates: this.pendingHydrationCandidatesByChunk.size,
+      terrainPendingHydrationCandidateChunks: this.pendingHydrationCandidatesByChunk.size,
     };
   }
 

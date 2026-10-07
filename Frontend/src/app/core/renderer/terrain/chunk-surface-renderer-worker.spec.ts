@@ -40,6 +40,7 @@ describe('chunk surface renderer worker commit path', () => {
     const first = blockAt(0);
     const record = (block: PlacedBlock): TerrainSurfaceRecord => ({ key: key(block), block, templates });
     expect(renderer.bulkUpsert([record(first)], [{ block: first, role: 'normal', occlusionClass: 'opaque-full-cube' }], [first.position], { initial: true }).pending).toBe(true);
+    expect(renderer.evidence()).toMatchObject({ terrainPendingHydrationCandidates: 1, terrainPendingHydrationCandidateChunks: 1 });
     expect(group.children).toHaveLength(0);
     worker.resolve();
     await Promise.resolve();
