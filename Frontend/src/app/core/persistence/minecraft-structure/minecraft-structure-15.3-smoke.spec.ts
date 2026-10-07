@@ -1,15 +1,16 @@
-// @ts-expect-error Node's file API is only used by fixture verification tests.
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
 import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import { exportMinecraftStructure } from './minecraft-structure-exporter';
 import { createDecorationSupportIndex, decorationSupportPositions, validateDecorationAgainstProject } from '../../decorations/placement/decoration-placement';
 import { exporterSmokeProject } from './fixtures/exporter-smoke-project';
 
-describe('exporter-generated 15.3 smoke fixture', () => {
+describe('exporter-generated 15.3 smoke structure', () => {
   it('round-trips semantic block entities and top-level entities', async () => {
-    const bytes = new Uint8Array(readFileSync('src/app/core/persistence/minecraft-structure/fixtures/exporter_be_entity_smoke_1_21_1.nbt'));
-    const template = new MinecraftJavaStructureAdapter().decodeStructure(await new NbtifyMinecraftJavaCodec().decode(bytes));
+    const exported = await exportMinecraftStructure(exporterSmokeProject, new NbtifyMinecraftJavaCodec(), undefined, () => 64);
+    expect(exported.ok).toBe(true);
+    if (!exported.ok) return;
+    const template = new MinecraftJavaStructureAdapter().decodeStructure(await new NbtifyMinecraftJavaCodec().decode(exported.bytes));
     expect(template.dataVersion).toBe(3955);
     expect(template.size).toEqual({ x: 10, y: 4, z: 8 });
     expect(template.blocks).toHaveLength(320);

@@ -443,12 +443,12 @@ Support is split into independent concepts:
 - Visual Support: `real`, `partial`, or `fallback`, covering blockstate/model,
   texture, geometry, and thumbnail rendering.
 
-The generated reports are `Docs/vanilla-asset-coverage-1.21.1.json` and
-`Docs/vanilla-asset-coverage-1.21.1.md`. All 1060 entries now have authoritative
-defaults. The current remaining visual gaps are classified separately as
-standard JSON failures, `SPECIAL_RENDERER_REQUIRED`, or
-`INTENTIONALLY_INVISIBLE`; special/runtime-rendered blocks are not counted as
-successful generic JSON geometry.
+The audit reports are generated artifacts, not canonical documentation. The
+audit command writes versioned JSON and Markdown reports under the ignored
+`.artifacts/vanilla-asset-coverage/` directory. All authoritative defaults and
+current visual gaps are derived from the selected source at audit time; the
+report classifies standard JSON failures, `SPECIAL_RENDERER_REQUIRED`, and
+`INTENTIONALLY_INVISIBLE` without changing runtime behavior.
 
 ## 15. Asset bundles and default source priority
 
@@ -663,8 +663,8 @@ Default-state reporting distinguishes a semantic `resource-derived` value from
 a merely renderable `resource-render-fallback` branch. The latter must not
 override authoritative, fixture, or compatible-common state evidence.
 
-The committed 26.3 report was generated from the official client JAR after
-extraction with:
+An audit report for a selected client JAR can be generated after extraction
+with:
 
 ```text
 tar -xf client.jar -C extracted
@@ -672,8 +672,9 @@ cd Frontend
 node tools/audit-vanilla-assets.mjs ../extracted 26.3
 ```
 
-The command writes `Docs/vanilla-asset-coverage-26.3.json` and `.md` without
-copying the JAR or extracted assets into the repository.
+The command writes `vanilla-asset-coverage-26.3.json` and `.md` below
+`.artifacts/vanilla-asset-coverage/`. The extracted JAR and reports remain
+outside the repository's canonical source and documentation.
 
 ## Terrain atlas browser gate
 

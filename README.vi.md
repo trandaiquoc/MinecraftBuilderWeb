@@ -4,7 +4,10 @@
 
 MinecraftBuilder là trình chỉnh sửa structure Minecraft Java chạy trên web, dùng để tạo, xem, chỉnh sửa, import và export structure trực tiếp trên trình duyệt.
 
-Hệ thống hướng tới quy trình làm việc trực quan kết hợp chỉnh sửa 3D, chỉnh sửa theo từng Y-layer, quản lý Minecraft BlockState, hỗ trợ block từ mod, import structure bằng JSON và export sang Minecraft Java Structure NBT.
+Hệ thống hướng tới quy trình làm việc trực quan, local-first, kết hợp chỉnh
+sửa 3D, chỉnh sửa theo từng Y-layer, quản lý Minecraft BlockState, hỗ trợ
+resource của block từ mod, decoration, import structure bằng JSON và export
+sang Minecraft Java Structure NBT.
 
 ## Chức năng chính
 
@@ -15,20 +18,24 @@ Hệ thống hướng tới quy trình làm việc trực quan kết hợp chỉ
 - Xoay block và chỉnh các giá trị `BlockState` được hỗ trợ.
 - Render các block không phải full cube như stair, slab, fence, pane, sign, door, trapdoor và các block tương tự.
 - Import resource block từ file mod Minecraft `.jar` khi có thể hỗ trợ.
+- Chỉnh sửa decoration và block entity được hỗ trợ như sign, container,
+  decorated pot, painting và item frame.
 - Import structure từ JSON.
 - Export structure thành file Minecraft Java `.nbt`.
 - Giữ lại registry ID của block mod bị thiếu hoặc chưa hỗ trợ thay vì tự đổi thành Air.
 - Hỗ trợ giao diện tiếng Anh và tiếng Việt.
-- Hỗ trợ giao diện sáng và tối.
+- Hỗ trợ giao diện Minecraft, Light và Dark.
 
 ## Công nghệ sử dụng
 
 ### Frontend
 
-- **Angular**
+- **Angular 22**
 - **TypeScript**
 - **SCSS**
 - **Three.js**
+- **Angular CDK** cho overlay và dialog cần thiết.
+- **fflate** và **nbtify** cho xử lý ZIP/NBT cục bộ trên trình duyệt.
 
 Angular chịu trách nhiệm cho giao diện ứng dụng, form, màn hình project, block browser, inspector, settings và các control của editor.
 
@@ -50,9 +57,10 @@ Các API lưu trữ hoặc thư viện hỗ trợ khác chỉ được bổ sung
 - Đọc và ghi dữ liệu Minecraft NBT.
 - Validate structure JSON được import.
 
-Tên thư viện cụ thể có thể thay đổi trong quá trình triển khai.
+Implementation hiện dùng `fflate` cho đóng gói datapack ZIP và `nbtify` phía
+sau ranh giới codec NBT có kiểu dữ liệu rõ ràng.
 
-### Backend
+### Backend (phạm vi tương lai)
 
 Stack backend dự kiến:
 
@@ -62,7 +70,9 @@ Stack backend dự kiến:
 - **Entity Framework Core**
 - **PostgreSQL**
 
-Backend dùng cho các chức năng như tài khoản người dùng, project trên cloud, phân quyền, quản trị, giới hạn theo gói sử dụng và dữ liệu chia sẻ giữa các thiết bị.
+Repository hiện chạy local-first và không cần backend đang hoạt động. Backend
+tương lai sẽ phục vụ tài khoản, project trên cloud, phân quyền, quản trị, giới
+hạn theo gói sử dụng và dữ liệu chia sẻ giữa các thiết bị.
 
 Các file binary hoặc asset lớn nên được lưu bằng object/file storage khi cần, thay vì lưu trực tiếp trong database quan hệ.
 
@@ -77,7 +87,8 @@ MinecraftBuilderWeb/
 
 - `Docs/` — requirement và tài liệu kỹ thuật của project.
 - `Frontend/` — ứng dụng Angular.
-- `Backend/` — backend ASP.NET Core.
+- `Backend/` — dành cho backend tương lai; frontend hiện tại không phụ thuộc
+  vào nó.
 
 ## Yêu cầu môi trường
 
@@ -94,7 +105,7 @@ Khuyến nghị:
 - Visual Studio Code hoặc IDE có hỗ trợ Angular/TypeScript.
 - Trình duyệt Chromium hiện đại để phát triển và kiểm thử.
 
-### Phát triển Backend
+### Phát triển Backend (phạm vi tương lai)
 
 Cần cài:
 
@@ -122,11 +133,14 @@ http://localhost:4200
 
 ## Tài liệu
 
-Requirement và tài liệu project nằm trong:
+Contract hiện tại và policy của project nằm trong:
 
 ```text
 Docs/
 ```
+
+Xem [`Docs/README.md`](Docs/README.md) để biết tài liệu nào là nguồn chuẩn và
+quy tắc artifact sinh tự động.
 
 ## Tên project
 

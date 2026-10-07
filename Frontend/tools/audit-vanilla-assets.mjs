@@ -10,12 +10,15 @@ if (!existsSync(join(root, 'assets'))) throw new Error(`Extracted client root ha
 
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(frontendRoot, '..');
-const testPath = resolve(frontendRoot, 'src/app/core/assets/vanilla/.tmp-vanilla-audit.spec.ts');
-mkdirSync(resolve(frontendRoot, 'src/app/core/assets/vanilla'), { recursive: true });
+const artifactRoot = resolve(repoRoot, '.artifacts/vanilla-asset-coverage');
+const tempRoot = resolve(repoRoot, '.artifacts/vanilla-asset-audit');
+const testPath = resolve(tempRoot, '.tmp-vanilla-audit.spec.ts');
+mkdirSync(artifactRoot, { recursive: true });
+mkdirSync(tempRoot, { recursive: true });
 const literalRoot = JSON.stringify(root.replaceAll('\\', '/'));
 const literalVersion = JSON.stringify(version);
-const reportJsonPath = JSON.stringify(resolve(repoRoot, `Docs/vanilla-asset-coverage-${version}.json`).replaceAll('\\', '/'));
-const reportMarkdownPath = JSON.stringify(resolve(repoRoot, `Docs/vanilla-asset-coverage-${version}.md`).replaceAll('\\', '/'));
+const reportJsonPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-coverage-${version}.json`).replaceAll('\\', '/'));
+const reportMarkdownPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-coverage-${version}.md`).replaceAll('\\', '/'));
 writeFileSync(testPath, `
 import { describe, it } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,8 +37,8 @@ describe('vanilla coverage command', () => it('writes the report', async () => {
 `, 'utf8');
 try {
   const npm = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  const result = spawnSync(npm, ['vitest', 'run', 'src/app/core/assets/vanilla/.tmp-vanilla-audit.spec.ts'], { stdio: 'inherit', cwd: frontendRoot, shell: process.platform === 'win32' });
+  const result = spawnSync(npm, ['vitest', 'run', relative(frontendRoot, testPath)], { stdio: 'inherit', cwd: frontendRoot, shell: process.platform === 'win32' });
   if (result.status !== 0) throw new Error(`Vanilla audit command failed with exit code ${result.status ?? 1}`);
 } finally {
-  rmSync(testPath, { force: true });
+  rmSync(tempRoot, { recursive: true, force: true });
 }

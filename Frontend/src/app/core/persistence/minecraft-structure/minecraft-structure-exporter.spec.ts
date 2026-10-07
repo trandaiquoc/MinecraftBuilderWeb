@@ -1,5 +1,3 @@
-// @ts-expect-error Node's file API is only used by this fixture verification test.
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/project.types';
 import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
@@ -200,11 +198,16 @@ describe('core Minecraft Structure NBT exporter', () => {
     ]);
   });
 
-  it('decodes the exporter-generated smoke fixture through the production codec', async () => {
+  it('generates and decodes the deterministic exporter smoke structure', async () => {
+    const result = await exported(project({ x: 3, y: 2, z: 3 }, [
+      block('minecraft:stone', { x: 0, y: 0, z: 0 }),
+      block('minecraft:oak_stairs', { x: 1, y: 0, z: 0 }, { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' }),
+    ]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     const codec = new NbtifyMinecraftJavaCodec();
     const adapter = new MinecraftJavaStructureAdapter();
-    const bytes = new Uint8Array(readFileSync('src/app/core/persistence/minecraft-structure/fixtures/exporter_smoke_1_21_1.nbt'));
-    const decoded = adapter.decodeStructure(await codec.decode(bytes));
+    const decoded = adapter.decodeStructure(await codec.decode(result.bytes));
     expect(decoded.dataVersion).toBe(3955);
     expect(decoded.size).toEqual({ x: 3, y: 2, z: 3 });
     expect(decoded.blocks).toHaveLength(18);

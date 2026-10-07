@@ -1,5 +1,10 @@
 # MinecraftBuilder — Changes / Divergences from Current Requirements
 
+> Historical decision log. This file is retained for project history only and
+> is not a current implementation source of truth. Use the canonical documents
+> listed in `Docs/README.md` for current contracts, policies, and verification
+> boundaries.
+
 > Purpose: track decisions and implementation behavior that have changed, clarified, or become more specific than the current requirements document, so the requirements can be revised later.
 >
 > Basis: current project discussions, manual UI testing, and Codex implementation reports up through Prompt 09.3 planning. This file is a change log, not a replacement for the requirements document.

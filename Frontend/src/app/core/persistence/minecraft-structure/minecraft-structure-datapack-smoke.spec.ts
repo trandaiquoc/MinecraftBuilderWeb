@@ -1,16 +1,26 @@
-// @ts-expect-error Node's file API is only used by committed fixture verification.
-import { readFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
 import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import { prepareStructureExport, writeDatapackArchive } from './minecraft-structure-packaging';
 import { exporterSmokeProject } from './fixtures/exporter-smoke-project';
 import { createDecorationSupportIndex, decorationSupportPositions, validateDecorationAgainstProject } from '../../decorations/placement/decoration-placement';
 
-describe('exporter-generated datapack smoke fixture', () => {
+describe('exporter-generated datapack smoke structure', () => {
   it('contains the exact production datapack tree and decodes through the NBT codec', async () => {
-    const zipBytes = new Uint8Array(readFileSync('src/app/core/persistence/minecraft-structure/fixtures/exporter_datapack_smoke_1_21_1.zip'));
-    const files = unzipSync(zipBytes);
+    const codec = new NbtifyMinecraftJavaCodec();
+    const prepared = await prepareStructureExport(exporterSmokeProject, codec, {
+      namespace: 'minecraftbuilder',
+      structurePath: 'exporter_datapack_smoke_1_21_1',
+      archiveName: 'exporter_datapack_smoke_1_21_1',
+      description: 'MinecraftBuilder 1.21.1 export smoke',
+    }, () => 64);
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const archive = await writeDatapackArchive(prepared.datapack);
+    expect(archive.ok).toBe(true);
+    if (!archive.ok) return;
+    const files = unzipSync(archive.bytes);
     const entryNames = Object.keys(files).sort();
     expect(entryNames).toEqual(['data/minecraftbuilder/structure/exporter_datapack_smoke_1_21_1.nbt', 'pack.mcmeta']);
     expect(entryNames.some((name) => name.includes('/structures/') || name.startsWith('generated/') || name.includes('/structure/structure/'))).toBe(false);
@@ -20,7 +30,7 @@ describe('exporter-generated datapack smoke fixture', () => {
 
     const nbtBytes = files['data/minecraftbuilder/structure/exporter_datapack_smoke_1_21_1.nbt'];
     expect([...nbtBytes.slice(0, 2)]).toEqual([0x1f, 0x8b]);
-    const template = new MinecraftJavaStructureAdapter().decodeStructure(await new NbtifyMinecraftJavaCodec().decode(nbtBytes));
+    const template = new MinecraftJavaStructureAdapter().decodeStructure(await codec.decode(nbtBytes));
     expect(template.dataVersion).toBe(3955);
     expect(template.size).toEqual({ x: 10, y: 4, z: 8 });
     expect(template.blocks).toHaveLength(320);

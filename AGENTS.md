@@ -255,6 +255,49 @@ Update documentation when a change affects:
 
 Do not fill README files with speculative technologies that are not actually used by the repository.
 
+## 13.1 Repository ownership and cleanup
+
+Keep each file in the subsystem that owns its concept. A production file and
+its direct unit spec should normally share a basename and directory; integration,
+smoke, and benchmark tests must make their cross-module scope clear in both
+name and location. Do not create catch-all `misc`, `utils`, or `helpers`
+directories for unrelated responsibilities.
+
+Generated, temporary, benchmark, and manual-debug artifacts must not be placed
+in `src/` or canonical `Docs/` files. Track a generated fixture only when it
+provides independent external evidence or protects a contract that cannot be
+regenerated from the code under test. Temporary probes and exporter-generated
+outputs belong in an ignored artifact directory and must clean up deterministically.
+
+Canonical documentation describes the current contract. Historical decision
+logs, reports, and generated audit output must be labeled as such and must not
+masquerade as current source of truth.
+
+## 13.2 Clean-code conventions for follow-up cleanup
+
+Keep each file, function, and class focused on one coherent responsibility.
+Split large responsibilities at a meaningful domain, component, controller, or
+provider boundary rather than preserving a giant coordinator. Prefer clear
+dispatch tables, strategies, or focused helpers when they reduce nested branch
+chains; do not compress unrelated statements into one line. Modified files
+must follow repository formatting, but cleanup work must not reformat unrelated
+source.
+
+Use one implementation path after a replacement has demonstrated regression
+parity; do not retain duplicate legacy paths indefinitely. Do not introduce an
+abstraction only to reduce line count, and do not duplicate one domain rule in
+multiple modules.
+
+Generic behavior algorithms must depend on capabilities, contracts, or verified
+evidence. Concrete registry IDs are valid only when identity is itself the
+contract. A mod-specific name or ID hack is never a substitute for a generic
+behavior model.
+
+Permanent regression tests are part of the source protection and must not be
+deleted casually. Temporary probes, debug tests, and generated fixtures have
+different lifecycles and must be removed or ignored once their evidence has
+been captured. Tests must not encode a known bug merely to make the build pass.
+
 ## 14. Final Response After a Coding Task
 
 When finishing a task, report concisely:

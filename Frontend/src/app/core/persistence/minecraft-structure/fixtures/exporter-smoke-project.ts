@@ -5,7 +5,7 @@ const signSide = (line: string) => ({ lines: [line, '', '', ''] as const, color:
 
 const supportWall: readonly PlacedBlock[] = Array.from({ length: 10 * 4 }, (_, index) => stone(index % 10, Math.floor(index / 10), 6));
 
-/** Production-export input for the committed NBT/ZIP smoke artifacts. */
+/** Deterministic production-export input for runtime smoke coverage. */
 export const exporterSmokeProject: ProjectDocument = {
   schemaVersion: 3,
   id: 'exporter-be-entity-smoke-1-21-1',
