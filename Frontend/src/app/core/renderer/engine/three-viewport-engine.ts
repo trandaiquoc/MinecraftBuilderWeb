@@ -3,9 +3,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import { FaceNormal, resolveAttachmentPlacement, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
-import { blocksForLayers, planYLayerProjectionDelta, YLayerVisibility, type LayerBlockIndex } from '../../editor/viewport/y-layer';
+import { planYLayerProjectionDelta, type LayerBlockIndex } from '../../editor/viewport/y-layer';
 import { isBlockVisibleForViewport, visibleBlockEntries } from '../../editor/viewport/visible-blocks';
-import { cameraBoundsCenter, cameraDistanceForBounds, CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds, structureCameraBounds } from '../../editor/camera/camera';
+import { CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds } from '../../editor/camera/camera';
 import { isBlockVisible } from '../../editor/groups/group-membership';
 import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
 import { GroupMovePreview } from '../../editor/groups/group.service';
@@ -23,7 +23,6 @@ import { PlacedDecoration } from '../../decorations/decoration.types';
 import { DecorationPlacementPlan, decorationAabb, facingFromNormal, planDecorationPlacement } from '../../decorations/placement/decoration-placement';
 import { applyDecorationItemPreview, createDecorationVisual, DecorationTextureCache } from '../visuals/decoration-visuals';
 import type { ItemStackData } from '../../items/item-stack.types';
-import type { ActiveDecoration } from '../../decorations/decoration.service';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { MouseAction } from '../../editor/input/mouse-bindings';
 import { RendererDiagnostics, RendererCounters } from './renderer-diagnostics';
@@ -35,14 +34,13 @@ import { coordinateNeighbors, hasConfirmedOpaqueNeighbors } from '../visibility/
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-index';
-import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
-import { ddaVoxelCandidates } from '../interaction/voxel-raycast';
 import type { VoxelRaycastCandidate } from '../interaction/voxel-raycast';
 import { compileInstanceTemplates as compileInstanceTemplatesFromCache, mergeInstanceTemplateParts as mergeInstanceTemplatePartsFromCache } from '../batching/instance-template-cache';
 import type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
 import { PlaceholderBatchRenderer } from '../batching/placeholder-batch-renderer';
 import type { PlaceholderBatch } from '../batching/placeholder-batch-renderer';
 import { StaticModelBatchRenderer } from '../batching/static-model-batch-renderer';
+import { extractSurfaceFaceTemplates } from '../batching/surface-template-extractor';
 import type { InstanceBatch } from '../batching/instance-batch-renderer';
 import { SurfaceFaceBatchRenderer } from '../batching/surface-face-batch-renderer';
 import type { SurfaceFaceBatch, SurfaceFaceMembership, SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
@@ -51,10 +49,11 @@ import { RenderRegionPolicy } from '../batching/render-region-policy';
 import { RenderScheduler } from '../scheduling/render-scheduler';
 import { ViewportHostLifecycleAdapter } from '../scheduling/viewport-host-lifecycle';
 import { ViewportCameraInputController, cancelViewportFrame, requestViewportFrame } from '../scheduling/viewport-camera-input-controller';
+import { ViewportCameraFramingController } from '../scheduling/viewport-camera-framing-controller';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
 import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
-import type { HydrationBlockScopeDelta, HydrationFinalizationSnapshot, HydrationLane, HydrationProgressSnapshot, HydrationStatus } from '../scheduling/hydration-progress-tracker';
+import type { HydrationBlockScopeDelta, HydrationFinalizationSnapshot, HydrationLane, HydrationProgressSnapshot } from '../scheduling/hydration-progress-tracker';
 import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
 import { ProviderRefreshCoordinator } from '../provider/provider-refresh-coordinator';
 import { ProviderRefreshPlanner, type ProviderRefreshPlannerProgress } from '../provider/provider-refresh-planner';
@@ -81,6 +80,8 @@ import { GroupIsolationPresentation, type GroupIsolationSnapshot, type IsolateBl
 import { EditingPlanePresenter } from '../presentation/editing-plane-presenter';
 import { SelectionOverlayPresenter } from '../presentation/selection-overlay-presenter';
 import { projectPointerToAxisPlane } from '../interaction/viewport-pointer-projection';
+import { ViewportHoverController } from '../interaction/viewport-hover-controller';
+import { ViewportRaycastController } from '../interaction/viewport-raycast-controller';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
 import { BlockGhostPresenter } from '../presentation/block-ghost-presenter';
 import { DecorationGhostPresenter } from '../presentation/decoration-ghost-presenter';
@@ -88,28 +89,13 @@ import { MovePreviewPresenter } from '../presentation/move-preview-presenter';
 import { GroupHighlightPresenter } from '../presentation/group-highlight-presenter';
 import { StructureBlockGuidePresenter } from '../presentation/structure-block-guide-presenter';
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
+import { blockCoordinateFromHit, cameraActionMovementDelta, canonicalRenderOptions, chunkKey, compareEmptySnapshots, createBoundedGrid, decorationSignature, DETAILED_SELECTION_OUTLINE_LIMIT, emptyResolvedModel, isHorizontalDirection, isolateKey, renderFilterKey, stableChunkBounds, stableValue, surfaceFaceDirectionFromHit, surfaceNeighbor, surfaceFaceNormal, unitVoxelEnvelope, vectorValue, boundsOfPositions, blockRenderSignature } from './viewport-render-helpers';
+export { cameraMovementDirection, cameraMovementDelta, blockCoordinateFromHit, surfaceFaceDirectionFromHit, surfaceFaceNormal } from './viewport-render-helpers';
+import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, PlacementPlanProvider } from './viewport-engine-contracts';
+export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
 
 
-export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
-export type ViewportHoverListener = (hit: ViewportHit) => void;
-type PlacementPlanProvider = (project: ProjectDocument, active: ActiveBlock, target: VoxelCoordinate, context: PlacementContext | undefined, lookup?: ReadonlyBlockLookup) => PlacementPlan | undefined;
 type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
-export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly layerIndex?: LayerBlockIndex; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly highlightedBlockId?: string; readonly highlightedBlockPositions?: readonly VoxelCoordinate[]; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
-export interface ViewportEngineOptions {
-  readonly terrainAtlasMode?: TerrainAtlasMode;
-  /** Narrow test seam for validating atomic terrain ownership commits. */
-  readonly terrainShouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
-}
-export type ViewportHydrationStatus = HydrationStatus;
-export type ViewportHydrationProgress = HydrationProgressSnapshot & {
-  readonly providerRefreshCompleted?: number;
-  readonly providerRefreshTotal?: number;
-  readonly providerRefreshPlanning?: boolean;
-  readonly providerRefreshQueued?: number;
-  readonly providerRefreshRunning?: number;
-  readonly terrainPending?: number;
-  readonly finalization?: HydrationFinalizationSnapshot;
-};
 export interface ViewportPerformanceEvidence {
   readonly renderCalls: number;
   readonly triangles: number;
@@ -544,16 +530,6 @@ interface TerrainHydrationCandidate {
 }
 export type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 export type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
-interface HoverRequest {
-  readonly clientX: number;
-  readonly clientY: number;
-  readonly project: ProjectDocument | undefined;
-  readonly active: ActiveBlock | undefined;
-  readonly planeY: number | undefined;
-  readonly showGhost: boolean;
-  readonly listener: ViewportHoverListener;
-}
-
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
 export const VIEWPORT_VISUAL_CONCURRENCY = 6;
@@ -743,7 +719,6 @@ export class ThreeViewportEngine {
   private renderOptions: ViewportRenderOptions = {};
   private blockUsageHighlightId?: string;
   private blockUsageHighlightPositions?: readonly VoxelCoordinate[];
-  private hasCameraFrame = false;
   private readonly renderOnControlChange = () => {
     this.instrumentation.record('controlChangeEvents');
     this.runtimeTrace?.record('controls-change');
@@ -804,6 +779,11 @@ export class ThreeViewportEngine {
   private canvasSize = { width: 0, height: 0 };
   private themeApplied = false;
   private controlConfiguration: ViewportControlConfiguration = { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9 };
+  private readonly cameraFraming = new ViewportCameraFramingController(this.camera, () => this.controls, {
+    project: () => this.project,
+    renderOptions: () => this.renderOptions,
+    scheduleRender: () => this.scheduleRender(),
+  });
   private readonly cameraInput = new ViewportCameraInputController(
     () => this.controls,
     {
@@ -899,9 +879,21 @@ export class ThreeViewportEngine {
   private frameDurationMs = 0;
   private renderCpuMs = 0;
   private lastRendererMetrics = { calls: 0, triangles: 0, lines: 0, points: 0, geometries: 0, textures: 0 };
-  private hoverFrame?: number;
-  private hoverTimer?: ReturnType<typeof setTimeout>;
-  private pendingHover?: HoverRequest;
+  private readonly hoverController = new ViewportHoverController<ViewportHit>({
+    isSuspended: () => this.suspended,
+    cameraGestureInProgress: () => this.cameraGestureInProgress,
+    record: (name) => this.instrumentation.record(name),
+    hit: (request) => this.performHit(request.clientX, request.clientY, request.project as ProjectDocument | undefined, request.active as ActiveBlock | undefined, request.planeY, request.showGhost),
+  });
+  private readonly raycastController = new ViewportRaycastController({
+    classify: (position) => {
+      const key = coordinateKey(position); const entry = this.cachedVisibleMap.get(key);
+      if (!entry || this.culledBlockKeys.has(key) || this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return 'skip';
+      return entry.role === 'normal' && entry.occlusionClass === 'opaque-full-cube' ? 'hit' : 'fallback';
+    },
+    precise: (candidates) => this.preciseCandidatePick(candidates),
+    record: (name, value = 1) => this.instrumentation.record(name, value),
+  });
   private fallbackGeometryCounted = false;
   private readonly fallbackMaterialRoles = new Set<string>();
   private runtimeDiagnosticsEnabled = false;
@@ -912,7 +904,6 @@ export class ThreeViewportEngine {
   private readonly culledBlockKeys = new Set<string>();
   private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
   private missingBlocksTerminal = false;
-  private cameraProjectId?: string;
 
   constructor(readonly instrumentation = new RendererDiagnostics(), options: ViewportEngineOptions = {}) {
     this.terrainAtlasMode = options.terrainAtlasMode ?? 'on';
@@ -999,7 +990,7 @@ export class ThreeViewportEngine {
     this.cameraInput.attachControls(this.controls);
     this.resize();
     if (this.project) this.resetCamera();
-    else this.frameBounds(projectCameraBounds(VIEWPORT_BOOTSTRAP_SIZE));
+    else this.cameraFraming.frameBounds(projectCameraBounds(VIEWPORT_BOOTSTRAP_SIZE));
     this.scheduleRender();
   }
 
@@ -1546,10 +1537,10 @@ export class ThreeViewportEngine {
     }
     this.updateGhost(undefined, project, active);
     this.recordProviderCacheStats();
-    if (project && this.controls && (projectChanged || this.cameraProjectId !== project.id)) {
-      this.cameraProjectId = project.id;
+    if (project && this.controls && (projectChanged || this.cameraFraming.cameraProjectId !== project.id)) {
+      this.cameraFraming.cameraProjectId = project.id;
       this.fitStructure();
-    } else if (project && this.controls && !this.hasCameraFrame) this.resetCamera();
+    } else if (project && this.controls && !this.cameraFraming.hasCameraFrame) this.resetCamera();
     this.scheduleRender();
     const projectBlockCount = project?.blocks.length ?? 0;
     if (this.runtimeDiagnosticsEnabled && this.runtimeObservedProjectBlockCount > 0 && projectBlockCount === 0) {
@@ -3350,53 +3341,17 @@ export class ThreeViewportEngine {
 
   /** Coalesces hover work to one raycast per animation frame. Commit paths use hit() synchronously. */
   hover(event: PointerEvent, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY: number | undefined, showGhost: boolean, listener: ViewportHoverListener): void {
-    if (this.disposed || this.suspended) return;
-    if (this.cameraGestureInProgress) { this.instrumentation.record('hoverRaycastsSuppressedDuringCamera'); return; }
-    if (this.pendingHover) this.instrumentation.record('hoverPointerMovesCoalesced');
-    this.pendingHover = { clientX: event.clientX, clientY: event.clientY, project, active, planeY, showGhost, listener };
-    if (this.hoverFrame !== undefined || this.hoverTimer !== undefined) return;
-    const run = () => {
-      this.hoverFrame = undefined; this.hoverTimer = undefined;
-      const request = this.pendingHover; this.pendingHover = undefined;
-      if (!request || this.cameraGestureInProgress) { if (request && this.cameraGestureInProgress) this.instrumentation.record('hoverRaycastsSuppressedDuringCamera'); return; }
-      this.instrumentation.record('hoverRaycasts');
-      request.listener(this.performHit(request.clientX, request.clientY, request.project, request.active, request.planeY, request.showGhost));
-    };
-    if (typeof requestAnimationFrame === 'function') this.hoverFrame = requestAnimationFrame(run);
-    else this.hoverTimer = setTimeout(run, 0);
+    if (this.disposed) return;
+    this.hoverController.hover({ clientX: event.clientX, clientY: event.clientY, project, active, planeY, showGhost, listener });
   }
 
   private cancelPendingHover(countAsSuppressed: boolean): void {
-    if (this.hoverFrame !== undefined && typeof cancelAnimationFrame === 'function') { cancelAnimationFrame(this.hoverFrame); this.hoverFrame = undefined; }
-    if (this.hoverTimer !== undefined) { clearTimeout(this.hoverTimer); this.hoverTimer = undefined; }
-    if (countAsSuppressed && this.pendingHover) this.instrumentation.record('hoverRaycastsSuppressedDuringCamera');
-    this.pendingHover = undefined;
+    this.hoverController.cancel(countAsSuppressed);
   }
 
   private ddaPick(project: ProjectDocument): { readonly position: VoxelCoordinate; readonly normal: FaceNormal; readonly point: THREE.Vector3; readonly distance: number } | undefined {
     if (!this.spatialIndex) return undefined;
-    this.instrumentation.record('ddaPickCount');
-    const result = ddaVoxelCandidates(
-      { origin: this.raycaster.ray.origin, direction: this.raycaster.ray.direction },
-      project.size,
-      (position) => {
-        const key = coordinateKey(position);
-        const entry = this.cachedVisibleMap.get(key);
-        if (!entry || this.culledBlockKeys.has(key) || this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return 'skip';
-        if (entry.role === 'normal' && entry.occlusionClass === 'opaque-full-cube') return 'hit';
-        return 'fallback';
-      },
-    );
-    if (!result) return undefined;
-    this.instrumentation.record('ddaVisitedVoxels', result.visitedVoxels);
-    if (result.candidates.length) {
-      this.instrumentation.record('precisePickFallbacks');
-      const precise = this.preciseCandidatePick(result.candidates);
-      if (precise) return precise;
-    }
-    if (!result.fullCubeHit) return undefined;
-    this.instrumentation.record('ddaFullCubeHits');
-    return { position: result.fullCubeHit.position, normal: result.fullCubeHit.normal, point: new THREE.Vector3(result.fullCubeHit.point.x, result.fullCubeHit.point.y, result.fullCubeHit.point.z), distance: result.fullCubeHit.distance };
+    return this.raycastController.pick(this.raycaster.ray, project.size);
   }
 
   private preciseCandidatePick(candidates: readonly VoxelRaycastCandidate[]): { readonly position: VoxelCoordinate; readonly normal: FaceNormal; readonly point: THREE.Vector3; readonly distance: number } | undefined {
@@ -4284,56 +4239,31 @@ export class ThreeViewportEngine {
   }
 
   cameraState(): CameraState | undefined {
-    if (!this.controls) return undefined;
-    return { position: vectorValue(this.camera.position), target: vectorValue(this.controls.target), up: vectorValue(this.camera.up) };
+    return this.cameraFraming.cameraState();
   }
 
   restoreCamera(state: CameraState | undefined, projectId?: string): void {
-    if (!state || !this.controls) return;
-    this.camera.position.set(state.position.x, state.position.y, state.position.z);
-    this.camera.up.set(state.up.x, state.up.y, state.up.z);
-    this.controls.target.set(state.target.x, state.target.y, state.target.z);
-    this.controls.update();
-    this.hasCameraFrame = true;
-    this.cameraProjectId = projectId;
-    this.scheduleRender();
+    this.cameraFraming.restoreCamera(state, projectId);
   }
 
   fitStructure(): void {
-    const project = this.project;
-    if (!project) return;
-    const blocks = this.renderOptions.layerY === undefined || !this.renderOptions.visibility
-      ? project.blocks
-      : blocksForLayers(project.blocks, this.renderOptions.layerY, this.renderOptions.visibility);
-    this.frameBounds(structureCameraBounds(blocks) ?? projectCameraBounds(project.size));
+    this.cameraFraming.fitStructure();
   }
 
   focusSelection(position: VoxelCoordinate | undefined): void {
-    if (!position) return;
-    this.focusBounds({ min: { x: position.x, y: position.y, z: position.z }, max: { x: position.x + 1, y: position.y + 1, z: position.z + 1 } });
+    this.cameraFraming.focusSelection(position);
   }
 
   focusBounds(bounds: CameraBounds | undefined): void {
-    if (!bounds || !this.controls) return;
-    const target = cameraBoundsCenter(bounds);
-    const direction = this.camera.position.clone().sub(this.controls.target);
-    const viewDirection = direction.lengthSq() ? direction.normalize() : perspectiveDirection();
-    const distance = cameraDistanceForBounds(bounds, this.camera.fov, this.camera.aspect);
-    this.setCamera(target, viewDirection, distance);
+    this.cameraFraming.focusBounds(bounds);
   }
 
   resetCamera(): void {
-    if (!this.project) return;
-    this.hasCameraFrame = true;
-    this.cameraProjectId = this.project.id;
-    this.frameBounds(projectCameraBounds(this.project.size));
+    this.cameraFraming.resetCamera();
   }
 
   setCameraPreset(preset: CameraPreset): void {
-    if (!this.controls) return;
-    const distance = Math.max(4, this.camera.position.distanceTo(this.controls.target));
-    const direction = presetDirection(preset);
-    this.setCamera(vectorValue(this.controls.target), direction, distance, preset === 'top' ? { x: 0, y: 0, z: -1 } : { x: 0, y: 1, z: 0 });
+    this.cameraFraming.setCameraPreset(preset);
   }
 
   private setProjectBounds(project: ProjectDocument | undefined): void {
@@ -4408,21 +4338,6 @@ export class ThreeViewportEngine {
     this.blockGhostPresenter.updateModel(active, plan);
   }
 
-  private frameBounds(bounds: ReturnType<typeof projectCameraBounds>): void {
-    const target = cameraBoundsCenter(bounds);
-    const distance = cameraDistanceForBounds(bounds, this.camera.fov, this.camera.aspect);
-    this.setCamera(target, perspectiveDirection(), distance);
-  }
-
-  private setCamera(target: CameraVector, direction: THREE.Vector3, distance: number, up: CameraVector = { x: 0, y: 1, z: 0 }): void {
-    if (!this.controls) return;
-    this.camera.up.set(up.x, up.y, up.z);
-    this.controls.target.set(target.x, target.y, target.z);
-    this.camera.position.set(target.x, target.y, target.z).addScaledVector(direction, distance);
-    this.controls.update();
-    this.scheduleRender();
-  }
-
   private render(): void {
     this.flushInstanceBatchBounds();
     if (!this.renderer) return;
@@ -4484,193 +4399,6 @@ function applyReferenceOpacityToObject(object: THREE.Object3D, opacity: number):
   });
 }
 
-function vectorValue(vector: THREE.Vector3): CameraVector { return { x: vector.x, y: vector.y, z: vector.z }; }
-function perspectiveDirection(): THREE.Vector3 { return new THREE.Vector3(1, .75, 1).normalize(); }
-function presetDirection(preset: CameraPreset): THREE.Vector3 {
-  switch (preset) {
-    case 'top': return new THREE.Vector3(0, 1, 0);
-    case 'front': return new THREE.Vector3(0, 0, 1);
-    case 'back': return new THREE.Vector3(0, 0, -1);
-    case 'left': return new THREE.Vector3(-1, 0, 0);
-    case 'right': return new THREE.Vector3(1, 0, 0);
-    case 'perspective': return perspectiveDirection();
-  }
-}
-
-function createBoundedGrid(sizeX: number, sizeZ: number, color: number): THREE.LineSegments {
-  const points: THREE.Vector3[] = [];
-  for (let x = 0; x <= sizeX; x++) points.push(new THREE.Vector3(x, 0, 0), new THREE.Vector3(x, 0, sizeZ));
-  for (let z = 0; z <= sizeZ; z++) points.push(new THREE.Vector3(0, 0, z), new THREE.Vector3(sizeX, 0, z));
-  return new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color, transparent: true, opacity: .72 }));
-}
-
-const DETAILED_SELECTION_OUTLINE_LIMIT = 256;
-function sameVoxel(left: VoxelCoordinate | undefined, right: VoxelCoordinate | undefined): boolean { return left?.x === right?.x && left?.y === right?.y && left?.z === right?.z; }
-function boundsOfPositions(positions: readonly VoxelCoordinate[]): { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } | undefined {
-  if (!positions.length) return undefined;
-  let minX = positions[0].x; let minY = positions[0].y; let minZ = positions[0].z; let maxX = minX; let maxY = minY; let maxZ = minZ;
-  for (let index = 1; index < positions.length; index += 1) { const position = positions[index]; minX = Math.min(minX, position.x); minY = Math.min(minY, position.y); minZ = Math.min(minZ, position.z); maxX = Math.max(maxX, position.x); maxY = Math.max(maxY, position.y); maxZ = Math.max(maxZ, position.z); }
-  return { min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } };
-}
-
-function stableValue(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableValue((value as Record<string, unknown>)[key])}`).join(',')}}`;
-  return JSON.stringify(value);
-}
-function blockRenderSignature(block: ProjectDocument['blocks'][number]): string {
-  const state = Object.entries(block.state).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}=${value}`).join(',');
-  const entity = block.blockEntityData === undefined ? '' : `|entity=${stableValue(block.blockEntityData)}`;
-  return `${block.kind}|${block.id}|${block.namespace}|${block.position.x},${block.position.y},${block.position.z}|${state}${entity}`;
-}
-function decorationSignature(decoration: PlacedDecoration | undefined): string {
-  return decoration === undefined ? '' : stableValue(decoration);
-}
-function compareEmptySnapshots(firstEmpty: ViewportGhostSceneSnapshot, secondEmpty: ViewportGhostSceneSnapshot): NonNullable<ViewportEmptyTransitionDiagnostics['differences']> {
-  const key = (visual: ViewportSuspiciousVisualDiagnostic): string => `${visual.owner}|${visual.uuid}|${stableValue(visual.position)}|${stableValue(visual.worldBounds)}`;
-  const meshKey = (mesh: ViewportVisibleMeshDiagnostic): string => `${mesh.owner}|${mesh.uuid}|${stableValue(mesh.worldPosition)}|${stableValue(mesh.worldBounds)}`;
-  const firstMeshes = new Map(firstEmpty.visibleMeshes.map((mesh) => [meshKey(mesh), mesh]));
-  const secondMeshes = new Map(secondEmpty.visibleMeshes.map((mesh) => [meshKey(mesh), mesh]));
-  const firstVisuals = new Map(firstEmpty.suspiciousVisuals.map((visual) => [key(visual), visual]));
-  const secondVisuals = new Map(secondEmpty.suspiciousVisuals.map((visual) => [key(visual), visual]));
-  return {
-    visibleMeshCountDelta: secondEmpty.ownership.visibleMeshCount - firstEmpty.ownership.visibleMeshCount,
-    renderedBlockCountDelta: secondEmpty.ownership.renderedBlockCount - firstEmpty.ownership.renderedBlockCount,
-    visibleMeshesAdded: [...secondMeshes].filter(([meshKeyValue]) => !firstMeshes.has(meshKeyValue)).map(([, mesh]) => mesh),
-    visibleMeshesRemoved: [...firstMeshes].filter(([meshKeyValue]) => !secondMeshes.has(meshKeyValue)).map(([, mesh]) => mesh),
-    suspiciousVisualsAdded: [...secondVisuals].filter(([visualKey]) => !firstVisuals.has(visualKey)).map(([, visual]) => visual),
-    suspiciousVisualsRemoved: [...firstVisuals].filter(([visualKey]) => !secondVisuals.has(visualKey)).map(([, visual]) => visual),
-    previewStateChanged: stableValue({ previewState: firstEmpty.previewState, activeBlock: firstEmpty.activeBlock }) !== stableValue({ previewState: secondEmpty.previewState, activeBlock: secondEmpty.activeBlock }),
-  };
-}
-function renderFilterKey(options: ViewportRenderOptions): string {
-  const layerY = options.visibility ? undefined : options.layerY;
-  return stableValue({ layerY, visibility: options.visibility, exposedFaceRendering: options.exposedFaceRendering === true });
-}
-function isolateKey(options: ViewportRenderOptions): string { return stableValue({ isolatedGroupId: options.isolatedGroupId, isolatedGroupPositions: options.isolatedGroupPositions }); }
-function canonicalRenderOptions(options: ViewportRenderOptions): ViewportRenderOptions {
-  if (options.isolatedGroupId === undefined && options.isolatedGroupPositions === undefined) return options;
-  const { isolatedGroupId: _isolatedGroupId, isolatedGroupPositions: _isolatedGroupPositions, ...canonical } = options;
-  return canonical;
-}
-function surfaceNeighbor(position: VoxelCoordinate, direction: SurfaceFaceDirection): VoxelCoordinate {
-  switch (direction) {
-    case 'north': return { x: position.x, y: position.y, z: position.z - 1 };
-    case 'south': return { x: position.x, y: position.y, z: position.z + 1 };
-    case 'east': return { x: position.x + 1, y: position.y, z: position.z };
-    case 'west': return { x: position.x - 1, y: position.y, z: position.z };
-    case 'up': return { x: position.x, y: position.y + 1, z: position.z };
-    case 'down': return { x: position.x, y: position.y - 1, z: position.z };
-  }
-}
-function isHorizontalDirection(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
-export function cameraMovementDirection(keys: ReadonlySet<string>, camera: THREE.Camera): THREE.Vector3 {
-  const forward = camera.getWorldDirection(new THREE.Vector3()); forward.y = 0; if (forward.lengthSq() === 0) return new THREE.Vector3(); forward.normalize();
-  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize(); const direction = new THREE.Vector3();
-  if (keys.has('KeyW')) direction.add(forward); if (keys.has('KeyS')) direction.sub(forward); if (keys.has('KeyD')) direction.add(right); if (keys.has('KeyA')) direction.sub(right); if (keys.has('Space')) direction.y += 1; if (keys.has('ShiftLeft') || keys.has('ShiftRight')) direction.y -= 1;
-  return direction;
-}
-function cameraActionMovementDelta(actions: ReadonlySet<MovementAction>, camera: THREE.Camera, translationSpeed: number, deltaSeconds: number): THREE.Vector3 {
-  const direction = new THREE.Vector3();
-  const horizontal = new Set<string>();
-  if (actions.has('move-forward')) horizontal.add('KeyW'); if (actions.has('move-backward')) horizontal.add('KeyS'); if (actions.has('move-left')) horizontal.add('KeyA'); if (actions.has('move-right')) horizontal.add('KeyD');
-  const horizontalDirection = cameraMovementDirection(horizontal, camera);
-  if (horizontalDirection.lengthSq()) direction.add(horizontalDirection.normalize().multiplyScalar(deltaSeconds * translationSpeed));
-  if (actions.has('move-up')) direction.y += deltaSeconds * translationSpeed;
-  if (actions.has('move-down')) direction.y -= deltaSeconds * translationSpeed;
-  return direction;
-}
-
-function emptyResolvedModel(block: ProjectDocument['blocks'][number]): ResolvedBlockModel {
-  return {
-    blockId: block.id,
-    state: block.state,
-    parts: [],
-    support: 'full',
-    diagnostics: [],
-    trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [], modelResources: [], parentResources: [], elementCount: 0, faceCount: 0, textureResources: [] },
-  };
-}
-export function cameraMovementDelta(keys: ReadonlySet<string>, camera: THREE.Camera, translationSpeed: number, _legacyVerticalSpeed: number, deltaSeconds: number): THREE.Vector3 {
-  const horizontalKeys = new Set([...keys].filter((key) => key === 'KeyW' || key === 'KeyA' || key === 'KeyS' || key === 'KeyD'));
-  const direction = cameraMovementDirection(horizontalKeys, camera);
-  if (direction.lengthSq()) direction.normalize().multiplyScalar(deltaSeconds * translationSpeed);
-  const verticalDirection = (keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0);
-  direction.y += verticalDirection * deltaSeconds * translationSpeed;
-  return direction;
-}
-export function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
-  const direct = hit.object.userData['voxel'] as VoxelCoordinate | undefined;
-  if (direct) return direct;
-  const instanceId = hit.instanceId;
-  if (instanceId === undefined) return undefined;
-  return (hit.object.userData['instanceVoxels'] as VoxelCoordinate[] | undefined)?.[instanceId];
-}
-
-export function surfaceFaceDirectionFromHit(hit: THREE.Intersection): SurfaceFaceDirection | undefined {
-  if (hit.instanceId === undefined || hit.object.userData['surfaceFaceBatch'] !== true) return undefined;
-  return (hit.object.userData['instanceFaceDirections'] as SurfaceFaceDirection[] | undefined)?.[hit.instanceId];
-}
-
-export function surfaceFaceNormal(direction: SurfaceFaceDirection): THREE.Vector3 {
-  switch (direction) {
-    case 'north': return new THREE.Vector3(0, 0, -1);
-    case 'south': return new THREE.Vector3(0, 0, 1);
-    case 'east': return new THREE.Vector3(1, 0, 0);
-    case 'west': return new THREE.Vector3(-1, 0, 0);
-    case 'up': return new THREE.Vector3(0, 1, 0);
-    case 'down': return new THREE.Vector3(0, -1, 0);
-  }
-}
-
-function extractSurfaceFaceTemplates(object: THREE.Object3D): readonly SurfaceFaceTemplate[] | undefined {
-  object.updateMatrixWorld(true);
-  const rootInverse = object.matrixWorld.clone().invert();
-  const templates = new Map<SurfaceFaceDirection, SurfaceFaceTemplate>();
-  let valid = true;
-  object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh) || !valid) return;
-    const face = child.userData['face'];
-    const cullface = child.userData['cullface'];
-    const direction = (typeof cullface === 'string' ? cullface : face) as SurfaceFaceDirection;
-    if (!['north', 'south', 'east', 'west', 'up', 'down'].includes(direction) || typeof face === 'string' && typeof cullface === 'string' && face !== cullface || templates.has(direction)) { valid = false; return; }
-    if (Array.isArray(child.material) || child.material.transparent || child.material.depthWrite === false || child.morphTargetInfluences || child.type === 'SkinnedMesh') { valid = false; return; }
-    const matrix = rootInverse.clone().multiply(child.matrixWorld);
-    const geometry = child.geometry.clone().applyMatrix4(matrix);
-    const canonicalTransform = canonicalizeSurfaceFaceGeometry(geometry, direction);
-    geometry.computeBoundingBox(); geometry.computeBoundingSphere(); geometry.userData['surfaceOwnedGeometry'] = true;
-    templates.set(direction, { geometry, material: child.material.clone(), direction, matrix: canonicalTransform.clone().invert() });
-  });
-  if (!valid || templates.size !== 6) {
-    for (const template of templates.values()) { template.geometry.dispose(); template.material.dispose(); }
-    return undefined;
-  }
-  return (['north', 'south', 'east', 'west', 'up', 'down'] as const).map((direction) => templates.get(direction)!);
-}
-
-function canonicalizeSurfaceFaceGeometry(geometry: THREE.BufferGeometry, direction: SurfaceFaceDirection): THREE.Matrix4 {
-  const transform = new THREE.Matrix4();
-  switch (direction) {
-    case 'north': transform.set(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1); break;
-    case 'south': transform.set(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1, 0, 0, 0, 1); break;
-    case 'east': transform.set(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1); break;
-    case 'west': transform.set(0, 0, -1, 1, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1); break;
-    case 'up': transform.set(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 0, 0, 1); break;
-    case 'down': transform.set(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1); break;
-  }
-  geometry.applyMatrix4(transform);
-  return transform;
-}
 
 export const mergeInstanceTemplateParts = mergeInstanceTemplatePartsFromCache;
 export const compileInstanceTemplates = compileInstanceTemplatesFromCache;
-function unitVoxelEnvelope(): THREE.Box3 { return new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 1)); }
-function stableChunkBounds(chunk: string, envelope: THREE.Box3): THREE.Box3 {
-  const [chunkX, chunkY, chunkZ] = chunk.split(',').map(Number);
-  const origin = new THREE.Vector3(chunkX * VIEWPORT_INSTANCE_CHUNK_SIZE, chunkY * VIEWPORT_INSTANCE_CHUNK_SIZE, chunkZ * VIEWPORT_INSTANCE_CHUNK_SIZE);
-  return new THREE.Box3(
-    origin.clone().add(envelope.min),
-    origin.clone().add(new THREE.Vector3(VIEWPORT_INSTANCE_CHUNK_SIZE - 1, VIEWPORT_INSTANCE_CHUNK_SIZE - 1, VIEWPORT_INSTANCE_CHUNK_SIZE - 1)).add(envelope.max),
-  );
-}
-function chunkKey(position: VoxelCoordinate): string { return `${Math.floor(position.x / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.y / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.z / VIEWPORT_INSTANCE_CHUNK_SIZE)}`; }
