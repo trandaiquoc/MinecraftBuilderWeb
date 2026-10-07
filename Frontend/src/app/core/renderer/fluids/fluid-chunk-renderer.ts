@@ -209,6 +209,24 @@ export class FluidChunkRenderer {
     return { fluidLogicalVoxels: this.records.size, fluidChunks: this.chunks.size, fluidChunkMeshes: [...this.chunks.values()].reduce((sum, chunk) => sum + chunk.meshes.length, 0), fluidMaterialBuckets: this.materialCache.size, fluidStandaloneMeshes: 0, fluidFacesPotential: facesPotential, fluidFacesCulled: facesCulled, fluidFacesEmitted: facesEmitted, fluidChunkRebuilds: this.chunkRebuilds, fluidFullRebuilds: this.fullRebuilds, fluidIncrementalRebuilds: this.incrementalRebuilds, fluidDirtyChunksLastEdit: this.dirtyChunksLastEdit, fluidDescriptorResolutions: this.descriptorResolutions, fluidDescriptorCacheHits: this.descriptorCacheHits, fluidDescriptorCacheMisses: this.descriptorCacheMisses, fluidFallbackVoxels: fallbackKeys.size, fluidFallbackMeshes: [...this.chunks.values()].filter((chunk) => chunk.fallbackKeys.size > 0).length, fluidByType: Object.fromEntries(logicalByType), fluidMeshesByRenderLayer: Object.fromEntries(meshesByLayer) };
   }
 
+  /** O(1) counters for the high-frequency viewport trace sample. */
+  lightDiagnostics(): Readonly<Record<string, unknown>> {
+    return {
+      fluidLogicalVoxels: this.records.size,
+      fluidChunks: this.chunks.size,
+      fluidChunkMeshes: this.group.children.length,
+      fluidMaterialBuckets: this.materialCache.size,
+      fluidStandaloneMeshes: 0,
+      fluidChunkRebuilds: this.chunkRebuilds,
+      fluidFullRebuilds: this.fullRebuilds,
+      fluidIncrementalRebuilds: this.incrementalRebuilds,
+      fluidDirtyChunksLastEdit: this.dirtyChunksLastEdit,
+      fluidDescriptorResolutions: this.descriptorResolutions,
+      fluidDescriptorCacheHits: this.descriptorCacheHits,
+      fluidDescriptorCacheMisses: this.descriptorCacheMisses,
+    };
+  }
+
   clear(): void {
     for (const key of [...this.chunks.keys()]) this.removeChunk(key);
     this.epoch += 1;

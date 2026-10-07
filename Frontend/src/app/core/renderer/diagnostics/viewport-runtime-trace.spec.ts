@@ -35,7 +35,29 @@ describe('ViewportRuntimeTrace', () => {
     expect(document?.samples.at(-1)?.staticModels?.['standaloneLogical']).toBe(4);
     expect(document?.summary.staticModels['standaloneLogical']).toBe(4);
     expect(document?.summary.fluids['fluidChunkMeshes']).toBe(1);
+    expect(document?.checkpoints.map((checkpoint) => checkpoint.label)).toEqual(['FINAL']);
+    expect(document?.summary.traceSampleMs.p95Ms).toBeDefined();
     expect(stableTraceJson(document)).toContain('idle-build');
+  });
+
+  it('keeps periodic sampling light and reserves rich collection for checkpoints', () => {
+    let lightCalls = 0;
+    let heavyCalls = 0;
+    const trace = new ViewportRuntimeTrace({
+      metadata: () => ({}),
+      sample: () => { lightCalls += 1; return sample({ staticModels: { available: false } }); },
+      checkpoint: () => { heavyCalls += 1; return sample({ staticModels: { available: true, standaloneLogical: 4 } }); },
+    });
+    trace.start('sample-cost');
+    for (let index = 0; index < 100; index += 1) trace.captureSample('interval');
+    expect(lightCalls).toBe(101);
+    expect(heavyCalls).toBe(0);
+    trace.checkpoint('BASELINE');
+    expect(heavyCalls).toBe(1);
+    const document = trace.stop();
+    expect(heavyCalls).toBe(2);
+    expect(document?.checkpoints.map((checkpoint) => checkpoint.label)).toEqual(['BASELINE', 'FINAL']);
+    expect(document?.summary.traceSampleMs.observedCount).toBe(document?.summary.recorder['captureSampleCount']);
   });
 
   it('detects progress, generation and camera drift during a camera gesture', () => {

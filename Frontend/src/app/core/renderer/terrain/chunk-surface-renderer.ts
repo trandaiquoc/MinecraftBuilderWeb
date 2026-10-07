@@ -352,6 +352,23 @@ export class ChunkSurfaceRenderer {
     };
   }
 
+  /** O(1) maintained counters for high-frequency runtime trace sampling. */
+  lightEvidence(): Readonly<Record<string, unknown>> {
+    return {
+      terrainChunks: this.chunks.size,
+      terrainChunkMeshes: this.chunkMeshCount,
+      terrainChunkRebuilds: this.rebuildCount,
+      terrainBlocksCompiled: this.blocksCompiled,
+      terrainFacesEmitted: this.facesEmitted,
+      terrainFacesCulled: this.facesCulled,
+      terrainTemplateResolutions: this.templateResolutions,
+      terrainTemplateCacheHits: this.templateCacheHits,
+      terrainLogicalBlocks: this.records.size,
+      terrainBulkBatches: this.bulkBatches,
+      terrainPendingHydrationCandidates: this.pendingHydrationCandidatesByChunk.size,
+    };
+  }
+
   clear(): void {
     this.cancelSettlement();
     if (this.flushTimer !== undefined) clearTimeout(this.flushTimer);

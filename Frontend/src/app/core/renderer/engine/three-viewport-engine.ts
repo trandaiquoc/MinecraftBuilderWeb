@@ -780,6 +780,7 @@ export class ThreeViewportEngine {
   private get reusableInstanceTemplates(): ReadonlyMap<string, CompiledInstanceTemplates> { return this.instanceRenderer.templateCacheView(); }
   private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
   private staticModelDiagnosticsCache?: StaticModelDiagnosticSnapshot;
+  private staticModelDiagnosticsBuildCount = 0;
   private readonly surfaceRenderer = new SurfaceFaceBatchRenderer({
     blocksGroup: this.blocksGroup,
     capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
@@ -1603,30 +1604,44 @@ export class ThreeViewportEngine {
     const offset = this.camera.position.clone().sub(target);
     const direction = this.camera.getWorldDirection(new THREE.Vector3());
     const counters = this.instrumentation.snapshot();
-    const terrain = this.terrainRenderer.evidence();
+    const terrain = this.terrainRenderer.lightEvidence();
     const currentGenerationRunning = this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0;
     const workCounts = this.hydrationWork.counts();
     const hydration = this.hydrationProgressState;
-    const renderRegions = new Set([...this.instanceBatches.values(), ...this.surfaceFaceBatches.values()].map((batch) => batch.regionKey).filter((key): key is string => !!key));
-    const standaloneBlockObjects = [...this.renderedBlocks.values()].filter((entry) => !!entry.object && !entry.instanceBatchKey && !entry.surfaceFaceMemberships?.length && entry.terrainChunkKey === undefined).length;
-    const staticModels = this.staticModelDiagnostics();
+    const staticModels = { available: !!this.staticModelDiagnosticsCache, buildCount: this.staticModelDiagnosticsBuildCount };
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
       hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.cachedVisibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
-      render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.filter((child) => child.visible).length + this.decorationsGroup.children.filter((child) => child.visible).length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain.terrainChunkMeshes, standaloneMeshCount: standaloneBlockObjects, renderRegionCount: renderRegions.size },
+      render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.length + this.decorationsGroup.children.length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain['terrainChunkMeshes'], standaloneMeshCount: 0, renderRegionCount: this.instanceBatches.size + this.surfaceFaceBatches.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
+      terrain: { ...terrain },
+      staticModels: { ...staticModels },
+      fluids: { ...this.fluidCoordinator.lightDiagnostics() },
+      build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed },
+    };
+  }
+
+  /** Rich, explicitly requested evidence. Never used by the 50ms heartbeat sample. */
+  runtimeTraceHeavySample(): ViewportTraceSample {
+    const light = this.runtimeTraceSample();
+    const terrain = this.terrainRenderer.evidence();
+    const staticModels = this.staticModelDiagnostics();
+    const evidence = this.performanceEvidence();
+    return {
+      ...light,
+      render: { ...light.render, ...evidence },
       terrain: { ...terrain, terrainAtlas: { ...terrain.terrainAtlas } },
       staticModels: { ...staticModels },
       fluids: { ...this.fluidCoordinator.diagnostics() },
-      build: { effectiveMovementSpeed: effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, offset.length()), cameraMovementScale: cameraMovementScale(offset.length()), cameraMoveSpeed: this.controlConfiguration.cameraMoveSpeed, verticalMoveSpeed: this.controlConfiguration.verticalMoveSpeed },
     };
   }
 
   private staticModelDiagnostics(): StaticModelDiagnosticSnapshot {
     if (this.staticModelDiagnosticsCache) return this.staticModelDiagnosticsCache;
     const metrics = this.instanceRenderer.metrics();
+    this.staticModelDiagnosticsBuildCount += 1;
     this.staticModelDiagnosticsCache = collectStaticModelDiagnostics([...this.renderedBlocks.values()].map((entry) => ({ ...entry, id: entry.block.id })), metrics, this.instanceRenderer.templatePartCounts());
     return this.staticModelDiagnosticsCache;
   }

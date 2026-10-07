@@ -144,6 +144,25 @@ export class FluidRenderCoordinator {
     };
   }
 
+  /** O(1) lifecycle counters for the high-frequency viewport trace sample. */
+  lightDiagnostics(): Readonly<Record<string, unknown>> {
+    const terminal = this.committed.size + this.fallback.size;
+    return {
+      ...this.renderer.lightDiagnostics(),
+      fluidDetectedVoxels: this.detected.size,
+      fluidPendingVoxels: this.pending.size,
+      fluidCommittedVoxels: this.committed.size,
+      fluidOrphanedLogicalCount: Math.max(0, this.detected.size - this.pending.size - terminal),
+      fluidFallbackVoxels: this.fallback.size,
+      fluidProviderTransitions: this.providerTransitions,
+      fluidProviderEquivalentTransitions: this.equivalentTransitions,
+      fluidProviderRemeshTransitions: this.remeshTransitions,
+      fluidProviderTransitionPreservedChunks: this.preservedChunks,
+      fluidProviderTransitionRebuiltChunks: this.rebuiltChunks,
+      fluidProviderTransitionFallbackVoxels: this.transitionFallbackVoxels,
+    };
+  }
+
   clear(): void {
     this.syncGeneration += 1;
     this.detected.clear(); this.pending.clear(); this.committed.clear(); this.fallback.clear();

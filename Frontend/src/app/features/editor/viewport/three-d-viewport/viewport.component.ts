@@ -81,7 +81,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
-  private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample() });
+  private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample(), checkpoint: () => this.engine.runtimeTraceHeavySample() });
   private readonly viewportTraceApi: ViewportRuntimeTraceApi = this.viewportTrace.getApi();
   private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();
   private readonly terrainAtlasProbeCommand = (blockId = 'minecraft:stone', state: Readonly<Record<string, string>> = {}) => runTerrainAtlasProbe(this.engine, this.assets.visualProvider(), blockId, state);
