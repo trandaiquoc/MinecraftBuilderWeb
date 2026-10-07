@@ -34,7 +34,7 @@ import { coordinateNeighbors, hasConfirmedOpaqueNeighbors } from '../visibility/
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-index';
-import type { VoxelRaycastCandidate } from '../interaction/voxel-raycast';
+import { fluidCoordinateFromHit } from '../interaction/viewport-raycast-controller';
 import { compileInstanceTemplates as compileInstanceTemplatesFromCache, mergeInstanceTemplateParts as mergeInstanceTemplatePartsFromCache } from '../batching/instance-template-cache';
 import type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
 import { PlaceholderBatchRenderer } from '../batching/placeholder-batch-renderer';
@@ -69,7 +69,12 @@ import { nextCameraDistanceFromWheel, wheelMagnitude, type WheelZoomAction } fro
 import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
+import { collectInstanceOwnershipViolations, collectInstanceOwnershipViolationsForKey } from '../diagnostics/instance-ownership-diagnostics';
+import { captureViewportGhostSceneSnapshot } from '../diagnostics/viewport-snapshot-diagnostics';
+import type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTransitionDiagnostics, ViewportGhostSceneSnapshot, ViewportHydrationDiagnostics, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics, ViewportPerformanceEvidence, ViewportProjectionActivity, ViewportProjectionState, ViewportRuntimeDiagnostics, ViewportSuspiciousVisualDiagnostic, ViewportVisibleMeshDiagnostic, ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../diagnostics/viewport-diagnostics-contracts';
+export type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTransitionDiagnostics, ViewportGhostSceneSnapshot, ViewportHydrationDiagnostics, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics, ViewportPerformanceEvidence, ViewportProjectionActivity, ViewportProjectionState, ViewportRuntimeDiagnostics, ViewportSuspiciousVisualDiagnostic, ViewportVisibleMeshDiagnostic, ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../diagnostics/viewport-diagnostics-contracts';
 import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
+import { collectPerformanceEvidence } from '../diagnostics/viewport-performance-evidence';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
 import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
 import { fluidChunkKey } from '../fluids/fluid-mesh-core';
@@ -92,366 +97,9 @@ import { DecorationSelectionPresenter } from '../presentation/decoration-selecti
 import { blockCoordinateFromHit, cameraActionMovementDelta, canonicalRenderOptions, chunkKey, compareEmptySnapshots, createBoundedGrid, decorationSignature, DETAILED_SELECTION_OUTLINE_LIMIT, emptyResolvedModel, isHorizontalDirection, isolateKey, renderFilterKey, stableChunkBounds, stableValue, surfaceFaceDirectionFromHit, surfaceNeighbor, surfaceFaceNormal, unitVoxelEnvelope, vectorValue, boundsOfPositions, blockRenderSignature } from './viewport-render-helpers';
 export { cameraMovementDirection, cameraMovementDelta, blockCoordinateFromHit, surfaceFaceDirectionFromHit, surfaceFaceNormal } from './viewport-render-helpers';
 import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, PlacementPlanProvider } from './viewport-engine-contracts';
+type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
 export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
 
-
-type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
-export interface ViewportPerformanceEvidence {
-  readonly renderCalls: number;
-  readonly triangles: number;
-  readonly geometries: number;
-  readonly textures: number;
-  readonly renderedBlocks: number;
-  readonly renderedDecorations: number;
-  readonly object3dCount: number;
-  readonly meshCount: number;
-  readonly visibleMeshCount: number;
-  readonly instanceMeshCount: number;
-  readonly instanceMembers: number;
-  readonly providerObjectCreations: number;
-  readonly reusableTemplateCreations: number;
-  readonly reusableTemplateCacheHits: number;
-  readonly rawInstanceTemplateParts: number;
-  readonly mergedInstanceTemplateParts: number;
-  readonly templateMergeOperations: number;
-  readonly templatePartsEliminated: number;
-  readonly instancedBoundsComputations: number;
-  readonly fallbackMeshCreations: number;
-  readonly cachedTemplateInsertions: number;
-  readonly cameraMovementFrames: number;
-  readonly cameraMovementRenderCalls: number;
-  readonly cameraChangeEventsDuringMovement: number;
-  readonly cameraRenderRequestsSuppressed: number;
-  readonly controlChangeEvents: number;
-  readonly cameraRenderRequests: number;
-  readonly cameraRendersExecuted: number;
-  readonly cameraRenderRequestsCoalesced: number;
-  readonly interactiveResolutionEntries: number;
-  readonly staticResolutionRestores: number;
-  readonly regularHydrationStarted: number;
-  readonly regularHydrationCompleted: number;
-  readonly providerRefreshStarted: number;
-  readonly providerRefreshCompleted: number;
-  readonly hydrationFairnessDeferrals: number;
-  readonly maxProviderRefreshRunningWhileRegularPending: number;
-  readonly hydrationPausesForCamera: number;
-  readonly hydrationJobsStartedWhileCamera: number;
-  readonly hydrationProgressRegressions: number;
-  readonly cameraOnlyGenerationChanges: number;
-  readonly blockSignatureComputations: number;
-  readonly hoverRaycasts: number;
-  readonly hoverRaycastsSuppressedDuringCamera: number;
-  readonly hoverPointerMovesCoalesced: number;
-  readonly interiorBlocksCulled: number;
-  readonly hydrationQueue: number;
-  readonly hydrationRunning: number;
-  readonly frameDurationMs: number;
-  readonly renderCpuMs: number;
-  readonly drawCalls: number;
-  readonly lines: number;
-  readonly points: number;
-  readonly instanceBatches: number;
-  readonly instancedMeshCount: number;
-  readonly nonInstancedMeshCount: number;
-  readonly renderRegionSize: number;
-  readonly renderRegionCount: number;
-  readonly regionalInstanceBatchCount: number;
-  readonly regionalInstanceMeshCount: number;
-  readonly regionalSurfaceBatchCount: number;
-  readonly instanceMaterialCount: number;
-  readonly instanceGeometryCount: number;
-  readonly staticModelCandidates: number;
-  readonly staticModelBatchable: number;
-  readonly staticModelBatchedMembers: number;
-  readonly staticModelTemplateCacheHits: number;
-  readonly staticModelTemplateCacheMisses: number;
-  readonly providerObjectsAvoidedByStaticCache: number;
-  readonly staticModelRejected: Readonly<Record<string, number>>;
-  readonly staticModelBatchCount: number;
-  readonly staticModelInstanceMeshCount: number;
-  readonly fluidLogicalVoxels: number;
-  readonly fluidChunks: number;
-  readonly fluidChunkMeshes: number;
-  readonly fluidStandaloneMeshes: number;
-  readonly fluidFacesPotential: number;
-  readonly fluidFacesCulled: number;
-  readonly fluidFacesEmitted: number;
-  readonly fluidMaterialBuckets: number;
-  readonly standaloneBlockObjects: number;
-  readonly standaloneBlockMeshes: number;
-  readonly standaloneTransparentMeshes: number;
-  readonly standaloneOpaqueMeshes: number;
-  readonly placeholderBatches: number;
-  readonly placeholderMeshes: number;
-  readonly decorationObjects: number;
-  readonly decorationMeshes: number;
-  readonly transparentMeshCount: number;
-  readonly opaqueMeshCount: number;
-  readonly renderableBlocks: number;
-  readonly surfaceFastPathBlocks: number;
-  readonly exposedFaceInstances: number;
-  readonly neighborFacesCulled: number;
-  readonly surfaceFaceBatches: number;
-  readonly surfaceFaceInstancedMeshes: number;
-  readonly hoverPickMs: number;
-  readonly hoverPickCount: number;
-  readonly hoverPickMaxMs: number;
-  readonly ddaPickCount: number;
-  readonly ddaVisitedVoxels: number;
-  readonly ddaFullCubeHits: number;
-  readonly precisePickFallbacks: number;
-  readonly placementPreviewMs: number;
-  readonly placementPreviewCount: number;
-  readonly placementPreviewMaxMs: number;
-  readonly placementPreviewFullProjectScans: number;
-  readonly duplicatePlacementValidations: number;
-  readonly spatialIndexBuilds: number;
-  readonly spatialIndexLookups: number;
-  readonly ghostVisualRebuilds: number;
-  readonly ghostVisualReuses: number;
-  readonly structuralReconciles: number;
-  readonly overlayOnlyUpdates: number;
-  readonly projectBoundsRebuilds: number;
-  readonly fullProjectScansDuringHover: number;
-  readonly renderInvalidations: number;
-  readonly renderInvalidationsCoalesced: number;
-  readonly actualSceneRenders: number;
-  readonly terrainChunks: number;
-  readonly terrainChunkMeshes: number;
-  readonly terrainDrawObjectCount: number;
-  readonly terrainTriangleCount: number;
-  readonly terrainChunkRebuilds: number;
-  readonly terrainBlocksCompiled: number;
-  readonly terrainFacesEmitted: number;
-  readonly terrainFacesCulled: number;
-  readonly terrainTemplateResolutions: number;
-  readonly terrainTemplateCacheHits: number;
-  readonly terrainLogicalBlocks: number;
-  readonly terrainBulkBatches: number;
-  readonly terrainCandidateOwnershipTotal: number;
-  readonly terrainCandidateFanoutTotal: number;
-  readonly maxHydrationCandidatesPerChunk: number;
-  readonly maxRecordsPerChunk: number;
-  readonly terrainCommitCandidateChecks: number;
-  readonly terrainCommitRepresentedLookupChecks: number;
-  readonly terrainPendingHydrationCandidates: number;
-  readonly terrainAsyncAcceptedResults: number;
-  readonly terrainAsyncStaleRevisionResults: number;
-  readonly terrainAsyncStaleGenerationResults: number;
-  readonly terrainAsyncStaleProviderResults: number;
-  readonly terrainAsyncSupersededResults: number;
-  readonly terrainAsyncRescheduledChunks: number;
-  readonly terrainAsyncCommitPolicyRejected: number;
-  readonly terrainAsyncAllUnrepresentedResults: number;
-  readonly terrainAsyncPartialFailureResults: number;
-  readonly terrainAsyncWorkerFailures: number;
-  readonly terrainAsyncFallbackKeys: number;
-  readonly terrainAsyncRejectedWithoutReplacement: number;
-  readonly terrainAtlasMode: TerrainAtlasMode;
-  readonly terrainAtlasPages: number;
-  readonly terrainAtlasSprites: number;
-  readonly terrainAtlasInsertions: number;
-  readonly terrainAtlasCacheHits: number;
-  readonly terrainAtlasCompatibleFaces: number;
-  readonly terrainAtlasFallbackFaces: number;
-  readonly terrainAtlasMaterials: number;
-  readonly terrainAtlasChunkBuckets: number;
-  readonly terrainWorker: Readonly<Record<string, unknown>>;
-  readonly terrainCommit: Readonly<Record<string, unknown>>;
-}
-export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
-export interface ViewportHydrationDiagnostics {
-  readonly generation: number;
-  readonly queued: number;
-  readonly running: number;
-  readonly globalRunning: number;
-  readonly currentGenerationRunning: number;
-  readonly staleRunning: number;
-  readonly hydrationScheduled: boolean;
-  readonly hydrationTimerActive: boolean;
-  readonly hydrationBatchBudget: number;
-  readonly pendingSignatureCount: number;
-  readonly placeholderSignatureCount: number;
-  readonly placeholderVisualCount: number;
-  readonly renderedBlockCount: number;
-  readonly expectedVisibleBlockCount: number;
-  readonly runningOwnershipCount: number;
-  readonly runningByGeneration: Readonly<Record<string, number>>;
-  readonly orphanedHydrationCount: number;
-  readonly orphanedHydrationSample: readonly string[];
-  readonly completed: number;
-  readonly total: number;
-  readonly scheduled: boolean;
-  readonly regularQueued: number;
-  readonly providerRefreshQueued: number;
-  readonly regularRunning: number;
-  readonly providerRefreshRunning: number;
-  readonly providerRefreshPlanning: boolean;
-  readonly providerRefreshPlanningProcessed: number;
-  readonly providerRefreshPlanningTotal: number;
-  readonly providerRefreshPlanningConsidered: number;
-  readonly providerRefreshPlanningQueued: number;
-  readonly providerRefreshPlanningMaxSliceMs: number;
-  readonly providerRefreshPlanningYields: number;
-  readonly providerRefreshPlanningDurationMs: number;
-}
-export interface VisibleSceneDiagnostics {
-  readonly expectedVisibleVoxelCount: number;
-  readonly renderedVoxelCount: number;
-  readonly placeholderVoxelCount: number;
-  readonly pendingVoxelCount: number;
-  readonly expectedVoxelKeys: readonly string[];
-  readonly renderedVoxelKeys: readonly string[];
-  readonly placeholderVoxelKeys: readonly string[];
-  readonly pendingVoxelKeys: readonly string[];
-  readonly representedVoxelKeys: readonly string[];
-}
-export interface ViewportVoxelOwnershipDiagnostic {
-  readonly coordinateKey: string;
-  readonly expectedVisible: boolean;
-  readonly renderedEntry: boolean;
-  readonly placeholderEntry: boolean;
-  readonly pendingSignature?: string;
-  readonly queuedJob: boolean;
-  readonly runningGeneration?: number;
-}
-
-export interface ViewportOwnershipDiagnostics {
-  readonly authoritativeProjectBlockCount: number;
-  readonly authoritativeVisibleBlockCount: number;
-  readonly renderedBlockCount: number;
-  readonly placeholderVisualCount: number;
-  readonly instanceBatchCount: number;
-  readonly instanceMemberCount: number;
-  readonly placeholderBatchCount: number;
-  readonly placeholderIndexCount: number;
-  readonly blocksGroupChildCount: number;
-  readonly blockLikeSceneObjectsOutsideBlocksGroup: number;
-  readonly visibleMeshesOutsideBlocksGroup: number;
-  readonly staleVoxelKeys: readonly string[];
-  readonly batchInvariantViolations: readonly string[];
-  readonly outsideBlocksGroupOwners: readonly string[];
-  readonly visibleMeshCount: number;
-  readonly visibleMeshSample: readonly ViewportVisibleMeshDiagnostic[];
-  readonly visibleMeshesOutsideBlocksGroupSample: readonly ViewportVisibleMeshDiagnostic[];
-  readonly suspiciousVisualCount: number;
-  readonly suspiciousVisuals: readonly ViewportSuspiciousVisualDiagnostic[];
-  readonly directSceneChildren: readonly { readonly owner: string; readonly uuid: string; readonly visible: boolean; readonly childCount: number }[];
-  readonly previewState: {
-    readonly ghostVisible: boolean;
-    readonly ghostModelPresent: boolean;
-    readonly ghostModelVisible: boolean;
-    readonly ghostModelKey: string;
-    readonly ghostGeneration: number;
-    readonly ghostTarget?: VoxelCoordinate;
-    readonly movePreviewChildren: number;
-    readonly decorationGhostChildren: number;
-    readonly logicalSelectionChildren: number;
-    readonly selectionOutlineVisible: boolean;
-    readonly reusableTemplateCount: number;
-  };
-  readonly hydrationState: Pick<ViewportHydrationDiagnostics, 'queued' | 'running' | 'pendingSignatureCount' | 'placeholderSignatureCount' | 'runningOwnershipCount'>;
-}
-
-export interface ViewportVisibleMeshDiagnostic {
-  readonly owner: string;
-  readonly directSceneRoot: string;
-  readonly objectType: string;
-  readonly uuid: string;
-  readonly visible: boolean;
-  readonly parentPath: readonly { readonly type: string; readonly name: string; readonly uuid: string; readonly visible: boolean }[];
-  readonly localPosition: CameraVector;
-  readonly worldPosition: CameraVector;
-  readonly worldBounds: { readonly min: CameraVector; readonly max: CameraVector };
-  readonly matrixWorld: readonly number[];
-  readonly renderOrder: number;
-  readonly descendantsOf: {
-    readonly blocksGroup: boolean;
-    readonly ghostModel: boolean;
-    readonly ghost: boolean;
-    readonly movePreviewGroup: boolean;
-    readonly decorationGhostGroup: boolean;
-    readonly decorationSelectionGroup: boolean;
-    readonly logicalSelectionGroup: boolean;
-  };
-  readonly geometry: { readonly uuid: string; readonly type: string };
-  readonly materials: readonly { readonly uuid: string; readonly type: string; readonly visible: boolean; readonly opacity: number; readonly texture?: { readonly uuid: string; readonly sourceUuid: string; readonly sourceIdentity?: string } }[];
-  readonly userData: Readonly<Record<string, unknown>>;
-  readonly instanceCount?: number;
-  readonly instances?: {
-    readonly count: number;
-    readonly batchKey?: string;
-    readonly instanceKeys: readonly string[];
-    readonly instanceVoxels: readonly VoxelCoordinate[];
-    readonly worldPositions: readonly CameraVector[];
-  };
-}
-
-export interface ViewportSuspiciousVisualDiagnostic {
-  readonly owner: string;
-  readonly uuid: string;
-  readonly reason: string;
-  readonly intentionalPreview: boolean;
-  readonly position: CameraVector;
-  readonly worldBounds: ViewportVisibleMeshDiagnostic['worldBounds'];
-}
-
-export interface ViewportGhostSceneSnapshot {
-  readonly capturedAt: string;
-  readonly authoritativeProjectBlockCount: number;
-  readonly activeBlock?: { readonly id: string; readonly state: Readonly<Record<string, string>> };
-  readonly ownership: Pick<ViewportOwnershipDiagnostics, 'authoritativeVisibleBlockCount' | 'renderedBlockCount' | 'placeholderVisualCount' | 'placeholderBatchCount' | 'placeholderIndexCount' | 'instanceBatchCount' | 'instanceMemberCount' | 'blocksGroupChildCount' | 'visibleMeshCount' | 'visibleMeshesOutsideBlocksGroup' | 'hydrationState'>;
-  readonly visibleMeshes: readonly ViewportVisibleMeshDiagnostic[];
-  readonly suspiciousVisualCount: number;
-  readonly suspiciousVisuals: readonly ViewportSuspiciousVisualDiagnostic[];
-  readonly directSceneChildren: ViewportOwnershipDiagnostics['directSceneChildren'];
-  readonly instanceOwnershipTrace: readonly ViewportInstanceOwnershipEvent[];
-  readonly previewState: ViewportOwnershipDiagnostics['previewState'];
-}
-
-export interface ViewportInstanceOwnershipEvent {
-  readonly phase: 'before-insert' | 'after-insert' | 'before-remove' | 'after-remove' | 'after-remove-entry' | 'after-reconcile';
-  readonly key?: string;
-  readonly source?: 'cached-template' | 'provider-async' | 'rollback' | 'reconcile';
-  readonly generation: number;
-  readonly previousEntry?: { readonly batchKey?: string; readonly index?: number };
-  readonly physicalMemberships: readonly { readonly batchKey: string; readonly index: number }[];
-  readonly violations: readonly string[];
-}
-
-export interface ViewportEmptyTransitionDiagnostics {
-  readonly firstEmpty: ViewportGhostSceneSnapshot | null;
-  readonly secondEmpty: ViewportGhostSceneSnapshot | null;
-  readonly differences: null | {
-    readonly visibleMeshCountDelta: number;
-    readonly renderedBlockCountDelta: number;
-    readonly visibleMeshesAdded: readonly ViewportVisibleMeshDiagnostic[];
-    readonly visibleMeshesRemoved: readonly ViewportVisibleMeshDiagnostic[];
-    readonly suspiciousVisualsAdded: readonly ViewportSuspiciousVisualDiagnostic[];
-    readonly suspiciousVisualsRemoved: readonly ViewportSuspiciousVisualDiagnostic[];
-    readonly previewStateChanged: boolean;
-  };
-}
-
-export interface ViewportRuntimeDiagnostics {
-  readonly current: ViewportGhostSceneSnapshot;
-  readonly emptyTransitions: ViewportEmptyTransitionDiagnostics;
-}
-
-export interface ViewportControlConfiguration {
-  readonly orbitSensitivity: number;
-  readonly panSensitivity: number;
-  readonly zoomSensitivity: number;
-  readonly cameraMoveSpeed: number;
-  readonly verticalMoveSpeed: number;
-}
-
-export type ViewportProjectionActivity = 'idle' | 'applying' | 'settling';
-
-export interface ViewportProjectionState {
-  readonly activity: ViewportProjectionActivity;
-  readonly revision: number;
-}
 
 interface RenderedBlockEntry {
   readonly key: string;
@@ -615,7 +263,6 @@ export class ThreeViewportEngine {
   private set blockUsageHighlightCapacity(value: number) { this.groupHighlightPresenter.usageCapacity = value; }
   private get blockUsageHighlightGeometry(): THREE.BoxGeometry { return this.groupHighlightPresenter.blockUsageHighlightGeometry; }
   private get blockUsageHighlightMaterial(): THREE.MeshBasicMaterial { return this.groupHighlightPresenter.blockUsageHighlightMaterial; }
-  private get groupHighlightGroup(): THREE.Group { return this.groupHighlightPresenter.group; }
   private get structureBlockGuideKey(): string { return this.structureBlockGuidePresenter.currentKey; }
   private set structureBlockGuideKey(value: string) { this.structureBlockGuidePresenter.currentKey = value; }
   private readonly fallbackGeometry = Object.assign(new THREE.BoxGeometry(1, 1, 1), { userData: { sharedFallbackGeometry: true } });
@@ -744,8 +391,6 @@ export class ThreeViewportEngine {
   private get cameraMoveFrame(): number | undefined { return this.cameraInput.movementFrame; }
   private set cameraMoveFrame(value: number | undefined) { this.cameraInput.movementFrame = value; }
   private get pressedActions(): Set<MovementAction> { return this.cameraInput.pressedActions as Set<MovementAction>; }
-  private get cameraInteraction() { return this.cameraInput.interaction; }
-  private get mouseBindings(): Readonly<Record<MouseAction, string>> { return this.cameraInput.currentMouseBindings; }
   private get temporaryMouseButton() { return this.cameraInput.temporaryButton; }
   private set temporaryMouseButton(value: { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined } | undefined) { this.cameraInput.temporaryButton = value; }
   private readonly onWindowBlur = () => { this.runtimeTrace?.record('blur'); this.clearInput(); };
@@ -885,13 +530,37 @@ export class ThreeViewportEngine {
     record: (name) => this.instrumentation.record(name),
     hit: (request) => this.performHit(request.clientX, request.clientY, request.project as ProjectDocument | undefined, request.active as ActiveBlock | undefined, request.planeY, request.showGhost),
   });
-  private readonly raycastController = new ViewportRaycastController({
+  private readonly raycastController = new ViewportRaycastController(this.raycaster, {
     classify: (position) => {
       const key = coordinateKey(position); const entry = this.cachedVisibleMap.get(key);
       if (!entry || this.culledBlockKeys.has(key) || this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return 'skip';
       return entry.role === 'normal' && entry.occlusionClass === 'opaque-full-cube' ? 'hit' : 'fallback';
     },
-    precise: (candidates) => this.preciseCandidatePick(candidates),
+    objectsForVoxel: (position) => {
+      const key = coordinateKey(position);
+      if (this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return [];
+      const entry = this.renderedBlocks.get(key);
+      const objects: THREE.Object3D[] = [];
+      const add = (object: THREE.Object3D | undefined) => { if (object && !objects.some((existing) => existing.uuid === object.uuid)) objects.push(object); };
+      if (entry) {
+        add(entry.fallback); add(entry.object);
+        if (entry.fluidChunkKey !== undefined) for (const object of this.fluidCoordinator.objectsForVoxel(key)) add(object);
+        for (const membership of entry.surfaceFaceMemberships ?? this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
+        if (entry.instanceBatchKey) for (const part of this.instanceBatches.get(entry.instanceBatchKey)?.parts ?? []) add(part);
+      } else for (const membership of this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
+      if (this.isolationPresentation.isActive()) for (const object of this.isolationPresentation.objectsForKey(key)) add(object);
+      const placeholder = this.placeholderIndices.get(key);
+      if (placeholder) add(this.placeholderBatches.get(placeholder.batchKey)?.mesh);
+      return objects;
+    },
+    isPreciseHit: (hit, position) => {
+      if (hit.object.userData['fluidChunk'] === true) {
+        const fluidHit = fluidCoordinateFromHit(hit, (key) => this.fluidVoxelOwner(key));
+        return !!fluidHit && coordinateKey(fluidHit) === coordinateKey(position);
+      }
+      const hitPosition = blockCoordinateFromHit(hit);
+      return !hitPosition || coordinateKey(hitPosition) === coordinateKey(position);
+    },
     record: (name, value = 1) => this.instrumentation.record(name, value),
   });
   private fallbackGeometryCounted = false;
@@ -3354,41 +3023,6 @@ export class ThreeViewportEngine {
     return this.raycastController.pick(this.raycaster.ray, project.size);
   }
 
-  private preciseCandidatePick(candidates: readonly VoxelRaycastCandidate[]): { readonly position: VoxelCoordinate; readonly normal: FaceNormal; readonly point: THREE.Vector3; readonly distance: number } | undefined {
-    for (const candidate of candidates) {
-      const key = coordinateKey(candidate.position);
-      if (this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) continue;
-      const entry = this.renderedBlocks.get(key);
-      const objects: THREE.Object3D[] = [];
-      const add = (object: THREE.Object3D | undefined) => { if (object && !objects.some((existing) => existing.uuid === object.uuid)) objects.push(object); };
-      // A committed block can be represented only by a pending placeholder.
-      // Keep candidate geometry scoped to this voxel, without requiring a
-      // final renderedBlocks entry before considering that representation.
-      if (entry) {
-        add(entry.fallback);
-        add(entry.object);
-        if (entry.fluidChunkKey !== undefined) for (const object of this.fluidCoordinator.objectsForVoxel(key)) add(object);
-        for (const membership of entry.surfaceFaceMemberships ?? this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
-        if (entry.instanceBatchKey) for (const part of this.instanceBatches.get(entry.instanceBatchKey)?.parts ?? []) add(part);
-      } else {
-        for (const membership of this.surfaceFaceOwnership.get(key) ?? []) add(this.surfaceFaceBatches.get(membership.batchKey)?.mesh);
-      }
-      if (this.isolationPresentation.isActive()) for (const object of this.isolationPresentation.objectsForKey(key)) add(object);
-      const placeholder = this.placeholderIndices.get(key);
-      if (placeholder) add(this.placeholderBatches.get(placeholder.batchKey)?.mesh);
-      if (!objects.length) continue;
-      const intersection = this.raycaster.intersectObjects(objects, true).find((hit) => {
-        if (hit.object.userData['fluidChunk'] === true) { const fluidHit = this.fluidCoordinateFromHit(hit); return !!fluidHit && coordinateKey(fluidHit) === key; }
-        const hitPosition = blockCoordinateFromHit(hit);
-        return !hitPosition || coordinateKey(hitPosition) === key;
-      });
-      if (!intersection) continue;
-      const normalVector = intersection.face?.normal.clone().transformDirection(intersection.object.matrixWorld).normalize() ?? new THREE.Vector3(candidate.normal.x, candidate.normal.y, candidate.normal.z);
-      return { position: candidate.position, normal: { x: normalVector.x, y: normalVector.y, z: normalVector.z }, point: intersection.point, distance: intersection.distance };
-    }
-    return undefined;
-  }
-
   private performHit(clientX: number, clientY: number, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     if (!this.renderer || !this.container || !project) return {};
@@ -3415,7 +3049,7 @@ export class ThreeViewportEngine {
       faceNormal = ddaHit.normal;
       hitPoint = ddaHit.point;
     } else if (blockHit) {
-      block = blockCoordinateFromHit(blockHit) ?? this.fluidCoordinateFromHit(blockHit);
+      block = blockCoordinateFromHit(blockHit) ?? fluidCoordinateFromHit(blockHit, (key) => this.fluidVoxelOwner(key));
       if (block) {
         const surfaceDirection = surfaceFaceDirectionFromHit(blockHit);
         const normal = surfaceDirection ? surfaceFaceNormal(surfaceDirection) : (blockHit.face?.normal ?? new THREE.Vector3(0, 1, 0)).clone().transformDirection(blockHit.object.matrixWorld);
@@ -3427,7 +3061,7 @@ export class ThreeViewportEngine {
       if (groundHit) { target = targetFromGridHit(groundHit.point); faceNormal = { x: 0, y: 1, z: 0 }; hitPoint = groundHit.point; }
     }
     if (blockHit) {
-      const hitVoxel = blockCoordinateFromHit(blockHit) ?? this.fluidCoordinateFromHit(blockHit);
+      const hitVoxel = blockCoordinateFromHit(blockHit) ?? fluidCoordinateFromHit(blockHit, (key) => this.fluidVoxelOwner(key));
       if (hitVoxel && (planeY === undefined || hitVoxel.y === planeY)) block = hitVoxel;
     }
     const facing = active?.state['facing'];
@@ -3460,14 +3094,7 @@ export class ThreeViewportEngine {
     return { target, block, placement: placement.status ? { status: placement.status, plan: placement.plan } : undefined, faceNormal, placementContext, decoration, decorationPlan, decorationDistance: decorationHit?.distance, blockDistance: ddaHit?.distance ?? blockHit?.distance };
   }
 
-  private fluidCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate | undefined {
-    if (hit.object.userData['fluidChunk'] !== true) return undefined;
-    const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld).normalize() ?? new THREE.Vector3();
-    const point = hit.point.clone().sub(normal.multiplyScalar(.002));
-    const candidate = { x: Math.floor(point.x), y: Math.floor(point.y), z: Math.floor(point.z) };
-    const key = coordinateKey(candidate);
-    return this.isolationPresentation.isActive() ? this.isolationPresentation.fluidCoordinateOwner(key) ? candidate : undefined : this.fluidCoordinator.hasVoxel(key) ? candidate : undefined;
-  }
+  private fluidVoxelOwner(key: string): boolean { return this.isolationPresentation.isActive() ? this.isolationPresentation.fluidCoordinateOwner(key) : this.fluidCoordinator.hasVoxel(key); }
 
   /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
   projectPointerToPlane(event: PointerEvent, plane: FaceLockedSelectionPlane): { readonly x: number; readonly y: number; readonly z: number } | undefined {
@@ -3556,71 +3183,13 @@ export class ThreeViewportEngine {
     return collectOwnershipDiagnostics({ expectedKeys: expected, renderedKeys: this.renderedBlocks.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingSignatures: this.pendingHydrationSignatures, queuedKeys: queued, runningKeys: this.runningHydrationKeys });
   }
 
-  private instanceOwnershipViolations(): readonly string[] {
-    const violations: string[] = [];
-    const memberships = new Map<string, { batchKey: string; index: number }[]>();
-    for (const [batchKey, batch] of this.instanceBatches) {
-      if (batch.keys.length !== batch.positions.length) violations.push(`${batchKey}: keys/positions length mismatch`);
-      for (const [index, key] of batch.keys.entries()) {
-        const list = memberships.get(key) ?? [];
-        list.push({ batchKey, index });
-        memberships.set(key, list);
-        const position = batch.positions[index];
-        if (this.runtimeDiagnosticsEnabled && (!position || coordinateKey(position) !== key)) violations.push(`${batchKey}: position mismatch at ${index} (${key})`);
-        const entry = this.renderedBlocks.get(key);
-        if (!entry || entry.instanceBatchKey !== batchKey || entry.instanceIndex !== index) violations.push(`${batchKey}: ownership mismatch at ${index} (${key})`);
-      }
-      for (const [partIndex, part] of batch.parts.entries()) {
-        const keys = part.userData['instanceKeys'] as unknown;
-        const voxels = part.userData['instanceVoxels'] as unknown;
-        if (!Array.isArray(keys) || keys.length !== batch.keys.length) violations.push(`${batchKey}: part ${partIndex} keys length mismatch`);
-        if (!Array.isArray(voxels) || voxels.length !== batch.keys.length) violations.push(`${batchKey}: part ${partIndex} voxels length mismatch`);
-        if (part.count !== batch.keys.length) violations.push(`${batchKey}: part ${partIndex} count mismatch`);
-        if (this.runtimeDiagnosticsEnabled && Array.isArray(keys)) for (let index = 0; index < batch.keys.length; index += 1) if (keys[index] !== batch.keys[index]) violations.push(`${batchKey}: part ${partIndex} key mismatch at ${index}`);
-        if (this.runtimeDiagnosticsEnabled && Array.isArray(voxels)) for (let index = 0; index < batch.positions.length; index += 1) {
-          const voxel = voxels[index] as VoxelCoordinate | undefined;
-          if (!voxel || coordinateKey(voxel) !== coordinateKey(batch.positions[index])) violations.push(`${batchKey}: part ${partIndex} voxel mismatch at ${index}`);
-        }
-      }
-    }
-    for (const [key, list] of memberships) {
-      if (list.length !== 1) violations.push(`${key}: physical membership count ${list.length}`);
-      const indexed = this.instanceOwnershipIndex.get(key);
-      if (!indexed || indexed.batchKey !== list[0].batchKey || indexed.index !== list[0].index) violations.push(`${key}: ownership index does not match physical membership`);
-    }
-    for (const [key, indexed] of this.instanceOwnershipIndex) {
-      const list = memberships.get(key) ?? [];
-      if (list.length !== 1 || list[0].batchKey !== indexed.batchKey || list[0].index !== indexed.index) violations.push(`${key}: indexed membership is stale`);
-    }
-    for (const [key, entry] of this.renderedBlocks) {
-      if (!entry.instanceBatchKey) continue;
-      const list = memberships.get(key) ?? [];
-      if (list.length !== 1 || list[0].batchKey !== entry.instanceBatchKey || list[0].index !== entry.instanceIndex) violations.push(`${key}: rendered entry does not resolve to exactly one physical membership`);
-    }
-    return [...new Set(violations)];
-  }
-
   private traceInstanceOwnership(phase: ViewportInstanceOwnershipEvent['phase'], key?: string, source?: ViewportInstanceOwnershipEvent['source'], entry?: RenderedBlockEntry): void {
     if (!this.runtimeDiagnosticsEnabled) return;
     const physicalMemberships = key ? this.instanceMemberships(key) : [];
     const previousEntry = entry && (entry.instanceBatchKey !== undefined || entry.instanceIndex !== undefined) ? { ...(entry.instanceBatchKey !== undefined ? { batchKey: entry.instanceBatchKey } : {}), ...(entry.instanceIndex !== undefined ? { index: entry.instanceIndex } : {}) } : undefined;
-    const violations = key ? this.instanceOwnershipViolationsForKey(key) : this.instanceOwnershipViolations();
+    const violations = key ? collectInstanceOwnershipViolationsForKey({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.renderedBlocks, runtimeChecks: this.runtimeDiagnosticsEnabled }, key) : collectInstanceOwnershipViolations({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.renderedBlocks, runtimeChecks: this.runtimeDiagnosticsEnabled });
     this.instanceOwnershipTrace.push({ phase, ...(key ? { key } : {}), ...(source ? { source } : {}), generation: this.hydrationGeneration, ...(previousEntry ? { previousEntry } : {}), physicalMemberships, violations });
     if (this.instanceOwnershipTrace.length > 256) this.instanceOwnershipTrace.shift();
-  }
-
-  private instanceOwnershipViolationsForKey(key: string): readonly string[] {
-    const violations: string[] = [];
-    const indexed = this.instanceOwnershipIndex.get(key);
-    const entry = this.renderedBlocks.get(key);
-    if (!indexed) {
-      if (entry?.instanceBatchKey !== undefined || entry?.instanceIndex !== undefined) violations.push(`${key}: rendered entry has no indexed physical membership`);
-      return violations;
-    }
-    const batch = this.instanceBatches.get(indexed.batchKey);
-    if (!batch || batch.keys[indexed.index] !== key) violations.push(`${key}: index does not point to requested physical member`);
-    if (!entry || entry.instanceBatchKey !== indexed.batchKey || entry.instanceIndex !== indexed.index) violations.push(`${key}: rendered entry does not match indexed physical membership`);
-    return violations;
   }
 
   rendererOwnershipDiagnostics(): ViewportOwnershipDiagnostics {
@@ -3635,7 +3204,7 @@ export class ThreeViewportEngine {
     for (const job of this.hydrationWork.regularJobs()) addStale(job.key);
     for (const key of this.runningHydrationKeys.keys()) addStale(key);
 
-    const batchInvariantViolations: string[] = [...this.instanceOwnershipViolations()];
+    const batchInvariantViolations: string[] = [...collectInstanceOwnershipViolations({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.renderedBlocks, runtimeChecks: this.runtimeDiagnosticsEnabled })];
     let instanceMemberCount = 0;
     for (const [batchKey, batch] of this.instanceBatches) {
       instanceMemberCount += batch.keys.length;
@@ -3849,32 +3418,7 @@ export class ThreeViewportEngine {
   }
 
   private captureGhostSceneSnapshot(): ViewportGhostSceneSnapshot {
-    const diagnostics = this.rendererOwnershipDiagnostics();
-    const activeBlock = this.activeBlock ? { id: this.activeBlock.id, state: { ...this.activeBlock.state } } : undefined;
-    return {
-      capturedAt: new Date().toISOString(),
-      authoritativeProjectBlockCount: diagnostics.authoritativeProjectBlockCount,
-      ...(activeBlock ? { activeBlock } : {}),
-      ownership: {
-        authoritativeVisibleBlockCount: diagnostics.authoritativeVisibleBlockCount,
-        renderedBlockCount: diagnostics.renderedBlockCount,
-        placeholderVisualCount: diagnostics.placeholderVisualCount,
-        placeholderBatchCount: diagnostics.placeholderBatchCount,
-        placeholderIndexCount: diagnostics.placeholderIndexCount,
-        instanceBatchCount: diagnostics.instanceBatchCount,
-        instanceMemberCount: diagnostics.instanceMemberCount,
-        blocksGroupChildCount: diagnostics.blocksGroupChildCount,
-        visibleMeshCount: diagnostics.visibleMeshCount,
-        visibleMeshesOutsideBlocksGroup: diagnostics.visibleMeshesOutsideBlocksGroup,
-        hydrationState: { ...diagnostics.hydrationState },
-      },
-      visibleMeshes: [...diagnostics.visibleMeshSample],
-      suspiciousVisualCount: diagnostics.suspiciousVisualCount,
-      suspiciousVisuals: [...diagnostics.suspiciousVisuals],
-      directSceneChildren: diagnostics.directSceneChildren.map((child) => ({ ...child })),
-      instanceOwnershipTrace: this.instanceOwnershipTrace.map((event) => ({ ...event, physicalMemberships: event.physicalMemberships.map((membership) => ({ ...membership })), violations: [...event.violations], ...(event.previousEntry ? { previousEntry: { ...event.previousEntry } } : {}) })),
-      previewState: { ...diagnostics.previewState },
-    };
+    return captureViewportGhostSceneSnapshot(this.rendererOwnershipDiagnostics(), this.activeBlock ? { id: this.activeBlock.id, state: { ...this.activeBlock.state } } : undefined, this.instanceOwnershipTrace);
   }
 
   rendererCounters(): RendererCounters {
@@ -3886,173 +3430,8 @@ export class ThreeViewportEngine {
   }
 
   performanceEvidence(): ViewportPerformanceEvidence {
-    const counters = this.instrumentation.snapshot();
-    const terrain = this.terrainRenderer.evidence();
     const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.renderedBlocks.values(), renderedDecorations: this.renderedDecorations.values() });
-    const staticModelMetrics = this.instanceRenderer.metrics();
-    return {
-      renderCalls: this.lastRendererMetrics.calls,
-      triangles: this.lastRendererMetrics.triangles,
-      geometries: this.lastRendererMetrics.geometries,
-      textures: this.lastRendererMetrics.textures,
-      renderedBlocks: this.renderedBlocks.size,
-      renderedDecorations: this.renderedDecorations.size,
-      object3dCount: renderCost.object3dCount,
-      meshCount: renderCost.meshCount,
-      visibleMeshCount: renderCost.visibleMeshCount,
-      instanceMeshCount: counters.instancedMeshCount,
-      instanceMembers: counters.instancedMembers,
-      renderRegionSize: this.renderRegionPolicy.size,
-      renderRegionCount: renderCost.regions,
-      regionalInstanceBatchCount: renderCost.instance.batchCount,
-      regionalInstanceMeshCount: renderCost.instance.meshCount,
-      regionalSurfaceBatchCount: renderCost.surface.batchCount,
-      instanceMaterialCount: renderCost.instance.materials,
-      instanceGeometryCount: renderCost.instance.geometries,
-      staticModelCandidates: staticModelMetrics.candidates,
-      staticModelBatchable: staticModelMetrics.batchable,
-      staticModelBatchedMembers: staticModelMetrics.batchedMembers,
-      staticModelTemplateCacheHits: staticModelMetrics.templateCacheHits,
-      staticModelTemplateCacheMisses: staticModelMetrics.templateCacheMisses,
-      providerObjectsAvoidedByStaticCache: staticModelMetrics.providerObjectsAvoidedByStaticCache,
-      staticModelRejected: staticModelMetrics.rejected,
-      staticModelBatchCount: this.instanceBatches.size,
-      staticModelInstanceMeshCount: renderCost.instance.meshCount,
-      fluidLogicalVoxels: this.fluidCoordinator.diagnostics().fluidLogicalVoxels,
-      fluidChunks: this.fluidCoordinator.diagnostics().fluidChunks,
-      fluidChunkMeshes: this.fluidCoordinator.diagnostics().fluidChunkMeshes,
-      fluidStandaloneMeshes: this.fluidCoordinator.diagnostics().fluidStandaloneMeshes,
-      fluidFacesPotential: this.fluidCoordinator.diagnostics().fluidFacesPotential,
-      fluidFacesCulled: this.fluidCoordinator.diagnostics().fluidFacesCulled,
-      fluidFacesEmitted: this.fluidCoordinator.diagnostics().fluidFacesEmitted,
-      fluidMaterialBuckets: this.fluidCoordinator.diagnostics().fluidMaterialBuckets,
-      standaloneBlockObjects: renderCost.standaloneBlockObjects,
-      standaloneBlockMeshes: renderCost.standaloneBlockMeshes,
-      standaloneTransparentMeshes: renderCost.standaloneTransparentMeshes,
-      standaloneOpaqueMeshes: renderCost.standaloneOpaqueMeshes,
-      placeholderBatches: renderCost.placeholders.batchCount,
-      placeholderMeshes: renderCost.placeholders.meshCount,
-      decorationObjects: renderCost.decorationObjects,
-      decorationMeshes: renderCost.decorationMeshes,
-      transparentMeshCount: renderCost.transparentMeshCount,
-      opaqueMeshCount: renderCost.opaqueMeshCount,
-      providerObjectCreations: counters.providerObjectCreations,
-      reusableTemplateCreations: counters.reusableTemplateCreations,
-      reusableTemplateCacheHits: counters.reusableTemplateCacheHits,
-      rawInstanceTemplateParts: counters.rawInstanceTemplateParts,
-      mergedInstanceTemplateParts: counters.mergedInstanceTemplateParts,
-      templateMergeOperations: counters.templateMergeOperations,
-      templatePartsEliminated: counters.templatePartsEliminated,
-      instancedBoundsComputations: counters.instancedBoundsComputations,
-      fallbackMeshCreations: counters.fallbackMeshCreations,
-      cachedTemplateInsertions: counters.cachedTemplateInsertions,
-      cameraMovementFrames: counters.cameraMovementFrames,
-      cameraMovementRenderCalls: counters.cameraMovementRenderCalls,
-      cameraChangeEventsDuringMovement: counters.cameraChangeEventsDuringMovement,
-      cameraRenderRequestsSuppressed: counters.cameraRenderRequestsSuppressed,
-      controlChangeEvents: counters.controlChangeEvents,
-      cameraRenderRequests: counters.cameraRenderRequests,
-      cameraRendersExecuted: counters.cameraRendersExecuted,
-      cameraRenderRequestsCoalesced: counters.cameraRenderRequestsCoalesced,
-      interactiveResolutionEntries: counters.interactiveResolutionEntries,
-      staticResolutionRestores: counters.staticResolutionRestores,
-      regularHydrationStarted: counters.regularHydrationStarted,
-      regularHydrationCompleted: counters.regularHydrationCompleted,
-      providerRefreshStarted: counters.providerRefreshStarted,
-      providerRefreshCompleted: counters.providerRefreshCompleted,
-      hydrationFairnessDeferrals: counters.hydrationFairnessDeferrals,
-      maxProviderRefreshRunningWhileRegularPending: counters.maxProviderRefreshRunningWhileRegularPending,
-      hydrationPausesForCamera: counters.hydrationPausesForCamera,
-      hydrationJobsStartedWhileCamera: counters.hydrationJobsStartedWhileCamera,
-      hydrationProgressRegressions: counters.hydrationProgressRegressions,
-      cameraOnlyGenerationChanges: counters.cameraOnlyGenerationChanges,
-      blockSignatureComputations: counters.blockSignatureComputations,
-      hoverRaycasts: counters.hoverRaycasts,
-      hoverRaycastsSuppressedDuringCamera: counters.hoverRaycastsSuppressedDuringCamera,
-      hoverPointerMovesCoalesced: counters.hoverPointerMovesCoalesced,
-      hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(),
-      interiorBlocksCulled: this.culledBlockKeys.size,
-      hydrationRunning: this.hydrationRunning,
-      frameDurationMs: this.frameDurationMs,
-      renderCpuMs: this.renderCpuMs,
-      drawCalls: this.lastRendererMetrics.calls,
-      lines: this.lastRendererMetrics.lines,
-      points: this.lastRendererMetrics.points,
-      instanceBatches: this.instanceBatches.size,
-      instancedMeshCount: renderCost.instance.meshCount,
-      nonInstancedMeshCount: Math.max(0, renderCost.meshCount - renderCost.instance.meshCount),
-      renderableBlocks: this.renderedBlocks.size,
-      surfaceFastPathBlocks: counters.surfaceFastPathBlocks,
-      exposedFaceInstances: counters.exposedFaceInstances,
-      neighborFacesCulled: counters.neighborFacesCulled,
-      surfaceFaceBatches: this.surfaceFaceBatches.size,
-      surfaceFaceInstancedMeshes: this.surfaceFaceBatches.size,
-      hoverPickMs: counters.hoverPickMs,
-      hoverPickCount: counters.hoverPickCount,
-      hoverPickMaxMs: counters.hoverPickMaxMs,
-      ddaPickCount: counters.ddaPickCount,
-      ddaVisitedVoxels: counters.ddaVisitedVoxels,
-      ddaFullCubeHits: counters.ddaFullCubeHits,
-      precisePickFallbacks: counters.precisePickFallbacks,
-      placementPreviewMs: counters.placementPreviewMs,
-      placementPreviewCount: counters.placementPreviewCount,
-      placementPreviewMaxMs: counters.placementPreviewMaxMs,
-      placementPreviewFullProjectScans: counters.placementPreviewFullProjectScans,
-      duplicatePlacementValidations: counters.duplicatePlacementValidations,
-      spatialIndexBuilds: counters.spatialIndexBuilds,
-      spatialIndexLookups: Math.max(counters.spatialIndexLookups, this.spatialIndex?.lookups ?? 0),
-      ghostVisualRebuilds: counters.ghostVisualRebuilds,
-      ghostVisualReuses: counters.ghostVisualReuses,
-      structuralReconciles: counters.structuralReconciles,
-      overlayOnlyUpdates: counters.overlayOnlyUpdates,
-      projectBoundsRebuilds: counters.projectBoundsRebuilds,
-      fullProjectScansDuringHover: counters.fullProjectScansDuringHover,
-      renderInvalidations: counters.renderInvalidations,
-      renderInvalidationsCoalesced: counters.renderInvalidationsCoalesced,
-      actualSceneRenders: counters.actualSceneRenders,
-      terrainChunks: terrain.terrainChunks,
-      terrainChunkMeshes: terrain.terrainChunkMeshes,
-      terrainDrawObjectCount: terrain.terrainChunkMeshes,
-      terrainTriangleCount: renderCost.terrainTriangleCount,
-      terrainChunkRebuilds: terrain.terrainChunkRebuilds,
-      terrainBlocksCompiled: terrain.terrainBlocksCompiled,
-      terrainFacesEmitted: terrain.terrainFacesEmitted,
-      terrainFacesCulled: terrain.terrainFacesCulled,
-      terrainTemplateResolutions: terrain.terrainTemplateResolutions,
-      terrainTemplateCacheHits: terrain.terrainTemplateCacheHits,
-      terrainLogicalBlocks: terrain.terrainLogicalBlocks,
-      terrainBulkBatches: terrain.terrainBulkBatches,
-      terrainCandidateOwnershipTotal: terrain.terrainCandidateOwnershipTotal,
-      terrainCandidateFanoutTotal: terrain.terrainCandidateFanoutTotal,
-      maxHydrationCandidatesPerChunk: terrain.maxHydrationCandidatesPerChunk,
-      maxRecordsPerChunk: terrain.maxRecordsPerChunk,
-      terrainCommitCandidateChecks: terrain.terrainCommitCandidateChecks,
-      terrainCommitRepresentedLookupChecks: terrain.terrainCommitRepresentedLookupChecks,
-      terrainPendingHydrationCandidates: terrain.terrainPendingHydrationCandidates,
-      terrainAsyncAcceptedResults: counters.terrainAsyncAcceptedResults,
-      terrainAsyncStaleRevisionResults: counters.terrainAsyncStaleRevisionResults,
-      terrainAsyncStaleGenerationResults: counters.terrainAsyncStaleGenerationResults,
-      terrainAsyncStaleProviderResults: counters.terrainAsyncStaleProviderResults,
-      terrainAsyncSupersededResults: counters.terrainAsyncSupersededResults,
-      terrainAsyncRescheduledChunks: counters.terrainAsyncRescheduledChunks,
-      terrainAsyncCommitPolicyRejected: counters.terrainAsyncCommitPolicyRejected,
-      terrainAsyncAllUnrepresentedResults: counters.terrainAsyncAllUnrepresentedResults,
-      terrainAsyncPartialFailureResults: counters.terrainAsyncPartialFailureResults,
-      terrainAsyncWorkerFailures: counters.terrainAsyncWorkerFailures,
-      terrainAsyncFallbackKeys: counters.terrainAsyncFallbackKeys,
-      terrainAsyncRejectedWithoutReplacement: counters.terrainAsyncRejectedWithoutReplacement,
-      terrainAtlasMode: this.terrainAtlasMode,
-      terrainAtlasPages: terrain.terrainAtlas.terrainAtlasPages,
-      terrainAtlasSprites: terrain.terrainAtlas.terrainAtlasSprites,
-      terrainAtlasInsertions: terrain.terrainAtlas.terrainAtlasInsertions,
-      terrainAtlasCacheHits: terrain.terrainAtlas.terrainAtlasCacheHits,
-      terrainAtlasCompatibleFaces: terrain.terrainAtlas.terrainAtlasCompatibleFaces,
-      terrainAtlasFallbackFaces: terrain.terrainAtlas.terrainAtlasFallbackFaces,
-      terrainAtlasMaterials: terrain.terrainAtlas.terrainAtlasMaterials,
-      terrainAtlasChunkBuckets: terrain.terrainAtlas.terrainAtlasChunkBuckets,
-      terrainWorker: { ...terrain.terrainWorker, terrainWorkerCpuMs: { ...terrain.terrainWorker.terrainWorkerCpuMs }, terrainWorkerRoundTripMs: { ...terrain.terrainWorker.terrainWorkerRoundTripMs } },
-      terrainCommit: { ...terrain.terrainCommit, terrainCommitCpuMs: { ...terrain.terrainCommit.terrainCommitCpuMs } },
-    };
+    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.renderedBlocks.size, renderedDecorations: this.renderedDecorations.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.culledBlockKeys.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
   }
 
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }

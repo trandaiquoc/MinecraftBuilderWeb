@@ -1,4 +1,4 @@
-import type { ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../engine/three-viewport-engine';
+import type { ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from './viewport-diagnostics-contracts';
 
 export function collectVisibleSceneDiagnostics(input: {
   readonly expectedKeys: readonly string[];
