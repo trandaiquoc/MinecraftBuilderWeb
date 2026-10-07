@@ -188,6 +188,99 @@ describe('explicit renderer benchmark', () => {
     engine.dispose();
   });
 
+  it('runs Prompt 16D-B resource closure gates on the 110k fixture only when explicitly requested', { timeout: 180000 }, async () => {
+    const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['PROMPT_16D_RESOURCE_BENCHMARK'] === '1';
+    if (!benchmarkEnabled) return;
+    const project = rendererBenchmarkProject('mega');
+    const groupSize = 2048;
+    const groupMembers = project.blocks.slice(0, groupSize);
+    const groupedProject = {
+      ...project,
+      groups: [{ id: 'resource-benchmark-group', name: 'Resource benchmark', visible: true, locked: false }],
+      blocks: project.blocks.map((block, index) => index < groupSize ? { ...block, groupIds: ['resource-benchmark-group'] } : block),
+    };
+    const groupPositions = groupMembers.map((block) => ({ ...block.position }));
+    const diagnostics = new RendererDiagnostics();
+    const engine = new ThreeViewportEngine(diagnostics);
+    const provider = rendererBenchmarkVisualProvider();
+    engine.setVisualProvider(provider);
+    engine.update(groupedProject, undefined, { exposedFaceRendering: true });
+    await settleHydration(600, engine);
+    const warm = engine.performanceEvidence();
+    expect(warm.terrainLogicalBlocks).toBeGreaterThan(0);
+
+    const internal = engine as unknown as {
+      blockUsageHighlight?: THREE.InstancedMesh;
+      blockUsageHighlightGeometry: THREE.BoxGeometry;
+      blockUsageHighlightMaterial: THREE.MeshBasicMaterial;
+      blockUsageHighlightCapacity: number;
+      scene: THREE.Scene;
+      cachedVisibleMap: Map<string, { block: { id: string } }>;
+    };
+    const stonePositions = groupedProject.blocks.filter((block) => block.id === 'minecraft:stone').map((block) => ({ ...block.position }));
+    // Vitest does not provide a WebGL canvas, so install the same owned overlay
+    // mount() creates and exercise the production high-water update path.
+    internal.blockUsageHighlight = new THREE.InstancedMesh(internal.blockUsageHighlightGeometry, internal.blockUsageHighlightMaterial, 1);
+    internal.blockUsageHighlight.userData['blockUsageHighlight'] = true;
+    internal.scene.add(internal.blockUsageHighlight);
+    const targetSizes = [100, 2_000, 20_000, 5_000, 20_000];
+    for (const size of targetSizes) engine.setBlockUsageHighlight('minecraft:stone', stonePositions.slice(0, size));
+    const highWaterOverlay = internal.blockUsageHighlight;
+    const highWaterCapacity = internal.blockUsageHighlightCapacity;
+    const highWater = engine.performanceEvidence();
+    for (let cycle = 0; cycle < 10; cycle += 1) {
+      engine.setBlockUsageHighlight(undefined, undefined);
+      engine.setBlockUsageHighlight('minecraft:stone', stonePositions.slice(0, 20_000));
+    }
+    const afterHighlight = engine.performanceEvidence();
+    const activeHighlightObjects = countObjectsWithUserData(internal.scene, 'blockUsageHighlight');
+    expect(internal.blockUsageHighlight).toBe(highWaterOverlay);
+    expect(internal.blockUsageHighlightCapacity).toBe(highWaterCapacity);
+    expect(highWaterCapacity).toBeGreaterThanOrEqual(20_000);
+    expect(activeHighlightObjects).toBe(1);
+    expect(afterHighlight.meshCount).toBe(highWater.meshCount);
+
+    const firstIsolation = engine.performanceEvidence();
+    for (let cycle = 0; cycle < 20; cycle += 1) {
+      engine.update(groupedProject, undefined, { exposedFaceRendering: true, isolatedGroupId: 'resource-benchmark-group', isolatedGroupPositions: groupPositions });
+      await settleHydration(8, engine);
+      engine.update(groupedProject, undefined, { exposedFaceRendering: true });
+      await Promise.resolve();
+    }
+    const isolation = engine.isolationDiagnostics();
+    const afterIsolation = engine.performanceEvidence();
+    expect(isolation).toMatchObject({ active: false, state: 'inactive', targetBlocks: 0, requestedTargetBlocks: 0, activeTargetBlocks: 0, activeBundleCount: 0, stagingBundleCount: 0 });
+    expect(isolation.disposeCount).toBeGreaterThanOrEqual(20);
+    expect(afterIsolation.meshCount).toBe(firstIsolation.meshCount);
+
+    const boundary = { x: TERRAIN_CHUNK_SIZE, y: 0, z: TERRAIN_CHUNK_SIZE };
+    const original = groupedProject.blocks.find((block) => block.position.x === boundary.x && block.position.y === boundary.y && block.position.z === boundary.z)!;
+    const withoutBoundary = { ...groupedProject, blocks: groupedProject.blocks.filter((block) => block !== original) };
+    for (let cycle = 0; cycle < 50; cycle += 1) {
+      engine.update(withoutBoundary, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position: boundary, before: original }], 'resource-benchmark-delete'));
+      await settleHydration(8, engine);
+      engine.update(groupedProject, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position: boundary, after: original }], 'resource-benchmark-place'));
+      await settleHydration(8, engine);
+    }
+    const afterEdits = engine.performanceEvidence();
+    expect(afterEdits.renderedBlocks).toBeGreaterThan(40_000);
+    expect(afterEdits.terrainLogicalBlocks).toBeGreaterThan(0);
+    expect(afterEdits.terrainChunkMeshes).toBeLessThanOrEqual(afterIsolation.terrainChunkMeshes + 2);
+    expect(afterEdits.meshCount).toBeLessThanOrEqual(afterIsolation.meshCount + 2);
+    expect(afterEdits.terrainWorker).toMatchObject({ terrainWorkerQueued: 0, terrainWorkerRunning: 0 });
+    expect(afterEdits.terrainCommit).toMatchObject({ terrainCommitQueueDepth: 0 });
+    const finalDiagnostics = engine.runtimeTraceSample().hydration;
+    expect(finalDiagnostics?.['queued']).toBe(0);
+    expect(finalDiagnostics?.['running']).toBe(0);
+    console.info(`[16d-b resource gates] blocks=${project.blocks.length} warm=${JSON.stringify({ terrainChunks: warm.terrainChunks, terrainMeshes: warm.terrainChunkMeshes, meshes: warm.meshCount })} highlight=${JSON.stringify({ capacity: highWaterCapacity, activeObjects: activeHighlightObjects, meshCount: afterHighlight.meshCount })} isolation=${JSON.stringify({ builds: isolation.buildCount, commits: isolation.commitCount, disposes: isolation.disposeCount, state: isolation.state })} edits=${JSON.stringify({ terrainMeshes: afterEdits.terrainChunkMeshes, meshes: afterEdits.meshCount })}`);
+
+    engine.dispose();
+    engine.dispose();
+    provider.dispose();
+    expect(engine.diagnostics().disposed).toBe(true);
+    expect(provider.resourceCounts?.()).toEqual({ resolvedModels: 0, geometries: 0, textures: 0, fluidTextures: 0, thumbnails: 0 });
+  });
+
   it('measures cooperative All-below projection scrubbing for the opt-in 110k fixture', { timeout: 120000 }, async () => {
     const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['Y_LAYER_PROJECTION_BENCHMARK'] === '1';
     if (!benchmarkEnabled) return;
@@ -246,4 +339,10 @@ async function settleHydration(rounds: number, engine: ThreeViewportEngine): Pro
     const hydration = engine.runtimeTraceSample().hydration;
     if (hydration && hydration['queued'] === 0 && hydration['running'] === 0) return;
   }
+}
+
+function countObjectsWithUserData(root: THREE.Object3D, key: string): number {
+  let count = 0;
+  root.traverse((object) => { if (object.userData[key] === true) count += 1; });
+  return count;
 }

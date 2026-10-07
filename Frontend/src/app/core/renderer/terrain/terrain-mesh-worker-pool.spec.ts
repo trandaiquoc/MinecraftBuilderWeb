@@ -14,6 +14,14 @@ class FakeWorker implements TerrainWorkerLike {
   terminate(): void { this.onmessage = null; }
 }
 
+class RunningWorker implements TerrainWorkerLike {
+  onmessage: ((event: MessageEvent<TerrainMeshWorkerResponse>) => void) | null = null;
+  onerror: ((event: ErrorEvent) => void) | null = null;
+  terminated = 0;
+  postMessage(): void { /* Keep the request running until the owner is disposed. */ }
+  terminate(): void { this.terminated += 1; }
+}
+
 describe('terrain mesh worker protocol/pool', () => {
   it('clones typed arrays and exposes every transferable buffer', () => {
     const original = job();
@@ -36,6 +44,23 @@ describe('terrain mesh worker protocol/pool', () => {
     const result = await pool.submit(job());
     expect(result).toMatchObject({ jobId: 9, generation: 1, providerGeneration: 2, revision: 3, facesEmitted: 1, facesCulled: 0, emittedKeys: ['0,0,0'] });
     expect(pool.evidence()).toMatchObject({ terrainWorkerSupported: false, terrainWorkerFallbackJobs: 1, terrainWorkerCompleted: 1 });
+    pool.dispose();
+  });
+
+  it('rejects a running job and ignores a late worker response after disposal', async () => {
+    let worker!: RunningWorker;
+    const pool = new TerrainMeshWorkerPool({ supported: true, workerCount: 1, workerFactory: () => (worker = new RunningWorker()) });
+    const request = pool.submit(job());
+    const lateResponse = worker.onmessage;
+
+    pool.dispose();
+
+    await expect(request).rejects.toThrow('Terrain mesh worker pool disposed');
+    expect(worker.terminated).toBe(1);
+    expect(pool.evidence()).toMatchObject({ terrainWorkerQueued: 0, terrainWorkerRunning: 0, terrainWorkerCompleted: 0 });
+
+    lateResponse?.({ data: { type: 'result', result: meshTerrainCore(job()) } } as MessageEvent<TerrainMeshWorkerResponse>);
+    expect(pool.evidence()).toMatchObject({ terrainWorkerCompleted: 0, terrainWorkerFailures: 0 });
     pool.dispose();
   });
 });

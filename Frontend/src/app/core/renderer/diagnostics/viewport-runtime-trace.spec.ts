@@ -77,6 +77,19 @@ describe('ViewportRuntimeTrace', () => {
     expect(lifecycle).toEqual(['observation-stop', 'heavy-final']);
   });
 
+  it('can start and stop repeatedly without retaining a prior run', () => {
+    const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
+    for (let index = 0; index < 8; index += 1) {
+      trace.start(`lifecycle-${index}`);
+      trace.record('heartbeat', { index });
+      expect(trace.isActive).toBe(true);
+      const document = trace.stop();
+      expect(document?.scenario).toBe(`lifecycle-${index}`);
+      expect(trace.isActive).toBe(false);
+    }
+    expect(trace.stop()?.scenario).toBe('lifecycle-7');
+  });
+
   it('detects progress, generation and camera drift during a camera gesture', () => {
     let current = sample();
     const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => current });

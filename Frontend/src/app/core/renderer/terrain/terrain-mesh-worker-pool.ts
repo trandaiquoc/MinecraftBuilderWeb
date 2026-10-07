@@ -101,15 +101,23 @@ export class TerrainMeshWorkerPool {
   }
 
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true;
     for (const pending of this.queue.splice(0)) pending.reject(new Error('Terrain mesh worker pool disposed'));
-    for (const slot of this.slots) slot.worker.terminate();
+    for (const slot of this.slots) {
+      const pending = slot.job;
+      slot.job = undefined;
+      slot.busy = false;
+      pending?.reject(new Error('Terrain mesh worker pool disposed'));
+      slot.worker.terminate();
+    }
     this.slots.length = 0;
   }
 
   private createSlot(worker: TerrainWorkerLike): WorkerSlot {
     const slot: WorkerSlot = { worker, busy: false, startedAt: 0 };
     worker.onmessage = (event) => {
+      if (this.disposed) return;
       const pending = slot.job;
       if (!pending) return;
       slot.busy = false; slot.job = undefined;
@@ -127,6 +135,7 @@ export class TerrainMeshWorkerPool {
       this.pump();
     };
     worker.onerror = () => {
+      if (this.disposed) return;
       const pending = slot.job;
       slot.busy = false; slot.job = undefined;
       this.failures += 1;

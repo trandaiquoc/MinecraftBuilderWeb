@@ -1553,6 +1553,29 @@ describe('group isolation presentation', () => {
     expect(after.terrainBulkBatches).toBe(before.terrainBulkBatches);
     engine.dispose();
   });
+
+  it('disposes temporary isolate presentations across repeated cycles and tolerates double engine teardown', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project: ProjectDocument = {
+      ...base,
+      blocks: base.blocks.slice(0, 8).map((block, index) => ({ ...block, position: { x: index, y: 0, z: 0 }, groupIds: ['roof'] })),
+      groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }],
+      decorations: [],
+    };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, undefined);
+    const positions = project.blocks.map((block) => ({ ...block.position }));
+    for (let cycle = 0; cycle < 20; cycle += 1) {
+      engine.update(project, undefined, { isolatedGroupId: 'roof', isolatedGroupPositions: positions });
+      engine.update(project, undefined, {});
+      await Promise.resolve();
+    }
+    expect(engine.isolationDiagnostics()).toMatchObject({ active: false, state: 'inactive', targetBlocks: 0, requestedTargetBlocks: 0, activeTargetBlocks: 0, activeBundleCount: 0, stagingBundleCount: 0 });
+    expect(engine.isolationDiagnostics().disposeCount).toBeGreaterThanOrEqual(20);
+    engine.dispose();
+    engine.dispose();
+    expect(engine.diagnostics().disposed).toBe(true);
+  });
 });
 
 describe('incremental project mutation reconciliation', () => {

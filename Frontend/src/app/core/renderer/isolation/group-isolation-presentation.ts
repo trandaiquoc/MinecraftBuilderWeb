@@ -58,6 +58,8 @@ export interface GroupIsolationDiagnostics {
   readonly cancelCount: number;
   readonly atomicSwapCount: number;
   readonly disposeCount: number;
+  readonly activeBundleCount: number;
+  readonly stagingBundleCount: number;
   readonly lastBuildMs: number;
   readonly lastSynchronousBuildMs: number;
   readonly lastSnapshotMs: number;
@@ -237,7 +239,13 @@ export class GroupIsolationPresentation {
     return object ? [object] : [];
   }
   fluidCoordinateOwner(key: string): boolean { return this.activeBundle?.fluids?.hasVoxel(key) ?? false; }
-  diagnostics(): GroupIsolationDiagnostics { return { ...this.diagnosticsState }; }
+  diagnostics(): GroupIsolationDiagnostics {
+    return {
+      ...this.diagnosticsState,
+      activeBundleCount: this.activeBundle ? 1 : 0,
+      stagingBundleCount: this.stagingBundle ? 1 : 0,
+    };
+  }
 
   dispose(): void { this.deactivate(); this.root.removeFromParent(); }
 
