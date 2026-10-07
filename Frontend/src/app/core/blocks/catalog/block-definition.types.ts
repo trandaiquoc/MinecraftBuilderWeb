@@ -71,7 +71,7 @@ export type BlockBehavior =
   | { readonly kind: 'vertical-chain'; readonly axisProperty: 'axis'; readonly verticalAxis: 'y' }
   | { readonly kind: 'lantern-placement'; readonly hangingProperty: 'hanging'; readonly chainId: string }
   | { readonly kind: 'torch-placement'; readonly wallBlockId: string }
-  | { readonly kind: 'double-height'; readonly halfProperty: 'half'; readonly requiresFloor: boolean; readonly logicalObjectKind?: 'door' | 'tall-plant' }
+  | { readonly kind: 'double-height'; readonly halfProperty: 'half'; readonly requiresFloor: boolean }
   | { readonly kind: 'paired-horizontal'; readonly partProperty: 'part'; readonly facingProperty: 'facing'; readonly firstPart: 'foot'; readonly secondPart: 'head' }
   | { readonly kind: 'candle'; readonly candlesProperty: 'candles'; readonly maxCandles: 4 }
   | { readonly kind: 'six-face-placement'; readonly facingProperty: 'facing' }

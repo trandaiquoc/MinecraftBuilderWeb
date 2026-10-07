@@ -1,5 +1,6 @@
 import type { AssetBlockRecord, BlockBehavior, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
 import type { ContentPropertyDescriptor, NormalizedContentDescriptor } from '../../content/content-introspection';
+import { GENERIC_BEHAVIOR_PROFILES, type GenericBehaviorProfile } from './behavior-profiles';
 
 export type BehaviorTrait =
   | 'horizontal-connection'
@@ -72,9 +73,9 @@ interface BehaviorCandidate {
   readonly stateDefinitions?: readonly BlockStateDefinition[];
 }
 
-const SIX_FACE_VALUES = ['down', 'up', 'north', 'south', 'west', 'east'] as const;
-const HORIZONTAL_VALUES = ['north', 'east', 'south', 'west'] as const;
-const BOOLEAN_VALUES = ['true', 'false'] as const;
+const SIX_FACE_VALUES = GENERIC_BEHAVIOR_PROFILES.attachedSixFace.requiredStates.facing;
+const HORIZONTAL_VALUES = GENERIC_BEHAVIOR_PROFILES.wallMounted.requiredStates.facing;
+const BOOLEAN_VALUES = GENERIC_BEHAVIOR_PROFILES.fence.requiredStates['north'];
 
 export function extractBehaviorFingerprint(record: AssetBlockRecord, resources?: BehaviorFingerprintResourceProvider, descriptor?: NormalizedContentDescriptor): BehaviorFingerprint {
   const properties = descriptor?.properties?.map(toStateDefinition) ?? record.stateDefinitions;
@@ -183,35 +184,39 @@ function generateCandidates(fingerprint: BehaviorFingerprint): readonly Behavior
   const definitions = fingerprint.properties;
   const candidates: BehaviorCandidate[] = [];
   addSchemaCandidates(candidates, fingerprint, definitions);
-  const wall = compatibleSchema(definitions, { north: ['none', 'low', 'tall'], east: ['none', 'low', 'tall'], south: ['none', 'low', 'tall'], west: ['none', 'low', 'tall'], up: BOOLEAN_VALUES });
+  const wallProfile = GENERIC_BEHAVIOR_PROFILES.wall;
+  const wall = compatibleSchema(definitions, wallProfile.requiredStates);
   if (wall.present && wall.valid && wallResourceEvidence(fingerprint)) {
     const evidence = evidenceFor(fingerprint, ['state-schema', 'blockstate', 'model', 'tag']);
     const missing = HORIZONTAL_VALUES.filter((property) => !fingerprint.predicates.includes(property));
     if (missing.length) candidates.push(rejected('wall', `wall model selection omits ${missing.join(', ')}`, evidence));
-    else candidates.push({ family: 'walls', behavior: { kind: 'horizontal-connect', family: 'wall', connectionGroup: 'wall', compatibleGroups: ['wall'], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west', 'up'] }, defaults: validDefaults(wallDefinitions(definitions), { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true' }), stateDefinitions: wallDefinitions(definitions), evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes('wall') ? 4 : 0) });
+    else candidates.push({ family: wallProfile.family, behavior: wallProfile.behavior, defaults: validDefaults(wallDefinitions(definitions), wallProfile.defaults), stateDefinitions: wallDefinitions(definitions), evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes('wall') ? 4 : 0) });
   } else if (wall.present) candidates.push(rejected('wall', 'wall properties have an incompatible value domain', evidenceFor(fingerprint, ['state-schema'])));
 
-  const stairs = required(definitions, { facing: HORIZONTAL_VALUES, half: ['top', 'bottom'], shape: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] });
+  const stairsProfile = GENERIC_BEHAVIOR_PROFILES.stairs;
+  const stairs = required(definitions, stairsProfile.requiredStates);
   if (stairs.present && stairs.valid) {
     const evidence = evidenceFor(fingerprint, ['state-schema', 'blockstate', 'model', 'tag']);
     const missing = ['facing', 'half', 'shape'].filter((property) => !fingerprint.predicates.includes(property));
     if (missing.length) candidates.push(rejected('stairs', `stair model selection omits ${missing.join(', ')}`, evidence));
-    else candidates.push({ family: 'stairs', behavior: { kind: 'stairs', derivedProperties: ['shape'] }, defaults: validDefaults(definitions, { shape: 'straight' }), evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes('stairs') ? 4 : 0) });
+    else candidates.push({ family: stairsProfile.family, behavior: stairsProfile.behavior, defaults: validDefaults(definitions, stairsProfile.defaults), evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes('stairs') ? 4 : 0) });
   } else if (stairs.present) candidates.push(rejected('stairs', 'stair properties have an incompatible value domain', evidenceFor(fingerprint, ['state-schema'])));
 
-  const sixFace = required(definitions, { facing: SIX_FACE_VALUES });
+  const attachedProfile = GENERIC_BEHAVIOR_PROFILES.attachedSixFace;
+  const sixFace = required(definitions, attachedProfile.requiredStates);
   if (sixFace.present && sixFace.valid && fingerprint.traits.includes('face-attachment')) {
     const evidence = evidenceFor(fingerprint, ['state-schema', 'blockstate', 'model', 'support', 'tag']);
-    candidates.push({ family: 'six-face-attachment', behavior: { kind: 'attached-six-face-placement', facingProperty: 'facing' }, defaults: validDefaults(definitions, { facing: 'up', waterlogged: 'false' }), evidence, contradictions: [], score: score(evidence) + (fingerprint.supportContracts.length ? 4 : 0) });
-  } else if (sixFace.present && fingerprint.supportContracts.includes('six-face-attachment')) candidates.push(rejected('six-face-attachment', 'attachment contract conflicts with the observed six-face schema', evidenceFor(fingerprint, ['state-schema', 'support'])));
+    candidates.push({ family: attachedProfile.family, behavior: attachedProfile.behavior, defaults: validDefaults(definitions, attachedProfile.defaults), evidence, contradictions: [], score: score(evidence) + (fingerprint.supportContracts.length ? 4 : 0) });
+  } else if (sixFace.present && fingerprint.supportContracts.includes('six-face-attachment')) candidates.push(rejected(attachedProfile.family, 'attachment contract conflicts with the observed six-face schema', evidenceFor(fingerprint, ['state-schema', 'support'])));
 
-  const connection = compatibleSchema(definitions, { north: BOOLEAN_VALUES, east: BOOLEAN_VALUES, south: BOOLEAN_VALUES, west: BOOLEAN_VALUES });
+  const connection = compatibleSchema(definitions, GENERIC_BEHAVIOR_PROFILES.fence.requiredStates);
   if (connection.present && connection.valid) {
     const family = connectionFamily(fingerprint);
     if (family && HORIZONTAL_VALUES.every((property) => fingerprint.predicates.includes(property))) {
       const evidence = evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model', 'relationship']);
       const stateDefinitions = connectionDefinitions(definitions);
-      candidates.push({ family, behavior: { kind: 'horizontal-connect', family, connectionGroup: family, compatibleGroups: [family], connectsToSolid: true, derivedProperties: ['north', 'east', 'south', 'west'] }, defaults: validDefaults(stateDefinitions, { north: 'false', east: 'false', south: 'false', west: 'false' }), stateDefinitions, evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes(family) ? 4 : 0) });
+      const profile = family === 'fence' ? GENERIC_BEHAVIOR_PROFILES.fence : GENERIC_BEHAVIOR_PROFILES.pane;
+      candidates.push({ family, behavior: profile.behavior, defaults: validDefaults(stateDefinitions, profile.defaults), stateDefinitions, evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes(family) ? 4 : 0) });
     }
   } else if (connection.present) candidates.push(rejected('horizontal-connection', 'horizontal connection properties are not boolean', evidenceFor(fingerprint, ['state-schema'])));
   return candidates;
@@ -219,43 +224,39 @@ function generateCandidates(fingerprint: BehaviorFingerprint): readonly Behavior
 
 function addSchemaCandidates(candidates: BehaviorCandidate[], fingerprint: BehaviorFingerprint, definitions: readonly BlockStateDefinition[]): void {
   addTrustedSignCandidates(candidates, fingerprint, definitions);
-  const profiles: readonly { readonly family: string; readonly trustedFamily: string; readonly resourceTokens: readonly string[]; readonly expected: Readonly<Record<string, readonly string[]>>; readonly behavior: BlockBehavior; readonly defaults: Readonly<Record<string, string>> }[] = [
-    { family: 'doors', trustedFamily: 'doors', resourceTokens: ['door'], expected: { facing: HORIZONTAL_VALUES, half: ['lower', 'upper'], hinge: ['left', 'right'], open: BOOLEAN_VALUES, powered: BOOLEAN_VALUES }, behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'door' }, defaults: { facing: 'north', half: 'lower', hinge: 'left', open: 'false', powered: 'false' } },
-    { family: 'beds', trustedFamily: 'beds', resourceTokens: ['bed'], expected: { facing: HORIZONTAL_VALUES, part: ['foot', 'head'], occupied: BOOLEAN_VALUES }, behavior: { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, defaults: { facing: 'north', part: 'foot', occupied: 'false' } },
-    { family: 'candles', trustedFamily: 'candles', resourceTokens: ['candle'], expected: { candles: ['1', '2', '3', '4'], lit: BOOLEAN_VALUES, waterlogged: BOOLEAN_VALUES }, behavior: { kind: 'candle', candlesProperty: 'candles', maxCandles: 4 }, defaults: { candles: '1', lit: 'false', waterlogged: 'false' } },
-    { family: 'lanterns', trustedFamily: 'lanterns', resourceTokens: ['lantern'], expected: { hanging: BOOLEAN_VALUES, waterlogged: BOOLEAN_VALUES }, behavior: { kind: 'lantern-placement', hangingProperty: 'hanging', chainId: 'minecraft:chain' }, defaults: { hanging: 'false', waterlogged: 'false' } },
-    { family: 'chains', trustedFamily: 'chains', resourceTokens: ['chain'], expected: { axis: ['x', 'y', 'z'], waterlogged: BOOLEAN_VALUES }, behavior: { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' }, defaults: { axis: 'y', waterlogged: 'false' } },
-    { family: 'conduits', trustedFamily: 'conduits', resourceTokens: ['conduit'], expected: { waterlogged: BOOLEAN_VALUES }, behavior: { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, defaults: { waterlogged: 'true' } },
-    { family: 'buttons', trustedFamily: 'buttons', resourceTokens: ['button'], expected: { face: ['floor', 'wall', 'ceiling'], facing: HORIZONTAL_VALUES, powered: BOOLEAN_VALUES }, behavior: { kind: 'button', faceProperty: 'face', facingProperty: 'facing', poweredProperty: 'powered' }, defaults: { face: 'floor', facing: 'north', powered: 'false' } },
+  const profiles: readonly GenericBehaviorProfile[] = [
+    GENERIC_BEHAVIOR_PROFILES.doors,
+    GENERIC_BEHAVIOR_PROFILES.beds,
+    GENERIC_BEHAVIOR_PROFILES.candles,
+    GENERIC_BEHAVIOR_PROFILES.lanterns,
+    GENERIC_BEHAVIOR_PROFILES.chains,
+    GENERIC_BEHAVIOR_PROFILES.conduit,
+    GENERIC_BEHAVIOR_PROFILES.buttons,
   ];
   for (const profile of profiles) {
-    const contract = required(definitions, profile.expected);
+    const contract = required(definitions, profile.requiredStates);
     if (!contract.present) continue;
     const evidence = evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model', 'relationship']);
-    const hasProfileEvidence = fingerprint.trustedFamilies.includes(profile.trustedFamily) || resourceRelationship(fingerprint, profile.resourceTokens);
-    if (contract.valid && hasProfileEvidence) candidates.push({ family: profile.family, behavior: profile.behavior, defaults: validDefaults(definitions, profile.defaults), evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes(profile.trustedFamily) ? 4 : 0) });
+    const hasProfileEvidence = fingerprint.trustedFamilies.includes(profile.family) || resourceRelationship(fingerprint, profile.resourceTokens ?? []);
+    if (contract.valid && hasProfileEvidence) candidates.push({ family: profile.family, behavior: profile.behavior, defaults: validDefaults(definitions, profile.defaults), evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes(profile.family) ? 4 : 0) });
     else if (hasProfileEvidence && contract.present) candidates.push(rejected(profile.family, 'state schema conflicts with the candidate contract', evidence));
   }
-  const shulker = required(definitions, { facing: SIX_FACE_VALUES });
-  if (shulker.valid && (fingerprint.trustedFamilies.includes('shulker-boxes') || resourceRelationship(fingerprint, ['shulker']))) candidates.push({ family: 'shulker-boxes', behavior: { kind: 'six-face-placement', facingProperty: 'facing' }, defaults: validDefaults(definitions, { facing: 'up' }), evidence: evidenceFor(fingerprint, ['tag', 'state-schema', 'model', 'relationship']), contradictions: [], score: score(fingerprint.evidence) + 4 });
-  const doubleHeight = required(definitions, { half: ['lower', 'upper'] });
-  if (doubleHeight.valid && fingerprint.trustedFamilies.includes('double-height')) candidates.push({ family: 'double-height', behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'tall-plant' }, defaults: validDefaults(definitions, { half: 'lower' }), evidence: evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model']), contradictions: [], score: score(fingerprint.evidence) + 4 });
+  const shulker = GENERIC_BEHAVIOR_PROFILES.shulker;
+  const shulkerContract = required(definitions, shulker.requiredStates);
+  if (shulkerContract.valid && (fingerprint.trustedFamilies.includes(shulker.family) || resourceRelationship(fingerprint, shulker.resourceTokens ?? []))) candidates.push({ family: shulker.family, behavior: shulker.behavior, defaults: validDefaults(definitions, shulker.defaults), evidence: evidenceFor(fingerprint, ['tag', 'state-schema', 'model', 'relationship']), contradictions: [], score: score(fingerprint.evidence) + 4 });
+  const doubleHeight = GENERIC_BEHAVIOR_PROFILES.doubleHeight;
+  const doubleHeightContract = required(definitions, doubleHeight.requiredStates);
+  if (doubleHeightContract.valid && fingerprint.trustedFamilies.includes(doubleHeight.family)) candidates.push({ family: doubleHeight.family, behavior: doubleHeight.behavior, defaults: validDefaults(definitions, doubleHeight.defaults), evidence: evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model']), contradictions: [], score: score(fingerprint.evidence) + 4 });
 }
 
 function addTrustedSignCandidates(candidates: BehaviorCandidate[], fingerprint: BehaviorFingerprint, definitions: readonly BlockStateDefinition[]): void {
   const evidence = evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model', 'relationship']);
-  const rotation = Array.from({ length: 16 }, (_, index) => String(index));
-  const profiles: readonly { readonly family: 'standing-sign' | 'wall-sign' | 'hanging-sign' | 'wall-hanging-sign'; readonly behavior: BlockBehavior; readonly expected: Readonly<Record<string, readonly string[]>>; readonly defaults: Readonly<Record<string, string>> }[] = [
-    { family: 'standing-sign', behavior: { kind: 'standing-sign', rotationProperty: 'rotation', wallBlockId: '' }, expected: { rotation, waterlogged: BOOLEAN_VALUES }, defaults: { rotation: '0', waterlogged: 'false' } },
-    { family: 'wall-sign', behavior: { kind: 'wall-sign', facingProperty: 'facing' }, expected: { facing: HORIZONTAL_VALUES, waterlogged: BOOLEAN_VALUES }, defaults: { facing: 'north', waterlogged: 'false' } },
-    { family: 'hanging-sign', behavior: { kind: 'hanging-sign', rotationProperty: 'rotation', attachedProperty: 'attached', wallBlockId: '' }, expected: { rotation, attached: BOOLEAN_VALUES, waterlogged: BOOLEAN_VALUES }, defaults: { rotation: '0', attached: 'false', waterlogged: 'false' } },
-    { family: 'wall-hanging-sign', behavior: { kind: 'wall-hanging-sign', facingProperty: 'facing' }, expected: { facing: HORIZONTAL_VALUES, waterlogged: BOOLEAN_VALUES }, defaults: { facing: 'north', waterlogged: 'false' } },
-  ];
+  const profiles = [GENERIC_BEHAVIOR_PROFILES.standingSign, GENERIC_BEHAVIOR_PROFILES.wallSign, GENERIC_BEHAVIOR_PROFILES.hangingSign, GENERIC_BEHAVIOR_PROFILES.wallHangingSign];
   for (const profile of profiles) {
     if (!fingerprint.trustedFamilies.includes(profile.family)) continue;
-    const contract = required(definitions, profile.expected);
-    const stateDefinitions = mergeDefinitions(definitions, profile.expected);
-    if (contract.valid || canFillTrustedContract(definitions, profile.expected)) candidates.push({ family: profile.family, behavior: profile.behavior, defaults: validDefaults(stateDefinitions, profile.defaults), stateDefinitions, evidence, contradictions: [], score: score(evidence) + 4 });
+    const contract = required(definitions, profile.requiredStates);
+    const stateDefinitions = mergeDefinitions(definitions, profile.requiredStates);
+    if (contract.valid || canFillTrustedContract(definitions, profile.requiredStates)) candidates.push({ family: profile.family, behavior: profile.behavior, defaults: validDefaults(stateDefinitions, profile.defaults), stateDefinitions, evidence, contradictions: [], score: score(evidence) + 4 });
     else candidates.push(rejected(profile.family, 'trusted sign family conflicts with the observed state schema', evidence));
   }
 }
@@ -284,11 +285,11 @@ function wallResourceEvidence(fingerprint: Omit<BehaviorFingerprint, 'traits'> |
 
 function wallSchema(fingerprint: Omit<BehaviorFingerprint, 'traits'> | BehaviorFingerprint): boolean {
   const definitions = fingerprint.properties;
-  return compatibleSchema(definitions, { north: ['none', 'low', 'tall'], east: ['none', 'low', 'tall'], south: ['none', 'low', 'tall'], west: ['none', 'low', 'tall'], up: BOOLEAN_VALUES }).valid;
+  return compatibleSchema(definitions, GENERIC_BEHAVIOR_PROFILES.wall.requiredStates).valid;
 }
 
 function wallDefinitions(definitions: readonly BlockStateDefinition[]): readonly BlockStateDefinition[] {
-  const expected: Readonly<Record<string, readonly string[]>> = { north: ['none', 'low', 'tall'], east: ['none', 'low', 'tall'], south: ['none', 'low', 'tall'], west: ['none', 'low', 'tall'], up: BOOLEAN_VALUES };
+  const expected = GENERIC_BEHAVIOR_PROFILES.wall.requiredStates;
   const merged = new Map(definitions.map((definition) => [definition.name, definition]));
   for (const [name, values] of Object.entries(expected)) {
     const current = merged.get(name);

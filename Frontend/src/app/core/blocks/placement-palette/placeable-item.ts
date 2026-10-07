@@ -162,10 +162,6 @@ function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: R
     }
     const behavior = definition.behavior?.kind;
     if (behavior === 'paired-horizontal') entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind: 'bed', recipe: 'bed' });
-    else if (behavior === 'double-height' && definition.behavior.logicalObjectKind) {
-      const kind = definition.behavior.logicalObjectKind;
-      entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind, recipe: kind });
-    }
   }
   return entries;
 }

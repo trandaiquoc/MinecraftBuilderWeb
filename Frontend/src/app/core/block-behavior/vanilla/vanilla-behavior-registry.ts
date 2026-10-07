@@ -1,5 +1,6 @@
 import { AssetBlockRecord, BehaviorSupportLevel, BlockBehavior, BlockStateDefinition, DefaultStateSource } from '../../blocks/catalog/block-definition.types';
 import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
+import { GENERIC_BEHAVIOR_PROFILES, type GenericBehaviorProfile } from '../compatibility/behavior-profiles';
 
 export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -38,6 +39,10 @@ interface BehaviorMetadata {
   readonly stateDefinitions: readonly BlockStateDefinition[];
 }
 
+function profileMetadata(profile: GenericBehaviorProfile, support: BehaviorSupportLevel): BehaviorMetadata {
+  return { behavior: profile.behavior, support, defaultState: profile.defaults, stateDefinitions: profile.stateDefinitions };
+}
+
 const tagPaths = {
   beds: 'data/minecraft/tags/block/beds.json',
   doors: 'data/minecraft/tags/block/doors.json',
@@ -49,14 +54,8 @@ const tagPaths = {
   woodenFences: 'data/minecraft/tags/block/wooden_fences.json',
 } as const;
 
-const horizontalBooleanState: readonly BlockStateDefinition[] = [
-  { name: 'north', values: ['true', 'false'], derived: true },
-  { name: 'east', values: ['true', 'false'], derived: true },
-  { name: 'south', values: ['true', 'false'], derived: true },
-  { name: 'west', values: ['true', 'false'], derived: true },
-  { name: 'waterlogged', values: ['true', 'false'] },
-];
-const horizontalFalse = { north: 'false', east: 'false', south: 'false', west: 'false', waterlogged: 'false' } as const;
+const horizontalBooleanState = GENERIC_BEHAVIOR_PROFILES.fence.stateDefinitions;
+const horizontalFalse = GENERIC_BEHAVIOR_PROFILES.fence.defaults;
 
 /** Maps verified vanilla families to reusable editor behavior without coupling them to visual assets. */
 export class VanillaBehaviorRegistry {
@@ -148,15 +147,15 @@ export class VanillaBehaviorRegistry {
       const standing = name.replace(/_wall_(head|skull)$/, '_$1');
       if (facing && this.hasBlockstate(`minecraft:${standing}`)) return wallHeadMetadata;
     }
-    if (name.endsWith('_wall_torch') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_torch$/, '_torch')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+    if (name.endsWith('_wall_torch') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_torch$/, '_torch')}`)) return profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallMounted, 'full');
     if ((name.endsWith('_head') || name.endsWith('_skull')) && !name.startsWith('piston_') && rotation) {
       const wallName = name.replace(/_(head|skull)$/, (match) => `_wall${match}`);
       if (this.hasBlockstate(`minecraft:${wallName}`)) return standingHeadMetadata;
     }
-    if (name.endsWith('_wall_banner') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_banner$/, '_banner')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+    if (name.endsWith('_wall_banner') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_banner$/, '_banner')}`)) return profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallMounted, 'full');
     if (name.endsWith('_banner') && !name.endsWith('_wall_banner') && rotation && this.hasBlockstate(`minecraft:${name.replace(/_banner$/, '_wall_banner')}`)) return undefined;
-    if (name.endsWith('_wall_fan') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_fan$/, '_fan')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
-    if (name.startsWith('wall_') && name.endsWith('_torch') && facing && this.hasBlockstate(`minecraft:${name.replace(/^wall_/, '')}`)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+    if (name.endsWith('_wall_fan') && facing && this.hasBlockstate(`minecraft:${name.replace(/_wall_fan$/, '_fan')}`)) return profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallMounted, 'full');
+    if (name.startsWith('wall_') && name.endsWith('_torch') && facing && this.hasBlockstate(`minecraft:${name.replace(/^wall_/, '')}`)) return profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallMounted, 'full');
     if (name.endsWith('_torch') && !name.startsWith('wall_') && (this.hasBlockstate(`minecraft:wall_${name}`) || this.hasBlockstate(`minecraft:${name.replace(/_torch$/, '_wall_torch')}`))) return { behavior: { kind: 'torch-placement', wallBlockId: this.hasBlockstate(`minecraft:${name.replace(/_torch$/, '_wall_torch')}`) ? `minecraft:${name.replace(/_torch$/, '_wall_torch')}` : `minecraft:wall_${name}` }, support: 'full', defaultState: {}, stateDefinitions: [] };
     return undefined;
   }
@@ -257,55 +256,16 @@ export function isVanillaCandleId(id: string): boolean {
   return path === 'candle' || path.endsWith('_candle');
 }
 
-const wallStateDefinitions: readonly BlockStateDefinition[] = [
-  { name: 'north', values: ['none', 'low', 'tall'], derived: true },
-  { name: 'east', values: ['none', 'low', 'tall'], derived: true },
-  { name: 'south', values: ['none', 'low', 'tall'], derived: true },
-  { name: 'west', values: ['none', 'low', 'tall'], derived: true },
-  { name: 'up', values: ['true', 'false'], derived: true },
-  { name: 'waterlogged', values: ['true', 'false'] },
-];
-const wallDefaultState = { north: 'none', east: 'none', south: 'none', west: 'none', up: 'true', waterlogged: 'false' } as const;
-const stairsMetadata: BehaviorMetadata = {
-  behavior: { kind: 'stairs', derivedProperties: ['shape'] }, support: 'full',
-  defaultState: { facing: 'north', half: 'bottom', shape: 'straight', waterlogged: 'false' },
-  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'half', values: ['top', 'bottom'] }, { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'], derived: true }, { name: 'waterlogged', values: ['true', 'false'] }],
-};
-const doorMetadata: BehaviorMetadata = {
-  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'door' }, support: 'partial',
-  defaultState: { facing: 'north', half: 'lower', hinge: 'left', open: 'false', powered: 'false' },
-  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'half', values: ['lower', 'upper'], derived: true }, { name: 'hinge', values: ['left', 'right'] }, { name: 'open', values: ['true', 'false'] }, { name: 'powered', values: ['true', 'false'] }],
-};
-const tallFlowerMetadata: BehaviorMetadata = {
-  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'tall-plant' }, support: 'partial', defaultState: { half: 'lower' },
-  stateDefinitions: [{ name: 'half', values: ['lower', 'upper'], derived: true }],
-};
-const bedMetadata: BehaviorMetadata = {
-  behavior: { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, support: 'full',
-  defaultState: { facing: 'north', part: 'foot', occupied: 'false' },
-  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'part', values: ['foot', 'head'], derived: true }, { name: 'occupied', values: ['true', 'false'] }],
-};
-const floorSupportedMetadata: BehaviorMetadata = { behavior: { kind: 'floor-supported' }, support: 'partial', defaultState: {}, stateDefinitions: [] };
-const chainMetadata: BehaviorMetadata = {
-  behavior: { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' }, support: 'partial',
-  defaultState: { axis: 'y', waterlogged: 'false' },
-  stateDefinitions: [{ name: 'axis', values: ['x', 'y', 'z'] }, { name: 'waterlogged', values: ['true', 'false'] }],
-};
-const lanternMetadata: BehaviorMetadata = {
-  behavior: { kind: 'lantern-placement', hangingProperty: 'hanging', chainId: 'minecraft:chain' }, support: 'full',
-  defaultState: { hanging: 'false', waterlogged: 'false' },
-  stateDefinitions: [{ name: 'hanging', values: ['true', 'false'] }, { name: 'waterlogged', values: ['true', 'false'] }],
-};
-const candleMetadata: BehaviorMetadata = {
-  behavior: { kind: 'candle', candlesProperty: 'candles', maxCandles: 4 },
-  support: 'full',
-  defaultState: { candles: '1', lit: 'false', waterlogged: 'false' },
-  stateDefinitions: [
-    { name: 'candles', values: ['1', '2', '3', '4'] },
-    { name: 'lit', values: ['true', 'false'] },
-    { name: 'waterlogged', values: ['true', 'false'] },
-  ],
-};
+const wallStateDefinitions = GENERIC_BEHAVIOR_PROFILES.wall.stateDefinitions;
+const wallDefaultState = GENERIC_BEHAVIOR_PROFILES.wall.defaults;
+const stairsMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.stairs, 'full');
+const doorMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.doors, 'partial');
+const tallFlowerMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.doubleHeight, 'partial');
+const bedMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.beds, 'full');
+const floorSupportedMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.floorSupported, 'partial');
+const chainMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.chains, 'partial');
+const lanternMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.lanterns, 'full');
+const candleMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.candles, 'full');
 const decoratedPotMetadata: BehaviorMetadata = {
   behavior: { kind: 'decorated-pot-placement', facingProperty: 'facing' },
   support: 'full',
@@ -316,12 +276,7 @@ const decoratedPotMetadata: BehaviorMetadata = {
     { name: 'cracked', values: ['true', 'false'] },
   ],
 };
-const conduitMetadata: BehaviorMetadata = {
-  behavior: { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' },
-  support: 'full',
-  defaultState: { waterlogged: 'true' },
-  stateDefinitions: [{ name: 'waterlogged', values: ['true', 'false'] }],
-};
+const conduitMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.conduit, 'full');
 const fluidStateDefinitions: readonly BlockStateDefinition[] = [{ name: 'level', values: Array.from({ length: 16 }, (_, value) => String(value)) }];
 const waterMetadata: BehaviorMetadata = { behavior: { kind: 'fluid', fluid: 'water' }, support: 'full', defaultState: { level: '0' }, stateDefinitions: fluidStateDefinitions };
 const lavaMetadata: BehaviorMetadata = { behavior: { kind: 'fluid', fluid: 'lava' }, support: 'full', defaultState: { level: '0' }, stateDefinitions: fluidStateDefinitions };
@@ -334,11 +289,10 @@ const wallHeadMetadata: BehaviorMetadata = {
   defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }],
 };
 const wallSignMetadata: BehaviorMetadata = {
-  behavior: { kind: 'wall-sign', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north', waterlogged: 'false' },
-  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'waterlogged', values: ['true', 'false'] }],
+  ...profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallSign, 'full'),
 };
-const signRotationStates: readonly BlockStateDefinition[] = [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }, { name: 'waterlogged', values: ['true', 'false'] }];
-const hangingSignStates: readonly BlockStateDefinition[] = [{ name: 'rotation', values: Array.from({ length: 16 }, (_, value) => String(value)) }, { name: 'attached', values: ['true', 'false'], derived: true }, { name: 'waterlogged', values: ['true', 'false'] }];
+const signRotationStates = GENERIC_BEHAVIOR_PROFILES.standingSign.stateDefinitions;
+const hangingSignStates = GENERIC_BEHAVIOR_PROFILES.hangingSign.stateDefinitions;
 const vanillaSignWoods = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
 const vanillaShulkerBoxIds = [
   'minecraft:shulker_box', 'minecraft:white_shulker_box', 'minecraft:orange_shulker_box', 'minecraft:magenta_shulker_box',
@@ -351,23 +305,14 @@ const standingHeadIds = ['creeper_head', 'dragon_head', 'piglin_head', 'player_h
 const wallHeadIds = ['creeper_wall_head', 'dragon_wall_head', 'piglin_wall_head', 'player_wall_head', 'skeleton_wall_skull', 'wither_skeleton_wall_skull', 'zombie_wall_head'] as const;
 const vanillaBannerColors = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'] as const;
 function standingSignMetadata(wood: string): BehaviorMetadata {
-  return { behavior: { kind: 'standing-sign', rotationProperty: 'rotation', wallBlockId: `minecraft:${wood}_wall_sign` }, support: 'full', defaultState: { rotation: '0', waterlogged: 'false' }, stateDefinitions: signRotationStates };
+  return { ...profileMetadata(GENERIC_BEHAVIOR_PROFILES.standingSign, 'full'), behavior: { ...GENERIC_BEHAVIOR_PROFILES.standingSign.behavior, wallBlockId: `minecraft:${wood}_wall_sign` }, stateDefinitions: signRotationStates };
 }
 function hangingSignMetadata(wood: string): BehaviorMetadata {
-  return { behavior: { kind: 'hanging-sign', rotationProperty: 'rotation', attachedProperty: 'attached', wallBlockId: `minecraft:${wood}_wall_hanging_sign` }, support: 'full', defaultState: { rotation: '0', attached: 'false', waterlogged: 'false' }, stateDefinitions: hangingSignStates };
+  return { ...profileMetadata(GENERIC_BEHAVIOR_PROFILES.hangingSign, 'full'), behavior: { ...GENERIC_BEHAVIOR_PROFILES.hangingSign.behavior, wallBlockId: `minecraft:${wood}_wall_hanging_sign` }, stateDefinitions: hangingSignStates };
 }
-const wallHangingSignMetadata: BehaviorMetadata = {
-  behavior: { kind: 'wall-hanging-sign', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north', waterlogged: 'false' },
-  stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'waterlogged', values: ['true', 'false'] }],
-};
-const shulkerBoxMetadata: BehaviorMetadata = {
-  behavior: { kind: 'six-face-placement', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'up' },
-  stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }],
-};
-const amethystAttachmentMetadata: BehaviorMetadata = {
-  behavior: { kind: 'attached-six-face-placement', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'up', waterlogged: 'false' },
-  stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }, { name: 'waterlogged', values: ['true', 'false'] }],
-};
+const wallHangingSignMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallHangingSign, 'full');
+const shulkerBoxMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.shulker, 'full');
+const amethystAttachmentMetadata = profileMetadata(GENERIC_BEHAVIOR_PROFILES.attachedSixFace, 'full');
 
 const vanillaAmethystAttachmentIds = [
   'minecraft:small_amethyst_bud', 'minecraft:medium_amethyst_bud', 'minecraft:large_amethyst_bud', 'minecraft:amethyst_cluster',
@@ -382,7 +327,7 @@ function vanillaTorchMetadata(id: string): BehaviorMetadata | undefined {
   const wallIds = new Set(['minecraft:wall_torch', 'minecraft:soul_wall_torch', 'minecraft:redstone_wall_torch']);
   const wallId = standing[id];
   if (wallId) return { behavior: { kind: 'torch-placement', wallBlockId: wallId }, support: 'full', defaultState: {}, stateDefinitions: [] };
-  if (wallIds.has(id)) return { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] };
+  if (wallIds.has(id)) return profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallMounted, 'full');
   return undefined;
 }
 
@@ -390,16 +335,15 @@ function vanillaBannerMetadata(id: string): BehaviorMetadata | undefined {
   const name = id.replace('minecraft:', '');
   const color = vanillaBannerColors.find((value) => name === `${value}_banner` || name === `${value}_wall_banner`);
   if (!color) return undefined;
-  return name === `${color}_wall_banner`
-    ? { behavior: { kind: 'wall-mounted', facingProperty: 'facing' }, support: 'full', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }] }
-    : undefined;
+  return name === `${color}_wall_banner` ? profileMetadata(GENERIC_BEHAVIOR_PROFILES.wallMounted, 'full') : undefined;
 }
 
 function connectMetadata(family: 'fence' | 'pane' | 'wall', connectionGroup: string, compatibleGroups: readonly string[], stateDefinitions: readonly BlockStateDefinition[], defaultState: Readonly<Record<string, string>>): BehaviorMetadata {
   // The editor has no vanilla voxel-shape/sturdiness metadata for arbitrary
   // solid neighbors yet. Keep verified family connections, but do not claim
   // complete Java placement parity for solid/support-dependent cases.
-  return { behavior: { kind: 'horizontal-connect', family, connectionGroup, compatibleGroups, connectsToSolid: true, derivedProperties: family === 'wall' ? ['north', 'east', 'south', 'west', 'up'] : ['north', 'east', 'south', 'west'] }, support: 'partial', defaultState, stateDefinitions };
+  const profile = family === 'wall' ? GENERIC_BEHAVIOR_PROFILES.wall : family === 'fence' ? GENERIC_BEHAVIOR_PROFILES.fence : GENERIC_BEHAVIOR_PROFILES.pane;
+  return { behavior: { ...profile.behavior, connectionGroup, compatibleGroups } as Extract<BlockBehavior, { readonly kind: 'horizontal-connect' }>, support: 'partial', defaultState, stateDefinitions };
 }
 
 function mergeStateDefinitions(base: readonly BlockStateDefinition[], metadata: readonly BlockStateDefinition[]): readonly BlockStateDefinition[] {
