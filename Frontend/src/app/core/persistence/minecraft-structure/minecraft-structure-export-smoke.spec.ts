@@ -5,7 +5,7 @@ import { exportMinecraftStructure } from './minecraft-structure-exporter';
 import { createDecorationSupportIndex, decorationSupportPositions, validateDecorationAgainstProject } from '../../decorations/placement/decoration-placement';
 import { exporterSmokeProject } from './fixtures/exporter-smoke-project';
 
-describe('exporter-generated 15.3 smoke structure', () => {
+describe('exporter-generated structure smoke', () => {
   it('round-trips semantic block entities and top-level entities', async () => {
     const exported = await exportMinecraftStructure(exporterSmokeProject, new NbtifyMinecraftJavaCodec(), undefined, () => 64);
     expect(exported.ok).toBe(true);
