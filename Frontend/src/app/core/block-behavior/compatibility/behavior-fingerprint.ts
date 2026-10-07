@@ -238,7 +238,22 @@ function addSchemaCandidates(candidates: BehaviorCandidate[], fingerprint: Behav
     if (!contract.present) continue;
     const evidence = evidenceFor(fingerprint, ['tag', 'state-schema', 'blockstate', 'model', 'relationship']);
     const hasProfileEvidence = fingerprint.trustedFamilies.includes(profile.family) || resourceRelationship(fingerprint, profile.resourceTokens ?? []);
-    if (contract.valid && hasProfileEvidence) candidates.push({ family: profile.family, behavior: profile.behavior, defaults: validDefaults(definitions, profile.defaults), evidence, contradictions: [], score: score(evidence) + (fingerprint.trustedFamilies.includes(profile.family) ? 4 : 0) });
+    // A complete, exact door state contract is itself distinctive evidence.
+    // External content must not need a tag or a name/model token to preserve
+    // a verified double-height door schema, while all other profiles remain
+    // evidence-gated as before.
+    const schemaCompatible = profile.family === 'doors' ? exactSchema(definitions, profile.requiredStates) : contract.valid;
+    const distinctiveDoorSchema = profile.family === 'doors' && schemaCompatible;
+    if (schemaCompatible && (hasProfileEvidence || distinctiveDoorSchema)) {
+      candidates.push({
+        family: profile.family,
+        behavior: profile.behavior,
+        defaults: validDefaults(definitions, profile.defaults),
+        evidence,
+        contradictions: [],
+        score: score(evidence) + (fingerprint.trustedFamilies.includes(profile.family) ? 4 : 0) + (distinctiveDoorSchema ? 4 : 0),
+      });
+    }
     else if (hasProfileEvidence && contract.present) candidates.push(rejected(profile.family, 'state schema conflicts with the candidate contract', evidence));
   }
   const shulker = GENERIC_BEHAVIOR_PROFILES.shulker;
@@ -336,6 +351,13 @@ function compatibleSchema(definitions: readonly BlockStateDefinition[], expected
     return definition.values.every((value) => values.includes(value));
   });
   return { present, valid };
+}
+
+function exactSchema(definitions: readonly BlockStateDefinition[], expected: Readonly<Record<string, readonly string[]>>): boolean {
+  return Object.entries(expected).every(([name, values]) => {
+    const definition = definitions.find((entry) => entry.name === name);
+    return !!definition && definition.values.length === values.length && values.every((value) => definition.values.includes(value));
+  });
 }
 
 function connectionDefinitions(definitions: readonly BlockStateDefinition[]): readonly BlockStateDefinition[] {

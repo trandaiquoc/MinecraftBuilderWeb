@@ -2491,3 +2491,12 @@ placement planning, rule-engine commits, logical closure, and state edits use
 the same expansion and identity semantics. Presentation recipes such as
 `bed`, `door`, and `tall-plant` remain labels at the item boundary only;
 unknown or malformed imported pairs are not repaired implicitly.
+
+## Logical placement fix-forward regressions
+
+Bed special visuals keep the adapter root identity-transformed; vanilla local
+placement and facing transforms now live on a child branch so direct and static
+compiled templates have identical bounds. External blocks with the complete,
+exact door state schema (`facing`, `half`, `hinge`, `open`, `powered`) are now
+accepted as strong structural evidence without requiring a tag or name token.
+Incomplete or conflicting schemas remain fail-closed.

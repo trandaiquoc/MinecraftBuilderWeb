@@ -497,9 +497,15 @@ const vanillaBedFoot: SpecialModelDescriptor = { id: 'minecraft-java-bed-foot-1.
 ] };
 
 function applyBedTransform(root: THREE.Group, facing: string | undefined): void {
-  root.position.set(0, .5625, 0); root.rotation.x = Math.PI / 2;
+  // Keep the adapter root identity-transform. Static model classification
+  // extracts child matrices relative to that root and later applies only the
+  // voxel translation. The vanilla bed transform therefore belongs on a
+  // child placement branch so direct and compiled rendering share geometry.
+  const placement = new THREE.Group();
+  placement.position.set(0, .5625, 0); placement.rotation.x = Math.PI / 2;
   const orientation = new THREE.Group(); orientation.position.set(.5, .5, .5); orientation.rotation.z = THREE.MathUtils.degToRad(180 + directionRotation(facing));
-  const content = new THREE.Group(); content.position.set(-.5, -.5, -.5); while (root.children.length) content.add(root.children[0]); orientation.add(content); root.add(orientation);
+  const content = new THREE.Group(); content.position.set(-.5, -.5, -.5); while (root.children.length) content.add(root.children[0]); orientation.add(content);
+  placement.add(orientation); root.add(placement);
   root.userData['bedGeometry'] = 'minecraft-java-bed-1.21.1-modelpart'; root.userData['bedWorldFootOffset'] = 0;
 }
 function directionRotation(facing: string | undefined): number { return ({ south: 0, west: 90, north: 180, east: 270 } as Record<string, number>)[facing ?? 'north'] ?? 180; }

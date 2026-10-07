@@ -27,6 +27,37 @@ describe('common resource behavior evaluation', () => {
     expect(result.defaultStateSource).toBe('compatible-common');
   });
 
+  it('classifies a neutral external block with the complete door schema without name or resource evidence', () => {
+    const result = evaluateCommonBehavior(record('example:neutral_panel', [
+      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+      { name: 'half', values: ['lower', 'upper'] },
+      { name: 'hinge', values: ['left', 'right'] },
+      { name: 'open', values: ['true', 'false'] },
+      { name: 'powered', values: ['true', 'false'] },
+      { name: 'custom_variant', values: ['a', 'b'] },
+    ], 'example:block/panel', { behaviorEvidenceRequired: true }));
+    expect(result.behavior).toMatchObject({ kind: 'double-height', halfProperty: 'half' });
+    expect(result.family).toBe('doors');
+    expect(result.classification?.chosenCandidate).toBe('doors');
+    expect(result.classification?.selectionReason).toBe('evidence');
+  });
+
+  it('keeps incomplete or conflicting door-like schemas unknown for external content', () => {
+    const incomplete = evaluateCommonBehavior(record('example:doorish_panel', [
+      { name: 'half', values: ['lower', 'upper'] },
+    ], 'example:block/door_model', { behaviorEvidenceRequired: true }));
+    expect(incomplete.behavior).toBeUndefined();
+
+    const conflicting = evaluateCommonBehavior(record('example:doorish_panel', [
+      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+      { name: 'half', values: ['lower', 'upper'] },
+      { name: 'hinge', values: ['left', 'center'] },
+      { name: 'open', values: ['true', 'false'] },
+      { name: 'powered', values: ['true', 'false'] },
+    ], 'example:block/door_model', { behaviorEvidenceRequired: true }));
+    expect(conflicting.behavior).toBeUndefined();
+  });
+
   it('reuses the common button contract without an ID whitelist', () => {
     const result = evaluateCommonBehavior(record('example:stone_button', [
       { name: 'face', values: ['floor', 'wall', 'ceiling'] },

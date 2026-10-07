@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { classifyStaticModel } from './static-model-classifier';
+import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
 
 describe('static model classifier', () => {
   it('accepts reusable models whose envelope is smaller than one voxel', () => {
@@ -49,5 +50,23 @@ describe('static model classifier', () => {
     const result = classifyStaticModel(root);
     expect(result.templates).toHaveLength(3);
     expect(result.compiled?.envelope.max.x).toBeGreaterThan(.5);
+  });
+
+  it.each(['head', 'foot'] as const)('preserves vanilla bed %s geometry in the compiled static template for every facing', (part) => {
+    const registry = new SpecialBlockVisualRegistry();
+    for (const facing of ['north', 'east', 'south', 'west'] as const) {
+      const block = { kind: 'resolved' as const, id: 'minecraft:red_bed', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { part, facing } };
+      const adapter = registry.resolve(block)!;
+      const visual = adapter.create(block);
+      visual.userData['specialVisualFamily'] = adapter.family;
+      visual.userData['staticBatchable'] = true;
+      visual.updateMatrixWorld(true);
+      const direct = new THREE.Box3().setFromObject(visual);
+      const compiled = classifyStaticModel(visual).compiled;
+      expect(compiled, `${part}/${facing}`).toBeDefined();
+      expect(compiled!.envelope.min.toArray(), `${part}/${facing} min`).toEqual(direct.min.toArray());
+      expect(compiled!.envelope.max.toArray(), `${part}/${facing} max`).toEqual(direct.max.toArray());
+      expect(visual.position.toArray()).toEqual([0, 0, 0]);
+    }
   });
 });

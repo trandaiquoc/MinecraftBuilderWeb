@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { CooperativeWorkBudget } from '../cooperative-yield';
 import { assessFabricCompatibility, ExternalModProvider, parseFabricModMetadata } from './external-mod-provider';
+import { BlockCatalog } from '../../blocks/catalog/block-catalog';
+import { BlockRuleEngine } from '../../block-behavior/rules/block-rule-engine';
 
 const blockstate = { variants: { 'powered=false': { model: 'example:block/widget' }, 'powered=true': { model: 'example:block/widget' } } };
 
@@ -43,6 +45,40 @@ describe('ExternalModProvider', () => {
     expect(definition.id).toBe('lookalike:fake_sign');
     expect(definition.behavior).toBeUndefined();
     expect(definition.behaviorSupport).toBe('unknown');
+  });
+
+  it('classifies and materializes a neutral external door from its complete schema', () => {
+    const variants = Object.fromEntries([
+      'facing=north,half=lower,hinge=left,open=false,powered=false',
+      'facing=east,half=upper,hinge=right,open=true,powered=true',
+      'facing=south,half=lower,hinge=left,open=true,powered=false',
+      'facing=west,half=upper,hinge=right,open=false,powered=true',
+    ].map((key) => [key, { model: 'example:block/panel' }]));
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'neutral-door', version: '1.0.0', depends: { minecraft: '1.21.1' } },
+      json: new Map([['assets/example/blockstates/panel.json', { variants }]]),
+      resources: new Map(),
+    });
+    const source = provider.catalog();
+    expect(source.blocks[0]?.behavior).toMatchObject({ kind: 'double-height', halfProperty: 'half' });
+    const catalog = new BlockCatalog();
+    catalog.load(source);
+    const definition = catalog.get('example:panel')!;
+    expect(definition.logicalPlacement).toMatchObject({ layout: 'vertical-two-part', identityProperty: 'half' });
+    const engine = new BlockRuleEngine((id) => catalog.get(id));
+    const project = {
+      schemaVersion: 2 as const,
+      id: 'neutral-door',
+      metadata: { name: 'Neutral Door', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' },
+      size: { x: 4, y: 4, z: 4 },
+      structureMode: 'vanilla-structure-block' as const,
+      blocks: [],
+      groups: [],
+      editorSettings: { currentY: 1, layerVisibility: 'current-only' as const, referenceLayerOpacity: .28 },
+    };
+    const placed = engine.place(project, { kind: 'resolved', id: 'example:panel', namespace: 'example', position: { x: 1, y: 0, z: 1 }, state: definition.defaultState });
+    expect(placed.validation.status).toBe('valid');
+    expect(placed.project?.blocks.filter((block) => block.id === 'example:panel').map((block) => block.state['half'])).toEqual(['lower', 'upper']);
   });
 
   it('rejects malformed or invalid Fabric metadata', () => {
