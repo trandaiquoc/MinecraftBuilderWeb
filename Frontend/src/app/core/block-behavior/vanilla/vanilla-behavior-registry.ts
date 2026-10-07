@@ -272,12 +272,12 @@ const stairsMetadata: BehaviorMetadata = {
   stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'half', values: ['top', 'bottom'] }, { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'], derived: true }, { name: 'waterlogged', values: ['true', 'false'] }],
 };
 const doorMetadata: BehaviorMetadata = {
-  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, support: 'partial',
+  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'door' }, support: 'partial',
   defaultState: { facing: 'north', half: 'lower', hinge: 'left', open: 'false', powered: 'false' },
   stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'half', values: ['lower', 'upper'], derived: true }, { name: 'hinge', values: ['left', 'right'] }, { name: 'open', values: ['true', 'false'] }, { name: 'powered', values: ['true', 'false'] }],
 };
 const tallFlowerMetadata: BehaviorMetadata = {
-  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, support: 'partial', defaultState: { half: 'lower' },
+  behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'tall-plant' }, support: 'partial', defaultState: { half: 'lower' },
   stateDefinitions: [{ name: 'half', values: ['lower', 'upper'], derived: true }],
 };
 const bedMetadata: BehaviorMetadata = {

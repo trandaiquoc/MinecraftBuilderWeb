@@ -5,7 +5,7 @@ import { CONTENT_SOURCE_MINECRAFT_VERSION } from '../content-source/content-sour
 import { texturePath } from '../vanilla/vanilla-asset-provider';
 import { itemEvidenceFromResources, itemIdentityIndexFromResources } from '../vanilla/format/item-evidence';
 import { evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
-import { matchVanillaBehaviorCandidates, type BehaviorClassificationSummary } from '../../block-behavior/compatibility/behavior-fingerprint';
+import type { BehaviorClassificationSummary } from '../../block-behavior/compatibility/behavior-fingerprint';
 import { evaluateMinecraftRequirement } from './minecraft-version-predicate';
 import { normalizeFabricMetadata, NormalizedModMetadata, ModCompatibilityResult, SupportedModLoader } from './mod-loader';
 export type { SupportedModLoader } from './mod-loader';
@@ -291,16 +291,14 @@ export class ExternalModProvider implements ContentSourceProvider {
     const rawDescriptor = context.introspection.inspectBlock(initial);
     const evidenceRecord: AssetBlockRecord = { ...initial, defaultState: rawDescriptor.placementDefault, stateDefinitions: rawDescriptor.properties.map((property) => ({ name: property.name, values: property.values, ...(property.derived ? { derived: true } : {}) })), capabilities: rawDescriptor.capabilityProfile ?? initial.capabilities, supportRequirements: rawDescriptor.supportRequirements, supportContracts: rawDescriptor.supportContracts, specialVisual: rawDescriptor.specialVisual ?? signVisual, itemHostVisual: rawDescriptor.itemHostVisual, semanticEvidence: rawDescriptor.semanticEvidence, contentDescriptor: rawDescriptor, behaviorFingerprint: rawDescriptor.behaviorFingerprint };
     const evaluation = evaluateCommonBehavior(evidenceRecord, this);
-    const fingerprintClassification = rawDescriptor.behaviorFingerprint ? matchVanillaBehaviorCandidates(rawDescriptor.behaviorFingerprint).classification : undefined;
     const classification: BehaviorClassificationSummary = evaluation.classification ?? {
-      ...(evaluation.behavior && evaluation.family ? { chosenCandidate: evaluation.family } : fingerprintClassification?.chosenCandidate ? { chosenCandidate: fingerprintClassification.chosenCandidate } : {}),
-      traits: fingerprintClassification?.traits ?? rawDescriptor.behaviorFingerprint?.traits ?? [],
-      supportingEvidence: fingerprintClassification?.supportingEvidence ?? rawDescriptor.behaviorFingerprint?.evidence ?? [],
-      rejectedCandidates: fingerprintClassification?.rejectedCandidates ?? [],
-      candidates: fingerprintClassification?.candidates ?? [],
-      ...(fingerprintClassification?.nameTieBreak ? { nameTieBreak: fingerprintClassification.nameTieBreak } : {}),
-      selectionReason: fingerprintClassification?.selectionReason ?? 'none',
-      confidence: evaluation.behavior ? 'partial' : fingerprintClassification?.confidence ?? 'unknown',
+      ...(evaluation.behavior && evaluation.family ? { chosenCandidate: evaluation.family } : {}),
+      traits: rawDescriptor.behaviorFingerprint?.traits ?? [],
+      supportingEvidence: rawDescriptor.behaviorFingerprint?.evidence ?? [],
+      rejectedCandidates: [],
+      candidates: [],
+      selectionReason: evaluation.behavior ? 'evidence' : 'none',
+      confidence: evaluation.behavior ? 'partial' : 'unknown',
     };
     const finalized: AssetBlockRecord = { ...evidenceRecord, defaultState: { ...evidenceRecord.defaultState, ...evaluation.defaultState }, stateDefinitions: [...evaluation.stateDefinitions].sort((left, right) => left.name.localeCompare(right.name)), defaultStateSource: evaluation.defaultStateSource, behaviorClassification: classification, ...(evaluation.behavior ? { behavior: evaluation.behavior, behaviorSupport: 'partial' as const } : {}) };
     const finalDescriptor = context.introspection.inspectBlock(finalized, rawDescriptor.behaviorFingerprint);

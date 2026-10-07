@@ -150,7 +150,6 @@ function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: R
   const seen = new Set<string>();
   for (const definition of definitions) {
     if (seen.has(definition.id)) continue;
-    const name = definition.id.slice(definition.namespace.length + 1);
     const variants = definition.placementVariants;
     if (variants?.standing || variants?.hanging) {
       const ids = [...new Set(Object.values(variants).filter((value): value is string => !!value))];
@@ -161,33 +160,14 @@ function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: R
       }
       continue;
     }
-    if (definition.namespace === 'minecraft') {
-      const pair = vanillaLogicalPair(name);
-      if (pair) {
-        const standing = `${definition.namespace}:${pair.standing}`; const wall = `${definition.namespace}:${pair.wall}`;
-        if (byId.has(standing) && byId.has(wall) && !seen.has(standing)) {
-          seen.add(standing); seen.add(wall); entries.push({ itemId: standing, concreteBlockIds: [standing, wall], kind: pair.kind, recipe: 'single', placementVariants: pair.variants });
-        }
-        continue;
-      }
-    }
     const behavior = definition.behavior?.kind;
     if (behavior === 'paired-horizontal') entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind: 'bed', recipe: 'bed' });
-    else if (behavior === 'double-height') entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind: name.endsWith('_door') ? 'door' : 'tall-plant', recipe: name.endsWith('_door') ? 'door' : 'tall-plant' });
+    else if (behavior === 'double-height' && definition.behavior.logicalObjectKind) {
+      const kind = definition.behavior.logicalObjectKind;
+      entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind, recipe: kind });
+    }
   }
   return entries;
-}
-
-function vanillaLogicalPair(name: string): { readonly standing: string; readonly wall: string; readonly kind: PlaceablePlacementKind; readonly variants: BlockPlacementVariants } | undefined {
-  if (name.endsWith('_wall_sign')) { const standing = name.replace(/_wall_sign$/, '_sign'); return { standing, wall: name, kind: 'sign', variants: { standing: `minecraft:${standing}`, wall: `minecraft:${name}` } }; }
-  if (name.endsWith('_wall_hanging_sign')) { const standing = name.replace(/_wall_hanging_sign$/, '_hanging_sign'); return { standing, wall: name, kind: 'hanging-sign', variants: { hanging: `minecraft:${standing}`, wallHanging: `minecraft:${name}` } }; }
-  if (name.endsWith('_wall_banner')) { const standing = name.replace(/_wall_banner$/, '_banner'); return { standing, wall: name, kind: 'banner', variants: { standing: `minecraft:${standing}`, wall: `minecraft:${name}` } }; }
-  if (name.endsWith('_wall_fan')) { const standing = name.replace(/_wall_fan$/, '_fan'); return { standing, wall: name, kind: 'coral-fan', variants: { standing: `minecraft:${standing}`, wall: `minecraft:${name}` } }; }
-  if (name.endsWith('_wall_head')) { const standing = name.replace(/_wall_head$/, '_head'); return { standing, wall: name, kind: 'head', variants: { standing: `minecraft:${standing}`, wall: `minecraft:${name}` } }; }
-  if (name.endsWith('_wall_skull')) { const standing = name.replace(/_wall_skull$/, '_skull'); return { standing, wall: name, kind: 'head', variants: { standing: `minecraft:${standing}`, wall: `minecraft:${name}` } }; }
-  if (name.startsWith('wall_') && name.endsWith('_torch')) { const standing = name.replace(/^wall_/, ''); return { standing, wall: name, kind: 'torch', variants: { standing: `minecraft:${standing}`, wall: `minecraft:${name}` } }; }
-  if (name.endsWith('_wall_torch')) { const standing = name.replace(/_wall_torch$/, '_torch'); return { standing, wall: name, kind: 'torch', variants: { standing: `minecraft:${standing}`, wall: `minecraft:${name}` } }; }
-  return undefined;
 }
 
 function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {

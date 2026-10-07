@@ -22,16 +22,22 @@ describe('vanilla placeable item layer', () => {
     expect(canonicalPlaceableItemId('minecraft:skeleton_wall_skull')).toBe('minecraft:skeleton_skull');
   });
 
-  it('discovers compatible standing/wall pairs from the active catalog', () => {
-    const catalog = catalogWith('minecraft:azure_sign', 'minecraft:azure_wall_sign', 'minecraft:amethyst_head', 'minecraft:amethyst_wall_head');
+  it('uses explicit placement variants for standing/wall pairs', () => {
+    const source: AssetBlockRecord[] = [
+      { id: 'minecraft:azure_sign', displayName: 'Azure Sign', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', placementVariants: { standing: 'minecraft:azure_sign', wall: 'minecraft:azure_wall_sign' } },
+      { id: 'minecraft:azure_wall_sign', displayName: 'Azure Wall Sign', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', placementVariants: { standing: 'minecraft:azure_sign', wall: 'minecraft:azure_wall_sign' } },
+      { id: 'minecraft:amethyst_head', displayName: 'Amethyst Head', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', placementVariants: { standing: 'minecraft:amethyst_head', wall: 'minecraft:amethyst_wall_head' } },
+      { id: 'minecraft:amethyst_wall_head', displayName: 'Amethyst Wall Head', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', placementVariants: { standing: 'minecraft:amethyst_head', wall: 'minecraft:amethyst_wall_head' } },
+    ];
+    const catalog = new BlockCatalog(); catalog.load({ minecraftVersion: '1.21.1', blocks: source });
     const items = buildPlaceableItems(catalog.all());
     expect(items.find((item) => item.itemId === 'minecraft:azure_sign')?.concreteBlockIds).toEqual(['minecraft:azure_sign', 'minecraft:azure_wall_sign']);
     expect(items.find((item) => item.itemId === 'minecraft:amethyst_head')?.concreteBlockIds).toEqual(['minecraft:amethyst_head', 'minecraft:amethyst_wall_head']);
   });
 
-  it('discovers suffixed torch wall pairs and keeps internal blocks out when item evidence is present', () => {
+  it('uses explicit torch variants and keeps internal blocks out when item evidence is present', () => {
     const source: AssetBlockRecord[] = [
-      { id: 'minecraft:copper_torch', displayName: 'Copper Torch', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', itemEvidence: { itemId: 'minecraft:copper_torch', placeable: true, sourceFormat: 'modern-item-definition' } },
+      { id: 'minecraft:copper_torch', displayName: 'Copper Torch', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full', itemEvidence: { itemId: 'minecraft:copper_torch', placeable: true, sourceFormat: 'modern-item-definition' }, placementVariants: { standing: 'minecraft:copper_torch', wall: 'minecraft:copper_wall_torch' } },
       { id: 'minecraft:copper_wall_torch', displayName: 'Copper Wall Torch', defaultState: { facing: 'north' }, stateDefinitions: [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }], resources: { textures: [] }, support: 'full' },
       { id: 'minecraft:potted_torchflower', displayName: 'Potted Torchflower', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' },
       { id: 'minecraft:torchflower_crop', displayName: 'Torchflower Crop', defaultState: {}, stateDefinitions: [], resources: { textures: [] }, support: 'full' },

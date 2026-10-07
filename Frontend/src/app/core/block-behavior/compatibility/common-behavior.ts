@@ -54,15 +54,15 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
     powered: booleanValues,
   });
   if (door.complete && hasFamilyEvidence(record, 'doors')) {
-    return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, doorState(definitions), 'compatible-common');
+    return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'door' }, doorState(definitions), 'compatible-common');
   }
   if (door.partial && hasFamilyEvidence(record, 'doors') && canFillCommon(record, definitions, { facing: horizontal, half: ['lower', 'upper'], hinge: ['left', 'right'], open: booleanValues, powered: booleanValues }) && looksLikeDoor(record.id, definitions)) {
-    return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, doorState(definitions), 'compatible-common');
+    return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'door' }, doorState(definitions), 'compatible-common');
   }
   if (door.partial && looksLikeDoor(record.id, definitions)) return changed(record, definitions, defaultState, 'doors', 'Door state contract is missing one or more common properties.');
 
   const doubleHeight = contract(definitions, { half: ['lower', 'upper'] });
-  if (doubleHeight.complete && !door.partial && hasFamilyEvidence(record, 'double-height') && !looksLikeDoor(record.id, definitions) && !hasAny(definitions, ['open', 'hinge', 'powered'])) return complete(record, definitions, 'double-height', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, { half: 'lower' }, 'compatible-common');
+  if (doubleHeight.complete && !door.partial && hasFamilyEvidence(record, 'double-height') && !looksLikeDoor(record.id, definitions) && !hasAny(definitions, ['open', 'hinge', 'powered'])) return complete(record, definitions, 'double-height', { kind: 'double-height', halfProperty: 'half', requiresFloor: true, logicalObjectKind: 'tall-plant' }, { half: 'lower' }, 'compatible-common');
 
   const bed = contract(definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues });
   if (bed.complete && hasFamilyEvidence(record, 'beds')) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
