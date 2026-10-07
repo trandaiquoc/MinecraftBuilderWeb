@@ -19,12 +19,15 @@ const literalRoot = JSON.stringify(root.replaceAll('\\', '/'));
 const literalVersion = JSON.stringify(version);
 const reportJsonPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-coverage-${version}.json`).replaceAll('\\', '/'));
 const reportMarkdownPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-coverage-${version}.md`).replaceAll('\\', '/'));
-writeFileSync(testPath, `
+const providerModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-provider'));
+const auditModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit'));
+try {
+  writeFileSync(testPath, `
 import { describe, it } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { VanillaAssetProvider } from './vanilla-asset-provider';
-import { auditVanillaAssets, coverageReportMarkdown } from './vanilla-asset-audit';
+import { VanillaAssetProvider } from '${providerModule}';
+import { auditVanillaAssets, coverageReportMarkdown } from '${auditModule}';
 describe('vanilla coverage command', () => it('writes the report', async () => {
   const root = ${literalRoot}; const version = ${literalVersion};
   const json = {}; const binary = new Map();
@@ -35,10 +38,14 @@ describe('vanilla coverage command', () => it('writes the report', async () => {
   writeFileSync(${reportMarkdownPath}, coverageReportMarkdown(report) + '\\n');
 }, 120000));
 `, 'utf8');
-try {
   const npm = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  const result = spawnSync(npm, ['vitest', 'run', relative(frontendRoot, testPath)], { stdio: 'inherit', cwd: frontendRoot, shell: process.platform === 'win32' });
+  const result = spawnSync(npm, ['vitest', 'run', '--root', repoRoot, relative(repoRoot, testPath)], { stdio: 'inherit', cwd: frontendRoot, shell: process.platform === 'win32' });
   if (result.status !== 0) throw new Error(`Vanilla audit command failed with exit code ${result.status ?? 1}`);
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
+}
+
+function moduleSpecifier(from, to) {
+  const value = relative(from, to).replaceAll('\\', '/');
+  return value.startsWith('.') ? value : `./${value}`;
 }

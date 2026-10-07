@@ -217,8 +217,13 @@ Keep technical identifiers such as Minecraft registry IDs untranslated.
 
 The application must remain compatible with:
 
+- Minecraft theme;
 - light theme;
 - dark theme.
+
+The persisted internal key may remain `craft` where the current code uses it;
+the product-facing label is **Minecraft**. Every UI change must be checked in
+all three themes and in both English and Vietnamese.
 
 Do not use hard-coded colors that make one theme unusable.
 
