@@ -78,6 +78,16 @@ import { planLocalRenderDelta } from '../mutations/local-render-delta';
 import { applyLocalFluidDelta } from '../mutations/local-fluid-render-delta';
 import type { FluidWorldLookup, ResolvedFluidRenderState } from '../fluids/fluid-state';
 import { GroupIsolationPresentation, type GroupIsolationSnapshot, type IsolateBlockVisualSnapshot, type IsolateDecorationVisualSnapshot } from '../isolation/group-isolation-presentation';
+import { EditingPlanePresenter } from '../presentation/editing-plane-presenter';
+import { SelectionOverlayPresenter } from '../presentation/selection-overlay-presenter';
+import { projectPointerToAxisPlane } from '../interaction/viewport-pointer-projection';
+import { disposeObject } from '../presentation/renderer-resource-disposal';
+import { BlockGhostPresenter } from '../presentation/block-ghost-presenter';
+import { DecorationGhostPresenter } from '../presentation/decoration-ghost-presenter';
+import { MovePreviewPresenter } from '../presentation/move-preview-presenter';
+import { GroupHighlightPresenter } from '../presentation/group-highlight-presenter';
+import { StructureBlockGuidePresenter } from '../presentation/structure-block-guide-presenter';
+import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 
 
 export interface ViewportHit { readonly target?: VoxelCoordinate; readonly placement?: { readonly status: PlacementStatus; readonly plan?: PlacementPlan }; readonly block?: VoxelCoordinate; readonly faceNormal?: FaceNormal; readonly placementContext?: PlacementContext; readonly decoration?: PlacedDecoration; readonly decorationPlan?: DecorationPlacementPlan; readonly decorationDistance?: number; readonly blockDistance?: number; }
@@ -583,31 +593,55 @@ export class ThreeViewportEngine {
     onDeactivated: () => this.clearCommittedIsolatePresentation(),
     onFailed: () => { this.requestedIsolatedKeys.clear(); this.scheduleRender(); },
   });
-  private readonly structureBlockGuideGroup = new THREE.Group();
-  private readonly ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x4b9cff, transparent: true, opacity: 0.35 }));
-  private readonly selectionOutline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)), new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false }));
-  private readonly selectionBox = new THREE.Box3Helper(new THREE.Box3(), 0xffd166);
-  private readonly movePreviewGroup = new THREE.Group();
-  private readonly decorationGhostGroup = new THREE.Group();
-  private readonly decorationSelectionGroup = new THREE.Group();
-  private readonly logicalSelectionGroup = new THREE.Group();
-  private readonly logicalSelectionGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04));
-  private readonly logicalSelectionMaterial = new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false, depthWrite: false });
-  private readonly blockUsageHighlightGeometry = new THREE.BoxGeometry(.98, .98, .98);
-  private readonly blockUsageHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x62d8ff, transparent: true, opacity: .2, depthTest: false, depthWrite: false });
-  private blockUsageHighlight?: THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
-  private blockUsageHighlightCapacity = 0;
-  private readonly blockUsageHighlightMatrix = new THREE.Matrix4();
-  private readonly groupHighlightGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.12, 1.12, 1.12));
-  private readonly groupHighlightMaterial = new THREE.LineBasicMaterial({ color: 0x58d8d0 });
-  private structureBlockGuideKey = '';
-  private structureBlockGuideGeneration = 0;
-  private lastSelectionPositions?: readonly VoxelCoordinate[];
-  private lastSelectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate };
-  private lastSelectionKind?: string;
-  private lastSelectionCount = -1;
-  private lastSelected?: VoxelCoordinate;
-  private lastSelectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate };
+  private readonly structureBlockGuidePresenter = new StructureBlockGuidePresenter({ scheduleRender: () => this.scheduleRender(), currentProvider: () => this.visualProvider });
+  private get structureBlockGuideGroup(): THREE.Group { return this.structureBlockGuidePresenter.group; }
+  private readonly blockGhostPresenter = new BlockGhostPresenter(this.scene, viewportThemePalette('dark'), {
+    provider: () => this.visualProvider,
+    providerGeneration: () => this.providerGeneration,
+    blockLookup: () => this.spatialIndex ? (position) => this.spatialIndex?.get(position) : undefined,
+    record: (name) => this.instrumentation.record(name),
+    scheduleRender: () => this.scheduleRender(),
+  });
+  private get ghost(): THREE.Mesh { return this.blockGhostPresenter.ghost; }
+  private readonly selectionPresenter = new SelectionOverlayPresenter(this.scene, viewportThemePalette('dark'), DETAILED_SELECTION_OUTLINE_LIMIT);
+  private readonly movePreviewPresenter = new MovePreviewPresenter(viewportThemePalette('dark'), {
+    getBlock: (position) => this.spatialIndex?.get(position),
+    textureUrl: (resource) => this.decorationTextureUrl?.(resource),
+    textureCache: () => this.decorationTextureCache,
+    paintingResource: (variantId) => this.paintingResource?.(variantId),
+    itemResources: (itemId) => this.decorationItemResources?.(itemId) ?? [],
+    itemVisual: (itemId) => this.decorationItemVisual?.(itemId),
+  });
+  private get movePreviewGroup(): THREE.Group { return this.movePreviewPresenter.group; }
+  private readonly decorationGhostPresenter = new DecorationGhostPresenter(viewportThemePalette('dark'), {
+    textureUrl: (resource) => this.decorationTextureUrl?.(resource),
+    itemResources: (itemId) => this.decorationItemResources?.(itemId) ?? [],
+    itemVisual: (itemId) => this.decorationItemVisual?.(itemId),
+    paintingResource: (variantId) => this.paintingResource?.(variantId),
+    textureCache: () => this.decorationTextureCache,
+    scheduleRender: () => this.scheduleRender(),
+  });
+  private get decorationGhostGroup(): THREE.Group { return this.decorationGhostPresenter.group; }
+  private readonly decorationSelectionPresenter = new DecorationSelectionPresenter(viewportThemePalette('dark'), {
+    selected: (id) => { const entry = this.renderedDecorations.get(id); return entry ? { object: entry.object } : undefined; },
+  });
+  private get decorationSelectionGroup(): THREE.Group { return this.decorationSelectionPresenter.group; }
+  private readonly groupHighlightPresenter = new GroupHighlightPresenter(this.scene, viewportThemePalette('dark'), {
+    visibleBlock: (key) => { const entry = this.cachedVisibleMap.get(key); return entry ? { block: entry.block } : undefined; },
+    blockAt: (position) => this.spatialIndex?.get(position),
+    isolated: (key) => this.isolatedKeys.has(key),
+    isolationActive: () => this.isolationPresentation.isActive(),
+    decorationIsolated: (entry) => decorationHasGroup(entry, this.renderOptions.isolatedGroupId ?? ''),
+  });
+  private get blockUsageHighlight(): THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshBasicMaterial> | undefined { return this.groupHighlightPresenter.usageOverlay; }
+  private set blockUsageHighlight(value: THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshBasicMaterial> | undefined) { this.groupHighlightPresenter.usageOverlay = value; }
+  private get blockUsageHighlightCapacity(): number { return this.groupHighlightPresenter.usageCapacity; }
+  private set blockUsageHighlightCapacity(value: number) { this.groupHighlightPresenter.usageCapacity = value; }
+  private get blockUsageHighlightGeometry(): THREE.BoxGeometry { return this.groupHighlightPresenter.blockUsageHighlightGeometry; }
+  private get blockUsageHighlightMaterial(): THREE.MeshBasicMaterial { return this.groupHighlightPresenter.blockUsageHighlightMaterial; }
+  private get groupHighlightGroup(): THREE.Group { return this.groupHighlightPresenter.group; }
+  private get structureBlockGuideKey(): string { return this.structureBlockGuidePresenter.currentKey; }
+  private set structureBlockGuideKey(value: string) { this.structureBlockGuidePresenter.currentKey = value; }
   private readonly fallbackGeometry = Object.assign(new THREE.BoxGeometry(1, 1, 1), { userData: { sharedFallbackGeometry: true } });
   private readonly fallbackMaterials = {
     normal: Object.assign(new THREE.MeshLambertMaterial({ color: 0x8a94a6 }), { userData: { sharedFallbackMaterial: true } }),
@@ -638,18 +672,27 @@ export class ThreeViewportEngine {
     onCoalesced: () => { this.instrumentation.record('renderInvalidationsCoalesced'); this.instrumentation.record('coalescedRenderRequests'); },
   });
   private readonly hydrationScheduler = new HydrationScheduler<never>();
-  private ghostModel?: THREE.Group;
-  private ghostModelKey = '';
-  private ghostPlan?: PlacementPlan;
-  private ghostTarget?: VoxelCoordinate;
-  private lastHoverVisualKey = '';
-  private decorationGhostKey = '';
-  private readonly ghostBoundsCenter = new THREE.Vector3(.5, .5, .5);
+  private get ghostModel(): THREE.Group | undefined { return this.blockGhostPresenter.model; }
+  private get ghostModelKey(): string { return this.blockGhostPresenter.modelKey; }
+  private set ghostModelKey(value: string) { this.blockGhostPresenter.modelKey = value; }
+  private get ghostPlan(): PlacementPlan | undefined { return this.blockGhostPresenter.plan; }
+  private set ghostPlan(value: PlacementPlan | undefined) { this.blockGhostPresenter.plan = value; }
+  private get ghostTarget(): VoxelCoordinate | undefined { return this.blockGhostPresenter.target; }
+  private get lastHoverVisualKey(): string { return this.blockGhostPresenter.hoverVisualKey; }
+  private set lastHoverVisualKey(value: string) { this.blockGhostPresenter.hoverVisualKey = value; }
+  private get decorationGhostKey(): string { return this.decorationGhostPresenter.currentKey; }
+  private set decorationGhostKey(value: string) { this.decorationGhostPresenter.currentKey = value; }
   private renderer?: THREE.WebGLRenderer;
   private controls?: OrbitControls;
   private ground?: THREE.Mesh;
-  private editingPlane?: THREE.Mesh;
-  private editingGrid?: THREE.LineSegments;
+  private readonly editingPlanePresenter = new EditingPlanePresenter(this.scene, createBoundedGrid, viewportThemePalette('dark'));
+  private get editingPlane(): THREE.Mesh | undefined { return this.editingPlanePresenter.plane; }
+  private get editingGrid(): THREE.LineSegments | undefined { return this.editingPlanePresenter.grid; }
+  private get selectionOutline(): THREE.LineSegments { return this.selectionPresenter.selectionOutline; }
+  private get selectionBox(): THREE.Box3Helper { return this.selectionPresenter.selectionBox; }
+  private get logicalSelectionGroup(): THREE.Group { return this.selectionPresenter.logicalSelectionGroup; }
+  private get logicalSelectionGeometry(): THREE.EdgesGeometry { return this.selectionPresenter.logicalSelectionGeometry; }
+  private get logicalSelectionMaterial(): THREE.LineBasicMaterial { return this.selectionPresenter.logicalSelectionMaterial; }
   private projectGrid?: THREE.LineSegments;
   private boundsBox?: THREE.Box3Helper;
   private container?: HTMLElement;
@@ -752,7 +795,7 @@ export class ThreeViewportEngine {
   private definitionResolver?: (blockId: string) => BlockDefinition | undefined;
   private decorationTextureCache?: DecorationTextureCache;
   private placementPlanProvider?: PlacementPlanProvider;
-  private ghostGeneration = 0;
+  private get ghostGeneration(): number { return this.blockGhostPresenter.generation; }
   private disposed = false;
   private suspended = false;
   private suspendedNeedsRefresh = false;
@@ -917,12 +960,6 @@ export class ThreeViewportEngine {
       trace: (phase, key, source) => this.traceInstanceOwnership(phase, key, source),
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
-    const selectionBoxMaterial = this.selectionBox.material as THREE.LineBasicMaterial;
-    selectionBoxMaterial.depthTest = false;
-    selectionBoxMaterial.depthWrite = false;
-    this.selectionOutline.renderOrder = 2000;
-    this.selectionBox.renderOrder = 2000;
-    this.logicalSelectionGroup.renderOrder = 2000;
   }
 
   mount(container: HTMLElement): void {
@@ -946,21 +983,10 @@ export class ThreeViewportEngine {
     this.scene.add(this.structureBlockGuideGroup);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
-    this.selectionOutline.visible = false;
-    this.selectionOutline.renderOrder = 1001;
-    this.scene.add(this.selectionOutline);
-    this.selectionBox.visible = false;
-    this.selectionBox.renderOrder = 1001;
-    this.scene.add(this.selectionBox);
+    this.selectionPresenter.mount();
     this.scene.add(this.movePreviewGroup);
-    this.scene.add(this.logicalSelectionGroup);
-    this.blockUsageHighlight = new THREE.InstancedMesh(this.blockUsageHighlightGeometry, this.blockUsageHighlightMaterial, 1);
-    this.blockUsageHighlight.visible = false;
-    this.blockUsageHighlight.count = 0;
-    this.blockUsageHighlight.frustumCulled = false;
-    this.blockUsageHighlight.renderOrder = 1900;
-    this.blockUsageHighlight.userData['blockUsageHighlight'] = true;
-    this.scene.add(this.blockUsageHighlight);
+    this.groupHighlightPresenter.mount();
+    this.groupHighlightPresenter.createUsageOverlay();
     this.scene.add(this.decorationGhostGroup);
     this.scene.add(this.decorationSelectionGroup);
     this.camera.position.set(12, 10, 12);
@@ -1021,11 +1047,13 @@ export class ThreeViewportEngine {
     this.palette = palette;
     this.themeApplied = true;
     this.scene.background = new THREE.Color(palette.background);
+    this.blockGhostPresenter.applyTheme(palette);
+    this.decorationGhostPresenter.applyTheme(palette);
+    this.movePreviewPresenter.applyTheme(palette);
     (this.projectGrid?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(palette.grid);
-    (this.editingGrid?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(palette.editingGrid);
+    this.editingPlanePresenter.applyTheme(palette);
     (this.boundsBox?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(palette.bounds);
-    (this.selectionOutline.material as THREE.LineBasicMaterial).color.setHex(palette.selection);
-    (this.selectionBox.material as THREE.LineBasicMaterial).color.setHex(palette.selection);
+    this.selectionPresenter.applyTheme(palette);
     this.fallbackMaterials.normal.color.setHex(palette.block);
     this.fallbackMaterials.reference.color.setHex(palette.referenceBlock);
     this.fallbackMaterials.missing.color.setHex(palette.missingBlock);
@@ -1035,12 +1063,9 @@ export class ThreeViewportEngine {
     for (const material of Object.values(this.fallbackMaterials)) setBlockBrightnessBaseColor(material);
     for (const material of Object.values(this.placeholderMaterials)) setBlockBrightnessBaseColor(material);
     this.applyBlockBrightness();
-    this.logicalSelectionGroup.traverse((object) => { if (object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(palette.selection); });
-    this.scene.traverse((object) => { if (object.userData['groupHighlight'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(object.userData['groupLocked'] ? palette.lockedGroup : palette.group); });
+    this.groupHighlightPresenter.applyTheme(palette);
+    this.decorationSelectionPresenter.applyTheme(palette);
     this.movePreviewGroup.traverse((object) => { if (object instanceof THREE.Mesh) (object.material as THREE.MeshBasicMaterial).color.setHex(object.userData['previewInvalid'] ? palette.invalid : palette.valid); });
-    this.blockUsageHighlightMaterial.color.setHex(palette.group);
-    const ghostStatus = this.ghost.userData['status'] as PlacementStatus | undefined;
-    if (ghostStatus) (this.ghost.material as THREE.MeshBasicMaterial).color.setHex(colorForStatus(this.palette, ghostStatus));
     this.scheduleRender();
   }
 
@@ -3268,7 +3293,7 @@ export class ThreeViewportEngine {
   }
 
 
-  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); this.fluidCoordinator.clear(); this.releaseUnusedRetiredProviders(); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.projectionKeyRevisions.clear(); this.committedProjection = undefined; this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; if (this.blockUsageHighlight) { this.blockUsageHighlight.visible = false; this.blockUsageHighlight.count = 0; } }
+  private clearPersistentVisuals(): void { for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry); this.fluidCoordinator.clear(); this.releaseUnusedRetiredProviders(); for (const [key, entry] of this.renderedDecorations) this.removeDecorationEntry(key, entry); this.clearPlaceholderVisuals(); this.clearReusableInstanceTemplates(); this.instanceRenderer.resetMetrics(); this.clearSurfaceFaceResources(); this.instanceOwnershipIndex.clear(); this.pendingHydrationSignatures.clear(); this.placeholderSignatures.clear(); this.pendingDecorationSignatures.clear(); this.projectionKeyRevisions.clear(); this.committedProjection = undefined; this.structureSyncKey = ''; this.decorationSyncKey = ''; this.syncedProject = undefined; this.syncedBlockCount = undefined; this.syncedBlocksReference = undefined; this.syncedDecorationProject = undefined; this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.cachedVisibleEntries = []; this.cachedVisibleMap.clear(); this.cachedVisibleIndices.clear(); this.cachedVisibleProject = undefined; this.cachedVisibleKey = ''; this.structuralSpecialVisualIds.clear(); this.ghostPlan = undefined; this.lastHoverVisualKey = ''; this.decorationGhostKey = ''; this.lastActiveGroupProject = undefined; this.lastActiveGroupId = undefined; this.lastActiveGroupPositions = undefined; this.lastIsolatedGroupId = undefined; this.lastIsolatedGroupPositions = undefined; this.groupHighlightPresenter.clearUsage(); }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
     if (!project) {
@@ -3315,12 +3340,7 @@ export class ThreeViewportEngine {
   }
 
   private updateDecorationSelection(selectedId: string | undefined): void {
-    for (const child of [...this.decorationSelectionGroup.children]) { disposeObject(child); this.decorationSelectionGroup.remove(child); }
-    if (!selectedId) return;
-    const entry = this.renderedDecorations.get(selectedId); if (!entry) return;
-    const bounds = new THREE.Box3().setFromObject(entry.object);
-    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(.04, bounds.max.x - bounds.min.x + .05), Math.max(.04, bounds.max.y - bounds.min.y + .05), Math.max(.04, bounds.max.z - bounds.min.z + .05))), new THREE.LineBasicMaterial({ color: this.palette.selection, depthTest: false, depthWrite: false }));
-    outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.userData['decorationInstanceId'] = selectedId; outline.renderOrder = 2001; this.decorationSelectionGroup.add(outline);
+    this.decorationSelectionPresenter.update(selectedId);
   }
 
   hit(event: PointerEvent, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
@@ -3497,17 +3517,7 @@ export class ThreeViewportEngine {
   /** Projects a pointer ray onto the face plane captured at the beginning of a 3D selection drag. */
   projectPointerToPlane(event: PointerEvent, plane: FaceLockedSelectionPlane): { readonly x: number; readonly y: number; readonly z: number } | undefined {
     if (!this.renderer || !this.container) return undefined;
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const origin = this.raycaster.ray.origin;
-    const direction = this.raycaster.ray.direction;
-    const component = direction[plane.axis];
-    if (Math.abs(component) < 1e-8) return undefined;
-    const distance = (plane.coordinate - origin[plane.axis]) / component;
-    if (distance < 0) return undefined;
-    const point = this.raycaster.ray.at(distance, new THREE.Vector3());
-    return { x: point.x, y: point.y, z: point.z };
+    return projectPointerToAxisPlane(event, this.renderer.domElement, this.camera, this.raycaster, plane.axis, plane.coordinate);
   }
 
   /** Projects an empty-space selection gesture onto a camera-facing world plane. */
@@ -3520,17 +3530,7 @@ export class ThreeViewportEngine {
 
   private projectPointerToAxisPlane(event: PointerEvent, axis: 'x' | 'y' | 'z', coordinate: number): { readonly x: number; readonly y: number; readonly z: number } | undefined {
     if (!this.renderer || !this.container) return undefined;
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const origin = this.raycaster.ray.origin;
-    const direction = this.raycaster.ray.direction;
-    const component = direction[axis];
-    if (Math.abs(component) < 1e-8) return undefined;
-    const distance = (coordinate - origin[axis]) / component;
-    if (distance < 0) return undefined;
-    const point = this.raycaster.ray.at(distance, new THREE.Vector3());
-    return { x: point.x, y: point.y, z: point.z };
+    return projectPointerToAxisPlane(event, this.renderer.domElement, this.camera, this.raycaster, axis, coordinate);
   }
 
   dispose(): void {
@@ -3558,41 +3558,21 @@ export class ThreeViewportEngine {
     this.instanceRenderer.clear();
     for (const child of this.decorationsGroup.children) disposeObject(child);
     this.decorationsGroup.clear();
-    for (const child of [...this.logicalSelectionGroup.children]) this.logicalSelectionGroup.remove(child);
-    const blockUsageHighlight = this.blockUsageHighlight;
-    if (blockUsageHighlight) {
-      this.scene.remove(blockUsageHighlight);
-      blockUsageHighlight.dispose();
-      this.blockUsageHighlight = undefined;
-    }
-    for (const child of [...this.decorationGhostGroup.children]) disposeObject(child); this.decorationGhostGroup.clear();
-    for (const child of [...this.decorationSelectionGroup.children]) disposeObject(child); this.decorationSelectionGroup.clear();
+    this.selectionPresenter.dispose();
+    this.editingPlanePresenter.dispose();
+    this.groupHighlightPresenter.dispose();
+    this.decorationGhostPresenter.dispose();
+    this.decorationSelectionPresenter.dispose();
     this.renderedBlocks.clear(); this.renderedDecorations.clear();
-    this.clearStructureBlockGuide();
-    this.structureBlockGuideGroup.clear();
-    this.ghost.geometry.dispose();
-    (this.ghost.material as THREE.Material).dispose();
+    this.structureBlockGuidePresenter.dispose();
+    this.blockGhostPresenter.dispose();
+    this.movePreviewPresenter.dispose();
     this.ground?.geometry.dispose();
     (this.ground?.material as THREE.Material | undefined)?.dispose();
-    this.editingPlane?.geometry.dispose();
-    (this.editingPlane?.material as THREE.Material | undefined)?.dispose();
     this.projectGrid?.geometry.dispose();
     (this.projectGrid?.material as THREE.Material | undefined)?.dispose();
-    this.editingGrid?.geometry.dispose();
-    (this.editingGrid?.material as THREE.Material | undefined)?.dispose();
     this.boundsBox?.geometry.dispose();
     (this.boundsBox?.material as THREE.Material | undefined)?.dispose();
-    this.selectionOutline.geometry.dispose();
-    (this.selectionOutline.material as THREE.Material).dispose();
-    this.logicalSelectionGeometry.dispose();
-    this.logicalSelectionMaterial.dispose();
-    this.blockUsageHighlightGeometry.dispose();
-    this.blockUsageHighlightMaterial.dispose();
-    this.groupHighlightGeometry.dispose();
-    this.groupHighlightMaterial.dispose();
-    this.selectionBox.geometry.dispose();
-    (this.selectionBox.material as THREE.Material).dispose();
-    if (this.ghostModel) disposeObject(this.ghostModel);
     this.fallbackGeometry.dispose();
     this.fallbackMaterials.normal.dispose(); this.fallbackMaterials.reference.dispose(); this.fallbackMaterials.missing.dispose();
     this.clearPlaceholderVisuals();
@@ -4277,70 +4257,30 @@ export class ThreeViewportEngine {
   }
 
   private setEditingPlane(y: number | undefined, project: ProjectDocument | undefined): void {
-    if (!project || y === undefined) {
-      if (this.editingPlane) this.editingPlane.visible = false;
-      if (this.editingGrid) this.editingGrid.visible = false;
-      return;
-    }
-    if (!this.editingPlane) {
-      this.editingPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
-      this.editingPlane.rotation.x = -Math.PI / 2;
-      this.scene.add(this.editingPlane);
-    }
-    this.editingGrid?.geometry.dispose();
-    (this.editingGrid?.material as THREE.Material | undefined)?.dispose();
-    if (this.editingGrid) this.scene.remove(this.editingGrid);
-    this.editingGrid = createBoundedGrid(project.size.x, project.size.z, this.palette.editingGrid);
-    this.scene.add(this.editingGrid);
-    this.editingPlane.geometry.dispose();
-    this.editingPlane.geometry = new THREE.PlaneGeometry(project.size.x, project.size.z);
-    this.editingPlane.position.set(project.size.x / 2, y + 0.002, project.size.z / 2);
-    this.editingPlane.visible = true;
-    this.editingGrid.position.y = y + 0.004;
-    this.editingGrid.visible = true;
+    this.editingPlanePresenter.set(y, project);
   }
 
   /** Moves only the existing Y-layer guides; it never changes projection state. */
   setEditingPlanePreviewY(y: number): void {
-    if (this.disposed || !this.editingPlane || !this.editingGrid) return;
-    this.editingPlane.position.y = y + 0.002;
-    this.editingGrid.position.y = y + 0.004;
+    if (this.disposed) return;
+    this.editingPlanePresenter.setPreviewY(y);
     this.scheduleRender();
   }
 
   clearGhost(): void {
-    const changed = this.ghost.visible || !!this.ghostModel?.visible;
-    this.ghost.visible = false;
-    if (this.ghostModel) this.ghostModel.visible = false;
-    this.lastHoverVisualKey = '';
-    if (changed) this.scheduleRender();
+    this.blockGhostPresenter.clear();
   }
   private clearDecorationGhost(): void {
-    if (!this.decorationGhostGroup.children.length) return;
-    for (const child of [...this.decorationGhostGroup.children]) { disposeObject(child); this.decorationGhostGroup.remove(child); }
-    this.decorationGhostKey = '';
-    this.scheduleRender();
+    this.decorationGhostPresenter.clear();
   }
   private updateDecorationGhost(candidate: PlacedDecoration, status: DecorationPlacementPlan['status']): void {
-    const key = `${stableValue(candidate)}|${status}`;
-    if (key === this.decorationGhostKey) return;
-    this.clearDecorationGhost();
-    this.decorationGhostKey = key;
-    const visual = createDecorationVisual(candidate, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource, this.decorationItemResources, this.decorationItemVisual, false);
-    visual.renderOrder = 2000;
-    visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
-    const bounds = new THREE.Box3().setFromObject(visual); const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false })); outline.position.copy(bounds.getCenter(new THREE.Vector3())); outline.renderOrder = 2001; visual.add(outline); this.decorationGhostGroup.add(visual); this.scheduleRender();
+    this.decorationGhostPresenter.update(candidate, status);
   }
   clearInput(): void { this.cameraInput.clearInput(); }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
   setGhostStatus(status: PlacementStatus): void {
-    if (!this.ghost.visible) return;
-    if (this.ghost.userData['status'] === status) return;
-    const material = this.ghost.material as THREE.MeshBasicMaterial;
-    material.color.setHex(colorForStatus(this.palette, status));
-    this.ghost.userData['status'] = status;
-    this.scheduleRender();
+    this.blockGhostPresenter.setStatus(status);
   }
 
   cameraState(): CameraState | undefined {
@@ -4425,28 +4365,7 @@ export class ThreeViewportEngine {
   }
 
   private updateSelection(selected: VoxelCoordinate | undefined, selectedPositions: readonly VoxelCoordinate[] | undefined, kind: string | undefined, count: number | undefined, aggregateBounds: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } | undefined, box: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } | undefined): void {
-    const positions = selectedPositions ?? [];
-    const selectedCount = count ?? positions.length;
-    const aggregate = kind === 'all' || selectedCount > DETAILED_SELECTION_OUTLINE_LIMIT ? aggregateBounds : undefined;
-    (this.selectionOutline.material as THREE.LineBasicMaterial).color.setHex(this.palette.selection);
-    this.logicalSelectionMaterial.color.setHex(this.palette.selection);
-    (this.selectionBox.material as THREE.LineBasicMaterial).color.setHex(this.palette.selection);
-    const unchanged = this.lastSelectionPositions === selectedPositions && this.lastSelectionBounds === aggregate && this.lastSelectionKind === kind && this.lastSelectionCount === selectedCount && sameVoxel(this.lastSelected, selected) && this.lastSelectionBox === box;
-    if (unchanged) return;
-    this.lastSelectionPositions = selectedPositions;
-    this.lastSelectionBounds = aggregate;
-    this.lastSelectionKind = kind;
-    this.lastSelectionCount = selectedCount;
-    this.lastSelected = selected;
-    this.lastSelectionBox = box;
-    for (const child of [...this.logicalSelectionGroup.children]) this.logicalSelectionGroup.remove(child);
-    this.selectionOutline.visible = !!selected && !positions.length && !aggregate;
-    if (selected) this.selectionOutline.position.set(selected.x + .5, selected.y + .5, selected.z + .5);
-    const visualBox = aggregate ?? box;
-    this.selectionBox.visible = !!visualBox;
-    if (visualBox) this.selectionBox.box.set(new THREE.Vector3(visualBox.min.x, visualBox.min.y, visualBox.min.z), new THREE.Vector3(visualBox.max.x + 1, visualBox.max.y + 1, visualBox.max.z + 1));
-    if (aggregate) return;
-    for (const position of positions) { const outline = new THREE.LineSegments(this.logicalSelectionGeometry, this.logicalSelectionMaterial); outline.position.set(position.x + .5, position.y + .5, position.z + .5); outline.renderOrder = 2001; this.logicalSelectionGroup.add(outline); }
+    this.selectionPresenter.update({ selected, selectedPositions, kind, count, aggregateBounds, box });
   }
 
   private updateActiveGroup(project: ProjectDocument | undefined, activeGroupId: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void {
@@ -4456,88 +4375,11 @@ export class ThreeViewportEngine {
     this.lastActiveGroupId = activeGroupId;
     this.lastActiveGroupPositions = positions;
     this.lastCommittedIsolateKey = committedIsolateKey;
-    for (const child of [...this.scene.children]) {
-      if (child.userData['groupHighlight']) { child.traverse((object) => { if (object instanceof THREE.LineSegments && !object.userData['sharedGroupHighlight']) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.scene.remove(child); }
-    }
-    if (!project || !activeGroupId) return;
-    const group = project.groups.find((entry) => entry.id === activeGroupId);
-    const color = group?.locked ? this.palette.lockedGroup : this.palette.group;
-    this.groupHighlightMaterial.color.setHex(color);
-    const isolateCommitted = this.isolationPresentation.isActive();
-    const visiblePositions = (positions ?? []).filter((position) => !isolateCommitted || this.isolatedKeys.has(`${position.x},${position.y},${position.z}`));
-    const aggregateGroup = visiblePositions.length > DETAILED_SELECTION_OUTLINE_LIMIT;
-    if (aggregateGroup) {
-      const bounds = boundsOfPositions(visiblePositions);
-      if (bounds) {
-        const aggregate = new THREE.LineSegments(this.groupHighlightGeometry, this.groupHighlightMaterial);
-        aggregate.position.set((bounds.min.x + bounds.max.x + 1) / 2, (bounds.min.y + bounds.max.y + 1) / 2, (bounds.min.z + bounds.max.z + 1) / 2);
-        aggregate.scale.set(bounds.max.x - bounds.min.x + 1, bounds.max.y - bounds.min.y + 1, bounds.max.z - bounds.min.z + 1);
-        aggregate.userData['groupHighlight'] = true; aggregate.userData['sharedGroupHighlight'] = true; aggregate.renderOrder = 1000; this.scene.add(aggregate);
-      }
-    }
-    const positionKeys = new Set(positions?.map((position) => `${position.x},${position.y},${position.z}`));
-    for (const position of aggregateGroup ? [] : visiblePositions) {
-      const key = `${position.x},${position.y},${position.z}`;
-      if (!positionKeys.has(key) || !this.cachedVisibleMap.has(key) || isolateCommitted && !this.isolatedKeys.has(key)) continue;
-      const block = this.spatialIndex?.get(position);
-      if (!block || !isBlockVisible(block, project.groups)) continue;
-      const outline = new THREE.LineSegments(this.groupHighlightGeometry, this.groupHighlightMaterial);
-      outline.position.set(block.position.x + .5, block.position.y + .5, block.position.z + .5);
-      outline.userData['groupHighlight'] = true;
-      outline.userData['groupLocked'] = !!group?.locked;
-      outline.renderOrder = 1000;
-      this.scene.add(outline);
-    }
-    for (const decoration of (project.decorations ?? []).filter((entry) => decorationHasGroup(entry, activeGroupId) && isDecorationVisible(entry, project.groups) && (!isolateCommitted || decorationHasGroup(entry, this.renderOptions.isolatedGroupId ?? '')))) {
-      const bounds = decorationAabb(decoration);
-      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(Math.max(.04, bounds.max.x - bounds.min.x + .08), Math.max(.04, bounds.max.y - bounds.min.y + .08), Math.max(.04, bounds.max.z - bounds.min.z + .08))), new THREE.LineBasicMaterial({ color }));
-      outline.position.set((bounds.min.x + bounds.max.x) / 2, (bounds.min.y + bounds.max.y) / 2, (bounds.min.z + bounds.max.z) / 2);
-      outline.userData['groupHighlight'] = true;
-      outline.userData['groupLocked'] = !!group?.locked;
-      outline.renderOrder = 1000;
-      this.scene.add(outline);
-    }
+    this.groupHighlightPresenter.updateActiveGroup(project, activeGroupId, positions);
   }
 
   private updateBlockUsageHighlight(id: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void {
-    const overlay = this.blockUsageHighlight;
-    if (!overlay) return;
-    if (!id || !positions?.length) {
-      overlay.visible = false;
-      overlay.count = 0;
-      return;
-    }
-    const visible = positions.filter((position) => {
-      const key = coordinateKey(position);
-      const entry = this.cachedVisibleMap.get(key);
-      return !!entry && entry.block.id === id && (!this.isolationPresentation.isActive() || this.isolatedKeys.has(key));
-    });
-    if (!visible.length) {
-      overlay.visible = false;
-      overlay.count = 0;
-      return;
-    }
-    if (visible.length > this.blockUsageHighlightCapacity) {
-      const replacement = new THREE.InstancedMesh(this.blockUsageHighlightGeometry, this.blockUsageHighlightMaterial, visible.length);
-      replacement.frustumCulled = false;
-      replacement.renderOrder = 1900;
-      replacement.userData['blockUsageHighlight'] = true;
-      if (overlay.parent) overlay.parent.remove(overlay);
-      overlay.dispose();
-      this.blockUsageHighlight = replacement;
-      this.blockUsageHighlightCapacity = visible.length;
-      this.scene.add(replacement);
-    }
-    const target = this.blockUsageHighlight;
-    if (!target) return;
-    target.count = visible.length;
-    for (let index = 0; index < visible.length; index += 1) {
-      const position = visible[index];
-      this.blockUsageHighlightMatrix.makeTranslation(position.x + .5, position.y + .5, position.z + .5);
-      target.setMatrixAt(index, this.blockUsageHighlightMatrix);
-    }
-    target.instanceMatrix.needsUpdate = true;
-    target.visible = true;
+    this.groupHighlightPresenter.updateUsage(id, positions);
   }
 
   private updateStructureBlockGuide(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
@@ -4546,158 +4388,24 @@ export class ThreeViewportEngine {
     const key = project && enabled && this.visualProvider && definition
       ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${this.providerGeneration}|${options.structureBlockGuideRevision ?? 0}|${definition.sourceId ?? ''}`
       : `${project?.id ?? 'none'}|${enabled ? 'waiting' : 'hidden'}|${this.providerGeneration}`;
-    if (key === this.structureBlockGuideKey) return;
-    this.structureBlockGuideKey = key;
-    this.clearStructureBlockGuide();
-    if (!project || !enabled || !this.visualProvider || !definition) return;
-
-    const generation = this.structureBlockGuideGeneration;
-    const provider = this.visualProvider;
-    const guidePosition = structureBlockGuidePosition(projectGridBounds(project.size).min);
-    const guideBlock: PlacedBlock = {
-      kind: 'resolved',
-      id: 'minecraft:structure_block',
-      namespace: 'minecraft',
-      position: { x: 0, y: 0, z: 0 },
-      state: { ...definition.defaultState, mode: 'save' },
-    };
-    void provider.create(guideBlock).then((visual) => {
-      if (generation !== this.structureBlockGuideGeneration || key !== this.structureBlockGuideKey || this.visualProvider !== provider || !visual.object || visual.mode === 'fallback') {
-        if (visual.object) disposeObject(visual.object);
-        return;
-      }
-      const guide = new THREE.Group();
-      guide.name = 'structureBlockGuide';
-      guide.userData['structureBlockGuide'] = true;
-      const object = visual.object;
-      object.userData['structureBlockGuide'] = true;
-      applyStructureGuideBrightnessToObject(object, STRUCTURE_GUIDE_BRIGHTNESS);
-      const bounds = new THREE.Box3().setFromObject(object);
-      if (!Number.isFinite(bounds.min.x) || !Number.isFinite(bounds.max.x)) {
-        disposeObject(object);
-        return;
-      }
-      guide.add(object);
-      guide.position.set(guidePosition.x, guidePosition.y, guidePosition.z);
-      this.structureBlockGuideGroup.add(guide);
-      this.scheduleRender();
-    }).catch(() => { /* Missing or invalid assets leave the helper absent by design. */ });
+    const guidePosition = project ? structureBlockGuidePosition(projectGridBounds(project.size).min) : { x: 0, y: 0, z: 0 };
+    this.structureBlockGuidePresenter.update(key, project, enabled, definition, this.visualProvider, guidePosition);
   }
 
   private clearStructureBlockGuide(): void {
-    this.structureBlockGuideGeneration += 1;
-    for (const child of [...this.structureBlockGuideGroup.children]) {
-      child.traverse((object) => {
-        if (object instanceof THREE.LineSegments) {
-          object.geometry.dispose();
-          (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => material.dispose());
-        }
-      });
-      disposeObject(child);
-      this.structureBlockGuideGroup.remove(child);
-    }
+    this.structureBlockGuidePresenter.clear();
   }
 
   private updateMovePreview(project: ProjectDocument | undefined, preview: GroupMovePreview | undefined): void {
-    for (const child of [...this.movePreviewGroup.children]) { child.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); } }); this.movePreviewGroup.remove(child); }
-    if (!project || !preview || !preview.offset.x && !preview.offset.y && !preview.offset.z) return;
-    const color = preview.valid ? this.palette.valid : this.palette.invalid;
-    const movingKeys = new Set(preview.positions.map((position) => `${position.x},${position.y},${position.z}`));
-    for (const position of preview.positions) {
-      if (!movingKeys.has(`${position.x},${position.y},${position.z}`)) continue;
-      const block = this.spatialIndex?.get(position);
-      if (!block) continue;
-      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .42, wireframe: true, depthTest: false });
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
-      mesh.position.set(block.position.x + preview.offset.x + .5, block.position.y + preview.offset.y + .5, block.position.z + preview.offset.z + .5);
-      mesh.renderOrder = 1002;
-      mesh.userData['previewInvalid'] = !preview.valid;
-      this.movePreviewGroup.add(mesh);
-    }
-    const movingDecorationIds = new Set(preview.decorationIds);
-    for (const decoration of (project.decorations ?? []).filter((entry) => movingDecorationIds.has(entry.instanceId))) {
-      const visual = createDecorationVisual(decoration, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource, this.decorationItemResources, this.decorationItemVisual, false);
-      visual.position.set(preview.offset.x, preview.offset.y, preview.offset.z);
-      visual.renderOrder = 1002;
-      visual.traverse((object) => {
-        object.renderOrder = 1002;
-        if (object instanceof THREE.Mesh) {
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          for (const material of materials) {
-            material.transparent = true;
-            material.opacity = .42;
-            material.depthTest = false;
-            material.depthWrite = false;
-            if (material instanceof THREE.MeshBasicMaterial || material instanceof THREE.MeshLambertMaterial) material.color.set(color);
-          }
-        }
-      });
-      visual.userData['previewInvalid'] = !preview.valid;
-      this.movePreviewGroup.add(visual);
-    }
+    this.movePreviewPresenter.update(project, preview);
   }
 
   private updateGhost(target: VoxelCoordinate | undefined, project: ProjectDocument | undefined, active: ActiveBlock | undefined, status: PlacementStatus = 'invalid', plan?: PlacementPlan): void {
-    this.ghostTarget = target;
-    if (!target || !project || !active) { this.ghost.visible = false; if (this.ghostModel) this.ghostModel.visible = false; return; }
-    this.ghost.visible = true;
-    this.positionGhostOutline(target);
-    const material = this.ghost.material as THREE.MeshBasicMaterial;
-    material.color.setHex(colorForStatus(this.palette, status));
-    material.depthTest = false;
-    material.depthWrite = false;
-    material.wireframe = true;
-    this.ghost.renderOrder = 1000;
-    this.ghost.userData['activeBlock'] = { id: active.id, state: { ...active.state }, status, blocks: plan?.blocks.map((block) => ({ id: block.id, position: block.position, state: block.state })) };
-    this.ghost.userData['status'] = status;
-    if (this.ghostModel) { this.ghostModel.position.set(target.x, target.y, target.z); this.ghostModel.visible = true; }
+    this.blockGhostPresenter.update(target, project, active, status, plan);
   }
 
   private updateGhostModel(active: ActiveBlock | undefined, plan?: PlacementPlan): void {
-    const request = plan?.request.position ?? { x: 0, y: 0, z: 0 };
-    const relativeBlocks = plan?.blocks.map((block) => `${block.id}@${block.position.x - request.x},${block.position.y - request.y},${block.position.z - request.z}|${JSON.stringify(block.state)}`).join(';') ?? '';
-    const key = active ? `${this.providerGeneration}|${active.id}|${JSON.stringify(active.state)}|${relativeBlocks}` : '';
-    if (key === this.ghostModelKey) { if (active) this.instrumentation.record('ghostVisualReuses'); return; }
-    if (this.ghostModelKey && active) this.instrumentation.record('ghostVisualRebuilds');
-    this.ghostModelKey = key; const generation = ++this.ghostGeneration;
-    if (this.ghostModel) { this.scene.remove(this.ghostModel); disposeObject(this.ghostModel); this.ghostModel = undefined; }
-    this.setGhostOutlineBounds();
-    const provider = this.visualProvider;
-    const providerGeneration = this.providerGeneration;
-    if (!active || !provider) return;
-    const blocks = plan?.blocks.length ? plan.blocks : active ? [{ kind: 'resolved' as const, id: active.id, namespace: active.id.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: active.state }] : [];
-    const worldContext = this.spatialIndex ? { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) } : undefined;
-    void Promise.all(blocks.map(async (block) => ({ block, visual: await provider.create({ ...block, position: { x: 0, y: 0, z: 0 } }, worldContext) }))).then((results) => {
-      if (generation !== this.ghostGeneration || providerGeneration !== this.providerGeneration || provider !== this.visualProvider || !results.length) {
-        for (const { visual } of results) if (visual.object) disposeObject(visual.object);
-        return;
-      }
-      const root = new THREE.Group();
-      for (const { block, visual } of results) {
-        if (!visual.object) continue;
-        visual.object.position.set(visual.object.position.x + block.position.x - (plan?.request.position.x ?? 0), visual.object.position.y + block.position.y - (plan?.request.position.y ?? 0), visual.object.position.z + block.position.z - (plan?.request.position.z ?? 0));
-        root.add(visual.object);
-      }
-      if (!root.children.length) return;
-      this.ghostModel = root; this.ghostModel.visible = false; this.ghostModel.renderOrder = 999;
-      this.ghostModel.traverse((child) => { if (child instanceof THREE.Mesh) { const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { material.transparent = true; material.opacity = .52; material.depthWrite = false; } } });
-      this.scene.add(this.ghostModel);
-      const bounds = new THREE.Box3().setFromObject(this.ghostModel); this.setGhostOutlineBounds(bounds);
-      if (this.ghostTarget) { this.ghostModel.position.set(this.ghostTarget.x, this.ghostTarget.y, this.ghostTarget.z); this.ghostModel.visible = this.ghost.visible; this.positionGhostOutline(this.ghostTarget); }
-      this.scheduleRender();
-    }).catch((error: unknown) => {
-      if (generation !== this.ghostGeneration || providerGeneration !== this.providerGeneration || provider !== this.visualProvider) return;
-      this.ghost.userData['renderMode'] = 'fallback'; this.ghost.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown ghost visual provider error' }]; this.scheduleRender();
-    });
-  }
-
-  private setGhostOutlineBounds(bounds = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 1))): void {
-    const size = bounds.getSize(new THREE.Vector3()); bounds.getCenter(this.ghostBoundsCenter);
-    this.ghost.geometry.dispose(); this.ghost.geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
-  }
-
-  private positionGhostOutline(target: VoxelCoordinate): void {
-    this.ghost.position.set(target.x + this.ghostBoundsCenter.x, target.y + this.ghostBoundsCenter.y, target.z + this.ghostBoundsCenter.z);
+    this.blockGhostPresenter.updateModel(active, plan);
   }
 
   private frameBounds(bounds: ReturnType<typeof projectCameraBounds>): void {
@@ -4805,14 +4513,6 @@ function boundsOfPositions(positions: readonly VoxelCoordinate[]): { readonly mi
   return { min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } };
 }
 
-function colorForStatus(palette: ViewportThemePalette, status: PlacementStatus): number {
-  switch (status) {
-    case 'valid': return palette.valid;
-    case 'warning': return palette.warning;
-    case 'unknown': return palette.unknown;
-    default: return palette.invalid;
-  }
-}
 function stableValue(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`;
   if (value && typeof value === 'object') return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableValue((value as Record<string, unknown>)[key])}`).join(',')}}`;
@@ -4974,4 +4674,3 @@ function stableChunkBounds(chunk: string, envelope: THREE.Box3): THREE.Box3 {
   );
 }
 function chunkKey(position: VoxelCoordinate): string { return `${Math.floor(position.x / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.y / VIEWPORT_INSTANCE_CHUNK_SIZE)},${Math.floor(position.z / VIEWPORT_INSTANCE_CHUNK_SIZE)}`; }
-function disposeObject(object: THREE.Object3D): void { (object.userData['ownedDecorationTextureCache'] as { dispose?: () => void } | undefined)?.dispose?.(); object.traverse((child) => { if (child instanceof THREE.Mesh) { if (!child.geometry.userData['providerOwnedGeometry'] && !child.geometry.userData['sharedFallbackGeometry'] && !child.geometry.userData['sharedPlaceholderGeometry']) child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; for (const material of materials) { if (material.userData['sharedFallbackMaterial'] || material.userData['sharedPlaceholderMaterial']) continue; if (material.map?.userData['ownedBedAtlasTexture'] || material.map?.userData['ownedSignTexture']) material.map.dispose(); material.dispose(); } } }); }
