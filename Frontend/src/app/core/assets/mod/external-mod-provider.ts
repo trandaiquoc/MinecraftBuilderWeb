@@ -299,6 +299,7 @@ export class ExternalModProvider implements ContentSourceProvider {
       rejectedCandidates: fingerprintClassification?.rejectedCandidates ?? [],
       candidates: fingerprintClassification?.candidates ?? [],
       ...(fingerprintClassification?.nameTieBreak ? { nameTieBreak: fingerprintClassification.nameTieBreak } : {}),
+      selectionReason: fingerprintClassification?.selectionReason ?? 'none',
       confidence: evaluation.behavior ? 'partial' : fingerprintClassification?.confidence ?? 'unknown',
     };
     const finalized: AssetBlockRecord = { ...evidenceRecord, defaultState: { ...evidenceRecord.defaultState, ...evaluation.defaultState }, stateDefinitions: [...evaluation.stateDefinitions].sort((left, right) => left.name.localeCompare(right.name)), defaultStateSource: evaluation.defaultStateSource, behaviorClassification: classification, ...(evaluation.behavior ? { behavior: evaluation.behavior, behaviorSupport: 'partial' as const } : {}) };

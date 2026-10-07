@@ -117,7 +117,10 @@ export class BlockRuleEngine {
         project: touch({ ...project, blocks: [] }),
       };
     }
-    const refreshed = this.refresh({ ...project, blocks: project.blocks.filter((entry) => !keys.has(coordinateKey(entry.position))) }, removing.map((entry) => entry.position), new MaskedBlockLookup(source, keys));
+    const remaining = project.blocks.filter((entry) => !keys.has(coordinateKey(entry.position)));
+    const unsupported = this.removeUnsupportedAttachedBlocks(project, remaining, keys);
+    if (unsupported.locked) return invalid('locked-affected-block', [unsupported.locked.position]);
+    const refreshed = this.refresh({ ...project, blocks: unsupported.blocks }, [...removing.map((entry) => entry.position), ...unsupported.removed.map((entry) => entry.position)], new ArrayBlockLookup(unsupported.blocks));
     return refreshed.project ? { validation: refreshed.validation, project: touch(refreshed.project), changedBlocks: refreshed.changedBlocks } : refreshed;
   }
 
@@ -384,6 +387,31 @@ export class BlockRuleEngine {
     if (behavior && ['fluid', 'horizontal-connect', 'wall-mounted', 'wall-sign', 'wall-hanging-sign', 'floor-supported', 'torch-placement', 'lantern-placement', 'vertical-chain', 'attached-six-face-placement'].includes(behavior.kind)) return false;
     return definition.support === 'full' && definition.visualSupport === 'real' && definition.visualClassification === 'standard-json';
   }
+
+  private removeUnsupportedAttachedBlocks(project: ProjectDocument, blocks: readonly PlacedBlock[], removedKeys: ReadonlySet<string>): { readonly blocks: readonly PlacedBlock[]; readonly removed: readonly PlacedBlock[]; readonly locked?: PlacedBlock } {
+    const current = [...blocks];
+    const removed: PlacedBlock[] = [];
+    const affectedKeys = new Set(removedKeys);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const lookup = new ArrayBlockLookup(current);
+      for (const block of [...current]) {
+        const behavior = this.definition(block.id)?.behavior;
+        if (behavior?.kind !== 'attached-six-face-placement') continue;
+        const validation = this.validateSupport(project, block, this.definition(block.id), lookup);
+        if (validation.status !== 'invalid' || !validation.affectedPositions.some((position) => affectedKeys.has(coordinateKey(position)))) continue;
+        if (isBlockLocked(block, project.groups)) return { blocks: current, removed, locked: block };
+        const index = current.findIndex((entry) => coordinateKey(entry.position) === coordinateKey(block.position));
+        if (index < 0) continue;
+        current.splice(index, 1);
+        removed.push(block);
+        affectedKeys.add(coordinateKey(block.position));
+        changed = true;
+      }
+    }
+    return { blocks: current, removed };
+  }
 }
 
 function isVerticalChain(block: PlacedBlock | undefined, chainId: string, definition: BlockDefinitionLookup): boolean {
@@ -480,11 +508,6 @@ class ArrayBlockLookup implements ReadonlyBlockLookup {
   constructor(blocks: readonly PlacedBlock[]) { this.values = new Map(blocks.map((block) => [coordinateKey(block.position), block] as const)); }
   get(position: VoxelCoordinate): PlacedBlock | undefined { return this.values.get(coordinateKey(position)); }
   has(position: VoxelCoordinate): boolean { return this.values.has(coordinateKey(position)); }
-}
-class MaskedBlockLookup implements ReadonlyBlockLookup {
-  constructor(private readonly base: BlockSource, private readonly masked: ReadonlySet<string>) {}
-  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.masked.has(coordinateKey(position)) ? undefined : find(this.base, position); }
-  has(position: VoxelCoordinate): boolean { return this.get(position) !== undefined; }
 }
 function withState(block: PlacedBlock, state: Readonly<Record<string, string>>, position: VoxelCoordinate): PlacedBlock { return { ...block, position: { ...position }, state }; }
 function equalState(a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): boolean { const aKeys = Object.keys(a); return aKeys.length === Object.keys(b).length && aKeys.every((key) => a[key] === b[key]); }

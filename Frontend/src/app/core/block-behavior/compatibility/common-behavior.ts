@@ -33,6 +33,19 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   const candidate = matchVanillaBehaviorCandidates(fingerprint);
   if (candidate.behavior && candidate.family && candidate.defaults) return complete(record, candidate.stateDefinitions ?? definitions, candidate.family, candidate.behavior, candidate.defaults, 'compatible-common', candidate.classification);
 
+  // External resources must stay on the evidence-first classifier path. The
+  // recognizers below predate fingerprints and intentionally use compatibility
+  // fallbacks for trusted vanilla records; allowing them to run for external
+  // content would let an ID/model-name heuristic bypass an Unknown result.
+  if (record.behaviorEvidenceRequired === true) {
+    const reason = candidate.classification.candidates.length
+      ? candidate.classification.selectionReason === 'ambiguous'
+        ? 'Multiple vanilla behavior candidates remain evidence-ambiguous.'
+        : 'No vanilla behavior candidate passed the evidence threshold.'
+      : 'No vanilla behavior candidate was produced from the available evidence.';
+    return { defaultState, stateDefinitions: definitions, defaultStateSource: Object.keys(defaultState).length ? 'resource-derived' : 'unknown', compatible: false, reason, classification: candidate.classification };
+  }
+
   const door = contract(definitions, {
     facing: horizontal,
     half: ['lower', 'upper'],
@@ -43,17 +56,17 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (door.complete && hasFamilyEvidence(record, 'doors')) {
     return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, doorState(definitions), 'compatible-common');
   }
-  if (door.partial && hasFamilyEvidence(record, 'doors') && canFillCommon(record, definitions, { facing: horizontal, half: ['lower', 'upper'], hinge: ['left', 'right'], open: booleanValues, powered: booleanValues }) && (record.behaviorEvidenceRequired === true || looksLikeDoor(record.id, definitions))) {
+  if (door.partial && hasFamilyEvidence(record, 'doors') && canFillCommon(record, definitions, { facing: horizontal, half: ['lower', 'upper'], hinge: ['left', 'right'], open: booleanValues, powered: booleanValues }) && looksLikeDoor(record.id, definitions)) {
     return complete(record, definitions, 'doors', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, doorState(definitions), 'compatible-common');
   }
-  if (door.partial && (record.behaviorEvidenceRequired === true && hasFamilyEvidence(record, 'doors') || looksLikeDoor(record.id, definitions))) return changed(record, definitions, defaultState, 'doors', 'Door state contract is missing one or more common properties.');
+  if (door.partial && looksLikeDoor(record.id, definitions)) return changed(record, definitions, defaultState, 'doors', 'Door state contract is missing one or more common properties.');
 
   const doubleHeight = contract(definitions, { half: ['lower', 'upper'] });
-  if (doubleHeight.complete && !door.partial && hasFamilyEvidence(record, 'double-height') && (record.behaviorEvidenceRequired === true || !looksLikeDoor(record.id, definitions)) && !hasAny(definitions, ['open', 'hinge', 'powered'])) return complete(record, definitions, 'double-height', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, { half: 'lower' }, 'compatible-common');
+  if (doubleHeight.complete && !door.partial && hasFamilyEvidence(record, 'double-height') && !looksLikeDoor(record.id, definitions) && !hasAny(definitions, ['open', 'hinge', 'powered'])) return complete(record, definitions, 'double-height', { kind: 'double-height', halfProperty: 'half', requiresFloor: true }, { half: 'lower' }, 'compatible-common');
 
   const bed = contract(definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues });
   if (bed.complete && hasFamilyEvidence(record, 'beds')) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
-  if (bed.partial && hasFamilyEvidence(record, 'beds') && canFillCommon(record, definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues }) && (record.behaviorEvidenceRequired === true || looksLikeBed(record))) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
+  if (bed.partial && hasFamilyEvidence(record, 'beds') && canFillCommon(record, definitions, { facing: horizontal, part: ['foot', 'head'], occupied: booleanValues }) && looksLikeBed(record)) return complete(record, definitions, 'beds', { kind: 'paired-horizontal', partProperty: 'part', facingProperty: 'facing', firstPart: 'foot', secondPart: 'head' }, { facing: 'north', part: 'foot', occupied: 'false' }, 'compatible-common');
 
   // Standard sign tags prove the common Java state contract even when a mod
   // ships model-only blockstates. The renderer and placement layers consume
@@ -80,22 +93,22 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (fluid.complete && (record.id === 'minecraft:water' || record.id === 'minecraft:lava')) return complete(record, definitions, 'fluids', { kind: 'fluid', fluid: record.id.endsWith('lava') ? 'lava' : 'water' }, { level: '0' }, 'compatible-common');
 
   const sixFace = contract(definitions, { facing: ['down', 'up', 'north', 'south', 'west', 'east'] });
-  if (sixFace.complete && hasFamilyEvidence(record, 'shulker-boxes') && (record.behaviorEvidenceRequired === true || looksLikeShulker(record))) return complete(record, definitions, 'shulker-boxes', { kind: 'six-face-placement', facingProperty: 'facing' }, { facing: 'up' }, 'compatible-common');
+  if (sixFace.complete && hasFamilyEvidence(record, 'shulker-boxes') && looksLikeShulker(record)) return complete(record, definitions, 'shulker-boxes', { kind: 'six-face-placement', facingProperty: 'facing' }, { facing: 'up' }, 'compatible-common');
 
   const conduit = contract(definitions, { waterlogged: booleanValues });
-  if (conduit.complete && (record.id === 'minecraft:conduit' || record.behaviorEvidenceRequired === true && hasFamilyEvidence(record, 'conduits'))) return complete(record, definitions, 'conduits', { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, { waterlogged: 'true' }, 'compatible-common');
+  if (conduit.complete && record.id === 'minecraft:conduit') return complete(record, definitions, 'conduits', { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, { waterlogged: 'true' }, 'compatible-common');
 
   const lantern = contract(definitions, { hanging: booleanValues, waterlogged: booleanValues });
-  if (lantern.complete && hasFamilyEvidence(record, 'lanterns') && (record.behaviorEvidenceRequired === true || looksLikeLantern(record))) return complete(record, definitions, 'lanterns', { kind: 'lantern-placement', hangingProperty: 'hanging', chainId: 'minecraft:chain' }, { hanging: 'false', waterlogged: 'false' }, 'compatible-common');
+  if (lantern.complete && hasFamilyEvidence(record, 'lanterns') && looksLikeLantern(record)) return complete(record, definitions, 'lanterns', { kind: 'lantern-placement', hangingProperty: 'hanging', chainId: 'minecraft:chain' }, { hanging: 'false', waterlogged: 'false' }, 'compatible-common');
 
   const chain = contract(definitions, { axis: ['x', 'y', 'z'], waterlogged: booleanValues });
-  if (chain.complete && hasFamilyEvidence(record, 'chains') && (record.behaviorEvidenceRequired === true || looksLikeChain(record))) return complete(record, definitions, 'chains', { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' }, { axis: 'y', waterlogged: 'false' }, 'compatible-common');
+  if (chain.complete && hasFamilyEvidence(record, 'chains') && looksLikeChain(record)) return complete(record, definitions, 'chains', { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' }, { axis: 'y', waterlogged: 'false' }, 'compatible-common');
 
   const button = contract(definitions, { face: ['floor', 'wall', 'ceiling'], facing: horizontal, powered: booleanValues });
-  if (button.complete && hasFamilyEvidence(record, 'buttons')) {
+  if (button.complete && hasFamilyEvidence(record, 'buttons') && looksLikeButton(record.id, definitions)) {
     return complete(record, definitions, 'buttons', { kind: 'button', faceProperty: 'face', facingProperty: 'facing', poweredProperty: 'powered' }, buttonState(definitions), 'compatible-common');
   }
-  if (button.partial && hasFamilyEvidence(record, 'buttons') && (record.behaviorEvidenceRequired === true || looksLikeButton(record.id, definitions))) return changed(record, definitions, defaultState, 'buttons', 'Button state contract differs from the common face/facing/powered properties.');
+  if (button.partial && hasFamilyEvidence(record, 'buttons') && looksLikeButton(record.id, definitions)) return changed(record, definitions, defaultState, 'buttons', 'Button state contract differs from the common face/facing/powered properties.');
 
   const family = connectionFamily(record, blockstate, record.resources.model);
   const connections = contract(definitions, { north: booleanValues, east: booleanValues, south: booleanValues, west: booleanValues });

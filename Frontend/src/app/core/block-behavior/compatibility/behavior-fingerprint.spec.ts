@@ -21,6 +21,7 @@ describe('generic behavior fingerprint candidates', () => {
     const fingerprint = extractBehaviorFingerprint(value, { readJson: (path) => path.includes('/blockstates/') ? blockstate : { parent: path.includes('post') ? 'minecraft:block/template_wall_post' : 'minecraft:block/template_wall_side' } });
     const result = matchVanillaBehaviorCandidates({ ...fingerprint, trustedFamilies: ['wall'], tags: ['minecraft:walls'], modelParents: ['block/template_wall_post', 'block/template_wall_side'] });
     expect(result.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'wall' });
+    expect(result.classification.selectionReason).toBe('evidence');
     expect(result.defaults).toEqual({ east: 'none', north: 'none', south: 'none', up: 'true', west: 'none' });
     expect(result.stateDefinitions?.find((definition) => definition.name === 'north')?.values).toEqual(['low', 'tall', 'none']);
   });
@@ -30,9 +31,28 @@ describe('generic behavior fingerprint candidates', () => {
     const definitions = [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }];
     const attached = extractBehaviorFingerprint(record('example:crystal', definitions, 'example:block/model', { variants }), { readJson: (path) => path.includes('/models/') ? { parent: 'minecraft:block/cross' } : { variants } });
     expect(matchVanillaBehaviorCandidates(attached).behavior).toMatchObject({ kind: 'attached-six-face-placement' });
+    expect(matchVanillaBehaviorCandidates(attached).classification.selectionReason).toBe('evidence');
 
     const directional = extractBehaviorFingerprint(record('example:directional', definitions, 'example:block/model', { variants }), { readJson: (path) => path.includes('/models/') ? { parent: 'minecraft:block/cube_all' } : { variants } });
     expect(matchVanillaBehaviorCandidates(directional).behavior).toBeUndefined();
+  });
+
+  it('does not treat generic support evidence as proof of face attachment', () => {
+    const variants = Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/cube' }]));
+    const value = { ...record('example:directional_support', [{ name: 'facing', values: [...['down', 'up', 'north', 'south', 'west', 'east']] }], 'example:block/cube', { variants }), supportContracts: ['floor'] };
+    const fingerprint = extractBehaviorFingerprint(value, { readJson: (path) => path.includes('/models/') ? { parent: 'minecraft:block/cube_all' } : { variants } });
+    expect(matchVanillaBehaviorCandidates(fingerprint).behavior).toBeUndefined();
+  });
+
+  it('uses a name alias only to resolve an evidence tie between existing candidates', () => {
+    const fingerprint = extractBehaviorFingerprint({
+      ...record('example:hanging_sign', [], 'example:block/sign', { variants: { '': { model: 'example:block/sign' } } }),
+      trustedBehaviorFamilies: ['standing-sign', 'hanging-sign'],
+    }, { readJson: () => ({ variants: { '': { model: 'example:block/sign' } } }) });
+    const result = matchVanillaBehaviorCandidates(fingerprint);
+    expect(result.behavior?.kind).toBe('hanging-sign');
+    expect(result.classification.selectionReason).toBe('name-tie-break');
+    expect(result.classification.nameTieBreak).toContain('hanging-sign');
   });
 
   it('does not create a candidate from a registry name alone', () => {

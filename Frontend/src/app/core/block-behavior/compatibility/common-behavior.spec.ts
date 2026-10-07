@@ -105,6 +105,16 @@ describe('common resource behavior evaluation', () => {
     expect(result.behavior).toBeUndefined();
   });
 
+  it('does not let an external name-based recognizer bypass an Unknown classification', () => {
+    const result = evaluateCommonBehavior(record('example:fake_stairs', [
+      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+      { name: 'half', values: ['top', 'bottom'] },
+      { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] },
+    ], 'example:block/fake_stairs', { behaviorEvidenceRequired: true }));
+    expect(result.behavior).toBeUndefined();
+    expect(result.classification?.selectionReason).toBe('none');
+  });
+
   it('classifies a six-face attached resource fingerprint without relying on its registry name', () => {
     const blockstate = { variants: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/crystal' }])) };
     const result = evaluateCommonBehavior(record('example:crystal_like', [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }], 'example:block/crystal_like', { behaviorEvidenceRequired: true }), {

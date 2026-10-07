@@ -304,7 +304,7 @@ describe('BlockRuleEngine', () => {
     }
   });
 
-  it('rejects a floating amethyst attachment and preserves it as invalid after support removal', () => {
+  it('rejects a floating amethyst attachment and removes it after support removal', () => {
     const attachment = {
       id: 'minecraft:amethyst_cluster', namespace: 'minecraft', displayName: 'Amethyst Cluster', defaultState: { facing: 'up', waterlogged: 'false' },
       stateDefinitions: [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }, { name: 'waterlogged', values: ['true', 'false'] }], resources: { textures: [] },
@@ -316,9 +316,8 @@ describe('BlockRuleEngine', () => {
     expect(floating.validation).toMatchObject({ status: 'invalid', reason: 'missing-support' });
     const supported = attachmentEngine.place({ ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 })] }, block(attachment.id, { x: 2, y: 1, z: 2 }, { facing: 'up', waterlogged: 'true' }), { faceNormal: { x: 0, y: 1, z: 0 } }).project!;
     const removed = attachmentEngine.delete(supported, { x: 2, y: 0, z: 2 });
-    expect(removed.validation).toMatchObject({ status: 'invalid', reason: 'missing-support' });
-    expect(removed.project?.blocks).toHaveLength(1);
-    expect(removed.project?.blocks[0].state).toMatchObject({ facing: 'up', waterlogged: 'true' });
+    expect(removed.validation).toMatchObject({ status: 'valid', reason: 'ok' });
+    expect(removed.project?.blocks).toHaveLength(0);
   });
 
   it('preserves unsupported standing torch and tall plant data while reporting invalid', () => {
