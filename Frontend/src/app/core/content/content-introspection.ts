@@ -6,6 +6,7 @@ import { blockCapability, hasBlockCapability } from '../blocks/capabilities/bloc
 import type { PlacementSupportRequirement } from '../blocks/catalog/block-definition.types';
 import { resourcePath, resolveResourceLocation } from './resource-location';
 import { blockStatePredicates, invalidPredicateReasons, type NormalizedPredicate, type NormalizedPropertyPredicate } from './normalized-predicate';
+import { extractBehaviorFingerprint, type BehaviorClassificationSummary, type BehaviorFingerprint } from '../block-behavior/compatibility/behavior-fingerprint';
 
 export type ContentRole = 'block' | 'item' | 'decoration';
 export type EvidenceProvenance = 'authoritative-registry' | 'trusted-data' | 'resource-backed' | 'inferred' | 'unknown';
@@ -121,6 +122,8 @@ export interface NormalizedContentDescriptor {
   readonly specialVisual?: ContentSpecialVisualDescriptor;
   readonly itemHostVisual?: ContentItemHostVisualDescriptor;
   readonly semanticEvidence: readonly ContentSemanticEvidence[];
+  readonly behaviorFingerprint?: BehaviorFingerprint;
+  readonly behaviorClassification?: BehaviorClassificationSummary;
   readonly stateSchemaIncomplete: boolean;
   readonly resourceGraph: ResourceDependencyGraph;
   readonly diagnostics: readonly ContentIntrospectionDiagnostic[];
@@ -209,7 +212,7 @@ export class ContentIntrospectionEngine {
     this.semanticEvidenceProviders = semanticEvidenceProvider ? Array.isArray(semanticEvidenceProvider) ? semanticEvidenceProvider : [semanticEvidenceProvider] : [];
   }
 
-  inspectBlock(record: AssetBlockRecord): NormalizedContentDescriptor {
+  inspectBlock(record: AssetBlockRecord, fingerprintOverride?: BehaviorFingerprint): NormalizedContentDescriptor {
     const source = sourceMetadata(this.provider, record.sourceId, record.sourceName);
     const resources = [...new Set([record.resources.blockstate, record.resources.model, ...record.resources.textures].filter((value): value is string => !!value))];
     const document = record.resources.blockstate ? this.provider.readJson(record.resources.blockstate) : undefined;
@@ -231,9 +234,13 @@ export class ContentIntrospectionEngine {
     const stateSchemaIncomplete = record.defaultStateSource !== 'authoritative-report';
     if (stateSchemaIncomplete) diagnostics.push({ code: 'state-schema-incomplete', message: 'Static resources cannot prove runtime-registered properties.', sourceId: source.id });
     if (properties.some((property) => property.effects.runtimeUnknown)) diagnostics.push({ code: 'unknown-runtime-semantic', message: 'One or more observed properties have no verified runtime semantic contract.', sourceId: source.id });
-    const descriptor: NormalizedContentDescriptor = { id: record.id, sourceId: source.id, sourceName: source.name, roles: roleEvidence.map((entry) => entry.role), roleEvidence, resources, properties, predicates, placementDefault, representativeVisualState, relationships, capabilities, capabilityProfile: record.capabilities, supportRequirements: record.supportRequirements, supportContracts: record.supportContracts, semanticEvidence, stateSchemaIncomplete, resourceGraph: graph, diagnostics: uniqueDiagnostics(diagnostics) };
+    const descriptor: NormalizedContentDescriptor = { id: record.id, sourceId: source.id, sourceName: source.name, roles: roleEvidence.map((entry) => entry.role), roleEvidence, resources, properties, predicates, placementDefault, representativeVisualState, relationships, capabilities, capabilityProfile: record.capabilities, supportRequirements: record.supportRequirements, supportContracts: record.supportContracts, semanticEvidence, ...(record.behaviorClassification ? { behaviorClassification: record.behaviorClassification } : {}), stateSchemaIncomplete, resourceGraph: graph, diagnostics: uniqueDiagnostics(diagnostics) };
     const supplements = [...(record.semanticSupplements ?? []), ...this.semanticEvidenceProviders.flatMap((provider) => provider.supplementsFor(record.id, source.id))];
-    return mergeContentEvidence(descriptor, supplements);
+    const merged = mergeContentEvidence(descriptor, supplements);
+    const fingerprint = fingerprintOverride
+      ? { ...fingerprintOverride, properties: merged.properties.map((property) => ({ name: property.name, values: property.values, ...(property.derived ? { derived: true } : {}) })), defaultState: { ...record.defaultState, ...merged.placementDefault } }
+      : extractBehaviorFingerprint(record, this.provider, merged);
+    return { ...merged, behaviorFingerprint: fingerprint };
   }
 
   inspectItem(evidence: CatalogItemEvidence | BlockItemEvidence): NormalizedContentDescriptor {

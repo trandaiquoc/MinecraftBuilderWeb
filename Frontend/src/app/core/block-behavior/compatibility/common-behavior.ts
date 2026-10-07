@@ -1,4 +1,5 @@
 import { AssetBlockRecord, BlockBehavior, BlockStateDefinition, DefaultStateSource } from '../../blocks/catalog/block-definition.types';
+import { extractBehaviorFingerprint, matchVanillaBehaviorCandidates, type BehaviorClassificationSummary } from './behavior-fingerprint';
 
 export interface CommonBehaviorResourceProvider { readJson(path: string): unknown | undefined; }
 
@@ -10,6 +11,7 @@ export interface CommonBehaviorEvaluation {
   readonly family?: string;
   readonly compatible: boolean;
   readonly reason?: string;
+  readonly classification?: BehaviorClassificationSummary;
 }
 
 const horizontal = ['north', 'east', 'south', 'west'] as const;
@@ -27,6 +29,9 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   const defaultState = Object.keys(record.defaultState).length ? record.defaultState : deriveResourceDefaultState(definitions);
   const blockstate = record.resources.blockstate ? resources?.readJson(record.resources.blockstate) : undefined;
   const modelEvidence = typeof record.resources.model === 'string' || hasModelReference(blockstate);
+  const fingerprint = record.behaviorFingerprint ?? extractBehaviorFingerprint(record, resources);
+  const candidate = matchVanillaBehaviorCandidates(fingerprint);
+  if (candidate.behavior && candidate.family && candidate.defaults) return complete(record, candidate.stateDefinitions ?? definitions, candidate.family, candidate.behavior, candidate.defaults, 'compatible-common', candidate.classification);
 
   const door = contract(definitions, {
     facing: horizontal,
@@ -77,15 +82,6 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   const sixFace = contract(definitions, { facing: ['down', 'up', 'north', 'south', 'west', 'east'] });
   if (sixFace.complete && hasFamilyEvidence(record, 'shulker-boxes') && (record.behaviorEvidenceRequired === true || looksLikeShulker(record))) return complete(record, definitions, 'shulker-boxes', { kind: 'six-face-placement', facingProperty: 'facing' }, { facing: 'up' }, 'compatible-common');
 
-  // A six-direction facing property is not, by itself, an attachment rule:
-  // Shulkers and other directional blocks use the same domain. External
-  // content needs either an explicit verified contract or a resource
-  // fingerprint that proves the vanilla face-attached model shape.
-  const attachedSixFace = contract(definitions, { facing: ['down', 'up', 'north', 'south', 'west', 'east'] });
-  if (attachedSixFace.complete && hasAttachedSixFaceEvidence(record, blockstate, resources)) {
-    return complete(record, definitions, 'six-face-attachment', { kind: 'attached-six-face-placement', facingProperty: 'facing' }, { facing: 'up', waterlogged: 'false' }, 'compatible-common');
-  }
-
   const conduit = contract(definitions, { waterlogged: booleanValues });
   if (conduit.complete && (record.id === 'minecraft:conduit' || record.behaviorEvidenceRequired === true && hasFamilyEvidence(record, 'conduits'))) return complete(record, definitions, 'conduits', { kind: 'conduit-placement', waterloggedProperty: 'waterlogged' }, { waterlogged: 'true' }, 'compatible-common');
 
@@ -123,8 +119,8 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   return { defaultState, stateDefinitions: definitions, defaultStateSource: record.defaultStateSource === 'resource-render-fallback' || usesArbitraryValue(definitions) ? 'resource-render-fallback' : Object.keys(defaultState).length ? 'resource-derived' : 'unknown', compatible: false };
 }
 
-function complete(record: AssetBlockRecord, definitions: readonly BlockStateDefinition[], family: string, behavior: BlockBehavior, defaults: Readonly<Record<string, string>>, source: DefaultStateSource): CommonBehaviorEvaluation {
-  return { behavior, family, compatible: true, defaultState: mergeValidDefaults(definitions, defaults), stateDefinitions: markDerived(definitions, behavior), defaultStateSource: source };
+function complete(record: AssetBlockRecord, definitions: readonly BlockStateDefinition[], family: string, behavior: BlockBehavior, defaults: Readonly<Record<string, string>>, source: DefaultStateSource, classification?: BehaviorClassificationSummary): CommonBehaviorEvaluation {
+  return { behavior, family, compatible: true, defaultState: mergeValidDefaults(definitions, defaults), stateDefinitions: markDerived(definitions, behavior), defaultStateSource: source, ...(classification ? { classification } : {}) };
 }
 
 function changed(record: AssetBlockRecord, definitions: readonly BlockStateDefinition[], defaults: Readonly<Record<string, string>>, family: string, reason: string): CommonBehaviorEvaluation {
@@ -265,69 +261,3 @@ function hasStructuredPropertyEvidence(value: unknown, properties: readonly stri
   return properties.every((property) => seen.has(property)) && hasModelReference(value);
 }
 function hasModelReference(value: unknown): boolean { return !!value && typeof value === 'object' && JSON.stringify(value).includes('model'); }
-
-function hasAttachedSixFaceEvidence(record: AssetBlockRecord, blockstate: unknown, resources?: CommonBehaviorResourceProvider): boolean {
-  if (record.behaviorEvidenceRequired !== true) return false;
-  const contracts = new Set([...(record.supportContracts ?? []), ...(record.contentDescriptor?.supportContracts ?? [])]);
-  const semantic = [...(record.semanticEvidence ?? []), ...(record.contentDescriptor?.semanticEvidence ?? [])];
-  if (contracts.has(SIX_FACE_ATTACHMENT_CONTRACT) || semantic.some((entry) => entry.contractId === SIX_FACE_ATTACHMENT_CONTRACT && entry.strength === 'strong')) return true;
-  if (!hasAllSixFaceVariants(blockstate)) return false;
-  return hasCrossModelEvidence(record, blockstate, resources);
-}
-
-function hasAllSixFaceVariants(value: unknown): boolean {
-  const expected = new Set(['down', 'up', 'north', 'south', 'west', 'east']);
-  const found = new Set<string>();
-  const visit = (node: unknown): void => {
-    if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) { node.forEach(visit); return; }
-    for (const [key, child] of Object.entries(node)) {
-      if (key === 'variants' && child && typeof child === 'object' && !Array.isArray(child)) {
-        for (const variantKey of Object.keys(child)) for (const part of variantKey.split(',')) {
-          const [property, variantValue] = part.trim().split('=', 2);
-          if (property === 'facing' && variantValue && expected.has(variantValue)) found.add(variantValue);
-        }
-      }
-      if (key === 'facing') {
-        if (typeof child === 'string' && expected.has(child)) found.add(child);
-        if (Array.isArray(child)) child.forEach((item) => { if (typeof item === 'string' && expected.has(item)) found.add(item); });
-      }
-      visit(child);
-    }
-  };
-  visit(value);
-  return found.size === expected.size;
-}
-
-function hasCrossModelEvidence(record: AssetBlockRecord, blockstate: unknown, resources?: CommonBehaviorResourceProvider): boolean {
-  if (!resources) return false;
-  const models = new Set<string>();
-  if (record.resources.model) models.add(record.resources.model);
-  const collect = (node: unknown): void => {
-    if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) { node.forEach(collect); return; }
-    for (const [key, child] of Object.entries(node)) { if (key === 'model' && typeof child === 'string') models.add(child); collect(child); }
-  };
-  collect(blockstate);
-  return [...models].some((model) => modelHasCrossParent(model, resources, new Set<string>()));
-}
-
-function modelHasCrossParent(model: string, resources: CommonBehaviorResourceProvider, visited: Set<string>): boolean {
-  const path = modelResourcePath(model);
-  if (!path || visited.has(path)) return false;
-  visited.add(path);
-  const document = resources.readJson(path);
-  if (!document || typeof document !== 'object' || Array.isArray(document)) return false;
-  const parent = (document as Record<string, unknown>)['parent'];
-  if (typeof parent !== 'string') return false;
-  if (parent.replace(/^minecraft:/, '').endsWith('block/cross')) return true;
-  return modelHasCrossParent(parent, resources, visited);
-}
-
-function modelResourcePath(model: string): string | undefined {
-  if (model.startsWith('assets/')) return model.endsWith('.json') ? model : `${model}.json`;
-  const separator = model.indexOf(':');
-  if (separator <= 0) return undefined;
-  const namespace = model.slice(0, separator); const path = model.slice(separator + 1).replace(/^models\//, '');
-  return `assets/${namespace}/models/${path}.json`;
-}

@@ -5,6 +5,7 @@ import { CONTENT_SOURCE_MINECRAFT_VERSION } from '../content-source/content-sour
 import { texturePath } from '../vanilla/vanilla-asset-provider';
 import { itemEvidenceFromResources, itemIdentityIndexFromResources } from '../vanilla/format/item-evidence';
 import { evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
+import { matchVanillaBehaviorCandidates, type BehaviorClassificationSummary } from '../../block-behavior/compatibility/behavior-fingerprint';
 import { evaluateMinecraftRequirement } from './minecraft-version-predicate';
 import { normalizeFabricMetadata, NormalizedModMetadata, ModCompatibilityResult, SupportedModLoader } from './mod-loader';
 export type { SupportedModLoader } from './mod-loader';
@@ -280,19 +281,29 @@ export class ExternalModProvider implements ContentSourceProvider {
     const namespace = match[1]; const blockPath = match[2]; const id = `${namespace}:${blockPath}`; const blockstate = this.json[path];
     const definitions = stateDefinitionsFromBlockstate(blockstate); const language = context.languages.get(namespace) ?? {}; const trustedFamilies = context.trustedFamilies.get(id) ?? []; const signVisual = context.signVisuals.get(id);
     const signCapabilities = signVisual ? [{ kind: 'block-entity' as const, entityKind: 'sign' as const, evidence: 'verified' as const }, { kind: 'special-renderer' as const, evidence: 'verified' as const }] : [];
-    const initial: AssetBlockRecord = { id, displayName: typeof language[`block.${namespace}.${blockPath.replaceAll('/', '.')}`] === 'string' ? language[`block.${namespace}.${blockPath.replaceAll('/', '.')}`] as string : humanize(blockPath), defaultState: {}, stateDefinitions: definitions, resources: { blockstate: path, model: configuredModelIds(blockstate)[0], textures: [] }, support: 'partial', visualSupport: 'partial', behaviorSupport: 'unknown', defaultStateSource: 'unknown', visualClassification: signVisual ? 'special-renderer-required' : 'standard-json', visualClassificationEvidence: 'inferred', sourceId: this.source.id, sourceName: this.source.displayName, modName: this.source.displayName, trustedBehaviorFamilies: trustedFamilies, capabilities: signCapabilities, specialVisual: signVisual, semanticEvidence: trustedFamilies.map((contractId) => ({ contractId, provenance: 'trusted-data' as const, strength: 'partial' as const, supportingTags: context.trustedTagIds.get(id) ?? [], supportingProperties: [], supportingResources: [] })), behaviorEvidenceRequired: true };
-    const evaluation = evaluateCommonBehavior(initial, this);
-    const withState: AssetBlockRecord = { ...initial, defaultState: evaluation.defaultState, stateDefinitions: evaluation.stateDefinitions, defaultStateSource: evaluation.defaultStateSource, ...(evaluation.behavior ? { behavior: evaluation.behavior, behaviorSupport: 'partial' as const } : {}) };
-    const matchingItem = context.itemEvidenceById.get(id); const descriptor = context.introspection.inspectBlock(withState);
-    const descriptorRecord: AssetBlockRecord = { ...withState, defaultState: { ...descriptor.placementDefault }, stateDefinitions: [...descriptor.properties].map((property) => ({ name: property.name, values: property.values, ...(property.derived ? { derived: true } : {}) })), capabilities: descriptor.capabilityProfile ?? initial.capabilities, supportRequirements: descriptor.supportRequirements, supportContracts: descriptor.supportContracts, specialVisual: descriptor.specialVisual ?? signVisual, itemHostVisual: descriptor.itemHostVisual, semanticEvidence: descriptor.semanticEvidence, itemEvidence: matchingItem ? { itemId: id, placeable: true, sourceFormat: matchingItem.sourceFormat, referencedModels: matchingItem.referencedModels, referencedResources: matchingItem.referencedResources } : undefined, contentDescriptor: descriptor };
-    // Re-run the common classifier after introspection has merged trusted
-    // support/semantic evidence. This closes the evidence pipeline without
-    // allowing a low-confidence resource default to override a common state.
-    const finalEvaluation = evaluateCommonBehavior(descriptorRecord, this);
-    const finalRecord: AssetBlockRecord = finalEvaluation.behavior
-      ? { ...descriptorRecord, defaultState: { ...descriptorRecord.defaultState, ...finalEvaluation.defaultState }, stateDefinitions: finalEvaluation.stateDefinitions, defaultStateSource: finalEvaluation.defaultStateSource, behavior: finalEvaluation.behavior, behaviorSupport: 'partial' }
-      : descriptorRecord;
-    return finalRecord;
+    const matchingItem = context.itemEvidenceById.get(id);
+    const itemEvidence = matchingItem ? { itemId: id, placeable: true, sourceFormat: matchingItem.sourceFormat, referencedModels: matchingItem.referencedModels, referencedResources: matchingItem.referencedResources } : undefined;
+    const initial: AssetBlockRecord = { id, displayName: typeof language[`block.${namespace}.${blockPath.replaceAll('/', '.')}`] === 'string' ? language[`block.${namespace}.${blockPath.replaceAll('/', '.')}`] as string : humanize(blockPath), defaultState: {}, stateDefinitions: definitions, resources: { blockstate: path, model: configuredModelIds(blockstate)[0], textures: [] }, support: 'partial', visualSupport: 'partial', behaviorSupport: 'unknown', defaultStateSource: 'unknown', visualClassification: signVisual ? 'special-renderer-required' : 'standard-json', visualClassificationEvidence: 'inferred', sourceId: this.source.id, sourceName: this.source.displayName, modName: this.source.displayName, trustedBehaviorFamilies: trustedFamilies, capabilities: signCapabilities, specialVisual: signVisual, itemEvidence, semanticEvidence: trustedFamilies.map((contractId) => ({ contractId, provenance: 'trusted-data' as const, strength: 'partial' as const, supportingTags: context.trustedTagIds.get(id) ?? [], supportingProperties: [], supportingResources: [] })), behaviorEvidenceRequired: true };
+
+    // Build resource evidence first. Classification consumes this one
+    // fingerprint; the final descriptor is then refreshed with the chosen
+    // state without re-running fingerprint extraction.
+    const rawDescriptor = context.introspection.inspectBlock(initial);
+    const evidenceRecord: AssetBlockRecord = { ...initial, defaultState: rawDescriptor.placementDefault, stateDefinitions: rawDescriptor.properties.map((property) => ({ name: property.name, values: property.values, ...(property.derived ? { derived: true } : {}) })), capabilities: rawDescriptor.capabilityProfile ?? initial.capabilities, supportRequirements: rawDescriptor.supportRequirements, supportContracts: rawDescriptor.supportContracts, specialVisual: rawDescriptor.specialVisual ?? signVisual, itemHostVisual: rawDescriptor.itemHostVisual, semanticEvidence: rawDescriptor.semanticEvidence, contentDescriptor: rawDescriptor, behaviorFingerprint: rawDescriptor.behaviorFingerprint };
+    const evaluation = evaluateCommonBehavior(evidenceRecord, this);
+    const fingerprintClassification = rawDescriptor.behaviorFingerprint ? matchVanillaBehaviorCandidates(rawDescriptor.behaviorFingerprint).classification : undefined;
+    const classification: BehaviorClassificationSummary = evaluation.classification ?? {
+      ...(evaluation.behavior && evaluation.family ? { chosenCandidate: evaluation.family } : fingerprintClassification?.chosenCandidate ? { chosenCandidate: fingerprintClassification.chosenCandidate } : {}),
+      traits: fingerprintClassification?.traits ?? rawDescriptor.behaviorFingerprint?.traits ?? [],
+      supportingEvidence: fingerprintClassification?.supportingEvidence ?? rawDescriptor.behaviorFingerprint?.evidence ?? [],
+      rejectedCandidates: fingerprintClassification?.rejectedCandidates ?? [],
+      candidates: fingerprintClassification?.candidates ?? [],
+      ...(fingerprintClassification?.nameTieBreak ? { nameTieBreak: fingerprintClassification.nameTieBreak } : {}),
+      confidence: evaluation.behavior ? 'partial' : fingerprintClassification?.confidence ?? 'unknown',
+    };
+    const finalized: AssetBlockRecord = { ...evidenceRecord, defaultState: { ...evidenceRecord.defaultState, ...evaluation.defaultState }, stateDefinitions: [...evaluation.stateDefinitions].sort((left, right) => left.name.localeCompare(right.name)), defaultStateSource: evaluation.defaultStateSource, behaviorClassification: classification, ...(evaluation.behavior ? { behavior: evaluation.behavior, behaviorSupport: 'partial' as const } : {}) };
+    const finalDescriptor = context.introspection.inspectBlock(finalized, rawDescriptor.behaviorFingerprint);
+    return { ...finalized, contentDescriptor: finalDescriptor, behaviorFingerprint: finalDescriptor.behaviorFingerprint };
   }
 
   private finishCatalog(records: readonly AssetBlockRecord[], context: ExternalCatalogContext): BlockCatalogSource & { readonly paintingVariants: readonly PaintingVariant[] } {

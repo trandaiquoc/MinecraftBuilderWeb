@@ -1,5 +1,6 @@
 import type { BlockCapability, BlockCapabilityEvidence, BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import type { ContentItemHostVisualDescriptor, ContentSemanticEvidence, ContentSpecialVisualDescriptor, NormalizedContentDescriptor } from '../../content/content-introspection';
+import type { BehaviorClassificationSummary, BehaviorFingerprint } from '../../block-behavior/compatibility/behavior-fingerprint';
 
 export type BlockSupportLevel = 'full' | 'partial' | 'fallback';
 export type BehaviorSupportLevel = 'full' | 'partial' | 'unknown';
@@ -108,6 +109,8 @@ export interface BlockDefinition {
   readonly behaviorEvidenceRequired?: boolean;
   /** Resource-backed roles/state/effect evidence shared by block, item and decoration tooling. */
   readonly contentDescriptor?: NormalizedContentDescriptor;
+  readonly behaviorFingerprint?: BehaviorFingerprint;
+  readonly behaviorClassification?: BehaviorClassificationSummary;
   readonly semanticEvidence?: readonly ContentSemanticEvidence[];
   readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
@@ -147,6 +150,8 @@ export interface AssetBlockRecord {
   readonly trustedBehaviorFamilies?: readonly string[];
   readonly behaviorEvidenceRequired?: boolean;
   readonly contentDescriptor?: NormalizedContentDescriptor;
+  readonly behaviorFingerprint?: BehaviorFingerprint;
+  readonly behaviorClassification?: BehaviorClassificationSummary;
   readonly semanticEvidence?: readonly ContentSemanticEvidence[];
   readonly semanticSupplements?: readonly import('../../content/content-introspection').ContentSemanticSupplement[];
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
