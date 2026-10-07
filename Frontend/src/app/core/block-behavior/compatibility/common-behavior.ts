@@ -106,8 +106,8 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (wall.partial && isWallEvidence(blockstate, record.resources.model, record)) return changed(record, definitions, defaultState, 'walls', 'Wall connection properties are not compatible with the common rule.');
 
   const stairs = contract(definitions, { facing: horizontal, half: ['top', 'bottom'], shape: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] });
-  if (stairs.complete && hasFamilyEvidence(record, 'stairs')) return complete(record, definitions, 'stairs', { kind: 'stairs', derivedProperties: ['shape'] }, { ...deriveResourceDefaultState(definitions), shape: 'straight' }, 'compatible-common');
-  if (stairs.partial && hasFamilyEvidence(record, 'stairs') && (record.behaviorEvidenceRequired === true || looksLikeStairs(record.id, definitions))) return changed(record, definitions, defaultState, 'stairs', 'Stair state contract differs from the common facing/half/shape properties.');
+  if (stairs.complete && isStairsEvidence(blockstate, record.resources.model, record)) return complete(record, definitions, 'stairs', { kind: 'stairs', derivedProperties: ['shape'] }, { ...deriveResourceDefaultState(definitions), shape: 'straight' }, 'compatible-common');
+  if (stairs.partial && isStairsEvidence(blockstate, record.resources.model, record)) return changed(record, definitions, defaultState, 'stairs', 'Stair state contract differs from the common facing/half/shape properties.');
 
   return { defaultState, stateDefinitions: definitions, defaultStateSource: record.defaultStateSource === 'resource-render-fallback' || usesArbitraryValue(definitions) ? 'resource-render-fallback' : Object.keys(defaultState).length ? 'resource-derived' : 'unknown', compatible: false };
 }
@@ -212,5 +212,42 @@ function connectionFamily(record: AssetBlockRecord, blockstate: unknown, model: 
   if (trusted.has('pane') || (!record.behaviorEvidenceRequired && (evidence.includes('pane') || evidence.includes('iron_bars'))) || (record.id.startsWith('minecraft:') && (evidence.includes('pane') || evidence.includes('iron_bars')))) return 'pane';
   return undefined;
 }
-function isWallEvidence(blockstate: unknown, model: string | undefined, record?: AssetBlockRecord): boolean { return record?.trustedBehaviorFamilies?.includes('wall') === true || record?.behaviorEvidenceRequired !== true && `${JSON.stringify(blockstate ?? '')} ${model ?? ''}`.toLowerCase().includes('wall') || !!record?.id.startsWith('minecraft:') && `${JSON.stringify(blockstate ?? '')} ${model ?? ''}`.toLowerCase().includes('wall'); }
+function isWallEvidence(blockstate: unknown, model: string | undefined, record?: AssetBlockRecord): boolean {
+  if (record?.trustedBehaviorFamilies?.includes('wall') === true) return true;
+  const resourceText = `${JSON.stringify(blockstate ?? '')} ${model ?? ''}`.toLowerCase();
+  if (record?.behaviorEvidenceRequired !== true) return resourceText.includes('wall') || record?.id.startsWith('minecraft:') === true && resourceText.includes('wall');
+  // External sources are fail-closed unless both the complete wall state
+  // schema and a blockstate that actually drives the wall parts are present.
+  // This deliberately avoids treating a mod name or a single model as proof.
+  return hasStructuredPropertyEvidence(blockstate, ['north', 'east', 'south', 'west', 'up']);
+}
+
+function isStairsEvidence(blockstate: unknown, model: string | undefined, record: AssetBlockRecord): boolean {
+  if (hasFamilyEvidence(record, 'stairs')) return true;
+  if (record.behaviorEvidenceRequired !== true) return `${JSON.stringify(blockstate ?? '')} ${model ?? ''}`.toLowerCase().includes('stairs') || looksLikeStairs(record.id, record.stateDefinitions);
+  // The state contract alone is not enough: require model selection by the
+  // stair shape/facing properties as well.
+  return hasStructuredPropertyEvidence(blockstate, ['facing', 'half', 'shape']);
+}
+
+function hasStructuredPropertyEvidence(value: unknown, properties: readonly string[]): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const seen = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const item of node) visit(item); return; }
+    for (const [key, child] of Object.entries(node)) {
+      const normalizedKey = key.toLowerCase();
+      for (const property of properties) {
+        if (normalizedKey === property || normalizedKey.includes(`${property}=`)) seen.add(property);
+      }
+      if (normalizedKey === 'variants' && child && typeof child === 'object') {
+        for (const variantKey of Object.keys(child)) for (const property of properties) if (variantKey.split(',').some((part) => part.trim().split('=')[0] === property)) seen.add(property);
+      }
+      visit(child);
+    }
+  };
+  visit(value);
+  return properties.every((property) => seen.has(property)) && hasModelReference(value);
+}
 function hasModelReference(value: unknown): boolean { return !!value && typeof value === 'object' && JSON.stringify(value).includes('model'); }

@@ -3,7 +3,7 @@ import { addBlockCapability } from '../capabilities/block-capability-resolver';
 import { BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { PlacementContext } from '../../editor/placement/placement';
-import { normalizeSearchText } from '../catalog/block-catalog';
+import { rankSearchResults } from '../../search/relevance-search';
 import { isInternalBlockId, isTechnicalBlockId, isDecorationEntityId, vanillaTechnicalBlockIds } from '../../content/content-classifier';
 
 export type PlaceablePlacementKind =
@@ -35,10 +35,8 @@ export interface PlaceableItemDefinition {
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
-// Search metadata is runtime-only and deliberately kept outside the catalog
-// contract. A WeakMap lets imported items stay plain data while avoiding
-// repeated Unicode normalization on every keystroke.
-const placementSearchIndex = new WeakMap<object, string>();
+// Search metadata stays runtime-only and deliberately outside the catalog
+// contract; ranking is computed only for the current query.
 
 export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName' | 'maxStackSize'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: string; }
 
@@ -127,7 +125,6 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[], tar
     result.push(toItem(definition, { itemId: definition.id, concreteBlockIds: [definition.id], kind: 'direct', recipe: 'single' }, [definition.id]));
   }
   const sorted = result.sort((left, right) => left.displayName.localeCompare(right.displayName));
-  for (const item of sorted) placementSearchIndex.set(item, placementSearchText(item));
   return sorted;
 }
 
@@ -266,18 +263,7 @@ export function previewBlocksForItem(item: PlaceableItemDefinition, state: Block
 }
 
 export function placementItemSearch(items: readonly PlaceableItemDefinition[], query: string): readonly PlaceableItemDefinition[] {
-  const normalized = normalizeSearchText(query);
-  if (!normalized) return items;
-  const matches: PlaceableItemDefinition[] = [];
-  for (const item of items) {
-    const indexed = placementSearchIndex.get(item) ?? placementSearchIndex.set(item, placementSearchText(item)).get(item)!;
-    if (indexed.includes(normalized)) matches.push(item);
-  }
-  return matches;
-}
-
-function placementSearchText(item: PlaceableItemDefinition): string {
-  return [item.displayName, item.itemId, item.namespace, item.modName ?? '', item.sourceName ?? ''].map(normalizeSearchText).join('\u0000');
+  return rankSearchResults(items, query, (item) => [item.displayName, item.itemId, item.displayBlockId, item.namespace, item.modName ?? '', item.sourceName ?? '']);
 }
 
 function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }

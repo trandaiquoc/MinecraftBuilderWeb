@@ -2,6 +2,7 @@ import type { AssetBlockRecord, BlockDefinition, BlockVisualClassification, Cata
 import { deriveBlockCapabilities } from '../capabilities/block-capability-resolver';
 import type { BlockCapability } from '../capabilities/block-capability.types';
 import { mergeContentEvidence } from '../../content/content-introspection';
+import { rankSearchResults } from '../../search/relevance-search';
 
 export interface BlockCatalogSource {
   readonly minecraftVersion: string;
@@ -20,7 +21,6 @@ interface CatalogContribution { readonly definitions: readonly NormalizedBlockDe
 export class BlockCatalog {
   private readonly contributions = new Map<string, CatalogContribution>();
   private readonly entries = new Map<string, NormalizedBlockDefinition>();
-  private readonly searchIndex = new Map<string, string>();
   private orderedEntries: readonly NormalizedBlockDefinition[] = [];
 
   load(source: BlockCatalogSource): void {
@@ -58,11 +58,10 @@ export class BlockCatalog {
   }
 
   private rebuild(): void {
-    this.entries.clear(); this.searchIndex.clear();
+    this.entries.clear();
     for (const contribution of this.contributions.values()) for (const definition of contribution.definitions) {
       if (this.entries.has(definition.id)) continue;
       this.entries.set(definition.id, definition);
-      this.searchIndex.set(definition.id, [definition.displayName, definition.id, definition.namespace, definition.modName ?? '', definition.sourceName].map(normalizeSearchText).join('\u0000'));
     }
     this.orderedEntries = [...this.entries.values()];
   }
@@ -73,9 +72,7 @@ export class BlockCatalog {
   hasTargetItemEvidence(): boolean { return [...this.contributions.values()].some((contribution) => contribution.itemEvidenceAvailable); }
 
   search(query: string): readonly BlockDefinition[] {
-    const normalized = normalizeSearchText(query);
-    if (!normalized) return this.all();
-    return this.all().filter((block) => this.searchIndex.get(block.id)?.includes(normalized) ?? false);
+    return rankSearchResults(this.all(), query, (block) => [block.displayName, block.id, block.namespace, block.modName ?? '', block.sourceName]);
   }
 }
 
@@ -128,6 +125,4 @@ function renderClassification(capability: Extract<BlockCapability, { kind: 'stan
   return capability?.kind === 'standard-json-render' ? 'standard-json' : capability?.kind === 'special-renderer' ? 'special-renderer-required' : capability?.kind === 'intentionally-invisible' ? 'intentionally-invisible' : undefined;
 }
 
-export function normalizeSearchText(value: string): string {
-  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim();
-}
+export { normalizeSearchText } from '../../search/relevance-search';

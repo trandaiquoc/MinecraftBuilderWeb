@@ -8,7 +8,11 @@ export class CameraStateService {
   readonly current = signal<CameraState | undefined>(undefined);
   readonly threeD = this.current;
   readonly yLayer = this.current;
+  private readonly byProject = new Map<string, CameraState>();
 
-  get(_mode: EditorMode): CameraState | undefined { return this.current(); }
-  set(_mode: EditorMode, state: CameraState): void { this.current.set(state); }
+  get(_mode: EditorMode, projectId?: string): CameraState | undefined { return projectId ? this.byProject.get(projectId) : this.current(); }
+  set(_mode: EditorMode, state: CameraState, projectId?: string): void {
+    if (projectId) this.byProject.set(projectId, state);
+    this.current.set(state);
+  }
 }

@@ -3,6 +3,7 @@ import { PaintingVariant } from '../../../../core/decorations/decoration.types';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
 import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
+import { normalizeSearchText, rankSearchResults } from '../../../../core/search/relevance-search';
 
 @Component({
   selector: 'app-painting-picker',
@@ -21,9 +22,9 @@ export class PaintingPickerComponent {
   protected readonly open = signal(false);
   protected variants(): readonly PaintingVariant[] { return this.catalog.placeable(this.sourceId()); }
   protected readonly filteredVariants = computed(() => {
-    const query = normalize(this.query());
+    const query = normalizeSearchText(this.query());
     const variants = this.variants();
-    return query ? variants.filter((entry) => normalize(`${humanize(entry.id)} ${entry.id} ${entry.sourceName ?? entry.sourceId ?? ''} ${entry.width}x${entry.height}`).includes(query)) : variants;
+    return rankSearchResults(variants, query, (entry) => [humanize(entry.id), entry.id, entry.sourceName ?? entry.sourceId ?? '', `${entry.width}x${entry.height}`]);
   });
   protected selectedVariant(): PaintingVariant | undefined {
     const selected = this.catalog.get(this.selectedId());
@@ -43,5 +44,4 @@ export class PaintingPickerComponent {
   protected updateQuery(event: Event): void { this.query.set((event.target as HTMLInputElement).value); }
 }
 
-function normalize(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, ' '); }
 function humanize(value: string): string { return value.split(':').at(-1)!.split('_').map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(' '); }

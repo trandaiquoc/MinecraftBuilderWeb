@@ -1,6 +1,7 @@
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
 import { Component, ElementRef, EventEmitter, Input, Output, signal, viewChild } from '@angular/core';
 import { LucideChevronDown } from '@lucide/angular';
+import { rankSearchResults } from '../../../core/search/relevance-search';
 
 export interface SearchableDropdownOption {
   readonly id: string;
@@ -37,7 +38,6 @@ export class SearchableDropdownComponent {
   protected readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
   private indexedOptions?: readonly SearchableDropdownOption[];
-  private readonly optionSearchIndex = new Map<string, string>();
   private readonly optionById = new Map<string, SearchableDropdownOption>();
 
   protected get selected(): SearchableDropdownOption | undefined {
@@ -45,15 +45,8 @@ export class SearchableDropdownComponent {
     return this.optionById.get(this.selectedId);
   }
   protected filteredOptions(): readonly SearchableDropdownOption[] {
-    const query = normalize(this.query());
     this.ensureOptionIndex();
-    if (!query) return this.options.slice(0, 100);
-    const matches: SearchableDropdownOption[] = [];
-    for (const option of this.options) {
-      if (this.optionSearchIndex.get(option.id)?.includes(query)) matches.push(option);
-      if (matches.length === 100) break;
-    }
-    return matches;
+    return rankSearchResults(this.options, this.query(), (option) => [option.label, option.id, option.secondary ?? '', option.status ?? ''], 100);
   }
   protected toggle(): void {
     if (this.disabled) return;
@@ -92,12 +85,9 @@ export class SearchableDropdownComponent {
   private ensureOptionIndex(): void {
     if (this.indexedOptions === this.options) return;
     this.indexedOptions = this.options;
-    this.optionSearchIndex.clear(); this.optionById.clear();
+    this.optionById.clear();
     for (const option of this.options) {
       this.optionById.set(option.id, option);
-      this.optionSearchIndex.set(option.id, normalize(`${option.label} ${option.secondary ?? ''} ${option.status ?? ''} ${option.id}`));
     }
   }
 }
-
-function normalize(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, ' '); }

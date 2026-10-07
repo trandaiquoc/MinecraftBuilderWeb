@@ -855,6 +855,7 @@ export class ThreeViewportEngine {
   private readonly culledBlockKeys = new Set<string>();
   private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
   private missingBlocksTerminal = false;
+  private cameraProjectId?: string;
 
   constructor(readonly instrumentation = new RendererDiagnostics(), options: ViewportEngineOptions = {}) {
     this.terrainAtlasMode = options.terrainAtlasMode ?? 'on';
@@ -1439,6 +1440,7 @@ export class ThreeViewportEngine {
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
     const previousProject = this.project;
+    const projectChanged = project?.id !== previousProject?.id;
     const previousOptions = this.renderOptions;
     const isolatePresentationChanged = isolateKey(previousOptions) !== isolateKey(options);
     const previousSyncKey = this.structureSyncKey;
@@ -1550,7 +1552,10 @@ export class ThreeViewportEngine {
     }
     this.updateGhost(undefined, project, active);
     this.recordProviderCacheStats();
-    if (project && this.controls && !this.hasCameraFrame) this.resetCamera();
+    if (project && this.controls && (projectChanged || this.cameraProjectId !== project.id)) {
+      this.cameraProjectId = project.id;
+      this.fitStructure();
+    } else if (project && this.controls && !this.hasCameraFrame) this.resetCamera();
     this.scheduleRender();
     const projectBlockCount = project?.blocks.length ?? 0;
     if (this.runtimeDiagnosticsEnabled && this.runtimeObservedProjectBlockCount > 0 && projectBlockCount === 0) {
@@ -1865,7 +1870,7 @@ export class ThreeViewportEngine {
         terrainCandidates.push(terrainCandidate);
       } else this.hydrationWork.enqueueRegular({ token: this.hydrationGeneration, projectionRevision: this.projectionRevisionForKey(key), key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && isCompiledTerrainEntry(next), surfaceVisibleEntries: allVisibleMap });
     }
-    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, visible, terrainAffectedPositions, full);
+    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, visible, terrainAffectedPositions, full, false, 'structural');
     const normalJobs: BlockHydrationJob[] = [];
     const referenceJobs: BlockHydrationJob[] = [];
     const missingJobs: BlockHydrationJob[] = [];
@@ -2280,6 +2285,11 @@ export class ThreeViewportEngine {
 
   private applyIncrementalMutation(project: ProjectDocument, options: ViewportRenderOptions, hint: ProjectMutationHint): void {
     const lane: HydrationLane = hint.origin === 'content-resolution' ? 'content' : 'local';
+    // Keep every asynchronous retry spawned by this mutation in the same
+    // accounting lane as the originating operation. In particular, local
+    // terrain work must not reopen the global "Building Structure" lane.
+    this.hydrationLane = lane;
+    this.hydrationProgressTracker.setLane(lane);
     const tracePrefix = lane === 'content' ? 'content-resolution' : 'local-edit';
     this.runtimeTrace?.record(`${tracePrefix}-start`, { source: hint.source ?? 'unknown', changes: hint.changes.length });
     this.runtimeTrace?.record('incremental-reconcile', { changedVoxelCount: hint.changes.length, source: hint.source ?? 'unknown' });
@@ -2411,8 +2421,8 @@ export class ThreeViewportEngine {
     const terrainResult = this.terrainRenderer.applyBlockChanges(terrainChanges, true, [...delta.hydrationInvalidatedKeys]);
     if (!terrainResult.pending) this.commitTerrainRecords(preparedTerrainRecords.values(), terrainResult);
     const representedTerrainKeys = new Set(terrainResult.representedKeys);
-    if (!terrainResult.pending) this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate));
-    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true);
+    if (!terrainResult.pending) this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate), lane);
+    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true, lane);
     this.updateHydrationOrder();
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), lane);
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
@@ -2456,7 +2466,7 @@ export class ThreeViewportEngine {
     this.hydrationWork.replaceRegular([...normal, ...reference, ...missing]);
   }
 
-  private scheduleTerrainBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean, local = false): void {
+  private scheduleTerrainBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean, local = false, lane: HydrationLane = local ? 'local' : 'structural'): void {
     const groups = groupTerrainCandidates(candidates);
     const candidateByKey = new Map(candidates.map((candidate) => [candidate.key, candidate] as const));
     const token = this.hydrationGeneration;
@@ -2471,13 +2481,17 @@ export class ThreeViewportEngine {
         .then((templates) => ({ reusableKey, group, templates, owned: true }), () => ({ reusableKey, group, templates: undefined, owned: false }));
     });
     const pendingGroups = resolved.filter((_, index) => !this.terrainRenderer.templateCache.has([...groups.keys()][index])).length;
-    if (pendingGroups) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    if (pendingGroups) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), lane);
     void Promise.all(resolved).then((results) => {
       const staleProjection = [...projectionRevisions].some(([key, revision]) => this.projectionRevisionForKey(key) !== revision);
       if (token !== this.hydrationGeneration || staleProjection || providerGeneration !== this.providerGeneration || this.disposed) {
         for (const result of results) if (result.owned && result.templates && ![...this.terrainRenderer.templateCache.values()].some((templates) => templates === result.templates)) this.disposeTerrainTemplates(result.templates);
         this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
-        if (!this.disposed && token === this.hydrationGeneration && providerGeneration === this.providerGeneration) this.enqueueFailedTerrainCandidates(candidates);
+        // A structural batch can become stale because a local edit replaced
+        // its projection while the provider promise was pending. Requeue the
+        // current representation in the lane that owns that replacement; do
+        // not resurrect the old global build indicator.
+        if (!this.disposed && token === this.hydrationGeneration && providerGeneration === this.providerGeneration) this.enqueueFailedTerrainCandidates(candidates, this.hydrationLane);
         return;
       }
       const usable: TerrainSurfaceRecord[] = [];
@@ -2501,7 +2515,7 @@ export class ThreeViewportEngine {
         const candidate = candidateByKey.get(record.key);
         if (candidate) failed.push(candidate);
       }
-      this.enqueueFailedTerrainCandidates(failed);
+      this.enqueueFailedTerrainCandidates(failed, lane);
       this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
       this.recordProviderCacheStats();
       this.scheduleRender();
@@ -2510,16 +2524,16 @@ export class ThreeViewportEngine {
       // Promise.all is intentionally normalized above; this is only a guard
       // for an unexpected coordinator failure.
       this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
-      this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key));
+      this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key), lane);
     });
   }
 
-  private enqueueFailedTerrainCandidates(candidates: readonly TerrainHydrationCandidate[]): void {
-    this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key));
+  private enqueueFailedTerrainCandidates(candidates: readonly TerrainHydrationCandidate[], lane: HydrationLane = this.hydrationLane): void {
+    this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key), lane);
   }
 
   /** Reconstructs fallback work from current viewport state after an async terrain disposition. */
-  private enqueueFailedTerrainKeys(keys: readonly string[]): void {
+  private enqueueFailedTerrainKeys(keys: readonly string[], lane: HydrationLane = this.hydrationLane): void {
     const candidates = new Set<string>();
     for (const key of keys) {
       const next = this.cachedVisibleMap.get(key);
@@ -2540,7 +2554,7 @@ export class ThreeViewportEngine {
     }
     this.instrumentation.record('terrainAsyncFallbackKeys', candidates.size);
     this.updateHydrationOrder();
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + (this.hydrationRunningByGeneration.get(this.hydrationGeneration) ?? 0) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), lane);
     this.scheduleHydrationPump();
   }
 
@@ -4375,13 +4389,14 @@ export class ThreeViewportEngine {
     return { position: vectorValue(this.camera.position), target: vectorValue(this.controls.target), up: vectorValue(this.camera.up) };
   }
 
-  restoreCamera(state: CameraState | undefined): void {
+  restoreCamera(state: CameraState | undefined, projectId?: string): void {
     if (!state || !this.controls) return;
     this.camera.position.set(state.position.x, state.position.y, state.position.z);
     this.camera.up.set(state.up.x, state.up.y, state.up.z);
     this.controls.target.set(state.target.x, state.target.y, state.target.z);
     this.controls.update();
     this.hasCameraFrame = true;
+    this.cameraProjectId = projectId;
     this.scheduleRender();
   }
 
@@ -4411,6 +4426,7 @@ export class ThreeViewportEngine {
   resetCamera(): void {
     if (!this.project) return;
     this.hasCameraFrame = true;
+    this.cameraProjectId = this.project.id;
     this.frameBounds(projectCameraBounds(this.project.size));
   }
 

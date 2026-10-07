@@ -1,4 +1,5 @@
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
+import { rankSearchResults } from '../../search/relevance-search';
 
 export type ItemVisualStatus = 'available' | 'unsupported' | 'missing-resource';
 export type ItemVisualKind = 'generated-layers' | 'block-model' | 'special-static' | 'unsupported';
@@ -42,7 +43,6 @@ export interface ItemCatalogEntry {
 export class ItemCatalog {
   private readonly contributions = new Map<string, readonly ItemCatalogEntry[]>();
   private readonly entries = new Map<string, ItemCatalogEntry>();
-  private readonly searchIndex = new Map<string, string>();
   private orderedEntries: readonly ItemCatalogEntry[] = [];
 
   replaceSource(sourceId: string, entries: readonly ItemCatalogEntry[]): void {
@@ -57,20 +57,16 @@ export class ItemCatalog {
   all(): readonly ItemCatalogEntry[] { return this.orderedEntries; }
 
   search(query: string): readonly ItemCatalogEntry[] {
-    const normalized = normalizeItemSearch(query);
-    if (!normalized) return this.all();
-    return this.all().filter((entry) => this.searchIndex.get(entry.id)?.includes(normalized) ?? false);
+    return rankSearchResults(this.all(), query, (entry) => [entry.displayName, entry.id, entry.namespace, entry.sourceName]);
   }
 
   private rebuild(): void {
     this.entries.clear();
-    this.searchIndex.clear();
     for (const sourceEntries of this.contributions.values()) for (const entry of sourceEntries) {
       // A canonical registry ID identifies an Item. A later source cannot silently
       // replace an existing source's metadata in the active catalog.
       if (this.entries.has(entry.id)) continue;
       this.entries.set(entry.id, entry);
-      this.searchIndex.set(entry.id, normalizeItemSearch(`${entry.displayName} ${entry.id} ${entry.namespace} ${entry.sourceName}`));
     }
     this.orderedEntries = [...this.entries.values()];
   }

@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { AssetBlockRecord, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
 import { evaluateCommonBehavior } from './common-behavior';
 
-function record(id: string, definitions: readonly BlockStateDefinition[], model = `${id.replace(':', '/')}`): AssetBlockRecord {
+function record(id: string, definitions: readonly BlockStateDefinition[], model = `${id.replace(':', '/')}`, extra: Partial<AssetBlockRecord> = {}): AssetBlockRecord {
   return {
     id,
     displayName: id,
     defaultState: {},
     stateDefinitions: definitions,
     resources: { blockstate: `assets/${id.replace(':', '/')}.json`, model, textures: [] },
+    ...extra,
   };
 }
 
@@ -74,6 +75,43 @@ describe('common resource behavior evaluation', () => {
       { name: 'up', values: ['true', 'false'] },
     ], 'example:block/custom_wall_post'));
     expect(result.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'wall' });
+  });
+
+  it('recognizes an external wall only when the state and blockstate parts agree', () => {
+    const definitions = [
+      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['none', 'low', 'tall'] })),
+      { name: 'up', values: ['true', 'false'] },
+    ];
+    const blockstate = {
+      multipart: [
+        { when: { north: 'none' }, apply: { model: 'example:block/post' } },
+        { when: { east: 'low' }, apply: { model: 'example:block/side' } },
+        { when: { south: 'low' }, apply: { model: 'example:block/side' } },
+        { when: { west: 'low' }, apply: { model: 'example:block/side' } },
+        { when: { up: 'true' }, apply: { model: 'example:block/post' } },
+      ],
+    };
+    const result = evaluateCommonBehavior(record('example:tumblestone', definitions, 'example:block/tumblestone', { behaviorEvidenceRequired: true }), { readJson: () => blockstate });
+    expect(result.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'wall' });
+  });
+
+  it('does not infer an external wall from the schema without blockstate part evidence', () => {
+    const definitions = [
+      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['none', 'low', 'tall'] })),
+      { name: 'up', values: ['true', 'false'] },
+    ];
+    const result = evaluateCommonBehavior(record('example:decorative_block', definitions, 'example:block/decorative', { behaviorEvidenceRequired: true }), { readJson: () => ({ variants: { '': { model: 'example:block/decorative' } } }) });
+    expect(result.behavior).toBeUndefined();
+  });
+
+  it('recognizes external stairs from state schema plus shape model selection', () => {
+    const definitions = [
+      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+      { name: 'half', values: ['top', 'bottom'] },
+      { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] },
+    ];
+    const result = evaluateCommonBehavior(record('example:cut_block', definitions, 'example:block/cut_block', { behaviorEvidenceRequired: true }), { readJson: () => ({ variants: { 'facing=north,half=bottom,shape=straight': { model: 'example:block/cut_block_straight' } } }) });
+    expect(result.behavior).toMatchObject({ kind: 'stairs' });
   });
 
   it('uses the candle state contract without an ID heuristic and rejects candle-cake state', () => {

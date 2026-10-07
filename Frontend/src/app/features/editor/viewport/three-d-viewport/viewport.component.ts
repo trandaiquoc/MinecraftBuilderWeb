@@ -138,8 +138,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       window.__minecraftBuilderDiagnostics = { ...window.__minecraftBuilderDiagnostics, runTerrainAtlasProbe: this.terrainAtlasProbeCommand, viewportTrace: this.viewportTraceApi };
     }
     this.host().nativeElement.addEventListener('pointermove', this.onNativePointerMove, { passive: true });
-    this.engine.restoreCamera(this.cameraState.get('3d'));
-    const project = this.workspace.project(); const renderSelection = this.selection.renderState(project);
+    const project = this.workspace.project();
+    this.engine.restoreCamera(this.cameraState.get('3d', project?.id), project?.id);
+    const renderSelection = this.selection.renderState(project);
     this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() });
     if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics());
   }
@@ -155,7 +156,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.setRuntimeTrace(undefined);
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
-    const state = this.engine.cameraState(); if (state) this.cameraState.set('3d', state);
+    const state = this.engine.cameraState(); const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
     this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.viewportStatus.release(this.viewportStatusOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.viewportStatusSync.destroy(); this.toolSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
   }
 

@@ -778,6 +778,21 @@ describe('camera movement input contract', () => {
     texture.dispose();
   });
 
+  it('keeps the fallback outline visible while an async ghost model is unavailable', () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: [], decorations: [] };
+    const active: ActiveBlock = { id: 'minecraft:stone', state: {}, support: 'full' };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, active);
+    const internal = engine as unknown as {
+      updateGhost: (target: VoxelCoordinate | undefined, project: ProjectDocument | undefined, active: ActiveBlock | undefined, status?: 'valid' | 'warning' | 'invalid' | 'unknown') => void;
+    };
+    internal.updateGhost({ x: 2, y: 1, z: 3 }, project, active, 'valid');
+
+    expect(engine.rendererOwnershipDiagnostics().previewState).toMatchObject({ ghostVisible: true, ghostModelPresent: false, ghostTarget: { x: 2, y: 1, z: 3 } });
+    engine.dispose();
+  });
+
   it('retains the last two populated-to-empty runtime snapshots as JSON-safe data', () => {
     const base = rendererBenchmarkProject('small');
     const populated = { ...base, blocks: base.blocks.slice(0, 8), decorations: [] };
@@ -1804,6 +1819,34 @@ describe('incremental project mutation reconciliation', () => {
     expect(counters.incrementalChangedVoxels).toBeGreaterThan(0);
     const spatialIndex = (engine as unknown as { spatialIndex: { get: (position: VoxelCoordinate) => PlacedBlock | undefined } }).spatialIndex;
     expect(spatialIndex.get(before.position)).toEqual(after);
+    engine.dispose();
+  });
+
+  it('keeps a stale structural terrain promise in the local lane after an edit', async () => {
+    const requests = [deferred<Awaited<ReturnType<BlockVisualProvider['create']>>>(), deferred<Awaited<ReturnType<BlockVisualProvider['create']>>>()];
+    let requestIndex = 0;
+    const provider = {
+      reusableVisualKey: (block: PlacedBlock) => `state-${block.state['axis'] ?? 'y'}`,
+      occlusionClass: () => 'opaque-full-cube',
+      create: vi.fn(() => (requests[requestIndex++] ?? requests[1]).promise),
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
+    const base = rendererBenchmarkProject('small');
+    const position = { x: 1, y: 1, z: 1 };
+    const before = { ...base, blocks: [{ ...base.blocks[0], position, state: { axis: 'y' } }], decorations: [] };
+    const afterBlock = { ...before.blocks[0], state: { axis: 'x' } };
+    const after = { ...before, blocks: [afterBlock] };
+    const engine = new ThreeViewportEngine(undefined, { terrainAtlasMode: 'on' });
+    engine.setVisualProvider(provider);
+    engine.update(before, undefined, { exposedFaceRendering: true });
+    await Promise.resolve();
+    engine.update(after, undefined, { exposedFaceRendering: true }, blockMutationHint([{ position, before: before.blocks[0], after: afterBlock }], 'state-edit'));
+    expect(engine.hydrationProgress().lane).toBe('local');
+
+    requests[0].resolve({ object: new THREE.Group(), resolved: { diagnostics: [], support: 'full' }, mode: 'real', diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } } as unknown as Awaited<ReturnType<BlockVisualProvider['create']>>);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(engine.hydrationProgress().lane).toBe('local');
     engine.dispose();
   });
 
