@@ -1,4 +1,6 @@
+import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AMBIGUOUS_RELEASE_GRACE_MS, EditorShellComponent } from './editor-shell.component';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
@@ -7,6 +9,7 @@ import { StructureEditorService } from '../../../core/editor/structure/structure
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { EditorModeService } from '../../../core/editor/state/editor-mode.service';
+import { ActivatedRoute } from '@angular/router';
 
 const project: ProjectDocument = {
   schemaVersion: 3,
@@ -21,6 +24,26 @@ const project: ProjectDocument = {
   groups: [],
   editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: .5 },
 };
+
+@Component({ selector: 'test-viewport', template: '' })
+class TestViewportStub {
+  static created = 0;
+  static destroyed = 0;
+  readonly viewportActive = input(true);
+  constructor() { TestViewportStub.created += 1; }
+  ngOnDestroy(): void { TestViewportStub.destroyed += 1; }
+  static reset(): void { TestViewportStub.created = 0; TestViewportStub.destroyed = 0; }
+}
+
+@Component({ selector: 'test-y-layer', template: '' })
+class TestYLayerStub {
+  static created = 0;
+  static destroyed = 0;
+  readonly viewportActive = input(true);
+  constructor() { TestYLayerStub.created += 1; }
+  ngOnDestroy(): void { TestYLayerStub.destroyed += 1; }
+  static reset(): void { TestYLayerStub.created = 0; TestYLayerStub.destroyed = 0; }
+}
 
 describe('editor shell movement/delete routing', () => {
   beforeEach(async () => {
@@ -234,6 +257,62 @@ describe('editor shell movement/delete routing', () => {
     expect(calls.clear).toHaveBeenCalledTimes(1);
     expect(mode.mode()).toBe('y-layer');
     fixture.destroy();
+  });
+});
+
+describe('editor shell retained viewport lifecycle', () => {
+  beforeEach(async () => {
+    installIndexedDbStub();
+    TestViewportStub.reset();
+    TestYLayerStub.reset();
+    await TestBed.configureTestingModule({ imports: [EditorShellComponent], providers: [{ provide: ActivatedRoute, useValue: {} }] })
+      .overrideComponent(EditorShellComponent, {
+        set: {
+          imports: [TestViewportStub, TestYLayerStub],
+          template: `
+            @if (visitedModes().has('3d')) { <test-viewport [viewportActive]="mode.mode() === '3d'"></test-viewport> }
+            @if (visitedModes().has('y-layer')) { <test-y-layer [viewportActive]="mode.mode() === 'y-layer'"></test-y-layer> }
+          `,
+        },
+      })
+      .compileComponents();
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('retains both viewport sessions across twenty mode switches and tears them down once', async () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const mode = TestBed.inject(EditorModeService);
+    mode.setMode('3d');
+    fixture.detectChanges();
+    const three = fixture.debugElement.query(By.css('test-viewport'));
+    expect(three).toBeDefined();
+
+    mode.setMode('y-layer');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const yLayer = fixture.debugElement.query(By.css('test-y-layer'));
+    expect(yLayer).toBeDefined();
+    const threeInstance = three.componentInstance as TestViewportStub;
+    const yLayerInstance = yLayer.componentInstance as TestYLayerStub;
+
+    for (let index = 0; index < 20; index += 1) {
+      const next = index % 2 === 0 ? '3d' : 'y-layer';
+      mode.setMode(next);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css('test-viewport'))).toBe(three);
+      expect(fixture.debugElement.query(By.css('test-y-layer'))).toBe(yLayer);
+      expect(threeInstance.viewportActive()).toBe(next === '3d');
+      expect(yLayerInstance.viewportActive()).toBe(next === 'y-layer');
+    }
+
+    fixture.destroy();
+    expect(TestViewportStub.created).toBe(1);
+    expect(TestYLayerStub.created).toBe(1);
+    expect(TestViewportStub.destroyed).toBe(1);
+    expect(TestYLayerStub.destroyed).toBe(1);
   });
 });
 

@@ -3586,7 +3586,12 @@ export class ThreeViewportEngine {
     for (const child of this.decorationsGroup.children) disposeObject(child);
     this.decorationsGroup.clear();
     for (const child of [...this.logicalSelectionGroup.children]) this.logicalSelectionGroup.remove(child);
-    if (this.blockUsageHighlight) { this.scene.remove(this.blockUsageHighlight); this.blockUsageHighlight = undefined; }
+    const blockUsageHighlight = this.blockUsageHighlight;
+    if (blockUsageHighlight) {
+      this.scene.remove(blockUsageHighlight);
+      blockUsageHighlight.dispose();
+      this.blockUsageHighlight = undefined;
+    }
     for (const child of [...this.decorationGhostGroup.children]) disposeObject(child); this.decorationGhostGroup.clear();
     for (const child of [...this.decorationSelectionGroup.children]) disposeObject(child); this.decorationSelectionGroup.clear();
     this.renderedBlocks.clear(); this.renderedDecorations.clear();
@@ -4543,6 +4548,7 @@ export class ThreeViewportEngine {
       replacement.renderOrder = 1900;
       replacement.userData['blockUsageHighlight'] = true;
       if (overlay.parent) overlay.parent.remove(overlay);
+      overlay.dispose();
       this.blockUsageHighlight = replacement;
       this.blockUsageHighlightCapacity = visible.length;
       this.scene.add(replacement);

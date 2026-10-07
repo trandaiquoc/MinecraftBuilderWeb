@@ -250,7 +250,11 @@ describe('explicit renderer benchmark', () => {
     const isolation = engine.isolationDiagnostics();
     const afterIsolation = engine.performanceEvidence();
     expect(isolation).toMatchObject({ active: false, state: 'inactive', targetBlocks: 0, requestedTargetBlocks: 0, activeTargetBlocks: 0, activeBundleCount: 0, stagingBundleCount: 0 });
-    expect(isolation.disposeCount).toBeGreaterThanOrEqual(20);
+    expect(isolation.createdBundleCount).toBe(20);
+    expect(isolation.disposeRequestedCount).toBe(20);
+    expect(isolation.disposedBundleCount).toBe(20);
+    expect(isolation.disposeCount).toBe(20);
+    expect(isolation.createdBundleCount).toBe(isolation.activeBundleCount + isolation.stagingBundleCount + isolation.disposedBundleCount);
     expect(afterIsolation.meshCount).toBe(firstIsolation.meshCount);
 
     const boundary = { x: TERRAIN_CHUNK_SIZE, y: 0, z: TERRAIN_CHUNK_SIZE };
@@ -272,7 +276,7 @@ describe('explicit renderer benchmark', () => {
     const finalDiagnostics = engine.runtimeTraceSample().hydration;
     expect(finalDiagnostics?.['queued']).toBe(0);
     expect(finalDiagnostics?.['running']).toBe(0);
-    console.info(`[16d-b resource gates] blocks=${project.blocks.length} warm=${JSON.stringify({ terrainChunks: warm.terrainChunks, terrainMeshes: warm.terrainChunkMeshes, meshes: warm.meshCount })} highlight=${JSON.stringify({ capacity: highWaterCapacity, activeObjects: activeHighlightObjects, meshCount: afterHighlight.meshCount })} isolation=${JSON.stringify({ builds: isolation.buildCount, commits: isolation.commitCount, disposes: isolation.disposeCount, state: isolation.state })} edits=${JSON.stringify({ terrainMeshes: afterEdits.terrainChunkMeshes, meshes: afterEdits.meshCount })}`);
+    console.info(`[16d-b resource gates] blocks=${project.blocks.length} warm=${JSON.stringify({ terrainChunks: warm.terrainChunks, terrainMeshes: warm.terrainChunkMeshes, meshes: warm.meshCount })} highlight=${JSON.stringify({ capacity: highWaterCapacity, activeObjects: activeHighlightObjects, meshCount: afterHighlight.meshCount })} isolation=${JSON.stringify({ builds: isolation.buildCount, created: isolation.createdBundleCount, commits: isolation.commitCount, requested: isolation.disposeRequestedCount, disposed: isolation.disposedBundleCount, disposes: isolation.disposeCount, state: isolation.state })} edits=${JSON.stringify({ terrainMeshes: afterEdits.terrainChunkMeshes, meshes: afterEdits.meshCount })}`);
 
     engine.dispose();
     engine.dispose();

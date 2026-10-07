@@ -15,6 +15,7 @@ import { RendererDiagnostics } from './renderer-diagnostics';
 import { blockMutationHint, metadataMutationHint } from '../../editor/mutations/project-mutation-hint';
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
+import { GroupIsolationPresentation, type GroupIsolationSnapshot } from '../isolation/group-isolation-presentation';
 
 describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
@@ -1489,6 +1490,58 @@ describe('camera movement input contract', () => {
 });
 
 describe('group isolation presentation', () => {
+  it('disposes replaced block-usage InstancedMeshes without disposing shared resources early', async () => {
+    const source = rendererBenchmarkProject('stress');
+    const project: ProjectDocument = {
+      ...source,
+      blocks: source.blocks.map((block) => ({ ...block, id: 'minecraft:stone', state: {} })),
+      decorations: [],
+    };
+    const engine = new ThreeViewportEngine();
+    engine.update(project, undefined);
+    await settleHydration(20, engine);
+    const internal = engine as unknown as {
+      blockUsageHighlight?: THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
+      blockUsageHighlightGeometry: THREE.BoxGeometry;
+      blockUsageHighlightMaterial: THREE.MeshBasicMaterial;
+      blockUsageHighlightCapacity: number;
+      scene: THREE.Scene;
+    };
+    const initial = new THREE.InstancedMesh(internal.blockUsageHighlightGeometry, internal.blockUsageHighlightMaterial, 1);
+    internal.blockUsageHighlight = initial;
+    internal.blockUsageHighlightCapacity = 0;
+    internal.scene.add(initial);
+    const geometryDispose = vi.spyOn(internal.blockUsageHighlightGeometry, 'dispose');
+    const materialDispose = vi.spyOn(internal.blockUsageHighlightMaterial, 'dispose');
+    const positions = project.blocks.map((block) => ({ ...block.position }));
+    let current = initial;
+    const currentDispose = new Map<THREE.InstancedMesh, ReturnType<typeof vi.spyOn>>();
+    for (const size of [100, 2_000, 20_000, 5_000, 20_000]) {
+      const previous = current;
+      const dispose = currentDispose.get(previous) ?? vi.spyOn(previous, 'dispose');
+      currentDispose.set(previous, dispose);
+      engine.setBlockUsageHighlight('minecraft:stone', positions.slice(0, size));
+      const next = internal.blockUsageHighlight!;
+      if (next !== previous) {
+        expect(dispose).toHaveBeenCalledTimes(1);
+        current = next;
+      }
+    }
+    engine.setBlockUsageHighlight(undefined, undefined);
+    expect(currentDispose.get(current)).not.toHaveBeenCalled();
+    expect(countObjectsWithUserData(internal.scene, 'blockUsageHighlight')).toBe(1);
+    expect(internal.blockUsageHighlight).toBe(current);
+    expect(geometryDispose).not.toHaveBeenCalled();
+    expect(materialDispose).not.toHaveBeenCalled();
+
+    const finalDispose = currentDispose.get(current) ?? vi.spyOn(current, 'dispose');
+    currentDispose.set(current, finalDispose);
+    engine.dispose();
+    expect(finalDispose).toHaveBeenCalledTimes(1);
+    expect(geometryDispose).toHaveBeenCalledTimes(1);
+    expect(materialDispose).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps structural identity and canonical hydration ownership across isolate cycles', () => {
     const base = rendererBenchmarkProject('small');
     const project: ProjectDocument = {
@@ -1570,11 +1623,57 @@ describe('group isolation presentation', () => {
       engine.update(project, undefined, {});
       await Promise.resolve();
     }
-    expect(engine.isolationDiagnostics()).toMatchObject({ active: false, state: 'inactive', targetBlocks: 0, requestedTargetBlocks: 0, activeTargetBlocks: 0, activeBundleCount: 0, stagingBundleCount: 0 });
-    expect(engine.isolationDiagnostics().disposeCount).toBeGreaterThanOrEqual(20);
+    const isolation = engine.isolationDiagnostics();
+    expect(isolation).toMatchObject({ active: false, state: 'inactive', targetBlocks: 0, requestedTargetBlocks: 0, activeTargetBlocks: 0, activeBundleCount: 0, stagingBundleCount: 0 });
+    expect(isolation.createdBundleCount).toBe(20);
+    expect(isolation.disposeRequestedCount).toBe(20);
+    expect(isolation.disposedBundleCount).toBe(20);
+    expect(isolation.disposeCount).toBe(20);
+    expect(isolation.createdBundleCount).toBe(isolation.activeBundleCount + isolation.stagingBundleCount + isolation.disposedBundleCount);
     engine.dispose();
     engine.dispose();
     expect(engine.diagnostics().disposed).toBe(true);
+  });
+
+  it('disposes cancelled isolate generations exactly once and never commits stale work', async () => {
+    const canonicalRoot = new THREE.Group();
+    const presentation = new GroupIsolationPresentation(canonicalRoot);
+    const water: PlacedBlock = { kind: 'resolved', id: 'minecraft:water', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { level: '0' } };
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
+    const makeSnapshot = (provider: { texture: (resource: string) => Promise<THREE.Texture | undefined> }, key: string): GroupIsolationSnapshot => ({
+      blocks: [{ key, block: water, fluid: { block: water, state: vanillaFluidRenderResolver.resolve(water)! } }],
+      decorations: [],
+      fluidProvider: { contractKey: key, resolver: vanillaFluidRenderResolver, texture: provider.texture },
+      fluidWorld: { getBlock: () => water },
+      isolateKeys: new Set([key]),
+    });
+
+    const first = deferred<THREE.Texture | undefined>();
+    const firstProvider = { texture: vi.fn(() => first.promise) };
+    presentation.prepare(makeSnapshot(firstProvider, 'A'));
+    await Promise.resolve();
+    presentation.deactivate();
+    first.resolve(texture);
+    for (let index = 0; index < 6; index += 1) await Promise.resolve();
+    expect(presentation.diagnostics()).toMatchObject({ state: 'inactive', activeBundleCount: 0, stagingBundleCount: 0, createdBundleCount: 1, disposedBundleCount: 1, disposeCount: 1, commitCount: 0 });
+
+    const secondA = deferred<THREE.Texture | undefined>();
+    const secondB = deferred<THREE.Texture | undefined>();
+    let calls = 0;
+    const secondProvider = { texture: vi.fn(() => (++calls === 1 ? secondA.promise : secondB.promise)) };
+    presentation.prepare(makeSnapshot(secondProvider, 'B'));
+    await Promise.resolve();
+    presentation.prepare(makeSnapshot(secondProvider, 'C'));
+    secondA.resolve(texture);
+    for (let index = 0; index < 6; index += 1) await Promise.resolve();
+    expect(presentation.diagnostics()).toMatchObject({ activeBundleCount: 0, stagingBundleCount: 1, createdBundleCount: 3, disposedBundleCount: 2, disposeCount: 2, commitCount: 0 });
+    secondB.resolve(texture);
+    for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    expect(presentation.diagnostics()).toMatchObject({ state: 'active', activeBundleCount: 1, stagingBundleCount: 0, disposedBundleCount: 2, commitCount: 1 });
+    presentation.dispose();
+    for (let index = 0; index < 4; index += 1) await Promise.resolve();
+    expect(presentation.diagnostics()).toMatchObject({ activeBundleCount: 0, stagingBundleCount: 0, createdBundleCount: 3, disposedBundleCount: 3 });
+    texture.dispose();
   });
 });
 
@@ -2299,4 +2398,16 @@ function frustumIntersectsObject(frustum: THREE.Frustum, object: THREE.Object3D)
     if (sphere) intersects = frustum.intersectsSphere(sphere.applyMatrix4(child.matrixWorld));
   });
   return intersects;
+}
+
+function countObjectsWithUserData(root: THREE.Object3D, key: string): number {
+  let count = 0;
+  root.traverse((object) => { if (object.userData[key] === true) count += 1; });
+  return count;
+}
+
+function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => { resolve = complete; });
+  return { promise, resolve };
 }

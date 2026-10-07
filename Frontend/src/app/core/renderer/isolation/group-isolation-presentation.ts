@@ -57,7 +57,10 @@ export interface GroupIsolationDiagnostics {
   readonly commitCount: number;
   readonly cancelCount: number;
   readonly atomicSwapCount: number;
+  readonly createdBundleCount: number;
+  readonly disposeRequestedCount: number;
   readonly disposeCount: number;
+  readonly disposedBundleCount: number;
   readonly activeBundleCount: number;
   readonly stagingBundleCount: number;
   readonly lastBuildMs: number;
@@ -120,7 +123,10 @@ export class GroupIsolationPresentation {
     commitCount: 0,
     cancelCount: 0,
     atomicSwapCount: 0,
+    createdBundleCount: 0,
+    disposeRequestedCount: 0,
     disposeCount: 0,
+    disposedBundleCount: 0,
     lastBuildMs: 0,
     lastSynchronousBuildMs: 0,
     lastSnapshotMs: 0,
@@ -150,6 +156,7 @@ export class GroupIsolationPresentation {
     this.diagnosticsState.lastSnapshotMs = Math.max(0, now() - started);
     if (this.stagingBundle) {
       this.diagnosticsState.cancelCount += 1;
+      this.diagnosticsState.disposeRequestedCount += 1;
       this.disposeBundle(this.stagingBundle);
       this.stagingBundle = undefined;
     }
@@ -162,6 +169,7 @@ export class GroupIsolationPresentation {
     }
     const bundle = this.buildBundle(snapshot, generation);
     this.stagingBundle = bundle;
+    this.diagnosticsState.createdBundleCount += 1;
     this.diagnosticsState.buildCount += 1;
     this.diagnosticsState.lastSynchronousBuildMs = Math.max(0, now() - started);
     this.diagnosticsState.lastBuildMs = this.diagnosticsState.lastSynchronousBuildMs;
@@ -170,6 +178,7 @@ export class GroupIsolationPresentation {
       if (terrain.status === 'cancelled' || terrain.status === 'failed' || bundle.fluidFailed) {
         this.diagnosticsState.cancelCount += terrain.status === 'cancelled' ? 1 : 0;
         this.stagingBundle = undefined;
+        this.diagnosticsState.disposeRequestedCount += 1;
         this.disposeBundle(bundle);
         this.stateValue = this.activeBundle ? 'active' : 'inactive';
         this.diagnosticsState.state = this.stateValue;
@@ -215,7 +224,7 @@ export class GroupIsolationPresentation {
     this.diagnosticsState.instanceMembers = 0;
     this.diagnosticsState.fluidVoxels = 0;
     this.diagnosticsState.standaloneObjects = 0;
-    this.diagnosticsState.disposeCount += 1;
+    this.diagnosticsState.disposeRequestedCount += (staging ? 1 : 0) + (active ? 1 : 0);
     this.diagnosticsState.lastDisposeMs = Math.max(0, now() - started);
     if (this.listeners.onDeactivated) this.listeners.onDeactivated();
     else this.listeners.onChanged?.();
@@ -272,7 +281,10 @@ export class GroupIsolationPresentation {
     this.diagnosticsState.instanceMembers = bundle.snapshot.blocks.filter((entry) => !!entry.instanceTemplates).length;
     this.diagnosticsState.fluidVoxels = bundle.snapshot.blocks.filter((entry) => !!entry.fluid).length;
     this.diagnosticsState.standaloneObjects = bundle.snapshot.blocks.filter((entry) => !!entry.standalone && !entry.terrain && !entry.instanceTemplates && !entry.surfaceTemplates && !entry.fluid).length;
-    if (old) { this.diagnosticsState.disposeCount += 1; this.disposeBundle(old); }
+    if (old) {
+      this.diagnosticsState.disposeRequestedCount += 1;
+      this.disposeBundle(old);
+    }
     if (this.listeners.onCommitted) this.listeners.onCommitted(this.activeKeys(), bundle.generation);
     else this.listeners.onChanged?.();
   }
@@ -359,7 +371,13 @@ export class GroupIsolationPresentation {
     return bundle;
   }
 
+  private readonly disposedBundleGenerations = new Set<number>();
+
   private disposeBundle(bundle: IsolationBundle): void {
+    if (this.disposedBundleGenerations.has(bundle.generation)) return;
+    this.disposedBundleGenerations.add(bundle.generation);
+    this.diagnosticsState.disposeCount += 1;
+    this.diagnosticsState.disposedBundleCount += 1;
     bundle.terrain?.dispose(); bundle.instances?.clear(); bundle.surfaces?.clear([]); bundle.fluids?.dispose();
     bundle.temporaryEntries.clear();
     for (const child of [...bundle.root.children]) bundle.root.remove(child);
