@@ -77,6 +77,7 @@ interface IsolationBundle {
   readonly snapshot: GroupIsolationSnapshot;
   readonly root: THREE.Group;
   readonly temporaryEntries: Map<string, { object?: THREE.Object3D }>;
+  disposed: boolean;
   terrain?: ChunkSurfaceRenderer;
   instances?: InstanceBatchRenderer;
   surfaces?: SurfaceFaceBatchRenderer;
@@ -297,6 +298,7 @@ export class GroupIsolationPresentation {
     const temporaryEntries = new Map<string, { object?: THREE.Object3D }>();
     const bundle: IsolationBundle = {
       generation, snapshot, root, temporaryEntries,
+      disposed: false,
       terrainReady: Promise.resolve({ status: 'settled', failedKeys: [] }),
       fluidReady: Promise.resolve(), preparedAt: now(), terrainReadyMs: 0, fluidReadyMs: 0, readySynchronously: true, fluidFailed: false,
     };
@@ -371,11 +373,9 @@ export class GroupIsolationPresentation {
     return bundle;
   }
 
-  private readonly disposedBundleGenerations = new Set<number>();
-
   private disposeBundle(bundle: IsolationBundle): void {
-    if (this.disposedBundleGenerations.has(bundle.generation)) return;
-    this.disposedBundleGenerations.add(bundle.generation);
+    if (bundle.disposed) return;
+    bundle.disposed = true;
     this.diagnosticsState.disposeCount += 1;
     this.diagnosticsState.disposedBundleCount += 1;
     bundle.terrain?.dispose(); bundle.instances?.clear(); bundle.surfaces?.clear([]); bundle.fluids?.dispose();

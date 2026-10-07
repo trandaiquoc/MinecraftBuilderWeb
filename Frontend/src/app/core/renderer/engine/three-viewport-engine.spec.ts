@@ -1635,6 +1635,25 @@ describe('group isolation presentation', () => {
     expect(engine.diagnostics().disposed).toBe(true);
   });
 
+  it('keeps lightweight isolate disposal bookkeeping bounded across 100 cycles', async () => {
+    const canonicalRoot = new THREE.Group();
+    const presentation = new GroupIsolationPresentation(canonicalRoot);
+    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
+
+    for (let cycle = 0; cycle < 100; cycle += 1) {
+      const key = `cycle-${cycle}`;
+      presentation.prepare({ blocks: [{ key, block, standalone: new THREE.Group() }], decorations: [], fluidWorld: { getBlock: () => undefined }, isolateKeys: new Set([key]) });
+      presentation.deactivate();
+      await Promise.resolve();
+    }
+
+    const diagnostics = presentation.diagnostics();
+    expect(diagnostics).toMatchObject({ createdBundleCount: 100, disposeRequestedCount: 100, disposedBundleCount: 100, disposeCount: 100, activeBundleCount: 0, stagingBundleCount: 0 });
+    expect(diagnostics.createdBundleCount).toBe(diagnostics.disposedBundleCount);
+    expect('disposedBundleGenerations' in (presentation as unknown as object)).toBe(false);
+    presentation.dispose();
+  });
+
   it('disposes cancelled isolate generations exactly once and never commits stale work', async () => {
     const canonicalRoot = new THREE.Group();
     const presentation = new GroupIsolationPresentation(canonicalRoot);

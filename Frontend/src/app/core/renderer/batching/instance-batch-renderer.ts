@@ -196,7 +196,7 @@ export class InstanceBatchRenderer {
     this.options.record('instancedBlockRemovals');
     this.options.record('instancedMembers', -1);
     if (!batch.keys.length) {
-      for (const part of batch.parts) { this.options.blocksGroup.remove(part); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
+      for (const part of batch.parts) { this.options.blocksGroup.remove(part); part.dispose(); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
       this.batches.delete(batchKey);
       for (const template of batch.templates) this.disposeMergedTemplateGeometry(template);
       this.options.record('instancedMeshCount', -batch.parts.length);
@@ -228,7 +228,7 @@ export class InstanceBatchRenderer {
 
   clear(): void {
     for (const batch of [...this.batches.values()]) {
-      for (const part of batch.parts) { this.options.blocksGroup.remove(part); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
+      for (const part of batch.parts) { this.options.blocksGroup.remove(part); part.dispose(); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
       this.batches.delete(batch.key);
       for (const template of batch.templates) this.disposeMergedTemplateGeometry(template);
     }

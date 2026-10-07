@@ -77,6 +77,7 @@ export class PlaceholderBatchRenderer {
     batch.mesh.instanceMatrix.needsUpdate = true;
     if (!batch.keys.length) {
       this.options.blocksGroup.remove(batch.mesh);
+      batch.mesh.dispose();
       this.batches.delete(batch.key);
     }
   }
@@ -86,7 +87,10 @@ export class PlaceholderBatchRenderer {
   }
 
   clear(): void {
-    for (const batch of this.batches.values()) this.options.blocksGroup.remove(batch.mesh);
+    for (const batch of this.batches.values()) {
+      this.options.blocksGroup.remove(batch.mesh);
+      batch.mesh.dispose();
+    }
     this.batches.clear();
     this.indices.clear();
   }

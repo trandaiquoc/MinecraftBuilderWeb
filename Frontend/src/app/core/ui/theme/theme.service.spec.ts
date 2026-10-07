@@ -1,12 +1,14 @@
 import { DOCUMENT } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { UiPreferencesService } from '../preferences/ui-preferences.service';
 import { ThemeService } from './theme.service';
 
 const preferencesKey = 'minecraft-builder.ui-preferences';
 
 describe('ThemeService font state', () => {
+  afterEach(() => localStorage.removeItem(preferencesKey));
+
   beforeEach(() => {
     localStorage.removeItem(preferencesKey);
     TestBed.configureTestingModule({ providers: [ThemeService, UiPreferencesService] });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SurfaceFaceBatchRenderer, SurfaceFaceTemplate } from './surface-face-batch-renderer';
 import { RenderRegionPolicy } from './render-region-policy';
 
@@ -15,9 +15,17 @@ describe('SurfaceFaceBatchRenderer', () => {
     const memberships = renderer.add({ position: { x: 0, y: 0, z: 0 } }, 'a', templates, new Set(directions));
     const entry = { surfaceFaceMemberships: memberships, surfaceExposedFaceCount: memberships?.length, surfaceNeighborFacesCulled: 0 };
     entries.set('a', entry);
+    const mesh = [...renderer.batches.values()][0].mesh;
+    const meshDispose = vi.spyOn(mesh, 'dispose');
+    const clonedMaterial = mesh.material as THREE.Material;
+    const materialDispose = vi.spyOn(clonedMaterial, 'dispose');
     expect(renderer.batches.size).toBe(1);
     renderer.remove('a', entry);
     expect(renderer.batches.size).toBe(0);
+    expect(meshDispose).toHaveBeenCalledTimes(1);
+    expect(materialDispose).toHaveBeenCalledTimes(1);
+    renderer.clear(entries.values());
+    expect(meshDispose).toHaveBeenCalledTimes(1);
     geometry.dispose(); material.dispose();
   });
 
@@ -42,11 +50,16 @@ describe('SurfaceFaceBatchRenderer', () => {
       const memberships = renderer.add({ position: { x: index, y: 0, z: 0 } }, `block-${index}`, templates, exposed);
       entries.set(`block-${index}`, { surfaceFaceMemberships: memberships });
     }
+    const batchResources = [...renderer.batches.values()].map((batch) => ({ mesh: batch.mesh, meshDispose: vi.spyOn(batch.mesh, 'dispose'), materialDispose: vi.spyOn(batch.mesh.material as THREE.Material, 'dispose') }));
     expect(renderer.batches.size).toBe(3);
     expect([...renderer.batches.values()].map((batch) => batch.keys.length)).toEqual([2, 2, 1]);
     renderer.remove('block-0', entries.get('block-0'));
     expect(renderer.ownership.get('block-1')?.[0].index).toBe(0);
     renderer.clear(entries.values());
+    for (const resource of batchResources) {
+      expect(resource.meshDispose).toHaveBeenCalledTimes(1);
+      expect(resource.materialDispose).toHaveBeenCalledTimes(1);
+    }
     geometry.dispose(); material.dispose();
   });
 });

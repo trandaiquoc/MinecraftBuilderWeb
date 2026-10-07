@@ -156,6 +156,7 @@ export class SurfaceFaceBatchRenderer {
     batch.mesh.instanceMatrix.needsUpdate = true;
     if (!batch.keys.length) {
       this.options.blocksGroup.remove(batch.mesh);
+      batch.mesh.dispose();
       const materials = Array.isArray(batch.mesh.material) ? batch.mesh.material : [batch.mesh.material];
       for (const material of materials) material.dispose();
       this.batches.delete(batchKey);
@@ -173,6 +174,7 @@ export class SurfaceFaceBatchRenderer {
     }
     for (const batch of this.batches.values()) {
       this.options.blocksGroup.remove(batch.mesh);
+      batch.mesh.dispose();
       const materials = Array.isArray(batch.mesh.material) ? batch.mesh.material : [batch.mesh.material];
       for (const material of materials) material.dispose();
     }

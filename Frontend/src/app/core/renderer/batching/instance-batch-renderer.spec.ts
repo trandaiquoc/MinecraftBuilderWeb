@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { InstanceBatchRenderer } from './instance-batch-renderer';
 import { RenderRegionPolicy } from './render-region-policy';
 
@@ -22,10 +22,19 @@ describe('InstanceBatchRenderer', () => {
     const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
     renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'a');
     renderer.addFromTemplates(templates, { x: 1, y: 0, z: 0 }, 'b');
+    const part = [...renderer.batches.values()][0].parts[0];
+    const partDispose = vi.spyOn(part, 'dispose');
+    const clonedMaterial = part.material as THREE.Material;
+    const materialDispose = vi.spyOn(clonedMaterial, 'dispose');
     renderer.remove('a', entries.get('a'));
     expect(renderer.ownershipIndex.get('b')?.index).toBe(0);
     expect(renderer.batches.size).toBe(1);
     renderer.clear();
+    expect(partDispose).toHaveBeenCalledTimes(1);
+    expect(materialDispose).toHaveBeenCalledTimes(1);
+    renderer.clear();
+    expect(partDispose).toHaveBeenCalledTimes(1);
+    expect(materialDispose).toHaveBeenCalledTimes(1);
     geometry.dispose(); material.dispose();
   });
 
