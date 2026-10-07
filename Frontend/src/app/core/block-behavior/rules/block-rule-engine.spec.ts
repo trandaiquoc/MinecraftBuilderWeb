@@ -202,6 +202,15 @@ describe('BlockRuleEngine', () => {
     expect(engine.place(collision, block('minecraft:oak_door', { x: 2, y: 1, z: 2 })).validation.reason).toBe('occupied');
   });
 
+  it('uses the same two-part expansion for a neutral external double-height definition', () => {
+    const neutral = { id: 'example:neutral_pair', namespace: 'example', displayName: 'Neutral Pair', defaultState: { half: 'lower' }, stateDefinitions: [{ name: 'half', values: ['lower', 'upper'], derived: true }], resources: { textures: [] }, behaviorSupport: 'full' as const, visualSupport: 'partial' as const, visualClassification: 'standard-json' as const, defaultStateSource: 'verified-fixture' as const, support: 'partial' as const, behavior: { kind: 'double-height' as const, halfProperty: 'half' as const, requiresFloor: false } };
+    const neutralEngine = new BlockRuleEngine((id) => id === neutral.id ? neutral : catalog.get(id));
+    const result = neutralEngine.place(base, block(neutral.id, { x: 2, y: 2, z: 2 }, { half: 'lower' }));
+    expect(result.project?.blocks).toHaveLength(2);
+    expect(result.project?.blocks.map((entry) => entry.position)).toEqual([{ x: 2, y: 2, z: 2 }, { x: 2, y: 3, z: 2 }]);
+    expect(result.project?.blocks.map((entry) => entry.state['half'])).toEqual(['lower', 'upper']);
+  });
+
   it.each([
     ['north', { x: 3, y: 1, z: 2 }], ['east', { x: 4, y: 1, z: 3 }],
     ['south', { x: 3, y: 1, z: 4 }], ['west', { x: 2, y: 1, z: 3 }],

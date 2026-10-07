@@ -3,6 +3,7 @@ import { deriveBlockCapabilities } from '../capabilities/block-capability-resolv
 import type { BlockCapability } from '../capabilities/block-capability.types';
 import { mergeContentEvidence } from '../../content/content-introspection';
 import { rankSearchResults } from '../../search/relevance-search';
+import { logicalPlacementForBehavior } from '../../block-behavior/logical-objects/logical-placement';
 
 export interface BlockCatalogSource {
   readonly minecraftVersion: string;
@@ -99,6 +100,7 @@ function toDefinition(record: AssetBlockRecord, sourceId = record.sourceId ?? 'v
     stateDefinitions,
     supportRequirements: descriptor?.supportRequirements ?? record.supportRequirements,
     supportContracts: descriptor?.supportContracts ?? record.supportContracts,
+    logicalPlacement: record.logicalPlacement ?? logicalPlacementForBehavior(record.behavior),
     specialVisual: descriptor?.specialVisual ?? record.specialVisual,
     itemHostVisual: descriptor?.itemHostVisual ?? record.itemHostVisual,
     support,

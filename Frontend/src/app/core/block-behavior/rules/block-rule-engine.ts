@@ -4,6 +4,8 @@ import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/proj
 import { isBlockLocked } from '../../editor/groups/group-membership';
 import { PlacementContext } from '../../editor/placement/placement';
 import { expandLogicalObjectClosure, resolveLogicalObjectParts } from '../logical-objects/logical-object';
+import { expandLogicalPlacement, logicalPlacementForBehavior } from '../logical-objects/logical-placement';
+import type { LogicalPlacementMetadata } from '../logical-objects/logical-placement';
 import { blockCapability, hasBlockCapability } from '../../blocks/capabilities/block-capability-resolver';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 
@@ -65,17 +67,13 @@ export class BlockRuleEngine {
     const source = lookup ?? project.blocks;
     const block = this.prepareContextualPlacement(project, prepared, context, source);
     const definition = this.definition(block.id);
-    const behavior = definition?.behavior;
-    const targets = behavior?.kind === 'double-height'
-      ? [block.position, add(block.position, { x: 0, y: 1, z: 0 })]
-      : behavior?.kind === 'paired-horizontal'
-        ? [block.position, add(block.position, directionOffset(block.state[behavior.facingProperty] ?? 'north'))]
-        : [block.position];
+    const metadata = logicalMetadata(definition);
+    const targets = expandedTargets(block, metadata);
     if (targets.some((position) => !inBounds(position, project))) return invalid('out-of-bounds', targets);
     if (targets.some((position) => find(source, position))) return invalid('occupied', targets);
     const support = this.validateSupport(project, block, definition, source);
     if (support.status === 'invalid') return { validation: support };
-    const placed = placedBlocksForBehavior(block, behavior, targets);
+    const placed = expandPlacedBlocks(block, metadata);
     const placementLookup = new PreviewBlockLookup(lookup ?? new ArrayBlockLookup(project.blocks));
     for (const entry of placed) placementLookup.set(entry);
     const refreshed = this.refresh({ ...project, blocks: [...project.blocks, ...placed] }, targets, placementLookup);
@@ -92,17 +90,13 @@ export class BlockRuleEngine {
     if (!prepared) return invalid('missing-support', [requestedBlock.position]);
     const block = this.prepareContextualPlacement(project, prepared, context, lookup);
     const definition = this.definition(block.id);
-    const behavior = definition?.behavior;
-    const targets = behavior?.kind === 'double-height'
-      ? [block.position, add(block.position, { x: 0, y: 1, z: 0 })]
-      : behavior?.kind === 'paired-horizontal'
-        ? [block.position, add(block.position, directionOffset(block.state[behavior.facingProperty] ?? 'north'))]
-        : [block.position];
+    const metadata = logicalMetadata(definition);
+    const targets = expandedTargets(block, metadata);
     if (targets.some((position) => !inBounds(position, project))) return invalid('out-of-bounds', targets);
     if (targets.some((position) => find(lookup, position))) return invalid('occupied', targets);
     const support = this.validateSupport(project, block, definition, lookup);
     if (support.status === 'invalid') return { validation: support };
-    const placed = placedBlocksForBehavior(block, behavior, targets);
+    const placed = expandPlacedBlocks(block, metadata);
     const overlay = new PreviewBlockLookup(lookup);
     for (const entry of placed) overlay.set(entry);
     const refreshed = this.refreshPreview(project, overlay, targets);
@@ -218,8 +212,9 @@ export class BlockRuleEngine {
       if (context?.faceNormal && context.faceNormal.y !== 1) return undefined;
       return { ...block, state: { ...block.state, [behavior.rotationProperty]: minecraftSkullRotation(context?.yaw) } };
     }
-    if (behavior?.kind === 'paired-horizontal' && context?.yaw !== undefined) {
-      return { ...block, state: { ...block.state, [behavior.facingProperty]: minecraftPlayerFacing(context.yaw), occupied: 'false' } };
+    if (behavior?.kind === 'paired-horizontal') {
+      const facing = context?.yaw === undefined ? block.state[behavior.facingProperty] ?? 'north' : minecraftPlayerFacing(context.yaw);
+      return { ...block, state: { ...block.state, [behavior.facingProperty]: facing, occupied: 'false' } };
     }
     if (behavior?.kind === 'decorated-pot-placement') {
       return { ...block, state: { ...block.state, [behavior.facingProperty]: minecraftPlayerFacing(context?.yaw ?? 0), cracked: 'false' } };
@@ -504,11 +499,9 @@ function stairHalfFromContext(context: PlacementContext | undefined, fallback: s
 }
 function add(a: VoxelCoordinate, b: VoxelCoordinate): VoxelCoordinate { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
 function find(blocks: BlockSource, position: VoxelCoordinate): PlacedBlock | undefined { return 'get' in blocks ? blocks.get(position) : blocks.find((block) => coordinateKey(block.position) === coordinateKey(position)); }
-function placedBlocksForBehavior(block: PlacedBlock, behavior: BlockDefinition['behavior'] | undefined, targets: readonly VoxelCoordinate[]): readonly PlacedBlock[] {
-  if (behavior?.kind === 'double-height') return [withState(block, { ...block.state, [behavior.halfProperty]: 'lower' }, targets[0]), withState(block, { ...block.state, [behavior.halfProperty]: 'upper' }, targets[1])];
-  if (behavior?.kind === 'paired-horizontal') return [withState(block, { ...block.state, [behavior.partProperty]: behavior.firstPart, occupied: 'false' }, targets[0]), withState(block, { ...block.state, [behavior.partProperty]: behavior.secondPart, occupied: 'false' }, targets[1])];
-  return [block];
-}
+function logicalMetadata(definition: BlockDefinition | undefined): LogicalPlacementMetadata | undefined { return definition?.logicalPlacement ?? logicalPlacementForBehavior(definition?.behavior); }
+function expandPlacedBlocks(block: PlacedBlock, metadata: LogicalPlacementMetadata | undefined): readonly PlacedBlock[] { return metadata ? expandLogicalPlacement(block, metadata) : [block]; }
+function expandedTargets(block: PlacedBlock, metadata: LogicalPlacementMetadata | undefined): readonly VoxelCoordinate[] { return (metadata ? expandLogicalPlacement(block, metadata) : [block]).map((entry) => entry.position); }
 class PreviewBlockLookup implements ReadonlyBlockLookup {
   private readonly overlay = new Map<string, PlacedBlock>();
   constructor(private readonly base: ReadonlyBlockLookup) {}
@@ -527,7 +520,6 @@ class ArrayBlockLookup implements ReadonlyBlockLookup {
   get(position: VoxelCoordinate): PlacedBlock | undefined { return this.values.get(coordinateKey(position)); }
   has(position: VoxelCoordinate): boolean { return this.values.has(coordinateKey(position)); }
 }
-function withState(block: PlacedBlock, state: Readonly<Record<string, string>>, position: VoxelCoordinate): PlacedBlock { return { ...block, position: { ...position }, state }; }
 function equalState(a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>): boolean { const aKeys = Object.keys(a); return aKeys.length === Object.keys(b).length && aKeys.every((key) => a[key] === b[key]); }
 function inBounds(position: VoxelCoordinate, project: ProjectDocument): boolean { return Number.isInteger(position.x) && Number.isInteger(position.y) && Number.isInteger(position.z) && position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < project.size.x && position.y < project.size.y && position.z < project.size.z; }
 function touch(project: ProjectDocument): ProjectDocument { return { ...project, metadata: { ...project.metadata, updatedAt: new Date().toISOString() } }; }

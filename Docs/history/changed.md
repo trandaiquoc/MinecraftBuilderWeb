@@ -2481,3 +2481,13 @@ renderer counter `before`, `after`, and `counterDeltas` snapshots alongside the
 existing hydration, camera, render, responsiveness, and long-task summaries.
 The 110,592-block fixture remains opt-in; a browser run against the real
 approximately 108k project is required before claiming real-runtime PASS.
+
+## Generic two-part logical objects
+
+Vertical `double-height` objects and facing-relative `paired-horizontal`
+objects now share the pure `LogicalPlacementMetadata` contract. Catalog
+normalization exposes that metadata to placeable items, while previews,
+placement planning, rule-engine commits, logical closure, and state edits use
+the same expansion and identity semantics. Presentation recipes such as
+`bed`, `door`, and `tall-plant` remain labels at the item boundary only;
+unknown or malformed imported pairs are not repaired implicitly.

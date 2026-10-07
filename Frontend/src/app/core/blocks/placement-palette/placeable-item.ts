@@ -5,12 +5,14 @@ import { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.t
 import { PlacementContext } from '../../editor/placement/placement';
 import { rankSearchResults } from '../../search/relevance-search';
 import { isInternalBlockId, isTechnicalBlockId, isDecorationEntityId, vanillaTechnicalBlockIds } from '../../content/content-classifier';
+import { expandLogicalPlacement, logicalPlacementForBehavior } from '../../block-behavior/logical-objects/logical-placement';
+import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
 
 export type PlaceablePlacementKind =
   | 'direct' | 'sign' | 'hanging-sign' | 'torch' | 'head' | 'banner' | 'coral-fan'
-  | 'bed' | 'door' | 'tall-plant' | 'fluid-bucket';
+  | 'bed' | 'door' | 'tall-plant' | 'multi-block' | 'fluid-bucket';
 
-export type PreviewRecipe = 'single' | 'bed' | 'door' | 'tall-plant';
+export type PreviewRecipe = 'single' | 'bed' | 'door' | 'tall-plant' | 'vertical-two-part' | 'horizontal-two-part';
 
 export interface PlaceableItemDefinition {
   readonly itemId: string;
@@ -28,6 +30,7 @@ export interface PlaceableItemDefinition {
   readonly placementVariants?: BlockPlacementVariants;
   readonly placementKind: PlaceablePlacementKind;
   readonly previewRecipe: PreviewRecipe;
+  readonly logicalPlacement?: LogicalPlacementMetadata;
   readonly support: BlockSupportLevel;
   readonly visualSupport: VisualSupportLevel;
   /** Runtime item-backed profile; block definitions remain independent of item catalogs. */
@@ -40,7 +43,7 @@ export interface PlaceableItemDefinition {
 
 export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName' | 'maxStackSize'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: string; }
 
-interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; readonly placementVariants?: BlockPlacementVariants; }
+interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; readonly placementVariants?: BlockPlacementVariants; readonly logicalPlacement?: LogicalPlacementMetadata; }
 
 const WOODS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
 const COLORS = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'] as const;
@@ -160,8 +163,8 @@ function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: R
       }
       continue;
     }
-    const behavior = definition.behavior?.kind;
-    if (behavior === 'paired-horizontal') entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind: 'bed', recipe: 'bed' });
+    const logicalPlacement = definition.logicalPlacement ?? logicalPlacementForBehavior(definition.behavior);
+    if (logicalPlacement) entries.push({ itemId: definition.id, concreteBlockIds: [definition.id], kind: 'multi-block', recipe: logicalPlacement.layout, logicalPlacement });
   }
   return entries;
 }
@@ -169,18 +172,17 @@ function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: R
 function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {
   const defaultState = { ...definition.defaultState, ...(entry.defaultState ?? {}) };
   const previewState = definition.contentDescriptor?.representativeVisualState ? { ...defaultState, ...definition.contentDescriptor.representativeVisualState } : undefined;
-  const previewBlocks = previewFor(entry, definition, previewState ?? defaultState);
+  const logicalPlacement = entry.logicalPlacement ?? definition.logicalPlacement ?? logicalPlacementForBehavior(definition.behavior);
+  const previewBlocks = previewFor(entry, definition, previewState ?? defaultState, logicalPlacement);
   const placementVariants = entry.placementVariants ?? (definition.namespace === 'minecraft' && entry.concreteBlockIds.length > 1 ? { standing: entry.concreteBlockIds[0], wall: entry.concreteBlockIds[1] } : undefined);
   const itemEvidence = definition.sourceId && definition.sourceId !== 'vanilla' ? 'inferred' : 'verified';
-  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, ...(definition.itemEvidence?.maxStackSize === undefined ? {} : { maxStackSize: definition.itemEvidence.maxStackSize }), defaultState, ...(previewState ? { previewState } : {}), concreteBlockIds, ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind, previewRecipe: entry.recipe, support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks };
+  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, ...(definition.itemEvidence?.maxStackSize === undefined ? {} : { maxStackSize: definition.itemEvidence.maxStackSize }), defaultState, ...(previewState ? { previewState } : {}), concreteBlockIds, ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind, previewRecipe: entry.recipe, ...(logicalPlacement ? { logicalPlacement } : {}), support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks };
 }
 
-function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState): readonly PlacedBlock[] {
+function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState, logicalPlacement?: LogicalPlacementMetadata): readonly PlacedBlock[] {
   const state = { ...itemState };
   const make = (position: VoxelCoordinate, overrides: BlockState = {}, concreteId = definition.id): PlacedBlock => ({ kind: 'resolved', id: concreteId, namespace: concreteId.split(':')[0] ?? 'minecraft', position, state: { ...state, ...overrides } });
-  if (entry.recipe === 'bed') return [make({ x: 0, y: 0, z: 0 }, { part: 'foot', facing: 'south', occupied: 'false' }), make({ x: 0, y: 0, z: 1 }, { part: 'head', facing: 'south', occupied: 'false' })];
-  if (entry.recipe === 'door') return [make({ x: 0, y: 0, z: 0 }, { half: 'lower' }), make({ x: 0, y: 1, z: 0 }, { half: 'upper' })];
-  if (entry.recipe === 'tall-plant') return [make({ x: 0, y: 0, z: 0 }, { half: 'lower' }), make({ x: 0, y: 1, z: 0 }, { half: 'upper' })];
+  if (logicalPlacement) return expandLogicalPlacement(make({ x: 0, y: 0, z: 0 }), logicalPlacement);
   return [make({ x: 0, y: 0, z: 0 })];
 }
 
@@ -200,8 +202,6 @@ export function resolveConcreteBlockId(item: PlaceableItemDefinition, context?: 
   }
   return side ? variants?.wall ?? normal : normal;
 }
-function isHorizontal(value: string | undefined): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }
-
 export function resolveItemBlock(item: PlaceableItemDefinition, state: BlockState, position: VoxelCoordinate, context?: PlacementContext, definition?: (id: string) => BlockDefinition | undefined): PlacedBlock {
   const blockId = resolveConcreteBlockId(item, context);
   const target = definition?.(blockId);
@@ -221,26 +221,11 @@ export function resolveItemBlock(item: PlaceableItemDefinition, state: BlockStat
 /** Builds final, internally consistent preview blocks for a logical item state. */
 export function previewBlocksForItem(item: PlaceableItemDefinition, state: BlockState = item.defaultState): readonly PlacedBlock[] {
   const source = item.previewBlocks;
-  if (item.previewRecipe === 'bed') {
-    const facing = isHorizontal(state['facing']) ? state['facing'] : 'south';
-    const foot = source.find((block) => block.state['part'] === 'foot') ?? source[0];
-    const head = source.find((block) => block.state['part'] === 'head') ?? source[1];
-    if (!foot || !head) return source;
-    const headPosition = add(foot.position, directionOffset(facing));
-    return [
-      { ...foot, position: { ...foot.position }, state: { ...foot.state, ...state, facing, part: 'foot' } },
-      { ...head, position: headPosition, state: { ...head.state, ...state, facing, part: 'head' } },
-    ];
-  }
-  if (item.previewRecipe === 'door' || item.previewRecipe === 'tall-plant') {
-    return source.map((block) => ({ ...block, state: { ...block.state, ...state, ...(block.state['half'] ? { half: block.state['half'] } : {}) } }));
-  }
-  return source.map((block) => ({ ...block, state: { ...block.state, ...state } }));
+  if (!item.logicalPlacement || source.length === 0) return source.map((block) => ({ ...block, state: { ...block.state, ...state } }));
+  const origin = { ...source[0], state: { ...source[0].state, ...state } };
+  return expandLogicalPlacement(origin, item.logicalPlacement);
 }
 
 export function placementItemSearch(items: readonly PlaceableItemDefinition[], query: string): readonly PlaceableItemDefinition[] {
   return rankSearchResults(items, query, (item) => [item.displayName, item.itemId, item.displayBlockId, item.namespace, item.modName ?? '', item.sourceName ?? '']);
 }
-
-function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
-function add(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }

@@ -252,6 +252,12 @@ describe('block model geometry', () => {
     expect(provider.reusableVisualKey?.(block('minecraft:light_blue_shulker_box', { facing: 'north' }))).toContain('special-template-v1|shulker-boxes');
     expect(provider.reusableVisualKey?.(block('minecraft:oak_sign', { rotation: '0' }))).toBeUndefined();
   });
+  it('keeps same-ID logical parts state-distinct in reusable visual keys', () => {
+    const provider = new VanillaBlockVisualProvider({ readJson: () => undefined, readBinary: () => new Uint8Array([1]), textureUrl: () => undefined } as any);
+    const foot = provider.reusableVisualKey?.(block('minecraft:red_bed', { facing: 'north', part: 'foot', occupied: 'false' }));
+    const head = provider.reusableVisualKey?.(block('minecraft:red_bed', { facing: 'north', part: 'head', occupied: 'false' }));
+    expect(foot).toBeDefined(); expect(head).toBeDefined(); expect(foot).not.toBe(head);
+  });
   it('prioritizes Decorated Pot special rendering and loads all five textures', async () => {
     const json = {
       'assets/minecraft/blockstates/decorated_pot.json': { variants: { 'facing=north,waterlogged=false,cracked=false': { model: 'minecraft:block/decorated_pot' } } },

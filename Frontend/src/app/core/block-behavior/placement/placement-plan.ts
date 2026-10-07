@@ -6,6 +6,7 @@ import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain
 import type { PlacementContext } from '../../editor/placement/placement';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import { BlockRuleEngine, minecraftPlayerFacing, RuleValidation } from '../rules/block-rule-engine';
+import { expandLogicalPlacement, logicalPlacementForBehavior } from '../logical-objects/logical-placement';
 
 export interface PlacementPlan {
   readonly request: PlacedBlock;
@@ -36,20 +37,10 @@ export function planPlacement(project: ProjectDocument, active: ActiveBlock, pos
 
 function attemptedBlocks(request: PlacedBlock, context: PlacementContext | undefined, definition: (id: string) => BlockDefinition | undefined): readonly PlacedBlock[] {
   const behavior = definition(request.id)?.behavior;
-  if (behavior?.kind === 'paired-horizontal') {
-    const facing = context?.yaw === undefined ? request.state[behavior.facingProperty] ?? 'north' : minecraftPlayerFacing(context.yaw);
-    const state = { ...request.state, [behavior.facingProperty]: facing, occupied: 'false' };
-    return [
-      { ...request, state: { ...state, [behavior.partProperty]: behavior.firstPart } },
-      { ...request, position: add(request.position, directionOffset(facing)), state: { ...state, [behavior.partProperty]: behavior.secondPart } },
-    ];
-  }
-  if (behavior?.kind === 'double-height') return [
-    { ...request, state: { ...request.state, [behavior.halfProperty]: 'lower' } },
-    { ...request, position: { ...request.position, y: request.position.y + 1 }, state: { ...request.state, [behavior.halfProperty]: 'upper' } },
-  ];
-  return [request];
+  const metadata = logicalPlacementForBehavior(behavior);
+  if (!metadata) return [request];
+  const state = metadata.facingProperty && context?.yaw !== undefined
+    ? { ...request.state, [metadata.facingProperty]: minecraftPlayerFacing(context.yaw) }
+    : request.state;
+  return expandLogicalPlacement({ ...request, state }, metadata);
 }
-
-function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
-function add(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }

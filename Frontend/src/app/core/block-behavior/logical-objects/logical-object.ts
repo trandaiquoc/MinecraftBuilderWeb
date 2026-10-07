@@ -3,6 +3,8 @@ import { coordinateKey } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { groupIdsOf, isBlockLocked } from '../../editor/groups/group-membership';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
+import { logicalPartOffset, logicalPlacementForBehavior, oppositeLogicalPart, directionOffset } from './logical-placement';
+import type { LogicalPlacementMetadata } from './logical-placement';
 
 export type LogicalBlockDefinitionLookup = (id: string) => BlockDefinition | undefined;
 
@@ -16,15 +18,17 @@ export function resolveLogicalObjectPartsFromLookup(lookup: ReadonlyBlockLookup,
 
 function resolveLogicalObjectPartsWithLookup(position: VoxelCoordinate, definition: LogicalBlockDefinitionLookup, lookup: (position: VoxelCoordinate) => PlacedBlock | undefined): readonly PlacedBlock[] {
   const block = lookup(position);
-  const behavior = block && definition(block.id)?.behavior;
-  if (!block || !behavior || behavior.kind !== 'double-height' && behavior.kind !== 'paired-horizontal') return block ? [block] : [];
-  const pairedPosition = behavior.kind === 'double-height'
-    ? { x: position.x, y: position.y + (block.state[behavior.halfProperty] === 'upper' ? -1 : 1), z: position.z }
-    : add(position, directionOffset(block.state[behavior.facingProperty] ?? 'north'), block.state[behavior.partProperty] === behavior.secondPart ? -1 : 1);
+  const metadata = block && logicalMetadata(definition(block.id));
+  if (!block || !metadata) return block ? [block] : [];
+  const identityValue = block.state[metadata.identityProperty];
+  const pairedIdentity = oppositeLogicalPart(metadata, identityValue ?? '');
+  if (!pairedIdentity) return [block];
+  const partOffset = logicalPartOffset(metadata, identityValue ?? '', block.state);
+  const pairedOffset = logicalPartOffset(metadata, pairedIdentity, block.state);
+  if (!partOffset || !pairedOffset) return [block];
+  const pairedPosition = add(position, { x: pairedOffset.x - partOffset.x, y: pairedOffset.y - partOffset.y, z: pairedOffset.z - partOffset.z }, 1);
   const paired = lookup(pairedPosition);
-  const isPair = paired?.id === block.id && (behavior.kind === 'double-height'
-    ? paired.state[behavior.halfProperty] !== block.state[behavior.halfProperty]
-    : paired.state[behavior.partProperty] !== block.state[behavior.partProperty] && paired.state[behavior.facingProperty] === block.state[behavior.facingProperty]);
+  const isPair = paired?.id === block.id && paired.state[metadata.identityProperty] === pairedIdentity && (!metadata.facingProperty || paired.state[metadata.facingProperty] === block.state[metadata.facingProperty]);
   return isPair && paired ? [block, paired] : [block];
 }
 
@@ -57,8 +61,8 @@ export function normalizeLogicalObjectMemberships(project: ProjectDocument, defi
 
 export function synchronizeLogicalObjectState(blocks: readonly PlacedBlock[], position: VoxelCoordinate, sourceState: Readonly<Record<string, string>>, definition: LogicalBlockDefinitionLookup): readonly PlacedBlock[] {
   const source = find(blocks, position);
-  const behavior = source && definition(source.id)?.behavior;
-  const identityProperty = behavior?.kind === 'double-height' ? behavior.halfProperty : behavior?.kind === 'paired-horizontal' ? behavior.partProperty : undefined;
+  const metadata = source && logicalMetadata(definition(source.id));
+  const identityProperty = metadata?.identityProperty;
   const keys = new Set(resolveLogicalObjectParts(blocks, position, definition).map((part) => coordinateKey(part.position)));
   if (keys.size <= 1) return blocks;
   return blocks.map((block) => keys.has(coordinateKey(block.position)) ? { ...block, state: { ...sourceState, ...(identityProperty ? { [identityProperty]: block.state[identityProperty] ?? sourceState[identityProperty] } : {}) } } : block);
@@ -68,11 +72,12 @@ export function synchronizeLogicalObjectState(blocks: readonly PlacedBlock[], po
 export function transformPairedHorizontal(project: ProjectDocument, position: VoxelCoordinate, newFacing: string, definition: LogicalBlockDefinitionLookup): ProjectDocument | undefined {
   const selected = find(project.blocks, position);
   const behavior = selected && definition(selected.id)?.behavior;
-  if (!selected || behavior?.kind !== 'paired-horizontal') return undefined;
+  const metadata = selected && logicalMetadata(definition(selected.id));
+  if (!selected || behavior?.kind !== 'paired-horizontal' || !metadata || metadata.layout !== 'horizontal-two-part' || !metadata.facingProperty) return undefined;
   const parts = resolveLogicalObjectParts(project.blocks, position, definition);
   if (parts.length !== 2 || parts.some((part) => isBlockLocked(part, project.groups))) return undefined;
-  const foot = parts.find((part) => part.state[behavior.partProperty] === behavior.firstPart);
-  const head = parts.find((part) => part.state[behavior.partProperty] === behavior.secondPart);
+  const foot = parts.find((part) => part.state[metadata.identityProperty] === metadata.firstIdentity);
+  const head = parts.find((part) => part.state[metadata.identityProperty] === metadata.secondIdentity);
   if (!foot || !head || !isHorizontal(newFacing)) return undefined;
   const newHeadPosition = add(foot.position, directionOffset(newFacing), 1);
   if (!inBounds(newHeadPosition, project.size)) return undefined;
@@ -81,8 +86,8 @@ export function transformPairedHorizontal(project: ProjectDocument, position: Vo
   if (destination && !oldKeys.has(coordinateKey(destination.position))) return undefined;
   const occupied = foot.state['occupied'] ?? head.state['occupied'];
   const update = (block: PlacedBlock): PlacedBlock => {
-    if (coordinateKey(block.position) === coordinateKey(foot.position)) return { ...block, state: { ...block.state, [behavior.facingProperty]: newFacing, [behavior.partProperty]: behavior.firstPart, ...(occupied === undefined ? {} : { occupied }) } };
-    if (coordinateKey(block.position) === coordinateKey(head.position)) return { ...block, position: { ...newHeadPosition }, state: { ...block.state, [behavior.facingProperty]: newFacing, [behavior.partProperty]: behavior.secondPart, ...(occupied === undefined ? {} : { occupied }) } };
+    if (coordinateKey(block.position) === coordinateKey(foot.position)) return { ...block, state: { ...block.state, [metadata.facingProperty!]: newFacing, [metadata.identityProperty]: metadata.firstIdentity, ...(occupied === undefined ? {} : { occupied }) } };
+    if (coordinateKey(block.position) === coordinateKey(head.position)) return { ...block, position: { ...newHeadPosition }, state: { ...block.state, [metadata.facingProperty!]: newFacing, [metadata.identityProperty]: metadata.secondIdentity, ...(occupied === undefined ? {} : { occupied }) } };
     return block;
   };
   return { ...project, blocks: project.blocks.map(update) };
@@ -97,7 +102,7 @@ class MapBlockLookup implements ReadonlyBlockLookup {
 }
 function sameValues(a: readonly string[], b: readonly string[]): boolean { return a.length === b.length && a.every((value) => b.includes(value)); }
 function groupOrder(project: ProjectDocument, id: string): number { const index = project.groups.findIndex((group) => group.id === id); return index < 0 ? Number.MAX_SAFE_INTEGER : index; }
-function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
+function logicalMetadata(definition: BlockDefinition | undefined): LogicalPlacementMetadata | undefined { return definition?.logicalPlacement ?? logicalPlacementForBehavior(definition?.behavior); }
 function add(position: VoxelCoordinate, offset: VoxelCoordinate, scale: 1 | -1): VoxelCoordinate { return { x: position.x + offset.x * scale, y: position.y + offset.y * scale, z: position.z + offset.z * scale }; }
 function inBounds(position: VoxelCoordinate, size: ProjectDocument['size']): boolean { return position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < size.x && position.y < size.y && position.z < size.z; }
 function isHorizontal(value: string): value is 'north' | 'east' | 'south' | 'west' { return value === 'north' || value === 'east' || value === 'south' || value === 'west'; }

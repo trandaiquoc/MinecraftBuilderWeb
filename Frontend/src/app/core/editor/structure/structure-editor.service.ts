@@ -12,6 +12,7 @@ import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { isBlockLocked as hasLockedMembership } from '../groups/group-membership';
 import { BlockRuleEngine, nextCandleState, overlayBlockLookup, RuleValidation } from '../../block-behavior/rules/block-rule-engine';
 import { expandLogicalObjectClosure, resolveLogicalObjectPartsFromLookup, transformPairedHorizontal } from '../../block-behavior/logical-objects/logical-object';
+import { logicalPlacementForBehavior, logicalPlacementParts } from '../../block-behavior/logical-objects/logical-placement';
 import { PlacementContext } from '../placement/placement';
 import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from '../../block-entities/sign/sign-text-metrics';
 import { planPlacement, PlacementPlan } from '../../block-behavior/placement/placement-plan';
@@ -295,17 +296,18 @@ function uniqueCoordinates(positions: readonly VoxelCoordinate[]): readonly Voxe
   return [...result.values()];
 }
 function pairedMutationPositions(parts: readonly PlacedBlock[], facing: string, behavior: Extract<NonNullable<BlockDefinition['behavior']>, { readonly kind: 'paired-horizontal' }>): readonly VoxelCoordinate[] {
-  const foot = parts.find((part) => part.state[behavior.partProperty] === behavior.firstPart);
+  const metadata = logicalPlacementForBehavior(behavior);
+  const foot = metadata && parts.find((part) => part.state[metadata.identityProperty] === metadata.firstIdentity);
   if (!foot) return parts.map((part) => part.position);
-  return uniqueCoordinates([...parts.map((part) => part.position), addCoordinate(foot.position, directionOffset(facing))]);
+  const offsets = logicalPlacementParts(metadata!, { ...foot.state, [metadata!.facingProperty!]: facing });
+  const second = offsets.find((part) => part.identityValue === metadata!.secondIdentity);
+  return second ? uniqueCoordinates([...parts.map((part) => part.position), { x: foot.position.x + second.offset.x, y: foot.position.y + second.offset.y, z: foot.position.z + second.offset.z }]) : parts.map((part) => part.position);
 }
 function logicalPartState(part: PlacedBlock, source: Readonly<Record<string, string>>, behavior: BlockDefinition['behavior']): Readonly<Record<string, string>> {
-  if (behavior?.kind === 'double-height') return { ...source, [behavior.halfProperty]: part.state[behavior.halfProperty] ?? source[behavior.halfProperty] };
-  if (behavior?.kind === 'paired-horizontal') return { ...source, [behavior.partProperty]: part.state[behavior.partProperty] ?? source[behavior.partProperty] };
+  const metadata = logicalPlacementForBehavior(behavior);
+  if (metadata) return { ...source, [metadata.identityProperty]: part.state[metadata.identityProperty] ?? source[metadata.identityProperty] };
   return source;
 }
-function addCoordinate(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }
-function directionOffset(direction: string): VoxelCoordinate { return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 }; }
 function isBlockEntity(definition: ReturnType<BlockLibraryService['get']>, kind: BlockEntityKind): boolean { return blockCapability(definition, 'block-entity')?.entityKind === kind; }
 function blockEntityKind(definition: ReturnType<BlockLibraryService['get']>): BlockEntityKind | undefined { return blockCapability(definition, 'block-entity')?.entityKind; }
 type EditableItemHostCapability = Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'item-display' | 'item-storage-display' }> | (Extract<import('../../blocks/capabilities/block-capability.types').BlockCapability, { kind: 'inventory-storage' }> & { readonly slotCount: number });

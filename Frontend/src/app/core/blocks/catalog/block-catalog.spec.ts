@@ -31,6 +31,12 @@ describe('BlockCatalog', () => {
     expect(example?.capabilities).toEqual([]);
   });
 
+  it('normalizes logical placement metadata from behavior without registry-name rules', () => {
+    const catalog = new BlockCatalog();
+    catalog.load({ minecraftVersion: '1.21.1', blocks: [{ id: 'example:neutral_pair', displayName: 'Neutral Pair', defaultState: { half: 'lower' }, stateDefinitions: [{ name: 'half', values: ['lower', 'upper'] }], resources: { textures: [] }, support: 'partial', behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: false } }] });
+    expect(catalog.get('example:neutral_pair')?.logicalPlacement).toMatchObject({ layout: 'vertical-two-part', identityProperty: 'half' });
+  });
+
   it('keeps item-backed capability at the item boundary', () => {
     const catalog = new BlockCatalog();
     catalog.load(representativeBlockFixture);

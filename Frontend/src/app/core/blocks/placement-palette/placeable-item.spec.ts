@@ -171,6 +171,19 @@ describe('vanilla placeable item layer', () => {
     expect(resolveConcreteBlockId(item, { faceNormal: { x: 1, y: 0, z: 0 } })).toBe('example:side_panel');
   });
 
+  it('discovers an evidence-backed external double-height item without ID naming heuristics', () => {
+    const source: AssetBlockRecord[] = [{
+      id: 'example:neutral_pair', displayName: 'Neutral Pair', defaultState: { half: 'lower' },
+      stateDefinitions: [{ name: 'half', values: ['lower', 'upper'], derived: true }], resources: { textures: [] },
+      support: 'partial', sourceId: 'mod:example', itemEvidence: { itemId: 'example:neutral_pair', placeable: true },
+      behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: false },
+    }];
+    const catalog = new BlockCatalog(); catalog.load({ minecraftVersion: '1.21.1', sourceId: 'mod:example', blocks: source, targetItems: [{ itemId: 'example:neutral_pair', referencedModels: [], referencedResources: [], sourceFormat: 'modern-item-definition' }], itemEvidenceAvailable: true });
+    const item = buildPlaceableItems(catalog.all(), catalog.targetItems(), true).find((entry) => entry.itemId === 'example:neutral_pair');
+    expect(item).toMatchObject({ placementKind: 'multi-block', previewRecipe: 'vertical-two-part', logicalPlacement: { layout: 'vertical-two-part' } });
+    expect(item?.previewBlocks).toHaveLength(2);
+  });
+
   it('rebuilds contextual state from the concrete variant definition', () => {
     const source: AssetBlockRecord[] = [
       { id: 'minecraft:oak_sign', displayName: 'Oak Sign', defaultState: { rotation: '0', waterlogged: 'false' }, stateDefinitions: [{ name: 'rotation', values: ['0'] }, { name: 'waterlogged', values: ['false', 'true'] }], resources: { textures: [] }, support: 'full' as const },

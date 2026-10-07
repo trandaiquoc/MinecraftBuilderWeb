@@ -1,6 +1,7 @@
 import type { BlockCapability, BlockCapabilityEvidence, BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import type { ContentItemHostVisualDescriptor, ContentSemanticEvidence, ContentSpecialVisualDescriptor, NormalizedContentDescriptor } from '../../content/content-introspection';
 import type { BehaviorClassificationSummary, BehaviorFingerprint } from '../../block-behavior/compatibility/behavior-fingerprint';
+import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
 
 export type BlockSupportLevel = 'full' | 'partial' | 'fallback';
 export type BehaviorSupportLevel = 'full' | 'partial' | 'unknown';
@@ -116,6 +117,8 @@ export interface BlockDefinition {
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
   readonly supportContracts?: readonly string[];
   readonly placementVariants?: BlockPlacementVariants;
+  /** Canonical two-part materialization metadata, normalized from behavior/profile evidence. */
+  readonly logicalPlacement?: LogicalPlacementMetadata;
   readonly specialVisual?: ContentSpecialVisualDescriptor;
   readonly itemHostVisual?: ContentItemHostVisualDescriptor;
 }
@@ -157,6 +160,7 @@ export interface AssetBlockRecord {
   readonly supportRequirements?: readonly PlacementSupportRequirement[];
   readonly supportContracts?: readonly string[];
   readonly placementVariants?: BlockPlacementVariants;
+  readonly logicalPlacement?: LogicalPlacementMetadata;
   readonly specialVisual?: ContentSpecialVisualDescriptor;
   readonly itemHostVisual?: ContentItemHostVisualDescriptor;
 }
