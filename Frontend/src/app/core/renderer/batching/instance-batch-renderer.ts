@@ -55,10 +55,7 @@ export class InstanceBatchRenderer {
     renderRole: 'normal' | 'reference' = 'normal',
   ): { readonly batchKey: string; readonly index: number } | undefined {
     const resolved = compiled ?? compileInstanceTemplates(templates);
-    const existingEntry = this.options.getEntry(key);
-    this.options.trace?.('before-insert', key, source);
-    if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
-    else if (this.ownershipStore.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);
+    if (this.options.capacity <= 0 || !resolved.templates.length) return undefined;
     const region = this.options.regionPolicy?.key(position) ?? this.options.chunkKey(position);
     const baseKey = `${region}|${resolved.signature}|role:${renderRole}`;
     let segment = 0;
@@ -94,6 +91,10 @@ export class InstanceBatchRenderer {
       this.options.record('instancedMeshCount', parts.length);
     }
     if (batch.keys.length >= batch.capacity) return undefined;
+    const existingEntry = this.options.getEntry(key);
+    this.options.trace?.('before-insert', key, source);
+    if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
+    else if (this.ownershipStore.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);
     const index = batch.keys.length;
     const copiedPosition = { ...position };
     batch.keys.push(key);

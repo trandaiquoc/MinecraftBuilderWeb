@@ -17,6 +17,7 @@ export interface BlockRepresentationHydrationOwnerPorts {
   };
   readonly commit: BlockRepresentationCommitOwner;
   readonly invalidateDiagnostics: () => void;
+  readonly releaseRetiredProviders: () => void;
 }
 
 /** Owns only async provider/generation/revision coordination for representations. */
@@ -27,7 +28,7 @@ export class BlockRepresentationHydrationOwner {
     this.ports.invalidateDiagnostics();
     const entry = this.ports.store.get(job.key);
     const provider = this.ports.provider();
-    if (!entry || !provider) { onComplete?.(); return; }
+    if (!entry || !provider) { this.complete(onComplete); return; }
     const generation = this.ports.providerGeneration();
     const revision = this.ports.store.incrementRevision(job.key) ?? entry.revision;
     const reusableKey = this.ports.resolve.reusableKey(provider, job.block, job.worldContext);
@@ -42,9 +43,8 @@ export class BlockRepresentationHydrationOwner {
       this.ports.commit.commitRefresh(job, visual, reusableKey, provider);
     }).catch((error: unknown) => {
       if (!this.isCurrent(job.key, revision, provider, generation)) return;
-      const current = this.ports.store.get(job.key);
-      if (current?.fallback) current.fallback.userData['diagnostics'] = [{ code: 'PROVIDER_REFRESH_FAILED', message: error instanceof Error ? error.message : 'Visual refresh failed' }];
-    }).finally(() => onComplete?.());
+      this.ports.commit.recordRefreshFailure(job, error);
+    }).finally(() => this.complete(onComplete));
   }
 
   create(job: BlockHydrationJob, onComplete?: () => void): void {
@@ -53,9 +53,9 @@ export class BlockRepresentationHydrationOwner {
     this.ports.commit.begin(job, provider);
     const providerAvailable = !!provider && job.block.kind !== 'missing';
     const reusableKey = providerAvailable ? this.ports.resolve.reusableKey(provider!, job.block, job.worldContext) : undefined;
-    if (this.ports.commit.tryCached(job, providerAvailable, reusableKey)) { onComplete?.(); return; }
+    if (this.ports.commit.tryCached(job, providerAvailable, reusableKey)) { this.complete(onComplete); return; }
     const pending = this.ports.commit.beginAsync(job, reusableKey);
-    if (!pending || !provider) { onComplete?.(); return; }
+    if (!pending || !provider) { this.complete(onComplete); return; }
     const generation = this.ports.providerGeneration();
     const request = job.surfaceFastPathEligible && reusableKey
       ? this.ports.resolve.terrain(reusableKey, job.block, job.worldContext, provider)
@@ -69,10 +69,15 @@ export class BlockRepresentationHydrationOwner {
     }).catch((error: unknown) => {
       if (!this.isCurrent(job.key, pending.revision, provider, generation)) return;
       this.ports.commit.fail(job, pending.fallback, error);
-    }).finally(() => onComplete?.());
+    }).finally(() => this.complete(onComplete));
   }
 
   private isCurrent(key: string, revision: number, provider: BlockVisualProvider, generation: number): boolean {
     return provider === this.ports.provider() && generation === this.ports.providerGeneration() && this.ports.store.get(key)?.revision === revision;
+  }
+
+  private complete(onComplete?: () => void): void {
+    onComplete?.();
+    this.ports.releaseRetiredProviders();
   }
 }

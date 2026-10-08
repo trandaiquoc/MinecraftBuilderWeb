@@ -666,7 +666,6 @@ export class ThreeViewportEngine {
       record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
       invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
       recordProviderCacheStats: () => this.recordProviderCacheStats(),
-      releaseRetiredProviders: () => this.releaseUnusedRetiredProviders(),
       scheduleRender: () => this.scheduleRender(),
     });
     this.blockRepresentationHydration = new BlockRepresentationHydrationOwner({
@@ -680,6 +679,7 @@ export class ThreeViewportEngine {
       },
       commit: this.blockRepresentationCommit,
       invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
+      releaseRetiredProviders: () => this.releaseUnusedRetiredProviders(),
     });
     this.terrainPipeline = new ViewportTerrainWorkflowOwner({
       representation: {

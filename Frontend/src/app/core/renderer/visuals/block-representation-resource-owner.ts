@@ -56,6 +56,25 @@ export class BlockRepresentationResourceOwner {
     this.ports.trace('after-remove-entry', key, 'reconcile', entry);
   }
 
+  /**
+   * Releases only the previous representation after a replacement has already
+   * been installed. The canonical store is deliberately untouched here: the
+   * commit owner still owns the final store transition.
+   */
+  releasePreviousAfterReplacement(key: string, entry: RenderedBlockEntry, replacement: 'terrain' | 'surface' | 'instance' | 'object'): void {
+    if (replacement !== 'terrain' && (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key))) this.ports.terrain.remove(key);
+    if (replacement !== 'surface' && (entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key))) this.ports.surface.remove(key, entry);
+    if (replacement !== 'instance' && (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key) || this.ports.scanInstanceMembershipsForDiagnostics() && this.ports.instance.memberships(key, true).length)) {
+      this.ports.instance.remove(key, entry, 'reconcile');
+    }
+    if (!entry.instanceBatchKey && !entry.surfaceFaceMemberships && entry.object && entry.object.parent === this.ports.blocksGroup) {
+      this.ports.blocksGroup.remove(entry.object);
+      disposeObject(entry.object);
+    }
+    if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
+    this.ports.invalidateDiagnostics();
+  }
+
   rollbackPartial(key: string): void {
     this.ports.surface.remove(key, this.ports.store.get(key));
     this.removeOrphanedInstanceMemberships(key, 'rollback');

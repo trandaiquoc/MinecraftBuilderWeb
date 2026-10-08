@@ -44,12 +44,11 @@ export interface BlockRepresentationRenderTargets {
 
 export interface BlockRepresentationCommitOwnerPorts {
   readonly store: ViewportBlockRepresentationStore;
-  readonly resources: Pick<BlockRepresentationResourceOwner, 'ensureFallback' | 'remove' | 'removePlaceholder' | 'rollbackPartial' | 'removeOrphanedInstanceMemberships'>;
+  readonly resources: Pick<BlockRepresentationResourceOwner, 'ensureFallback' | 'remove' | 'removePlaceholder' | 'rollbackPartial' | 'removeOrphanedInstanceMemberships' | 'releasePreviousAfterReplacement'>;
   readonly targets: BlockRepresentationRenderTargets;
   readonly record: (metric: string, delta?: number) => void;
   readonly invalidateDiagnostics: () => void;
   readonly recordProviderCacheStats: () => void;
-  readonly releaseRetiredProviders: () => void;
   readonly scheduleRender: () => void;
 }
 
@@ -169,29 +168,34 @@ export class BlockRepresentationCommitOwner {
   }
 
   commitRefresh(job: BlockHydrationJob, visual: HydratedBlockVisualResult, reusableKey: string | undefined, provider: BlockVisualProvider): void {
+    const current = this.ports.store.get(job.key);
+    if (!current) return;
     if (!visual.object && visual.terrainTemplates && reusableKey) {
-      const current = this.ports.store.get(job.key);
-      if (current) this.ports.resources.remove(job.key, current);
-      this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates);
       if (this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal')) {
+        this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates);
+        this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'terrain');
         this.ports.store.createOrReplace({ key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, terrainChunkKey: this.ports.targets.terrain.chunkKey(job.block.position) });
         this.finish();
         return;
       }
     }
-    if (!visual.object) { this.finish(); return; }
-    const current = this.ports.store.get(job.key);
-    if (current) this.ports.resources.remove(job.key, current);
+    if (!visual.object) {
+      this.recordRefreshFailure(job, 'Visual provider returned no replacement representation');
+      this.finish();
+      return;
+    }
     const object = this.prepareObject(visual.object, job, visual);
-    const staticAllowed = job.role !== 'missing' && this.ports.targets.instances.shouldAttempt(true, reusableKey);
+    const staticAllowed = job.role !== 'missing' && this.ports.targets.instances.shouldAttempt(job.allowInstancing || job.surfaceFastPathEligible, reusableKey);
     const instance = staticAllowed ? this.ports.targets.instances.add(object, job.block, job.key, reusableKey, 'provider-async', job.role === 'reference' ? 'reference' : 'normal') : undefined;
     const base = { key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, staticModelAttempted: staticAllowed, staticModelFamily: this.ports.targets.object.familyFromReusableKey(reusableKey), staticModelDecision: this.ports.targets.instances.decisionFor(job.key) } as const;
     if (instance) {
+      this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'instance');
       this.ports.store.createOrReplace({ ...base, instanceBatchKey: instance.batchKey, instanceIndex: instance.index, object: this.ports.targets.instances.batches.get(instance.batchKey)?.parts[0] });
       disposeObject(object);
     } else {
       if (job.role === 'reference') this.ports.targets.object.applyReferenceOpacity(object, job.options.referenceOpacity ?? .28);
       this.ports.targets.object.blocksGroup.add(object);
+      this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'object');
       this.ports.store.createOrReplace({ ...base, object });
     }
     this.finish();
@@ -202,6 +206,15 @@ export class BlockRepresentationCommitOwner {
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }];
     this.finish();
+  }
+
+  recordRefreshFailure(job: BlockHydrationJob, error: unknown): void {
+    const current = this.ports.store.get(job.key);
+    if (!current) return;
+    const diagnostics = [{ code: 'PROVIDER_REFRESH_FAILED', message: error instanceof Error ? error.message : String(error) }];
+    if (current.fallback) current.fallback.userData['diagnostics'] = diagnostics;
+    if (current.object) current.object.userData['diagnostics'] = diagnostics;
+    this.ports.invalidateDiagnostics();
   }
 
   private prepareObject(object: THREE.Object3D, job: BlockHydrationJob, visual: HydratedBlockVisualResult): THREE.Object3D {
@@ -225,7 +238,6 @@ export class BlockRepresentationCommitOwner {
 
   private finish(): void {
     this.ports.recordProviderCacheStats();
-    this.ports.releaseRetiredProviders();
     this.ports.invalidateDiagnostics();
     this.ports.scheduleRender();
   }
