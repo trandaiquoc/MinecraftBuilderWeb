@@ -169,7 +169,7 @@ export class ViewportTerrainWorkflowOwner {
       },
       {
         onCommit: (records, result, revision) => this.commit(records, result, revision),
-        onStale: (items, staleLane) => this.enqueueFailed(items, staleLane as HydrationLane),
+        onStale: (items, staleLane) => this.discardStale(items, staleLane as HydrationLane),
         onFailed: (items, failedLane) => this.enqueueFailed(items, failedLane as HydrationLane),
         onFinished: () => {
           this.ports.recordProviderCacheStats();
@@ -213,6 +213,11 @@ export class ViewportTerrainWorkflowOwner {
     this.ports.hydration.reorder();
     this.ports.hydration.beginProgress(lane);
     this.ports.hydration.schedule();
+  }
+
+  /** Stale work belongs to an obsolete generation/projection, not to fallback failure. */
+  private discardStale(items: readonly TerrainHydrationCandidate[], lane: HydrationLane): void {
+    this.ports.trace('terrain-stale-discarded', { lane, candidateKeys: items.length });
   }
 
   reset(): void { this.batches.resetGroups(); }

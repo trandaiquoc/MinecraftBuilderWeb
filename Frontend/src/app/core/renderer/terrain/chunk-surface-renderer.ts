@@ -531,11 +531,19 @@ export class ChunkSurfaceRenderer {
       if (staleProvider) this.options.record('terrainAsyncStaleProviderResults');
       if (superseded) this.options.record('terrainAsyncSupersededResults');
       const currentRecords = this.recordsByChunk.get(key);
-      if (currentRecords?.size && !replacementPending && work?.jobId === result.jobId && work.revision === result.revision && !work.replacementRequested) {
+      const ownsResult = work?.jobId === result.jobId && work.revision === result.revision;
+      if (currentRecords?.size && !replacementPending && ownsResult && !work.replacementRequested) {
         work.replacementRequested = true;
         this.dirtyChunks.add(key);
         this.options.record('terrainAsyncRescheduledChunks');
         this.scheduleFlush();
+      } else if (ownsResult && (!currentRecords?.size || !this.dirtyChunks.has(key))) {
+        // A stale result that still owns the chunk work must reach a terminal
+        // state even when the logical records were removed while it ran.
+        // Otherwise settlement waits forever on an obsolete job.
+        work.completed = true;
+        this.chunkWork.delete(key);
+        this.pendingHydrationCandidatesByChunk.delete(key);
       } else if (currentRecords?.size && (staleGeneration || staleProvider) && !work) {
         this.options.record('terrainAsyncRejectedWithoutReplacement');
       }

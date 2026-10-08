@@ -56,4 +56,26 @@ describe('ViewportTerrainRepresentationPipeline', () => {
     expect(failed).not.toHaveBeenCalled();
     expect(pipeline.pendingGroupCount).toBe(0);
   });
+
+  it('reports obsolete generation work as stale without routing it through failure recovery', async () => {
+    const pipeline = new ViewportTerrainRepresentationPipeline<object>();
+    const stale = vi.fn();
+    const failed = vi.fn();
+    const candidate = { key: '0,0,0', reusableKey: 'stone', signature: 'stone|normal' };
+    pipeline.scheduleBatch(
+      [candidate],
+      {
+        affectedPositions: [], initial: true, local: false, lane: 'structural', generation: 1, providerGeneration: 0,
+        currentGeneration: () => 2, currentProviderGeneration: () => 0, isDisposed: () => false, projectionRevision: 1,
+        candidateProjectionRevisions: new Map([[candidate.key, 1]]), projectionRevisionFor: () => 1,
+      },
+      { cachedTemplates: () => undefined, cacheTemplates: vi.fn(), resolveTemplates: async () => ({}), disposeTemplates: vi.fn() },
+      { currentSignature: () => candidate.signature, candidateSignature: (item) => item.signature, toRecord: (item, value) => ({ key: item.key, value }), apply: vi.fn(() => ({ representedKeys: [candidate.key], failedKeys: [], pending: false })) },
+      { onCommit: vi.fn(), onStale: stale, onFailed: failed },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stale).toHaveBeenCalledOnce();
+    expect(failed).not.toHaveBeenCalled();
+    expect(pipeline.pendingGroupCount).toBe(0);
+  });
 });

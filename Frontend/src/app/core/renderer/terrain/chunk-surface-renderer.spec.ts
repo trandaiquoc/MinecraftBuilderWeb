@@ -3,8 +3,41 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { ChunkSurfaceRenderer } from './chunk-surface-renderer';
+import type { TerrainWorkerLike } from './terrain-mesh-worker-pool';
+import { meshTerrainCore } from './terrain-mesh-core';
+import type { TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './terrain-mesh-protocol';
+
+class ImmediateTerrainWorker implements TerrainWorkerLike {
+  onmessage: ((event: MessageEvent<TerrainMeshWorkerResponse>) => void) | null = null;
+  onerror: ((event: ErrorEvent) => void) | null = null;
+  postMessage(request: TerrainMeshWorkerRequest): void {
+    queueMicrotask(() => this.onmessage?.({ data: { type: 'result', result: meshTerrainCore(request.job) } } as MessageEvent<TerrainMeshWorkerResponse>));
+  }
+  terminate(): void { this.onmessage = null; }
+}
 
 describe('chunk surface renderer ownership', () => {
+  it('terminates stale generation work instead of leaving settlement pending', async () => {
+    let generation = 1;
+    const renderer = new ChunkSurfaceRenderer({
+      blocksGroup: new THREE.Group(), record: () => undefined, workerCount: 1,
+      workerFactory: () => new ImmediateTerrainWorker(),
+      terrainGeneration: () => generation,
+    });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const block = blockAt({ x: 0, y: 0, z: 0 });
+    renderer.bulkUpsert([{ key: voxelKey(block.position), block, templates }], [{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }], [block.position], { initial: true });
+    generation = 2;
+
+    const settlement = await renderer.whenSettled();
+
+    expect(settlement.status).toBe('settled');
+    expect(renderer.evidence().terrainWorker.terrainWorkerStaleResults).toBeGreaterThanOrEqual(1);
+    expect(renderer.ownershipFor(voxelKey(block.position))).toBeDefined();
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('compiles a 100k solid shape into material-bucket meshes rather than face instances', () => {
     const group = new THREE.Group();
     const counters = new Map<string, number>();
