@@ -86,4 +86,17 @@ describe('translation dictionaries', () => {
     expect(service.modDiagnostic('unsupported-minecraft-predicate', 'raw')).not.toBe('raw');
     expect(service.modDiagnostic('future-code', 'Original diagnostic')).toBe('Original diagnostic');
   });
+
+  it('keeps domain labels translated without changing unknown canonical values', () => {
+    const service = TestBed.inject(I18nService);
+    service.setLocale('vi');
+    expect(service.stateProperty('facing')).toBe('Hướng');
+    expect(service.stateValue('inner_left')).toBe('Góc trong trái');
+    expect(service.signColorLabel('light_blue')).toBe('Xanh nhạt');
+    expect(service.supportLevel('partial')).toBe('Một phần');
+    expect(service.stateValue('custom_value')).toBe('custom_value');
+    service.setLocale('en');
+    expect(service.stateProperty('waterlogged')).toBe('Waterlogged');
+    expect(service.visualSupport('real')).toBe('Real');
+  });
 });
