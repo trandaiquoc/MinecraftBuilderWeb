@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AssetActivityEntry } from '../../../../core/assets/asset-activity.service';
-import { compactContentCount, diagnosticPresentation, filterAssetActivity, importPhaseState, importStageForPhase, importStageState, progressPercentForProgress } from './asset-manager-dialog.component';
+import { compactContentCount, diagnosticPresentation, filterAssetActivity, importPhaseState, importStageForPhase, importStageState, progressPercentForProgress } from './asset-manager-mod-presentation';
 
 const entry = (category: AssetActivityEntry['category'], id: number): AssetActivityEntry => ({ id, timestamp: id, category, level: 'info', operation: `op-${id}`, message: `message-${id}` });
 
