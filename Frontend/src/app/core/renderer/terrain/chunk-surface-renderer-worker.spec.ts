@@ -12,6 +12,7 @@ class DeferredWorker implements TerrainWorkerLike {
   onerror: ((event: ErrorEvent) => void) | null = null;
   request?: TerrainMeshWorkerRequest;
   count = 0;
+  terminated = 0;
   postMessage(request: TerrainMeshWorkerRequest): void { this.count += 1; this.request = request; }
   resolve(transform?: (result: ReturnType<typeof meshTerrainCore>) => ReturnType<typeof meshTerrainCore>): void {
     if (!this.request) return;
@@ -20,7 +21,7 @@ class DeferredWorker implements TerrainWorkerLike {
     this.onmessage?.({ data: { type: 'result', result } } as MessageEvent<TerrainMeshWorkerResponse>);
     this.request = undefined;
   }
-  terminate(): void { this.request = undefined; }
+  terminate(): void { this.terminated += 1; this.request = undefined; }
 }
 
 class ThrowingWorker implements TerrainWorkerLike {
@@ -133,6 +134,38 @@ describe('chunk surface renderer worker commit path', () => {
     const cancelled = renderer.whenSettled();
     renderer.dispose();
     expect((await cancelled).status).toBe('cancelled');
+    material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('terminates terrain resources once and ignores late worker callbacks after dispose', async () => {
+    const group = new THREE.Group();
+    const worker = new DeferredWorker();
+    const applied: unknown[] = [];
+    const renderer = new ChunkSurfaceRenderer({
+      blocksGroup: group,
+      workerFactory: () => worker,
+      workerCount: 1,
+      onAsyncApply: (_records, result) => applied.push(result),
+      record: () => undefined,
+    });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const block = interiorBlockAt(8);
+    renderer.bulkUpsert([{ key: key(block), block, templates }], [{ block, role: 'normal', occlusionClass: 'opaque-full-cube' }], [block.position], { initial: true });
+    const request = worker.request!;
+    const lateMessage = worker.onmessage;
+    const pending = renderer.whenSettled();
+    renderer.dispose();
+    renderer.dispose();
+
+    expect(worker.terminated).toBe(1);
+    expect((await pending).status).toBe('cancelled');
+    lateMessage?.({ data: { type: 'result', result: meshTerrainCore(request.job) } } as MessageEvent<TerrainMeshWorkerResponse>);
+    await Promise.resolve();
+    expect(applied).toHaveLength(0);
+    expect(group.children).toHaveLength(0);
+    expect((await renderer.whenSettled()).status).toBe('cancelled');
+
     material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 

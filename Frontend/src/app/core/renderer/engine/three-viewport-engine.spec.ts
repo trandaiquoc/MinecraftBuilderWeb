@@ -16,6 +16,17 @@ import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
 import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
 
 describe('camera movement input contract', () => {
+  it('routes terminal terrain disposal through the engine exactly once', () => {
+    const engine = new ThreeViewportEngine();
+    const terrain = (engine as unknown as { terrainRenderer: { dispose: () => void } }).terrainRenderer;
+    const dispose = vi.spyOn(terrain, 'dispose');
+
+    engine.dispose();
+    engine.dispose();
+
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
   it('suspends viewport work without disposing the retained engine', () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('small');

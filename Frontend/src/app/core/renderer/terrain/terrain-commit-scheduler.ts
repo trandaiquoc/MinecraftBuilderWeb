@@ -13,6 +13,7 @@ export class TerrainCommitScheduler {
   private readonly queue: CommitJob[] = [];
   private readonly samples: number[] = [];
   private scheduled = false;
+  private timer?: ReturnType<typeof setTimeout>;
   private disposed = false;
   private count = 0;
   private frames = 0;
@@ -31,7 +32,14 @@ export class TerrainCommitScheduler {
     return { terrainCommitQueueDepth: this.queue.length, terrainCommitCount: this.count, terrainCommitCpuMs: summary(this.samples), terrainCommitFrames: this.frames, terrainCommitBudgetExceededFrames: this.budgetExceededFrames };
   }
 
-  dispose(): void { this.disposed = true; this.queue.length = 0; this.scheduled = false; }
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.queue.length = 0;
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.scheduled = false;
+  }
 
   private schedule(): void {
     if (this.scheduled || this.disposed) return;
@@ -39,7 +47,10 @@ export class TerrainCommitScheduler {
     const run = () => { this.scheduled = false; this.flush(); };
     // A timer is intentionally used instead of owning a render-loop RAF. It
     // yields to camera/input work and remains deterministic in test runners.
-    setTimeout(run, this.shouldYield() ? 16 : 0);
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      run();
+    }, this.shouldYield() ? 16 : 0);
   }
 
   private flush(): void {

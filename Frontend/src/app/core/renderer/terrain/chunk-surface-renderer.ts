@@ -126,6 +126,7 @@ interface TerrainChunkWorkState {
 
 /** Owns compiled opaque terrain meshes while leaving project/editor data elsewhere. */
 export class ChunkSurfaceRenderer {
+  private disposed = false;
   private readonly templateStore = new Map<string, readonly SurfaceFaceTemplate[]>();
   private readonly compiledTemplateCache = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
   private readonly records = new Map<string, TerrainSurfaceRecord>();
@@ -179,6 +180,7 @@ export class ChunkSurfaceRenderer {
 
   /** Resolves when the current batch has reached a terminal worker/commit state. */
   whenSettled(): Promise<TerrainSettlement> {
+    if (this.disposed) return Promise.resolve({ status: 'cancelled', failedKeys: [] });
     const generation = this.settlementGeneration;
     if (this.isSettlementReady()) return Promise.resolve(this.settlementResult());
     return new Promise((resolve) => {
@@ -194,6 +196,7 @@ export class ChunkSurfaceRenderer {
   }
 
   syncOccupancy(entries: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[], initial = false): void {
+    if (this.disposed) return;
     this.occupancy.replace(entries);
     this.options.record('occupancyFullRebuilds');
     if (initial) for (const key of this.chunks.keys()) this.dirtyChunks.add(key);
@@ -202,6 +205,7 @@ export class ChunkSurfaceRenderer {
   }
 
   cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[]): void {
+    if (this.disposed) return;
     if (this.templateStore.has(key)) return;
     this.templateStore.set(key, templates);
     this.compiledTemplateCache.set(templates, precompileTerrainTemplates(templates, this.terrainAtlas));
@@ -211,6 +215,7 @@ export class ChunkSurfaceRenderer {
 
   /** Registers one generation/batch and compiles its dirty chunks exactly once. */
   bulkUpsert(records: readonly TerrainSurfaceRecord[], occupancyEntries?: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[] = [], options: { readonly initial?: boolean; readonly flush?: boolean } = {}): TerrainApplyResult {
+    if (this.disposed) return emptyTerrainApplyResult(records.map((record) => record.key));
     this.beginSettlement();
     this.bulkBatches += 1;
     this.options.record('terrainBulkBatches');
@@ -241,6 +246,7 @@ export class ChunkSurfaceRenderer {
 
   /** Applies a bounded local voxel delta without replacing records or occupancy. */
   applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true, hydrationCandidateKeys: readonly string[] = changes.map((change) => change.key)): TerrainApplyResult {
+    if (this.disposed) return emptyTerrainApplyResult(changes.map((change) => change.key));
     if (!changes.length) return emptyTerrainApplyResult();
     this.beginSettlement();
     for (const change of changes) {
@@ -264,6 +270,7 @@ export class ChunkSurfaceRenderer {
   }
 
   upsert(record: TerrainSurfaceRecord, flush = false): boolean {
+    if (this.disposed) return false;
     if (record.templates.length !== 6) return false;
     this.cancelPendingRepresentationCommit(record.key);
     this.beginSettlement();
@@ -280,6 +287,7 @@ export class ChunkSurfaceRenderer {
   }
 
   upsertAndCommit(record: TerrainSurfaceRecord, callbacks?: TerrainRepresentationCommitCallbacks): TerrainRepresentationCommitStatus {
+    if (this.disposed) return 'failed';
     if (record.templates.length !== 6) return 'failed';
     const committed = this.upsert(record, true);
     if (committed) return 'committed';
@@ -295,6 +303,7 @@ export class ChunkSurfaceRenderer {
   }
 
   remove(key: string): void {
+    if (this.disposed) return;
     this.cancelPendingRepresentationCommit(key);
     const previous = this.records.get(key);
     if (!previous) return;
@@ -305,6 +314,7 @@ export class ChunkSurfaceRenderer {
   }
 
   flushNow(changedKeys: readonly string[] = [], priority = 0, hydrationCandidateKeys: readonly string[] = changedKeys): TerrainApplyResult {
+    if (this.disposed) return emptyTerrainApplyResult(changedKeys);
     const timing = !!this.options.onTiming && (this.options.isTimingEnabled?.() ?? true);
     const started = timing ? performance.now() : 0;
     if (this.flushTimer !== undefined) { clearTimeout(this.flushTimer); this.flushTimer = undefined; }
@@ -397,6 +407,19 @@ export class ChunkSurfaceRenderer {
   }
 
   clear(): void {
+    if (this.disposed) return;
+    this.clearContents();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.clearContents();
+    this.commitScheduler.dispose();
+    this.workerPool.dispose();
+  }
+
+  private clearContents(): void {
     this.cancelPendingRepresentationCommits();
     this.cancelSettlement();
     if (this.flushTimer !== undefined) clearTimeout(this.flushTimer);
@@ -422,8 +445,6 @@ export class ChunkSurfaceRenderer {
     this.terrainCommitRepresentedLookupChecks = 0;
     this.terrainAtlas?.clear();
   }
-
-  dispose(): void { this.clear(); this.commitScheduler.dispose(); this.workerPool.dispose(); }
 
   private beginSettlement(): void {
     const previous = this.settlementWaiters.get(this.settlementGeneration);
@@ -536,6 +557,7 @@ export class ChunkSurfaceRenderer {
   }
 
   private commitWorkerResult(key: string, records: readonly TerrainSurfaceRecord[], result: TerrainMeshResult, priority: number, changedKeys: readonly string[], hydrationCandidateKeys: readonly string[]): void {
+    if (this.disposed) return;
     const commitStarted = performance.now();
     const metrics: TerrainCommitMetrics = { chunkKey: key, priority, recordsInChunk: records.length, representedKeys: 0, emittedKeys: result.emittedKeys.length, fullyOccludedKeys: result.fullyOccludedKeys.length, failedKeys: result.unrepresentedExposedKeys.length, meshBucketCount: result.buckets.length, geometryVertices: result.buckets.reduce((count, bucket) => count + bucket.positions.length / 3, 0), geometryIndices: result.buckets.reduce((count, bucket) => count + bucket.indices.length, 0), ownershipRemoved: 0, ownershipInserted: 0, hydrationCandidateKeys: hydrationCandidateKeys.length, hydrationCompletedKeys: 0, hydrationPublishCount: 0 };
     const validateStarted = performance.now();
@@ -649,6 +671,7 @@ export class ChunkSurfaceRenderer {
   }
 
   private commitWorkerFailure(key: string, records: readonly TerrainSurfaceRecord[], changedKeys: readonly string[], job: TerrainMeshJob): void {
+    if (this.disposed) return;
     if (this.chunkWork.get(key)?.jobId !== job.jobId || this.chunkRevisions.get(key) !== job.revision) {
       this.options.record('terrainAsyncSupersededResults');
       return;

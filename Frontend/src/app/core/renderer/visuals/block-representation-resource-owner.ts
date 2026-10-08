@@ -6,7 +6,7 @@ import { disposeObject } from '../presentation/renderer-resource-disposal';
 export interface BlockRepresentationResourceOwnerPorts {
   readonly store: ViewportBlockRepresentationStore;
   readonly blocksGroup: THREE.Group;
-  readonly terrain: { readonly has: (key: string) => boolean; readonly remove: (key: string) => void; readonly clear: () => void };
+  readonly terrain: { readonly has: (key: string) => boolean; readonly remove: (key: string) => void; readonly clear: () => void; readonly dispose: () => void };
   readonly surface: { readonly ownership: ReadonlyMap<string, unknown>; readonly remove: (key: string, entry?: RenderedBlockEntry) => void; readonly clear: (entries: Iterable<RenderedBlockEntry>) => void };
   readonly instance: {
     readonly ownershipIndex: ReadonlyMap<string, unknown>;
@@ -93,11 +93,20 @@ export class BlockRepresentationResourceOwner {
 
   reconcileInstances(): void { this.ports.instance.reconcile(this.ports.store); }
 
-  clear(): void {
+  private clearEntries(): void {
     for (const [key, entry] of this.ports.store) this.remove(key, entry);
-    this.ports.terrain.clear();
     this.ports.surface.clear(this.ports.store.values());
     this.ports.placeholders.clear();
+  }
+
+  clear(): void {
+    this.clearEntries();
+    this.ports.terrain.clear();
+  }
+
+  dispose(): void {
+    this.clearEntries();
+    this.ports.terrain.dispose();
   }
 
   removePlaceholder(key: string): void { this.ports.placeholders.remove(key); }

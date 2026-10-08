@@ -27,4 +27,19 @@ describe('terrain commit scheduler', () => {
     scheduler.dispose();
     vi.useRealTimers();
   });
+
+  it('clears the scheduled commit callback on terminal disposal', () => {
+    vi.useFakeTimers();
+    const scheduler = new TerrainCommitScheduler();
+    const committed: number[] = [];
+    scheduler.enqueue(() => committed.push(1));
+
+    scheduler.dispose();
+    scheduler.dispose();
+    vi.runAllTimers();
+
+    expect(committed).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
 });

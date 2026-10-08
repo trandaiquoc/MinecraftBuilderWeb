@@ -545,6 +545,7 @@ export class ThreeViewportEngine {
       providerGeneration: () => this.providerGeneration,
       isCameraInteracting: () => this.isCameraInteracting(),
       onAsyncApply: (records, result) => {
+        if (this.disposed) return;
         this.terrainPipeline.commit(records, result);
         if (result.failedKeys.length) this.terrainPipeline.enqueueFailed(result.failedKeys);
         this.scheduleRender();
@@ -570,7 +571,7 @@ export class ThreeViewportEngine {
     this.blockRepresentationResources = new BlockRepresentationResourceOwner({
       store: this.blockRepresentations,
       blocksGroup: this.blocksGroup,
-      terrain: { has: (key) => this.terrainRenderer.has(key), remove: (key) => this.terrainRenderer.remove(key), clear: () => this.terrainRenderer.clear() },
+      terrain: { has: (key) => this.terrainRenderer.has(key), remove: (key) => this.terrainRenderer.remove(key), clear: () => this.terrainRenderer.clear(), dispose: () => this.terrainRenderer.dispose() },
       surface: { ownership: this.surfaceFaceOwnership, remove: (key, entry) => this.surfaceRenderer.remove(key, entry), clear: (entries) => this.surfaceRenderer.clear(entries) },
       instance: {
         ownershipIndex: this.instanceOwnershipIndex,
@@ -2419,7 +2420,8 @@ export class ThreeViewportEngine {
     this.renderScheduler.dispose();
     this.renderer?.dispose();
     this.renderer?.domElement.remove();
-    this.clearSurfaceFaceResources();
+    this.terrainPipeline.dispose();
+    this.blockRepresentationResources.dispose();
     this.fluidCoordinator.dispose();
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
@@ -2447,7 +2449,6 @@ export class ThreeViewportEngine {
     this.clearPlaceholderVisuals();
     this.placeholderGeometry.dispose();
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
-    this.terrainPipeline.dispose();
     this.providerRefreshPipeline.retire(provider);
     this.providerRefreshPipeline.dispose((candidate) => this.blockRepresentationHydration.hasActiveProviderReference(candidate));
     this.releaseUnusedRetiredProviders();
