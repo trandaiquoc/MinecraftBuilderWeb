@@ -57,7 +57,7 @@ import { ViewportCameraFramingController } from '../scheduling/viewport-camera-f
 import type { HydrationBlockScopeDelta, HydrationFinalizationSnapshot, HydrationLane, HydrationProgressSnapshot } from '../scheduling/hydration-progress-tracker';
 import { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
 import { MissingBlockAccountingOwner } from '../hydration/missing-block-accounting-owner';
-import type { HydrationExecutionPort } from '../hydration/viewport-block-hydration-pipeline';
+import { ViewportHydrationExecutionOwner } from '../hydration/viewport-hydration-execution-owner';
 import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
 import { ViewportProviderRefreshPipeline } from '../provider/viewport-provider-refresh-pipeline';
 import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
@@ -432,50 +432,7 @@ export class ThreeViewportEngine {
     onProgressRegression: () => this.instrumentation.record('hydrationProgressRegressions'),
     onProgress: (progress) => this.runtimeTrace?.record('hydration-progress', { lane: progress.lane ?? 'structural', generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent }),
   });
-  private readonly hydrationExecution: HydrationExecutionPort<BlockHydrationJob> = {
-    isStopped: () => this.disposed || this.suspended,
-    isInteractive: () => this.isCameraInteracting(),
-    now: () => performance.now(),
-    budgetMs: (interactive) => interactive ? VIEWPORT_INTERACTIVE_HYDRATION_SYNC_BUDGET_MS : VIEWPORT_HYDRATION_SYNC_BUDGET_MS,
-    interactiveJobLimit: () => VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH,
-    jobLimit: () => VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH,
-    ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
-    execute: (job, complete) => {
-      if (job.providerRefresh) this.blockRepresentationHydration.refresh(job, complete);
-      else this.blockRepresentationHydration.create(job, complete);
-    },
-    onBatchStart: () => this.instrumentation.record('hydrationBatches'),
-    onJobStarted: (job, fairnessDeferrals) => {
-      if (fairnessDeferrals) this.instrumentation.record('hydrationFairnessDeferrals', fairnessDeferrals);
-      if (this.isCameraInteracting()) this.instrumentation.record('hydrationJobsStartedWhileCamera');
-      this.instrumentation.record(job.providerRefresh ? 'providerRefreshStarted' : 'regularHydrationStarted');
-      if (job.providerRefresh) {
-        const counts = this.hydrationPipeline.workCounts();
-        if (counts.regularQueued > 0) this.instrumentation.record('maxProviderRefreshRunningWhileRegularPending', Math.max(0, counts.providerRefreshRunning - this.instrumentation.snapshot().maxProviderRefreshRunningWhileRegularPending));
-      }
-    },
-    onExecutionFailure: (job, error) => {
-      this.rollbackPartialInstanceVisual(job.key);
-      if (!job.providerRefresh) this.markHydrationFailure(job, error);
-    },
-    onJobComplete: (job, ownershipCurrent) => {
-      this.instrumentation.record(job.providerRefresh ? 'providerRefreshCompleted' : 'regularHydrationCompleted');
-      if (job.providerRefresh) this.providerRefreshPipeline.completeJob(job.providerRefreshGeneration, {
-        onTrace: (event, details) => this.runtimeTrace?.record(event, details),
-        onStateChange: () => this.publishProviderRefreshProgress(),
-      });
-      const currentVisible = this.yLayerProjection.visibleEntry(job.key);
-      const authoritative = ownershipCurrent
-        && job.projectionRevision === this.yLayerProjection.revisionForKey(job.key)
-        && currentVisible?.signature === job.signature
-        && currentVisible.role === job.role;
-      if (!job.providerRefresh && !authoritative) this.instrumentation.record('staleHydrationCompletionsIgnored');
-      else if (!job.providerRefresh && job.block.kind !== 'missing') this.completeHydrationPart(job.token, 'block', job.key);
-    },
-    processAdditionalWork: (token, deadline) => this.processDecorationBatch(token, deadline),
-    hasAdditionalWork: () => this.queuedDecorationHydrationJobs() > 0,
-    onBatchDuration: (durationMs) => this.runtimeTrace?.recordDuration('processHydrationBatch', durationMs),
-  };
+  private readonly hydrationExecutionOwner: ViewportHydrationExecutionOwner;
   private readonly providerRefreshPipeline = new ViewportProviderRefreshPipeline<BlockVisualProvider, ProviderRefreshCandidate, BlockHydrationJob>(this.hydrationPipeline);
   private hemisphereLight?: THREE.HemisphereLight;
   private keyLight?: THREE.DirectionalLight;
@@ -723,6 +680,26 @@ export class ThreeViewportEngine {
       trace: (event, details) => this.runtimeTrace?.record(event, details),
       recordProviderCacheStats: () => this.recordProviderCacheStats(),
       scheduleRender: () => this.scheduleRender(),
+    });
+    this.hydrationExecutionOwner = new ViewportHydrationExecutionOwner({
+      hydrationPipeline: this.hydrationPipeline,
+      blockRepresentationHydration: this.blockRepresentationHydration,
+      providerRefreshPipeline: this.providerRefreshPipeline,
+      projection: this.yLayerProjection,
+      decorations: this.decorationVisuals,
+      diagnostics: this.instrumentation,
+      runtimeTrace: () => this.runtimeTrace,
+      isStopped: () => this.disposed || this.suspended,
+      isInteractive: () => this.isCameraInteracting(),
+      rollbackPartialInstanceVisual: (key) => this.rollbackPartialInstanceVisual(key),
+      markHydrationFailure: (job, error) => this.markHydrationFailure(job, error),
+      publishProviderRefreshProgress: () => this.publishProviderRefreshProgress(),
+      completeHydrationPart: (token, key) => this.completeHydrationPart(token, 'block', key),
+    }, {
+      syncBudgetMs: VIEWPORT_HYDRATION_SYNC_BUDGET_MS,
+      interactiveSyncBudgetMs: VIEWPORT_INTERACTIVE_HYDRATION_SYNC_BUDGET_MS,
+      maxJobsPerBatch: VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH,
+      interactiveMaxJobsPerBatch: VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH,
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
   }
@@ -2152,7 +2129,7 @@ export class ThreeViewportEngine {
 
   private scheduleHydrationPump(delay: boolean | number = false): void {
     if (this.disposed || this.suspended) return;
-    this.hydrationPipeline.schedule(() => this.hydrationPipeline.process(this.hydrationExecution), delay);
+    this.hydrationPipeline.schedule(() => this.hydrationPipeline.process(this.hydrationExecutionOwner.port), delay);
   }
 
   private queuedBlockHydrationJobs(): number {
@@ -2173,13 +2150,6 @@ export class ThreeViewportEngine {
 
   private rollbackPartialInstanceVisual(key: string): void {
     this.blockRepresentationResources.rollbackPartial(key);
-  }
-
-  private processDecorationBatch(token: number, deadline: number): void {
-    const interactive = this.isCameraInteracting();
-    const maxJobs = interactive ? VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH : VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH;
-    const processed = this.decorationVisuals.processBatch(token, deadline, maxJobs);
-    if (interactive && processed) this.instrumentation.record('hydrationJobsStartedWhileCamera', processed);
   }
 
   private cancelHydration(reason: HydrationCancellationReason = 'structure-sync-key-changed', context: Readonly<Record<string, unknown>> = {}): void {
