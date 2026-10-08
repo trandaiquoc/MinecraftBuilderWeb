@@ -20,7 +20,7 @@ import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../../core/ui/theme/theme.service';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-theme';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
 import { visibleBlockEntries } from '../../../../core/editor/viewport/visible-blocks';
@@ -60,7 +60,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly i18n = inject(I18nService);
   private readonly theme = inject(ThemeService);
   private readonly preferences = inject(UiPreferencesService);
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly signTextSide = inject(SignTextSideService);
   private readonly decorations = inject(DecorationService);
   private readonly input = inject(KeyboardBindingService);

@@ -1,34 +1,34 @@
 import { computed, effect, Injectable, inject, signal, type Signal } from '@angular/core';
-import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
-import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
-import { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
-import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
-import { AssetThumbnailService } from './asset-thumbnail-service';
-import type { ThumbnailPreviewState } from './asset-thumbnail-service';
-import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
-import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
-import { loadVanillaItemRegistry, VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
-import { JarImportSource, providerFromBundle } from '../bundle/asset-bundle';
-import { ContentSourceRegistry, PreparedContentSource } from '../content-source/content-source-registry';
-import { ExternalModProvider } from '../mod/external-mod-provider';
-import type { ModImportDiagnostic, ModImportReport, SerializedExternalMod } from '../mod/external-mod-import-contracts';
-import type { ExternalCatalogProgress } from '../mod/external-mod-catalog-builder';
-import { commitModImport, inspectModJar, ModImportProgress, PreparedModImport } from '../mod/external-mod-importer';
-import { MojangVanillaAssetSource, VanillaDownloadProgress } from './mojang-vanilla-asset-source';
-import { WorkspaceStateService } from '../../workspace/workspace-state.service';
-import { DEFAULT_MINECRAFT_VERSION } from '../../domain/project.types';
-import { AssetActivityService } from '../asset-activity.service';
-import { VanillaResourceFormatProfile } from './vanilla-resource-format';
-import { CompatibilityReport } from './compatibility/compatibility.types';
-import { evaluateCompatibility } from './compatibility/compatibility-evaluator';
-import { downloadCompatibilityReport } from './compatibility/compatibility-report';
-import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
-import type { ThumbnailTaskPriority } from './thumbnail-task-queue';
-import { yieldToBrowser } from '../cooperative-yield';
-import { validateJarUpload } from '../mod/jar-upload-validation';
-import { createPhaseWatchdog, isAbortError, throwIfAborted } from '../mod/mod-import-cancellation';
-import { ContentOperationCoordinator } from '../content-operation-coordinator';
+import { BlockDefinition } from '../blocks/catalog/block-definition.types';
+import { PlaceableItemDefinition } from '../blocks/placement-palette/placeable-item';
+import { BlockLibraryService } from '../blocks/catalog/block-library.service';
+import { VanillaBlockVisualProvider } from '../renderer/geometry/vanilla-block-visual-provider';
+import { IndexedDbAssetCache } from './cache/indexeddb-asset-cache';
+import { AssetThumbnailService } from './vanilla/asset-thumbnail-service';
+import type { ThumbnailPreviewState } from './vanilla/asset-thumbnail-service';
+import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from './vanilla/vanilla-asset-provider';
+import { loadVanillaBlockRegistry } from '../blocks/registry/vanilla-block-registry';
+import { loadVanillaItemRegistry, VanillaItemRegistry } from '../items/registry/vanilla-item-registry';
+import { JarImportSource, providerFromBundle } from './bundle/asset-bundle';
+import { ContentSourceRegistry, PreparedContentSource } from './content-source/content-source-registry';
+import { ExternalModProvider } from './mod/external-mod-provider';
+import type { ModImportDiagnostic, ModImportReport, SerializedExternalMod } from './mod/external-mod-import-contracts';
+import type { ExternalCatalogProgress } from './mod/external-mod-catalog-builder';
+import { commitModImport, inspectModJar, ModImportProgress, PreparedModImport } from './mod/external-mod-importer';
+import { MojangVanillaAssetSource, VanillaDownloadProgress } from './vanilla/mojang-vanilla-asset-source';
+import { WorkspaceStateService } from '../workspace/workspace-state.service';
+import { DEFAULT_MINECRAFT_VERSION } from '../domain/project.types';
+import { AssetActivityService } from './asset-activity.service';
+import { VanillaResourceFormatProfile } from './vanilla/vanilla-resource-format';
+import { CompatibilityReport } from './vanilla/compatibility/compatibility.types';
+import { evaluateCompatibility } from './vanilla/compatibility/compatibility-evaluator';
+import { downloadCompatibilityReport } from './vanilla/compatibility/compatibility-report';
+import { PaintingVariantCatalogService } from '../decorations/catalog/painting-variant-catalog.service';
+import type { ThumbnailTaskPriority } from './vanilla/thumbnail-task-queue';
+import { yieldToBrowser } from './cooperative-yield';
+import { validateJarUpload } from './mod/jar-upload-validation';
+import { createPhaseWatchdog, isAbortError, throwIfAborted } from './mod/mod-import-cancellation';
+import { ContentOperationCoordinator } from './content-operation-coordinator';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
@@ -38,7 +38,7 @@ export interface ContentRestoreState { readonly phase: ContentRestorePhase; read
 export type AssetBootstrapStatusKind = 'loading-cache' | 'downloading' | 'preparing' | 'restoring-mods' | 'ready' | 'partial' | 'unavailable';
 export interface AssetBootstrapStatus { readonly kind: AssetBootstrapStatusKind; readonly percent?: number; readonly current?: number; readonly total?: number; readonly sourceName?: string; readonly warnings?: number; }
 @Injectable({ providedIn: 'root' })
-export class VanillaAssetsService {
+export class ContentAssetRuntimeService {
   private readonly library = inject(BlockLibraryService);
   private readonly cache = new IndexedDbAssetCache();
   private readonly workspace = inject(WorkspaceStateService);

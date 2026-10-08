@@ -2,7 +2,7 @@ import { Component, computed, effect, inject, output, signal } from '@angular/co
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
 import { LucideArrowLeft, LucideArrowRight, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX } from '@lucide/angular';
-import { VanillaAssetsService, ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService, ImportedModSummary } from '../../../../core/assets/content-asset-runtime.service';
 import { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
 import type { ModImportDiagnostic, ModImportReport } from '../../../../core/assets/mod/external-mod-import-contracts';
 import { ModSupportCatalog, ModSupportCertification } from '../../../../core/assets/mod/mod-support-catalog';
@@ -23,7 +23,7 @@ const phases: readonly ModImportProgress['phase'][] = importStages.flatMap(({ ph
 @Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin, UiProgressComponent, AssetManagerModDetailsComponent], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
-  protected readonly assets = inject(VanillaAssetsService);
+  protected readonly assets = inject(ContentAssetRuntimeService);
   private readonly dialog = inject(DialogService);
   private readonly supportCatalog = inject(ModSupportCatalog);
   readonly closed = output<void>();

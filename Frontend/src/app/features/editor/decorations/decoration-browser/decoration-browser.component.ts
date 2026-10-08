@@ -1,7 +1,7 @@
 import { Component, computed, inject, output, signal } from '@angular/core';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { DECORATION_BROWSER_SOURCES } from '../../../../core/decorations/decoration.types';
 import { PaintingPickerComponent } from '../painting-picker/painting-picker.component';
 import { ContentSourceOption, ContentSourceSelectorComponent } from '../../../../shared/ui/content-source-selector/content-source-selector.component';
@@ -16,7 +16,7 @@ export class DecorationBrowserComponent {
   readonly assetManagerRequested = output<void>();
   protected readonly i18n = inject(I18nService);
   protected readonly decorations = inject(DecorationService);
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly itemCatalog = inject(ItemCatalogService);
   protected readonly itemEntries = computed(() => { this.itemCatalog.generation(); return this.itemCatalog.all(); });

@@ -1,8 +1,8 @@
 import { computed, inject, Injectable } from '@angular/core';
 import type { ContentSourceDescriptor } from '../../assets/content-source/content-source.types';
-import type { ImportedModSummary } from '../../assets/vanilla/vanilla-assets.service';
+import type { ImportedModSummary } from '../../assets/content-asset-runtime.service';
 import type { ProjectDocument } from '../../domain/project.types';
-import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 
 export interface MissingProjectContentGroup {
@@ -56,7 +56,7 @@ export function summarizeMissingProjectContent(
 @Injectable({ providedIn: 'root' })
 export class MissingProjectContentSummaryService {
   private readonly workspace = inject(WorkspaceStateService);
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
 
   readonly summary = computed(() => {
     const project = this.workspace.project();

@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, Output, EventEmitter, signal } from '@angular/core';
 import { PaintingVariant } from '../../../../core/decorations/decoration.types';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { normalizeSearchText, rankSearchResults } from '../../../../core/search/relevance-search';
 
@@ -16,7 +16,7 @@ export class PaintingPickerComponent {
   readonly sourceId = input('__minecraftbuilder_all__');
   @Output() readonly selectionChange = new EventEmitter<string>();
   protected readonly i18n = inject(I18nService);
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly catalog = inject(PaintingVariantCatalogService);
   protected readonly query = signal('');
   protected readonly open = signal(false);

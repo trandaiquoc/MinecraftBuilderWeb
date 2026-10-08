@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import type { ItemStackData } from '../item-stack.types';
 import type { ItemCatalogEntry, ItemVisualInfo } from './item-catalog';
 import { resolveCatalogItemVisual } from './item-visual';
-import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
 
 export type ItemVisualLoadState = 'idle' | 'queued' | 'loading' | 'available' | 'unsupported' | 'missing-resource' | 'error';
 export interface ItemVisualState {
@@ -17,7 +17,7 @@ interface WorkItem { readonly key: string; readonly itemId: string; readonly com
 /** Demand-driven static Item visual cache. The identity catalog never calls this service. */
 @Injectable({ providedIn: 'root' })
 export class ItemVisualService {
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly cache = new Map<string, ItemVisualInfo>();
   private readonly states = new Map<string, ItemVisualState>();
   private readonly pending = new Map<string, Promise<ItemVisualInfo>>();

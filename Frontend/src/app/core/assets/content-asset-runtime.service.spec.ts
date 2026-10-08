@@ -1,10 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
-import { VanillaAssetsService } from './vanilla-assets.service';
+import { ContentAssetRuntimeService } from './content-asset-runtime.service';
 
-describe('VanillaAssetsService content generation', () => {
+describe('ContentAssetRuntimeService content generation', () => {
   it('advances generation before replacing provider state and invalidates thumbnail epoch', () => {
-    const service = TestBed.inject(VanillaAssetsService);
+    const service = TestBed.inject(ContentAssetRuntimeService);
     service.generation.set(5);
     const beforeEpoch = service.thumbnailEpoch();
     const observed: number[] = [];

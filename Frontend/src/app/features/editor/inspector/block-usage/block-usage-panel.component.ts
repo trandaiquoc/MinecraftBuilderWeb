@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { ProjectBlockRuntimeIndex, ProjectBlockUsageEntry } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -30,7 +30,7 @@ export class BlockUsagePanelComponent {
   private readonly workspace = inject(WorkspaceStateService);
   private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
   private readonly library = inject(BlockLibraryService);
-  protected readonly assets = inject(VanillaAssetsService);
+  protected readonly assets = inject(ContentAssetRuntimeService);
   protected readonly highlight = inject(BlockUsageHighlightService);
   protected readonly query = signal('');
   protected readonly sort = signal<UsageSort>('count-desc');

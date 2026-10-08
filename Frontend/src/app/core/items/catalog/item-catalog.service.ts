@@ -1,12 +1,12 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
-import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
 import type { ContentSourceProvider } from '../../assets/content-source/content-source.types';
 import { ItemCatalog, ItemCatalogEntry, humanizeItemId, itemNamespace } from './item-catalog';
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 
 @Injectable({ providedIn: 'root' })
 export class ItemCatalogService {
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly catalog = new ItemCatalog();
   readonly generation = signal(0);
 

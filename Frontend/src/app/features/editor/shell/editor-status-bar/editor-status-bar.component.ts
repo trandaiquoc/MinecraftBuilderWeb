@@ -9,7 +9,7 @@ import { SelectionService } from '../../../../core/editor/selection/selection.se
 import { ProjectAutosaveService } from '../../../../core/persistence/autosave/project-autosave.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { deriveAssetBootstrapStatus, VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { deriveAssetBootstrapStatus, ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { ViewportHydrationStatusService, ViewportHydrationStatusSnapshot } from '../../../../core/editor/state/viewport-hydration-status.service';
 import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
 import { MissingProjectContentSummaryService } from '../../../../core/editor/state/missing-project-content-summary';
@@ -25,7 +25,7 @@ export class EditorStatusBarComponent {
   protected readonly selection = inject(SelectionService);
   protected readonly autosave = inject(ProjectAutosaveService);
   protected readonly workspace = inject(WorkspaceStateService);
-  protected readonly assets = inject(VanillaAssetsService);
+  protected readonly assets = inject(ContentAssetRuntimeService);
   protected readonly hydration = inject(ViewportHydrationStatusService);
   protected readonly missingReconciliation = inject(MissingBlockReconciliationService);
   private readonly missingContent = inject(MissingProjectContentSummaryService);

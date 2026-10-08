@@ -2,7 +2,7 @@ import { Component, computed, effect, ElementRef, inject, output, signal, viewCh
 import { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { QuickBlockBarService } from '../../../../core/editor/quick-bar/quick-block-bar.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { LucidePlus } from '@lucide/angular';
@@ -33,7 +33,7 @@ export class BlockBrowserComponent {
   readonly assetManagerRequested = output<void>();
   protected readonly i18n = inject(I18nService);
   protected readonly library = inject(BlockLibraryService);
-  protected readonly assets = inject(VanillaAssetsService);
+  protected readonly assets = inject(ContentAssetRuntimeService);
   private readonly quick = inject(QuickBlockBarService);
   private readonly decorations = inject(DecorationService);
   protected readonly selectedSource = signal<string>(ALL_CONTENT_SOURCE);

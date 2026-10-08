@@ -2,7 +2,7 @@ import { Component, computed, inject, input, OnDestroy, output, signal } from '@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { LucideX } from '@lucide/angular';
 import { auditVanillaAssets, VanillaAssetCoverageReport, VanillaAssetAuditRecord } from '../../../../core/assets/vanilla/vanilla-asset-audit';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -18,7 +18,7 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   private readonly workspace = inject(WorkspaceStateService);
   private readonly library = inject(BlockLibraryService);
-  protected readonly assets = inject(VanillaAssetsService);
+  protected readonly assets = inject(ContentAssetRuntimeService);
   readonly closed = output<void>();
   readonly rendererEvidence = input<ViewportPerformanceEvidence | undefined>();
   protected readonly query = signal('');

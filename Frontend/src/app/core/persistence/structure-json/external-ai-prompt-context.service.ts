@@ -2,7 +2,7 @@ import { Injectable, inject, Injector } from '@angular/core';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { ItemCatalogService } from '../../items/catalog/item-catalog.service';
 import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
-import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
 import { HUGE_STRUCTURE_BLOCKS_MAX_AXIS, VANILLA_STRUCTURE_BLOCK_MAX_AXIS } from '../../domain/structure-size-policy';
 import type { ProjectDocument } from '../../domain/project.types';
 import type { ExternalAiDecorationContext, ExternalAiItemContext, ExternalAiModContext, ExternalAiPromptContext } from './external-ai-prompt-builder';
@@ -15,7 +15,7 @@ export class ExternalAiPromptContextService {
     const library = this.injector.get(BlockLibraryService);
     const itemsCatalog = this.injector.get(ItemCatalogService);
     const paintingsCatalog = this.injector.get(PaintingVariantCatalogService);
-    const assets = this.injector.get(VanillaAssetsService);
+    const assets = this.injector.get(ContentAssetRuntimeService);
     const externalSourceIds = new Set(assets.importedMods().map((mod) => mod.sourceId));
     const blocksBySource = new Map<string, string[]>();
     for (const entry of library.allDefinitions()) {

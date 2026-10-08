@@ -1,8 +1,8 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { LucideCheckCircle2, LucideCircleX } from '@lucide/angular';
-import type { ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import type { ImportedModSummary } from '../../../../core/assets/content-asset-runtime.service';
 import { ModSupportCatalog } from '../../../../core/assets/mod/mod-support-catalog';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
 import { normalizeItemSearch } from '../../../../core/items/catalog/item-catalog';
@@ -18,7 +18,7 @@ import { compactContentCount, diagnosticPresentation } from './asset-manager-mod
 export class AssetManagerModDetailsComponent {
   readonly mod = input.required<ImportedModSummary>();
   protected readonly i18n = inject(I18nService);
-  protected readonly assets = inject(VanillaAssetsService);
+  protected readonly assets = inject(ContentAssetRuntimeService);
   private readonly supportCatalog = inject(ModSupportCatalog);
   private readonly itemCatalog = inject(ItemCatalogService);
   private readonly itemVisuals = inject(ItemVisualService);

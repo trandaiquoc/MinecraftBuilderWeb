@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import { ItemCatalogService } from './item-catalog.service';
 import { ItemVisualService } from './item-visual.service';
-import { VanillaAssetsService } from '../../assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
 
 describe('ItemVisualService', () => {
   function setup() {
@@ -16,7 +16,7 @@ describe('ItemVisualService', () => {
       gameVersion: '1.21.1',
     };
     const assets = { generation: signal(1), visualProvider: () => undefined, sources: { resources, itemEvidenceSources: () => [{ sourceId: 'example', sourceName: 'Example', provider: { readJson: () => ({}) }, items: [{ itemId: 'example:gem', sourceFormat: 'legacy-item-model', referencedModels: [], referencedResources: [] }] }] } };
-    TestBed.configureTestingModule({ providers: [{ provide: VanillaAssetsService, useValue: assets }, ItemCatalogService, ItemVisualService] });
+    TestBed.configureTestingModule({ providers: [{ provide: ContentAssetRuntimeService, useValue: assets }, ItemCatalogService, ItemVisualService] });
     return { assets, resources, get textureCalls() { return textureCalls; } };
   }
 
@@ -42,7 +42,7 @@ describe('ItemVisualService', () => {
     const rasterize = vi.fn(async () => ({ url: 'blob:stone-preview', quality: 'enhanced' as const }));
     const resources = { readJson: (path: string) => json[path], readBinary: () => new Uint8Array([1]), textureUrl: () => undefined, gameVersion: '1.21.1' };
     const assets = { generation: signal(1), visualProvider: () => ({ perspectiveItemVisualThumbnail: rasterize }), sources: { resources, itemEvidenceSources: () => [] } };
-    TestBed.configureTestingModule({ providers: [{ provide: VanillaAssetsService, useValue: assets }, ItemVisualService] });
+    TestBed.configureTestingModule({ providers: [{ provide: ContentAssetRuntimeService, useValue: assets }, ItemVisualService] });
     const info = await TestBed.inject(ItemVisualService).request('example:stone', 'high');
     expect(info).toMatchObject({ kind: 'block-model', status: 'available', previewUrls: ['blob:stone-preview'] });
     expect(rasterize).toHaveBeenCalledWith('example:stone');
@@ -55,7 +55,7 @@ describe('ItemVisualService', () => {
       visualProvider: () => ({ perspectiveItemVisualThumbnail: rasterize }),
       sources: { resources: { readJson: () => ({ textures: { layer0: 'example:item/gem' } }), readBinary: () => new Uint8Array([1]), textureUrl: () => 'blob:layer' }, itemEvidenceSources: () => [] },
     };
-    TestBed.configureTestingModule({ providers: [{ provide: VanillaAssetsService, useValue: assets }, ItemVisualService] });
+    TestBed.configureTestingModule({ providers: [{ provide: ContentAssetRuntimeService, useValue: assets }, ItemVisualService] });
     const visuals = TestBed.inject(ItemVisualService);
     const first = { id: 'example:gem', count: 1, components: { 'minecraft:profile': { name: 'A' } } };
     const second = { id: 'example:gem', count: 1, components: { 'minecraft:profile': { name: 'B' } } };
@@ -73,7 +73,7 @@ describe('ItemVisualService', () => {
       visualProvider: () => ({ perspectiveItemVisualThumbnail: rasterize }),
       sources: { resources: { readJson: (path: string) => json[path], readBinary: () => new Uint8Array([1]), textureUrl: () => 'blob:layer' }, itemEvidenceSources: () => [] },
     };
-    TestBed.configureTestingModule({ providers: [{ provide: VanillaAssetsService, useValue: assets }, ItemVisualService] });
+    TestBed.configureTestingModule({ providers: [{ provide: ContentAssetRuntimeService, useValue: assets }, ItemVisualService] });
     const visuals = TestBed.inject(ItemVisualService);
     expect((await visuals.request('example:gem')).previewUrls).toEqual(['blob:gem-1']);
     generation = 2;

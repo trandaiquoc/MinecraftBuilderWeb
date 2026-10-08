@@ -1,8 +1,8 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import type { ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import type { ImportedModSummary } from '../../../../core/assets/content-asset-runtime.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { ModSupportCatalog } from '../../../../core/assets/mod/mod-support-catalog';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
@@ -42,7 +42,7 @@ describe('AssetManagerModDetailsComponent', () => {
       imports: [AssetManagerModDetailsComponent],
       providers: [
         { provide: I18nService, useValue: { t: (key: string) => key, modDiagnostic: (_code: string, message: string) => message, modDiagnosticGroup: (kind: string) => kind } },
-        { provide: VanillaAssetsService, useValue: { activeVersion: () => '1.21.1' } },
+        { provide: ContentAssetRuntimeService, useValue: { activeVersion: () => '1.21.1' } },
         { provide: ModSupportCatalog, useValue: { certificationFor: () => undefined } },
         { provide: ItemCatalogService, useValue: catalog },
         { provide: ItemVisualService, useValue: visuals },

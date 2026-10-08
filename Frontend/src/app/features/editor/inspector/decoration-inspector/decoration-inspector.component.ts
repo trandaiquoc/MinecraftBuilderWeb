@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
 import { humanizeItemId } from '../../../../core/items/catalog/item-catalog';
 import type { ItemStackData } from '../../../../core/items/item-stack.types';
@@ -14,7 +14,7 @@ export class DecorationInspectorComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly decorations = inject(DecorationService);
   protected readonly catalog = inject(ItemCatalogService);
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   protected paintingTexture(id: string | undefined): string | undefined { this.assets.generation(); const variant = this.paintingCatalog.get(id); return variant ? this.assets.sources.resources.textureUrl(variant.assetPath) : undefined; }
   protected paintingLabel(id: string | undefined): string { return id ? humanizeItemId(id) : ''; }

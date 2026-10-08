@@ -24,7 +24,7 @@ import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/projec
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { ThemeService } from '../../../../core/ui/theme/theme.service';
 import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-theme';
-import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-assets.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb, facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
@@ -58,7 +58,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly i18n = inject(I18nService);
   private readonly theme = inject(ThemeService);
   private readonly preferences = inject(UiPreferencesService);
-  private readonly assets = inject(VanillaAssetsService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly decorations = inject(DecorationService);
   private readonly input = inject(KeyboardBindingService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
