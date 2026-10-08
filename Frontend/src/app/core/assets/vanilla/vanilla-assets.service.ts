@@ -1,10 +1,11 @@
-import { computed, effect, Injectable, inject, signal } from '@angular/core';
+import { computed, effect, Injectable, inject, signal, type Signal } from '@angular/core';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { PlaceableItemDefinition, previewBlocksForItem } from '../../blocks/placement-palette/placeable-item';
+import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
-import type { PerspectiveThumbnailResult } from '../../renderer/visuals/block-visual-provider-contract';
 import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
+import { AssetThumbnailService } from './asset-thumbnail-service';
+import type { ThumbnailPreviewState } from './asset-thumbnail-service';
 import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
 import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import { loadVanillaItemRegistry, VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
@@ -21,7 +22,7 @@ import { CompatibilityReport } from './compatibility/compatibility.types';
 import { evaluateCompatibility } from './compatibility/compatibility-evaluator';
 import { downloadCompatibilityReport } from './compatibility/compatibility-report';
 import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
-import { ThumbnailTaskPriority, ThumbnailTaskQueue } from './thumbnail-task-queue';
+import type { ThumbnailTaskPriority } from './thumbnail-task-queue';
 import { yieldToBrowser } from '../cooperative-yield';
 import { validateJarUpload } from '../mod/jar-upload-validation';
 import { createPhaseWatchdog, isAbortError, throwIfAborted } from '../mod/mod-import-cancellation';
@@ -34,10 +35,6 @@ export type ContentRestorePhase = 'vanilla' | 'restoring-mods' | 'ready' | 'part
 export interface ContentRestoreState { readonly phase: ContentRestorePhase; readonly current: number; readonly total: number; readonly sourceName?: string; readonly failed: number; }
 export type AssetBootstrapStatusKind = 'loading-cache' | 'downloading' | 'preparing' | 'restoring-mods' | 'ready' | 'partial' | 'unavailable';
 export interface AssetBootstrapStatus { readonly kind: AssetBootstrapStatusKind; readonly percent?: number; readonly current?: number; readonly total?: number; readonly sourceName?: string; readonly warnings?: number; }
-export type ThumbnailPreviewQuality = 'none' | 'fallback' | 'enhanced';
-export type ThumbnailEnhancementStatus = 'idle' | 'queued' | 'running' | 'complete' | 'failed' | 'unavailable';
-export interface ThumbnailPreviewState { readonly quality: ThumbnailPreviewQuality; readonly enhancement: ThumbnailEnhancementStatus; }
-
 @Injectable({ providedIn: 'root' })
 export class VanillaAssetsService {
   private readonly library = inject(BlockLibraryService);
@@ -46,10 +43,8 @@ export class VanillaAssetsService {
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly official = new MojangVanillaAssetSource();
   readonly activity = inject(AssetActivityService);
-  private readonly thumbnailUrls = new Map<string, string>();
-  private readonly thumbnailStates = new Map<string, ThumbnailPreviewState>();
-  private readonly thumbnailVersion = signal(0);
-  private readonly thumbnailQueue = new ThumbnailTaskQueue(4);
+  private readonly thumbnails!: AssetThumbnailService;
+  readonly thumbnailEpoch!: Signal<number>;
   readonly provider = signal<VanillaAssetProvider | undefined>(undefined);
   readonly visualProvider = signal<VanillaBlockVisualProvider | undefined>(undefined);
   readonly status = signal<VanillaAssetStatus>('loading-cache');
@@ -60,7 +55,6 @@ export class VanillaAssetsService {
   readonly message = signal('');
   readonly sourceName = signal('');
   readonly generation = signal(0);
-  readonly thumbnailEpoch = signal(0);
   readonly diagnostics = signal<VanillaAssetDiagnostics>({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: false, generation: 0, providerReady: false, resourceCount: 0, stoneBlockstate: false, stoneModel: false, stoneTexture: false, language: false, itemDefinitions: 0, resourceFormat: { id: 'unsupported', support: 'unsupported-resource-format', blockstates: 0, models: 0, textures: 0, languages: 0, items: 0, label: 'Unsupported resource format' } });
   readonly cachedVersions = signal<readonly string[]>([]);
   readonly sources = new ContentSourceRegistry();
@@ -73,6 +67,10 @@ export class VanillaAssetsService {
   private readonly contentOperations = new ContentOperationCoordinator();
 
   constructor() {
+    this.thumbnails = new AssetThumbnailService(this.library, () => ({
+      generation: this.generation(), provider: this.provider(), visualProvider: this.visualProvider(), restoringExternalMods: this.restoringExternalMods,
+    }));
+    this.thumbnailEpoch = this.thumbnails.epoch;
     effect(() => { const version = this.workspace.project()?.metadata.minecraftVersion; if (version) void this.ensureVersion(version); });
     void this.refreshCachedVersions();
   }
@@ -253,94 +251,26 @@ export class VanillaAssetsService {
   }
 
   prepareThumbnails(blocks: readonly BlockDefinition[]): void {
-    for (const block of blocks) this.prepareThumbnail(block.id, block.defaultState);
+    this.thumbnails.prepareBlocks(blocks);
   }
 
-  prepareItemThumbnails(items: readonly PlaceableItemDefinition[]): void { for (const item of items) this.prepareItemThumbnail(item); }
+  prepareItemThumbnails(items: readonly PlaceableItemDefinition[]): void { this.thumbnails.prepareItems(items); }
 
   requestItemThumbnail(item: PlaceableItemDefinition, priority: ThumbnailTaskPriority = 'visible'): void {
-    if (this.restoringExternalMods) return;
-    const visual = this.visualProvider(); if (!visual) return;
-    const provider = this.provider();
-    const generation = this.generation();
-    const epoch = this.thumbnailEpoch();
-    const previewState = item.previewState ?? item.defaultState;
-    const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, previewState) };
-    const key = thumbnailIdentityForItem(generation, provider?.gameVersion ?? 'unavailable', item, previewState);
-    const current = this.thumbnailStates.get(key);
-    if (current?.quality === 'enhanced' || current?.enhancement === 'unavailable') return;
-    if (this.thumbnailQueue.has(key)) {
-      if (priority === 'selected') this.thumbnailQueue.promote(key, priority);
-      return;
-    }
-    const fallback = visual.thumbnailUrl(item.displayBlockId, previewState);
-    if (fallback) this.setThumbnailPreview(key, fallback, 'fallback');
-    if (!visual.perspectiveItemThumbnail) { this.setThumbnailState(key, { quality: fallback ? 'fallback' : 'none', enhancement: 'unavailable' }); return; }
-    this.setThumbnailState(key, { quality: fallback ? 'fallback' : 'none', enhancement: 'queued' });
-    this.thumbnailQueue.enqueue(key, priority, async () => {
-      if (!this.isCurrentThumbnailRequest(generation, epoch, provider, visual, item, previewState, key)) return;
-      this.setThumbnailState(key, { quality: this.thumbnailStates.get(key)?.quality ?? 'none', enhancement: 'running' });
-      try {
-        const result = await visual.perspectiveItemThumbnail!(previewItem);
-        if (!this.isCurrentThumbnailRequest(generation, epoch, provider, visual, item, previewState, key)) return;
-        this.applyPerspectiveResult(key, result);
-      } catch {
-        if (!this.isCurrentThumbnailRequest(generation, epoch, provider, visual, item, previewState, key)) return;
-        this.setThumbnailState(key, { quality: this.thumbnailStates.get(key)?.quality ?? 'none', enhancement: 'failed' });
-      }
-    });
+    this.thumbnails.requestItem(item, priority);
   }
 
-  invalidateQueuedThumbnails(): void { this.thumbnailQueue.invalidate(); }
+  invalidateQueuedThumbnails(): void { this.thumbnails.invalidateQueued(); }
 
-  prepareItemThumbnail(item: PlaceableItemDefinition): void {
-    this.requestItemThumbnail(item, 'visible');
-  }
+  prepareItemThumbnail(item: PlaceableItemDefinition): void { this.thumbnails.prepareItem(item); }
 
-  prepareThumbnail(blockId: string, state: Readonly<Record<string, string>>): void {
-    if (this.restoringExternalMods) return;
-    const item = this.library.getItem(blockId);
-    if (item) { this.prepareItemThumbnail({ ...item, defaultState: { ...state }, previewState: { ...state } }); return; }
-    const visual = this.visualProvider(); if (!visual) return;
-    const provider = this.provider();
-    const generation = this.generation();
-    const epoch = this.thumbnailEpoch();
-    const key = thumbnailKey(generation, provider?.gameVersion ?? 'unavailable', blockId, state);
-    if (this.thumbnailUrls.has(key) && !this.thumbnailQueue.has(key)) return;
-    const fallback = visual.thumbnailUrl(blockId, state);
-    if (fallback) this.setThumbnailUrl(key, fallback);
-    if (visual.perspectiveThumbnail) void visual.perspectiveThumbnail(blockId, state).then((url) => {
-      if (!url || generation !== this.generation() || epoch !== this.thumbnailEpoch() || provider !== this.provider() || visual !== this.visualProvider()) return;
-      if (this.thumbnailUrls.get(key) === url) return;
-      this.setThumbnailUrl(key, url);
-    }).catch(() => undefined);
-  }
+  prepareThumbnail(blockId: string, state: Readonly<Record<string, string>>): void { this.thumbnails.prepareBlock(blockId, state); }
 
-  thumbnailUrl(blockId: string, state: Readonly<Record<string, string>> = {}): string | undefined {
-    const item = this.library.getItem(blockId);
-    if (item) return this.thumbnailUrlForItem({ ...item, defaultState: { ...state }, previewState: { ...state } });
-    const recipe = 'single';
-    this.thumbnailVersion();
-    return this.thumbnailUrls.get(thumbnailKey(this.generation(), this.provider()?.gameVersion ?? 'unavailable', blockId, state, recipe));
-  }
+  thumbnailUrl(blockId: string, state: Readonly<Record<string, string>> = {}): string | undefined { return this.thumbnails.urlForBlock(blockId, state); }
 
-  thumbnailUrlForItem(item: PlaceableItemDefinition): string | undefined {
-    const state = item.previewState ?? item.defaultState;
-    this.thumbnailVersion();
-    return this.thumbnailUrls.get(this.itemThumbnailKey(item, state));
-  }
+  thumbnailUrlForItem(item: PlaceableItemDefinition): string | undefined { return this.thumbnails.urlForItem(item); }
 
-  private itemThumbnailKey(item: PlaceableItemDefinition, state: Readonly<Record<string, string>>): string {
-    return thumbnailIdentityForItem(this.generation(), this.provider()?.gameVersion ?? 'unavailable', item, state);
-  }
-
-  private isCurrentThumbnailRequest(generation: number, epoch: number, provider: VanillaAssetProvider | undefined, visual: VanillaBlockVisualProvider, item: PlaceableItemDefinition, state: Readonly<Record<string, string>>, key: string): boolean {
-    return generation === this.generation()
-      && epoch === this.thumbnailEpoch()
-      && provider === this.provider()
-      && visual === this.visualProvider()
-      && key === this.itemThumbnailKey(item, state);
-  }
+  thumbnailStateForItem(item: PlaceableItemDefinition): ThumbnailPreviewState { return this.thumbnails.stateForItem(item); }
 
   private ensureVersion(version: string, force = false): Promise<void> {
     if (!shouldStartVersionLoad(this.provider()?.minecraftVersion, this.status(), version, this.inFlight?.version, force)) return this.inFlight?.promise ?? Promise.resolve();
@@ -456,42 +386,7 @@ export class VanillaAssetsService {
   private transitionThumbnailGeneration(replace: () => void): void {
     this.generation.update((value) => value + 1);
     try { replace(); }
-    finally {
-      this.thumbnailQueue.invalidate();
-      this.thumbnailUrls.clear();
-      this.thumbnailStates.clear();
-      this.thumbnailVersion.update((value) => value + 1);
-      this.thumbnailEpoch.update((value) => value + 1);
-    }
-  }
-
-  private setThumbnailUrl(key: string, url: string): void {
-    if (this.thumbnailUrls.get(key) === url) return;
-    this.thumbnailUrls.set(key, url);
-    this.thumbnailVersion.update((value) => value + 1);
-  }
-  thumbnailStateForItem(item: PlaceableItemDefinition): ThumbnailPreviewState {
-    const state = item.previewState ?? item.defaultState;
-    this.thumbnailVersion();
-    return this.thumbnailStates.get(this.itemThumbnailKey(item, state)) ?? { quality: 'none', enhancement: 'idle' };
-  }
-  private setThumbnailPreview(key: string, url: string, quality: ThumbnailPreviewQuality): void {
-    this.setThumbnailUrl(key, url);
-    const current = this.thumbnailStates.get(key);
-    this.setThumbnailState(key, { quality, enhancement: current?.enhancement ?? 'idle' });
-  }
-  private setThumbnailState(key: string, state: ThumbnailPreviewState): void {
-    const previous = this.thumbnailStates.get(key);
-    if (previous?.quality === state.quality && previous.enhancement === state.enhancement) return;
-    this.thumbnailStates.set(key, state);
-    this.thumbnailVersion.update((value) => value + 1);
-  }
-  private applyPerspectiveResult(key: string, result: PerspectiveThumbnailResult): void {
-    const current = this.thumbnailStates.get(key);
-    if (result.url && result.quality === 'enhanced') this.setThumbnailPreview(key, result.url, 'enhanced');
-    else if (result.url && current?.quality !== 'enhanced') this.setThumbnailPreview(key, result.url, 'fallback');
-    const quality = result.quality === 'enhanced' && result.url ? 'enhanced' : current?.quality ?? 'none';
-    this.setThumbnailState(key, { quality, enhancement: result.quality === 'enhanced' && result.url ? 'complete' : result.retryable ? 'failed' : 'unavailable' });
+    finally { this.thumbnails.clearForContentGeneration(); }
   }
   private assertExternalSourceAvailable(provider: ExternalModProvider): void {
     const conflicts = this.sources.resources.inspectProvider(provider);
@@ -501,11 +396,7 @@ export class VanillaAssetsService {
   }
 
   private clearActiveSources(): void {
-    this.thumbnailQueue.invalidate();
-    this.thumbnailUrls.clear();
-    this.thumbnailStates.clear();
-    this.thumbnailVersion.update((value) => value + 1);
-    this.thumbnailEpoch.update((value) => value + 1);
+    this.thumbnails.clearForContentGeneration();
     for (const source of this.sources.sources()) { this.sources.remove(source.id); this.library.removeSource(source.id); this.paintingCatalog.removeSource(source.id); }
     this.importedMods.set([]); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
   }
@@ -629,13 +520,4 @@ export function deriveAssetBootstrapStatus(status: VanillaAssetStatus, restore: 
   if (restore.phase === 'partial') return { kind: 'partial', warnings: restore.failed };
   if (restore.phase === 'vanilla') return { kind: 'preparing' };
   return { kind: 'ready' };
-}
-
-export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single', concreteBlockIds: readonly string[] = []): string {
-  const serializedState = Object.entries(state).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join(',');
-  return `thumbnail-v6|${generation}|${gameVersion}|item-preview-v3|${recipe}|${blockId}|${concreteBlockIds.slice().sort().join(',')}|${serializedState}`;
-}
-
-export function thumbnailIdentityForItem(generation: number, gameVersion: string, item: Pick<PlaceableItemDefinition, 'itemId' | 'previewRecipe' | 'concreteBlockIds'>, previewState: Readonly<Record<string, string>>): string {
-  return thumbnailKey(generation, gameVersion, item.itemId, previewState, item.previewRecipe, item.concreteBlockIds);
 }
