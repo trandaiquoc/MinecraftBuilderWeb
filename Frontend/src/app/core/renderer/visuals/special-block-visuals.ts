@@ -7,6 +7,7 @@ import { createCommonSignAdapter, SignVisualProvider } from './sign-visual-provi
 import { BedVisualProvider } from './bed-visual-provider';
 import { HeadSkullVisualProvider } from './head-skull-visual-provider';
 import { ChestVisualProvider } from './chest-visual-provider';
+import { ShulkerBoxVisualProvider } from './shulker-box-visual-provider';
 import type { BedVisualDescriptor, NormalizedSpecialVisualDescriptor, SpecialBlockVisualAdapter, SpecialVisualCompatibility, SpecialVisualContext, SpecialVisualResourceProvider } from './special-visual-contracts';
 import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 
@@ -21,7 +22,7 @@ export class SpecialBlockVisualRegistry {
   constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
     this.resources = typeof gameVersionOrResources === 'string' ? undefined : gameVersionOrResources;
     this.beds = new BedVisualProvider(); this.signs = new SignVisualProvider(); this.heads = new HeadSkullVisualProvider();
-    this.adapters = [this.beds, new ChestVisualProvider(), barrelAdapter, this.signs, bannerAdapter, this.heads, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
+    this.adapters = [this.beds, new ChestVisualProvider(), barrelAdapter, this.signs, bannerAdapter, this.heads, new ShulkerBoxVisualProvider(), decoratedPotAdapter, conduitAdapter];
   }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
   /** Replace transient content descriptors with the current authoritative set. */
@@ -202,50 +203,6 @@ const conduitAdapter: SpecialBlockVisualAdapter = {
     return root;
   },
 };
-const shulkerAdapter: SpecialBlockVisualAdapter = {
-  family: 'shulker-boxes',
-  staticBatchable: true,
-  matches: (block) => block.namespace === 'minecraft' && (block.id === 'minecraft:shulker_box' || block.id.endsWith('_shulker_box')),
-  textureResource: (block) => shulkerTextureResource(block),
-  create: (block, context) => createShulkerVisual(block, context?.texture),
-};
-const shulkerModel: SpecialModelDescriptor = {
-  id: 'minecraft-java-shulker-box-1.21.1',
-  textureSize: [64, 64],
-  parts: [
-    { id: 'base', pivot: [0, 24, 0], applyPivot: true, cuboids: [{ id: 'base', uv: [0, 28], from: [-8, -8, -8], size: [16, 8, 16] }] },
-    { id: 'lid', pivot: [0, 24, 0], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [-8, -16, -8], size: [16, 12, 16] }] },
-  ],
-};
-export function shulkerTextureResource(block: PlacedBlock): string {
-  const name = block.id.split(':').at(-1) ?? 'shulker_box';
-  if (name === 'shulker_box') return 'minecraft:entity/shulker/shulker';
-  const color = name.replace(/_shulker_box$/, '');
-  return `minecraft:entity/shulker/shulker_${color}`;
-}
-export function shulkerFacingQuaternion(facing: string | undefined): THREE.Quaternion {
-  const euler = new THREE.Euler();
-  if (facing === 'down') euler.set(Math.PI, 0, 0, 'XYZ');
-  else if (facing === 'north') euler.set(Math.PI / 2, 0, Math.PI, 'XYZ');
-  else if (facing === 'south') euler.set(Math.PI / 2, 0, 0, 'XYZ');
-  else if (facing === 'west') euler.set(Math.PI / 2, 0, Math.PI / 2, 'XYZ');
-  else if (facing === 'east') euler.set(Math.PI / 2, 0, -Math.PI / 2, 'XYZ');
-  return new THREE.Quaternion().setFromEuler(euler);
-}
-function createShulkerVisual(block: PlacedBlock, texture?: THREE.Texture): THREE.Group {
-  const root = createSpecialModel(shulkerModel, texture);
-  const translation = new THREE.Group(); translation.position.set(.5, .5, .5);
-  const inset = new THREE.Group(); inset.scale.setScalar(.9995);
-  const direction = new THREE.Group(); direction.quaternion.copy(shulkerFacingQuaternion(block.state['facing']));
-  const flip = new THREE.Group(); flip.scale.set(1, -1, -1);
-  const localTranslation = new THREE.Group(); localTranslation.position.set(0, -1, 0);
-  while (root.children.length) localTranslation.add(root.children[0]);
-  flip.add(localTranslation); direction.add(flip); inset.add(direction); translation.add(inset); root.add(translation);
-  root.userData['specialModel'] = shulkerModel.id;
-  root.userData['shulkerFacing'] = block.state['facing'] ?? 'up';
-  root.userData['shulkerTexture'] = shulkerTextureResource(block);
-  return root;
-}
 function resourcePath(resource: string): string {
   if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
   const normalized = resolveResourceLocation(resource.replace(/^textures\//, '').replace(/\.png$/, ''));
