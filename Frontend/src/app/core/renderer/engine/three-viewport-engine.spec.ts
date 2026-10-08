@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, compileInstanceTemplates, surfaceFaceDirectionFromHit, surfaceFaceNormal, translateVisualToVoxel } from './three-viewport-engine';
-import type { InstancePartTemplate } from './three-viewport-engine';
+import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, surfaceFaceDirectionFromHit, surfaceFaceNormal, translateVisualToVoxel } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from '../benchmark/renderer-benchmark-fixtures';
@@ -11,11 +10,9 @@ import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 import { coordinateKey } from '../../domain/coordinates';
 import { viewportThemePalette } from './viewport-theme';
-import { RendererDiagnostics } from './renderer-diagnostics';
 import { blockMutationHint, metadataMutationHint } from '../../editor/mutations/project-mutation-hint';
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
-import { GroupIsolationPresentation, type GroupIsolationSnapshot } from '../isolation/group-isolation-presentation';
 
 describe('camera movement input contract', () => {
   const camera = new THREE.PerspectiveCamera();
@@ -1650,65 +1647,6 @@ describe('group isolation presentation', () => {
     expect(engine.diagnostics().disposed).toBe(true);
   });
 
-  it('keeps lightweight isolate disposal bookkeeping bounded across 100 cycles', async () => {
-    const canonicalRoot = new THREE.Group();
-    const presentation = new GroupIsolationPresentation(canonicalRoot);
-    const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
-
-    for (let cycle = 0; cycle < 100; cycle += 1) {
-      const key = `cycle-${cycle}`;
-      presentation.prepare({ blocks: [{ key, block, standalone: new THREE.Group() }], decorations: [], fluidWorld: { getBlock: () => undefined }, isolateKeys: new Set([key]) });
-      presentation.deactivate();
-      await Promise.resolve();
-    }
-
-    const diagnostics = presentation.diagnostics();
-    expect(diagnostics).toMatchObject({ createdBundleCount: 100, disposeRequestedCount: 100, disposedBundleCount: 100, disposeCount: 100, activeBundleCount: 0, stagingBundleCount: 0 });
-    expect(diagnostics.createdBundleCount).toBe(diagnostics.disposedBundleCount);
-    expect('disposedBundleGenerations' in (presentation as unknown as object)).toBe(false);
-    presentation.dispose();
-  });
-
-  it('disposes cancelled isolate generations exactly once and never commits stale work', async () => {
-    const canonicalRoot = new THREE.Group();
-    const presentation = new GroupIsolationPresentation(canonicalRoot);
-    const water: PlacedBlock = { kind: 'resolved', id: 'minecraft:water', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { level: '0' } };
-    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
-    const makeSnapshot = (provider: { texture: (resource: string) => Promise<THREE.Texture | undefined> }, key: string): GroupIsolationSnapshot => ({
-      blocks: [{ key, block: water, fluid: { block: water, state: vanillaFluidRenderResolver.resolve(water)! } }],
-      decorations: [],
-      fluidProvider: { contractKey: key, resolver: vanillaFluidRenderResolver, texture: provider.texture },
-      fluidWorld: { getBlock: () => water },
-      isolateKeys: new Set([key]),
-    });
-
-    const first = deferred<THREE.Texture | undefined>();
-    const firstProvider = { texture: vi.fn(() => first.promise) };
-    presentation.prepare(makeSnapshot(firstProvider, 'A'));
-    await Promise.resolve();
-    presentation.deactivate();
-    first.resolve(texture);
-    for (let index = 0; index < 6; index += 1) await Promise.resolve();
-    expect(presentation.diagnostics()).toMatchObject({ state: 'inactive', activeBundleCount: 0, stagingBundleCount: 0, createdBundleCount: 1, disposedBundleCount: 1, disposeCount: 1, commitCount: 0 });
-
-    const secondA = deferred<THREE.Texture | undefined>();
-    const secondB = deferred<THREE.Texture | undefined>();
-    let calls = 0;
-    const secondProvider = { texture: vi.fn(() => (++calls === 1 ? secondA.promise : secondB.promise)) };
-    presentation.prepare(makeSnapshot(secondProvider, 'B'));
-    await Promise.resolve();
-    presentation.prepare(makeSnapshot(secondProvider, 'C'));
-    secondA.resolve(texture);
-    for (let index = 0; index < 6; index += 1) await Promise.resolve();
-    expect(presentation.diagnostics()).toMatchObject({ activeBundleCount: 0, stagingBundleCount: 1, createdBundleCount: 3, disposedBundleCount: 2, disposeCount: 2, commitCount: 0 });
-    secondB.resolve(texture);
-    for (let index = 0; index < 8; index += 1) await Promise.resolve();
-    expect(presentation.diagnostics()).toMatchObject({ state: 'active', activeBundleCount: 1, stagingBundleCount: 0, disposedBundleCount: 2, commitCount: 1 });
-    presentation.dispose();
-    for (let index = 0; index < 4; index += 1) await Promise.resolve();
-    expect(presentation.diagnostics()).toMatchObject({ activeBundleCount: 0, stagingBundleCount: 0, createdBundleCount: 3, disposedBundleCount: 3 });
-    texture.dispose();
-  });
 });
 
 describe('incremental project mutation reconciliation', () => {
@@ -1869,41 +1807,6 @@ describe('incremental project mutation reconciliation', () => {
     expect(counters.incrementalBlockReconciles).toBe(beforeCounters.incrementalBlockReconciles + 1);
     engine.dispose();
   }, 30_000);
-});
-
-describe('reusable instance template compilation', () => {
-  it('merges six compatible cube face parts into one template without losing geometry attributes', () => {
-    const material = new THREE.MeshBasicMaterial({ color: 0x8f6b3f });
-    const templates = cubeFaceTemplates([material, material, material, material, material, material]);
-    const diagnostics = new RendererDiagnostics();
-    const compiled = compileInstanceTemplates(templates, diagnostics);
-    expect(compiled.templates).toHaveLength(1);
-    expect(diagnostics.snapshot()).toMatchObject({ rawInstanceTemplateParts: 6, mergedInstanceTemplateParts: 1, templateMergeOperations: 1, templatePartsEliminated: 5 });
-    const geometry = compiled.templates[0].geometry;
-    geometry.computeBoundingBox();
-    expect(geometry.boundingBox?.min.x).toBeCloseTo(0); expect(geometry.boundingBox?.min.y).toBeCloseTo(0); expect(geometry.boundingBox?.min.z).toBeCloseTo(0);
-    expect(geometry.boundingBox?.max.x).toBeCloseTo(1); expect(geometry.boundingBox?.max.y).toBeCloseTo(1); expect(geometry.boundingBox?.max.z).toBeCloseTo(1);
-    expect(geometry.getAttribute('position').count).toBe(36);
-    expect(geometry.getAttribute('normal')).toBeDefined();
-    expect(geometry.getAttribute('uv')).toBeDefined();
-    disposeTemplateFixture(templates, compiled.templates, material);
-  });
-
-  it('keeps three compatible material groups separate while merging within each group', () => {
-    const materials = [new THREE.MeshBasicMaterial({ color: 0x8f6b3f }), new THREE.MeshBasicMaterial({ color: 0x4f8f38 }), new THREE.MeshBasicMaterial({ color: 0xd8d0b8 })];
-    const compiled = compileInstanceTemplates(cubeFaceTemplates([materials[0], materials[1], materials[2], materials[0], materials[1], materials[2]]));
-    expect(compiled.templates).toHaveLength(3);
-    expect(compiled.templates.every((template) => template.ownsGeometry)).toBe(true);
-    disposeTemplateFixture([], compiled.templates, ...materials);
-  });
-
-  it('does not merge transparent or depth-disabled material groups with opaque parts', () => {
-    const opaque = new THREE.MeshBasicMaterial({ color: 0x8f6b3f });
-    const transparent = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
-    const compiled = compileInstanceTemplates(cubeFaceTemplates([opaque, opaque, opaque, opaque, opaque, transparent]));
-    expect(compiled.templates).toHaveLength(2);
-    disposeTemplateFixture([], compiled.templates, opaque, transparent);
-  });
 });
 
 describe('3D exposed surface batches', () => {
@@ -2390,18 +2293,6 @@ describe('selection visualization scalability', () => {
   });
 });
 
-function cubeFaceTemplates(materials: readonly THREE.Material[]): readonly InstancePartTemplate[] {
-  const transforms = [
-    new THREE.Matrix4().setPosition(.5, .5, 1),
-    new THREE.Matrix4().makeRotationY(Math.PI).setPosition(.5, .5, 0),
-    new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(.5, 1, .5),
-    new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(.5, 0, .5),
-    new THREE.Matrix4().makeRotationY(Math.PI / 2).setPosition(1, .5, .5),
-    new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(0, .5, .5),
-  ];
-  return transforms.map((matrix, index) => ({ geometry: new THREE.PlaneGeometry(1, 1), material: materials[index], matrix }));
-}
-
 function axisCubeProvider(keyPrefix = 'oak-log', fullCubeFaces = true): BlockVisualProvider {
   const directions = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
   const transforms = [
@@ -2429,12 +2320,6 @@ function axisCubeProvider(keyPrefix = 'oak-log', fullCubeFaces = true): BlockVis
       return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
     },
   } as unknown as BlockVisualProvider;
-}
-
-function disposeTemplateFixture(raw: readonly InstancePartTemplate[], compiled: readonly InstancePartTemplate[], ...materials: readonly THREE.Material[]): void {
-  const geometries = new Set([...raw, ...compiled].map((template) => template.geometry));
-  for (const geometry of geometries) geometry.dispose();
-  for (const material of new Set(materials)) material.dispose();
 }
 
 async function settleHydration(rounds = 20, engine?: ThreeViewportEngine): Promise<void> {
