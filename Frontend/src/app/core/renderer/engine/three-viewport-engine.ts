@@ -22,6 +22,7 @@ import { DecorationPlacementPlan, decorationAabb, facingFromNormal, planDecorati
 import { DecorationTextureCache } from '../visuals/decoration-visuals';
 import { DecorationRenderLifecycle } from '../visuals/decoration-render-lifecycle';
 import { BlockRepresentationResourceOwner } from '../visuals/block-representation-resource-owner';
+import { BlockRepresentationHydrationOwner } from '../visuals/block-representation-hydration-owner';
 import { decorationRenderSignature } from '../visuals/decoration-render-signature';
 import type { ItemStackData } from '../../items/item-stack.types';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
@@ -417,6 +418,7 @@ export class ThreeViewportEngine {
   private readonly instanceRenderer: StaticModelBatchRenderer;
   private readonly fluidCoordinator: FluidRenderCoordinator;
   private readonly blockRepresentationResources: BlockRepresentationResourceOwner;
+  private readonly blockRepresentationHydration: BlockRepresentationHydrationOwner;
   private get instanceBatches(): ReadonlyMap<string, InstanceBatch> { return this.instanceRenderer.batches; }
   private get instanceOwnershipIndex(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
   /** Compatibility view for diagnostics/tests; ownership remains in the batching module. */
@@ -457,8 +459,8 @@ export class ThreeViewportEngine {
     jobLimit: () => VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH,
     ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
     execute: (job, complete) => {
-      if (job.providerRefresh) this.refreshBlockEntry(job, complete);
-      else this.createBlockEntry(job.block, job.signature, job.role, job.worldContext, job.options, job.allowInstancing, job.surfaceFastPathEligible, job.surfaceVisibleEntries, complete);
+      if (job.providerRefresh) this.blockRepresentationHydration.refresh(job, complete);
+      else this.blockRepresentationHydration.create(job, complete);
     },
     onBatchStart: () => this.instrumentation.record('hydrationBatches'),
     onJobStarted: (job, fairnessDeferrals) => {
@@ -645,6 +647,46 @@ export class ThreeViewportEngine {
       record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
       invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
       trace: (phase, key, source, entry) => this.traceInstanceOwnership(phase as 'before-remove' | 'after-remove' | 'after-remove-entry', key, source as 'rollback' | 'reconcile', entry),
+    });
+    this.blockRepresentationHydration = new BlockRepresentationHydrationOwner({
+      store: this.blockRepresentations,
+      resources: this.blockRepresentationResources,
+      blocksGroup: this.blocksGroup,
+      provider: () => this.visualProvider,
+      providerGeneration: () => this.providerGeneration,
+      requestReusableKey: (provider, block, world) => this.requestReusableVisualKey(provider, block, world),
+      createVisual: (provider, block, world) => this.createProviderVisual(provider, block, world),
+      resolveTerrain: (key, block, world, provider) => this.resolveTerrainHydration(key, block, world, provider),
+      terrain: {
+        templatesFor: (key) => this.terrainRenderer.templatesFor(key),
+        cacheTemplates: (key, templates) => this.terrainRenderer.cacheTemplates(key, templates),
+        chunkKey,
+      },
+      surface: {
+        templatesFor: (key) => this.surfaceRenderer.templatesFor(key),
+        cacheTemplates: (key, templates) => this.surfaceRenderer.cacheTemplates(key, templates),
+        meshFor: (batchKey) => this.surfaceFaceBatches.get(batchKey)?.mesh,
+      },
+      staticModels: {
+        shouldAttempt: (allowInstancing, reusableKey) => this.instanceRenderer.shouldAttempt(allowInstancing, reusableKey),
+        templateFor: (key) => this.instanceRenderer.templateFor(key),
+        decisionFor: (key) => this.instanceRenderer.decisionFor(key),
+        batches: this.instanceBatches,
+      },
+      addSurface: (block, key, templates, visible) => this.addSurfaceFaceVisual(block, key, templates, visible),
+      addTerrain: (block, key, templates, role) => this.addTerrainVisual(block, key, templates, role),
+      addInstance: (object, block, key, reusableKey, source, role) => this.addInstanceVisual(object, block, key, reusableKey, source, role),
+      addInstanceFromTemplates: (templates, block, key, source, compiled, role) => this.addInstanceVisualFromTemplates(templates, block, key, source, compiled, role),
+      applyBrightness: (object) => applyBlockBrightnessToObject(object, this.blockBrightness),
+      applyReferenceOpacity: (object, opacity) => applyReferenceOpacityToObject(object, opacity),
+      familyFromReusableKey,
+      familyFromVisual: visualFamily,
+      extractSurfaceTemplates: extractSurfaceFaceTemplates,
+      record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
+      invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
+      recordProviderCacheStats: () => this.recordProviderCacheStats(),
+      releaseRetiredProviders: () => this.releaseUnusedRetiredProviders(),
+      scheduleRender: () => this.scheduleRender(),
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
   }
@@ -2294,177 +2336,12 @@ export class ThreeViewportEngine {
     this.placeholderRenderer.ensureBulk(entries.map((entry) => ({ key: coordinateKey(entry.block.position), position: entry.block.position, role: entry.role })));
   }
 
-  /** Builds a changed provider visual off to the side and swaps it atomically. */
-  private refreshBlockEntry(job: BlockHydrationJob, onComplete?: () => void): void {
-    this.invalidateStaticModelDiagnostics();
-    const entry = this.blockRepresentations.get(job.key);
-    const provider = this.visualProvider;
-    if (!entry || !provider) { onComplete?.(); return; }
-    const generation = this.providerGeneration;
-    const revision = this.blockRepresentations.incrementRevision(entry.key) ?? entry.revision;
-    const reusableKey = this.requestReusableVisualKey(provider, job.block, job.worldContext);
-    const visualPromise = job.surfaceFastPathEligible && reusableKey
-      ? this.resolveTerrainHydration(reusableKey, job.block, job.worldContext, provider)
-      : this.createProviderVisual(provider, job.block, job.worldContext);
-    void visualPromise.then((visual) => {
-      const current = this.blockRepresentations.get(job.key);
-      if (generation !== this.providerGeneration || provider !== this.visualProvider || current !== entry || entry.revision !== revision) {
-        if (visual.object) disposeObject(visual.object);
-        return;
-      }
-      if (visual.terrainTemplates && reusableKey) {
-        this.terrainRenderer.cacheTemplates(reusableKey, visual.terrainTemplates);
-        if (entry.terrainChunkKey !== undefined) {
-          if (!this.addTerrainVisual(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal')) return;
-          this.blockRepresentations.setReusableVisual(job.key, reusableKey);
-        } else {
-          this.removeBlockEntry(job.key, entry);
-          if (!this.addTerrainVisual(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal')) return;
-          const replacement: RenderedBlockEntry = { key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, terrainChunkKey: chunkKey(job.block.position) };
-          this.blockRepresentations.createOrReplace(replacement);
-        }
-        this.recordProviderCacheStats();
-        this.scheduleRender();
-        return;
-      }
-      if (!visual.object) return;
-      const object = visual.object;
-      object.userData['realModel'] = true;
-      object.userData['voxel'] = job.block.position;
-      object.userData['renderRole'] = job.role;
-      object.userData['renderMode'] = visual.mode;
-      object.userData['renderTrace'] = visual.trace;
-      object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
-      applyBlockBrightnessToObject(object, this.blockBrightness);
-      translateVisualToVoxel(object, job.block.position);
-      object.traverse((child) => {
-        child.userData['voxel'] = job.block.position;
-        child.userData['renderRole'] = job.role;
-        child.userData['realModel'] = true;
-      });
-      this.removeBlockEntry(job.key, entry);
-      const replacementBase = { key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider } as const;
-      const staticBatchingAllowed = job.role !== 'missing' && this.instanceRenderer.shouldAttempt(true, reusableKey);
-      const staticModelFamily = visualFamily(object) ?? familyFromReusableKey(reusableKey);
-      const instance = staticBatchingAllowed ? this.addInstanceVisual(object, job.block, job.key, reusableKey, 'provider-async', job.role) : undefined;
-      const replacement: RenderedBlockEntry = instance
-        ? { ...replacementBase, reusableVisualKey: reusableKey, staticModelAttempted: staticBatchingAllowed, staticModelFamily, instanceBatchKey: instance.batchKey, instanceIndex: instance.index, object: this.instanceBatches.get(instance.batchKey)!.parts[0], staticModelDecision: this.instanceRenderer.decisionFor(job.key) }
-        : { ...replacementBase, reusableVisualKey: reusableKey, staticModelAttempted: staticBatchingAllowed, staticModelFamily, object, staticModelDecision: this.instanceRenderer.decisionFor(job.key) };
-      if (instance) {
-        disposeObject(object);
-      } else {
-        if (job.role === 'reference') applyReferenceOpacityToObject(object, job.options.referenceOpacity ?? .28);
-        this.blocksGroup.add(object);
-      }
-      this.blockRepresentations.createOrReplace(replacement);
-      this.recordProviderCacheStats();
-      this.releaseUnusedRetiredProviders();
-      this.scheduleRender();
-    }).catch(() => {
-      // Keep the old committed visual on a failed provider refresh.
-    }).finally(() => onComplete?.());
-  }
-
   private removePlaceholderVisual(key: string): void {
     this.blockRepresentationResources.removePlaceholder(key);
   }
 
   private clearPlaceholderVisuals(): void {
     this.blockRepresentationResources.clearPlaceholders();
-  }
-
-  private createBlockEntry(block: ProjectDocument['blocks'][number], signature: string, role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, surfaceFastPathEligible: boolean, surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockEntry>, onComplete?: () => void): void {
-    this.invalidateStaticModelDiagnostics();
-    const key = coordinateKey(block.position);
-    const existing = this.blockRepresentations.get(key);
-    if (existing) this.removeBlockEntry(key, existing);
-    else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
-    this.removePlaceholderVisual(key);
-    const entry: RenderedBlockEntry = { key, block, signature, role, revision: 0, provider: this.visualProvider };
-    this.blockRepresentations.createOrReplace(entry);
-    const providerAvailable = !!this.visualProvider && block.kind !== 'missing';
-    const provider = this.visualProvider;
-    const reusableKey = providerAvailable ? this.requestReusableVisualKey(provider!, block, worldContext) : undefined;
-    const staticBatchingAllowed = providerAvailable && role !== 'missing' && this.instanceRenderer.shouldAttempt(allowInstancing || surfaceFastPathEligible, reusableKey);
-    this.blockRepresentations.setStaticModel(entry.key, { attempted: staticBatchingAllowed, family: familyFromReusableKey(reusableKey) });
-    const cachedTemplates = reusableKey ? this.instanceRenderer.templateFor(reusableKey) : undefined;
-    const cachedTerrainTemplates = surfaceFastPathEligible && reusableKey ? this.terrainRenderer.templatesFor(reusableKey) : undefined;
-    const cachedSurfaceTemplates = surfaceFastPathEligible && reusableKey ? this.surfaceTemplateCache.get(reusableKey) : undefined;
-    if (providerAvailable && cachedTerrainTemplates) {
-      if (this.addTerrainVisual(block, entry.key, cachedTerrainTemplates, role === 'reference' ? 'reference' : 'normal')) {
-        this.blockRepresentations.setTerrainRepresentation(entry.key, chunkKey(block.position), reusableKey);
-        onComplete?.(); this.scheduleRender(); return;
-      }
-    }
-    if (providerAvailable && cachedSurfaceTemplates) {
-      const memberships = this.addSurfaceFaceVisual(block, entry.key, cachedSurfaceTemplates, surfaceVisibleEntries);
-      if (memberships) {
-        this.blockRepresentations.setSurfaceObject(entry.key, memberships, memberships.length ? this.surfaceFaceBatches.get(memberships[0].batchKey)?.mesh : undefined);
-        onComplete?.(); this.scheduleRender(); return;
-      }
-    }
-    if (providerAvailable && cachedTemplates && !surfaceFastPathEligible && staticBatchingAllowed) {
-      const instance = this.addInstanceVisualFromTemplates(cachedTemplates.templates, block, entry.key, 'cached-template', cachedTemplates, role === 'reference' ? 'reference' : 'normal');
-      if (instance) {
-        this.instrumentation.record('reusableTemplateCacheHits');
-        this.instrumentation.record('cachedTemplateInsertions');
-        this.blockRepresentations.setInstanceMembership(entry.key, { batchKey: instance.batchKey, index: instance.index, object: this.instanceBatches.get(instance.batchKey)!.parts[0] });
-        this.blockRepresentations.setStaticModel(entry.key, { attempted: true, decision: this.instanceRenderer.decisionFor(entry.key), family: familyFromReusableKey(reusableKey) });
-        onComplete?.(); this.scheduleRender(); return;
-      }
-    }
-
-    const fallback = this.ensureFallbackVisual(entry, options.referenceOpacity);
-    if (providerAvailable) {
-      const isReference = role === 'reference';
-      const generation = this.providerGeneration;
-      const revision = this.blockRepresentations.incrementRevision(entry.key) ?? entry.revision;
-      const visualPromise: Promise<TerrainHydrationResult> = surfaceFastPathEligible && reusableKey
-        ? this.resolveTerrainHydration(reusableKey, block, worldContext, provider!)
-        : this.createProviderVisual(provider!, block, worldContext);
-      void visualPromise.then((visual) => {
-        if (generation !== this.providerGeneration || this.blockRepresentations.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
-        fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
-        if (surfaceFastPathEligible && visual.terrainTemplates && reusableKey) {
-          this.terrainRenderer.cacheTemplates(reusableKey, visual.terrainTemplates);
-          if (this.addTerrainVisual(block, entry.key, visual.terrainTemplates, role === 'reference' ? 'reference' : 'normal')) {
-            this.blockRepresentations.setTerrainRepresentation(entry.key, chunkKey(block.position), reusableKey);
-            this.blocksGroup.remove(fallback);
-            this.recordProviderCacheStats();
-            this.scheduleRender();
-            return;
-          }
-        }
-        if (!visual.object) return;
-        const object = visual.object; object.userData['realModel'] = true; applyBlockBrightnessToObject(object, this.blockBrightness); translateVisualToVoxel(object, block.position);
-        object.userData['voxel'] = block.position; object.userData['renderRole'] = role; object.userData['realModel'] = true; object.userData['renderMode'] = visual.mode; object.userData['renderTrace'] = visual.trace; object.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
-        object.traverse((child) => { child.userData['voxel'] = block.position; child.userData['renderRole'] = role; child.userData['realModel'] = true; });
-        let surfaceMemberships: readonly SurfaceFaceMembership[] | undefined;
-        let terrainCompiled = false;
-        if (surfaceFastPathEligible && reusableKey) {
-          const cachedTerrain = this.terrainRenderer.templatesFor(reusableKey);
-          const templates = cachedTerrain ?? extractSurfaceFaceTemplates(object);
-          if (templates) {
-            if (!cachedTerrain) this.terrainRenderer.cacheTemplates(reusableKey, templates);
-            terrainCompiled = this.addTerrainVisual(block, entry.key, templates, role === 'reference' ? 'reference' : 'normal');
-            if (!terrainCompiled && !cachedTerrain) {
-              const cachedSurface = this.surfaceTemplateCache.get(reusableKey);
-              if (!cachedSurface) this.surfaceRenderer.cacheTemplates(reusableKey, templates);
-              surfaceMemberships = this.addSurfaceFaceVisual(block, entry.key, cachedSurface ?? templates, surfaceVisibleEntries);
-            }
-          }
-        }
-        this.blockRepresentations.setReusableVisual(entry.key, reusableKey);
-        this.blockRepresentations.setStaticModel(entry.key, { attempted: staticBatchingAllowed, family: visualFamily(object) ?? familyFromReusableKey(reusableKey) });
-        const instance = !terrainCompiled && surfaceMemberships === undefined && staticBatchingAllowed ? this.addInstanceVisual(object, block, entry.key, reusableKey, 'provider-async', role === 'reference' ? 'reference' : 'normal') : undefined;
-        this.blocksGroup.remove(fallback);
-        if (terrainCompiled) { this.blockRepresentations.setTerrainRepresentation(entry.key, chunkKey(block.position), reusableKey); disposeObject(object); }
-        else if (surfaceMemberships !== undefined) { this.blockRepresentations.setSurfaceObject(entry.key, surfaceMemberships, surfaceMemberships.length ? this.surfaceFaceBatches.get(surfaceMemberships[0].batchKey)?.mesh : undefined); disposeObject(object); }
-        else if (instance) { this.blockRepresentations.setInstanceMembership(entry.key, { batchKey: instance.batchKey, index: instance.index, object: this.instanceBatches.get(instance.batchKey)!.parts[0] }); this.blockRepresentations.setStaticModel(entry.key, { decision: this.instanceRenderer.decisionFor(entry.key) }); disposeObject(object); }
-        else { if (isReference) applyReferenceOpacityToObject(object, options.referenceOpacity ?? .28); this.blockRepresentations.setStaticModel(entry.key, { decision: this.instanceRenderer.decisionFor(entry.key) }); this.blocksGroup.add(object); this.blockRepresentations.setObject(entry.key, object); }
-        this.recordProviderCacheStats(); this.scheduleRender();
-      }).catch((error: unknown) => { if (this.blockRepresentations.get(entry.key) !== entry || entry.revision !== revision) return; this.rollbackPartialInstanceVisual(entry.key); fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
-    } else onComplete?.();
   }
 
   private createProviderVisual(provider: BlockVisualProvider, block: ProjectDocument['blocks'][number], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }): Promise<TerrainHydrationResult> {

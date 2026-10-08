@@ -119,7 +119,7 @@ interface TerrainChunkWorkState {
 
 /** Owns compiled opaque terrain meshes while leaving project/editor data elsewhere. */
 export class ChunkSurfaceRenderer {
-  readonly templateCache = new Map<string, readonly SurfaceFaceTemplate[]>();
+  private readonly templateStore = new Map<string, readonly SurfaceFaceTemplate[]>();
   private readonly compiledTemplateCache = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
   private readonly records = new Map<string, TerrainSurfaceRecord>();
   private readonly recordsByChunk = new Map<string, Map<string, TerrainSurfaceRecord>>();
@@ -193,8 +193,8 @@ export class ChunkSurfaceRenderer {
   }
 
   cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[]): void {
-    if (this.templateCache.has(key)) return;
-    this.templateCache.set(key, templates);
+    if (this.templateStore.has(key)) return;
+    this.templateStore.set(key, templates);
     this.compiledTemplateCache.set(templates, precompileTerrainTemplates(templates, this.terrainAtlas));
     this.templateResolutions += 1;
     this.options.record('terrainTemplateResolutions');
@@ -248,7 +248,7 @@ export class ChunkSurfaceRenderer {
   }
 
   templatesFor(key: string): readonly SurfaceFaceTemplate[] | undefined {
-    const templates = this.templateCache.get(key);
+    const templates = this.templateStore.get(key);
     if (templates) { this.templateCacheHits += 1; this.options.record('terrainTemplateCacheHits'); }
     return templates;
   }
@@ -385,8 +385,8 @@ export class ChunkSurfaceRenderer {
     this.chunkWork.clear();
     this.pendingHydrationCandidatesByChunk.clear();
     this.dirtyChunks.clear();
-    for (const templates of this.templateCache.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
-    this.templateCache.clear();
+    for (const templates of this.templateStore.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
+    this.templateStore.clear();
     this.bulkBatches = 0;
     this.terrainCandidateOwnershipTotal = 0;
     this.terrainCandidateFanoutTotal = 0;

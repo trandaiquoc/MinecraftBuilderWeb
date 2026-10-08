@@ -70,8 +70,8 @@ export class StaticModelBatchRenderer {
     });
   }
 
-  get batches(): Map<string, InstanceBatch> { return this.delegate.batches; }
-  get ownershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.delegate.ownershipIndex; }
+  get batches(): ReadonlyMap<string, InstanceBatch> { return this.delegate.batches; }
+  get ownershipIndex(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.delegate.ownershipIndex; }
 
   shouldAttempt(allowInstancing: boolean, reusableKey: string | undefined): boolean {
     return allowInstancing || this.batches.size > 0 || reusableKey !== undefined && this.templateCache.has(reusableKey);

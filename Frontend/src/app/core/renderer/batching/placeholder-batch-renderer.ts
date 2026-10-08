@@ -23,14 +23,17 @@ export interface PlaceholderBatchRendererOptions {
 
 /** Owns coarse occupancy meshes used while real visuals hydrate. */
 export class PlaceholderBatchRenderer {
-  readonly batches = new Map<string, PlaceholderBatch>();
-  readonly indices = new Map<string, { readonly batchKey: string; readonly index: number }>();
+  private readonly batchStore = new Map<string, PlaceholderBatch>();
+  private readonly indexStore = new Map<string, { readonly batchKey: string; readonly index: number }>();
   private readonly translation = new THREE.Matrix4();
 
   constructor(private readonly options: PlaceholderBatchRendererOptions) {}
 
+  get batches(): ReadonlyMap<string, PlaceholderBatch> { return this.batchStore; }
+  get indices(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.indexStore; }
+
   ensure(key: string, position: VoxelCoordinate, role: PlaceholderRole): void {
-    if (this.indices.has(key)) return;
+    if (this.indexStore.has(key)) return;
     const batchKey = `${role}|${this.options.chunkKey(position)}`;
     const batch = this.getBatch(batchKey, role, position);
     if (batch.keys.length >= batch.capacity) return;
@@ -41,21 +44,21 @@ export class PlaceholderBatchRenderer {
   ensureBulk(entries: readonly { readonly key: string; readonly position: VoxelCoordinate; readonly role: PlaceholderRole }[]): void {
     const touched = new Set<string>();
     for (const entry of entries) {
-      if (this.indices.has(entry.key)) continue;
+      if (this.indexStore.has(entry.key)) continue;
       const batchKey = `${entry.role}|${this.options.chunkKey(entry.position)}`;
       const batch = this.getBatch(batchKey, entry.role, entry.position);
       if (batch.keys.length >= batch.capacity) continue;
       this.insert(batch, entry.key, entry.position);
       touched.add(batchKey);
     }
-    for (const key of touched) this.batches.get(key)?.mesh.instanceMatrix && (this.batches.get(key)!.mesh.instanceMatrix.needsUpdate = true);
+    for (const key of touched) this.batchStore.get(key)?.mesh.instanceMatrix && (this.batchStore.get(key)!.mesh.instanceMatrix.needsUpdate = true);
   }
 
   remove(key: string): void {
-    const reference = this.indices.get(key);
+    const reference = this.indexStore.get(key);
     if (!reference) return;
-    const batch = this.batches.get(reference.batchKey);
-    this.indices.delete(key);
+    const batch = this.batchStore.get(reference.batchKey);
+    this.indexStore.delete(key);
     if (!batch) return;
     const index = reference.index;
     const last = batch.keys.length - 1;
@@ -65,7 +68,7 @@ export class PlaceholderBatchRenderer {
       batch.keys[index] = movedKey;
       batch.positions[index] = movedPosition;
       this.setInstance(batch, index, movedKey, movedPosition);
-      this.indices.set(movedKey, { batchKey: batch.key, index });
+      this.indexStore.set(movedKey, { batchKey: batch.key, index });
     }
     batch.keys.pop();
     batch.positions.pop();
@@ -78,7 +81,7 @@ export class PlaceholderBatchRenderer {
     if (!batch.keys.length) {
       this.options.blocksGroup.remove(batch.mesh);
       batch.mesh.dispose();
-      this.batches.delete(batch.key);
+      this.batchStore.delete(batch.key);
     }
   }
 
@@ -87,16 +90,16 @@ export class PlaceholderBatchRenderer {
   }
 
   clear(): void {
-    for (const batch of this.batches.values()) {
+    for (const batch of this.batchStore.values()) {
       this.options.blocksGroup.remove(batch.mesh);
       batch.mesh.dispose();
     }
-    this.batches.clear();
-    this.indices.clear();
+    this.batchStore.clear();
+    this.indexStore.clear();
   }
 
   private getBatch(batchKey: string, role: PlaceholderRole, position: VoxelCoordinate): PlaceholderBatch {
-    const existing = this.batches.get(batchKey);
+    const existing = this.batchStore.get(batchKey);
     if (existing) return existing;
     const mesh = new THREE.InstancedMesh(this.options.geometry, this.options.materials[role], this.options.capacity);
     mesh.count = 0;
@@ -110,7 +113,7 @@ export class PlaceholderBatchRenderer {
     mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
     this.options.recordBounds();
     const batch = { key: batchKey, capacity: this.options.capacity, mesh, keys: [], positions: [] };
-    this.batches.set(batchKey, batch);
+    this.batchStore.set(batchKey, batch);
     return batch;
   }
 
@@ -121,7 +124,7 @@ export class PlaceholderBatchRenderer {
     batch.positions.push(copy);
     this.setInstance(batch, index, key, copy);
     batch.mesh.count = index + 1;
-    this.indices.set(key, { batchKey: batch.key, index });
+    this.indexStore.set(key, { batchKey: batch.key, index });
   }
 
   private setInstance(batch: PlaceholderBatch, index: number, key: string, position: VoxelCoordinate): void {

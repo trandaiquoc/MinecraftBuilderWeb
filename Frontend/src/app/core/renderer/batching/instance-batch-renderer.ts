@@ -36,12 +36,15 @@ export interface InstanceBatchRendererOptions {
 
 /** Owns reusable InstancedMesh batches and their swap-back ownership index. */
 export class InstanceBatchRenderer {
-  readonly batches = new Map<string, InstanceBatch>();
-  readonly ownershipIndex = new Map<string, { readonly batchKey: string; readonly index: number }>();
+  private readonly batchStore = new Map<string, InstanceBatch>();
+  private readonly ownershipStore = new Map<string, { readonly batchKey: string; readonly index: number }>();
   private readonly translation = new THREE.Matrix4();
   private readonly transformed = new THREE.Matrix4();
 
   constructor(private readonly options: InstanceBatchRendererOptions) {}
+
+  get batches(): ReadonlyMap<string, InstanceBatch> { return this.batchStore; }
+  get ownershipIndex(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.ownershipStore; }
 
   addFromTemplates(
     templates: readonly InstancePartTemplate[],
@@ -55,16 +58,16 @@ export class InstanceBatchRenderer {
     const existingEntry = this.options.getEntry(key);
     this.options.trace?.('before-insert', key, source);
     if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
-    else if (this.ownershipIndex.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);
+    else if (this.ownershipStore.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);
     const region = this.options.regionPolicy?.key(position) ?? this.options.chunkKey(position);
     const baseKey = `${region}|${resolved.signature}|role:${renderRole}`;
     let segment = 0;
     let batchKey = `${baseKey}|segment:${segment}`;
-    let batch = this.batches.get(batchKey);
+    let batch = this.batchStore.get(batchKey);
     while (batch && batch.keys.length >= batch.capacity) {
       segment += 1;
       batchKey = `${baseKey}|segment:${segment}`;
-      batch = this.batches.get(batchKey);
+      batch = this.batchStore.get(batchKey);
     }
     if (!batch) {
       const parts = resolved.templates.map((template) => {
@@ -86,7 +89,7 @@ export class InstanceBatchRenderer {
       });
       this.options.record('instancedBoundsComputations', parts.length);
       batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
-      this.batches.set(batchKey, batch);
+      this.batchStore.set(batchKey, batch);
       this.options.record('instancedBatchCreations');
       this.options.record('instancedMeshCount', parts.length);
     }
@@ -106,7 +109,7 @@ export class InstanceBatchRenderer {
     });
     this.options.record('instancedBlockAdds');
     this.options.record('instancedMembers');
-    this.ownershipIndex.set(key, { batchKey, index });
+    this.ownershipStore.set(key, { batchKey, index });
     this.options.setEntryObject?.(key, batchKey, index, batch.parts[0]);
     this.options.trace?.('after-insert', key, source);
     return { batchKey, index };
@@ -116,7 +119,7 @@ export class InstanceBatchRenderer {
 
   setReferenceOpacity(opacity: number): void {
     this.referenceOpacity = Math.max(0, Math.min(1, opacity));
-    for (const batch of this.batches.values()) {
+    for (const batch of this.batchStore.values()) {
       if (batch.renderRole !== 'reference') continue;
       for (const part of batch.parts) {
         const materials = Array.isArray(part.material) ? part.material : [part.material];
@@ -134,16 +137,16 @@ export class InstanceBatchRenderer {
 
   memberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] {
     if (!scanAll) {
-      const indexed = this.ownershipIndex.get(key);
+      const indexed = this.ownershipStore.get(key);
       return indexed ? [{ ...indexed }] : [];
     }
     const memberships: { batchKey: string; index: number }[] = [];
-    for (const [batchKey, batch] of this.batches) for (const [index, memberKey] of batch.keys.entries()) if (memberKey === key) memberships.push({ batchKey, index });
+    for (const [batchKey, batch] of this.batchStore) for (const [index, memberKey] of batch.keys.entries()) if (memberKey === key) memberships.push({ batchKey, index });
     return memberships;
   }
 
   removeOrphaned(key: string, source: 'rollback' | 'reconcile', entry?: InstanceBatchEntry): void {
-    const indexed = this.ownershipIndex.get(key);
+    const indexed = this.ownershipStore.get(key);
     const knownBatchKey = entry?.instanceBatchKey ?? indexed?.batchKey;
     const knownIndex = entry?.instanceIndex ?? indexed?.index;
     const knownRemoved = knownBatchKey !== undefined && knownIndex !== undefined ? this.removeMembership(knownBatchKey, knownIndex, key) : false;
@@ -154,13 +157,13 @@ export class InstanceBatchRenderer {
       if (next.length >= memberships.length) break;
       memberships = next;
     }
-    this.ownershipIndex.delete(key);
+    this.ownershipStore.delete(key);
     this.options.setEntryObject?.(key, undefined, undefined, entry?.object);
     if (source === 'rollback') this.options.trace?.('after-remove-entry', key, source);
   }
 
   removeMembership(batchKey: string, requestedIndex: number, expectedKey: string): boolean {
-    const batch = this.batches.get(batchKey);
+    const batch = this.batchStore.get(batchKey);
     if (!batch) return false;
     const index = requestedIndex >= 0 && requestedIndex < batch.keys.length && batch.keys[requestedIndex] === expectedKey ? requestedIndex : batch.keys.indexOf(expectedKey);
     if (index < 0) return false;
@@ -172,7 +175,7 @@ export class InstanceBatchRenderer {
       batch.positions[index] = movedPosition;
       const movedEntry = this.options.getEntry(movedKey);
       if (movedEntry?.instanceBatchKey === batchKey) this.options.setEntryObject?.(movedKey, batchKey, index, batch.parts[0]);
-      this.ownershipIndex.set(movedKey, { batchKey, index });
+      this.ownershipStore.set(movedKey, { batchKey, index });
       const translation = this.translation.makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
       batch.parts.forEach((part, partIndex) => {
         this.transformed.copy(translation).multiply(batch.templates[partIndex].matrix);
@@ -186,7 +189,7 @@ export class InstanceBatchRenderer {
     }
     batch.keys.pop();
     batch.positions.pop();
-    this.ownershipIndex.delete(expectedKey);
+    this.ownershipStore.delete(expectedKey);
     batch.parts.forEach((part) => {
       (part.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
       (part.userData['instanceKeys'] as string[]).pop();
@@ -197,7 +200,7 @@ export class InstanceBatchRenderer {
     this.options.record('instancedMembers', -1);
     if (!batch.keys.length) {
       for (const part of batch.parts) { this.options.blocksGroup.remove(part); part.dispose(); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
-      this.batches.delete(batchKey);
+      this.batchStore.delete(batchKey);
       for (const template of batch.templates) this.disposeMergedTemplateGeometry(template);
       this.options.record('instancedMeshCount', -batch.parts.length);
     }
@@ -206,7 +209,7 @@ export class InstanceBatchRenderer {
 
   reconcile(entries: ReadonlyMap<string, InstanceBatchEntry>): void {
     const memberships = new Map<string, { batchKey: string; index: number }[]>();
-    for (const [batchKey, batch] of this.batches) for (const [index, key] of batch.keys.entries()) {
+    for (const [batchKey, batch] of this.batchStore) for (const [index, key] of batch.keys.entries()) {
       const list = memberships.get(key) ?? [];
       list.push({ batchKey, index });
       memberships.set(key, list);
@@ -217,27 +220,27 @@ export class InstanceBatchRenderer {
       const extras = (entry ? list.filter((membership) => membership !== preferred) : list).sort((left, right) => right.index - left.index);
       for (const membership of extras) this.removeMembership(membership.batchKey, membership.index, key);
     }
-    this.ownershipIndex.clear();
-    for (const [batchKey, batch] of this.batches) for (const [index, key] of batch.keys.entries()) {
-      if (this.ownershipIndex.has(key)) continue;
-      this.ownershipIndex.set(key, { batchKey, index });
+    this.ownershipStore.clear();
+    for (const [batchKey, batch] of this.batchStore) for (const [index, key] of batch.keys.entries()) {
+      if (this.ownershipStore.has(key)) continue;
+      this.ownershipStore.set(key, { batchKey, index });
       this.options.setEntryObject?.(key, batchKey, index, batch.parts[0]);
     }
-    for (const [key, entry] of entries) if (entry.instanceBatchKey && !this.ownershipIndex.has(key)) this.options.setEntryObject?.(key, undefined, undefined, entry.object);
+    for (const [key, entry] of entries) if (entry.instanceBatchKey && !this.ownershipStore.has(key)) this.options.setEntryObject?.(key, undefined, undefined, entry.object);
   }
 
   clear(): void {
-    for (const batch of [...this.batches.values()]) {
+    for (const batch of [...this.batchStore.values()]) {
       for (const part of batch.parts) { this.options.blocksGroup.remove(part); part.dispose(); const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const material of materials) material.dispose(); }
-      this.batches.delete(batch.key);
+      this.batchStore.delete(batch.key);
       for (const template of batch.templates) this.disposeMergedTemplateGeometry(template);
     }
-    this.batches.clear();
-    this.ownershipIndex.clear();
+    this.batchStore.clear();
+    this.ownershipStore.clear();
   }
 
   private disposeMergedTemplateGeometry(template: InstancePartTemplate): void {
-    if (this.options.disposeMergedTemplateGeometry) { this.options.disposeMergedTemplateGeometry(template, this.batches); return; }
+    if (this.options.disposeMergedTemplateGeometry) { this.options.disposeMergedTemplateGeometry(template, this.batchStore); return; }
     if (template.ownsGeometry && template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
   }
 }
