@@ -59,6 +59,7 @@ import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange,
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
+import { TerrainTemplateResolutionCache } from '../terrain/terrain-template-resolution-cache';
 import { blockMutationHint, type ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
@@ -401,7 +402,7 @@ export class ThreeViewportEngine {
     VIEWPORT_CAMERA_IDLE_GRACE_MS,
   );
   private readonly blockRepresentations = new ViewportBlockRepresentationStore();
-  private readonly pendingTerrainTemplates = new Map<string, Promise<readonly SurfaceFaceTemplate[] | undefined>>();
+  private readonly terrainTemplateResolutions = new TerrainTemplateResolutionCache<readonly SurfaceFaceTemplate[]>();
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer: StaticModelBatchRenderer;
   private readonly fluidCoordinator: FluidRenderCoordinator;
@@ -1987,17 +1988,12 @@ export class ThreeViewportEngine {
   }
 
   private resolveTerrainTemplates(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: TerrainHydrationCandidate['worldContext'], provider: BlockVisualProvider): Promise<readonly SurfaceFaceTemplate[] | undefined> {
-    const existing = this.pendingTerrainTemplates.get(reusableKey);
-    if (existing) return existing;
-    const pending = this.createProviderVisual(provider, block, worldContext).then((visual) => {
+    return this.terrainTemplateResolutions.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
       if (!visual.object) return undefined;
       const templates = extractSurfaceFaceTemplates(visual.object);
       disposeObject(visual.object);
       return templates;
-    });
-    this.pendingTerrainTemplates.set(reusableKey, pending);
-    void pending.then(() => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); }, () => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); });
-    return pending;
+    }));
   }
 
   private disposeTerrainTemplates(templates: readonly SurfaceFaceTemplate[]): void {
@@ -2558,16 +2554,12 @@ export class ThreeViewportEngine {
   }
 
   private resolveTerrainHydration(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, provider: BlockVisualProvider): Promise<TerrainHydrationResult> {
-    const pending = this.pendingTerrainTemplates.get(reusableKey) ?? this.createProviderVisual(provider, block, worldContext).then((visual) => {
+    const pending = this.terrainTemplateResolutions.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
       if (!visual.object) return undefined;
       const templates = extractSurfaceFaceTemplates(visual.object);
       disposeObject(visual.object);
       return templates;
-    });
-    if (!this.pendingTerrainTemplates.has(reusableKey)) {
-      this.pendingTerrainTemplates.set(reusableKey, pending);
-      void pending.then(() => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); }, () => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); });
-    }
+    }));
     return pending.then((templates) => templates
       ? { object: undefined, terrainTemplates: templates, resolved: { blockId: block.id, state: block.state, parts: [], support: 'full' as const, diagnostics: [], trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [], modelResources: [], parentResources: [], elementCount: 0, faceCount: 0, textureResources: [] } }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }
       : this.createProviderVisual(provider, block, worldContext));
@@ -2882,6 +2874,7 @@ export class ThreeViewportEngine {
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
     provider?.release?.();
     this.providerRefreshPipeline.dispose();
+    this.terrainTemplateResolutions.clearPending();
     this.visualProvider = undefined;
     this.renderer = undefined;
     this.container = undefined;
