@@ -480,8 +480,6 @@ export class ThreeViewportEngine {
   private readonly hydrationRunningByGeneration = new Map<number, number>();
   private hydrationBatchBudget = 0;
   private hydrationBatchDeadline = 0;
-  private hydrationTimer?: ReturnType<typeof setTimeout>;
-  private hydrationScheduled = false;
   private cameraInteractingUntil = 0;
   private cameraRenderPending = false;
   private staticPixelRatio = 1;
@@ -666,8 +664,6 @@ export class ThreeViewportEngine {
     this.yLayerProjection.cancel();
     this.renderScheduler.cancel();
     this.hydrationScheduler.cancel();
-    this.hydrationScheduled = false;
-    this.hydrationTimer = undefined;
     this.providerRefreshPlanner.cancel();
     this.providerRefreshPlanning = false;
     this.providerRefreshProgress = undefined;
@@ -1248,7 +1244,7 @@ export class ThreeViewportEngine {
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
-      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
+      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduler.isScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
       render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.length + this.decorationsGroup.children.length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain['terrainChunkMeshes'], standaloneMeshCount: 0, renderRegionCount: this.instanceBatches.size + this.surfaceFaceBatches.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
@@ -2261,10 +2257,9 @@ export class ThreeViewportEngine {
 
   private scheduleHydrationPump(delay: boolean | number = false): void {
     if (this.disposed || this.suspended) return;
-    const run = () => { this.hydrationScheduled = false; this.hydrationTimer = undefined; this.processHydrationBatch(); };
+    const run = () => this.processHydrationBatch();
     if (this.hydrationScheduler.isScheduled) return;
     this.hydrationScheduler.schedule(run, !delay ? undefined : typeof delay === 'number' ? delay : 0);
-    this.hydrationScheduled = true;
   }
 
   private queuedBlockHydrationJobs(): number {
@@ -2431,8 +2426,6 @@ export class ThreeViewportEngine {
     this.hydrationBatchBudget = 0;
     this.hydrationBatchDeadline = 0;
     this.hydrationScheduler.cancel();
-    this.hydrationTimer = undefined;
-    this.hydrationScheduled = false;
     this.hydrationProgressTracker.clear();
     this.providerRefreshPlanner.cancel();
     this.providerRefreshProgress = undefined;
@@ -3329,7 +3322,7 @@ export class ThreeViewportEngine {
       globalRunning: this.hydrationRunning,
       currentGenerationRunning,
       staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning),
-      hydrationScheduled: this.hydrationScheduled,
+      hydrationScheduled: this.hydrationScheduler.isScheduled,
       hydrationTimerActive: this.hydrationScheduler.timerActive,
       hydrationBatchBudget: this.hydrationBatchBudget,
       pendingSignatureCount: this.pendingHydrationSignatures.size,
@@ -3343,7 +3336,7 @@ export class ThreeViewportEngine {
       orphanedHydrationSample,
       completed: this.hydrationProgressState.completed,
       total: this.hydrationProgressState.total,
-      scheduled: this.hydrationScheduled || this.hydrationScheduler.timerActive,
+      scheduled: this.hydrationScheduler.isScheduled,
       regularQueued: workCounts.regularQueued,
       providerRefreshQueued: workCounts.providerRefreshQueued,
       regularRunning: workCounts.regularRunning,
