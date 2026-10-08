@@ -85,6 +85,7 @@ export class TerrainPlaceholderSignatureStore {
 export class ViewportTerrainWorkflowOwner {
   private readonly batches = new ViewportTerrainRepresentationPipeline<readonly SurfaceFaceTemplate[]>();
   readonly placeholderState = new TerrainPlaceholderSignatureStore();
+  private disposed = false;
 
   constructor(private readonly ports: TerrainWorkflowPorts) {}
 
@@ -104,6 +105,7 @@ export class ViewportTerrainWorkflowOwner {
     create: () => Promise<HydratedBlockVisualResult>,
     provider?: BlockVisualProvider,
   ): Promise<readonly SurfaceFaceTemplate[] | undefined> {
+    if (this.disposed) return Promise.reject(new Error('Terrain workflow is disposed'));
     return this.batches.resolve(key, () => {
       const releaseProvider = provider ? this.ports.visual.acquireProviderReference(provider) : undefined;
       return Promise.resolve().then(create).then((visual) => {
@@ -112,6 +114,10 @@ export class ViewportTerrainWorkflowOwner {
         disposeObject(visual.object);
         return templates;
       }).then((templates) => {
+        if (this.disposed) {
+          if (templates) this.ports.visual.disposeTemplates(templates);
+          throw new Error('Terrain workflow was disposed during template resolution');
+        }
         if (templates) this.ports.renderer.cacheTemplates(key, templates);
         return templates;
       }).finally(() => releaseProvider?.());
@@ -119,6 +125,7 @@ export class ViewportTerrainWorkflowOwner {
   }
 
   commit(records: Iterable<TerrainSurfaceRecord>, result: TerrainApplyResult, projectionRevision = this.ports.projection.revision()): void {
+    if (this.disposed) return;
     if (projectionRevision !== this.ports.projection.revision()) return;
     const represented = new Set(result.representedKeys);
     const failed = new Set(result.failedKeys);
@@ -146,7 +153,7 @@ export class ViewportTerrainWorkflowOwner {
   }
 
   scheduleWorkflowBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockProjectionEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean, local = false, lane: HydrationLane = local ? 'local' : 'structural'): void {
-    if (!candidates.length) return;
+    if (this.disposed || !candidates.length) return;
     const projectionRevision = this.ports.projection.revision();
     const generation = this.ports.hydration.generation();
     const providerGeneration = this.ports.hydration.providerGeneration();
@@ -156,7 +163,7 @@ export class ViewportTerrainWorkflowOwner {
         affectedPositions, initial, local, lane, generation, providerGeneration,
         currentGeneration: () => this.ports.hydration.generation(),
         currentProviderGeneration: () => this.ports.hydration.providerGeneration(),
-        isDisposed: () => this.ports.projection.disposed(),
+        isDisposed: () => this.disposed || this.ports.projection.disposed(),
         projectionRevision,
         candidateProjectionRevisions: new Map(candidates.map((candidate) => [candidate.key, this.ports.projection.revisionFor(candidate.key)] as const)),
         projectionRevisionFor: (key) => this.ports.projection.revisionFor(key),
@@ -180,6 +187,7 @@ export class ViewportTerrainWorkflowOwner {
         onStale: (items, staleLane) => this.discardStale(items, staleLane as HydrationLane),
         onFailed: (items, failedLane) => this.enqueueFailed(items, failedLane as HydrationLane),
         onFinished: () => {
+          if (this.disposed) return;
           this.ports.recordProviderCacheStats();
           this.ports.scheduleRender();
           if (this.ports.hydration.queuedBlocks()) this.ports.hydration.schedule();
@@ -190,6 +198,7 @@ export class ViewportTerrainWorkflowOwner {
   }
 
   enqueueFailed(items: readonly TerrainHydrationCandidate[] | readonly string[], lane: HydrationLane = 'structural'): void {
+    if (this.disposed) return;
     const keys = items.length && typeof items[0] !== 'string' ? items.map((item) => (item as TerrainHydrationCandidate).key) : items as readonly string[];
     const candidates = new Set<string>();
     for (const key of keys) {
@@ -231,7 +240,7 @@ export class ViewportTerrainWorkflowOwner {
   reset(): void { this.batches.resetGroups(); }
   resetGroups(): void { this.reset(); }
 
-  dispose(): void { this.batches.dispose(); this.placeholderState.clear(); }
+  dispose(): void { this.disposed = true; this.batches.dispose(); this.placeholderState.clear(); }
 
   private resolveTemplates(candidate: TerrainHydrationCandidate): Promise<readonly SurfaceFaceTemplate[] | undefined> {
     return this.resolveTemplatesFor(candidate.reusableKey, () => this.ports.visual.create(candidate.provider, candidate.next.block, candidate.worldContext), candidate.provider);

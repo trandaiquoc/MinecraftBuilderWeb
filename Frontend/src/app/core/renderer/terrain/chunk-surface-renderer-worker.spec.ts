@@ -47,7 +47,7 @@ describe('chunk surface renderer worker commit path', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(group.children).toHaveLength(1);
     const oldMesh = group.children[0];
-    const changed = blockAt(1);
+    const changed = { ...first, state: { powered: 'true' } };
     expect(renderer.applyBlockChanges([{ key: key(changed), position: changed.position, before: record(first), after: record(changed), afterOpaque: true }]).pending).toBe(true);
     expect(worker.count).toBe(2);
     expect((worker as unknown as { request?: TerrainMeshWorkerRequest }).request?.job.revision).toBe(2);
@@ -85,6 +85,28 @@ describe('chunk surface renderer worker commit path', () => {
     expect(committed).toBe(true);
     expect(failed).toBe(false);
     expect(group.children[0]).not.toBe(oldMesh);
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('keeps an uncoupled pending replacement internally terminal when no callback is supplied', async () => {
+    const group = new THREE.Group();
+    const worker = new DeferredWorker();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => worker, workerCount: 1, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first = blockAt(0);
+    const record = (block: PlacedBlock): TerrainSurfaceRecord => ({ key: key(block), block, templates });
+    renderer.bulkUpsert([record(first)], [{ block: first, role: 'normal', occlusionClass: 'opaque-full-cube' }], [first.position], { initial: true });
+    worker.resolve();
+    await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const changed = { ...first, state: { powered: 'true' } };
+    expect(renderer.upsertAndCommit(record(changed))).toBe('pending');
+    worker.resolve();
+    await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(renderer.logicalBlockCount).toBe(1);
+    expect(renderer.evidence().terrainWorker.terrainWorkerRunning).toBe(0);
+
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 

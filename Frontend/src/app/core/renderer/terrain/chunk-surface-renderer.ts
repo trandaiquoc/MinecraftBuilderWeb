@@ -283,12 +283,12 @@ export class ChunkSurfaceRenderer {
     if (record.templates.length !== 6) return 'failed';
     const committed = this.upsert(record, true);
     if (committed) return 'committed';
-    if (!callbacks) return 'failed';
+    const terminalCallbacks = callbacks ?? { onCommitted: () => undefined, onFailed: () => undefined };
     const chunkKey = terrainChunkKeyForPosition(record.block.position);
     const work = this.chunkWork.get(chunkKey);
     if (!work || work.completed) return 'failed';
     const pending = this.pendingRepresentationCommitsByChunk.get(chunkKey) ?? new Map<string, TerrainRepresentationCommitCallbacks>();
-    pending.set(record.key, callbacks);
+    pending.set(record.key, terminalCallbacks);
     this.pendingRepresentationCommitsByChunk.set(chunkKey, pending);
     this.pendingRepresentationCommitChunks.set(record.key, chunkKey);
     return 'pending';
