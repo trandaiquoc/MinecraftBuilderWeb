@@ -160,12 +160,12 @@ describe('camera movement input contract', () => {
     const selectedPositions = project.blocks.map((block) => block.position);
     engine.update(project, undefined, { selectionKind: 'explicit', selectionCount: selectedPositions.length, selectedPositions });
     await settleHydration();
-    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
     internal.camera.position.set(8, 6, 8);
     internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     const projectBefore = JSON.stringify(project);
     const selectionBefore = JSON.stringify(selectedPositions);
-    const renderedBefore = [...internal.renderedBlocks.keys()].sort();
+    const renderedBefore = [...internal.blockRepresentations.keys()].sort();
     const placeholdersBefore = [...internal.placeholderIndices.keys()].sort();
     for (const action of ['move-forward', 'move-backward', 'move-left', 'move-right', 'move-up', 'move-down'] as const) {
       const before = internal.camera.position.clone();
@@ -174,7 +174,7 @@ describe('camera movement input contract', () => {
     }
     expect(JSON.stringify(project)).toBe(projectBefore);
     expect(JSON.stringify(selectedPositions)).toBe(selectionBefore);
-    expect([...internal.renderedBlocks.keys()].sort()).toEqual(renderedBefore);
+    expect([...internal.blockRepresentations.keys()].sort()).toEqual(renderedBefore);
     expect([...internal.placeholderIndices.keys()].sort()).toEqual(placeholdersBefore);
     engine.dispose();
   });
@@ -215,7 +215,7 @@ describe('camera movement input contract', () => {
     const project = rendererBenchmarkProject('small');
     engine.update(project, undefined);
     await settleHydration();
-    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void }; renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<string>, delta: number) => void };
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void }; blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<string>, delta: number) => void };
     internal.camera.position.set(8, 6, 8);
     internal.controls = { target: new THREE.Vector3(0, 0, 0), minDistance: 1, maxDistance: 100, update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     const projectBlockCount = project.blocks.length;
@@ -231,7 +231,7 @@ describe('camera movement input contract', () => {
       const directionBefore = internal.camera.getWorldDirection(new THREE.Vector3());
       const cameraBefore = internal.camera.position.clone();
       const offsetBefore = cameraBefore.clone().sub(targetBefore);
-      const renderedBefore = internal.renderedBlocks.size;
+      const renderedBefore = internal.blockRepresentations.size;
       const placeholdersBefore = internal.placeholderIndices.size;
       for (let frame = 0; frame < 8; frame += 1) internal.moveCamera(new Set(['move-right']), .05);
       const cameraDelta = internal.camera.position.clone().sub(cameraBefore);
@@ -244,7 +244,7 @@ describe('camera movement input contract', () => {
       expect(internal.camera.position.clone().sub(internal.controls.target).z).toBeCloseTo(offsetBefore.z);
       expect(internal.camera.getWorldDirection(new THREE.Vector3()).angleTo(directionBefore)).toBeCloseTo(0);
       expect(project.blocks).toHaveLength(projectBlockCount);
-      expect(internal.renderedBlocks.size).toBe(renderedBefore);
+      expect(internal.blockRepresentations.size).toBe(renderedBefore);
       expect(internal.placeholderIndices.size).toBe(placeholdersBefore);
       expect(internal.camera.position.distanceTo(targetBefore)).toBeGreaterThan(.1);
     }
@@ -336,9 +336,9 @@ describe('camera movement input contract', () => {
     engine.setVisualProvider(providerB);
     for (const resolve of pendingA) resolve(fallback());
     await settleHydration();
-    const internal = engine as unknown as { renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown> };
+    const internal = engine as unknown as { blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown> };
     expect(providerB.create).toHaveBeenCalledTimes(project.blocks.length);
-    expect(internal.renderedBlocks.size).toBe(project.blocks.length);
+    expect(internal.blockRepresentations.size).toBe(project.blocks.length);
     expect(internal.placeholderIndices.size).toBe(0);
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: project.blocks.length, percent: 100 });
     engine.dispose();
@@ -589,7 +589,7 @@ describe('camera movement input contract', () => {
     await settleHydration();
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 700, percent: 100 });
     expect(engine.hydrationDiagnostics()).toMatchObject({ queued: 0, globalRunning: 0, orphanedHydrationCount: 0 });
-    const failedEntry = (engine as unknown as { renderedBlocks: Map<string, { fallback: THREE.Mesh }> }).renderedBlocks.get('1,0,0');
+    const failedEntry = (engine as unknown as { blockRepresentations: Map<string, { fallback: THREE.Mesh }> }).blockRepresentations.get('1,0,0');
     expect(failedEntry?.fallback.userData['renderMode']).toBe('fallback');
     expect(failedEntry?.fallback.userData['diagnostics']).toEqual([expect.objectContaining({ code: 'GEOMETRY_BUILD_FAILED' })]);
     engine.dispose();
@@ -616,11 +616,11 @@ describe('camera movement input contract', () => {
     const initialCounters = engine.rendererCounters();
     expect(initialCounters.reusableTemplateCreations).toBeGreaterThan(1);
 
-    const internals = engine as unknown as { renderedBlocks: Map<string, unknown>; placeholderIndices: Map<string, unknown>; instanceBatches: Map<string, unknown>; reusableInstanceTemplates: Map<string, unknown> };
+    const internals = engine as unknown as { blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown>; instanceBatches: Map<string, unknown>; reusableInstanceTemplates: Map<string, unknown> };
     expect(internals.reusableInstanceTemplates.size).toBeGreaterThan(1);
     for (let cycle = 0; cycle < 3; cycle += 1) {
       engine.update(previousProject, undefined);
-      expect(internals.renderedBlocks.size).toBe(0);
+      expect(internals.blockRepresentations.size).toBe(0);
       expect(internals.placeholderIndices.size).toBe(0);
       expect(internals.instanceBatches.size).toBe(0);
       const emptyDiagnostics = engine.rendererOwnershipDiagnostics();
@@ -1008,7 +1008,7 @@ describe('camera movement input contract', () => {
     engine.setVisualProvider(provider);
     engine.update(project, undefined);
     await settleHydration();
-    const rendered = (engine as unknown as { renderedBlocks: Map<string, unknown> }).renderedBlocks;
+    const rendered = (engine as unknown as { blockRepresentations: Map<string, unknown> }).blockRepresentations;
     expect(rendered.has('1,1,1')).toBe(false);
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 27, blocksTotal: 27 });
 
@@ -1033,7 +1033,7 @@ describe('camera movement input contract', () => {
     engine.update(edited, undefined);
     await settleHydration();
     expect(engine.hydrationProgress()).toMatchObject({ status: 'complete', blocksCompleted: 26, blocksTotal: 26, percent: 100 });
-    const rendered = (engine as unknown as { renderedBlocks: Map<string, unknown> }).renderedBlocks;
+    const rendered = (engine as unknown as { blockRepresentations: Map<string, unknown> }).blockRepresentations;
     expect(rendered.has('1,1,1')).toBe(true);
     engine.dispose();
   });
@@ -1154,14 +1154,14 @@ describe('camera movement input contract', () => {
     const blocks = Array.from({ length: VIEWPORT_INSTANCE_THRESHOLD + 2 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 32, y: Math.floor(index / 32), z: 0 } }));
     const project = { ...base, size: { x: 32, y: 16, z: 1 }, blocks, decorations: [] };
     const engine = new ThreeViewportEngine(); engine.setRuntimeDiagnosticsEnabled(true); engine.setVisualProvider(provider); engine.update(project, undefined); await settleHydration(200, engine);
-    const internal = engine as unknown as { renderedBlocks: Map<string, { instanceBatchKey?: string; instanceIndex?: number }>; instanceBatches: Map<string, { templates: readonly { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] }>; removeBlockEntry: (key: string, entry: { instanceBatchKey?: string; instanceIndex?: number }) => void; addInstanceVisualFromTemplates: (templates: readonly { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[], block: PlacedBlock, key: string, source: 'cached-template') => { batchKey: string; index: number } | undefined };
-    const first = blocks[0]; const firstKey = coordinateKey(first.position); const entry = internal.renderedBlocks.get(firstKey)!; const oldIndex = entry.instanceIndex!;
+    const internal = engine as unknown as { blockRepresentations: Map<string, { instanceBatchKey?: string; instanceIndex?: number }>; instanceBatches: Map<string, { templates: readonly { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] }>; removeBlockEntry: (key: string, entry: { instanceBatchKey?: string; instanceIndex?: number }) => void; addInstanceVisualFromTemplates: (templates: readonly { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[], block: PlacedBlock, key: string, source: 'cached-template') => { batchKey: string; index: number } | undefined };
+    const first = blocks[0]; const firstKey = coordinateKey(first.position); const entry = internal.blockRepresentations.get(firstKey)!; const oldIndex = entry.instanceIndex!;
     const batch = internal.instanceBatches.get(entry.instanceBatchKey!)!;
     entry.instanceIndex = oldIndex + 1;
     internal.removeBlockEntry(firstKey, entry);
     expect(engine.rendererOwnershipDiagnostics().batchInvariantViolations).toEqual([]);
     expect(engine.rendererOwnershipDiagnostics().renderedBlockCount).toBe(blocks.length - 1);
-    const replacementEntry = internal.renderedBlocks.get(coordinateKey(blocks[1].position))!;
+    const replacementEntry = internal.blockRepresentations.get(coordinateKey(blocks[1].position))!;
     const inserted = internal.addInstanceVisualFromTemplates(batch.templates, blocks[1], coordinateKey(blocks[1].position), 'cached-template');
     expect(inserted).toBeDefined();
     replacementEntry.instanceBatchKey = inserted!.batchKey; replacementEntry.instanceIndex = inserted!.index;
@@ -1183,8 +1183,8 @@ describe('camera movement input contract', () => {
     const populated = { ...base, size: { x: 32, y: 16, z: 1 }, blocks, decorations: [] };
     const empty = { ...populated, blocks: [] };
     const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(populated, undefined); await settleHydration(200, engine);
-    const internal = engine as unknown as { renderedBlocks: Map<string, unknown>; instanceBatches: Map<string, unknown> };
-    internal.renderedBlocks.delete(coordinateKey(blocks[0].position));
+    const internal = engine as unknown as { blockRepresentations: Map<string, unknown>; instanceBatches: Map<string, unknown> };
+    internal.blockRepresentations.delete(coordinateKey(blocks[0].position));
     engine.update(empty, undefined);
     expect(internal.instanceBatches.size).toBe(0);
     expect(engine.rendererOwnershipDiagnostics().batchInvariantViolations).toEqual([]);
@@ -1221,16 +1221,16 @@ describe('camera movement input contract', () => {
     const provider = { create: vi.fn(async () => { const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())); return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const base = rendererBenchmarkProject('small'); const project = { ...base, blocks: base.blocks.slice(0, 12), decorations: [] };
     const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined); await settleHydration();
-    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void; renderedBlocks: Map<string, { object: THREE.Object3D }> };
+    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void; blockRepresentations: Map<string, { object: THREE.Object3D }> };
     internals.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     internals.camera.position.set(10, 8, 12); internals.controls.target.set(2, 1, 2); internals.camera.lookAt(2, 1, 2); internals.controls.update();
-    const representative = internals.renderedBlocks.values().next().value?.object;
+    const representative = internals.blockRepresentations.values().next().value?.object;
     if (!representative) throw new Error('expected hydrated mesh');
     for (let frame = 0; frame < 12; frame += 1) {
       internals.moveCamera(new Set(['move-forward' as const, frame % 2 ? 'move-right' as const : 'move-left' as const]), .04);
       const frustum = cameraFrustum(internals.camera);
       expect(frustumIntersectsObject(frustum, representative)).toBe(true);
-      expect([...internals.renderedBlocks.values()].every((entry) => entry.object.visible)).toBe(true);
+      expect([...internals.blockRepresentations.values()].every((entry) => entry.object.visible)).toBe(true);
     }
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(1);
     expect(engine.rendererCounters().cameraMovementFrames).toBe(12);
@@ -1262,8 +1262,8 @@ describe('camera movement input contract', () => {
     const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const project = rendererBenchmarkProject('stress');
     const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined);
-    const internal = engine as unknown as { placeholderIndices: Map<string, unknown>; placeholderBatches: Map<string, { mesh: THREE.InstancedMesh }>; renderedBlocks: Map<string, unknown> };
-    expect(internal.placeholderIndices.size + internal.renderedBlocks.size).toBe(project.blocks.length);
+    const internal = engine as unknown as { placeholderIndices: Map<string, unknown>; placeholderBatches: Map<string, { mesh: THREE.InstancedMesh }>; blockRepresentations: Map<string, unknown> };
+    expect(internal.placeholderIndices.size + internal.blockRepresentations.size).toBe(project.blocks.length);
     expect(internal.placeholderBatches.size).toBeLessThan(project.blocks.length);
     expect([...internal.placeholderBatches.values()].every((batch) => batch.mesh.count > 0)).toBe(true);
     engine.update(undefined, undefined);
@@ -1646,10 +1646,10 @@ describe('incremental project mutation reconciliation', () => {
     const project = { ...rendererBenchmarkProject('small'), blocks, decorations: [] };
     engine.update(project, undefined, { exposedFaceRendering: true });
     await settleHydration(40, engine);
-    const internal = engine as unknown as { renderedBlocks: Map<string, { terrainChunkKey?: string }> };
+    const internal = engine as unknown as { blockRepresentations: Map<string, { terrainChunkKey?: string }> };
     expect(engine.terrainOwnershipFor(coordinateKey(blocks[0].position))).toBeUndefined();
     expect(engine.terrainOwnershipFor(coordinateKey(blocks[1].position))).toBeUndefined();
-    expect([...internal.renderedBlocks.values()].every((entry) => entry.terrainChunkKey === undefined)).toBe(true);
+    expect([...internal.blockRepresentations.values()].every((entry) => entry.terrainChunkKey === undefined)).toBe(true);
     expect(engine.performanceEvidence().staticModelBatchedMembers).toBe(blocks.length);
     expect(engine.visibleSceneDiagnostics().representedVoxelKeys).toEqual(expect.arrayContaining(blocks.map((block) => coordinateKey(block.position))));
     engine.dispose();

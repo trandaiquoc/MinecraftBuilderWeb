@@ -107,34 +107,11 @@ import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-diff';
 import { blockRenderSignature, canonicalRenderOptions, isolateKey, renderFilterKey } from './viewport-render-signatures';
 import { stableValueKey } from '../../domain/stable-value-key';
+import { ViewportBlockRepresentationStore, type RenderedBlockEntry } from './viewport-block-representation-store';
 import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, PlacementPlanProvider } from './viewport-engine-contracts';
 type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
 export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
 
-
-interface RenderedBlockEntry {
-  readonly key: string;
-  block: ProjectDocument['blocks'][number];
-  readonly signature: string;
-  readonly role: 'normal' | 'reference' | 'missing';
-  fallback?: THREE.Mesh;
-  revision: number;
-  object?: THREE.Object3D;
-  instanceBatchKey?: string;
-  instanceIndex?: number;
-  surfaceFaceMemberships?: readonly SurfaceFaceMembership[];
-  surfaceExposedFaceCount?: number;
-  surfaceNeighborFacesCulled?: number;
-  terrainChunkKey?: string;
-  /** Provider that owns the currently committed visual/resources. */
-  provider?: BlockVisualProvider;
-  reusableVisualKey?: string;
-  staticModelAttempted?: boolean;
-  staticModelDecision?: ReturnType<StaticModelBatchRenderer['decisionFor']>;
-  staticModelFamily?: string;
-  fluidChunkKey?: string;
-  fluidFallback?: boolean;
-}
 
 interface BlockHydrationJob {
   readonly token: number;
@@ -428,7 +405,7 @@ export class ThreeViewportEngine {
     this.controlConfiguration,
     VIEWPORT_CAMERA_IDLE_GRACE_MS,
   );
-  private readonly renderedBlocks = new Map<string, RenderedBlockEntry>();
+  private readonly blockRepresentations = new ViewportBlockRepresentationStore();
   private readonly hydrationWork = new HydrationWorkCoordinator<BlockHydrationJob>({ concurrency: VIEWPORT_VISUAL_CONCURRENCY, regularReservedCapacity: 4, providerRefreshCapacity: 2 });
   private get hydrationRunning(): number { return this.hydrationWork.runningTotal(); }
   private readonly providerLifecycle = new ProviderRefreshCoordinator<BlockVisualProvider>();
@@ -451,7 +428,7 @@ export class ThreeViewportEngine {
     regionPolicy: this.renderRegionPolicy,
     unitEnvelope: unitVoxelEnvelope,
     record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
-    getEntry: (key) => this.renderedBlocks.get(key),
+    getEntry: (key) => this.blockRepresentations.get(key),
   });
   private get surfaceFaceBatches(): Map<string, SurfaceFaceBatch> { return this.surfaceRenderer.batches; }
   private get surfaceFaceOwnership(): Map<string, SurfaceFaceMembership[]> { return this.surfaceRenderer.ownership; }
@@ -510,7 +487,7 @@ export class ThreeViewportEngine {
     objectsForVoxel: (position) => {
       const key = coordinateKey(position);
       if (this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return [];
-      const entry = this.renderedBlocks.get(key);
+      const entry = this.blockRepresentations.get(key);
       const objects: THREE.Object3D[] = [];
       const add = (object: THREE.Object3D | undefined) => { if (object && !objects.some((existing) => existing.uuid === object.uuid)) objects.push(object); };
       if (entry) {
@@ -605,9 +582,9 @@ export class ThreeViewportEngine {
       stableBounds: stableChunkBounds,
       regionPolicy: this.renderRegionPolicy,
       instrumentation,
-      getEntry: (key) => this.renderedBlocks.get(key),
+      getEntry: (key) => this.blockRepresentations.get(key),
       setEntryObject: (key, batchKey, index, object) => {
-        const entry = this.renderedBlocks.get(key);
+        const entry = this.blockRepresentations.get(key);
         if (!entry) return;
         entry.instanceBatchKey = batchKey;
         entry.instanceIndex = index;
@@ -742,7 +719,7 @@ export class ThreeViewportEngine {
     this.placeholderMaterials.reference.opacity = opacity;
     this.instanceRenderer.setReferenceOpacity(opacity);
     this.terrainRenderer.setReferenceOpacity(opacity);
-    for (const entry of this.renderedBlocks.values()) {
+    for (const entry of this.blockRepresentations.values()) {
       if (entry.role !== 'reference' || !entry.object || entry.instanceBatchKey !== undefined || entry.terrainChunkKey !== undefined || entry.surfaceFaceMemberships !== undefined) continue;
       applyReferenceOpacityToObject(entry.object, opacity);
     }
@@ -821,7 +798,7 @@ export class ThreeViewportEngine {
     const previousProvider = this.visualProvider;
     const previousProviderGeneration = this.providerGeneration;
     const previousFluidEntries = !provider
-      ? [...this.renderedBlocks.values()].filter((entry) => entry.fluidChunkKey !== undefined)
+      ? [...this.blockRepresentations.values()].filter((entry) => entry.fluidChunkKey !== undefined)
       : [];
     this.visualProvider = provider;
     this.providerLifecycle.transition(previousProvider, provider);
@@ -1012,7 +989,7 @@ export class ThreeViewportEngine {
     const visible = this.yLayerProjection.hasVisibleProjection(this.project, this.renderOptions)
       ? this.yLayerProjection.visibleEntriesByKey
       : new Map(this.visibleBlocks(this.project, this.renderOptions).map((entry) => [coordinateKey(entry.block.position), entry] as const));
-    const inputs: ProviderRefreshCandidate[] = [...this.renderedBlocks].flatMap(([key, entry]) => {
+    const inputs: ProviderRefreshCandidate[] = [...this.blockRepresentations].flatMap(([key, entry]) => {
       const visibleEntry = visible.get(key);
       return visibleEntry ? [{ key, entry, visibleEntry, previousProvider, nextProvider, worldContext, visible }] : [];
     });
@@ -1081,8 +1058,8 @@ export class ThreeViewportEngine {
 
   private releaseUnusedRetiredProviders(): void {
     this.providerLifecycle.releaseUnused({
-      referenced: (provider) => [...this.renderedBlocks.values()].some((entry) => entry.provider === provider) || this.fluidCoordinator.referencedProviders().has(provider),
-      queued: (provider) => this.hydrationWork.providerRefreshJobs().some((job) => job.key && this.renderedBlocks.get(job.key)?.provider === provider),
+      referenced: (provider) => [...this.blockRepresentations.values()].some((entry) => entry.provider === provider) || this.fluidCoordinator.referencedProviders().has(provider),
+      queued: (provider) => this.hydrationWork.providerRefreshJobs().some((job) => job.key && this.blockRepresentations.get(job.key)?.provider === provider),
     });
   }
 
@@ -1120,7 +1097,7 @@ export class ThreeViewportEngine {
     if (layerProjectionOnly && project && projectionDelta.changedLayers.length) this.yLayerProjection.request(project, options, options.layerIndex ?? this.layerIndex);
     if (blockInputChanged || inPlaceBlockMutation) {
       const projectIdentityChanged = project !== structureState.project;
-      const incrementalProjectChange = projectIdentityChanged && !full && this.renderedBlocks.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
+      const incrementalProjectChange = projectIdentityChanged && !full && this.blockRepresentations.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
       if (incrementalMutation && project && mutationHint) {
         if (metadataMutation) this.applyMetadataMutation(previousProject!, previousOptions, project, options, mutationHint);
         else this.applyIncrementalMutation(project, options, mutationHint);
@@ -1252,7 +1229,7 @@ export class ThreeViewportEngine {
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
-      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.renderedBlocks.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduler.isScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
+      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.pendingHydrationSignatures.size, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.blockRepresentations.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationScheduler.isScheduled, hydrationTimerActive: this.hydrationScheduler.timerActive, currentBatchBudget: this.hydrationBatchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
       render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.length + this.decorationsGroup.children.length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain['terrainChunkMeshes'], standaloneMeshCount: 0, renderRegionCount: this.instanceBatches.size + this.surfaceFaceBatches.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationGeneration, specialVisualRevision: this.specialVisualRevision },
@@ -1282,7 +1259,7 @@ export class ThreeViewportEngine {
     if (this.staticModelDiagnosticsCache) return this.staticModelDiagnosticsCache;
     const metrics = this.instanceRenderer.metrics();
     this.staticModelDiagnosticsBuildCount += 1;
-    this.staticModelDiagnosticsCache = collectStaticModelDiagnostics([...this.renderedBlocks.values()].map((entry) => ({ ...entry, id: entry.block.id })), metrics, this.instanceRenderer.templatePartCounts());
+    this.staticModelDiagnosticsCache = collectStaticModelDiagnostics([...this.blockRepresentations.values()].map((entry) => ({ ...entry, id: entry.block.id })), metrics, this.instanceRenderer.templatePartCounts());
     return this.staticModelDiagnosticsCache;
   }
 
@@ -1300,7 +1277,7 @@ export class ThreeViewportEngine {
     if (!this.yLayerProjection.hasVisibleEntry(key)) return true;
     if (this.culledBlockKeys.has(key) || this.placeholderSignatures.has(key)) return true;
     if (this.pendingHydrationSignatures.has(key) || this.runningHydrationKeys.has(key)) return false;
-    const entry = this.renderedBlocks.get(key);
+    const entry = this.blockRepresentations.get(key);
     return !!entry && this.hasCommittedBlockOwnership(key, entry);
   }
 
@@ -1322,7 +1299,7 @@ export class ThreeViewportEngine {
     this.yLayerProjection.replaceVisible(project, options, visible);
     const allVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     const changed = new Set<string>();
-    for (const [key, entry] of this.renderedBlocks) {
+    for (const [key, entry] of this.blockRepresentations) {
       if (!allVisibleMap.has(key)) {
         changed.add(key);
         for (const neighbor of coordinateNeighbors(entry.block.position)) changed.add(coordinateKey(neighbor));
@@ -1336,7 +1313,7 @@ export class ThreeViewportEngine {
     }
     for (const entry of visible) {
       const key = coordinateKey(entry.block.position);
-      const current = this.renderedBlocks.get(key);
+      const current = this.blockRepresentations.get(key);
       const pendingSignature = this.pendingHydrationSignatures.get(key);
       const placeholderSignature = this.placeholderSignatures.get(key);
       if (full || !current || current.signature !== entry.signature || current.role !== entry.role) {
@@ -1344,7 +1321,7 @@ export class ThreeViewportEngine {
       }
     }
     if (!full) for (const key of [...changed]) {
-      const position = allVisibleMap.get(key)?.block.position ?? this.previousVisibleBlockPositions.get(key) ?? this.renderedBlocks.get(key)?.block.position;
+      const position = allVisibleMap.get(key)?.block.position ?? this.previousVisibleBlockPositions.get(key) ?? this.blockRepresentations.get(key)?.block.position;
       if (!position) continue;
       for (const neighbor of coordinateNeighbors(position)) if (allVisibleMap.has(coordinateKey(neighbor))) changed.add(coordinateKey(neighbor));
     }
@@ -1372,12 +1349,12 @@ export class ThreeViewportEngine {
       return !!next && job.signature === next.signature;
     });
     if (full) this.instrumentation.record('fullSceneRebuilds');
-    for (const [key, entry] of this.renderedBlocks) if (entry.fluidChunkKey === undefined && !visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.pendingHydrationSignatures.delete(key); this.placeholderSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
+    for (const [key, entry] of this.blockRepresentations) if (entry.fluidChunkKey === undefined && !visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.pendingHydrationSignatures.delete(key); this.placeholderSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
     for (const key of this.placeholderIndices.keys()) if (!visibleMap.has(key)) this.removePlaceholderVisual(key);
     for (const key of this.pendingHydrationSignatures.keys()) if (!visibleMap.has(key)) this.pendingHydrationSignatures.delete(key);
     for (const key of this.placeholderSignatures.keys()) if (!visibleMap.has(key)) this.placeholderSignatures.delete(key);
     for (const [key, entry] of visibleMap) {
-      const current = this.renderedBlocks.get(key);
+      const current = this.blockRepresentations.get(key);
       const pendingSignature = this.pendingHydrationSignatures.get(key);
       const placeholderSignature = this.placeholderSignatures.get(key);
       if (full || !current || current.signature !== entry.signature || current.role !== entry.role) {
@@ -1395,7 +1372,7 @@ export class ThreeViewportEngine {
     const terrainCandidates: TerrainHydrationCandidate[] = [];
     for (const key of changed) {
       const next = visibleMap.get(key); if (!next) continue;
-      const previous = this.renderedBlocks.get(key);
+      const previous = this.blockRepresentations.get(key);
       if (previous) { this.removeBlockEntry(key, previous); this.instrumentation.record('blockUpdates'); }
       else if (this.pendingHydrationSignatures.get(key) === undefined && this.placeholderSignatures.get(key) === undefined) this.instrumentation.record('blockAdds');
       if (!full) this.ensurePlaceholderVisual(key, next.block, next.role);
@@ -1412,7 +1389,7 @@ export class ThreeViewportEngine {
       this.placeholderSignatures.delete(key);
       const terrainCandidate = this.terrainCandidate(key, next, worldContext, options);
       if (terrainCandidate) {
-        this.renderedBlocks.set(key, { key, block: next.block, signature: next.signature, role: next.role, revision: 0, provider: this.visualProvider, reusableVisualKey: terrainCandidate.reusableKey });
+        this.blockRepresentations.set(key, { key, block: next.block, signature: next.signature, role: next.role, revision: 0, provider: this.visualProvider, reusableVisualKey: terrainCandidate.reusableKey });
         terrainCandidates.push(terrainCandidate);
       } else this.hydrationWork.enqueueRegular({ token: this.hydrationGeneration, projectionRevision: this.yLayerProjection.revisionForKey(key), key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && isCompiledTerrainEntry(next), surfaceVisibleEntries: allVisibleMap });
     }
@@ -1448,16 +1425,16 @@ export class ThreeViewportEngine {
     const nextKeys = new Set(records.map((record) => coordinateKey(record.block.position)));
     for (const key of this.fluidCoordinator.claimedKeys()) {
       if (nextKeys.has(key)) continue;
-      const entry = this.renderedBlocks.get(key);
-      if (entry?.fluidChunkKey !== undefined) this.renderedBlocks.delete(key);
+      const entry = this.blockRepresentations.get(key);
+      if (entry?.fluidChunkKey !== undefined) this.blockRepresentations.delete(key);
     }
     for (const record of records) {
       const key = coordinateKey(record.block.position);
       const entry = visibleByKey.get(key);
       if (!entry) continue;
-      const previous = this.renderedBlocks.get(key);
+      const previous = this.blockRepresentations.get(key);
       if (previous && previous.fluidChunkKey === undefined) this.removeBlockEntry(key, previous);
-      this.renderedBlocks.set(key, { key, block: entry.block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(entry.block.position) });
+      this.blockRepresentations.set(key, { key, block: entry.block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(entry.block.position) });
     }
     if (!records.length && !this.visualProvider?.fluidRenderResolver) this.fluidCoordinator.clear();
     const hydrationGeneration = this.hydrationGeneration;
@@ -1587,7 +1564,7 @@ export class ThreeViewportEngine {
     const terrainChanges: TerrainBlockChange[] = [];
     const allowInstancing = this.yLayerProjection.visibleEntries.length >= VIEWPORT_INSTANCE_THRESHOLD || this.instanceBatches.size > 0;
     for (const [key, change] of changes) {
-      const current = this.renderedBlocks.get(key);
+      const current = this.blockRepresentations.get(key);
       if (!change.after) {
         if (current) this.removeBlockEntry(key, current);
         else this.terrainRenderer.remove(key);
@@ -1648,11 +1625,11 @@ export class ThreeViewportEngine {
       const after = afterState ? { block: change.after!.block, state: afterState, role: change.after!.role === 'reference' ? 'reference' as const : 'normal' as const } : undefined;
       if (after) afterKeys.add(key);
       if (before || after) fluidChanges.push({ position: change.position, before, after });
-      const current = this.renderedBlocks.get(key);
+      const current = this.blockRepresentations.get(key);
       if (after) {
         if (current && current.fluidChunkKey === undefined) this.removeBlockEntry(key, current);
-        this.renderedBlocks.set(key, { key, block: after.block, signature: change.after!.signature, role: change.after!.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(after.block.position) });
-      } else if (current?.fluidChunkKey !== undefined) this.renderedBlocks.delete(key);
+        this.blockRepresentations.set(key, { key, block: after.block, signature: change.after!.signature, role: change.after!.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(after.block.position) });
+      } else if (current?.fluidChunkKey !== undefined) this.blockRepresentations.delete(key);
     }
     if (fluidChanges.length) void this.fluidCoordinator.syncDelta(fluidChanges, [...changes.values()].map((change) => change.position), worldContext, this.hydrationGeneration).then(() => { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); });
     return afterKeys;
@@ -1670,7 +1647,7 @@ export class ThreeViewportEngine {
       else {
         this.spatialIndex?.replace(before.position, after);
         if (afterVisible) this.yLayerProjection.cacheVisibleEntry(coordinateKey(after.position), this.visibleEntry(after, options));
-        const rendered = this.renderedBlocks.get(coordinateKey(after.position));
+        const rendered = this.blockRepresentations.get(coordinateKey(after.position));
         if (rendered) rendered.block = after;
       }
     }
@@ -1764,7 +1741,7 @@ export class ThreeViewportEngine {
       const [x, y, z] = key.split(',').map(Number);
       const block = this.spatialIndex?.get({ x, y, z });
       if (!block || !isBlockVisible(block, project.groups)) continue;
-      const entry = this.renderedBlocks.get(key);
+      const entry = this.blockRepresentations.get(key);
       const terrain = terrainByKey.get(key);
       const fluid = fluidByKey.get(key);
       let instanceTemplates: InstancePartTemplate[] | undefined;
@@ -1857,10 +1834,10 @@ export class ThreeViewportEngine {
       hasTexture: !!this.visualProvider?.fluidTexture,
       getBlock: (position) => this.spatialIndex?.get(position),
       getVisibleEntry: (key) => this.yLayerProjection.visibleEntry(key),
-      getRenderedEntry: (key) => this.renderedBlocks.get(key),
-      removeRenderedEntry: (key) => this.renderedBlocks.delete(key),
+      getRenderedEntry: (key) => this.blockRepresentations.get(key),
+      removeRenderedEntry: (key) => this.blockRepresentations.delete(key),
       removeBlockEntry: (key, entry) => this.removeBlockEntry(key, entry as RenderedBlockEntry),
-      setFluidEntry: (key, block, entry) => this.renderedBlocks.set(key, { key, block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(block.position) }),
+      setFluidEntry: (key, block, entry) => this.blockRepresentations.set(key, { key, block, signature: entry.signature, role: entry.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(block.position) }),
       fluidCoordinator: this.fluidCoordinator,
       worldContext,
       hydrationGeneration: this.hydrationGeneration,
@@ -1875,7 +1852,7 @@ export class ThreeViewportEngine {
     for (const key of changedKeys) {
       const next = this.yLayerProjection.visibleEntry(key);
       const renderable = !!next && (options.exposedFaceRendering === true && isTerrainRenderableEntry(next) || !this.culledBlockKeys.has(key));
-      const current = this.renderedBlocks.get(key);
+      const current = this.blockRepresentations.get(key);
       if (!renderable) {
         if (current) { this.removeBlockEntry(key, current); this.instrumentation.record('blockRemovals'); }
         if (this.placeholderIndices.has(key)) this.removePlaceholderVisual(key);
@@ -1905,12 +1882,12 @@ export class ThreeViewportEngine {
       }
       if (candidate && cachedTemplates) {
         const record: TerrainSurfaceRecord = { key, block: next!.block, templates: cachedTemplates, role: next!.role === 'reference' ? 'reference' : 'normal' };
-        this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0, provider: this.visualProvider, reusableVisualKey: candidate.reusableKey });
+        this.blockRepresentations.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0, provider: this.visualProvider, reusableVisualKey: candidate.reusableKey });
         preparedTerrainRecords.set(key, record);
         preparedTerrainCandidates.set(key, candidate);
         terrainChanges.push({ key, position: next!.block.position, after: record, afterOpaque: next!.role === 'normal' });
       } else if (candidate) {
-        this.renderedBlocks.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0 });
+        this.blockRepresentations.set(key, { key, block: next!.block, signature: next!.signature, role: next!.role, revision: 0 });
         terrainChanges.push({ key, position: next!.block.position, afterOpaque: false });
         terrainCandidates.push(candidate);
       } else {
@@ -1947,14 +1924,14 @@ export class ThreeViewportEngine {
     const represented = new Set(result.representedKeys);
     const failed = new Set(result.failedKeys);
     for (const key of failed) {
-      const current = this.renderedBlocks.get(key);
+      const current = this.blockRepresentations.get(key);
       if (!current || represented.has(key)) continue;
       current.terrainChunkKey = undefined;
       this.ensurePlaceholderVisual(key, current.block, current.role);
       if (!this.pendingHydrationSignatures.has(key)) this.placeholderSignatures.set(key, current.signature);
     }
     for (const record of records) {
-      const current = this.renderedBlocks.get(record.key);
+      const current = this.blockRepresentations.get(record.key);
       if (!current || current.signature !== this.yLayerProjection.visibleEntry(record.key)?.signature) continue;
       if (!represented.has(record.key)) continue;
       current.terrainChunkKey = chunkKey(record.block.position);
@@ -2009,7 +1986,7 @@ export class ThreeViewportEngine {
         if (result.templates) {
           this.terrainRenderer.cacheTemplates(result.reusableKey, result.templates);
           for (const candidate of result.group) {
-            const current = this.renderedBlocks.get(candidate.key);
+            const current = this.blockRepresentations.get(candidate.key);
             if (!current || current.signature !== candidate.next.signature) continue;
             usable.push({ key: candidate.key, block: candidate.next.block, templates: result.templates, role: candidate.next.role === 'reference' ? 'reference' : 'normal' });
           }
@@ -2046,7 +2023,7 @@ export class ThreeViewportEngine {
     const candidates = new Set<string>();
     for (const key of keys) {
       const next = this.yLayerProjection.visibleEntry(key);
-      const current = this.renderedBlocks.get(key);
+      const current = this.blockRepresentations.get(key);
       if (!next || !current || current.signature !== next.signature) continue;
       if (this.runningHydrationKeys.get(key) === this.hydrationGeneration) continue;
       candidates.add(key);
@@ -2169,7 +2146,7 @@ export class ThreeViewportEngine {
   private adoptCommittedBlockOwnership(entries: readonly VisibleBlockEntry[]): void {
     const candidates = entries.map((entry) => {
       const key = coordinateKey(entry.block.position);
-      const rendered = this.renderedBlocks.get(key);
+      const rendered = this.blockRepresentations.get(key);
       const committed = this.culledBlockKeys.has(key) || (!!rendered
         && rendered.signature === entry.signature
         && rendered.role === entry.role
@@ -2378,7 +2355,7 @@ export class ThreeViewportEngine {
   }
 
   private markHydrationFailure(job: BlockHydrationJob, error: unknown): void {
-    const entry = this.renderedBlocks.get(job.key);
+    const entry = this.blockRepresentations.get(job.key);
     if (!entry) return;
     const fallback = this.ensureFallbackVisual(entry);
     fallback.userData['renderMode'] = 'fallback';
@@ -2387,7 +2364,7 @@ export class ThreeViewportEngine {
   }
 
   private rollbackPartialInstanceVisual(key: string): void {
-    this.removeSurfaceFaceVisual(key, this.renderedBlocks.get(key));
+    this.removeSurfaceFaceVisual(key, this.blockRepresentations.get(key));
     this.removeOrphanedInstanceMemberships(key, 'rollback');
   }
 
@@ -2417,7 +2394,7 @@ export class ThreeViewportEngine {
       pendingSignatureCount: this.pendingHydrationSignatures.size,
       placeholderSignatureCount: this.placeholderSignatures.size,
       placeholderVisualCount: this.placeholderIndices.size,
-      renderedBlockCount: this.renderedBlocks.size,
+      renderedBlockCount: this.blockRepresentations.size,
       terrainHydrationPending: this.terrainHydrationPending,
       cameraInteractionInProgress: this.cameraGestureInProgress || this.pressedActions.size > 0,
     });
@@ -2473,7 +2450,7 @@ export class ThreeViewportEngine {
   /** Builds a changed provider visual off to the side and swaps it atomically. */
   private refreshBlockEntry(job: BlockHydrationJob, onComplete?: () => void): void {
     this.invalidateStaticModelDiagnostics();
-    const entry = this.renderedBlocks.get(job.key);
+    const entry = this.blockRepresentations.get(job.key);
     const provider = this.visualProvider;
     if (!entry || !provider) { onComplete?.(); return; }
     const generation = this.providerGeneration;
@@ -2483,7 +2460,7 @@ export class ThreeViewportEngine {
       ? this.resolveTerrainHydration(reusableKey, job.block, job.worldContext, provider)
       : this.createProviderVisual(provider, job.block, job.worldContext);
     void visualPromise.then((visual) => {
-      const current = this.renderedBlocks.get(job.key);
+      const current = this.blockRepresentations.get(job.key);
       if (generation !== this.providerGeneration || provider !== this.visualProvider || current !== entry || entry.revision !== revision) {
         if (visual.object) disposeObject(visual.object);
         return;
@@ -2498,7 +2475,7 @@ export class ThreeViewportEngine {
           this.removeBlockEntry(job.key, entry);
           if (!this.addTerrainVisual(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal')) return;
           const replacement: RenderedBlockEntry = { key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, terrainChunkKey: chunkKey(job.block.position) };
-          this.renderedBlocks.set(job.key, replacement);
+          this.blockRepresentations.set(job.key, replacement);
         }
         this.recordProviderCacheStats();
         this.scheduleRender();
@@ -2538,7 +2515,7 @@ export class ThreeViewportEngine {
         replacement.object = object;
         this.blocksGroup.add(object);
       }
-      this.renderedBlocks.set(job.key, replacement);
+      this.blockRepresentations.set(job.key, replacement);
       this.recordProviderCacheStats();
       this.releaseUnusedRetiredProviders();
       this.scheduleRender();
@@ -2558,12 +2535,12 @@ export class ThreeViewportEngine {
   private createBlockEntry(block: ProjectDocument['blocks'][number], signature: string, role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, surfaceFastPathEligible: boolean, surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockEntry>, onComplete?: () => void): void {
     this.invalidateStaticModelDiagnostics();
     const key = coordinateKey(block.position);
-    const existing = this.renderedBlocks.get(key);
+    const existing = this.blockRepresentations.get(key);
     if (existing) this.removeBlockEntry(key, existing);
     else if (this.instanceOwnershipIndex.has(key)) this.removeOrphanedInstanceMemberships(key, 'reconcile');
     this.removePlaceholderVisual(key);
     const entry: RenderedBlockEntry = { key, block, signature, role, revision: 0, provider: this.visualProvider };
-    this.renderedBlocks.set(entry.key, entry);
+    this.blockRepresentations.set(entry.key, entry);
     const providerAvailable = !!this.visualProvider && block.kind !== 'missing';
     const provider = this.visualProvider;
     const reusableKey = providerAvailable ? this.requestReusableVisualKey(provider!, block, worldContext) : undefined;
@@ -2608,7 +2585,7 @@ export class ThreeViewportEngine {
         ? this.resolveTerrainHydration(reusableKey, block, worldContext, provider!)
         : this.createProviderVisual(provider!, block, worldContext);
       void visualPromise.then((visual) => {
-        if (generation !== this.providerGeneration || this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
+        if (generation !== this.providerGeneration || this.blockRepresentations.get(entry.key) !== entry || entry.revision !== revision || fallback.parent !== this.blocksGroup) { if (visual.object) disposeObject(visual.object); return; }
         fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics]; fallback.userData['resolvedSupport'] = visual.resolved.support; fallback.userData['renderMode'] = visual.mode; fallback.userData['renderTrace'] = visual.trace;
         if (surfaceFastPathEligible && visual.terrainTemplates && reusableKey) {
           this.terrainRenderer.cacheTemplates(reusableKey, visual.terrainTemplates);
@@ -2647,7 +2624,7 @@ export class ThreeViewportEngine {
         else if (instance) { entry.instanceBatchKey = instance.batchKey; entry.instanceIndex = instance.index; entry.object = this.instanceBatches.get(instance.batchKey)!.parts[0]; entry.staticModelDecision = this.instanceRenderer.decisionFor(entry.key); disposeObject(object); }
         else { if (isReference) applyReferenceOpacityToObject(object, options.referenceOpacity ?? .28); entry.staticModelDecision = this.instanceRenderer.decisionFor(entry.key); this.blocksGroup.add(object); entry.object = object; }
         this.recordProviderCacheStats(); this.scheduleRender();
-      }).catch((error: unknown) => { if (this.renderedBlocks.get(entry.key) !== entry || entry.revision !== revision) return; this.rollbackPartialInstanceVisual(entry.key); fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
+      }).catch((error: unknown) => { if (this.blockRepresentations.get(entry.key) !== entry || entry.revision !== revision) return; this.rollbackPartialInstanceVisual(entry.key); fallback.userData['renderMode'] = 'fallback'; fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }]; this.recordProviderCacheStats(); this.scheduleRender(); }).finally(() => onComplete?.());
     } else onComplete?.();
   }
 
@@ -2712,7 +2689,7 @@ export class ThreeViewportEngine {
   }
 
   private clearSurfaceFaceResources(): void {
-    this.surfaceRenderer.clear(this.renderedBlocks.values());
+    this.surfaceRenderer.clear(this.blockRepresentations.values());
     this.terrainRenderer.clear();
   }
 
@@ -2737,7 +2714,7 @@ export class ThreeViewportEngine {
     return this.instanceRenderer.memberships(key, scanAll);
   }
 
-  private removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry = this.renderedBlocks.get(key)): void {
+  private removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry = this.blockRepresentations.get(key)): void {
     this.instanceRenderer.removeOrphaned(key, source, entry);
     if (entry) { entry.instanceBatchKey = undefined; entry.instanceIndex = undefined; }
   }
@@ -2748,14 +2725,14 @@ export class ThreeViewportEngine {
 
   /** Repairs only stale/duplicate memberships; it never rebuilds valid batches. */
   private reconcileInstanceOwnership(): void {
-    this.instanceRenderer.reconcile(this.renderedBlocks);
+    this.instanceRenderer.reconcile(this.blockRepresentations);
   }
 
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
     this.invalidateStaticModelDiagnostics();
     entry.revision += 1;
     if (entry.fluidChunkKey !== undefined) {
-      if (this.renderedBlocks.get(key) === entry) this.renderedBlocks.delete(key);
+      if (this.blockRepresentations.get(key) === entry) this.blockRepresentations.delete(key);
       return;
     }
     if (entry.terrainChunkKey !== undefined || this.terrainRenderer.has(key)) this.terrainRenderer.remove(key);
@@ -2767,7 +2744,7 @@ export class ThreeViewportEngine {
       if (entry.object && entry.object !== entry.fallback) disposeObject(entry.object);
       if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
     }
-    if (this.renderedBlocks.get(key) === entry) this.renderedBlocks.delete(key);
+    if (this.blockRepresentations.get(key) === entry) this.blockRepresentations.delete(key);
     this.traceInstanceOwnership('after-remove-entry', key, 'reconcile', entry);
   }
 
@@ -2784,7 +2761,7 @@ export class ThreeViewportEngine {
 
 
   private clearPersistentVisuals(): void {
-    for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry);
+    for (const [key, entry] of this.blockRepresentations) this.removeBlockEntry(key, entry);
     this.fluidCoordinator.clear();
     this.releaseUnusedRetiredProviders();
     this.decorationVisuals.clear();
@@ -2968,7 +2945,7 @@ export class ThreeViewportEngine {
     this.groupHighlightPresenter.dispose();
     this.decorationGhostPresenter.dispose();
     this.decorationSelectionPresenter.dispose();
-    this.renderedBlocks.clear();
+    this.blockRepresentations.clear();
     this.structureBlockGuidePresenter.dispose();
     this.blockGhostPresenter.dispose();
     this.movePreviewPresenter.dispose();
@@ -2997,20 +2974,20 @@ export class ThreeViewportEngine {
   visibleSceneDiagnostics(): VisibleSceneDiagnostics {
     const expected = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
     const expectedKeys = [...new Set(expected.map((entry) => coordinateKey(entry.block.position)))];
-    return collectVisibleSceneDiagnostics({ expectedKeys, renderedKeys: this.renderedBlocks.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingKeys: this.pendingHydrationSignatures.keys() });
+    return collectVisibleSceneDiagnostics({ expectedKeys, renderedKeys: this.blockRepresentations.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingKeys: this.pendingHydrationSignatures.keys() });
   }
 
   ownershipDiagnostics(): readonly ViewportVoxelOwnershipDiagnostic[] {
     const expected = this.project ? new Set(this.visibleBlocks(this.project, this.renderOptions).map((entry) => coordinateKey(entry.block.position))) : new Set<string>();
     const queued = new Set(this.hydrationWork.regularJobs().map((job) => job.key));
-    return collectOwnershipDiagnostics({ expectedKeys: expected, renderedKeys: this.renderedBlocks.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingSignatures: this.pendingHydrationSignatures, queuedKeys: queued, runningKeys: this.runningHydrationKeys });
+    return collectOwnershipDiagnostics({ expectedKeys: expected, renderedKeys: this.blockRepresentations.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingSignatures: this.pendingHydrationSignatures, queuedKeys: queued, runningKeys: this.runningHydrationKeys });
   }
 
   private traceInstanceOwnership(phase: ViewportInstanceOwnershipEvent['phase'], key?: string, source?: ViewportInstanceOwnershipEvent['source'], entry?: RenderedBlockEntry): void {
     if (!this.runtimeDiagnosticsEnabled) return;
     const physicalMemberships = key ? this.instanceMemberships(key) : [];
     const previousEntry = entry && (entry.instanceBatchKey !== undefined || entry.instanceIndex !== undefined) ? { ...(entry.instanceBatchKey !== undefined ? { batchKey: entry.instanceBatchKey } : {}), ...(entry.instanceIndex !== undefined ? { index: entry.instanceIndex } : {}) } : undefined;
-    const violations = key ? collectInstanceOwnershipViolationsForKey({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.renderedBlocks, runtimeChecks: this.runtimeDiagnosticsEnabled }, key) : collectInstanceOwnershipViolations({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.renderedBlocks, runtimeChecks: this.runtimeDiagnosticsEnabled });
+    const violations = key ? collectInstanceOwnershipViolationsForKey({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.blockRepresentations, runtimeChecks: this.runtimeDiagnosticsEnabled }, key) : collectInstanceOwnershipViolations({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.blockRepresentations, runtimeChecks: this.runtimeDiagnosticsEnabled });
     this.instanceOwnershipTrace.push({ phase, ...(key ? { key } : {}), ...(source ? { source } : {}), generation: this.hydrationGeneration, ...(previousEntry ? { previousEntry } : {}), physicalMemberships, violations });
     if (this.instanceOwnershipTrace.length > 256) this.instanceOwnershipTrace.shift();
   }
@@ -3046,7 +3023,7 @@ export class ThreeViewportEngine {
       ],
       projectBlockCount: this.project?.blocks.length ?? 0,
       expectedKeys: new Set(expected.map((entry) => coordinateKey(entry.block.position))),
-      renderedEntries: this.renderedBlocks,
+      renderedEntries: this.blockRepresentations,
       placeholderIndices: this.placeholderIndices,
       pendingSignatures: this.pendingHydrationSignatures,
       placeholderSignatures: this.placeholderSignatures,
@@ -3081,8 +3058,8 @@ export class ThreeViewportEngine {
   }
 
   performanceEvidence(): ViewportPerformanceEvidence {
-    const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.renderedBlocks.values(), renderedDecorations: this.decorationVisuals.values() });
-    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.renderedBlocks.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.culledBlockKeys.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
+    const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.blockRepresentations.values(), renderedDecorations: this.decorationVisuals.values() });
+    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.blockRepresentations.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.culledBlockKeys.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
   }
 
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
@@ -3103,7 +3080,7 @@ export class ThreeViewportEngine {
       if (entry.block.kind === 'missing') {
         if (this.missingBlocksTerminal) permanentMissingBlocks += 1;
         else provisionalMissingBlocks += 1;
-      } else if (this.culledBlockKeys.has(key) || (this.renderedBlocks.get(key) && this.hasCommittedBlockOwnership(key, this.renderedBlocks.get(key)!))) finalReadyBlocks += 1;
+      } else if (this.culledBlockKeys.has(key) || (this.blockRepresentations.get(key) && this.hasCommittedBlockOwnership(key, this.blockRepresentations.get(key)!))) finalReadyBlocks += 1;
     }
     const expectedBlocks = this.yLayerProjection.visibleEntries.length;
     return { ...progress, finalization: { expectedBlocks, finalReadyBlocks, provisionalMissingBlocks, permanentMissingBlocks, pendingBlocks: Math.max(0, expectedBlocks - finalReadyBlocks - provisionalMissingBlocks - permanentMissingBlocks) } };
@@ -3141,7 +3118,7 @@ export class ThreeViewportEngine {
       for (const entry of visibleEntries) {
         const key = coordinateKey(entry.block.position);
         if (this.culledBlockKeys.has(key)) continue;
-        const rendered = this.renderedBlocks.get(key);
+        const rendered = this.blockRepresentations.get(key);
       const isFinal = !!rendered && (rendered.terrainChunkKey !== undefined || rendered.surfaceFaceMemberships !== undefined || rendered.object !== undefined && rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback?.userData['renderMode'] !== undefined);
         if (entry.block.kind === 'missing' || isFinal || queuedKeys.has(key) || this.runningHydrationKeys.get(key) === this.hydrationGeneration) continue;
         if (this.pendingHydrationSignatures.has(key) || this.placeholderSignatures.has(key) || this.placeholderIndices.has(key) || !!rendered) {
@@ -3164,7 +3141,7 @@ export class ThreeViewportEngine {
       pendingSignatureCount: this.pendingHydrationSignatures.size,
       placeholderSignatureCount: this.placeholderSignatures.size,
       placeholderVisualCount: this.placeholderIndices.size,
-      renderedBlockCount: this.renderedBlocks.size,
+      renderedBlockCount: this.blockRepresentations.size,
       expectedVisibleBlockCount,
       runningOwnershipCount: this.runningHydrationKeys.size,
       runningByGeneration,
