@@ -16,7 +16,8 @@ import { GroupService } from '../../../core/editor/groups/group.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { HistoryService } from '../../../core/editor/history/history.service';
-import { isEditableKeyboardTarget, isMovementAction, KeyboardAction, MovementAction, movementPhysicalKey, MovementKeyOwnership, shouldSuppressEditorActionDuringMovement } from '../../../core/editor/input/keyboard-bindings';
+import { isEditableKeyboardTarget, isMovementAction, KeyboardAction, movementPhysicalKey } from '../../../core/editor/input/keyboard-bindings';
+import { EditorMovementInputSession } from '../../../core/editor/input/editor-movement-input-session';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
@@ -40,8 +41,6 @@ import { StructureJsonExportDialogComponent } from '../structure-json/structure-
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
 import type { ViewportPerformanceEvidence } from '../../../core/renderer/engine/three-viewport-engine';
-
-export const AMBIGUOUS_RELEASE_GRACE_MS = 150;
 
 export function hasEditorSelectionState(decorationSelected: boolean, logicalCount: number, boxSelected: boolean): boolean {
   return decorationSelected || logicalCount > 0 || boxSelected;
@@ -124,9 +123,11 @@ export class EditorShellComponent implements OnDestroy {
   private previousActiveGroupId: string | undefined;
   private moveDrag?: { readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: PanelPosition };
   private sidebarDrag?: { readonly side: 'left' | 'right'; readonly pointerId: number; readonly startX: number; readonly origin: number };
-  private readonly pressedMovementActions = new MovementKeyOwnership();
-  private keyboardStreamState: 'synchronized' | 'uncertain' = 'synchronized';
-  private ambiguousReleaseTimer?: ReturnType<typeof setTimeout>;
+  private readonly movementInput = new EditorMovementInputSession({
+    movementDown: (action) => this.currentViewport()?.cameraKeyDown(action),
+    movementUp: (action) => this.currentViewport()?.cameraKeyUp(action),
+    clearMovement: () => this.currentViewport()?.clearCameraInput(),
+  });
 
   constructor() {
     void this.workspace.restore(new IndexedDbProjectStore());
@@ -347,28 +348,11 @@ export class EditorShellComponent implements OnDestroy {
     }
     const action = this.keyboard.actionForEvent(event); if (!action) return;
     if (isMovementAction(action)) {
-      const owner = movementPhysicalKey(event);
-      if (!owner) {
-        this.invalidateMovementSession();
-        event.preventDefault();
-        return;
-      }
-      this.cancelAmbiguousRelease();
-      const previous = this.pressedMovementActions.actionFor(owner);
-      if (previous === action) {
-        event.preventDefault();
-        return;
-      }
-      if (previous) this.releaseMovementOwner(owner, previous);
-      const hadActionOwner = this.pressedMovementActions.hasAction(action);
-      this.pressedMovementActions.press(owner, action);
-      this.keyboardStreamState = 'synchronized';
-      const emitted = !hadActionOwner;
-      if (emitted) this.currentViewport()?.cameraKeyDown(action);
+      this.movementInput.keyDown(action, movementPhysicalKey(event));
       event.preventDefault();
       return;
     }
-    if (action === 'delete-selection' && (this.keyboardStreamState === 'uncertain' || shouldSuppressEditorActionDuringMovement(action, this.pressedMovementActions))) {
+    if (action === 'delete-selection' && this.movementInput.shouldSuppressDestructiveAction()) {
       event.preventDefault();
       return;
     }
@@ -378,16 +362,7 @@ export class EditorShellComponent implements OnDestroy {
 
   protected handleEditorKeyup(event: KeyboardEvent): void {
     const key = movementPhysicalKey(event);
-    if (!key) {
-      this.scheduleAmbiguousRelease();
-      if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
-      return;
-    }
-    this.cancelAmbiguousRelease();
-    this.keyboardStreamState = 'synchronized';
-    const action = this.pressedMovementActions.actionFor(key);
-    if (!action) return;
-    this.releaseMovementOwner(key, action);
+    this.movementInput.keyUp(key);
     if (!isEditableKeyboardTarget(event.target)) event.preventDefault();
   }
 
@@ -396,31 +371,7 @@ export class EditorShellComponent implements OnDestroy {
   protected handleWindowBlur(_event?: FocusEvent): void { this.clearPressedMovementActions(); }
 
   protected clearPressedMovementActions(): void {
-    this.cancelAmbiguousRelease();
-    this.pressedMovementActions.clear();
-    this.currentViewport()?.clearCameraInput();
-    this.keyboardStreamState = 'synchronized';
-  }
-
-  private releaseMovementOwner(owner: string, action: MovementAction): void {
-    this.pressedMovementActions.release(owner);
-    if (!this.pressedMovementActions.hasAction(action)) this.currentViewport()?.cameraKeyUp(action);
-  }
-
-  private invalidateMovementSession(): void { this.keyboardStreamState = 'uncertain'; this.pressedMovementActions.clear(); this.currentViewport()?.clearCameraInput(); }
-  private scheduleAmbiguousRelease(): void {
-    this.keyboardStreamState = 'uncertain';
-    if (this.ambiguousReleaseTimer !== undefined) clearTimeout(this.ambiguousReleaseTimer);
-    this.ambiguousReleaseTimer = setTimeout(() => {
-      this.ambiguousReleaseTimer = undefined;
-      if (this.pressedMovementActions.ownerCount() > 0) this.clearPressedMovementActions();
-      else this.keyboardStreamState = 'synchronized';
-    }, AMBIGUOUS_RELEASE_GRACE_MS);
-  }
-  private cancelAmbiguousRelease(): void {
-    if (this.ambiguousReleaseTimer === undefined) return;
-    clearTimeout(this.ambiguousReleaseTimer);
-    this.ambiguousReleaseTimer = undefined;
+    this.movementInput.clear();
   }
   private changeEditorMode(mode: '3d' | 'y-layer'): void { if (this.mode.mode() === mode) return; this.clearPressedMovementActions(); this.mode.setMode(mode); }
 

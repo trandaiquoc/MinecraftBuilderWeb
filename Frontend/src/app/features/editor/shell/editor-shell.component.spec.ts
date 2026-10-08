@@ -2,7 +2,8 @@ import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AMBIGUOUS_RELEASE_GRACE_MS, EditorShellComponent } from './editor-shell.component';
+import { EditorShellComponent } from './editor-shell.component';
+import { AMBIGUOUS_RELEASE_GRACE_MS } from '../../../core/editor/input/editor-movement-input-session';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
 import { StructureEditorService } from '../../../core/editor/structure/structure-editor.service';
@@ -118,7 +119,7 @@ describe('editor shell movement/delete routing', () => {
 
     expect(calls.down.mock.calls.map(([action]) => action)).toEqual(['move-forward', 'move-left', 'move-right', 'move-forward', 'move-left', 'move-left', 'move-left']);
     expect(calls.up.mock.calls.map(([action]) => action)).toEqual(['move-right', 'move-forward', 'move-left', 'move-left', 'move-forward', 'move-left', 'move-left']);
-    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    expect((fixture.componentInstance as unknown as { movementInput: { ownerCount: () => number } }).movementInput.ownerCount()).toBe(0);
     fixture.destroy();
   });
 
@@ -137,11 +138,11 @@ describe('editor shell movement/delete routing', () => {
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', shiftKey: true, cancelable: true }));
     shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Shift', code: 'ShiftLeft', cancelable: true }));
     shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'a', code: 'KeyA', cancelable: true }));
-    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    expect((fixture.componentInstance as unknown as { movementInput: { ownerCount: () => number } }).movementInput.ownerCount()).toBe(0);
 
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: '', cancelable: true }));
     shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'a', code: 'KeyA', cancelable: true }));
-    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    expect((fixture.componentInstance as unknown as { movementInput: { ownerCount: () => number } }).movementInput.ownerCount()).toBe(0);
     fixture.destroy();
   });
 
@@ -154,12 +155,12 @@ describe('editor shell movement/delete routing', () => {
     shell.handleWindowBlur();
     expect(calls.clear).toHaveBeenCalledTimes(1);
     expect(calls.up).not.toHaveBeenCalled();
-    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    expect((fixture.componentInstance as unknown as { movementInput: { ownerCount: () => number } }).movementInput.ownerCount()).toBe(0);
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', cancelable: true }));
     shell.handleEditorShortcut(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', cancelable: true }));
     shell.handleVisibilityChange();
     expect(calls.clear).toHaveBeenCalledTimes(2);
-    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    expect((fixture.componentInstance as unknown as { movementInput: { ownerCount: () => number } }).movementInput.ownerCount()).toBe(0);
     fixture.destroy();
   });
 
@@ -172,12 +173,12 @@ describe('editor shell movement/delete routing', () => {
     for (let index = 0; index < 8; index += 1) shell.handleEditorKeyup(new KeyboardEvent('keyup', { key: 'Unidentified', code: '', cancelable: true }));
     expect(calls.down.mock.calls.map(([action]) => action)).toEqual(['move-left']);
     expect(calls.clear).not.toHaveBeenCalled();
-    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(1);
+    expect((fixture.componentInstance as unknown as { movementInput: { ownerCount: () => number } }).movementInput.ownerCount()).toBe(1);
     vi.advanceTimersByTime(AMBIGUOUS_RELEASE_GRACE_MS - 1);
     expect(calls.clear).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(calls.clear).toHaveBeenCalledTimes(1);
-    expect((fixture.componentInstance as unknown as { pressedMovementActions: { ownerCount: () => number } }).pressedMovementActions.ownerCount()).toBe(0);
+    expect((fixture.componentInstance as unknown as { movementInput: { ownerCount: () => number } }).movementInput.ownerCount()).toBe(0);
     fixture.destroy();
   });
 
