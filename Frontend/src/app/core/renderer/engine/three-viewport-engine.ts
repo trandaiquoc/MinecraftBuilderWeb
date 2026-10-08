@@ -70,9 +70,10 @@ import { nextCameraDistanceFromWheel, wheelMagnitude, type WheelZoomAction } fro
 import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
+import { collectRendererOwnershipDiagnostics } from '../diagnostics/renderer-ownership-diagnostics';
 import { collectInstanceOwnershipViolations, collectInstanceOwnershipViolationsForKey } from '../diagnostics/instance-ownership-diagnostics';
 import { captureViewportGhostSceneSnapshot } from '../diagnostics/viewport-snapshot-diagnostics';
-import type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTransitionDiagnostics, ViewportGhostSceneSnapshot, ViewportHydrationDiagnostics, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics, ViewportPerformanceEvidence, ViewportProjectionState, ViewportRuntimeDiagnostics, ViewportSuspiciousVisualDiagnostic, ViewportVisibleMeshDiagnostic, ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../diagnostics/viewport-diagnostics-contracts';
+import type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTransitionDiagnostics, ViewportGhostSceneSnapshot, ViewportHydrationDiagnostics, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics, ViewportPerformanceEvidence, ViewportProjectionState, ViewportRuntimeDiagnostics, ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../diagnostics/viewport-diagnostics-contracts';
 export type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTransitionDiagnostics, ViewportGhostSceneSnapshot, ViewportHydrationDiagnostics, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics, ViewportPerformanceEvidence, ViewportProjectionState, ViewportRuntimeDiagnostics, ViewportSuspiciousVisualDiagnostic, ViewportVisibleMeshDiagnostic, ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../diagnostics/viewport-diagnostics-contracts';
 import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
 import { collectPerformanceEvidence } from '../diagnostics/viewport-performance-evidence';
@@ -3009,227 +3010,55 @@ export class ThreeViewportEngine {
 
   rendererOwnershipDiagnostics(): ViewportOwnershipDiagnostics {
     const expected = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
-    const expectedKeys = new Set(expected.map((entry) => coordinateKey(entry.block.position)));
-    const staleKeys = new Set<string>();
-    const addStale = (key: string): void => { if (!expectedKeys.has(key)) staleKeys.add(key); };
-    for (const key of this.renderedBlocks.keys()) addStale(key);
-    for (const key of this.placeholderIndices.keys()) addStale(key);
-    for (const key of this.pendingHydrationSignatures.keys()) addStale(key);
-    for (const key of this.placeholderSignatures.keys()) addStale(key);
-    for (const job of this.hydrationWork.regularJobs()) addStale(job.key);
-    for (const key of this.runningHydrationKeys.keys()) addStale(key);
-
-    const batchInvariantViolations: string[] = [...collectInstanceOwnershipViolations({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.renderedBlocks, runtimeChecks: this.runtimeDiagnosticsEnabled })];
-    let instanceMemberCount = 0;
-    for (const [batchKey, batch] of this.instanceBatches) {
-      instanceMemberCount += batch.keys.length;
-      for (const key of batch.keys) addStale(key);
-      for (const part of batch.parts) {
-        const voxels = part.userData['instanceVoxels'] as unknown;
-        if (Array.isArray(voxels)) for (const voxel of voxels) if (voxel && typeof voxel === 'object' && typeof (voxel as VoxelCoordinate).x === 'number') addStale(coordinateKey(voxel as VoxelCoordinate));
-      }
-    }
-
-    let placeholderVisualCount = 0;
-    for (const batch of this.placeholderBatches.values()) {
-      placeholderVisualCount += batch.keys.length;
-      if (batch.keys.length !== batch.positions.length || batch.mesh.count !== batch.keys.length) batchInvariantViolations.push(`${batch.key}: placeholder length/count mismatch`);
-      for (const key of batch.keys) addStale(key);
-    }
-
-    const outsideBlocksGroupOwners: string[] = [];
-    const outsideMeshSample: ViewportVisibleMeshDiagnostic[] = [];
-    const insideMeshSample: ViewportVisibleMeshDiagnostic[] = [];
-    const suspiciousVisuals: ViewportSuspiciousVisualDiagnostic[] = [];
-    let suspiciousVisualCount = 0;
-    let visibleMeshCount = 0;
-    const projectBlockCount = this.project?.blocks.length ?? 0;
-    const isVisibleInScene = (object: THREE.Object3D): boolean => {
-      for (let current: THREE.Object3D | null = object; current; current = current.parent) if (!current.visible) return false;
-      return true;
+    const ghostTarget = this.ghostTarget;
+    const previewState = {
+      ghostVisible: this.ghost.visible,
+      ghostModelPresent: !!this.ghostModel,
+      ghostModelVisible: !!this.ghostModel?.visible,
+      ghostModelKey: this.ghostModelKey,
+      ghostGeneration: this.ghostGeneration,
+      ...(ghostTarget ? { ghostTarget: { ...ghostTarget } } : {}),
+      movePreviewChildren: this.movePreviewGroup.children.length,
+      decorationGhostChildren: this.decorationGhostGroup.children.length,
+      logicalSelectionChildren: this.logicalSelectionGroup.children.length,
+      selectionOutlineVisible: this.selectionOutline.visible,
+      reusableTemplateCount: this.instanceRenderer.templates().length,
     };
-    const voxelFromObject = (object: THREE.Object3D): string | undefined => {
-      const voxel = object.userData['voxel'] as VoxelCoordinate | undefined;
-      return voxel && typeof voxel.x === 'number' && typeof voxel.y === 'number' && typeof voxel.z === 'number' ? coordinateKey(voxel) : undefined;
-    };
-    const isOwnedByBlocksGroup = (object: THREE.Object3D): boolean => {
-      for (let current = object.parent; current; current = current.parent) if (current === this.blocksGroup) return true;
-      return false;
-    };
-    const sceneRoot = (object: THREE.Object3D): THREE.Object3D => {
-      let root = object;
-      // Keep the canonical project children as diagnostic owners even though
-      // they now sit below the dedicated canonical root.
-      while (root.parent && root.parent !== this.scene && root.parent !== this.canonicalRoot) root = root.parent;
-      return root;
-    };
-    const sceneOwner = (object: THREE.Object3D): string => {
-      const root = sceneRoot(object);
-      const known: readonly [THREE.Object3D | undefined, string][] = [
-        [this.blocksGroup, 'blocksGroup'], [this.decorationsGroup, 'decorationsGroup'], [this.ghost, 'ghost'],
-        [this.ghostModel, 'ghostModel'], [this.movePreviewGroup, 'movePreviewGroup'], [this.decorationGhostGroup, 'decorationGhostGroup'],
-        [this.decorationSelectionGroup, 'decorationSelectionGroup'], [this.logicalSelectionGroup, 'logicalSelectionGroup'], [this.structureBlockGuideGroup, 'structureBlockGuide'],
-        [this.projectGrid, 'projectGrid'], [this.ground, 'ground'], [this.editingPlane, 'editingPlane'], [this.boundsBox, 'boundsBox'],
-        [this.selectionOutline, 'selectionOutline'], [this.selectionBox, 'selectionBox'], [this.isolationPresentation.root, 'groupIsolationPresentation'],
-      ];
-      if (root === this.blocksGroup) {
-        if (object instanceof THREE.InstancedMesh && object.userData['placeholder'] === true) return 'placeholderBatches';
-        if (object instanceof THREE.InstancedMesh && object.userData['instanceBatchKey'] !== undefined) return 'instanceBatches';
-        const key = voxelFromObject(object);
-        if (key && this.renderedBlocks.get(key)?.fallback === object) return 'fallback mesh';
-      }
-      return known.find(([candidate]) => candidate === root)?.[1] ?? (root.name || root.type);
-    };
-    const diagnosticValue = (value: unknown): unknown => {
-      if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
-      if (Array.isArray(value)) return value.slice(0, 8).map(diagnosticValue);
-      if (typeof value === 'object') {
-        const record = value as Record<string, unknown>;
-        if (typeof record['x'] === 'number' && typeof record['y'] === 'number' && typeof record['z'] === 'number') return { x: record['x'], y: record['y'], z: record['z'] };
-        if (typeof record['id'] === 'string') return { id: record['id'], state: diagnosticValue(record['state']) };
-        return `[${(value as object).constructor?.name ?? 'Object'}]`;
-      }
-      return String(value);
-    };
-    const materialDiagnostics = (material: THREE.Material): ViewportVisibleMeshDiagnostic['materials'][number] => {
-      const textured = material as THREE.Material & { readonly map?: THREE.Texture; readonly opacity?: number };
-      const texture = textured.map;
-      const textureImage = texture?.image as { readonly src?: string; readonly currentSrc?: string; readonly name?: string } | undefined;
-      return {
-        uuid: material.uuid,
-        type: material.type,
-        visible: material.visible,
-        opacity: textured.opacity ?? 1,
-        ...(texture ? { texture: { uuid: texture.uuid, sourceUuid: texture.source.uuid, ...(textureImage?.currentSrc || textureImage?.src || textureImage?.name ? { sourceIdentity: textureImage.currentSrc || textureImage.src || textureImage.name } : {}) } } : {}),
-      };
-    };
-    const directSceneChildren = this.scene.children.map((child) => ({ owner: sceneOwner(child), uuid: child.uuid, visible: child.visible, childCount: child.children.length }));
-    const isDescendantOf = (object: THREE.Object3D, ancestor: THREE.Object3D | undefined): boolean => {
-      for (let current: THREE.Object3D | null = object; current; current = current.parent) if (current === ancestor) return true;
-      return false;
-    };
-    this.scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh) || !isVisibleInScene(object)) return;
-      const materials = (Array.isArray(object.material) ? object.material : [object.material]).map(materialDiagnostics);
-      if (materials.every((material) => !material.visible || material.opacity <= 0)) return;
-      if (object instanceof THREE.InstancedMesh && object.count === 0) return;
-      visibleMeshCount += 1;
-      const owner = sceneOwner(object);
-      const ownedByBlocksGroup = isOwnedByBlocksGroup(object);
-      const isIsolationPresentationMesh = owner === 'groupIsolationPresentation';
-      if (!ownedByBlocksGroup && !isIsolationPresentationMesh) {
-        outsideBlocksGroupOwners.push(`${owner}/${object.type}:${object.uuid}`);
-        const key = voxelFromObject(object); if (key) addStale(key);
-      }
-      if (projectBlockCount === 0) {
-        const intentionalPreview = (owner === 'ghostModel' || owner === 'ghost') && this.ghost.visible && !!this.ghostTarget && !!this.activeBlock
-          || owner === 'movePreviewGroup' && !!this.renderOptions.groupMovePreview
-          || owner === 'decorationGhostGroup' && !!this.renderOptions.activeDecoration;
-        const knownBlockOwner = owner === 'blocksGroup' || owner === 'instanceBatches' || owner === 'placeholderBatches' || owner === 'fallback mesh';
-        const knownNonBlockOwner = ['decorationsGroup', 'decorationSelectionGroup', 'structureBlockGuide', 'projectGrid', 'ground', 'editingPlane', 'boundsBox', 'selectionOutline', 'selectionBox', 'logicalSelectionGroup'].includes(owner);
-        let reason: string | undefined;
-        if (knownBlockOwner) reason = 'Block-renderer mesh remains while the project has zero blocks';
-        else if ((owner === 'ghostModel' || owner === 'ghost') && !intentionalPreview) reason = 'Visible placement ghost has no active placement target';
-        else if (owner === 'movePreviewGroup' && !intentionalPreview) reason = 'Group-move preview mesh remains without an active move preview';
-        else if (owner === 'decorationGhostGroup' && !intentionalPreview) reason = 'Decoration preview mesh remains without an active decoration';
-        else if (!knownNonBlockOwner && !intentionalPreview) reason = 'Visible mesh remains under a non-authoritative scene owner';
-        if (reason) {
-          suspiciousVisualCount += 1;
-          if (suspiciousVisuals.length < 24) {
-            object.updateWorldMatrix(true, false);
-            const bounds = new THREE.Box3().setFromObject(object);
-            suspiciousVisuals.push({ owner, uuid: object.uuid, reason, intentionalPreview: false, position: vectorValue(object.getWorldPosition(new THREE.Vector3())), worldBounds: { min: vectorValue(bounds.min), max: vectorValue(bounds.max) } });
-          }
-        }
-      }
-      const sample = ownedByBlocksGroup ? insideMeshSample : outsideMeshSample;
-      if (sample.length >= 24) return;
-      object.updateWorldMatrix(true, false);
-      const parentPath: ViewportVisibleMeshDiagnostic['parentPath'][number][] = [];
-      for (let current: THREE.Object3D | null = object; current; current = current.parent) {
-        parentPath.push({ type: current.type, name: current.name, uuid: current.uuid, visible: current.visible });
-        if (current === this.scene) break;
-      }
-      const directSceneRoot = sceneOwner(sceneRoot(object));
-      const worldPosition = object.getWorldPosition(new THREE.Vector3());
-      if (object instanceof THREE.InstancedMesh) object.computeBoundingBox();
-      const worldBounds = new THREE.Box3().setFromObject(object);
-      const instanceData = object instanceof THREE.InstancedMesh ? {
-        count: object.count,
-        ...(typeof object.userData['instanceBatchKey'] === 'string' ? { batchKey: object.userData['instanceBatchKey'] as string } : {}),
-        instanceKeys: Array.isArray(object.userData['instanceKeys']) ? (object.userData['instanceKeys'] as unknown[]).slice(0, 6).map(String) : [],
-        instanceVoxels: Array.isArray(object.userData['instanceVoxels']) ? (object.userData['instanceVoxels'] as unknown[]).slice(0, 6).flatMap((value) => value && typeof value === 'object' && typeof (value as VoxelCoordinate).x === 'number' ? [{ x: (value as VoxelCoordinate).x, y: (value as VoxelCoordinate).y, z: (value as VoxelCoordinate).z }] : []) : [],
-        worldPositions: Array.from({ length: Math.min(object.count, 6) }, (_, index) => {
-          const instanceMatrix = new THREE.Matrix4(); object.getMatrixAt(index, instanceMatrix);
-          return vectorValue(new THREE.Vector3().setFromMatrixPosition(instanceMatrix).applyMatrix4(object.matrixWorld));
-        }),
-      } : undefined;
-      sample.push({
-        owner,
-        directSceneRoot,
-        objectType: object.type,
-        uuid: object.uuid,
-        visible: object.visible,
-        parentPath: parentPath.reverse(),
-        localPosition: vectorValue(object.position),
-        worldPosition: vectorValue(worldPosition),
-        worldBounds: { min: vectorValue(worldBounds.min), max: vectorValue(worldBounds.max) },
-        matrixWorld: object.matrixWorld.toArray(),
-        renderOrder: object.renderOrder,
-        descendantsOf: {
-          blocksGroup: isDescendantOf(object, this.blocksGroup), ghostModel: isDescendantOf(object, this.ghostModel), ghost: isDescendantOf(object, this.ghost),
-          movePreviewGroup: isDescendantOf(object, this.movePreviewGroup), decorationGhostGroup: isDescendantOf(object, this.decorationGhostGroup),
-          decorationSelectionGroup: isDescendantOf(object, this.decorationSelectionGroup), logicalSelectionGroup: isDescendantOf(object, this.logicalSelectionGroup),
-        },
-        geometry: { uuid: object.geometry.uuid, type: object.geometry.type },
-        materials,
-        userData: Object.fromEntries(Object.entries(object.userData).map(([key, value]) => [key, diagnosticValue(value)])),
-        ...(object instanceof THREE.InstancedMesh ? { instanceCount: object.count, instances: instanceData } : {}),
-      });
-    });
-
-    return {
-      authoritativeVisibleBlockCount: expectedKeys.size,
-      authoritativeProjectBlockCount: this.project?.blocks.length ?? 0,
-      renderedBlockCount: this.renderedBlocks.size,
-      placeholderVisualCount,
-      instanceBatchCount: this.instanceBatches.size,
-      instanceMemberCount,
-      placeholderBatchCount: this.placeholderBatches.size,
-      placeholderIndexCount: this.placeholderIndices.size,
-      blocksGroupChildCount: this.blocksGroup.children.length,
-      blockLikeSceneObjectsOutsideBlocksGroup: outsideBlocksGroupOwners.length,
-      visibleMeshesOutsideBlocksGroup: outsideBlocksGroupOwners.length,
-      staleVoxelKeys: [...staleKeys].sort(),
-      batchInvariantViolations,
-      outsideBlocksGroupOwners,
-      visibleMeshCount,
-      visibleMeshSample: [...outsideMeshSample, ...insideMeshSample].slice(0, 32),
-      visibleMeshesOutsideBlocksGroupSample: outsideMeshSample,
-      suspiciousVisualCount,
-      suspiciousVisuals,
-      directSceneChildren,
-      previewState: {
-        ghostVisible: this.ghost.visible,
-        ghostModelPresent: !!this.ghostModel,
-        ghostModelVisible: !!this.ghostModel?.visible,
-        ghostModelKey: this.ghostModelKey,
-        ghostGeneration: this.ghostGeneration,
-        ...(this.ghostTarget ? { ghostTarget: { ...this.ghostTarget } } : {}),
-        movePreviewChildren: this.movePreviewGroup.children.length,
-        decorationGhostChildren: this.decorationGhostGroup.children.length,
-        logicalSelectionChildren: this.logicalSelectionGroup.children.length,
-        selectionOutlineVisible: this.selectionOutline.visible,
-        reusableTemplateCount: this.instanceRenderer.templates().length,
-      },
-      hydrationState: {
+    return collectRendererOwnershipDiagnostics({
+      scene: this.scene,
+      canonicalRoot: this.canonicalRoot,
+      roots: [
+        { object: this.blocksGroup, name: 'blocksGroup' }, { object: this.decorationsGroup, name: 'decorationsGroup' },
+        { object: this.ghost, name: 'ghost' }, { object: this.ghostModel, name: 'ghostModel' },
+        { object: this.movePreviewGroup, name: 'movePreviewGroup' }, { object: this.decorationGhostGroup, name: 'decorationGhostGroup' },
+        { object: this.decorationSelectionGroup, name: 'decorationSelectionGroup' }, { object: this.logicalSelectionGroup, name: 'logicalSelectionGroup' },
+        { object: this.structureBlockGuideGroup, name: 'structureBlockGuide' }, { object: this.projectGrid, name: 'projectGrid' },
+        { object: this.ground, name: 'ground' }, { object: this.editingPlane, name: 'editingPlane' }, { object: this.boundsBox, name: 'boundsBox' },
+        { object: this.selectionOutline, name: 'selectionOutline' }, { object: this.selectionBox, name: 'selectionBox' },
+        { object: this.isolationPresentation.root, name: 'groupIsolationPresentation' },
+      ],
+      projectBlockCount: this.project?.blocks.length ?? 0,
+      expectedKeys: new Set(expected.map((entry) => coordinateKey(entry.block.position))),
+      renderedEntries: this.renderedBlocks,
+      placeholderIndices: this.placeholderIndices,
+      pendingSignatures: this.pendingHydrationSignatures,
+      placeholderSignatures: this.placeholderSignatures,
+      queuedKeys: this.hydrationWork.regularJobs().map((job) => job.key),
+      runningKeys: this.runningHydrationKeys,
+      instanceBatches: this.instanceBatches.values(),
+      instanceOwnershipIndex: this.instanceOwnershipIndex,
+      placeholderBatches: this.placeholderBatches.values(),
+      runtimeChecks: this.runtimeDiagnosticsEnabled,
+      preview: previewState,
+      previewActivity: { activeBlock: !!this.activeBlock, groupMoveActive: !!this.renderOptions.groupMovePreview, decorationActive: !!this.renderOptions.activeDecoration },
+      hydration: {
         queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(),
         running: this.hydrationRunning,
         pendingSignatureCount: this.pendingHydrationSignatures.size,
         placeholderSignatureCount: this.placeholderSignatures.size,
         runningOwnershipCount: this.runningHydrationKeys.size,
       },
-    };
+    });
   }
 
   private captureGhostSceneSnapshot(): ViewportGhostSceneSnapshot {
