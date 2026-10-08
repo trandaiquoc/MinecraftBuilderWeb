@@ -1007,11 +1007,7 @@ export class ThreeViewportEngine {
     const visible = this.yLayerProjection.hasVisibleProjection(this.project, this.renderOptions)
       ? this.yLayerProjection.visibleEntriesByKey
       : new Map(this.visibleBlocks(this.project, this.renderOptions).map((entry) => [coordinateKey(entry.block.position), entry] as const));
-    const inputs: ProviderRefreshCandidate[] = [...this.blockRepresentations].flatMap(([key, entry]) => {
-      const visibleEntry = visible.get(key);
-      return visibleEntry ? [{ key, entry, visibleEntry, previousProvider, nextProvider, worldContext, visible }] : [];
-    });
-    this.providerRefreshPipeline.refresh(inputs, {
+    this.providerRefreshPipeline.refreshRepresentations([...this.blockRepresentations], visible, (key, entry, visibleEntry) => ({ key, entry, visibleEntry, previousProvider, nextProvider, worldContext, visible }), {
       isMissing: (candidate) => candidate.entry.block.kind === 'missing',
       isFluid: (candidate) => candidate.entry.fluidChunkKey !== undefined || this.fluidCoordinator.isClaimed(candidate.key),
       reusableKey: (candidate, provider) => this.requestReusableVisualKey(provider, candidate.entry.block, candidate.worldContext),

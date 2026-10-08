@@ -129,6 +129,20 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
     }, options);
   }
 
+  refreshRepresentations<E, V>(
+    representations: Iterable<[string, E]>,
+    visible: ReadonlyMap<string, V>,
+    createInput: (key: string, entry: E, visibleEntry: V) => TInput,
+    options: Parameters<ViewportProviderRefreshPipeline<P, TInput, TJob>['refresh']>[1],
+  ): number {
+    const inputs: TInput[] = [];
+    for (const [key, entry] of representations) {
+      const visibleEntry = visible.get(key);
+      if (visibleEntry) inputs.push(createInput(key, entry, visibleEntry));
+    }
+    return this.refresh(inputs, options);
+  }
+
   completeJob(generation: number | undefined, callbacks: { readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void; readonly onStateChange?: () => void }): void {
     if (generation !== this.currentPlanGeneration || !this.activeProgress) return;
     this.activeProgress.completed = Math.min(this.activeProgress.total, this.activeProgress.completed + 1);
