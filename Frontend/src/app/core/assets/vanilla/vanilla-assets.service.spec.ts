@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
-import type { VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-geometry';
+import type { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
 import { VanillaAssetsService } from './vanilla-assets.service';
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));

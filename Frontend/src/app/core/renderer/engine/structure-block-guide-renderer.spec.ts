@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { rendererBenchmarkProject } from '../benchmark/renderer-benchmark-fixtures';
 import { ThreeViewportEngine } from './three-viewport-engine';
-import type { BlockVisualProvider } from '../geometry/block-model-geometry';
+import type { BlockVisualProvider } from '../geometry/vanilla-block-visual-provider';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 
 describe('Structure Block guide renderer', () => {

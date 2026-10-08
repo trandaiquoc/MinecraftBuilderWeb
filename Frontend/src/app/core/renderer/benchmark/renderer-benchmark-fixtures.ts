@@ -2,7 +2,7 @@ import { PlacedDecoration } from '../../decorations/decoration.types';
 import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import * as THREE from 'three';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
-import { VanillaBlockVisualProvider } from '../geometry/block-model-geometry';
+import { VanillaBlockVisualProvider } from '../geometry/vanilla-block-visual-provider';
 
 export type RendererBenchmarkSize = 'small' | 'medium' | 'large' | 'stress' | 'mega';
 

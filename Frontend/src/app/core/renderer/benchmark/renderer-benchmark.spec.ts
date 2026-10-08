@@ -4,7 +4,7 @@ import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from './renderer-benchmark-fixtures';
 import { interiorOpaqueFullCubeKeys } from '../visibility/interior-occlusion';
 import type { OcclusionEntry } from '../visibility/interior-occlusion';
-import type { BlockVisualProvider } from '../geometry/block-model-geometry';
+import type { BlockVisualProvider } from '../geometry/vanilla-block-visual-provider';
 
 describe('renderer incremental baseline', () => {
   it('benchmarks conservative interior culling for a deterministic 48 cubed stone volume', () => {

@@ -2,7 +2,7 @@ import { computed, effect, Injectable, inject, signal } from '@angular/core';
 import { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { PlaceableItemDefinition, previewBlocksForItem } from '../../blocks/placement-palette/placeable-item';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
-import { PerspectiveThumbnailResult, VanillaBlockVisualProvider } from '../../renderer/geometry/block-model-geometry';
+import { PerspectiveThumbnailResult, VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
 import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
 import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from './vanilla-asset-provider';
 import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';

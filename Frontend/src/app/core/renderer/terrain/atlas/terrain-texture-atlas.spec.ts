@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { VanillaAssetProvider } from '../../../assets/vanilla/vanilla-asset-provider';
-import { VanillaBlockVisualProvider } from '../../geometry/block-model-geometry';
+import { VanillaBlockVisualProvider } from '../../geometry/vanilla-block-visual-provider';
 import type { PlacedBlock } from '../../../domain/project.types';
 import { TerrainTextureAtlas, remapTerrainUvs, sampleAtlasUv } from './terrain-texture-atlas';
 
