@@ -4,7 +4,7 @@ import type { ResolvedBlockModel, ResolvedModelPart } from '../../blocks/resolve
 import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
 import { itemVisualResource, resolveItemVisual } from './item-visual-resolver';
-import type { SpecialBlockVisualRegistry } from './special-block-visuals';
+import type { SpecialBlockVisualRegistry } from './special-block-visual-registry';
 import type { BlockVisualResult, PerspectiveThumbnailResult } from './block-visual-provider-contract';
 import { stableBlockVisualKey } from './stable-block-visual-key';
 

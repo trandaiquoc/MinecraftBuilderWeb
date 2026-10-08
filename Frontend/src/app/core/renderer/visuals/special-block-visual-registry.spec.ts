@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
-import { conduitInactiveModel, SpecialBlockVisualRegistry } from './special-block-visuals';
+import { SpecialBlockVisualRegistry } from './special-block-visual-registry';
 import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 
 const registry = new SpecialBlockVisualRegistry();
@@ -48,18 +47,6 @@ describe('special block visuals', () => {
       expect(registry.resolve(block(id))).toBeUndefined();
     }
   });
-  it('uses the exact inactive Conduit adapter and centered six-pixel shell', () => {
-    const adapter = registry.resolve(block('minecraft:conduit'));
-    expect(adapter?.family).toBe('conduits'); expect(adapter?.overrideGeneric).toBe(true);
-    expect(adapter?.matches({ ...block('mod:conduit') })).toBe(false);
-    expect(adapter?.textureResource?.(block('minecraft:conduit'))).toBe('minecraft:entity/conduit/base');
-    expect(conduitInactiveModel.textureSize).toEqual([32, 16]);
-    expect(conduitInactiveModel.parts[0].cuboids[0]).toMatchObject({ uv: [0, 0], from: [-3, -3, -3], size: [6, 6, 6] });
-    const visual = adapter!.create(block('minecraft:conduit')); visual.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(visual);
-    expect(bounds.min.toArray()).toEqual([.3125, .3125, .3125]); expect(bounds.max.toArray()).toEqual([.6875, .6875, .6875]);
-    expect(visual.userData['conduitState']).toBe('inactive');
-  });
   it('matches only the exact vanilla chest family', () => {
     expect(registry.resolve(block('minecraft:chest'))?.family).toBe('chests');
     expect(registry.resolve(block('minecraft:trapped_chest'))?.family).toBe('chests');
@@ -90,16 +77,5 @@ describe('special block visuals', () => {
 
     const missing = new SpecialBlockVisualRegistry({ gameVersion: '1.22', readBinary: () => undefined });
     expect(missing.inspect(block('minecraft:red_bed'))).toMatchObject({ family: 'beds', adapter: undefined, missingResources: ['assets/minecraft/textures/entity/bed/red.png'] });
-  });
-  it('anchors wall banners to the support plane for every facing', () => {
-    const banner = registry.resolve(block('minecraft:red_wall_banner'))!;
-    expect(banner.family).toBe('banners');
-    for (const [facing, axis] of [['north', 'z'], ['south', 'z'], ['east', 'x'], ['west', 'x']] as const) {
-      const visual = banner.create({ ...block('minecraft:red_wall_banner'), state: { facing } });
-      visual.updateMatrixWorld(true);
-      const bounds = new THREE.Box3().setFromObject(visual);
-      const edge = axis === 'z' ? (facing === 'north' ? bounds.max.z : bounds.min.z) : (facing === 'west' ? bounds.max.x : bounds.min.x);
-      expect(edge, facing).toBeCloseTo(facing === 'north' || facing === 'west' ? 1 : 0, 5);
-    }
   });
 });

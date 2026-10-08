@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, compileInstanceTemplates, surfaceFaceDirectionFromHit, surfaceFaceNormal, translateVisualToVoxel } from './three-viewport-engine';
 import type { InstancePartTemplate } from './three-viewport-engine';
-import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
+import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from '../benchmark/renderer-benchmark-fixtures';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';

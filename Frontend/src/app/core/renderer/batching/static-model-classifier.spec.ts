@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { classifyStaticModel } from './static-model-classifier';
-import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
+import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 
 describe('static model classifier', () => {
   it('accepts reusable models whose envelope is smaller than one voxel', () => {

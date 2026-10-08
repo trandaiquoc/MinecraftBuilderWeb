@@ -3,7 +3,7 @@ import { PlacedBlock } from '../../domain/project.types';
 import { BlockModelResolver, ResolvedBlockModel, ResolvedElement, ResolvedFace, ResolvedModelPart } from '../../blocks/resolver';
 import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
 import { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
-import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
+import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';
 import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
 import { createFluidGeometry } from '../fluids/fluid-geometry';
