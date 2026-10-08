@@ -293,9 +293,9 @@ Examples:
 
 Do not fabricate Minecraft rules or asset data to finish a task.
 
-## 20. Do Not Do Automatically
+## 20. Scope-Specific Defaults
 
-Do not automatically:
+For ordinary feature or bug-fix work, do not automatically:
 
 - create backend code;
 - introduce NgRx;
@@ -307,4 +307,28 @@ Do not automatically:
 - add a dependency just to avoid writing a small, clear utility;
 - optimize before correctness is established.
 
-When such a change is justified, explain the reason and keep it scoped.
+When an architecture/clean-code refactor is explicitly requested, the feature
+defaults above are not blockers. Audit the full requested frontend scope first,
+inventory every confirmed violation and affected consumer, and create an
+acceptance matrix. Then allow all necessary production files, tests, contracts,
+dependencies, and directory moves to change so the responsibility boundary is
+actually complete. Do not impose arbitrary file/line/commit limits, and do not
+declare PASS after fixing only selected hotspots.
+
+The refactor must be substantive: the new owner must own the algorithm,
+mutable state, resource lifecycle, and cancellation/disposal contract. Merely
+moving code while leaving a giant callback/context bag or the authoritative
+mutable state in the old owner is not completion. Remove duplicate legacy
+paths after parity coverage and update every consumer required by the new
+boundary.
+
+Preserve all existing safety and product constraints in either mode: public
+contracts, Minecraft behavior, resource ownership, deterministic cleanup,
+performance above 100,000 blocks, retained 3D/Y lifecycle, accessibility,
+themes, and tests. Architecture PASS requires a final source audit plus
+automated evidence for every acceptance-matrix item; passing tests alone is
+insufficient. Do not omit or self-narrow a fixable violation merely to keep a
+change small.
+
+When such a change is justified, explain the reason and keep unrelated product
+features out of the refactor.

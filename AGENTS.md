@@ -55,19 +55,39 @@ If an external format, framework behavior, or Minecraft behavior is uncertain, s
 
 ## 4. Mandatory Working Method
 
+First classify the requested work:
+
+- **Feature/bug fix:** prefer the smallest coherent change that completes the
+  requested behavior. Keep edits within the affected responsibility boundary
+  and do not modify unrelated code.
+- **Architecture/clean-code refactor:** when the user explicitly requests
+  responsibility, ownership, dependency, filesystem, or architecture
+  cleanup, the complete boundary is the scope. Do not limit the work by a
+  fixed file count, line count, or commit count. Update every affected
+  dependency, consumer, test, contract, and directory needed to complete the
+  refactor, including code that must move or be deleted.
+
 Before modifying unfamiliar code:
 
 1. Inspect the relevant files and surrounding implementation.
-2. Identify the data flow affected by the task.
-3. Identify the smallest set of files that actually needs modification.
+2. Identify the data flow, mutable state, resources, dependencies, and
+   consumers affected by the task.
+3. For an architecture/clean-code refactor, audit the whole requested scope,
+   create an inventory of responsibility/ownership violations, and define an
+   acceptance matrix before editing. Do not inspect only a few hotspots and
+   claim architecture completion.
 4. Reuse existing project utilities before creating new abstractions.
-5. Make the smallest coherent change that completes the task.
-6. Run the relevant build, tests, type checks, or validation after meaningful changes.
-7. Report what changed and any unresolved issues.
+5. Make the smallest coherent change for feature/bug work, or the complete
+   responsibility-boundary change for an explicitly requested architecture
+   refactor.
+6. Run the relevant build, tests, type checks, or validation after meaningful
+   changes.
+7. Perform a final source audit against the inventory and acceptance matrix,
+   then report what changed and any unresolved issues.
 
-Do not modify unrelated code.
-
-Do not perform broad refactors while implementing an unrelated feature.
+The feature/bug-fix scope rule does not restrict an explicitly requested
+architecture/clean-code refactor. In either mode, preserve behavior and do
+not invent unrelated product work.
 
 Do not introduce a new framework, state-management system, architectural layer, or infrastructure dependency unless:
 - the repository already uses it for the relevant purpose, or
@@ -92,7 +112,7 @@ When a task can be completed with existing platform/library capabilities, do not
 
 ## 6. Dependency Rules
 
-Before adding a dependency:
+Before adding a dependency for feature/bug-fix work:
 
 1. Check whether the project already has a suitable solution.
 2. Confirm the dependency is actively maintained.
@@ -102,7 +122,11 @@ Before adding a dependency:
 
 Do not replace an existing dependency merely because another library is more popular.
 
-When an important dependency has not yet been approved, stop and ask before adding it.
+For an explicitly requested architecture/clean-code refactor, a dependency may
+be added, replaced, or removed when the scope audit proves it is required for
+the target boundary. Record the reason and validate compatibility; do not let
+the feature-mode approval rule block that refactor. An unrelated dependency is
+still out of scope.
 
 ## 7. Coding Rules
 
@@ -287,6 +311,18 @@ Use one implementation path after a replacement has demonstrated regression
 parity; do not retain duplicate legacy paths indefinitely. Do not introduce an
 abstraction only to reduce line count, and do not duplicate one domain rule in
 multiple modules.
+
+For an explicitly requested architecture/clean-code refactor, responsibility
+separation must be substantive: moving code to another file is insufficient if
+the old owner still controls the algorithm, mutable state, resource lifecycle,
+or a giant callback/context bag. Extract the authoritative owner and narrow
+the boundary contracts, then update all consumers and remove obsolete shims
+after regression parity is established.
+
+Architecture PASS requires both source-audit evidence and automated-test
+evidence. Green tests alone do not prove that ownership, dependency direction,
+duplicate state, legacy paths, or giant context bags have been resolved. Do not
+silently narrow the requested architecture scope to avoid a fixable violation.
 
 Generic behavior algorithms must depend on capabilities, contracts, or verified
 evidence. Concrete registry IDs are valid only when identity is itself the
