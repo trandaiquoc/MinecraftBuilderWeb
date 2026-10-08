@@ -1,3 +1,5 @@
+import { evaluateMinecraftRequirement } from './minecraft-version-predicate';
+
 export type SupportedModLoader = 'fabric' | 'forge' | 'neoforge' | 'quilt' | 'unknown';
 
 export type ModCompatibilityStatus = 'compatible' | 'incompatible' | 'unknown';
@@ -6,6 +8,22 @@ export interface ModCompatibilityResult {
   readonly status: ModCompatibilityStatus;
   readonly reason: string;
   readonly expression?: string | readonly string[];
+}
+
+export interface FabricModMetadata {
+  readonly id: string;
+  readonly displayName: string;
+  readonly version: string;
+  readonly minecraftCompatibility?: string | readonly string[];
+  readonly description?: string;
+  readonly depends?: Readonly<Record<string, unknown>>;
+  readonly recommends?: Readonly<Record<string, unknown>>;
+  readonly suggests?: Readonly<Record<string, unknown>>;
+  readonly breaks?: Readonly<Record<string, unknown>>;
+  readonly conflicts?: Readonly<Record<string, unknown>>;
+  readonly environment?: string;
+  readonly icon?: string;
+  readonly jars?: readonly unknown[];
 }
 
 export interface NormalizedModMetadata {
@@ -74,6 +92,14 @@ export function normalizeFabricMetadata(value: unknown): NormalizedModMetadata {
   };
 }
 
+export function assessFabricCompatibility(expression: string | readonly string[] | undefined, version: string): ModCompatibilityStatus {
+  return evaluateMinecraftRequirement(expression, version).status;
+}
+
+export function parseFabricModMetadata(value: unknown): FabricModMetadata {
+  return legacyFabricMetadata(normalizeFabricMetadata(value));
+}
+
 function dependencyValue(value: unknown): string | readonly string[] | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (Array.isArray(value) && value.every((entry) => typeof entry === 'string' && entry.trim())) return value.map((entry) => (entry as string).trim());
@@ -85,3 +111,19 @@ function safeIcon(value: unknown): string | undefined {
 }
 function stringValue(value: unknown): string | undefined { return typeof value === 'string' && value.trim() ? value.trim() : undefined; }
 function record(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+
+export function legacyFabricMetadata(value: NormalizedModMetadata): FabricModMetadata {
+  return {
+    id: value.modId,
+    displayName: value.displayName,
+    version: value.modVersion,
+    ...(value.minecraftRequirement ? { minecraftCompatibility: value.minecraftRequirement } : {}),
+    ...(value.description ? { description: value.description } : {}),
+    depends: value.runtimeDependencies,
+    breaks: value.breaks,
+    conflicts: value.conflicts,
+    environment: value.environment,
+    icon: value.icon,
+    jars: value.nestedJars,
+  };
+}

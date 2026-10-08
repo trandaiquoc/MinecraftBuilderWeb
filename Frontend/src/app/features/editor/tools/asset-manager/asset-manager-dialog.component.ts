@@ -4,7 +4,7 @@ import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
 import { LucideArrowLeft, LucideArrowRight, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX } from '@lucide/angular';
 import { VanillaAssetsService, ImportedModSummary } from '../../../../core/assets/vanilla/vanilla-assets.service';
 import { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
-import type { ModImportDiagnostic, ModImportReport } from '../../../../core/assets/mod/external-mod-provider';
+import type { ModImportDiagnostic, ModImportReport } from '../../../../core/assets/mod/external-mod-import-contracts';
 import { ModSupportCatalog, ModSupportCertification } from '../../../../core/assets/mod/mod-support-catalog';
 import { SupportedModLoader } from '../../../../core/assets/mod/mod-loader';
 import { AssetActivityEntry, AssetActivityProgress } from '../../../../core/assets/asset-activity.service';

@@ -11,7 +11,9 @@ import { loadVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-re
 import { loadVanillaItemRegistry, VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 import { JarImportSource, providerFromBundle } from '../bundle/asset-bundle';
 import { ContentSourceRegistry, PreparedContentSource } from '../content-source/content-source-registry';
-import { ExternalModProvider, ModImportDiagnostic, ModImportReport } from '../mod/external-mod-provider';
+import { ExternalModProvider } from '../mod/external-mod-provider';
+import type { ModImportDiagnostic, ModImportReport, SerializedExternalMod } from '../mod/external-mod-import-contracts';
+import type { ExternalCatalogProgress } from '../mod/external-mod-catalog-builder';
 import { commitModImport, inspectModJar, ModImportProgress, PreparedModImport } from '../mod/external-mod-importer';
 import { MojangVanillaAssetSource, VanillaDownloadProgress } from './mojang-vanilla-asset-source';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
@@ -402,7 +404,7 @@ export class VanillaAssetsService {
   }
 
   private async restoreExternalMods(version: string, signal?: AbortSignal): Promise<void> {
-    let stored: readonly import('../mod/external-mod-provider').SerializedExternalMod[] = [];
+    let stored: readonly SerializedExternalMod[] = [];
     try { stored = await this.cache.loadExternalMods(signal); } catch (error) { if (isAbortError(error) || signal?.aborted) throw error; this.contentRestore.set({ phase: 'partial', current: 0, total: 0, failed: 1 }); return; }
     throwIfAborted(signal);
     const total = stored.length;

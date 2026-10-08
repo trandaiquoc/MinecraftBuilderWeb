@@ -1,17 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CooperativeWorkBudget } from '../cooperative-yield';
-import { assessFabricCompatibility, ExternalModProvider, parseFabricModMetadata } from './external-mod-provider';
+import { ExternalModProvider } from './external-mod-provider';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { BlockRuleEngine } from '../../block-behavior/rules/block-rule-engine';
 
 const blockstate = { variants: { 'powered=false': { model: 'example:block/widget' }, 'powered=true': { model: 'example:block/widget' } } };
 
 describe('ExternalModProvider', () => {
-  it('keeps Fabric compatibility conservative across project versions', () => {
-    expect(assessFabricCompatibility('1.21.x', '1.21.1')).toBe('compatible');
-    expect(assessFabricCompatibility('1.20.6', '1.21.1')).toBe('incompatible');
-    expect(assessFabricCompatibility('[1.20,1.22)', '1.21.1')).toBe('compatible');
-  });
   it('parses Fabric metadata and keeps source identity separate from namespaces', () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'example', name: 'Example Mod', version: '1.2.3', depends: { minecraft: '1.21.x' } },
@@ -117,12 +112,6 @@ describe('ExternalModProvider', () => {
     const definition = provider.catalog().blocks[0]!;
     expect(definition.behavior).toBeUndefined();
     expect(definition.behaviorSupport).toBe('unknown');
-  });
-
-  it('rejects malformed or invalid Fabric metadata', () => {
-    expect(() => parseFabricModMetadata({ version: '1.0.0' })).toThrow(/mod id/);
-    expect(() => parseFabricModMetadata({ id: 'bad id', version: '1.0.0' })).toThrow(/invalid mod id/);
-    expect(() => parseFabricModMetadata({ id: 'valid', version: '' })).toThrow(/version/);
   });
 
   it('serializes and restores normalized resources', () => {

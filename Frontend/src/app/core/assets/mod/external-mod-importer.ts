@@ -1,6 +1,9 @@
 import { ZipArchive } from '../archive/zip-archive';
-import { ExternalModProvider, isModConflictDiagnostic, ModImportDiagnostic, ModImportReport, SupportedModLoader } from './external-mod-provider';
-import { detectLoader, NormalizedModMetadata } from './mod-loader';
+import { ExternalModProvider } from './external-mod-provider';
+import { isModConflictDiagnostic } from './external-mod-import-contracts';
+import type { ModImportDiagnostic, ModImportReport } from './external-mod-import-contracts';
+import { detectLoader } from './mod-loader';
+import type { NormalizedModMetadata, SupportedModLoader } from './mod-loader';
 import { yieldToBrowser } from '../cooperative-yield';
 import { validateJarUpload } from './jar-upload-validation';
 import { createPhaseWatchdog, throwIfAborted } from './mod-import-cancellation';

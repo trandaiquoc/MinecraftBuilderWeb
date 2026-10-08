@@ -1,5 +1,6 @@
 import { SerializedVanillaAssets, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from '../vanilla/vanilla-asset-provider';
-import { SerializedExternalMod, EXTERNAL_MOD_CACHE_SCHEMA_VERSION } from '../mod/external-mod-provider';
+import { EXTERNAL_MOD_CACHE_SCHEMA_VERSION } from '../mod/external-mod-import-contracts';
+import type { SerializedExternalMod } from '../mod/external-mod-import-contracts';
 import { throwIfAborted, createAbortError } from '../mod/mod-import-cancellation';
 
 const DATABASE_NAME = 'minecraft-builder-assets';
