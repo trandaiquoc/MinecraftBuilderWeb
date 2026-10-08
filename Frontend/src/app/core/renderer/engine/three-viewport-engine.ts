@@ -34,8 +34,9 @@ import { normalizeBlockBrightness, viewportLightingForBrightness, ViewportLighti
 import { applyBlockBrightnessToMaterial, applyBlockBrightnessToObject, applyStructureGuideBrightnessToObject, setBlockBrightnessBaseColor, STRUCTURE_GUIDE_BRIGHTNESS } from './block-brightness';
 import { FaceLockedSelectionPlane, FreeSpaceSelectionPlane, freeSpaceSelectionPlane } from '../../editor/selection/selection';
 import { structureBlockGuidePosition } from './structure-block-guide';
-import { coordinateNeighbors, hasConfirmedOpaqueNeighbors } from '../visibility/interior-occlusion';
+import { coordinateNeighbors } from '../visibility/interior-occlusion';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
+import { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-index';
 import { fluidCoordinateFromHit } from '../interaction/viewport-raycast-controller';
@@ -460,7 +461,7 @@ export class ThreeViewportEngine {
   private readonly raycastController = new ViewportRaycastController(this.raycaster, {
     classify: (position) => {
       const key = coordinateKey(position); const entry = this.yLayerProjection.visibleEntry(key);
-      if (!entry || this.culledBlockKeys.has(key) || this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return 'skip';
+      if (!entry || this.interiorCulling.has(key) || this.isolationPresentation.isActive() && !this.isolatedKeys.has(key)) return 'skip';
       return entry.role === 'normal' && entry.occlusionClass === 'opaque-full-cube' ? 'hit' : 'fallback';
     },
     objectsForVoxel: (position) => {
@@ -495,7 +496,7 @@ export class ThreeViewportEngine {
   private runtimeObservedProjectBlockCount = 0;
   private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
-  private readonly culledBlockKeys = new Set<string>();
+  private readonly interiorCulling = new ViewportInteriorCullingOwner((name, delta = 1) => this.instrumentation.record(name, delta));
   private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
   private readonly missingBlockAccounting = new MissingBlockAccountingOwner();
   private get missingBlocksTerminal(): boolean { return this.missingBlockAccounting.isTerminal; }
@@ -1307,7 +1308,7 @@ export class ThreeViewportEngine {
 
   private isProjectionKeySettled(key: string): boolean {
     if (!this.yLayerProjection.hasVisibleEntry(key)) return true;
-    if (this.culledBlockKeys.has(key) || this.placeholderSignatures.has(key)) return true;
+    if (this.interiorCulling.has(key) || this.placeholderSignatures.has(key)) return true;
     if (this.hydrationPipeline.hasPendingSignature(key) || this.hydrationPipeline.hasRunningOwnership(key)) return false;
     const entry = this.blockRepresentations.get(key);
     return !!entry && this.hasCommittedBlockOwnership(key, entry);
@@ -1319,7 +1320,7 @@ export class ThreeViewportEngine {
     if (full) this.instrumentation.record('fullReconcileFallbacks');
     if (!project) {
       this.clearPersistentVisuals();
-      this.culledBlockKeys.clear();
+      this.interiorCulling.clear();
       this.previousVisibleBlockPositions.clear();
       this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
       return;
@@ -1362,14 +1363,14 @@ export class ThreeViewportEngine {
     // Initial terrain occupancy is committed together with the first bulk
     // terrain batch. Incremental edits retain the existing conservative sync.
     if (!full) this.terrainRenderer.syncOccupancy(visible, terrainAffectedPositions);
-    this.updateInteriorCulling(visible, full, changed);
+    this.interiorCulling.updateFull(visible, full, changed, this.previousVisibleBlockPositions);
     // Culling is a terminal ownership family even when it intentionally has
     // no RenderedBlockEntry. Adopt only after the current culling state exists.
     this.adoptCommittedBlockOwnership(visible);
     const renderVisible = visible.filter((entry) => {
       if (this.fluidCoordinator.isClaimed(coordinateKey(entry.block.position))) return false;
       if (options.exposedFaceRendering === true && isTerrainRenderableEntry(entry)) return true;
-      return !this.culledBlockKeys.has(coordinateKey(entry.block.position));
+      return !this.interiorCulling.has(coordinateKey(entry.block.position));
     });
     // Once a large scene has established instance batches, keep incremental
     // removals in that representation even when the remaining visible set is
@@ -1592,7 +1593,7 @@ export class ThreeViewportEngine {
 
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const fluidKeys = this.syncProjectionFluidDelta(changes, worldContext);
-    this.updateInteriorCullingDelta(changes);
+    this.interiorCulling.updateDelta(changes, (key) => this.yLayerProjection.visibleEntry(key), this.yLayerProjection.visibleEntriesByKey);
     const terrainChanges: TerrainBlockChange[] = [];
     const allowInstancing = this.yLayerProjection.visibleEntries.length >= VIEWPORT_INSTANCE_THRESHOLD || this.instanceBatches.size > 0;
     for (const [key, change] of changes) {
@@ -1628,20 +1629,6 @@ export class ThreeViewportEngine {
     this.instrumentation.record('yLayerProjectionCommitMs', durationMs);
     this.instrumentation.recordMax('yLayerProjectionMaxCommitMs', durationMs);
     this.runtimeTrace?.record('y-layer-projection-delta', { layers: changedLayers, changedBlocks: changes.size, addedVisible, removedVisible, roleChanged, projectionRevision: this.yLayerProjection.revision, durationMs });
-  }
-
-  private updateInteriorCullingDelta(changes: ReadonlyMap<string, { readonly before?: VisibleBlockEntry; readonly after?: VisibleBlockEntry; readonly position: VoxelCoordinate }>): void {
-    const dirty = new Set<string>();
-    for (const change of changes.values()) {
-      dirty.add(coordinateKey(change.position));
-      for (const neighbor of coordinateNeighbors(change.position)) dirty.add(coordinateKey(neighbor));
-    }
-    for (const key of dirty) {
-      const entry = this.yLayerProjection.visibleEntry(key);
-      if (!entry) { if (this.culledBlockKeys.delete(key)) this.instrumentation.record('interiorBlocksCulled', -1); continue; }
-      this.instrumentation.record('interiorCullingChecks');
-      this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, this.yLayerProjection.visibleEntriesByKey));
-    }
   }
 
   private syncProjectionFluidDelta(changes: ReadonlyMap<string, { readonly before?: VisibleBlockEntry; readonly after?: VisibleBlockEntry; readonly position: VoxelCoordinate }>, worldContext: FluidWorldLookup): ReadonlySet<string> {
@@ -1845,13 +1832,7 @@ export class ThreeViewportEngine {
       if (block) this.previousVisibleBlockPositions.set(key, { ...block.position });
       else this.previousVisibleBlockPositions.delete(key);
     }
-    const localCulling = [...affectedPositions.keys()];
-    for (const key of localCulling) {
-      const entry = this.yLayerProjection.visibleEntry(key);
-      if (!entry) { if (this.culledBlockKeys.delete(key)) this.instrumentation.record('interiorBlocksCulled', -1); continue; }
-      this.instrumentation.record('interiorCullingChecks');
-      this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, this.yLayerProjection.visibleEntriesByKey));
-    }
+    this.interiorCulling.updateKeys(affectedPositions.keys(), (key) => this.yLayerProjection.visibleEntry(key), this.yLayerProjection.visibleEntriesByKey);
     this.hydrationPipeline.removePendingKeys(changedKeys);
     for (const key of changedKeys) {
       this.hydrationPipeline.clearPendingSignature(key);
@@ -1881,7 +1862,7 @@ export class ThreeViewportEngine {
     const renderableKeys = new Set<string>();
     for (const key of changedKeys) {
       const next = this.yLayerProjection.visibleEntry(key);
-      const renderable = !!next && (options.exposedFaceRendering === true && isTerrainRenderableEntry(next) || !this.culledBlockKeys.has(key));
+      const renderable = !!next && (options.exposedFaceRendering === true && isTerrainRenderableEntry(next) || !this.interiorCulling.has(key));
       const current = this.blockRepresentations.get(key);
       if (!renderable) {
         if (current) { this.removeBlockEntry(key, current); this.instrumentation.record('blockRemovals'); }
@@ -1957,44 +1938,6 @@ export class ThreeViewportEngine {
     });
   }
 
-  private updateInteriorCulling(visible: readonly VisibleBlockEntry[], full: boolean, changed: ReadonlySet<string>): void {
-    const entries = new Map(visible.map((entry) => [coordinateKey(entry.block.position), { block: entry.block, role: entry.role, occlusionClass: entry.occlusionClass }] as const));
-    if (full) {
-      for (const key of this.culledBlockKeys) this.instrumentation.record('interiorBlocksCulled', -1);
-      this.culledBlockKeys.clear();
-      for (const entry of visible) {
-        this.instrumentation.record('interiorCullingChecks');
-        this.setInteriorCulled(entries.get(coordinateKey(entry.block.position))!, hasConfirmedOpaqueNeighbors(entries.get(coordinateKey(entry.block.position))!, entries));
-      }
-      return;
-    }
-    for (const key of [...this.culledBlockKeys]) if (!entries.has(key)) {
-      this.culledBlockKeys.delete(key);
-      this.instrumentation.record('interiorBlocksCulled', -1);
-    }
-    const dirty = new Set<string>();
-    for (const key of changed) {
-      dirty.add(key);
-      const position = entries.get(key)?.block.position ?? this.previousVisibleBlockPositions.get(key);
-      if (!position) continue;
-      for (const neighbor of coordinateNeighbors(position)) dirty.add(coordinateKey(neighbor));
-    }
-    for (const key of dirty) {
-      const entry = entries.get(key);
-      if (!entry) continue;
-      this.instrumentation.record('interiorCullingChecks');
-      this.setInteriorCulled(entry, hasConfirmedOpaqueNeighbors(entry, entries));
-    }
-  }
-
-  private setInteriorCulled(entry: { readonly block: ProjectDocument['blocks'][number] }, culled: boolean): void {
-    const key = coordinateKey(entry.block.position);
-    const previous = this.culledBlockKeys.has(key);
-    if (culled === previous) return;
-    if (culled) { this.culledBlockKeys.add(key); this.instrumentation.record('interiorBlocksCulled'); }
-    else { this.culledBlockKeys.delete(key); this.instrumentation.record('interiorBlocksCulled', -1); }
-  }
-
   private visibleSelection(project: ProjectDocument | undefined, options: ViewportRenderOptions): { readonly selected?: VoxelCoordinate; readonly positions?: readonly VoxelCoordinate[]; readonly kind?: string; readonly count?: number; readonly bounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly box?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } } {
     if (!project) return { selected: options.selected, positions: options.selectedPositions, kind: options.selectionKind, count: options.selectionCount, bounds: options.selectionBounds, box: options.selectionBox };
     const cachedProjection = this.canUseCachedVisibleProjection(project, options);
@@ -2035,7 +1978,7 @@ export class ThreeViewportEngine {
     const candidates = entries.map((entry) => {
       const key = coordinateKey(entry.block.position);
       const rendered = this.blockRepresentations.get(key);
-      const committed = this.culledBlockKeys.has(key) || (!!rendered
+      const committed = this.interiorCulling.has(key) || (!!rendered
         && rendered.signature === entry.signature
         && rendered.role === entry.role
         && !this.hydrationPipeline.hasPendingSignature(key)
@@ -2305,6 +2248,7 @@ export class ThreeViewportEngine {
 
   private clearPersistentVisuals(): void {
     for (const [key, entry] of this.blockRepresentations) this.removeBlockEntry(key, entry);
+    this.interiorCulling.clear();
     this.fluidCoordinator.clear();
     this.releaseUnusedRetiredProviders();
     this.decorationVisuals.clear();
@@ -2604,7 +2548,7 @@ export class ThreeViewportEngine {
 
   performanceEvidence(): ViewportPerformanceEvidence {
     const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.blockRepresentations.values(), renderedDecorations: this.decorationVisuals.values() });
-    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.blockRepresentations.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.culledBlockKeys.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
+    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.blockRepresentations.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.interiorCulling.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
   }
 
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
@@ -2625,7 +2569,7 @@ export class ThreeViewportEngine {
       if (entry.block.kind === 'missing') {
         if (this.missingBlocksTerminal) permanentMissingBlocks += 1;
         else provisionalMissingBlocks += 1;
-      } else if (this.culledBlockKeys.has(key) || (this.blockRepresentations.get(key) && this.hasCommittedBlockOwnership(key, this.blockRepresentations.get(key)!))) finalReadyBlocks += 1;
+      } else if (this.interiorCulling.has(key) || (this.blockRepresentations.get(key) && this.hasCommittedBlockOwnership(key, this.blockRepresentations.get(key)!))) finalReadyBlocks += 1;
     }
     const expectedBlocks = this.yLayerProjection.visibleEntries.length;
     return { ...progress, finalization: { expectedBlocks, finalReadyBlocks, provisionalMissingBlocks, permanentMissingBlocks, pendingBlocks: Math.max(0, expectedBlocks - finalReadyBlocks - provisionalMissingBlocks - permanentMissingBlocks) } };
@@ -2662,7 +2606,7 @@ export class ThreeViewportEngine {
     if (this.visualProvider && this.project) {
       for (const entry of visibleEntries) {
         const key = coordinateKey(entry.block.position);
-        if (this.culledBlockKeys.has(key)) continue;
+        if (this.interiorCulling.has(key)) continue;
         const rendered = this.blockRepresentations.get(key);
       const isFinal = !!rendered && (rendered.terrainChunkKey !== undefined || rendered.surfaceFaceMemberships !== undefined || rendered.object !== undefined && rendered.object !== rendered.fallback || rendered.instanceBatchKey !== undefined || rendered.fallback?.userData['renderMode'] !== undefined);
         if (entry.block.kind === 'missing' || isFinal || queuedKeys.has(key) || this.hydrationPipeline.runningGenerationFor(key) === this.hydrationPipeline.generation) continue;
