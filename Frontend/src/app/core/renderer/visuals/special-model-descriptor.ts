@@ -33,18 +33,3 @@ export interface SpecialModelDescriptor {
 }
 
 export type ModelPartFace = 'north' | 'south' | 'east' | 'west' | 'up' | 'down';
-export type ModelPartUv = Readonly<Record<ModelPartFace, readonly [number, number, number, number]>>;
-
-/** Minecraft ModelPart's unfolded cuboid atlas layout, in source texture pixels. */
-export function modelPartCuboidUv(cuboid: SpecialCuboidDescriptor): ModelPartUv {
-  const [u, v] = cuboid.uv; const [width, height, depth] = cuboid.size;
-  const faces: ModelPartUv = {
-    down: [u + depth, v, u + depth + width, v + depth],
-    up: [u + depth + width, v + depth, u + depth + width + width, v],
-    west: [u, v + depth, u + depth, v + depth + height],
-    north: [u + depth, v + depth, u + depth + width, v + depth + height],
-    east: [u + depth + width, v + depth, u + depth + width + depth, v + depth + height],
-    south: [u + depth + width + depth, v + depth, u + depth + width + depth + width, v + depth + height],
-  };
-  return faces;
-}
