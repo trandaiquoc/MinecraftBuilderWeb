@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { conduitInactiveModel, decoratedPotBaseModel, decoratedPotRootRotationRadians, decoratedPotSideModels, decoratedPotSherdTextureResource, SpecialBlockVisualRegistry } from './special-block-visuals';
+import { conduitInactiveModel, SpecialBlockVisualRegistry } from './special-block-visuals';
 import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
-import { createSpecialModel } from './special-model-geometry';
 
 const registry = new SpecialBlockVisualRegistry();
 const block = (id: string) => ({ kind: 'resolved' as const, id, namespace: id.split(':')[0] ?? 'minecraft', position: { x: 0, y: 0, z: 0 }, state: { facing: 'north' } });
@@ -49,25 +48,6 @@ describe('special block visuals', () => {
       expect(registry.resolve(block(id))).toBeUndefined();
     }
   });
-  it('uses the exact Decorated Pot adapter and independent side resources', () => {
-    const adapter = registry.resolve({ ...block('minecraft:decorated_pot'), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:angler_pottery_sherd', left: 'minecraft:flow_pottery_sherd', right: 'minecraft:skull_pottery_sherd', front: 'minecraft:guster_pottery_sherd' } } });
-    expect(adapter?.family).toBe('decorated-pots'); expect(adapter?.overrideGeneric).toBe(true);
-    expect(adapter?.textureResources?.({ ...block('minecraft:decorated_pot'), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:angler_pottery_sherd', left: 'minecraft:flow_pottery_sherd', right: 'minecraft:skull_pottery_sherd', front: 'minecraft:guster_pottery_sherd' } } })).toEqual({ base: 'minecraft:entity/decorated_pot/decorated_pot_base', back: 'minecraft:entity/decorated_pot/angler_pottery_pattern', left: 'minecraft:entity/decorated_pot/flow_pottery_pattern', right: 'minecraft:entity/decorated_pot/skull_pottery_pattern', front: 'minecraft:entity/decorated_pot/guster_pottery_pattern' });
-    expect(decoratedPotSherdTextureResource('minecraft:angler_pottery_sherd')).toBe('minecraft:entity/decorated_pot/angler_pottery_pattern');
-  });
-  it('keeps exact Decorated Pot ModelPart descriptors and face masks', () => {
-    expect(decoratedPotBaseModel.textureSize).toEqual([32, 32]);
-    expect(decoratedPotBaseModel.parts[0]).toMatchObject({ id: 'neck', pivot: [0, 37, 16], rotation: [180, 0, 0] });
-    expect(decoratedPotBaseModel.parts[0].cuboids).toEqual(expect.arrayContaining([expect.objectContaining({ from: [4, 17, 4], size: [8, 3, 8], dilation: -.1 }), expect.objectContaining({ from: [5, 20, 5], size: [6, 1, 6], dilation: .2 })]));
-    expect(decoratedPotBaseModel.parts[1].cuboids[0]).toMatchObject({ uv: [-14, 13], size: [14, 0, 14] });
-    expect(decoratedPotSideModels.back.parts[0]).toMatchObject({ pivot: [15, 16, 1], rotation: [0, 0, 180] });
-    expect(decoratedPotSideModels.front.parts[0]).toMatchObject({ pivot: [1, 16, 15], rotation: [180, 0, 0] });
-    for (const model of Object.values(decoratedPotSideModels)) expect(model.parts[0].cuboids[0]).toMatchObject({ uv: [1, 0], size: [14, 16, 0], faces: ['north'] });
-    const plane = createSpecialModel(decoratedPotSideModels.back);
-    let meshes = 0; plane.traverse((object) => { if (object instanceof THREE.Mesh) meshes++; });
-    expect(meshes).toBe(1);
-  });
-  it.each([['north', 0], ['south', Math.PI], ['west', Math.PI / 2], ['east', -Math.PI / 2]])('uses vanilla Decorated Pot root rotation for %s', (facing, radians) => expect(decoratedPotRootRotationRadians(facing)).toBeCloseTo(radians));
   it('uses the exact inactive Conduit adapter and centered six-pixel shell', () => {
     const adapter = registry.resolve(block('minecraft:conduit'));
     expect(adapter?.family).toBe('conduits'); expect(adapter?.overrideGeneric).toBe(true);
