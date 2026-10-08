@@ -56,6 +56,9 @@ export class SurfaceFaceBatchRenderer {
 
   constructor(private readonly options: SurfaceFaceBatchRendererOptions) {}
 
+  templatesFor(key: string): readonly SurfaceFaceTemplate[] | undefined { return this.templateCache.get(key); }
+  cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[]): void { this.templateCache.set(key, templates); }
+
   add(block: { readonly position: VoxelCoordinate }, key: string, templates: readonly SurfaceFaceTemplate[], exposed: ReadonlySet<SurfaceFaceDirection>): readonly SurfaceFaceMembership[] | undefined {
     if (templates.length !== 6) return undefined;
     const memberships: SurfaceFaceMembership[] = [];

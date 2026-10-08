@@ -260,8 +260,8 @@ export class ThreeViewportEngine {
     chunkBounds: (chunk) => stableChunkBounds(chunk, unitVoxelEnvelope()),
     recordBounds: () => this.instrumentation.record('instancedBoundsComputations'),
   });
-  private get placeholderBatches(): Map<string, PlaceholderBatch> { return this.placeholderRenderer.batches; }
-  private get placeholderIndices(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.placeholderRenderer.indices; }
+  private get placeholderBatches(): ReadonlyMap<string, PlaceholderBatch> { return this.placeholderRenderer.batches; }
+  private get placeholderIndices(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.placeholderRenderer.indices; }
   private readonly renderScheduler = new RenderScheduler(requestViewportFrame, cancelViewportFrame, {
     onInvalidation: () => this.instrumentation.record('renderInvalidations'),
     onCoalesced: () => { this.instrumentation.record('renderInvalidationsCoalesced'); this.instrumentation.record('coalescedRenderRequests'); },
@@ -417,8 +417,8 @@ export class ThreeViewportEngine {
   private readonly instanceRenderer: StaticModelBatchRenderer;
   private readonly fluidCoordinator: FluidRenderCoordinator;
   private readonly blockRepresentationResources: BlockRepresentationResourceOwner;
-  private get instanceBatches(): Map<string, InstanceBatch> { return this.instanceRenderer.batches; }
-  private get instanceOwnershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
+  private get instanceBatches(): ReadonlyMap<string, InstanceBatch> { return this.instanceRenderer.batches; }
+  private get instanceOwnershipIndex(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
   /** Compatibility view for diagnostics/tests; ownership remains in the batching module. */
   private get reusableInstanceTemplates(): ReadonlyMap<string, CompiledInstanceTemplates> { return this.instanceRenderer.templateCacheView(); }
   private readonly decorationVisuals: DecorationRenderLifecycle;
@@ -435,9 +435,9 @@ export class ThreeViewportEngine {
     getEntry: (key) => this.blockRepresentations.get(key),
     setMemberships: (key, memberships) => this.blockRepresentations.setSurfaceMemberships(key, memberships),
   });
-  private get surfaceFaceBatches(): Map<string, SurfaceFaceBatch> { return this.surfaceRenderer.batches; }
-  private get surfaceFaceOwnership(): Map<string, SurfaceFaceMembership[]> { return this.surfaceRenderer.ownership; }
-  private get surfaceTemplateCache(): Map<string, readonly SurfaceFaceTemplate[]> { return this.surfaceRenderer.templateCache; }
+  private get surfaceFaceBatches(): ReadonlyMap<string, SurfaceFaceBatch> { return this.surfaceRenderer.batches; }
+  private get surfaceFaceOwnership(): ReadonlyMap<string, SurfaceFaceMembership[]> { return this.surfaceRenderer.ownership; }
+  private get surfaceTemplateCache(): ReadonlyMap<string, readonly SurfaceFaceTemplate[]> { return this.surfaceRenderer.templateCache; }
   private readonly terrainRenderer: ChunkSurfaceRenderer;
   readonly terrainAtlasMode: TerrainAtlasMode;
   private readonly instanceTranslationMatrix = new THREE.Matrix4();
@@ -1946,7 +1946,7 @@ export class ThreeViewportEngine {
         projectionRevisionFor: (key) => this.yLayerProjection.revisionForKey(key),
       },
       {
-        cachedTemplates: (key) => this.terrainRenderer.templateCache.get(key),
+      cachedTemplates: (key) => this.terrainRenderer.templatesFor(key),
         cacheTemplates: (key, templates) => this.terrainRenderer.cacheTemplates(key, templates),
         resolveTemplates: (candidate) => this.resolveTerrainTemplates(candidate.reusableKey, candidate.next.block, candidate.worldContext, candidate.provider),
         disposeTemplates: (templates) => this.disposeTerrainTemplates(templates),
@@ -2449,7 +2449,7 @@ export class ThreeViewportEngine {
             terrainCompiled = this.addTerrainVisual(block, entry.key, templates, role === 'reference' ? 'reference' : 'normal');
             if (!terrainCompiled && !cachedTerrain) {
               const cachedSurface = this.surfaceTemplateCache.get(reusableKey);
-              if (!cachedSurface) this.surfaceTemplateCache.set(reusableKey, templates);
+              if (!cachedSurface) this.surfaceRenderer.cacheTemplates(reusableKey, templates);
               surfaceMemberships = this.addSurfaceFaceVisual(block, entry.key, cachedSurface ?? templates, surfaceVisibleEntries);
             }
           }
@@ -2557,7 +2557,6 @@ export class ThreeViewportEngine {
     this.clearReusableInstanceTemplates();
     this.instanceRenderer.resetMetrics();
     this.clearSurfaceFaceResources();
-    this.instanceOwnershipIndex.clear();
     this.hydrationPipeline.clearPendingSignatures();
     this.placeholderSignatures.clear();
     this.yLayerProjection.clear();
