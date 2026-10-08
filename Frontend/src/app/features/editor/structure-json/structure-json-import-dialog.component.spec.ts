@@ -16,6 +16,7 @@ import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.ser
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
 import { ExternalAiWorkspaceComponent } from './external-ai-workspace.component';
+import { StructureJsonImportWorkspaceComponent } from './structure-json-import-workspace.component';
 import { StructureJsonImportDialogComponent } from './structure-json-import-dialog.component';
 
 const project: ProjectDocument = { schemaVersion: 3, id: 'project', metadata: { name: 'Import Demo', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 2, y: 2, z: 2 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 } };
@@ -32,6 +33,10 @@ function activateAiWorkspace(fixture: ComponentFixture<StructureJsonImportDialog
   return fixture.debugElement.query(By.directive(ExternalAiWorkspaceComponent)).componentInstance as ExternalAiWorkspaceComponent;
 }
 
+function importWorkspace(fixture: ComponentFixture<StructureJsonImportDialogComponent>): StructureJsonImportWorkspaceComponent {
+  return fixture.debugElement.query(By.directive(StructureJsonImportWorkspaceComponent)).componentInstance as StructureJsonImportWorkspaceComponent;
+}
+
 describe('StructureJsonImportDialogComponent', () => {
   it('supports editing, explicit validation, and stale preview clearing', async () => {
     await TestBed.configureTestingModule({
@@ -46,7 +51,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; preview: () => unknown };
+    const instance = importWorkspace(fixture) as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; preview: () => unknown };
     instance.setDraft('{');
     await instance.validate();
     expect(instance.preview()).toMatchObject({ structuralValid: false });
@@ -71,7 +76,7 @@ describe('StructureJsonImportDialogComponent', () => {
     fixture.detectChanges();
     const instance = activateAiWorkspace(fixture) as unknown as { setAiTab: (tab: 'description' | 'content' | 'limits' | 'guidance' | 'example') => void };
     instance.setAiTab('example'); fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.structure-json-layout.ai-mode')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.structure-json-body.ai-mode')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.structure-json-ai-workspace')).toBeTruthy();
     const viewer = fixture.nativeElement.querySelector('.structure-json-ai-workspace app-readonly-code-viewer');
     expect(viewer).toBeTruthy();
@@ -212,7 +217,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { reasonLabel: (issue: { reason: { code: string } }) => string };
+    const instance = importWorkspace(fixture) as unknown as { reasonLabel: (issue: { reason: { code: string } }) => string };
     expect(instance.reasonLabel({ reason: { code: 'missing-block' } })).toBe('structureJsonReasonMissingBlock');
     expect(instance.reasonLabel({ reason: { code: 'out-of-bounds' } })).toBe('structureJsonReasonOutOfBounds');
     expect(instance.reasonLabel({ reason: { code: 'unsupported-state-value' } })).toBe('structureJsonReasonUnsupportedStateValue');
@@ -230,7 +235,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { reasonLabel: (issue: { reason: { code: string } }) => string };
+    const instance = importWorkspace(fixture) as unknown as { reasonLabel: (issue: { reason: { code: string } }) => string };
     expect(instance.reasonLabel({ reason: { code: 'missing-block' } })).toBe(supplementalTranslations.vi.structureJsonReasonMissingBlock);
     expect(instance.reasonLabel({ reason: { code: 'out-of-bounds' } })).toBe(supplementalTranslations.vi.structureJsonReasonOutOfBounds);
     expect(instance.reasonLabel({ reason: { code: 'unsupported-state-value' } })).toBe(supplementalTranslations.vi.structureJsonReasonUnsupportedStateValue);
@@ -252,7 +257,7 @@ describe('StructureJsonImportDialogComponent', () => {
     workspace.project.set(initial); selection.select({ x: 1, y: 1, z: 1 });
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', initial); fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void>; importPlan: () => { readonly applicable: boolean } | undefined };
+    const instance = importWorkspace(fixture) as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void>; importPlan: () => { readonly applicable: boolean } | undefined };
     instance.setDraft(JSON.stringify({ format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }], decorations: [] }));
     await instance.validate();
     expect(instance.importPlan()?.applicable).toBe(true);
@@ -279,7 +284,7 @@ describe('StructureJsonImportDialogComponent', () => {
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService); workspace.project.set(initial);
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent); fixture.componentRef.setInput('project', initial); fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void> };
+    const instance = importWorkspace(fixture) as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void> };
     instance.setDraft(JSON.stringify({ format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 0, y: 0, z: 0 }, { id: stone.id, x: 2, y: 0, z: 0 }], decorations: [] }));
     await instance.validate(); await instance.applyImport();
     expect(dialogs.choice).toHaveBeenCalledOnce();
@@ -302,7 +307,7 @@ describe('StructureJsonImportDialogComponent', () => {
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService); workspace.project.set(initial);
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent); fixture.componentRef.setInput('project', initial); fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void> };
+    const instance = importWorkspace(fixture) as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void> };
     instance.setDraft(JSON.stringify({ format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 2, y: 0, z: 0 }], decorations: [] }));
     await instance.validate(); await instance.applyImport();
     expect(dialogs.choice).toHaveBeenCalledOnce();
@@ -323,7 +328,7 @@ describe('StructureJsonImportDialogComponent', () => {
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService); workspace.project.set(initial);
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent); fixture.componentRef.setInput('project', initial); fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void> };
+    const instance = importWorkspace(fixture) as unknown as { setDraft: (value: string) => void; validate: () => Promise<void>; applyImport: () => Promise<void> };
     instance.setDraft(JSON.stringify({ format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [{ id: stone.id, x: 48, y: 0, z: 0 }], decorations: [] }));
     await instance.validate(); await instance.applyImport();
     expect(workspace.project()).toMatchObject({ size: { x: 49, y: 2, z: 2 }, structureMode: 'huge-structure-blocks' });
