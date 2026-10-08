@@ -13,6 +13,7 @@ import { viewportThemePalette } from './viewport-theme';
 import { blockMutationHint, metadataMutationHint } from '../../editor/mutations/project-mutation-hint';
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
+import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
 
 describe('camera movement input contract', () => {
   it('suspends viewport work without disposing the retained engine', () => {
@@ -160,7 +161,7 @@ describe('camera movement input contract', () => {
     const selectedPositions = project.blocks.map((block) => block.position);
     engine.update(project, undefined, { selectionKind: 'explicit', selectionCount: selectedPositions.length, selectedPositions });
     await settleHydration();
-    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown>; cameraMotion: ViewportCameraMotionController };
     internal.camera.position.set(8, 6, 8);
     internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     const projectBefore = JSON.stringify(project);
@@ -169,7 +170,7 @@ describe('camera movement input contract', () => {
     const placeholdersBefore = [...internal.placeholderIndices.keys()].sort();
     for (const action of ['move-forward', 'move-backward', 'move-left', 'move-right', 'move-up', 'move-down'] as const) {
       const before = internal.camera.position.clone();
-      internal.moveCamera(new Set([action]), .05);
+      internal.cameraMotion.moveCamera(new Set([action]), .05);
       expect(internal.camera.position.distanceTo(before)).toBeGreaterThan(.1);
     }
     expect(JSON.stringify(project)).toBe(projectBefore);
@@ -184,11 +185,11 @@ describe('camera movement input contract', () => {
     const project = rendererBenchmarkProject('stress');
     const selection = { selectionKind: 'all' as const, selectionCount: project.blocks.length, selectionBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 63, y: 4, z: 63 } } };
     engine.update(project, undefined, selection);
-    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; cameraMotion: ViewportCameraMotionController };
     internal.camera.position.set(8, 6, 8);
     internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     const projectBefore = JSON.stringify(project);
-    for (const action of ['move-forward', 'move-left', 'move-backward', 'move-right', 'move-up', 'move-down'] as const) internal.moveCamera(new Set([action]), .02);
+    for (const action of ['move-forward', 'move-left', 'move-backward', 'move-right', 'move-up', 'move-down'] as const) internal.cameraMotion.moveCamera(new Set([action]), .02);
     expect(JSON.stringify(project)).toBe(projectBefore);
     expect(selection.selectionKind).toBe('all');
     expect(selection.selectionCount).toBe(20000);
@@ -215,7 +216,7 @@ describe('camera movement input contract', () => {
     const project = rendererBenchmarkProject('small');
     engine.update(project, undefined);
     await settleHydration();
-    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void }; blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown>; moveCamera: (keys: ReadonlySet<string>, delta: number) => void };
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void }; blockRepresentations: Map<string, unknown>; placeholderIndices: Map<string, unknown>; cameraMotion: ViewportCameraMotionController };
     internal.camera.position.set(8, 6, 8);
     internal.controls = { target: new THREE.Vector3(0, 0, 0), minDistance: 1, maxDistance: 100, update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     const projectBlockCount = project.blocks.length;
@@ -233,7 +234,7 @@ describe('camera movement input contract', () => {
       const offsetBefore = cameraBefore.clone().sub(targetBefore);
       const renderedBefore = internal.blockRepresentations.size;
       const placeholdersBefore = internal.placeholderIndices.size;
-      for (let frame = 0; frame < 8; frame += 1) internal.moveCamera(new Set(['move-right']), .05);
+      for (let frame = 0; frame < 8; frame += 1) internal.cameraMotion.moveCamera(new Set(['move-right']), .05);
       const cameraDelta = internal.camera.position.clone().sub(cameraBefore);
       const targetDelta = internal.controls.target.clone().sub(targetBefore);
       expect(targetDelta.x).toBeCloseTo(cameraDelta.x);
@@ -429,7 +430,7 @@ describe('camera movement input contract', () => {
       onControlStart: () => void;
       onControlEnd: () => void;
       renderOnControlChange: () => void;
-      applyWheelZoom: (action: 'zoom-in' | 'zoom-out', deltaY: number, deltaMode: number) => void;
+      cameraMotion: ViewportCameraMotionController;
       camera: THREE.PerspectiveCamera;
       controls: { target: THREE.Vector3; minDistance: number; maxDistance: number; update: () => void; removeEventListener: () => void; dispose: () => void };
     };
@@ -439,7 +440,7 @@ describe('camera movement input contract', () => {
     internals.renderOnControlChange();
     internals.camera.position.set(8, 6, 8);
     internals.controls = { target: new THREE.Vector3(), minDistance: 1, maxDistance: 100, update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
-    internals.applyWheelZoom('zoom-in', 3, 1);
+    internals.cameraMotion.applyWheelZoom('zoom-in', 3, 1);
     internals.onControlEnd();
     expect(engine.hydrationProgress()).toMatchObject({ generation: 7, total: 100, blocksTotal: 100, blocksCompleted: 70, completed: 70 });
     expect(engine.rendererCounters()).toMatchObject({ hydrationGenerations: 0, cameraOnlyGenerationChanges: 0, hydrationProgressRegressions: 0 });
@@ -451,19 +452,19 @@ describe('camera movement input contract', () => {
     const internals = engine as unknown as {
       camera: THREE.PerspectiveCamera;
       controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void };
-      moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void;
+      cameraMotion: ViewportCameraMotionController;
     };
     internals.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     internals.camera.position.set(0, 0, 8);
     internals.camera.lookAt(internals.controls.target);
     const nearBefore = internals.camera.position.clone();
-    internals.moveCamera(new Set(['move-forward']), .1);
+    internals.cameraMotion.moveCamera(new Set(['move-forward']), .1);
     const nearDistance = internals.camera.position.distanceTo(nearBefore);
     internals.controls.target.set(0, 0, 0);
     internals.camera.position.set(0, 0, 24);
     internals.camera.lookAt(internals.controls.target);
     const farBefore = internals.camera.position.clone();
-    internals.moveCamera(new Set(['move-forward']), .1);
+    internals.cameraMotion.moveCamera(new Set(['move-forward']), .1);
     const farDistance = internals.camera.position.distanceTo(farBefore);
     expect(farDistance).toBeGreaterThan(nearDistance);
     expect(farDistance / nearDistance).toBeLessThan(3.1);
@@ -515,8 +516,7 @@ describe('camera movement input contract', () => {
       onControlStart: () => void;
       renderOnControlChange: () => void;
       onControlEnd: () => void;
-      applyWheelZoom: (action: 'zoom-in' | 'zoom-out', deltaY: number, deltaMode: number) => void;
-      moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void;
+      cameraMotion: ViewportCameraMotionController;
     };
     internals.renderer = renderer;
     internals.container = { getBoundingClientRect: () => ({ width: 1200, height: 800 }) };
@@ -547,9 +547,9 @@ describe('camera movement input contract', () => {
     expect(internals.camera.projectionMatrix.equals(poseBefore.projection)).toBe(true);
 
     const distanceBeforeWheel = internals.camera.position.distanceTo(internals.controls.target);
-    internals.applyWheelZoom('zoom-in', 3, 1);
+    internals.cameraMotion.applyWheelZoom('zoom-in', 3, 1);
     expect(internals.camera.position.distanceTo(internals.controls.target)).toBeLessThan(distanceBeforeWheel);
-    internals.moveCamera(new Set(['move-forward']), .016);
+    internals.cameraMotion.moveCamera(new Set(['move-forward']), .016);
     engine.cameraKeyDown('move-forward');
     engine.cameraKeyUp('move-forward');
     engine.clearInput();
@@ -1221,13 +1221,13 @@ describe('camera movement input contract', () => {
     const provider = { create: vi.fn(async () => { const object = new THREE.Group(); object.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())); return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }; }), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const base = rendererBenchmarkProject('small'); const project = { ...base, blocks: base.blocks.slice(0, 12), decorations: [] };
     const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined); await settleHydration();
-    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void; blockRepresentations: Map<string, { object: THREE.Object3D }> };
+    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; cameraMotion: ViewportCameraMotionController; blockRepresentations: Map<string, { object: THREE.Object3D }> };
     internals.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     internals.camera.position.set(10, 8, 12); internals.controls.target.set(2, 1, 2); internals.camera.lookAt(2, 1, 2); internals.controls.update();
     const representative = internals.blockRepresentations.values().next().value?.object;
     if (!representative) throw new Error('expected hydrated mesh');
     for (let frame = 0; frame < 12; frame += 1) {
-      internals.moveCamera(new Set(['move-forward' as const, frame % 2 ? 'move-right' as const : 'move-left' as const]), .04);
+      internals.cameraMotion.moveCamera(new Set(['move-forward' as const, frame % 2 ? 'move-right' as const : 'move-left' as const]), .04);
       const frustum = cameraFrustum(internals.camera);
       expect(frustumIntersectsObject(frustum, representative)).toBe(true);
       expect([...internals.blockRepresentations.values()].every((entry) => entry.object.visible)).toBe(true);
@@ -1242,13 +1242,13 @@ describe('camera movement input contract', () => {
     const pending: Array<(value: unknown) => void> = [];
     const provider = { create: vi.fn(() => new Promise((resolve) => pending.push(resolve))), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const project = rendererBenchmarkProject('stress'); const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(project, undefined);
-    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void; placeholderBatches: Map<string, { mesh: THREE.InstancedMesh }> };
+    const internals = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void }; cameraMotion: ViewportCameraMotionController; placeholderBatches: Map<string, { mesh: THREE.InstancedMesh }> };
     internals.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
     internals.camera.position.set(20, 18, 24); internals.controls.target.set(8, 2, 8); internals.controls.update();
     const representativeBatch = internals.placeholderBatches.values().next().value?.mesh;
     if (!representativeBatch) throw new Error('expected placeholder batch');
     for (let frame = 0; frame < 8; frame += 1) {
-      internals.moveCamera(new Set(['move-forward' as const]), .03);
+      internals.cameraMotion.moveCamera(new Set(['move-forward' as const]), .03);
       const frustum = cameraFrustum(internals.camera);
       expect(frustum.intersectsObject(representativeBatch)).toBe(true);
     }
@@ -1992,10 +1992,10 @@ describe('selection visualization scalability', () => {
     engine.setVisualProvider(provider);
     engine.update(project, undefined);
     const generation = engine.hydrationDiagnostics().generation;
-    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void; }; moveCamera: (keys: ReadonlySet<import('../../editor/input/keyboard-bindings').MovementAction>, delta: number) => void };
+    const internal = engine as unknown as { camera: THREE.PerspectiveCamera; controls: { target: THREE.Vector3; update: () => void; removeEventListener: () => void; dispose: () => void; }; cameraMotion: ViewportCameraMotionController };
     internal.camera.position.set(8, 6, 8);
     internal.controls = { target: new THREE.Vector3(), update: vi.fn(), removeEventListener: vi.fn(), dispose: vi.fn() };
-    for (let index = 0; index < 5; index += 1) internal.moveCamera(new Set(['move-forward' as const]), .05);
+    for (let index = 0; index < 5; index += 1) internal.cameraMotion.moveCamera(new Set(['move-forward' as const]), .05);
     await new Promise((resolve) => setTimeout(resolve, 190));
     await settleHydration();
     expect(engine.hydrationDiagnostics().generation).toBe(generation);

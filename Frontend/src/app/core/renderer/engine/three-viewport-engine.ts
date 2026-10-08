@@ -21,6 +21,7 @@ import { PlacedDecoration } from '../../decorations/decoration.types';
 import { DecorationPlacementPlan, decorationAabb, facingFromNormal, planDecorationPlacement } from '../../decorations/placement/decoration-placement';
 import { DecorationTextureCache } from '../visuals/decoration-visuals';
 import { DecorationRenderLifecycle } from '../visuals/decoration-render-lifecycle';
+import { BlockRepresentationResourceOwner } from '../visuals/block-representation-resource-owner';
 import { decorationRenderSignature } from '../visuals/decoration-render-signature';
 import type { ItemStackData } from '../../items/item-stack.types';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
@@ -63,7 +64,6 @@ import { ViewportTerrainRepresentationPipeline } from '../terrain/viewport-terra
 import { blockMutationHint, type ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
-import type { WheelZoomAction } from '../scheduling/camera-wheel-zoom';
 import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
@@ -387,6 +387,8 @@ export class ThreeViewportEngine {
     configuration: () => this.controlConfiguration,
     markInteraction: () => this.markCameraInteraction(),
     requestRender: () => this.requestCameraRender(),
+    onMovementStart: () => { this.cameraMovementInProgress = true; },
+    onMovementEnd: () => { this.cameraMovementInProgress = false; },
     recordMetric: (name, delta) => this.instrumentation.record(name as keyof RendererCounters, delta),
     recordTrace: (event, details) => this.runtimeTrace?.record(event, details),
   });
@@ -414,6 +416,7 @@ export class ThreeViewportEngine {
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer: StaticModelBatchRenderer;
   private readonly fluidCoordinator: FluidRenderCoordinator;
+  private readonly blockRepresentationResources: BlockRepresentationResourceOwner;
   private get instanceBatches(): Map<string, InstanceBatch> { return this.instanceRenderer.batches; }
   private get instanceOwnershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
   /** Compatibility view for diagnostics/tests; ownership remains in the batching module. */
@@ -548,8 +551,6 @@ export class ThreeViewportEngine {
     },
     record: (name, value = 1) => this.instrumentation.record(name, value),
   });
-  private fallbackGeometryCounted = false;
-  private readonly fallbackMaterialRoles = new Set<string>();
   private runtimeDiagnosticsEnabled = false;
   private runtimeTrace?: ViewportRuntimeTrace;
   private runtimeObservedProjectBlockCount = 0;
@@ -624,6 +625,26 @@ export class ThreeViewportEngine {
         this.blockRepresentations.setInstanceMembership(key, { batchKey, index, object });
       },
       trace: (phase, key, source) => this.traceInstanceOwnership(phase, key, source),
+    });
+    this.blockRepresentationResources = new BlockRepresentationResourceOwner({
+      store: this.blockRepresentations,
+      blocksGroup: this.blocksGroup,
+      terrain: { has: (key) => this.terrainRenderer.has(key), remove: (key) => this.terrainRenderer.remove(key), clear: () => this.terrainRenderer.clear() },
+      surface: { ownership: this.surfaceFaceOwnership, remove: (key, entry) => this.surfaceRenderer.remove(key, entry), clear: (entries) => this.surfaceRenderer.clear(entries) },
+      instance: {
+        ownershipIndex: this.instanceOwnershipIndex,
+        memberships: (key, scanAll) => this.instanceRenderer.memberships(key, scanAll),
+        remove: (key, entry, source) => this.instanceRenderer.remove(key, entry, source),
+        removeOrphaned: (key, source, entry) => this.instanceRenderer.removeOrphaned(key, source, entry),
+        reconcile: (entries) => this.instanceRenderer.reconcile(entries),
+      },
+      scanInstanceMembershipsForDiagnostics: () => this.runtimeDiagnosticsEnabled,
+      placeholders: { remove: (key) => this.placeholderRenderer.remove(key), clear: () => this.placeholderRenderer.clear() },
+      fallbackGeometry: this.fallbackGeometry,
+      fallbackMaterials: this.fallbackMaterials,
+      record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
+      invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
+      trace: (phase, key, source, entry) => this.traceInstanceOwnership(phase as 'before-remove' | 'after-remove' | 'after-remove-entry', key, source as 'rollback' | 'reconcile', entry),
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
   }
@@ -788,10 +809,6 @@ export class ThreeViewportEngine {
   }
 
   private restoreTemporaryMouseButton(): void { this.cameraInput.endEditorPointerGesture(); }
-
-  private applyWheelZoom(action: WheelZoomAction, deltaY: number, deltaMode: number): void {
-    this.cameraMotion.applyWheelZoom(action, deltaY, deltaMode);
-  }
 
   resize(): void {
     if (this.suspended || !this.renderer || !this.container) return;
@@ -2197,8 +2214,7 @@ export class ThreeViewportEngine {
   }
 
   private rollbackPartialInstanceVisual(key: string): void {
-    this.removeSurfaceFaceVisual(key, this.blockRepresentations.get(key));
-    this.removeOrphanedInstanceMemberships(key, 'rollback');
+    this.blockRepresentationResources.rollbackPartial(key);
   }
 
   private processDecorationBatch(token: number, deadline: number): void {
@@ -2347,11 +2363,11 @@ export class ThreeViewportEngine {
   }
 
   private removePlaceholderVisual(key: string): void {
-    this.placeholderRenderer.remove(key);
+    this.blockRepresentationResources.removePlaceholder(key);
   }
 
   private clearPlaceholderVisuals(): void {
-    this.placeholderRenderer.clear();
+    this.blockRepresentationResources.clearPlaceholders();
   }
 
   private createBlockEntry(block: ProjectDocument['blocks'][number], signature: string, role: RenderedBlockEntry['role'], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, options: ViewportRenderOptions, allowInstancing: boolean, surfaceFastPathEligible: boolean, surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockEntry>, onComplete?: () => void): void {
@@ -2470,20 +2486,7 @@ export class ThreeViewportEngine {
   }
 
   private ensureFallbackVisual(entry: RenderedBlockEntry, referenceOpacity = .28): THREE.Mesh {
-    if (entry.fallback) return entry.fallback;
-    if (!this.fallbackGeometryCounted) { this.instrumentation.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
-    if (!this.fallbackMaterialRoles.has(entry.role)) { this.instrumentation.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(entry.role); }
-    const isReference = entry.role === 'reference';
-    const material = entry.role === 'missing' ? this.fallbackMaterials.missing : isReference ? this.fallbackMaterials.reference : this.fallbackMaterials.normal;
-    material.transparent = isReference;
-    material.opacity = isReference ? referenceOpacity : 1;
-    const fallback = new THREE.Mesh(this.fallbackGeometry, material);
-    fallback.position.set(entry.block.position.x + .5, entry.block.position.y + .5, entry.block.position.z + .5);
-    fallback.userData['voxel'] = entry.block.position; fallback.userData['renderRole'] = entry.role;
-    this.blockRepresentations.setFallback(entry.key, fallback);
-    this.blocksGroup.add(fallback);
-    this.instrumentation.record('fallbackMeshCreations');
-    return fallback;
+    return this.blockRepresentationResources.ensureFallback(entry, referenceOpacity);
   }
 
   private addSurfaceFaceVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockEntry>): readonly SurfaceFaceMembership[] | undefined {
@@ -2500,13 +2503,8 @@ export class ThreeViewportEngine {
     this.surfaceRenderer.remove(key, entry);
   }
 
-  private removeSurfaceFaceMembership(batchKey: string, requestedIndex: number, expectedKey: string): void {
-    this.surfaceRenderer.removeMembership(batchKey, requestedIndex, expectedKey);
-  }
-
   private clearSurfaceFaceResources(): void {
-    this.surfaceRenderer.clear(this.blockRepresentations.values());
-    this.terrainRenderer.clear();
+    this.blockRepresentationResources.clear();
   }
 
   private addInstanceVisual(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey?: string, source: 'provider-async' | 'cached-template' = 'provider-async', role: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
@@ -2517,50 +2515,22 @@ export class ThreeViewportEngine {
     return this.instanceRenderer.addFromTemplates(templates, block, key, source, compiled, role);
   }
 
-  private removeInstanceVisual(key: string, entry: RenderedBlockEntry): void {
-    this.traceInstanceOwnership('before-remove', key, 'reconcile', entry);
-    this.instanceRenderer.remove(key, entry, 'reconcile');
-    this.blockRepresentations.setInstanceMembership(entry.key, {});
-    this.traceInstanceOwnership('after-remove', key, 'reconcile');
-  }
-
   /** Returns every physical logical-key membership, including stale ownership. */
   private instanceMemberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] {
     return this.instanceRenderer.memberships(key, scanAll);
   }
 
   private removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry = this.blockRepresentations.get(key)): void {
-    this.instanceRenderer.removeOrphaned(key, source, entry);
-    if (entry) this.blockRepresentations.setInstanceMembership(entry.key, {});
-  }
-
-  private removeInstanceMembership(batchKey: string, requestedIndex: number, expectedKey: string): boolean {
-    return this.instanceRenderer.removeMembership(batchKey, requestedIndex, expectedKey);
+    this.blockRepresentationResources.removeOrphanedInstanceMemberships(key, source, entry);
   }
 
   /** Repairs only stale/duplicate memberships; it never rebuilds valid batches. */
   private reconcileInstanceOwnership(): void {
-    this.instanceRenderer.reconcile(this.blockRepresentations);
+    this.blockRepresentationResources.reconcileInstances();
   }
 
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
-    this.invalidateStaticModelDiagnostics();
-    this.blockRepresentations.incrementRevision(entry.key);
-    if (entry.fluidChunkKey !== undefined) {
-      if (this.blockRepresentations.get(key) === entry) this.blockRepresentations.remove(key);
-      return;
-    }
-    if (entry.terrainChunkKey !== undefined || this.terrainRenderer.has(key)) this.terrainRenderer.remove(key);
-    const hasSurfaceVisual = entry.surfaceFaceMemberships !== undefined || this.surfaceFaceOwnership.has(key);
-    if (hasSurfaceVisual) this.removeSurfaceFaceVisual(key, entry);
-    if (entry.instanceBatchKey || this.instanceOwnershipIndex.has(key) || this.runtimeDiagnosticsEnabled && this.instanceMemberships(key, true).length) this.removeInstanceVisual(key, entry);
-    else if (!hasSurfaceVisual) {
-      if (entry.object?.parent === this.blocksGroup) this.blocksGroup.remove(entry.object);
-      if (entry.object && entry.object !== entry.fallback) disposeObject(entry.object);
-      if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
-    }
-    if (this.blockRepresentations.get(key) === entry) this.blockRepresentations.remove(key);
-    this.traceInstanceOwnership('after-remove-entry', key, 'reconcile', entry);
+    this.blockRepresentationResources.remove(key, entry);
   }
 
   private recordProviderCacheStats(): void {
@@ -3179,12 +3149,6 @@ export class ThreeViewportEngine {
   /** Chunk bounds are conservative and assigned once at batch creation. */
   private flushInstanceBatchBounds(): void { }
 
-  private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
-    if (!this.controls || !keys.size) return;
-    this.cameraMovementInProgress = true;
-    try { this.cameraMotion.moveCamera(keys, delta); }
-    finally { this.cameraMovementInProgress = false; }
-  }
 }
 
 function cameraYaw(camera: THREE.Camera): number {

@@ -12,6 +12,8 @@ export interface ViewportCameraMotionCallbacks {
   readonly configuration: () => CameraControlConfiguration;
   readonly markInteraction: () => void;
   readonly requestRender: () => void;
+  readonly onMovementStart?: () => void;
+  readonly onMovementEnd?: () => void;
   readonly recordTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void;
   readonly recordMetric?: (name: string, delta?: number) => void;
 }
@@ -45,22 +47,28 @@ export class ViewportCameraMotionController {
   moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     const controls = this.callbacks.controls();
     if (!controls || !keys.size) return;
-    this.callbacks.markInteraction();
-    const camera = this.callbacks.camera;
-    const cameraDistance = camera.position.distanceTo(controls.target);
-    const configuration = this.callbacks.configuration();
-    const horizontalSpeed = effectiveCameraMovementSpeed(configuration.cameraMoveSpeed, cameraDistance);
-    const direction = cameraActionMovementDelta(keys, camera, horizontalSpeed, delta);
-    if (!direction.lengthSq()) return;
-    camera.position.add(direction);
-    controls.target.add(direction);
-    this.callbacks.recordMetric?.('cameraMovementFrames');
-    this.callbacks.recordTrace?.('movement-frame', { actions: [...keys], deltaSeconds: delta, configuredHorizontalSpeed: configuration.cameraMoveSpeed, configuredVerticalSpeed: configuration.verticalMoveSpeed, distance: cameraDistance, movementScale: cameraMovementScale(cameraDistance), effectiveHorizontalSpeed: horizontalSpeed, effectiveVerticalSpeed: horizontalSpeed });
+    this.callbacks.onMovementStart?.();
+    let moved = false;
     try {
+      this.callbacks.markInteraction();
+      const camera = this.callbacks.camera;
+      const cameraDistance = camera.position.distanceTo(controls.target);
+      const configuration = this.callbacks.configuration();
+      const horizontalSpeed = effectiveCameraMovementSpeed(configuration.cameraMoveSpeed, cameraDistance);
+      const direction = cameraActionMovementDelta(keys, camera, horizontalSpeed, delta);
+      if (!direction.lengthSq()) return;
+      camera.position.add(direction);
+      controls.target.add(direction);
+      moved = true;
+      this.callbacks.recordMetric?.('cameraMovementFrames');
+      this.callbacks.recordTrace?.('movement-frame', { actions: [...keys], deltaSeconds: delta, configuredHorizontalSpeed: configuration.cameraMoveSpeed, configuredVerticalSpeed: configuration.verticalMoveSpeed, distance: cameraDistance, movementScale: cameraMovementScale(cameraDistance), effectiveHorizontalSpeed: horizontalSpeed, effectiveVerticalSpeed: horizontalSpeed });
       controls.update();
     } finally {
-      this.callbacks.recordMetric?.('cameraMovementRenderCalls');
-      this.callbacks.requestRender();
+      if (moved) {
+        this.callbacks.recordMetric?.('cameraMovementRenderCalls');
+        this.callbacks.requestRender();
+      }
+      this.callbacks.onMovementEnd?.();
     }
   }
 }

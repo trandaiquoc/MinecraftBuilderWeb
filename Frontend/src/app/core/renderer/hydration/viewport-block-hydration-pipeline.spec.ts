@@ -30,11 +30,11 @@ describe('ViewportBlockHydrationPipeline', () => {
   it('cancels pending generation work and clears pending/running accounting atomically', () => {
     const value = pipeline();
     value.setPendingSignature('a', 'stone');
-    value.work.enqueueRegular({ key: 'a', token: 0, projectionRevision: 0, signature: 'stone' });
+    value.enqueueRegular({ key: 'a', token: 0, projectionRevision: 0, signature: 'stone' });
     value.startJob('running', 0, 1, 'dirt');
     const oldGeneration = value.generation;
     value.advanceGeneration();
-    value.work.clearPending();
+    value.clearPendingWork();
     value.clearPendingSignatures();
     value.clearRunningOwnership();
     value.clearBatchBudget();
@@ -42,7 +42,7 @@ describe('ViewportBlockHydrationPipeline', () => {
     expect(value.generation).toBe(1);
     expect(value.pendingCount).toBe(0);
     expect(value.runningTotal).toBe(0);
-    expect(value.work.queuedTotal()).toBe(0);
+    expect(value.queuedWork()).toBe(0);
   });
 
   it('keeps the interactive job budget separate and bounded', () => {
@@ -58,11 +58,11 @@ describe('ViewportBlockHydrationPipeline', () => {
     const value = pipeline();
     const failureHandler = vi.fn();
     value.setPendingSignature('k', 'sig');
-    value.work.enqueueRegular({ key: 'k', token: 0, projectionRevision: 0, signature: 'sig' });
-    value.progress.setBlockScope(['k']);
-    value.progress.begin(0, 'local');
-    expect(value.work.takeNext(0)?.key).toBe('k');
-    expect(value.progress.snapshot()).toMatchObject({ generation: 0, lane: 'local', total: 1 });
+    value.enqueueRegular({ key: 'k', token: 0, projectionRevision: 0, signature: 'sig' });
+    value.setBlockScope(['k']);
+    value.beginProgress(0, 'local');
+    expect(value.takeNextJob(0)?.key).toBe('k');
+    expect(value.progressSnapshot()).toMatchObject({ generation: 0, lane: 'local', total: 1 });
     expect(failureHandler).not.toHaveBeenCalled();
   });
 
@@ -75,8 +75,8 @@ describe('ViewportBlockHydrationPipeline', () => {
       { key: 'ok', token: 0, projectionRevision: 0, signature: 'a' },
       { key: 'bad', token: 0, projectionRevision: 0, signature: 'b' },
     ];
-    value.work.enqueueRegular(jobs[0]);
-    value.work.enqueueRegular(jobs[1]);
+    value.enqueueRegular(jobs[0]);
+    value.enqueueRegular(jobs[1]);
     const port: HydrationExecutionPort<Job> = {
       isStopped: () => false,
       isInteractive: () => false,

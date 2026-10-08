@@ -30,9 +30,9 @@ export interface HydrationExecutionPort<T extends HydrationWorkItem> {
 
 /** Owns block hydration workflow state while composing the established queue and progress owners. */
 export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
-  readonly work: HydrationWorkCoordinator<T>;
-  readonly progress: HydrationProgressTracker;
-  readonly scheduler = new HydrationScheduler<never>();
+  private readonly work: HydrationWorkCoordinator<T>;
+  private readonly progress: HydrationProgressTracker;
+  private readonly scheduler = new HydrationScheduler<never>();
   private currentGeneration = 0;
   private readonly pending = new Map<string, string>();
   private readonly running = new Map<string, RunningBlockHydrationOwnership>();
@@ -85,6 +85,10 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   workCounts(): HydrationWorkCounts { return this.work.counts(); }
   regularJobs(): readonly T[] { return this.work.regularJobs(); }
   providerRefreshJobs(): readonly T[] { return this.work.providerRefreshJobs(); }
+  takeNextJob(generation: number): T | undefined { return this.work.takeNext(generation); }
+  completeJob(job: T): void { this.work.complete(job); }
+  fairnessDeferrals(): number { return this.work.fairnessDeferrals(); }
+  canStartWork(): boolean { return this.work.canStart(); }
   enqueueRegular(job: T): void { this.work.enqueueRegular(job); }
   enqueueProviderRefresh(job: T): boolean { return this.work.enqueueProviderRefresh(job); }
   replaceRegular(jobs: readonly T[]): void { this.work.replaceRegular(jobs); }
@@ -168,11 +172,11 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
     const maxJobs = interactive ? port.interactiveJobLimit() : port.jobLimit();
     let started = 0;
     port.onBatchStart();
-    while (this.work.canStart() && this.work.queuedTotal() && started < maxJobs && port.now() < deadline) {
-      const before = this.work.fairnessDeferrals();
-      const job = this.work.takeNext(token);
+    while (this.canStartWork() && this.queuedWork() && started < maxJobs && port.now() < deadline) {
+      const before = this.fairnessDeferrals();
+      const job = this.takeNextJob(token);
       if (!job) break;
-      const deferred = this.work.fairnessDeferrals() - before;
+      const deferred = this.fairnessDeferrals() - before;
       if (!job.providerRefresh) {
         this.clearPendingSignature(job.key);
         const ownership = port.ownership(job);
@@ -185,7 +189,7 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
       const complete = (): void => {
         const authoritative = !job.providerRefresh && this.ownsJob(job.key, job.token, port.ownership(job).revision, port.ownership(job).signature);
         if (authoritative) this.finishJobOwnership(job.key);
-        this.work.complete(job);
+        this.completeJob(job);
         port.onJobComplete(job, authoritative);
         this.finishWork(job.token);
         this.scheduleNext(port);
@@ -194,7 +198,7 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
       catch (error: unknown) { port.onExecutionFailure(job, error); complete(); }
     }
     port.processAdditionalWork(token, deadline);
-    const workRemaining = this.work.queuedTotal() > 0 || port.hasAdditionalWork();
+    const workRemaining = this.queuedWork() > 0 || port.hasAdditionalWork();
     if (workRemaining && this.runningTotal === 0) {
       const budgetExhausted = this.batchBudget <= 0 || port.now() >= this.batchDeadlineAt;
       if (budgetExhausted) { this.clearBatchBudget(); this.schedule(() => this.process(port), true); }

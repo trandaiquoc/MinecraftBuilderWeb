@@ -16,7 +16,6 @@ describe('ViewportProviderRefreshPipeline', () => {
 
   it('plans provider work with its generation and completes progress from shared hydration ownership', async () => {
     const hydration = createHydrationPipeline();
-    const work = hydration.work;
     const pipeline = new ViewportProviderRefreshPipeline<object, number, Job>(hydration);
     const schedule = vi.fn();
     const generation = pipeline.plan([4, 8], (value, planGeneration) => ({
@@ -30,14 +29,14 @@ describe('ViewportProviderRefreshPipeline', () => {
     expect(pipeline.progress).toMatchObject({ total: 2, completed: 0 });
     expect(schedule).toHaveBeenCalledOnce();
 
-    const first = work.takeNext(3)!;
+    const first = hydration.takeNextJob(3)!;
     expect(first.refreshGeneration).toBe(generation);
-    work.complete(first);
+    hydration.completeJob(first);
     pipeline.completeJob(generation, {});
     expect(pipeline.progress).toMatchObject({ total: 2, completed: 1 });
 
-    const second = work.takeNext(3)!;
-    work.complete(second);
+    const second = hydration.takeNextJob(3)!;
+    hydration.completeJob(second);
     pipeline.completeJob(generation, {});
     expect(pipeline.progress).toBeUndefined();
   });
@@ -97,7 +96,7 @@ describe('ViewportProviderRefreshPipeline', () => {
       createJob: (candidate, generation) => ({ key: candidate.key, token: 0, refreshGeneration: generation }),
       onScheduleHydration: schedule,
     });
-    expect(hydration.work.providerRefreshJobs().map((job) => job.key)).toEqual(['changed']);
+    expect(hydration.providerRefreshJobs().map((job) => job.key)).toEqual(['changed']);
     expect(schedule).toHaveBeenCalledOnce();
   });
 });
