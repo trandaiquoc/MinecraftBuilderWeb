@@ -6,6 +6,7 @@ import { resolveResourceLocation } from '../../content/resource-location';
 import { createCommonSignAdapter, SignVisualProvider } from './sign-visual-provider';
 import { BedVisualProvider } from './bed-visual-provider';
 import { HeadSkullVisualProvider } from './head-skull-visual-provider';
+import { ChestVisualProvider } from './chest-visual-provider';
 import type { BedVisualDescriptor, NormalizedSpecialVisualDescriptor, SpecialBlockVisualAdapter, SpecialVisualCompatibility, SpecialVisualContext, SpecialVisualResourceProvider } from './special-visual-contracts';
 import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 
@@ -20,7 +21,7 @@ export class SpecialBlockVisualRegistry {
   constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
     this.resources = typeof gameVersionOrResources === 'string' ? undefined : gameVersionOrResources;
     this.beds = new BedVisualProvider(); this.signs = new SignVisualProvider(); this.heads = new HeadSkullVisualProvider();
-    this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, this.heads, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
+    this.adapters = [this.beds, new ChestVisualProvider(), barrelAdapter, this.signs, bannerAdapter, this.heads, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
   }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
   /** Replace transient content descriptors with the current authoritative set. */
@@ -75,68 +76,8 @@ const box = (root: THREE.Group, size: readonly [number, number, number], at: rea
 const named = (family: string, match: (id: string) => boolean, build: (block: PlacedBlock) => THREE.Group): SpecialBlockVisualAdapter => ({ family, matches: (block) => match(block.id), create: build });
 const colorFromId = (id: string, fallback: number): number => { const name = id.split(':').at(-1) ?? ''; const colors: Record<string, number> = { red: 0xb83832, blue: 0x3f61b7, green: 0x4f8c4e, black: 0x252525, white: 0xe8e6df, yellow: 0xd6b432, purple: 0x744a9c, orange: 0xcb7b32, pink: 0xd47aa4, cyan: 0x4aa7ae, gray: 0x6b6b6b, brown: 0x6e4a31 }; return Object.entries(colors).find(([key]) => name.startsWith(key))?.[1] ?? fallback; };
 
-const chestIds = new Set(['minecraft:chest', 'minecraft:trapped_chest', 'minecraft:ender_chest']);
-const chestAdapter: SpecialBlockVisualAdapter = {
-  family: 'chests',
-  staticBatchable: true,
-  matches: (block) => chestIds.has(block.id),
-  textureResource: (block) => chestTextureResource(block),
-  create: (block, context) => createChestVisual(block, context?.texture),
-};
 /** Diagnostic-only fallback. A barrel with usable JSON elements stays on the generic path. */
 const barrelAdapter: SpecialBlockVisualAdapter = { family: 'containers', staticBatchable: true, matches: (block) => block.namespace === 'minecraft' && /(?:^|_)barrel$/.test(block.id.split(':').at(-1) ?? block.id), create: (block) => { const root = new THREE.Group(); root.userData['visualFallback'] = 'diagnostic'; root.userData['fallbackReason'] = 'BARREL_GENERIC_RESOURCE_UNAVAILABLE'; box(root, [.92, .58, .92], [.5, .29, .5], 0x8c6035); box(root, [.94, .12, .94], [.5, .64, .5], 0xc28a47); return root; } };
-
-const chestSingleModel: SpecialModelDescriptor = {
-  id: 'minecraft-java-chest-single-1.21.1', textureSize: [64, 64], parts: [
-    { id: 'bottom', cuboids: [{ id: 'bottom', uv: [0, 19], from: [1, 0, 1], size: [14, 10, 14] }] },
-    { id: 'lid', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [1, 0, 0], size: [14, 5, 14] }] },
-    { id: 'lock', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lock', uv: [0, 0], from: [7, -2, 14], size: [2, 4, 1] }] },
-  ],
-};
-const chestRightModel: SpecialModelDescriptor = {
-  id: 'minecraft-java-chest-right-1.21.1', textureSize: [64, 64], parts: [
-    { id: 'bottom', cuboids: [{ id: 'bottom', uv: [0, 19], from: [1, 0, 1], size: [15, 10, 14] }] },
-    { id: 'lid', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [1, 0, 0], size: [15, 5, 14] }] },
-    { id: 'lock', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lock', uv: [0, 0], from: [15, -2, 14], size: [1, 4, 1] }] },
-  ],
-};
-const chestLeftModel: SpecialModelDescriptor = {
-  id: 'minecraft-java-chest-left-1.21.1', textureSize: [64, 64], parts: [
-    { id: 'bottom', cuboids: [{ id: 'bottom', uv: [0, 19], from: [0, 0, 1], size: [15, 10, 14] }] },
-    { id: 'lid', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [0, 0, 0], size: [15, 5, 14] }] },
-    { id: 'lock', pivot: [0, 9, 1], applyPivot: true, cuboids: [{ id: 'lock', uv: [0, 0], from: [0, -2, 14], size: [1, 4, 1] }] },
-  ],
-};
-
-export function chestModelFor(block: PlacedBlock): SpecialModelDescriptor {
-  if (block.id === 'minecraft:ender_chest') return chestSingleModel;
-  return block.state['type'] === 'left' ? chestLeftModel : block.state['type'] === 'right' ? chestRightModel : chestSingleModel;
-}
-export function chestTextureResource(block: PlacedBlock): string {
-  if (block.id === 'minecraft:ender_chest') return 'minecraft:entity/chest/ender';
-  const base = block.id === 'minecraft:trapped_chest' ? 'trapped' : 'normal';
-  const suffix = block.state['type'] === 'left' ? '_left' : block.state['type'] === 'right' ? '_right' : '';
-  return `minecraft:entity/chest/${base}${suffix}`;
-}
-export function chestRotationRadians(facing: string | undefined): number {
-  return ({ south: 0, west: Math.PI / 2, north: Math.PI, east: Math.PI * 1.5 } as Record<string, number>)[facing ?? 'north'] ?? Math.PI;
-}
-function createChestVisual(block: PlacedBlock, texture?: THREE.Texture): THREE.Group {
-  const model = chestModelFor(block);
-  const root = createSpecialModel(model, texture);
-  const orientation = new THREE.Group();
-  orientation.position.set(.5, .5, .5);
-  orientation.rotation.y = -chestRotationRadians(block.state['facing']);
-  const content = new THREE.Group();
-  content.position.set(-.5, -.5, -.5);
-  while (root.children.length) content.add(root.children[0]);
-  orientation.add(content);
-  root.add(orientation);
-  root.userData['specialModel'] = model.id;
-  root.userData['chestType'] = block.id === 'minecraft:ender_chest' ? 'single' : block.state['type'] ?? 'single';
-  root.userData['chestTexture'] = chestTextureResource(block);
-  return root;
-}
 const bannerAdapter: SpecialBlockVisualAdapter = {
   family: 'banners',
   staticBatchable: true,
