@@ -63,7 +63,7 @@ import { ViewportTerrainRepresentationPipeline } from '../terrain/viewport-terra
 import { blockMutationHint, type ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
-import { nextCameraDistanceFromWheel, wheelMagnitude, type WheelZoomAction } from '../scheduling/camera-wheel-zoom';
+import type { WheelZoomAction } from '../scheduling/camera-wheel-zoom';
 import { cameraMovementScale, effectiveCameraMovementSpeed } from '../scheduling/camera-movement-speed';
 import type { ViewportRuntimeTrace, ViewportTraceMetadata, ViewportTraceSample, TraceVector3 } from '../diagnostics/viewport-runtime-trace';
 import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../diagnostics/renderer-diagnostics-collector';
@@ -95,7 +95,7 @@ import { StructureBlockGuidePresenter } from '../presentation/structure-block-gu
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 import { YLayerProjectionCoordinator, type VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
-import { cameraActionMovementDelta } from '../scheduling/viewport-camera-geometry';
+import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
 import { blockCoordinateFromHit, surfaceFaceDirectionFromHit } from '../interaction/viewport-hit-ownership';
 import { isHorizontalDirection, surfaceNeighbor, surfaceFaceNormal } from '../visibility/voxel-face-directions';
 import { renderChunkKey as chunkKey, renderChunkBounds as stableChunkBounds, unitVoxelEnvelope, RENDER_CHUNK_SIZE } from '../batching/render-chunk-geometry';
@@ -381,6 +381,15 @@ export class ThreeViewportEngine {
     renderOptions: () => this.renderOptions,
     scheduleRender: () => this.scheduleRender(),
   });
+  private readonly cameraMotion = new ViewportCameraMotionController({
+    camera: this.camera,
+    controls: () => this.controls,
+    configuration: () => this.controlConfiguration,
+    markInteraction: () => this.markCameraInteraction(),
+    requestRender: () => this.requestCameraRender(),
+    recordMetric: (name, delta) => this.instrumentation.record(name as keyof RendererCounters, delta),
+    recordTrace: (event, details) => this.runtimeTrace?.record(event, details),
+  });
   private readonly cameraInput = new ViewportCameraInputController(
     () => this.controls,
     {
@@ -394,8 +403,8 @@ export class ThreeViewportEngine {
         this.cameraInteractingUntil = until;
         if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
       },
-      onMovementFrame: (actions, delta) => this.moveCamera(actions, delta),
-      onWheel: (action, deltaY, deltaMode) => this.applyWheelZoom(action, deltaY, deltaMode),
+      onMovementFrame: (actions, delta) => this.cameraMotion.moveCamera(actions, delta),
+      onWheel: (action, deltaY, deltaMode) => this.cameraMotion.applyWheelZoom(action, deltaY, deltaMode),
     },
     this.controlConfiguration,
     VIEWPORT_CAMERA_IDLE_GRACE_MS,
@@ -781,22 +790,7 @@ export class ThreeViewportEngine {
   private restoreTemporaryMouseButton(): void { this.cameraInput.endEditorPointerGesture(); }
 
   private applyWheelZoom(action: WheelZoomAction, deltaY: number, deltaMode: number): void {
-    if (!this.controls) return;
-    const offset = this.camera.position.clone().sub(this.controls.target);
-    const distance = offset.length();
-    const nextDistance = nextCameraDistanceFromWheel({
-      distance,
-      deltaY,
-      deltaMode,
-      action,
-      sensitivity: this.controlConfiguration.zoomSensitivity,
-      minDistance: this.controls.minDistance,
-      maxDistance: this.controls.maxDistance,
-    });
-    this.runtimeTrace?.record('wheel', { action, deltaY, deltaMode, magnitude: wheelMagnitude(deltaY, deltaMode), sensitivity: this.controlConfiguration.zoomSensitivity, distanceBefore: distance, distanceAfter: nextDistance });
-    if (distance > 0) this.camera.position.copy(this.controls.target).add(offset.normalize().multiplyScalar(nextDistance));
-    this.controls.update();
-    this.requestCameraRender();
+    this.cameraMotion.applyWheelZoom(action, deltaY, deltaMode);
   }
 
   resize(): void {
@@ -3187,25 +3181,9 @@ export class ThreeViewportEngine {
 
   private moveCamera(keys: ReadonlySet<MovementAction>, delta: number): void {
     if (!this.controls || !keys.size) return;
-    this.markCameraInteraction();
-    const cameraDistance = this.camera.position.distanceTo(this.controls.target);
-    const horizontalSpeed = effectiveCameraMovementSpeed(this.controlConfiguration.cameraMoveSpeed, cameraDistance);
-    const direction = cameraActionMovementDelta(keys, this.camera, horizontalSpeed, delta);
-    if (!direction.lengthSq()) return;
-    this.camera.position.add(direction);
-    this.controls.target.add(direction);
-    this.instrumentation.record('cameraMovementFrames');
-    this.runtimeTrace?.record('movement-frame', { actions: [...keys], deltaSeconds: delta, configuredHorizontalSpeed: this.controlConfiguration.cameraMoveSpeed, configuredVerticalSpeed: this.controlConfiguration.verticalMoveSpeed, distance: cameraDistance, movementScale: cameraMovementScale(cameraDistance), effectiveHorizontalSpeed: horizontalSpeed, effectiveVerticalSpeed: horizontalSpeed });
     this.cameraMovementInProgress = true;
-    try {
-      this.controls.update();
-    } finally {
-      this.cameraMovementInProgress = false;
-    }
-    // Keyboard movement does not always produce an OrbitControls `change`
-    // event, so invalidate the shared demand-render owner once per movement frame.
-    this.instrumentation.record('cameraMovementRenderCalls');
-    this.requestCameraRender();
+    try { this.cameraMotion.moveCamera(keys, delta); }
+    finally { this.cameraMovementInProgress = false; }
   }
 }
 
