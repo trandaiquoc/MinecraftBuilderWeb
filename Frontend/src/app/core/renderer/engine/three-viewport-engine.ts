@@ -422,6 +422,7 @@ export class ThreeViewportEngine {
     unitEnvelope: unitVoxelEnvelope,
     record: (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
     getEntry: (key) => this.blockRepresentations.get(key),
+    updateEntry: (entry, mutate) => this.blockRepresentations.updateEntry(entry as RenderedBlockEntry, mutate),
   });
   private get surfaceFaceBatches(): Map<string, SurfaceFaceBatch> { return this.surfaceRenderer.batches; }
   private get surfaceFaceOwnership(): Map<string, SurfaceFaceMembership[]> { return this.surfaceRenderer.ownership; }
@@ -1624,7 +1625,7 @@ export class ThreeViewportEngine {
         this.spatialIndex?.replace(before.position, after);
         if (afterVisible) this.yLayerProjection.cacheVisibleEntry(coordinateKey(after.position), this.visibleEntry(after, options));
         const rendered = this.blockRepresentations.get(coordinateKey(after.position));
-        if (rendered) rendered.block = after;
+        if (rendered) this.blockRepresentations.updateEntry(rendered, (current) => { current.block = after; });
       }
     }
     if (visibilityChanges.length) {
@@ -2297,7 +2298,8 @@ export class ThreeViewportEngine {
     const provider = this.visualProvider;
     if (!entry || !provider) { onComplete?.(); return; }
     const generation = this.providerGeneration;
-    const revision = ++entry.revision;
+    this.blockRepresentations.updateEntry(entry, (current) => { current.revision += 1; });
+    const revision = entry.revision;
     const reusableKey = this.requestReusableVisualKey(provider, job.block, job.worldContext);
     const visualPromise = job.surfaceFastPathEligible && reusableKey
       ? this.resolveTerrainHydration(reusableKey, job.block, job.worldContext, provider)
@@ -2431,7 +2433,9 @@ export class ThreeViewportEngine {
     const fallback = this.ensureFallbackVisual(entry, options.referenceOpacity);
     if (providerAvailable) {
       const isReference = role === 'reference';
-      const generation = this.providerGeneration; const revision = ++entry.revision;
+      const generation = this.providerGeneration;
+      this.blockRepresentations.updateEntry(entry, (current) => { current.revision += 1; });
+      const revision = entry.revision;
       const visualPromise: Promise<TerrainHydrationResult> = surfaceFastPathEligible && reusableKey
         ? this.resolveTerrainHydration(reusableKey, block, worldContext, provider!)
         : this.createProviderVisual(provider!, block, worldContext);
@@ -2578,7 +2582,7 @@ export class ThreeViewportEngine {
 
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
     this.invalidateStaticModelDiagnostics();
-    entry.revision += 1;
+    this.blockRepresentations.updateEntry(entry, (current) => { current.revision += 1; });
     if (entry.fluidChunkKey !== undefined) {
       if (this.blockRepresentations.get(key) === entry) this.blockRepresentations.remove(key);
       return;

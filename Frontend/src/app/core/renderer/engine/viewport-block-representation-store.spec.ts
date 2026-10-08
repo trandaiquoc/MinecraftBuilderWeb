@@ -10,7 +10,7 @@ describe('ViewportBlockRepresentationStore', () => {
     store.createOrReplace(entry);
     expect(store.get(entry.key)).toBe(entry);
     expect([...store.keys()]).toEqual([entry.key]);
-    expect(store.snapshot()).toEqual([entry]);
+    expect(store.snapshot()[0]).toMatchObject({ key: entry.key, signature: entry.signature, role: entry.role, revision: entry.revision, block: entry.block });
     expect(store.remove(entry.key)).toBe(true);
     expect(store.size).toBe(0);
   });
@@ -23,5 +23,13 @@ describe('ViewportBlockRepresentationStore', () => {
     const snapshot = store.snapshot()[0];
     expect(Object.isFrozen(snapshot)).toBe(true);
     expect(snapshot).not.toBe(entry);
+    expect(snapshot.block).not.toBe(entry.block);
+    expect(snapshot.block.position).not.toBe(entry.block.position);
+    expect(snapshot.block.state).not.toBe(entry.block.state);
+    expect(Object.isFrozen(snapshot.block)).toBe(true);
+    expect(Object.isFrozen(snapshot.block.position)).toBe(true);
+    expect(Object.isFrozen(snapshot.block.state)).toBe(true);
+    expect(entry.block.position.x).toBe(0);
+    expect(entry.block.state).toEqual({});
   });
 });

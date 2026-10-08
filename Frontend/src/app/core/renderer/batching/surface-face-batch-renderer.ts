@@ -17,10 +17,14 @@ export interface SurfaceFaceMembership {
 }
 
 export interface SurfaceFaceEntry {
-  surfaceFaceMemberships?: readonly SurfaceFaceMembership[];
-  surfaceExposedFaceCount?: number;
-  surfaceNeighborFacesCulled?: number;
+  readonly surfaceFaceMemberships?: readonly SurfaceFaceMembership[];
+  readonly surfaceExposedFaceCount?: number;
+  readonly surfaceNeighborFacesCulled?: number;
 }
+
+type MutableSurfaceFaceEntry = {
+  -readonly [Property in keyof SurfaceFaceEntry]: SurfaceFaceEntry[Property];
+};
 
 export interface SurfaceFaceBatch {
   readonly key: string;
@@ -43,6 +47,7 @@ export interface SurfaceFaceBatchRendererOptions {
   readonly unitEnvelope: () => THREE.Box3;
   readonly record: (name: string, delta?: number) => void;
   readonly getEntry: (key: string) => SurfaceFaceEntry | undefined;
+  readonly updateEntry?: (entry: SurfaceFaceEntry, mutate: (entry: MutableSurfaceFaceEntry) => void) => boolean;
 }
 
 /** Owns the legacy exposed-face InstancedMesh representation. */
@@ -115,9 +120,11 @@ export class SurfaceFaceBatchRenderer {
       this.options.record('surfaceFastPathBlocks', -1);
       this.options.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? memberships.length));
       this.options.record('neighborFacesCulled', -(entry.surfaceNeighborFacesCulled ?? 6 - memberships.length));
-      entry.surfaceFaceMemberships = undefined;
-      entry.surfaceExposedFaceCount = undefined;
-      entry.surfaceNeighborFacesCulled = undefined;
+      this.options.updateEntry?.(entry, (current) => {
+        current.surfaceFaceMemberships = undefined;
+        current.surfaceExposedFaceCount = undefined;
+        current.surfaceNeighborFacesCulled = undefined;
+      });
     }
   }
 
@@ -144,7 +151,7 @@ export class SurfaceFaceBatchRenderer {
       const movedMembershipIndex = movedMemberships?.findIndex((membership) => membership.batchKey === batchKey && membership.index === last) ?? -1;
       if (movedMemberships && movedMembershipIndex >= 0) movedMemberships[movedMembershipIndex] = { batchKey, index };
       const movedEntry = this.options.getEntry(movedKey);
-      if (movedEntry?.surfaceFaceMemberships) movedEntry.surfaceFaceMemberships = movedMemberships;
+      if (movedEntry?.surfaceFaceMemberships) this.options.updateEntry?.(movedEntry, (current) => { current.surfaceFaceMemberships = movedMemberships; });
     }
     batch.keys.pop();
     batch.positions.pop();
@@ -168,9 +175,11 @@ export class SurfaceFaceBatchRenderer {
       this.options.record('surfaceFastPathBlocks', -1);
       this.options.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? entry.surfaceFaceMemberships.length));
       this.options.record('neighborFacesCulled', -(entry.surfaceNeighborFacesCulled ?? 6 - entry.surfaceFaceMemberships.length));
-      entry.surfaceFaceMemberships = undefined;
-      entry.surfaceExposedFaceCount = undefined;
-      entry.surfaceNeighborFacesCulled = undefined;
+      this.options.updateEntry?.(entry, (current) => {
+        current.surfaceFaceMemberships = undefined;
+        current.surfaceExposedFaceCount = undefined;
+        current.surfaceNeighborFacesCulled = undefined;
+      });
     }
     for (const batch of this.batches.values()) {
       this.options.blocksGroup.remove(batch.mesh);

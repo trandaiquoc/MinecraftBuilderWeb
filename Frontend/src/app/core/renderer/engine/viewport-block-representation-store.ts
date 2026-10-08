@@ -57,5 +57,56 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
     this.entriesByKey.forEach((value, key) => callbackfn.call(thisArg, value, key, this));
   }
   [Symbol.iterator](): IterableIterator<[string, RenderedBlockEntry]> { return this.entries(); }
-  snapshot(): readonly Readonly<RenderedBlockEntry>[] { return [...this.entriesByKey.values()].map((entry) => Object.freeze({ ...entry })); }
+  snapshot(): readonly Readonly<RenderedBlockDiagnosticSnapshot>[] {
+    return [...this.entriesByKey.values()].map((entry) => Object.freeze({
+      key: entry.key,
+      block: freezeDiagnosticValue(cloneDiagnosticValue(entry.block)),
+      signature: entry.signature,
+      role: entry.role,
+      revision: entry.revision,
+      instanceBatchKey: entry.instanceBatchKey,
+      instanceIndex: entry.instanceIndex,
+      surfaceFaceMemberships: entry.surfaceFaceMemberships ? Object.freeze(entry.surfaceFaceMemberships.map((membership) => Object.freeze({ ...membership }))) : undefined,
+      surfaceExposedFaceCount: entry.surfaceExposedFaceCount,
+      surfaceNeighborFacesCulled: entry.surfaceNeighborFacesCulled,
+      terrainChunkKey: entry.terrainChunkKey,
+      reusableVisualKey: entry.reusableVisualKey,
+      staticModelAttempted: entry.staticModelAttempted,
+      staticModelFamily: entry.staticModelFamily,
+      fluidChunkKey: entry.fluidChunkKey,
+      fluidFallback: entry.fluidFallback,
+    }));
+  }
+}
+
+/** Detached diagnostic data intentionally excludes live Three.js/provider ownership. */
+export interface RenderedBlockDiagnosticSnapshot {
+  readonly key: string;
+  readonly block: Readonly<RenderedBlockEntry['block']>;
+  readonly signature: string;
+  readonly role: RenderedBlockEntry['role'];
+  readonly revision: number;
+  readonly instanceBatchKey?: string;
+  readonly instanceIndex?: number;
+  readonly surfaceFaceMemberships?: readonly SurfaceFaceMembership[];
+  readonly surfaceExposedFaceCount?: number;
+  readonly surfaceNeighborFacesCulled?: number;
+  readonly terrainChunkKey?: string;
+  readonly reusableVisualKey?: string;
+  readonly staticModelAttempted?: boolean;
+  readonly staticModelFamily?: string;
+  readonly fluidChunkKey?: string;
+  readonly fluidFallback?: boolean;
+}
+
+function cloneDiagnosticValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function freezeDiagnosticValue<T>(value: T): T {
+  if (value && typeof value === 'object') {
+    Object.freeze(value);
+    for (const child of Object.values(value as Record<string, unknown>)) freezeDiagnosticValue(child);
+  }
+  return value;
 }
