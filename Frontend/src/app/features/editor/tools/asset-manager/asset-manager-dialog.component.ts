@@ -13,31 +13,25 @@ import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { JarUploadValidationError, validateJarUpload } from '../../../../core/assets/mod/jar-upload-validation';
 import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.component';
 import { ModImportTimeoutError } from '../../../../core/assets/mod/mod-import-cancellation';
-import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
-import { normalizeItemSearch } from '../../../../core/items/catalog/item-catalog';
-import { ItemVisualService, ItemVisualState } from '../../../../core/items/catalog/item-visual.service';
-import { compactContentCount, diagnosticPresentation, filterAssetActivity, importPhaseState, importStageForPhase, importStageState, importStages, progressPercentForProgress, type ImportOperationStatus, type ImportStage, type ImportStageState, type ImportStageStateContext } from './asset-manager-mod-presentation';
+import { compactContentCount, diagnosticPresentation, filterAssetActivity, importPhaseState, importStageState, importStages, progressPercentForProgress, type ImportOperationStatus, type ImportStage, type ImportStageState, type ImportStageStateContext } from './asset-manager-mod-presentation';
+import { AssetManagerModDetailsComponent } from './asset-manager-mod-details.component';
 
 type AssetManagerTab = 'vanilla' | 'mods';
 type DiagnosticDialogState = { readonly modName: string; readonly kind: 'warning' | 'blocking'; readonly diagnostics: readonly ModImportDiagnostic[] };
 const phases: readonly ModImportProgress['phase'][] = importStages.flatMap(({ phases }) => phases);
 
-@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin, UiProgressComponent], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
+@Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin, UiProgressComponent, AssetManagerModDetailsComponent], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(VanillaAssetsService);
   private readonly dialog = inject(DialogService);
   private readonly supportCatalog = inject(ModSupportCatalog);
-  private readonly itemCatalog = inject(ItemCatalogService);
-  private readonly itemVisuals = inject(ItemVisualService);
-  private readonly requestedItemVisuals = new Set<string>();
   readonly closed = output<void>();
   protected readonly tab = signal<AssetManagerTab>('vanilla');
   protected readonly importing = signal(false);
   protected readonly removing = signal<string | undefined>(undefined);
   protected readonly modError = signal('');
   protected readonly modSearch = signal('');
-  protected readonly detailsItemSearch = signal('');
   protected readonly helpOpen = signal(false);
   protected readonly detailsSourceId = signal<string | undefined>(undefined);
   protected readonly preflight = signal<PreparedModImport | undefined>(undefined);
@@ -63,25 +57,6 @@ export class AssetManagerDialogComponent {
   protected readonly currentVanillaActivity = computed(() => { const current = this.assets.activity.current(); return current && (current.category === 'vanilla' || current.category === 'cache') ? this.withActivityProgress(current) : undefined; });
   protected readonly currentModActivity = computed(() => { const current = this.assets.activity.current(); return current?.category === 'mod' ? this.withActivityProgress(current) : undefined; });
   protected readonly selectedDetails = computed(() => this.assets.importedMods().find((mod) => mod.sourceId === this.detailsSourceId()));
-  private readonly selectedDetailsItemEntries = computed(() => {
-    const mod = this.selectedDetails(); this.itemCatalog.generation();
-    if (!mod) return [];
-    return this.itemCatalog.all().filter((entry) => entry.sourceId === mod.sourceId);
-  });
-  protected readonly selectedDetailsItems = computed(() => {
-    const entries = this.selectedDetailsItemEntries();
-    const query = normalizeItemSearch(this.detailsItemSearch());
-    return entries.filter((entry) => !query || normalizeItemSearch(`${entry.displayName} ${entry.id} ${entry.namespace} ${entry.sourceName}`).includes(query)).slice(0, 100);
-  });
-  protected readonly selectedDetailsItemCounts = computed(() => {
-    const items = this.selectedDetailsItemEntries();
-    return { indexed: items.length, available: 0, unsupported: 0, missing: 0 };
-  });
-  private readonly itemVisualRequestEffect = effect(() => {
-    const items = this.selectedDetailsItems();
-    this.itemVisuals.revision();
-    for (const item of items) { const state = this.itemVisuals.state(item.id); if (!this.requestedItemVisuals.has(item.id) || state.status === 'idle') { this.requestedItemVisuals.add(item.id); void this.itemVisuals.request(item.id).catch(() => undefined); } }
-  });
   private readonly detailsFocusEffect = effect(() => {
     const selected = this.selectedDetails();
     if (selected && !this.detailsRestoreTarget && typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) this.detailsRestoreTarget = document.activeElement;
@@ -97,18 +72,7 @@ export class AssetManagerDialogComponent {
   ngOnDestroy(): void { this.operationId += 1; this.operationController?.abort(); this.operationController = undefined; this.preflight()?.dispose(); this.revokePreflightIcon(); }
   protected setTab(tab: AssetManagerTab): void { this.tab.set(tab); }
   protected closeDetails(): void { const target = this.detailsRestoreTarget; this.detailsRestoreTarget = undefined; this.detailsSourceId.set(undefined); queueMicrotask(() => target?.focus()); }
-  protected openDetails(sourceId: string): void { this.detailsItemSearch.set(''); this.detailsSourceId.set(sourceId); }
-  protected setDetailsItemSearch(event: Event): void { this.detailsItemSearch.set((event.target as HTMLInputElement).value); }
-  protected itemVisualState(entry: { readonly id: string }): ItemVisualState {
-    this.itemVisuals.revision();
-    return this.itemVisuals.state(entry.id);
-  }
-  protected itemVisualStatus(entry: { readonly id: string }): string {
-    const state = this.itemVisualState(entry);
-    return state.status === 'available' ? this.i18n.t('itemVisualRenderable') : state.status === 'missing-resource' ? this.i18n.t('itemVisualMissing') : state.status === 'loading' || state.status === 'queued' ? this.i18n.t('itemVisualLoading') : state.status === 'unsupported' ? this.i18n.t('itemVisualUnsupported') : this.i18n.t('itemVisualWaiting');
-  }
-  protected itemVisualPreviewUrls(entry: { readonly id: string }): readonly string[] { return this.itemVisualState(entry).info?.previewUrls ?? []; }
-  protected itemVisualSummary(): string { const counts = this.selectedDetailsItemCounts(); return `${this.i18n.t('assetManagerIndexed')}: ${counts.indexed}`; }
+  protected openDetails(sourceId: string): void { this.detailsSourceId.set(sourceId); }
   protected openHelp(): void { this.helpOpen.set(true); }
   protected toggleHelp(): void { this.helpOpen.update((open) => !open); }
   protected closeHelp(): void { this.helpOpen.set(false); }
