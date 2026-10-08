@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, compileInstanceTemplates, surfaceFaceDirectionFromHit, surfaceFaceNormal, translateVisualToVoxel } from './three-viewport-engine';
 import type { InstancePartTemplate } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visuals';
-import type { BlockVisualProvider } from '../geometry/vanilla-block-visual-provider';
+import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from '../benchmark/renderer-benchmark-fixtures';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import type { BlockVisualResult, BlockVisualProvider } from '../../geometry/vanilla-block-visual-provider';
+import type { BlockVisualResult, BlockVisualProvider } from '../../visuals/block-visual-provider-contract';
 import { classifyTerrainAtlasGpuResult, runTerrainAtlasProbe } from './terrain-atlas-browser-runner';
 import type { TerrainAtlasFramebufferEvidence } from './terrain-atlas-gpu-probe';
 import type { TerrainAtlasGpuProbeResult, TerrainAtlasGpuProbeVariantsResult } from './terrain-atlas-gpu-probe';

@@ -3,7 +3,7 @@ import type { ActiveBlock } from '../../blocks/placement-palette/active-block.se
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacementStatus } from '../../editor/placement/placement';
-import type { BlockVisualProvider } from '../geometry/vanilla-block-visual-provider';
+import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import type { ViewportThemePalette } from '../engine/viewport-theme';
 import { disposeObject } from './renderer-resource-disposal';
 

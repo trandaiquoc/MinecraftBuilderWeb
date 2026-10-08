@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { PlacedBlock } from '../../../domain/project.types';
-import type { BlockVisualProvider } from '../../geometry/vanilla-block-visual-provider';
+import type { BlockVisualProvider } from '../../visuals/block-visual-provider-contract';
 import { TerrainTextureAtlas, sampleAtlasUv, type TerrainAtlasFace, type TerrainAtlasSprite } from './terrain-texture-atlas';
 import { normalizeTerrainPixels, readTerrainTexturePixels, summarizeTerrainPixels, type TerrainPixelSource, type TerrainPixelSummary, type TerrainPixelExtractionRoute } from './terrain-atlas-pixels';
 import type { TerrainAtlasFramebufferEvidence, TerrainAtlasGpuProbeDraw, TerrainAtlasGpuProbeResult, TerrainAtlasGpuProbeVariantsResult, TerrainAtlasGpuProbeVariantDraw } from './terrain-atlas-gpu-probe';

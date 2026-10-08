@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
-import { VanillaBlockVisualProvider, thumbnailPreviewRotationY } from './vanilla-block-visual-provider';
-import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
-import { BlockCatalog } from '../../blocks/catalog/block-catalog';
-import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
+import { VanillaBlockVisualProvider } from './vanilla-block-visual-provider';
 
 describe('vanilla block visual provider', () => {
   beforeEach(() => { Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:stone') }); });
@@ -20,25 +17,6 @@ describe('vanilla block visual provider', () => {
     expect(disposeResources).toHaveBeenCalledTimes(1);
     provider.dispose();
     expect((provider as any).resourcesDisposed).toBe(true);
-  });
-  it('corrects only entity-head preview orientation while leaving generic previews unchanged', () => {
-    const head = new THREE.Group(); head.userData['specialVisualFamily'] = 'heads-skulls';
-    expect(thumbnailPreviewRotationY(head)).toBe(Math.PI);
-    expect(thumbnailPreviewRotationY(new THREE.Group())).toBe(0);
-  });
-  it('does not cache a retryable flat item fallback as enhanced output', async () => {
-    const assets = { readJson: () => undefined, readBinary: () => undefined, textureUrl: (resource: string) => `resource:${resource}` } as any;
-    const provider = new VanillaBlockVisualProvider(assets);
-    const catalog = new BlockCatalog(); catalog.load(representativeBlockFixture);
-    const item = buildPlaceableItems(catalog.all())[0];
-    const internals = provider as any;
-    const render = vi.fn().mockRejectedValueOnce(new Error('temporary renderer failure')).mockResolvedValueOnce('blob:enhanced');
-    internals.renderThumbnailBlocks = render;
-    internals.itemThumbnailResource = () => 'resource:flat';
-
-    await expect(provider.perspectiveItemThumbnail!(item)).resolves.toMatchObject({ quality: 'fallback', retryable: true });
-    await expect(provider.perspectiveItemThumbnail!(item)).resolves.toMatchObject({ quality: 'enhanced', url: 'blob:enhanced' });
-    expect(render).toHaveBeenCalledTimes(2);
   });
   it('uses unlit materials for explicit shade direction overrides', async () => {
     const assets = new VanillaAssetProvider('fixture.jar', {
@@ -132,7 +110,7 @@ describe('vanilla block visual provider', () => {
     const revoke = vi.fn();
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revoke });
     const provider = realLikeVisualProvider();
-    (provider as unknown as { thumbnailObjectUrls: Set<string> }).thumbnailObjectUrls.add('blob:thumbnail');
+    (provider as unknown as { thumbnails: { objectUrls: Set<string> } }).thumbnails.objectUrls.add('blob:thumbnail');
     provider.dispose();
     expect(revoke).toHaveBeenCalledWith('blob:thumbnail');
   });

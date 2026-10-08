@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import type { BlockVisualProvider } from '../geometry/vanilla-block-visual-provider';
+import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import { applyStructureGuideBrightnessToObject, STRUCTURE_GUIDE_BRIGHTNESS } from '../engine/block-brightness';
 import { disposeObject } from './renderer-resource-disposal';
 
