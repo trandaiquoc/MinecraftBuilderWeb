@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { I18nService, supplementalTranslations, translationKeySets } from './i18n.service';
+import { I18nService } from './i18n.service';
+import { supplementalTranslations, translationKeySets } from './translation-catalogs';
 
 afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
 
