@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { DecorationPlacementPlan } from '../../decorations/placement/decoration-placement';
 import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decoration-visuals';
-import type { ResolvedItemVisual } from '../geometry/block-model-geometry';
+import type { ResolvedItemVisual } from '../visuals/item-visual-resolver';
 import type { ViewportThemePalette } from '../engine/viewport-theme';
 import { disposeObject } from './renderer-resource-disposal';
 

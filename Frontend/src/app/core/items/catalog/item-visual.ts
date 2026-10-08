@@ -1,4 +1,4 @@
-import { itemVisualTextureResources, resolveItemVisual } from '../../renderer/geometry/block-model-geometry';
+import { itemVisualTextureResources, resolveItemVisual } from '../../renderer/visuals/item-visual-resolver';
 import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
 import type { ItemVisualInfo, ItemVisualTrace } from './item-catalog';

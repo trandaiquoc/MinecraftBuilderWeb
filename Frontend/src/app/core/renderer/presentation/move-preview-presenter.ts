@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { ProjectDocument } from '../../domain/project.types';
 import type { GroupMovePreview } from '../../editor/groups/group.service';
 import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decoration-visuals';
-import type { ResolvedItemVisual } from '../geometry/block-model-geometry';
+import type { ResolvedItemVisual } from '../visuals/item-visual-resolver';
 import type { ViewportThemePalette } from '../engine/viewport-theme';
 
 export interface MovePreviewPresenterCallbacks {

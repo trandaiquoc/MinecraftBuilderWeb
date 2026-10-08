@@ -14,7 +14,7 @@ import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/select
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
 import type { ViewportPerformanceEvidence, ViewportProjectionState } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
-import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
+import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/visuals/item-visual-resolver';
 import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';

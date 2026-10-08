@@ -14,7 +14,7 @@ import { clampVoxelBox, faceLockedSelectionPlane, freeSpaceSelectionBox, normali
 import { ThreeViewportEngine, ViewportOwnershipDiagnostics, ViewportRuntimeDiagnostics } from '../../../../core/renderer/engine/three-viewport-engine';
 import type { ViewportPerformanceEvidence } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
-import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/geometry/block-model-geometry';
+import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/visuals/item-visual-resolver';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../../core/ui/theme/theme.service';
