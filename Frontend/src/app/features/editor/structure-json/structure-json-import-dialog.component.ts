@@ -1,11 +1,8 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import { Component, computed, inject, input, output, signal } from '@angular/core';
-import { LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideCopy, LucideTriangleAlert, LucideUpload, LucideX } from '@lucide/angular';
+import { Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideTriangleAlert, LucideUpload, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
-import { canonicalPlaceableItemId, PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
-import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
-import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
-import type { PaintingVariant } from '../../../core/decorations/decoration.types';
+import { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
@@ -18,21 +15,16 @@ import type { StructureJson } from '../../../core/persistence/structure-json/str
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
-import { ExternalAiPromptContextService } from '../../../core/persistence/structure-json/external-ai-prompt-context.service';
-import { buildExternalAiPrompt, externalAiInstructionSections, resolveModSelections, selectedExternalAiTotals } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
-import type { ExternalAiModContentCategory, ExternalAiModContentSelection, ExternalAiPromptLocale, ExternalAiPromptOptions } from '../../../core/persistence/structure-json/external-ai-prompt-builder';
-import { ExternalAiContentCategory, ExternalAiContentLimits, normalizeExternalAiContentLimits, serializeExternalAiContentLimits } from '../../../core/persistence/structure-json/external-ai-content-limits';
+import { ExternalAiWorkspaceComponent } from './external-ai-workspace.component';
+import { ExternalAiContentLimits, normalizeExternalAiContentLimits } from '../../../core/persistence/structure-json/external-ai-content-limits';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
-import { createStructureJsonExample, serializeStructureJsonValue } from '../../../core/persistence/structure-json/structure-json';
-import { ReadonlyCodeViewerComponent } from '../../../shared/ui/readonly-code-viewer/readonly-code-viewer.component';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
 type ImportDialogTab = 'import' | 'ai';
-type AiWorkspaceTab = 'description' | 'content' | 'limits' | 'guidance' | 'example';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
-  imports: [CdkTrapFocus, LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideCopy, LucideTriangleAlert, LucideUpload, LucideX, UiTooltipDirective, ReadonlyCodeViewerComponent],
+  imports: [CdkTrapFocus, LucideCheck, LucideCheckCircle2, LucideCircleHelp, LucideCircleX, LucideTriangleAlert, LucideUpload, LucideX, UiTooltipDirective, ExternalAiWorkspaceComponent],
   templateUrl: './structure-json-import-dialog.component.html',
   styleUrl: './structure-json-import-dialog.component.scss',
   host: { '(document:keydown.escape)': 'onEscape($event)', '(document:pointerdown)': 'onDocumentPointerDown($event)' },
@@ -40,13 +32,11 @@ type AiWorkspaceTab = 'description' | 'content' | 'limits' | 'guidance' | 'examp
 export class StructureJsonImportDialogComponent {
   protected readonly i18n = inject(I18nService);
   private readonly library = inject(BlockLibraryService);
-  private readonly itemCatalog = inject(ItemCatalogService);
-  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
   private readonly history = inject(HistoryService);
   private readonly selection = inject(SelectionService);
   private readonly dialogs = inject(DialogService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
-  private readonly aiContext = inject(ExternalAiPromptContextService);
+  private readonly aiWorkspace = viewChild(ExternalAiWorkspaceComponent);
   protected readonly preferences = inject(UiPreferencesService);
   readonly project = input.required<ProjectDocument>();
   readonly closed = output<void>();
@@ -59,153 +49,19 @@ export class StructureJsonImportDialogComponent {
   protected readonly importModes: readonly StructureJsonImportMode[] = ['replace', 'merge', 'new-group'];
   protected readonly fileInput = signal<HTMLInputElement | undefined>(undefined);
   protected readonly activeTab = signal<ImportDialogTab>('import');
-  protected readonly activeAiTab = signal<AiWorkspaceTab>('description');
-  protected readonly aiDescription = signal('');
-  protected readonly aiSnapshot = computed(() => this.aiContext.snapshot(this.project()));
-  protected readonly hasExternalContent = computed(() => this.aiSnapshot().mods.some((mod) => mod.blocks.length > 0 || mod.items.length > 0 || mod.decorations.length > 0));
-  protected readonly includeAiGuidance = signal(true);
-  protected readonly includeAvailableContentOverride = signal<boolean | undefined>(undefined);
-  protected readonly includeJsonExample = signal(true);
-  protected readonly modSelections = signal<readonly ExternalAiModContentSelection[]>([]);
-  protected readonly modContentOpen = signal(false);
-  protected readonly contentSearch = signal('');
-  protected readonly contentLimitsCategory = signal<ExternalAiContentCategory>('blocks');
-  protected readonly includeAvailableContent = computed(() => this.includeAvailableContentOverride() ?? this.hasExternalContent());
-  protected readonly effectiveModSelections = computed(() => resolveModSelections(this.aiSnapshot(), this.modSelections()));
-  protected readonly selectedTotals = computed(() => selectedExternalAiTotals(this.aiSnapshot(), this.modSelections()));
-  protected readonly aiPromptOptions = computed<ExternalAiPromptOptions>(() => ({
-    locale: this.currentAiLocale(),
-    includeGuidance: this.includeAiGuidance(),
-    includeAvailableContent: this.includeAvailableContent(),
-    includeExample: this.includeJsonExample(),
-    modSelections: this.modSelections(),
-    contentLimits: this.contentLimits(),
-    contentLimitsEnabled: this.preferences.preferences().externalAiContentLimitsEnabled,
-  }));
-  protected readonly contentCatalogEntries = computed<readonly { category: ExternalAiContentCategory; id: string; displayName?: string; sourceId?: string; sourceName?: string }[]>(() => {
-    const blocks = this.placeableItems().map((item) => ({ category: 'blocks' as const, id: item.itemId, displayName: item.displayName, sourceId: item.sourceId ?? item.namespace, sourceName: item.sourceName }));
-    const items = this.itemCatalog.all().map((item) => ({ category: 'items' as const, id: item.id, displayName: item.displayName, sourceId: item.sourceId, sourceName: item.sourceName }));
-    const decorations = this.paintingCatalog.placeable().map((painting) => ({ category: 'decorations' as const, id: namespacedDecorationId(painting), displayName: paintingDisplayName(painting), sourceId: painting.sourceId ?? 'vanilla', sourceName: painting.sourceName }));
-    return [...blocks, ...items, ...decorations];
-  });
   protected readonly contentLimits = computed<ExternalAiContentLimits>(() => normalizeExternalAiContentLimits(this.preferences.preferences().externalAiContentLimits, this.placeableItems()));
-  protected readonly contentLimitsJson = computed(() => serializeExternalAiContentLimits(this.contentLimits()));
-  protected readonly contentCandidates = computed(() => {
-    const query = this.contentSearch();
-    const normalized = query.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim();
-    return this.contentCatalogEntries().filter((entry) => entry.category === this.contentLimitsCategory() && (!normalized || `${entry.displayName ?? ''} ${entry.id} ${entry.sourceName ?? ''}`.toLocaleLowerCase().includes(normalized))).slice(0, 40);
-  });
-  protected readonly aiPrompt = computed(() => buildExternalAiPrompt(this.aiDescription(), this.aiSnapshot(), this.aiPromptOptions()));
-  protected readonly aiExample = computed(() => serializeStructureJsonValue(createStructureJsonExample()));
-  protected readonly aiGuidance = computed(() => externalAiInstructionSections(this.aiSnapshot().minecraftVersion, this.currentAiLocale(), this.aiSnapshot().projectContext));
-  protected readonly aiCopyStatus = signal<'idle' | 'copied' | 'failed'>('idle');
-  protected readonly aiDescriptionInvalid = signal(false);
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
-  protected readonly aiTabs: readonly AiWorkspaceTab[] = ['description', 'content', 'limits', 'guidance', 'example'];
-  protected readonly contentCategories: readonly ExternalAiContentCategory[] = ['blocks', 'items', 'decorations'];
-  protected readonly modCategories: readonly ExternalAiModContentCategory[] = ['blocks', 'items', 'decorations'];
   private validationGeneration = 0;
   private readonly modePlanCache = new Map<StructureJsonImportMode, StructureJsonImportPlan>();
 
-  protected close(): void { this.validationGeneration += 1; this.modContentOpen.set(false); this.closed.emit(); }
-  protected onEscape(event: Event): void { if (this.modContentOpen()) { event.stopPropagation(); this.modContentOpen.set(false); return; } this.close(); }
+  protected close(): void { this.validationGeneration += 1; this.closed.emit(); }
+  protected onEscape(event: Event): void { if (this.aiWorkspace()?.closeContentSelector()) { event.stopPropagation(); return; } this.close(); }
   protected onDocumentPointerDown(event: Event): void {
-    if (!this.modContentOpen()) return;
     const target = event.target;
     if (target instanceof Element && target.closest('.ai-mod-content-selector')) return;
-    this.modContentOpen.set(false);
+    this.aiWorkspace()?.closeContentSelector();
   }
   protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
-  protected setAiTab(tab: AiWorkspaceTab): void { this.activeAiTab.set(tab); }
-  protected aiTabLabel(tab: AiWorkspaceTab): string { return this.i18n.t(({ description: 'structureJsonAiTabDescription', content: 'structureJsonAiTabContent', limits: 'structureJsonAiTabContentLimits', guidance: 'structureJsonAiTabGuidance', example: 'structureJsonAiTabExample' } as const)[tab]); }
-  protected aiGuidanceLines(section: { readonly lines: readonly string[] }): readonly string[] { return section.lines; }
-  protected onAiTabKeydown(event: KeyboardEvent): void {
-    const current = this.aiTabs.indexOf(this.activeAiTab());
-    const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (current + 1) % this.aiTabs.length : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (current - 1 + this.aiTabs.length) % this.aiTabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? this.aiTabs.length - 1 : -1;
-    if (next < 0) return;
-    event.preventDefault(); this.setAiTab(this.aiTabs[next]);
-  }
-  protected setAiDescription(value: string): void { this.aiDescription.set(value); this.aiCopyStatus.set('idle'); this.aiDescriptionInvalid.set(false); }
-  protected setIncludeGuidance(value: boolean): void { this.includeAiGuidance.set(value); this.aiCopyStatus.set('idle'); }
-  protected setIncludeAvailableContent(value: boolean): void { this.includeAvailableContentOverride.set(value); this.aiCopyStatus.set('idle'); }
-  protected setIncludeJsonExample(value: boolean): void { this.includeJsonExample.set(value); this.aiCopyStatus.set('idle'); }
-  protected toggleModContent(): void { if (this.hasExternalContent() && this.includeAvailableContent()) this.modContentOpen.update((open) => !open); }
-  protected modSelection(sourceId: string): ExternalAiModContentSelection {
-    return this.effectiveModSelections().find((selection) => selection.sourceId === sourceId) ?? { sourceId, includeBlocks: false, includeItems: false, includeDecorations: false };
-  }
-  protected categoryKey(category: ExternalAiModContentCategory): 'includeBlocks' | 'includeItems' | 'includeDecorations' { return categoryKey(category); }
-  protected setModCategory(sourceId: string, category: ExternalAiModContentCategory, value: boolean): void {
-    const selections = this.effectiveModSelections().map((selection) => selection.sourceId === sourceId ? { ...selection, [categoryKey(category)]: value } : selection);
-    this.modSelections.set(selections); this.aiCopyStatus.set('idle');
-  }
-  protected selectAllModContent(): void {
-    this.modSelections.set(this.aiSnapshot().mods.map((mod) => ({ sourceId: mod.sourceId, includeBlocks: mod.blocks.length > 0, includeItems: mod.items.length > 0, includeDecorations: mod.decorations.length > 0 })));
-    this.aiCopyStatus.set('idle');
-  }
-  protected clearAllModContent(): void {
-    this.modSelections.set(this.aiSnapshot().mods.map((mod) => ({ sourceId: mod.sourceId, includeBlocks: false, includeItems: false, includeDecorations: false })));
-    this.aiCopyStatus.set('idle');
-  }
-  protected setContentSearch(value: string): void { this.contentSearch.set(value); }
-  protected setContentLimitsCategory(category: ExternalAiContentCategory): void { this.contentLimitsCategory.set(category); this.contentSearch.set(''); }
-  protected setContentLimitsEnabled(value: boolean): void { this.preferences.setExternalAiContentLimitsEnabled(value); this.aiCopyStatus.set('idle'); }
-  protected contentLimitSelected(candidate: { readonly category: ExternalAiContentCategory; readonly id: string }): boolean {
-    return this.contentLimits()[candidate.category].includes(this.canonicalContentId(candidate.category, candidate.id));
-  }
-  protected toggleContentLimit(candidate: { readonly category: ExternalAiContentCategory; readonly id: string }, selected: boolean): void {
-    const category = candidate.category;
-    const id = this.canonicalContentId(category, candidate.id);
-    const next = { ...this.contentLimits(), [category]: selected ? [...this.contentLimits()[category], id] : this.contentLimits()[category].filter((entry) => entry !== id) };
-    this.preferences.setExternalAiContentLimits(next);
-    this.aiCopyStatus.set('idle');
-  }
-  protected clearContentLimits(): void { this.preferences.setExternalAiContentLimits({ blocks: [], items: [], decorations: [] }); this.aiCopyStatus.set('idle'); }
-  protected resetContentLimits(): void { this.preferences.resetExternalAiContentLimits(); this.aiCopyStatus.set('idle'); }
-  protected contentCategoryLabel(category: ExternalAiContentCategory): string { return this.i18n.t(({ blocks: 'structureJsonAiContentLimitsBlocks', items: 'structureJsonAiContentLimitsItems', decorations: 'structureJsonAiContentLimitsDecorations' } as const)[category]); }
-  private canonicalContentId(category: ExternalAiContentCategory, id: string): string { return category === 'blocks' ? canonicalPlaceableItemId(id, this.placeableItems()) : id; }
-  private placeableItems(): readonly PlaceableItemDefinition[] {
-    const source = (this.library as unknown as { readonly allPlaceableItems?: () => readonly PlaceableItemDefinition[] }).allPlaceableItems;
-    if (typeof source === 'function') return source();
-    const fallback = (this.library as unknown as { readonly allItems?: () => readonly PlaceableItemDefinition[] }).allItems;
-    return typeof fallback === 'function' ? fallback() : [];
-  }
-  protected modContentSummary(): string {
-    const totals = this.selectedTotals();
-    if (!totals.mods) return this.i18n.t('structureJsonAiNoContentSelected');
-    const names = this.aiSnapshot().mods.filter((mod) => this.modSelection(mod.sourceId).includeBlocks || this.modSelection(mod.sourceId).includeItems || this.modSelection(mod.sourceId).includeDecorations).map((mod) => mod.name);
-    const label = names.length <= 2 ? names.join(' · ') : `${names[0]} +${names.length - 1}`;
-    const categories = [
-      totals.blocks > 0 ? `${totals.blocks} ${this.i18n.t('structureJsonAiSummaryBlocks')}` : '',
-      totals.items > 0 ? `${totals.items} ${this.i18n.t('structureJsonAiSummaryItems')}` : '',
-      totals.decorations > 0 ? `${totals.decorations} ${this.i18n.t('structureJsonAiSummaryDecorations')}` : '',
-    ].filter(Boolean).join(' · ');
-    return `${label} · ${categories}`;
-  }
-  protected categoryCount(mod: { readonly blocks: readonly string[]; readonly items: readonly unknown[]; readonly decorations: readonly unknown[] }, category: ExternalAiModContentCategory): number { return category === 'blocks' ? mod.blocks.length : category === 'items' ? mod.items.length : mod.decorations.length; }
-  protected categoryLabel(category: ExternalAiModContentCategory): string { return this.i18n.t(({ blocks: 'structureJsonAiIncludeBlocks', items: 'structureJsonAiIncludeItems', decorations: 'structureJsonAiIncludeDecorations' } as const)[category]); }
-  protected modContentText(mod: { readonly blocks: readonly string[]; readonly items: readonly { readonly id: string; readonly maxStackSize?: number }[]; readonly decorations: readonly { readonly id: string; readonly kind: string }[] }): string {
-    const sections: string[] = [];
-    if (mod.blocks.length) sections.push(`${this.i18n.t('structureJsonAiIncludeBlocks')}\n${[...mod.blocks].sort().join('\n')}`);
-    if (mod.items.length) sections.push(`${this.i18n.t('structureJsonAiIncludeItems')}\n${[...mod.items].sort((a, b) => a.id.localeCompare(b.id)).map((item) => item.maxStackSize === undefined ? item.id : `${item.id} (max ${item.maxStackSize})`).join('\n')}`);
-    if (mod.decorations.length) sections.push(`${this.i18n.t('structureJsonAiIncludeDecorations')}\n${[...mod.decorations].sort((a, b) => a.id.localeCompare(b.id)).map((item) => `${item.id} [${item.kind}]`).join('\n')}`);
-    return sections.join('\n\n');
-  }
-  protected lineCountLabel(value: string): string { return this.i18n.t('structureJsonAiLineCount').replace('{count}', String(value === '' ? 0 : value.split('\n').length)); }
-  private currentAiLocale(): ExternalAiPromptLocale { return typeof this.i18n.locale === 'function' ? this.i18n.locale() : 'en'; }
-  protected aiPromptSummary(): string {
-    const parts = [this.i18n.t('structureJsonAiSummaryDescription')];
-    if (this.includeAiGuidance()) parts.push(this.i18n.t('structureJsonAiSummaryGuidance'));
-    if (this.includeAvailableContent() && this.selectedTotals().mods > 0) parts.push(this.modContentSummary());
-    if (this.preferences.preferences().externalAiContentLimitsEnabled && (this.contentLimits().blocks.length || this.contentLimits().items.length || this.contentLimits().decorations.length)) parts.push(this.i18n.t('structureJsonAiIncludeContentLimits'));
-    if (this.includeJsonExample()) parts.push(this.i18n.t('structureJsonAiSummaryExample'));
-    return `${this.i18n.t('structureJsonAiIncludes')}: ${parts.join(' + ')}`;
-  }
-  protected async copyAiPrompt(): Promise<void> {
-    if (!this.aiDescription().trim()) { this.aiDescriptionInvalid.set(true); this.aiCopyStatus.set('idle'); return; }
-    this.aiDescriptionInvalid.set(false);
-    await this.copyText(this.aiPrompt());
-  }
-  protected async copyAiExample(): Promise<void> { await this.copyText(this.aiExample()); }
   protected setDraft(value: string): void { this.draftJson.set(value); this.preview.set(undefined); this.importPlan.set(undefined); this.modePlanCache.clear(); this.importMode.set('replace'); this.progress.set('idle'); this.checkingProgress.set({ completed: 0, total: 0 }); this.validationGeneration += 1; }
   protected async loadFile(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = '';
@@ -360,15 +216,11 @@ export class StructureJsonImportDialogComponent {
     return buildStructureJsonImportPlanAsync(source, validation, project, (id) => this.library.get(id), mode, this.i18n.t('structureJsonImportedGroupFallback'), this.validationOptions(), { cancellation: { isCancelled: () => generation !== this.validationGeneration || this.project() !== expectedProject } });
   }
   private validationOptions(): StructureJsonValidationOptions { return { contentLimitsEnabled: this.preferences.preferences().externalAiContentLimitsEnabled, contentLimits: this.contentLimits(), placeableItems: this.placeableItems() }; }
-  private async copyText(value: string): Promise<void> {
-    try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); this.aiCopyStatus.set('copied'); } catch { this.aiCopyStatus.set('failed'); }
+  protected placeableItems(): readonly PlaceableItemDefinition[] {
+    const source = (this.library as unknown as { readonly allPlaceableItems?: () => readonly PlaceableItemDefinition[] }).allPlaceableItems;
+    if (typeof source === 'function') return source();
+    const fallback = (this.library as unknown as { readonly allItems?: () => readonly PlaceableItemDefinition[] }).allItems;
+    return typeof fallback === 'function' ? fallback() : [];
   }
 }
-
-function categoryKey(category: ExternalAiModContentCategory): 'includeBlocks' | 'includeItems' | 'includeDecorations' {
-  return category === 'blocks' ? 'includeBlocks' : category === 'items' ? 'includeItems' : 'includeDecorations';
-}
-
-function namespacedDecorationId(entry: PaintingVariant): string { return entry.id.includes(':') ? entry.id : `minecraft:${entry.id}`; }
-function paintingDisplayName(entry: PaintingVariant): string { return entry.id.split(':').at(-1)!.split('_').filter(Boolean).map((part) => part[0]!.toUpperCase() + part.slice(1)).join(' '); }
 function formatProjectSize(size: ProjectDocument['size']): string { return `${size.x} × ${size.y} × ${size.z}`; }

@@ -1,4 +1,5 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockDefinition } from '../../../core/blocks/catalog/block-definition.types';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
@@ -14,6 +15,7 @@ import { UiPreferencesService } from '../../../core/ui/preferences/ui-preference
 import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
+import { ExternalAiWorkspaceComponent } from './external-ai-workspace.component';
 import { StructureJsonImportDialogComponent } from './structure-json-import-dialog.component';
 
 const project: ProjectDocument = { schemaVersion: 3, id: 'project', metadata: { name: 'Import Demo', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 2, y: 2, z: 2 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 } };
@@ -23,6 +25,12 @@ const catalogProviders = [
   { provide: ItemCatalogService, useValue: { all: () => [] } },
   { provide: PaintingVariantCatalogService, useValue: { placeable: () => [] } },
 ] as const;
+
+function activateAiWorkspace(fixture: ComponentFixture<StructureJsonImportDialogComponent>): ExternalAiWorkspaceComponent {
+  (fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void }).setTab('ai');
+  fixture.detectChanges();
+  return fixture.debugElement.query(By.directive(ExternalAiWorkspaceComponent)).componentInstance as ExternalAiWorkspaceComponent;
+}
 
 describe('StructureJsonImportDialogComponent', () => {
   it('supports editing, explicit validation, and stale preview clearing', async () => {
@@ -61,8 +69,8 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void; setAiTab: (tab: 'description' | 'content' | 'limits' | 'guidance' | 'example') => void };
-    instance.setTab('ai'); instance.setAiTab('example'); fixture.detectChanges();
+    const instance = activateAiWorkspace(fixture) as unknown as { setAiTab: (tab: 'description' | 'content' | 'limits' | 'guidance' | 'example') => void };
+    instance.setAiTab('example'); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.structure-json-layout.ai-mode')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.structure-json-ai-workspace')).toBeTruthy();
     const viewer = fixture.nativeElement.querySelector('.structure-json-ai-workspace app-readonly-code-viewer');
@@ -77,6 +85,9 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('.ai-prompt-toggles .ai-toggle').length).toBe(5);
     expect(fixture.nativeElement.querySelectorAll('.ai-content-limits-controls .ai-toggle').length).toBe(0);
     expect(fixture.nativeElement.querySelectorAll('.ai-inner-tabs [role="tab"]').length).toBe(5);
+    (fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void }).setTab('import'); fixture.detectChanges();
+    (fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void }).setTab('ai'); fixture.detectChanges();
+    expect((fixture.debugElement.query(By.directive(ExternalAiWorkspaceComponent)).componentInstance as unknown as { activeAiTab: () => string }).activeAiTab()).toBe('limits');
   });
 
   it('keeps prompt inclusion controls independent from the viewing tabs', async () => {
@@ -92,7 +103,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as {
+    const instance = activateAiWorkspace(fixture) as unknown as {
       setAiDescription: (value: string) => void;
       setModCategory: (sourceId: string, category: 'blocks' | 'items' | 'decorations', value: boolean) => void;
       setIncludeAvailableContent: (value: boolean) => void;
@@ -136,8 +147,8 @@ describe('StructureJsonImportDialogComponent', () => {
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', project);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setTab: (tab: 'import' | 'ai') => void; toggleModContent: () => void; clearAllModContent: () => void; setModCategory: (sourceId: string, category: 'blocks' | 'items' | 'decorations', value: boolean) => void; aiPrompt: () => string };
-    instance.setTab('ai'); instance.toggleModContent(); fixture.detectChanges();
+    const instance = activateAiWorkspace(fixture) as unknown as { toggleModContent: () => void; clearAllModContent: () => void; setModCategory: (sourceId: string, category: 'blocks' | 'items' | 'decorations', value: boolean) => void; aiPrompt: () => string };
+    instance.toggleModContent(); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[aria-haspopup="true"]')?.getAttribute('aria-expanded')).toBe('true');
     expect(fixture.nativeElement.querySelectorAll('.ai-mod-content-row').length).toBe(2);
     instance.setModCategory('source-a', 'items', true);
@@ -163,7 +174,7 @@ describe('StructureJsonImportDialogComponent', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent); fixture.componentRef.setInput('project', project); fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as {
+    const instance = activateAiWorkspace(fixture) as unknown as {
       setContentLimitsEnabled: (value: boolean) => void;
       contentLimitsJson: () => string;
       contentLimitSelected: (candidate: { category: 'blocks'; id: string }) => boolean;
@@ -176,6 +187,7 @@ describe('StructureJsonImportDialogComponent', () => {
     expect(instance.contentLimitsJson()).toContain('missing:old_block');
     expect(instance.contentLimitSelected({ category: 'blocks', id: item.itemId })).toBe(false);
     instance.toggleContentLimit({ category: 'blocks', id: item.itemId }, true);
+    fixture.detectChanges();
     expect(preferences.preferences().externalAiContentLimits.blocks).toContain('example:crystal');
     expect(instance.contentLimitsJson()).toContain('example:crystal');
     instance.setContentLimitsEnabled(true);
