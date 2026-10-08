@@ -110,7 +110,7 @@ export class ViewportTerrainRepresentationPipeline<T> {
       for (const record of records) {
         const key = (record as R & { readonly key: string }).key;
         if (!applied.pending && !represented.has(key)) {
-        const candidate = candidates.find((item) => item.key === key);
+          const candidate = candidates.find((item) => item.key === key);
           if (candidate) failed.push(candidate);
         }
       }

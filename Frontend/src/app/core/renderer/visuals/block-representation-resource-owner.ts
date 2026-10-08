@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import type { ProjectDocument } from '../../domain/project.types';
 import type { PlaceholderRole } from '../batching/placeholder-batch-renderer';
 import type { RenderedBlockEntry, ViewportBlockRepresentationStore } from '../engine/viewport-block-representation-store';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
@@ -96,6 +95,3 @@ export class BlockRepresentationResourceOwner {
     return fallback;
   }
 }
-
-export type BlockRepresentationFallbackMaterials = Readonly<Record<PlaceholderRole, THREE.Material>>;
-export type BlockRepresentationBlock = ProjectDocument['blocks'][number];
