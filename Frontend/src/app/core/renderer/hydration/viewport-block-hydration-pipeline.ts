@@ -10,6 +10,24 @@ export interface RunningBlockHydrationOwnership {
   readonly signature: string;
 }
 
+export interface HydrationExecutionPort<T extends HydrationWorkItem> {
+  readonly isStopped: () => boolean;
+  readonly isInteractive: () => boolean;
+  readonly now: () => number;
+  readonly budgetMs: (interactive: boolean) => number;
+  readonly interactiveJobLimit: () => number;
+  readonly jobLimit: () => number;
+  readonly ownership: (job: T) => { readonly revision: number; readonly signature: string };
+  readonly execute: (job: T, complete: () => void) => void;
+  readonly onBatchStart: () => void;
+  readonly onJobStarted: (job: T, fairnessDeferrals: number) => void;
+  readonly onExecutionFailure: (job: T, error: unknown) => void;
+  readonly onJobComplete: (job: T, authoritative: boolean) => void;
+  readonly processAdditionalWork: (generation: number, deadline: number) => void;
+  readonly hasAdditionalWork: () => boolean;
+  readonly onBatchDuration?: (durationMs: number) => void;
+}
+
 /** Owns block hydration workflow state while composing the established queue and progress owners. */
 export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   readonly work: HydrationWorkCoordinator<T>;
@@ -89,4 +107,70 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   consumeBatchJob(): void { this.batchJobBudget = Math.max(0, this.batchJobBudget - 1); }
   clearBatchBudget(): void { this.setBatchBudget(0, 0); }
 
+  schedule(run: () => void, delay: boolean | number = false): void {
+    if (this.scheduler.isScheduled) return;
+    this.scheduler.schedule(run, !delay ? undefined : typeof delay === 'number' ? delay : 0);
+  }
+
+  /** Runs one bounded block hydration slice; render-specific work is supplied through a narrow port. */
+  process(port: HydrationExecutionPort<T>): void {
+    if (port.isStopped()) return;
+    const traceStarted = this.nowFor(port);
+    const token = this.generation;
+    const interactive = port.isInteractive();
+    const now = port.now();
+    if (this.batchDeadlineAt <= now || this.batchBudget <= 0) {
+      this.setBatchBudget(interactive ? port.interactiveJobLimit() : VIEWPORT_HYDRATION_BATCH_SIZE, now + port.budgetMs(interactive));
+    }
+    const deadline = this.batchDeadlineAt;
+    const maxJobs = interactive ? port.interactiveJobLimit() : port.jobLimit();
+    let started = 0;
+    port.onBatchStart();
+    while (this.work.canStart() && this.work.queuedTotal() && started < maxJobs && port.now() < deadline) {
+      const before = this.work.fairnessDeferrals();
+      const job = this.work.takeNext(token);
+      if (!job) break;
+      const deferred = this.work.fairnessDeferrals() - before;
+      if (!job.providerRefresh) {
+        this.clearPendingSignature(job.key);
+        const ownership = port.ownership(job);
+        this.startJob(job.key, job.token, ownership.revision, ownership.signature);
+      }
+      this.consumeBatchJob();
+      this.startWork(job.token);
+      started += 1;
+      port.onJobStarted(job, deferred);
+      const complete = (): void => {
+        const authoritative = !job.providerRefresh && this.ownsJob(job.key, job.token, port.ownership(job).revision, port.ownership(job).signature);
+        if (authoritative) this.finishJobOwnership(job.key);
+        this.work.complete(job);
+        port.onJobComplete(job, authoritative);
+        this.finishWork(job.token);
+        this.scheduleNext(port);
+      };
+      try { port.execute(job, complete); }
+      catch (error: unknown) { port.onExecutionFailure(job, error); complete(); }
+    }
+    port.processAdditionalWork(token, deadline);
+    const workRemaining = this.work.queuedTotal() > 0 || port.hasAdditionalWork();
+    if (workRemaining && this.runningTotal === 0) {
+      const budgetExhausted = this.batchBudget <= 0 || port.now() >= this.batchDeadlineAt;
+      if (budgetExhausted) { this.clearBatchBudget(); this.schedule(() => this.process(port), true); }
+      else this.schedule(() => this.process(port));
+    } else if (!workRemaining && this.runningTotal === 0) this.clearBatchBudget();
+    this.work.compactConsumed();
+    if (traceStarted !== undefined) port.onBatchDuration?.(port.now() - traceStarted);
+  }
+
+  private scheduleNext(port: HydrationExecutionPort<T>): void {
+    if (port.isStopped()) return;
+    this.schedule(() => this.process(port), this.batchBudget > 0 && port.now() < this.batchDeadlineAt ? false : true);
+  }
+
+  private nowFor(port: HydrationExecutionPort<T>): number | undefined {
+    return port.onBatchDuration ? port.now() : undefined;
+  }
+
 }
+
+const VIEWPORT_HYDRATION_BATCH_SIZE = 96;

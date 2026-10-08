@@ -79,4 +79,25 @@ describe('ViewportProviderRefreshPipeline', () => {
     progress.completed = 99;
     expect(pipeline.progress?.completed).toBe(0);
   });
+
+  it('classifies missing and reusable candidates inside the refresh workflow', () => {
+    const hydration = createHydrationPipeline();
+    const pipeline = new ViewportProviderRefreshPipeline<object, { key: string; missing?: boolean; previousProvider: object; nextProvider: object }, Job>(hydration);
+    const oldProvider = {};
+    const nextProvider = {};
+    const schedule = vi.fn();
+    pipeline.refresh([
+      { key: 'missing', missing: true, previousProvider: oldProvider, nextProvider },
+      { key: 'same', previousProvider: oldProvider, nextProvider },
+      { key: 'changed', previousProvider: oldProvider, nextProvider },
+    ], {
+      isMissing: (candidate) => !!candidate.missing,
+      isFluid: () => false,
+      reusableKey: (candidate, provider) => candidate.key === 'same' ? 'same' : provider === oldProvider ? 'old' : 'new',
+      createJob: (candidate, generation) => ({ key: candidate.key, token: 0, refreshGeneration: generation }),
+      onScheduleHydration: schedule,
+    });
+    expect(hydration.work.providerRefreshJobs().map((job) => job.key)).toEqual(['changed']);
+    expect(schedule).toHaveBeenCalledOnce();
+  });
 });

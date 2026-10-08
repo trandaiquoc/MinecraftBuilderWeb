@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ViewportBlockHydrationPipeline } from './viewport-block-hydration-pipeline';
+import { ViewportBlockHydrationPipeline, type HydrationExecutionPort } from './viewport-block-hydration-pipeline';
 
 interface Job { readonly key: string; readonly token: number; readonly projectionRevision: number; readonly signature: string; readonly providerRefresh?: boolean; }
 
@@ -64,5 +64,39 @@ describe('ViewportBlockHydrationPipeline', () => {
     expect(value.work.takeNext(0)?.key).toBe('k');
     expect(value.progress.snapshot()).toMatchObject({ generation: 0, lane: 'local', total: 1 });
     expect(failureHandler).not.toHaveBeenCalled();
+  });
+
+  it('owns execution, synchronous failure completion, and rescheduling', () => {
+    const value = pipeline();
+    const executed: string[] = [];
+    const failed = vi.fn();
+    const completed = vi.fn();
+    const jobs: Job[] = [
+      { key: 'ok', token: 0, projectionRevision: 0, signature: 'a' },
+      { key: 'bad', token: 0, projectionRevision: 0, signature: 'b' },
+    ];
+    value.work.enqueueRegular(jobs[0]);
+    value.work.enqueueRegular(jobs[1]);
+    const port: HydrationExecutionPort<Job> = {
+      isStopped: () => false,
+      isInteractive: () => false,
+      now: () => 1,
+      budgetMs: () => 10,
+      interactiveJobLimit: () => 8,
+      jobLimit: () => 8,
+      ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
+      execute: (job, finish) => { executed.push(job.key); if (job.key === 'bad') throw new Error('expected'); finish(); },
+      onBatchStart: vi.fn(),
+      onJobStarted: vi.fn(),
+      onExecutionFailure: failed,
+      onJobComplete: completed,
+      processAdditionalWork: vi.fn(),
+      hasAdditionalWork: () => false,
+    };
+    value.process(port);
+    expect(executed).toEqual(['ok', 'bad']);
+    expect(failed).toHaveBeenCalledOnce();
+    expect(completed).toHaveBeenCalledTimes(2);
+    expect(value.runningTotal).toBe(0);
   });
 });

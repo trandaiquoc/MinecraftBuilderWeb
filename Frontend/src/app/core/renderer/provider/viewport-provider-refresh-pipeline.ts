@@ -105,6 +105,30 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
     return generation;
   }
 
+  /** Builds provider-refresh candidates from representation inputs before handing jobs to hydration. */
+  refresh(
+    inputs: readonly TInput[],
+    options: {
+      readonly isMissing: (candidate: TInput) => boolean;
+      readonly isFluid: (candidate: TInput) => boolean;
+      readonly reusableKey: (candidate: TInput, provider: P) => string | undefined;
+      readonly createJob: (candidate: TInput, generation: number) => TJob;
+      readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void;
+      readonly onStateChange?: () => void;
+      readonly onScheduleHydration?: () => void;
+    },
+  ): number {
+    return this.plan(inputs, (candidate, generation) => {
+      if (options.isMissing(candidate)) return { considered: false };
+      if (options.isFluid(candidate)) return { considered: true };
+      const typed = candidate as TInput & { readonly previousProvider: P; readonly nextProvider: P };
+      const oldKey = options.reusableKey(candidate, typed.previousProvider);
+      const newKey = options.reusableKey(candidate, typed.nextProvider);
+      if (oldKey === newKey && oldKey !== undefined) return { considered: true };
+      return { considered: true, job: options.createJob(candidate, generation) };
+    }, options);
+  }
+
   completeJob(generation: number | undefined, callbacks: { readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void; readonly onStateChange?: () => void }): void {
     if (generation !== this.currentPlanGeneration || !this.activeProgress) return;
     this.activeProgress.completed = Math.min(this.activeProgress.total, this.activeProgress.completed + 1);

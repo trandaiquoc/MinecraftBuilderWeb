@@ -1183,8 +1183,8 @@ describe('camera movement input contract', () => {
     const populated = { ...base, size: { x: 32, y: 16, z: 1 }, blocks, decorations: [] };
     const empty = { ...populated, blocks: [] };
     const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(populated, undefined); await settleHydration(200, engine);
-    const internal = engine as unknown as { blockRepresentations: Map<string, unknown>; instanceBatches: Map<string, unknown> };
-    internal.blockRepresentations.delete(coordinateKey(blocks[0].position));
+    const internal = engine as unknown as { blockRepresentations: { remove: (key: string) => boolean }; instanceBatches: Map<string, unknown> };
+    internal.blockRepresentations.remove(coordinateKey(blocks[0].position));
     engine.update(empty, undefined);
     expect(internal.instanceBatches.size).toBe(0);
     expect(engine.rendererOwnershipDiagnostics().batchInvariantViolations).toEqual([]);

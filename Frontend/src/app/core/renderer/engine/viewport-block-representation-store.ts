@@ -35,8 +35,19 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
 
   get(key: string): RenderedBlockEntry | undefined { return this.entriesByKey.get(key); }
   has(key: string): boolean { return this.entriesByKey.has(key); }
-  set(key: string, entry: RenderedBlockEntry): void { this.entriesByKey.set(key, entry); }
-  delete(key: string): boolean { return this.entriesByKey.delete(key); }
+  createOrReplace(entry: RenderedBlockEntry): void { this.entriesByKey.set(entry.key, entry); }
+  update(key: string, mutate: (entry: RenderedBlockEntry) => void): boolean {
+    const entry = this.entriesByKey.get(key);
+    if (!entry) return false;
+    mutate(entry);
+    return true;
+  }
+  updateEntry(entry: RenderedBlockEntry, mutate: (entry: RenderedBlockEntry) => void): boolean {
+    if (this.entriesByKey.get(entry.key) !== entry) return false;
+    mutate(entry);
+    return true;
+  }
+  remove(key: string): boolean { return this.entriesByKey.delete(key); }
   clear(): void { this.entriesByKey.clear(); }
   get size(): number { return this.entriesByKey.size; }
   keys(): IterableIterator<string> { return this.entriesByKey.keys(); }
