@@ -58,10 +58,16 @@ export class InstanceBatchRenderer {
     if (this.options.capacity <= 0 || !resolved.templates.length) return undefined;
     const region = this.options.regionPolicy?.key(position) ?? this.options.chunkKey(position);
     const baseKey = `${region}|${resolved.signature}|role:${renderRole}`;
+    const existingEntry = this.options.getEntry(key);
+    const existingMembership = existingEntry?.instanceBatchKey
+      ? this.batchStore.get(existingEntry.instanceBatchKey)
+      : this.ownershipStore.get(key) ? this.batchStore.get(this.ownershipStore.get(key)!.batchKey) : undefined;
     let segment = 0;
     let batchKey = `${baseKey}|segment:${segment}`;
     let batch = this.batchStore.get(batchKey);
-    while (batch && batch.keys.length >= batch.capacity) {
+    // Do not select a one-member batch that is also the old membership: removing
+    // its last member disposes its meshes before the replacement is inserted.
+    while (batch && (batch.keys.length >= batch.capacity || batch === existingMembership && batch.keys.length === 1)) {
       segment += 1;
       batchKey = `${baseKey}|segment:${segment}`;
       batch = this.batchStore.get(batchKey);
@@ -91,7 +97,6 @@ export class InstanceBatchRenderer {
       this.options.record('instancedMeshCount', parts.length);
     }
     if (batch.keys.length >= batch.capacity) return undefined;
-    const existingEntry = this.options.getEntry(key);
     this.options.trace?.('before-insert', key, source);
     if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
     else if (this.ownershipStore.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);

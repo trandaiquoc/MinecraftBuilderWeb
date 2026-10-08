@@ -6,6 +6,7 @@ import type { BlockHydrationJob, HydratedBlockVisualResult } from './block-repre
 import type { BlockVisualProvider } from './block-visual-provider-contract';
 import { BlockRepresentationCommitOwner, type BlockRepresentationCommitOwnerPorts } from './block-representation-commit-owner';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
+import type { TerrainRepresentationCommitStatus } from '../terrain/chunk-surface-renderer';
 
 const block = {
   kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 2, z: 3 }, state: {},
@@ -27,7 +28,7 @@ function visual(object?: THREE.Group, terrainTemplates?: readonly SurfaceFaceTem
   };
 }
 
-function createOwner(store: ViewportBlockRepresentationStore, group: THREE.Group, terrainAdd: (templates: readonly SurfaceFaceTemplate[]) => boolean, release: (key: string, entry: unknown, replacement: string) => void): BlockRepresentationCommitOwner {
+function createOwner(store: ViewportBlockRepresentationStore, group: THREE.Group, terrainAdd: (templates: readonly SurfaceFaceTemplate[], callbacks?: { readonly onCommitted: () => void; readonly onFailed: (status: 'failed' | 'cancelled') => void }) => TerrainRepresentationCommitStatus, release: (key: string, entry: unknown, replacement: string) => void): BlockRepresentationCommitOwner {
   const ports: BlockRepresentationCommitOwnerPorts = {
     store,
     resources: {
@@ -35,7 +36,7 @@ function createOwner(store: ViewportBlockRepresentationStore, group: THREE.Group
       removeOrphanedInstanceMemberships: vi.fn(), releasePreviousAfterReplacement: release,
     },
     targets: {
-      terrain: { templatesFor: () => undefined, cacheTemplates: vi.fn(), chunkKey: () => 'chunk', add: (_block, _key, templates) => terrainAdd(templates) },
+      terrain: { templatesFor: () => undefined, cacheTemplates: vi.fn(), chunkKey: () => 'chunk', remove: vi.fn(), add: (_block, _key, templates, _role, callbacks) => terrainAdd(templates, callbacks) },
       surface: { templatesFor: () => undefined, cacheTemplates: vi.fn(), meshFor: () => undefined, add: () => undefined },
       instances: { shouldAttempt: () => false, templateFor: () => undefined, decisionFor: () => undefined, batches: new Map(), add: () => undefined, addFromTemplates: () => undefined },
       object: {
@@ -56,7 +57,7 @@ describe('BlockRepresentationCommitOwner refresh transitions', () => {
     group.add(oldObject);
     store.createOrReplace({ key: job.key, block, signature: 'old', role: 'normal', revision: 2, object: oldObject, provider });
     const release = vi.fn();
-    const owner = createOwner(store, group, () => false, release);
+    const owner = createOwner(store, group, () => 'failed', release);
 
     owner.commitRefresh(job, visual(undefined, [{} as SurfaceFaceTemplate]), 'stone', provider);
 
@@ -79,7 +80,7 @@ describe('BlockRepresentationCommitOwner refresh transitions', () => {
       const previous = entry as { readonly object?: THREE.Object3D };
       if (previous.object) group.remove(previous.object);
     });
-    const owner = createOwner(store, group, () => true, release);
+    const owner = createOwner(store, group, () => 'committed', release);
 
     owner.commitRefresh(job, visual(replacement), 'stone', provider);
 
@@ -87,5 +88,25 @@ describe('BlockRepresentationCommitOwner refresh transitions', () => {
     expect(store.get(job.key)?.object).toBe(replacement);
     expect(oldObject.parent).toBeNull();
     expect(replacement.parent).toBe(group);
+  });
+
+  it('keeps the old canonical terrain representation until an async replacement commits', async () => {
+    const store = new ViewportBlockRepresentationStore();
+    const group = new THREE.Group();
+    const oldObject = new THREE.Group();
+    group.add(oldObject);
+    store.createOrReplace({ key: job.key, block, signature: 'old', role: 'normal', revision: 2, object: oldObject, provider });
+    let callbacks: { readonly onCommitted: () => void; readonly onFailed: (status: 'failed' | 'cancelled') => void } | undefined;
+    const release = vi.fn();
+    const owner = createOwner(store, group, (_templates, next) => { callbacks = next; return 'pending'; }, release);
+
+    const pending = owner.commitRefresh(job, visual(undefined, [{} as SurfaceFaceTemplate]), 'stone', provider);
+    expect(pending).toBeInstanceOf(Promise);
+    expect(store.get(job.key)?.signature).toBe('old');
+    expect(release).not.toHaveBeenCalled();
+    callbacks!.onCommitted();
+    await pending;
+    expect(store.get(job.key)?.signature).toBe(job.signature);
+    expect(release).toHaveBeenCalledOnce();
   });
 });

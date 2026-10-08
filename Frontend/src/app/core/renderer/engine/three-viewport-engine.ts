@@ -61,7 +61,7 @@ import type { HydrationExecutionPort } from '../hydration/viewport-block-hydrati
 import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
 import { ViewportProviderRefreshPipeline } from '../provider/viewport-provider-refresh-pipeline';
 import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
-import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
+import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainRepresentationCommitCallbacks, type TerrainRepresentationCommitStatus, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
 import { ViewportTerrainWorkflowOwner, type TerrainHydrationCandidate, type TerrainPlaceholderSignatureStore } from '../terrain/viewport-terrain-workflow-owner';
@@ -634,7 +634,8 @@ export class ThreeViewportEngine {
         templatesFor: (key) => this.terrainRenderer.templatesFor(key),
         cacheTemplates: (key, templates) => this.terrainRenderer.cacheTemplates(key, templates),
         chunkKey,
-        add: (block, key, templates, role) => this.addTerrainVisual(block, key, templates, role),
+        remove: (key) => this.terrainRenderer.remove(key),
+        add: (block, key, templates, role, callbacks) => this.addTerrainVisual(block, key, templates, role, callbacks),
       },
       surface: {
         templatesFor: (key) => this.surfaceRenderer.templatesFor(key),
@@ -1110,8 +1111,9 @@ export class ThreeViewportEngine {
 
   private releaseUnusedRetiredProviders(): void {
     this.providerRefreshPipeline.releaseUnused(
-      (provider) => [...this.blockRepresentations.values()].some((entry) => entry.provider === provider) || this.fluidCoordinator.referencedProviders().has(provider),
-      (provider) => this.hydrationPipeline.providerRefreshJobs().some((job) => job.key && this.blockRepresentations.get(job.key)?.provider === provider),
+      (provider) => this.blockRepresentations.hasProviderReference(provider)
+        || this.blockRepresentationHydration.hasActiveProviderReference(provider)
+        || this.fluidCoordinator.referencedProviders().has(provider),
     );
   }
 
@@ -2280,8 +2282,8 @@ export class ThreeViewportEngine {
     return this.surfaceRenderer.add(block, key, templates, new Set(exposedFaceDirections(visibleEntry, visible)));
   }
 
-  private addTerrainVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], role: 'normal' | 'reference' = 'normal'): boolean {
-    return this.terrainRenderer.upsertAndCommit({ key, block, templates, role });
+  private addTerrainVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], role: 'normal' | 'reference' = 'normal', callbacks?: TerrainRepresentationCommitCallbacks): TerrainRepresentationCommitStatus {
+    return this.terrainRenderer.upsertAndCommit({ key, block, templates, role }, callbacks);
   }
 
   private removeSurfaceFaceVisual(key: string, entry?: RenderedBlockEntry): void {

@@ -32,10 +32,18 @@ export interface RenderedBlockEntry {
 /** Owns canonical per-voxel representation linkage; renderers retain their GPU state. */
 export class ViewportBlockRepresentationStore implements ReadonlyMap<string, RenderedBlockEntry> {
   private readonly entriesByKey = new Map<string, RenderedBlockEntry>();
+  private readonly providerReferenceCounts = new Map<BlockVisualProvider, number>();
 
   get(key: string): RenderedBlockEntry | undefined { return this.entriesByKey.get(key); }
   has(key: string): boolean { return this.entriesByKey.has(key); }
-  createOrReplace(entry: RenderedBlockEntry): void { this.entriesByKey.set(entry.key, freezeEntry(entry)); }
+  createOrReplace(entry: RenderedBlockEntry): void {
+    const previous = this.entriesByKey.get(entry.key);
+    if (previous?.provider !== entry.provider) {
+      this.releaseProvider(previous?.provider);
+      this.retainProvider(entry.provider);
+    }
+    this.entriesByKey.set(entry.key, freezeEntry(entry));
+  }
   setBlock(key: string, block: ProjectDocument['blocks'][number]): boolean { return this.replace(key, (entry) => ({ ...entry, block })); }
   incrementRevision(key: string): number | undefined {
     const entry = this.entriesByKey.get(key);
@@ -66,9 +74,20 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
   setFluidRepresentation(key: string, fluidChunkKey: string | undefined, fallback?: boolean): boolean {
     return this.replace(key, (entry) => ({ ...entry, fluidChunkKey, ...(fallback === undefined ? {} : { fluidFallback: fallback }) }));
   }
-  removeIfRevision(key: string, revision: number): boolean { return this.entriesByKey.get(key)?.revision === revision && this.entriesByKey.delete(key); }
-  remove(key: string): boolean { return this.entriesByKey.delete(key); }
-  clear(): void { this.entriesByKey.clear(); }
+  removeIfRevision(key: string, revision: number): boolean {
+    if (this.entriesByKey.get(key)?.revision !== revision) return false;
+    return this.remove(key);
+  }
+  remove(key: string): boolean {
+    const entry = this.entriesByKey.get(key);
+    if (!entry) return false;
+    this.entriesByKey.delete(key);
+    this.releaseProvider(entry.provider);
+    return true;
+  }
+  clear(): void { this.entriesByKey.clear(); this.providerReferenceCounts.clear(); }
+  providerReferenceCount(provider: BlockVisualProvider): number { return this.providerReferenceCounts.get(provider) ?? 0; }
+  hasProviderReference(provider: BlockVisualProvider): boolean { return this.providerReferenceCount(provider) > 0; }
   get size(): number { return this.entriesByKey.size; }
   keys(): IterableIterator<string> { return this.entriesByKey.keys(); }
   values(): IterableIterator<RenderedBlockEntry> { return this.entriesByKey.values(); }
@@ -80,8 +99,18 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
   private replace(key: string, update: (entry: RenderedBlockEntry) => RenderedBlockEntry): boolean {
     const entry = this.entriesByKey.get(key);
     if (!entry) return false;
-    this.entriesByKey.set(key, freezeEntry(update(entry)));
+    this.createOrReplace(update(entry));
     return true;
+  }
+  private retainProvider(provider: BlockVisualProvider | undefined): void {
+    if (!provider) return;
+    this.providerReferenceCounts.set(provider, (this.providerReferenceCounts.get(provider) ?? 0) + 1);
+  }
+  private releaseProvider(provider: BlockVisualProvider | undefined): void {
+    if (!provider) return;
+    const count = (this.providerReferenceCounts.get(provider) ?? 0) - 1;
+    if (count > 0) this.providerReferenceCounts.set(provider, count);
+    else this.providerReferenceCounts.delete(provider);
   }
   snapshot(): readonly Readonly<RenderedBlockDiagnosticSnapshot>[] {
     return [...this.entriesByKey.values()].map((entry) => Object.freeze({

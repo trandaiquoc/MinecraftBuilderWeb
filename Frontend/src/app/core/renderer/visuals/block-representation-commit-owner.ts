@@ -8,6 +8,7 @@ import type { BlockRepresentationResourceOwner } from './block-representation-re
 import type { BlockHydrationJob, HydratedBlockVisualResult } from './block-representation-contracts';
 import type { BlockVisualProvider } from './block-visual-provider-contract';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
+import type { TerrainRepresentationCommitCallbacks, TerrainRepresentationCommitStatus } from '../terrain/chunk-surface-renderer';
 
 type CommitBlock = BlockHydrationJob['block'];
 
@@ -16,7 +17,8 @@ export interface BlockRepresentationRenderTargets {
     readonly templatesFor: (key: string) => readonly SurfaceFaceTemplate[] | undefined;
     readonly cacheTemplates: (key: string, templates: readonly SurfaceFaceTemplate[]) => void;
     readonly chunkKey: (position: CommitBlock['position']) => string;
-    readonly add: (block: CommitBlock, key: string, templates: readonly SurfaceFaceTemplate[], role: 'normal' | 'reference') => boolean;
+    readonly add: (block: CommitBlock, key: string, templates: readonly SurfaceFaceTemplate[], role: 'normal' | 'reference', callbacks?: TerrainRepresentationCommitCallbacks) => TerrainRepresentationCommitStatus;
+    readonly remove: (key: string) => void;
   };
   readonly surface: {
     readonly templatesFor: (key: string) => readonly SurfaceFaceTemplate[] | undefined;
@@ -69,16 +71,39 @@ export class BlockRepresentationCommitOwner {
     return this.ports.store.get(job.key) ?? entry;
   }
 
-  tryCached(job: BlockHydrationJob, providerAvailable: boolean, reusableKey: string | undefined): boolean {
+  tryCached(job: BlockHydrationJob, providerAvailable: boolean, reusableKey: string | undefined): boolean | Promise<void> {
     if (!providerAvailable || !reusableKey) return false;
     const entry = this.ports.store.get(job.key);
     if (!entry) return false;
+    const cachedEntry = entry;
     const role = job.role === 'reference' ? 'reference' : 'normal';
     const terrain = job.surfaceFastPathEligible ? this.ports.targets.terrain.templatesFor(reusableKey) : undefined;
-    if (terrain && this.ports.targets.terrain.add(job.block, job.key, terrain, role)) {
-      this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
-      this.finish();
-      return true;
+    if (terrain) {
+      let resolvePending: (() => void) | undefined;
+      const pending = new Promise<void>((resolve) => { resolvePending = resolve; });
+      const status = this.ports.targets.terrain.add(job.block, job.key, terrain, role, {
+        onCommitted: () => {
+          if (this.ports.store.get(job.key) !== cachedEntry) { resolvePending?.(); return; }
+          this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
+          this.finish();
+          resolvePending?.();
+        },
+        onFailed: () => {
+          if (this.ports.store.get(job.key) !== cachedEntry) { resolvePending?.(); return; }
+          const current = this.ports.store.get(job.key);
+          if (current) this.ports.resources.ensureFallback(current);
+          this.ports.store.setTerrainRepresentation(job.key, undefined);
+          this.finish();
+          resolvePending?.();
+        },
+      });
+      if (status === 'committed') {
+        resolvePending = undefined;
+        this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
+        this.finish();
+        return true;
+      }
+      if (status === 'pending') return pending;
     }
     const surface = job.surfaceFastPathEligible ? this.ports.targets.surface.templatesFor(reusableKey) : undefined;
     if (surface) {
@@ -114,15 +139,36 @@ export class BlockRepresentationCommitOwner {
     return { entry, fallback, revision, staticAllowed };
   }
 
-  commitCreate(job: BlockHydrationJob, visual: HydratedBlockVisualResult, reusableKey: string | undefined, fallback: THREE.Mesh, staticAllowed: boolean): void {
+  commitCreate(job: BlockHydrationJob, visual: HydratedBlockVisualResult, reusableKey: string | undefined, fallback: THREE.Mesh, staticAllowed: boolean): void | Promise<void> {
+    const transactionRevision = this.ports.store.get(job.key)?.revision;
+    const ownsTransaction = (): boolean => this.ports.store.get(job.key)?.revision === transactionRevision;
     if (!visual.object && visual.terrainTemplates && reusableKey) {
       this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates);
-      if (this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal')) {
+      const settle = (resolve: () => void): TerrainRepresentationCommitCallbacks => ({
+        onCommitted: () => {
+          if (!ownsTransaction()) { resolve(); return; }
+          this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
+          this.ports.targets.object.blocksGroup.remove(fallback);
+          this.finish();
+          resolve();
+        },
+        onFailed: () => {
+          if (!ownsTransaction()) { resolve(); return; }
+          this.updateFallback(fallback, visual);
+          this.finish();
+          resolve();
+        },
+      });
+      let resolvePending!: () => void;
+      const pending = new Promise<void>((resolve) => { resolvePending = resolve; });
+      const status = this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal', settle(() => resolvePending()));
+      if (status === 'committed') {
         this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
         this.ports.targets.object.blocksGroup.remove(fallback);
         this.finish();
         return;
       }
+      if (status === 'pending') return pending;
     }
     if (!visual.object) {
       this.updateFallback(fallback, visual);
@@ -136,7 +182,15 @@ export class BlockRepresentationCommitOwner {
       const templates = visual.terrainTemplates ?? this.ports.targets.object.extractSurfaceTemplates(object);
       if (templates) {
         if (!cachedTerrain) this.ports.targets.terrain.cacheTemplates(reusableKey, templates);
-        terrainCompiled = this.ports.targets.terrain.add(job.block, job.key, templates, job.role === 'reference' ? 'reference' : 'normal');
+        const terrainStatus = this.ports.targets.terrain.add(job.block, job.key, templates, job.role === 'reference' ? 'reference' : 'normal');
+        if (terrainStatus === 'pending') {
+          // A provider object is already available. Abandon a pending terrain
+          // promotion so the object path remains the single committed owner.
+          this.ports.targets.terrain.remove(job.key);
+          terrainCompiled = false;
+        } else {
+          terrainCompiled = terrainStatus === 'committed';
+        }
         if (!cachedTerrain) {
           const cachedSurface = this.ports.targets.surface.templatesFor(reusableKey);
           if (!cachedSurface) this.ports.targets.surface.cacheTemplates(reusableKey, templates);
@@ -167,17 +221,38 @@ export class BlockRepresentationCommitOwner {
     this.finish();
   }
 
-  commitRefresh(job: BlockHydrationJob, visual: HydratedBlockVisualResult, reusableKey: string | undefined, provider: BlockVisualProvider): void {
+  commitRefresh(job: BlockHydrationJob, visual: HydratedBlockVisualResult, reusableKey: string | undefined, provider: BlockVisualProvider): void | Promise<void> {
     const current = this.ports.store.get(job.key);
     if (!current) return;
+    const transactionRevision = current.revision;
+    const ownsTransaction = (): boolean => this.ports.store.get(job.key)?.revision === transactionRevision;
     if (!visual.object && visual.terrainTemplates && reusableKey) {
-      if (this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal')) {
-        this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates);
+      let resolvePending: (() => void) | undefined;
+      const pending = new Promise<void>((resolve) => { resolvePending = resolve; });
+      const commit = (): void => {
+        if (!ownsTransaction()) { resolvePending?.(); return; }
+        this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates!);
         this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'terrain');
         this.ports.store.createOrReplace({ key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, terrainChunkKey: this.ports.targets.terrain.chunkKey(job.block.position) });
         this.finish();
+        resolvePending?.();
+      };
+      const fail = (status: 'failed' | 'cancelled'): void => {
+        if (!ownsTransaction()) { resolvePending?.(); return; }
+        const fallback = current.fallback ?? this.ports.resources.ensureFallback(current);
+        this.ports.store.setTerrainRepresentation(job.key, undefined);
+        fallback.userData['diagnostics'] = [{ code: 'PROVIDER_REFRESH_FAILED', message: status === 'cancelled' ? 'Terrain replacement was cancelled' : 'Terrain replacement failed' }];
+        this.ports.invalidateDiagnostics();
+        this.finish();
+        resolvePending?.();
+      };
+      const status = this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal', { onCommitted: commit, onFailed: fail });
+      if (status === 'committed') {
+        resolvePending = undefined;
+        commit();
         return;
       }
+      if (status === 'pending') return pending;
     }
     if (!visual.object) {
       this.recordRefreshFailure(job, 'Visual provider returned no replacement representation');

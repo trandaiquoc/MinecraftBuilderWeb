@@ -34,4 +34,19 @@ describe('ViewportBlockRepresentationStore', () => {
     expect(entry.block.position.x).toBe(0);
     expect(entry.block.state).toEqual({});
   });
+
+  it('maintains provider references through replace, mutation and removal without scanning entries', () => {
+    const store = new ViewportBlockRepresentationStore();
+    const first = {} as import('../visuals/block-visual-provider-contract').BlockVisualProvider;
+    const second = {} as import('../visuals/block-visual-provider-contract').BlockVisualProvider;
+    const entry = { key: '0,0,0', block: { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} } satisfies PlacedBlock, signature: 'stone', role: 'normal' as const, revision: 0, provider: first };
+
+    store.createOrReplace(entry);
+    expect(store.providerReferenceCount(first)).toBe(1);
+    store.setProvider(entry.key, second);
+    expect(store.providerReferenceCount(first)).toBe(0);
+    expect(store.providerReferenceCount(second)).toBe(1);
+    store.remove(entry.key);
+    expect(store.hasProviderReference(second)).toBe(false);
+  });
 });

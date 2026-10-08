@@ -137,8 +137,6 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
   runningTotal(): number { return this.regularRunning + this.providerRefreshRunning; }
   canStart(): boolean { return this.runningTotal() < this.options.concurrency; }
   fairnessDeferrals(): number { return this.fairnessDeferralCount; }
-  providerRefreshJobs(): readonly T[] { return this.providerRefreshQueue.slice(this.providerRefreshHead); }
-
   counts(): HydrationWorkCounts {
     return {
       regularQueued: this.queuedRegular(),

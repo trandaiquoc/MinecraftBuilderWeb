@@ -50,6 +50,13 @@ export interface TerrainApplyResult {
   readonly disposition?: TerrainApplyDisposition;
 }
 
+export type TerrainRepresentationCommitStatus = 'committed' | 'pending' | 'failed';
+
+export interface TerrainRepresentationCommitCallbacks {
+  readonly onCommitted: () => void;
+  readonly onFailed: (status: 'failed' | 'cancelled') => void;
+}
+
 export interface TerrainSettlement {
   readonly status: 'settled' | 'failed' | 'cancelled';
   readonly failedKeys: readonly string[];
@@ -131,6 +138,8 @@ export class ChunkSurfaceRenderer {
   private readonly chunkRevisions = new Map<string, number>();
   private readonly chunkWork = new Map<string, TerrainChunkWorkState>();
   private readonly pendingHydrationCandidatesByChunk = new Map<string, Set<string>>();
+  private readonly pendingRepresentationCommitsByChunk = new Map<string, Map<string, TerrainRepresentationCommitCallbacks>>();
+  private readonly pendingRepresentationCommitChunks = new Map<string, string>();
   private settlementGeneration = 0;
   private settlementFailedKeys = new Set<string>();
   private readonly settlementWaiters = new Map<number, Array<(result: TerrainSettlement) => void>>();
@@ -206,6 +215,7 @@ export class ChunkSurfaceRenderer {
     this.bulkBatches += 1;
     this.options.record('terrainBulkBatches');
     if (options.initial) {
+      this.cancelPendingRepresentationCommits();
       for (const chunk of this.chunks.values()) this.disposeChunk(chunk);
       this.chunks.clear();
       this.records.clear();
@@ -255,6 +265,7 @@ export class ChunkSurfaceRenderer {
 
   upsert(record: TerrainSurfaceRecord, flush = false): boolean {
     if (record.templates.length !== 6) return false;
+    this.cancelPendingRepresentationCommit(record.key);
     this.beginSettlement();
     const previous = this.records.get(record.key);
     this.indexRecord(record);
@@ -268,9 +279,23 @@ export class ChunkSurfaceRenderer {
     return true;
   }
 
-  upsertAndCommit(record: TerrainSurfaceRecord): boolean { return this.upsert(record, true); }
+  upsertAndCommit(record: TerrainSurfaceRecord, callbacks?: TerrainRepresentationCommitCallbacks): TerrainRepresentationCommitStatus {
+    if (record.templates.length !== 6) return 'failed';
+    const committed = this.upsert(record, true);
+    if (committed) return 'committed';
+    if (!callbacks) return 'failed';
+    const chunkKey = terrainChunkKeyForPosition(record.block.position);
+    const work = this.chunkWork.get(chunkKey);
+    if (!work || work.completed) return 'failed';
+    const pending = this.pendingRepresentationCommitsByChunk.get(chunkKey) ?? new Map<string, TerrainRepresentationCommitCallbacks>();
+    pending.set(record.key, callbacks);
+    this.pendingRepresentationCommitsByChunk.set(chunkKey, pending);
+    this.pendingRepresentationCommitChunks.set(record.key, chunkKey);
+    return 'pending';
+  }
 
   remove(key: string): void {
+    this.cancelPendingRepresentationCommit(key);
     const previous = this.records.get(key);
     if (!previous) return;
     this.beginSettlement();
@@ -372,6 +397,7 @@ export class ChunkSurfaceRenderer {
   }
 
   clear(): void {
+    this.cancelPendingRepresentationCommits();
     this.cancelSettlement();
     if (this.flushTimer !== undefined) clearTimeout(this.flushTimer);
     this.flushTimer = undefined;
@@ -544,6 +570,7 @@ export class ChunkSurfaceRenderer {
         work.completed = true;
         this.chunkWork.delete(key);
         this.pendingHydrationCandidatesByChunk.delete(key);
+        this.settlePendingRepresentationCommits(key, [], records.map((record) => record.key), 'cancelled');
       } else if (currentRecords?.size && (staleGeneration || staleProvider) && !work) {
         this.options.record('terrainAsyncRejectedWithoutReplacement');
       }
@@ -592,6 +619,7 @@ export class ChunkSurfaceRenderer {
       if (work) work.completed = true;
       this.pendingHydrationCandidatesByChunk.delete(key);
       const apply = { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [...new Set(failedKeys)], hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], commitMetrics: metrics, disposition: !shouldCommit ? 'commit-policy-rejected' as const : 'all-unrepresented' as const };
+      this.settlePendingRepresentationCommits(key, [], failedKeys, 'failed');
       const asyncStarted = performance.now();
       this.options.onAsyncApply?.(records, apply);
       this.recordCommitStage('terrain.commit.asyncApply', asyncStarted, metrics);
@@ -611,6 +639,7 @@ export class ChunkSurfaceRenderer {
     metrics.representedKeys = represented.length;
     this.completePendingHydrationCandidates(key, hydrationCandidateKeys, [...represented, ...failed]);
     const apply: TerrainApplyResult = { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: represented, failedKeys: failed, hydrationCandidateKeys: [...new Set(hydrationCandidateKeys)], commitMetrics: metrics, disposition: failed.length ? 'partial-unrepresented' : 'accepted' };
+    this.settlePendingRepresentationCommits(key, represented, failed, 'failed');
     for (const failedKey of failed) this.settlementFailedKeys.add(failedKey);
     const asyncStarted = performance.now();
     this.options.onAsyncApply?.(records, apply);
@@ -629,6 +658,7 @@ export class ChunkSurfaceRenderer {
     this.pendingHydrationCandidatesByChunk.delete(key);
     for (const record of records) this.settlementFailedKeys.add(record.key);
     this.options.record('terrainAsyncWorkerFailures');
+    this.settlePendingRepresentationCommits(key, [], records.map((record) => record.key), 'failed');
     this.options.onAsyncApply?.(records, { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: records.map((record) => record.key), disposition: 'worker-failure' });
     this.notifySettlementIfReady();
   }
@@ -758,6 +788,45 @@ export class ChunkSurfaceRenderer {
     for (const key of keys) this.ownership.delete(key);
     this.ownershipKeysByChunk.delete(chunkKey);
     return keys.size;
+  }
+
+  private settlePendingRepresentationCommits(chunkKey: string, representedKeys: readonly string[], failedKeys: readonly string[], failureStatus: 'failed' | 'cancelled'): void {
+    const pending = this.pendingRepresentationCommitsByChunk.get(chunkKey);
+    if (!pending) return;
+    for (const key of representedKeys) {
+      const callbacks = pending.get(key);
+      if (!callbacks) continue;
+      pending.delete(key);
+      this.pendingRepresentationCommitChunks.delete(key);
+      callbacks.onCommitted();
+    }
+    for (const key of failedKeys) {
+      const callbacks = pending.get(key);
+      if (!callbacks) continue;
+      pending.delete(key);
+      this.pendingRepresentationCommitChunks.delete(key);
+      callbacks.onFailed(failureStatus);
+    }
+    if (!pending.size) this.pendingRepresentationCommitsByChunk.delete(chunkKey);
+  }
+
+  private cancelPendingRepresentationCommit(key: string): void {
+    const chunkKey = this.pendingRepresentationCommitChunks.get(key);
+    if (!chunkKey) return;
+    const pending = this.pendingRepresentationCommitsByChunk.get(chunkKey);
+    const callbacks = pending?.get(key);
+    if (!callbacks) {
+      this.pendingRepresentationCommitChunks.delete(key);
+      return;
+    }
+    pending!.delete(key);
+    this.pendingRepresentationCommitChunks.delete(key);
+    if (!pending!.size) this.pendingRepresentationCommitsByChunk.delete(chunkKey);
+    callbacks.onFailed('cancelled');
+  }
+
+  private cancelPendingRepresentationCommits(): void {
+    for (const key of [...this.pendingRepresentationCommitChunks.keys()]) this.cancelPendingRepresentationCommit(key);
   }
 
   private recordCommitStage(stage: string, started: number, metrics: TerrainCommitMetrics): void {

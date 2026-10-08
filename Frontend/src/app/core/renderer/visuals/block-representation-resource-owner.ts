@@ -50,7 +50,10 @@ export class BlockRepresentationResourceOwner {
     } else if (!hasSurfaceVisual) {
       if (entry.object?.parent === this.ports.blocksGroup) this.ports.blocksGroup.remove(entry.object);
       if (entry.object && entry.object !== entry.fallback) disposeObject(entry.object);
-      if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
+      if (entry.fallback && entry.fallback !== entry.object) {
+        if (entry.fallback.parent === this.ports.blocksGroup) this.ports.blocksGroup.remove(entry.fallback);
+        disposeObject(entry.fallback);
+      }
     }
     this.ports.store.removeIfRevision(key, removalRevision);
     this.ports.trace('after-remove-entry', key, 'reconcile', entry);
@@ -71,7 +74,10 @@ export class BlockRepresentationResourceOwner {
       this.ports.blocksGroup.remove(entry.object);
       disposeObject(entry.object);
     }
-    if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
+    if (entry.fallback && entry.fallback !== entry.object) {
+      if (entry.fallback.parent === this.ports.blocksGroup) this.ports.blocksGroup.remove(entry.fallback);
+      disposeObject(entry.fallback);
+    }
     this.ports.invalidateDiagnostics();
   }
 

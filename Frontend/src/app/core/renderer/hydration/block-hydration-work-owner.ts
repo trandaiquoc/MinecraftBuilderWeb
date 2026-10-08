@@ -79,7 +79,6 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
     }
     this.work.replaceRegular([...normal, ...reference, ...missing]);
   }
-  providerRefreshJobs(): readonly T[] { return this.work.providerRefreshJobs(); }
   takeNextJob(generation: number): T | undefined { return this.work.takeNext(generation); }
   completeJob(job: T): void { this.work.complete(job); }
   fairnessDeferrals(): number { return this.work.fairnessDeferrals(); }

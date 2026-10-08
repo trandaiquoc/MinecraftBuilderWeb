@@ -64,6 +64,35 @@ describe('InstanceBatchRenderer', () => {
     geometry.dispose(); material.dispose();
   });
 
+  it('replaces the only member of a batch without inserting into disposed meshes', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const entries = new Map<string, { instanceBatchKey?: string; instanceIndex?: number; object?: THREE.Object3D }>();
+    const renderer = new InstanceBatchRenderer({
+      blocksGroup: group,
+      capacity: 4,
+      chunkKey: () => '0,0,0',
+      stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)),
+      record: () => undefined,
+      getEntry: (key) => entries.get(key),
+      setEntryObject: (key, batchKey, index, object) => entries.set(key, { instanceBatchKey: batchKey, instanceIndex: index, object }),
+      disposeMergedTemplateGeometry: () => undefined,
+    });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+    renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'same');
+    const oldBatch = [...renderer.batches.values()][0];
+    const oldPart = oldBatch.parts[0];
+    const oldDispose = vi.spyOn(oldPart, 'dispose');
+    const replacement = renderer.addFromTemplates(templates, { x: 1, y: 0, z: 0 }, 'same');
+    expect(replacement).toBeDefined();
+    expect(renderer.ownershipIndex.get('same')).toEqual(replacement);
+    expect(renderer.batches.has(replacement!.batchKey)).toBe(true);
+    expect(oldDispose).toHaveBeenCalledTimes(1);
+    expect((renderer.batches.get(replacement!.batchKey)!.parts[0] as THREE.InstancedMesh).count).toBe(1);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
   it('keeps members on separate regions for local frustum culling', () => {
     const group = new THREE.Group();
     const geometry = new THREE.BoxGeometry(1, 1, 1);

@@ -50,7 +50,6 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   workCounts(): HydrationWorkCounts { return this.work.workCounts(); }
   regularJobs(): readonly T[] { return this.work.regularJobs(); }
   prioritizeRegularJobs(roleOf: (job: T) => 'normal' | 'reference' | 'missing'): void { this.work.prioritizeRegularJobs(roleOf); }
-  providerRefreshJobs(): readonly T[] { return this.work.providerRefreshJobs(); }
   takeNextJob(generation: number): T | undefined { return this.work.takeNextJob(generation); }
   completeJob(job: T): void { this.work.completeJob(job); }
   fairnessDeferrals(): number { return this.work.fairnessDeferrals(); }

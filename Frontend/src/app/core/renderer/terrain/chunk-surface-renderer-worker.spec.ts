@@ -61,6 +61,33 @@ describe('chunk surface renderer worker commit path', () => {
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
+  it('reports pending terrain replacement and settles the callback only after commit', async () => {
+    const group = new THREE.Group();
+    const worker = new DeferredWorker();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => worker, workerCount: 1, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const first = blockAt(0);
+    const record = (block: PlacedBlock): TerrainSurfaceRecord => ({ key: key(block), block, templates });
+    renderer.bulkUpsert([record(first)], [{ block: first, role: 'normal', occlusionClass: 'opaque-full-cube' }], [first.position], { initial: true });
+    worker.resolve();
+    await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0));
+    const oldMesh = group.children[0];
+    let committed = false;
+    let failed = false;
+    const changed = blockAt(1);
+    const status = renderer.upsertAndCommit(record(changed), { onCommitted: () => { committed = true; }, onFailed: () => { failed = true; } });
+    expect(status).toBe('pending');
+    expect(group.children[0]).toBe(oldMesh);
+    expect(committed).toBe(false);
+    worker.resolve();
+    await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(committed).toBe(true);
+    expect(failed).toBe(false);
+    expect(group.children[0]).not.toBe(oldMesh);
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('settles only after the worker commit, and resolves cancellation on dispose', async () => {
     const group = new THREE.Group();
     const worker = new DeferredWorker();

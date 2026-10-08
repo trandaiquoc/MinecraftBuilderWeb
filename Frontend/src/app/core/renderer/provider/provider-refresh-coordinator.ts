@@ -5,7 +5,6 @@ export interface RetainableProvider {
 
 export interface ProviderRefreshReleaseState<P> {
   readonly referenced: (provider: P) => boolean;
-  readonly queued: (provider: P) => boolean;
 }
 
 /** Owns provider generations and retirement lifetime during incremental handoff. */
@@ -27,7 +26,7 @@ export class ProviderRefreshCoordinator<P extends RetainableProvider> {
 
   releaseUnused(state: ProviderRefreshReleaseState<P>): void {
     for (const provider of [...this.retired]) {
-      if (state.referenced(provider) || state.queued(provider)) continue;
+      if (state.referenced(provider)) continue;
       provider.release?.();
       this.retired.delete(provider);
     }

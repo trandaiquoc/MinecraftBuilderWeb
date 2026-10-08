@@ -11,22 +11,22 @@ describe('ProviderRefreshCoordinator', () => {
     coordinator.transition(undefined, first);
     coordinator.transition(first, second);
     expect(first.release).not.toHaveBeenCalled();
-    coordinator.releaseUnused({ referenced: () => false, queued: () => false });
+    coordinator.releaseUnused({ referenced: () => false });
     expect(first.release).toHaveBeenCalledTimes(1);
     expect(second.retain).toHaveBeenCalledTimes(1);
     expect(coordinator.generation).toBe(2);
   });
 
-  it('keeps a retired provider while rendered or refresh work still references it', () => {
+  it('releases a retired provider once the authoritative owners report no references', () => {
     const first = provider();
     const second = provider();
     const coordinator = new ProviderRefreshCoordinator<typeof first>();
     coordinator.transition(undefined, first);
     coordinator.transition(first, second);
-    coordinator.releaseUnused({ referenced: () => true, queued: () => false });
+    coordinator.releaseUnused({ referenced: () => true });
     expect(first.release).not.toHaveBeenCalled();
-    coordinator.releaseUnused({ referenced: () => false, queued: () => true });
-    expect(first.release).not.toHaveBeenCalled();
+    coordinator.releaseUnused({ referenced: () => false });
+    expect(first.release).toHaveBeenCalledTimes(1);
   });
 
   it('does not retain a provider again when it is reactivated from retirement', () => {

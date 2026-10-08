@@ -167,8 +167,8 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
     this.activeProgress = undefined;
   }
 
-  releaseUnused(referenced: (provider: P) => boolean, queued: (provider: P) => boolean): void {
-    this.providers.releaseUnused({ referenced, queued });
+  releaseUnused(referenced: (provider: P) => boolean): void {
+    this.providers.releaseUnused({ referenced });
   }
 
   dispose(): void { this.cancelPlanning(); this.providers.clear(); this.deferred = undefined; }

@@ -53,10 +53,10 @@ describe('ViewportProviderRefreshPipeline', () => {
     expect(second.retain).toHaveBeenCalledOnce();
 
     let referenced = true;
-    pipeline.releaseUnused((provider) => provider === first && referenced, () => false);
+    pipeline.releaseUnused((provider) => provider === first && referenced);
     expect(first.release).not.toHaveBeenCalled();
     referenced = false;
-    pipeline.releaseUnused(() => false, () => false);
+    pipeline.releaseUnused(() => false);
     expect(first.release).toHaveBeenCalledOnce();
   });
 
@@ -96,7 +96,7 @@ describe('ViewportProviderRefreshPipeline', () => {
       createJob: (candidate, generation) => ({ key: candidate.key, token: 0, refreshGeneration: generation }),
       onScheduleHydration: schedule,
     });
-    expect(hydration.providerRefreshJobs().map((job) => job.key)).toEqual(['changed']);
+    expect(hydration.queuedProviderRefreshWork()).toBe(1);
     expect(schedule).toHaveBeenCalledOnce();
   });
 });
