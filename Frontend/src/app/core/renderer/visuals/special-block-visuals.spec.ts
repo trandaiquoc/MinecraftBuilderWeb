@@ -324,31 +324,6 @@ describe('special block visuals', () => {
     expect(hatUv[0]).toBeCloseTo(48 / 64);
     expect(registry.resolve(block('minecraft:player_head'))!.textureResource?.(block('minecraft:player_head'))).toBe('minecraft:entity/player/slim/steve');
   });
-  it('uses one data-driven vanilla descriptor for colors, parts, and facing', () => {
-    const bed = registry.resolve(block('minecraft:red_bed'))!;
-    expect(bed.textureResource?.(block('minecraft:red_bed'))).toBe('minecraft:entity/bed/red');
-    expect(bed.textureResource?.(block('minecraft:blue_bed'))).toBe('minecraft:entity/bed/blue');
-    const head = bed.create({ ...block('minecraft:red_bed'), state: { part: 'head', facing: 'north' } });
-    const foot = bed.create({ ...block('minecraft:red_bed'), state: { part: 'foot', facing: 'north' } });
-    expect(head.userData['bedGeometry']).toBe('minecraft-java-bed-1.21.1-modelpart');
-    expect(head.userData['bedWorldFootOffset']).toBe(0);
-    expect(head.children.length).toBe(1); expect(foot.children.length).toBe(1);
-  });
-  it.each(['head', 'foot'] as const)('keeps the exact Bed %s ModelPart vertices inside one local voxel for every facing', (part) => {
-    const bed = registry.resolve(block('minecraft:red_bed'))!;
-    for (const facing of ['north', 'east', 'south', 'west']) {
-      const visual = bed.create({ ...block('minecraft:red_bed'), state: { part, facing } });
-      visual.updateMatrixWorld(true);
-      const bounds = new THREE.Box3().setFromObject(visual);
-      expect(bounds.min.x, `${part}/${facing} min=${bounds.min.toArray()}`).toBeGreaterThanOrEqual(-.000001);
-      expect(bounds.min.y, `${part}/${facing} min=${bounds.min.toArray()}`).toBeGreaterThanOrEqual(-.000001);
-      expect(bounds.min.z, `${part}/${facing} min=${bounds.min.toArray()}`).toBeGreaterThanOrEqual(-.000001);
-      expect(bounds.max.x).toBeLessThanOrEqual(1.000001);
-      expect(bounds.max.y).toBeCloseTo(.5625, 5);
-      expect(bounds.max.z, `${part}/${facing} max=${bounds.max.toArray()}`).toBeLessThanOrEqual(1.000001);
-      expect(bounds.min.y).toBeCloseTo(0, 5);
-    }
-  });
   it('reuses a compatible Bed provider across game versions when no resource gate is supplied', () => {
     expect(new SpecialBlockVisualRegistry('1.22').resolve(block('minecraft:red_bed'))?.family).toBe('beds');
   });

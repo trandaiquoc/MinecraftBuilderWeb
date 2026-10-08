@@ -4,6 +4,7 @@ import { SpecialModelDescriptor } from './special-model-descriptor';
 import { createSpecialModel } from './special-model-geometry';
 import { resolveResourceLocation } from '../../content/resource-location';
 import { createCommonSignAdapter, SignVisualProvider } from './sign-visual-provider';
+import { BedVisualProvider } from './bed-visual-provider';
 import type { BedVisualDescriptor, NormalizedSpecialVisualDescriptor, SpecialBlockVisualAdapter, SpecialVisualCompatibility, SpecialVisualContext, SpecialVisualResourceProvider } from './special-visual-contracts';
 import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 
@@ -13,12 +14,10 @@ export class SpecialBlockVisualRegistry {
   private readonly signs: SignVisualProvider;
   private readonly adapters: SpecialBlockVisualAdapter[];
   private readonly descriptorAdapters = new Map<string, SpecialBlockVisualAdapter>();
-  private readonly gameVersion: string;
   private readonly resources?: SpecialVisualResourceProvider;
   constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
     this.resources = typeof gameVersionOrResources === 'string' ? undefined : gameVersionOrResources;
-    this.gameVersion = typeof gameVersionOrResources === 'string' ? gameVersionOrResources : gameVersionOrResources.gameVersion ?? '1.21.1';
-    this.beds = new BedVisualProvider(this.gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider();
+    this.beds = new BedVisualProvider(); this.signs = new SignVisualProvider();
     this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
   }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
@@ -74,31 +73,11 @@ export class SpecialBlockVisualRegistry {
   }
 }
 
-/** Extension point for a normalized mod bed descriptor; it never infers Java runtime renderers. */
-export class BedVisualProvider implements SpecialBlockVisualAdapter {
-  readonly staticBatchable = true;
-  readonly family = 'beds';
-  constructor(private readonly gameVersion: string, private readonly descriptors: BedVisualDescriptor[]) {}
-  register(descriptor: BedVisualDescriptor): void { this.descriptors.push(descriptor); }
-  matches(block: PlacedBlock): boolean { return !!this.resolve(block); }
-  textureResource(block: PlacedBlock): string | undefined { return this.resolve(block)?.textureResource(block); }
-  create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group { const descriptor = this.resolve(block); if (!descriptor) return new THREE.Group(); const model = descriptor.model(block); if (!model) return new THREE.Group(); const root = createSpecialModel(model, context?.texture); descriptor.transform(block, root); root.userData['specialModel'] = model.id; root.userData['providerId'] = descriptor.metadata.providerId; return root; }
-  private resolve(block: PlacedBlock): BedVisualDescriptor | undefined { return this.descriptors.filter((descriptor) => descriptor.metadata.namespace === block.namespace && descriptor.matches(block)).sort((left, right) => right.metadata.priority - left.metadata.priority)[0]; }
-}
-
 const material = (color: number, texture?: THREE.Texture) => new THREE.MeshLambertMaterial({ color, map: texture, transparent: true, opacity: .98 });
 const box = (root: THREE.Group, size: readonly [number, number, number], at: readonly [number, number, number], color: number, texture?: THREE.Texture) => { const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material(color, texture)); mesh.position.set(...at); root.add(mesh); };
 const named = (family: string, match: (id: string) => boolean, build: (block: PlacedBlock) => THREE.Group): SpecialBlockVisualAdapter => ({ family, matches: (block) => match(block.id), create: build });
 const colorFromId = (id: string, fallback: number): number => { const name = id.split(':').at(-1) ?? ''; const colors: Record<string, number> = { red: 0xb83832, blue: 0x3f61b7, green: 0x4f8c4e, black: 0x252525, white: 0xe8e6df, yellow: 0xd6b432, purple: 0x744a9c, orange: 0xcb7b32, pink: 0xd47aa4, cyan: 0x4aa7ae, gray: 0x6b6b6b, brown: 0x6e4a31 }; return Object.entries(colors).find(([key]) => name.startsWith(key))?.[1] ?? fallback; };
 
-const CLASSIC_BED_COLORS = new Set(['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black']);
-const vanillaBedDescriptor: BedVisualDescriptor = {
-  metadata: { providerId: 'minecraft-java-bed-common', gameEdition: 'java', gameVersion: 'common', namespace: 'minecraft', family: 'bed', priority: 100 },
-  matches: (block) => block.namespace === 'minecraft' && CLASSIC_BED_COLORS.has(bedColor(block.id)) && block.id.endsWith('_bed'),
-  textureResource: (block) => `minecraft:entity/bed/${bedColor(block.id)}`,
-  model: (block) => block.state['part'] === 'head' ? vanillaBedHead : vanillaBedFoot,
-  transform: (block, root) => applyBedTransform(root, block.state['facing']),
-};
 const chestIds = new Set(['minecraft:chest', 'minecraft:trapped_chest', 'minecraft:ender_chest']);
 const chestAdapter: SpecialBlockVisualAdapter = {
   family: 'chests',
@@ -353,8 +332,6 @@ function createShulkerVisual(block: PlacedBlock, texture?: THREE.Texture): THREE
   root.userData['shulkerTexture'] = shulkerTextureResource(block);
   return root;
 }
-function bedColor(id: string): string { return (id.split(':').at(-1) ?? 'red_bed').replace(/_bed$/, '') || 'red'; }
-
 type SkullVariant = 'skeleton' | 'wither_skeleton' | 'zombie' | 'creeper' | 'dragon' | 'piglin' | 'player';
 function skullVariant(id: string): SkullVariant {
   const name = id.split(':').at(-1) ?? '';
@@ -413,31 +390,6 @@ const piglinHeadModel: SpecialModelDescriptor = { id: 'minecraft-java-piglin-hea
   { id: 'left_ear', pivot: [4.5, -6, 0], applyPivot: true, rotation: [0, 0, -30], cuboids: [{ id: 'left_ear', uv: [51, 6], from: [0, 0, -2], size: [1, 5, 4] }] },
   { id: 'right_ear', pivot: [-4.5, -6, 0], applyPivot: true, rotation: [0, 0, 30], cuboids: [{ id: 'right_ear', uv: [39, 6], from: [-1, 0, -2], size: [1, 5, 4] }] },
 ] };
-
-const vanillaBedHead: SpecialModelDescriptor = { id: 'minecraft-java-bed-head-1.21.1', textureSize: [64, 64], parts: [
-  { id: 'main', cuboids: [{ id: 'main', uv: [0, 0], from: [0, 0, 0], size: [16, 16, 6] }] },
-  { id: 'left_leg', pivot: [0, 6, 0], rotation: [90, 0, 90], cuboids: [{ id: 'left_leg', uv: [50, 6], from: [0, 6, 0], size: [3, 3, 3] }] },
-  { id: 'right_leg', pivot: [0, 6, 0], rotation: [90, 0, 180], cuboids: [{ id: 'right_leg', uv: [50, 18], from: [-16, 6, 0], size: [3, 3, 3] }] },
-] };
-const vanillaBedFoot: SpecialModelDescriptor = { id: 'minecraft-java-bed-foot-1.21.1', textureSize: [64, 64], parts: [
-  { id: 'main', cuboids: [{ id: 'main', uv: [0, 22], from: [0, 0, 0], size: [16, 16, 6] }] },
-  { id: 'left_leg', pivot: [0, 6, 0], rotation: [90, 0, 0], cuboids: [{ id: 'left_leg', uv: [50, 0], from: [0, 6, -16], size: [3, 3, 3] }] },
-  { id: 'right_leg', pivot: [0, 6, 0], rotation: [90, 0, 270], cuboids: [{ id: 'right_leg', uv: [50, 12], from: [-16, 6, -16], size: [3, 3, 3] }] },
-] };
-
-function applyBedTransform(root: THREE.Group, facing: string | undefined): void {
-  // Keep the adapter root identity-transform. Static model classification
-  // extracts child matrices relative to that root and later applies only the
-  // voxel translation. The vanilla bed transform therefore belongs on a
-  // child placement branch so direct and compiled rendering share geometry.
-  const placement = new THREE.Group();
-  placement.position.set(0, .5625, 0); placement.rotation.x = Math.PI / 2;
-  const orientation = new THREE.Group(); orientation.position.set(.5, .5, .5); orientation.rotation.z = THREE.MathUtils.degToRad(180 + directionRotation(facing));
-  const content = new THREE.Group(); content.position.set(-.5, -.5, -.5); while (root.children.length) content.add(root.children[0]); orientation.add(content);
-  placement.add(orientation); root.add(placement);
-  root.userData['bedGeometry'] = 'minecraft-java-bed-1.21.1-modelpart'; root.userData['bedWorldFootOffset'] = 0;
-}
-function directionRotation(facing: string | undefined): number { return ({ south: 0, west: 90, north: 180, east: 270 } as Record<string, number>)[facing ?? 'north'] ?? 180; }
 
 function resourcePath(resource: string): string {
   if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
