@@ -25,6 +25,7 @@ import { ProjectAutosaveService } from '../../../core/persistence/autosave/proje
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
 import { clampGroupMovePanelPosition, PanelPosition } from '../../../features/editor/shell/group-move/group-move-panel';
+import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
 import { DecorationService } from '../../../core/decorations/decoration.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog/settings-dialog.component';
 import { LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX } from '@lucide/angular';
@@ -46,7 +47,7 @@ export function hasEditorSelectionState(decorationSelected: boolean, logicalCoun
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, BlockUsagePanelComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); moveSidebarResize($event)', '(document:pointerup)': 'endMovePanelDrag($event); endSidebarResize($event)', '(document:pointercancel)': 'endMovePanelDrag($event); endSidebarResize($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'clampSidebarWidths()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, BlockUsagePanelComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); sidebarResize.move($event)', '(document:pointerup)': 'endMovePanelDrag($event); sidebarResize.end($event)', '(document:pointercancel)': 'endMovePanelDrag($event); sidebarResize.end($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'sidebarResize.clampToViewport()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -94,17 +95,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly rightSidebarTab = signal<'selection' | 'block-usage'>('selection');
   private drawerOpener?: HTMLElement;
   private readonly editorBody = viewChild<ElementRef<HTMLElement>>('editorBody');
-  private readonly leftDragWidth = signal<number | undefined>(undefined);
-  private readonly rightDragWidth = signal<number | undefined>(undefined);
-  protected readonly editorGridTemplate = computed(() => {
-    const preferences = this.layout.preferences();
-    const left = this.leftDragWidth() ?? preferences.leftSidebarWidth;
-    const right = this.rightDragWidth() ?? preferences.rightSidebarWidth;
-    if (!preferences.leftSidebarVisible && !preferences.rightSidebarVisible) return 'minmax(0, 1fr)';
-    if (!preferences.leftSidebarVisible) return `minmax(0, 1fr) ${right}px`;
-    if (!preferences.rightSidebarVisible) return `${left}px minmax(0, 1fr)`;
-    return `${left}px minmax(0, 1fr) ${right}px`;
-  });
+  protected readonly sidebarResize = new EditorSidebarResizeSession(this.layout, () => this.editorBody()?.nativeElement.clientWidth ?? 0);
   protected readonly movePanelVisible = signal(false);
   private readonly viewportHost = viewChild<ElementRef<HTMLElement>>('viewportHost');
   private readonly movePanel = viewChild<ElementRef<HTMLElement>>('groupMovePanel');
@@ -122,7 +113,6 @@ export class EditorShellComponent implements OnDestroy {
   });
   private previousActiveGroupId: string | undefined;
   private moveDrag?: { readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: PanelPosition };
-  private sidebarDrag?: { readonly side: 'left' | 'right'; readonly pointerId: number; readonly startX: number; readonly origin: number };
   private readonly movementInput = new EditorMovementInputSession({
     movementDown: (action) => this.currentViewport()?.cameraKeyDown(action),
     movementUp: (action) => this.currentViewport()?.cameraKeyUp(action),
@@ -139,7 +129,7 @@ export class EditorShellComponent implements OnDestroy {
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
   }
-  ngOnDestroy(): void { this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
+  ngOnDestroy(): void { this.sidebarResize.end(); this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
@@ -194,7 +184,7 @@ export class EditorShellComponent implements OnDestroy {
   protected openProjectDiagnostics(): void { this.closeMenus(); this.diagnosticsOpen.set(true); }
   protected closeSettingsDialog(): void { this.settingsDialogOpen.set(false); }
   protected toggleLayout(key: 'editorToolbarVisible' | 'leftSidebarVisible' | 'rightSidebarVisible' | 'quickBarVisible' | 'statusBarVisible'): void { this.layout.set(key, !this.layout.preferences()[key]); this.scheduleMovePanelClamp(); this.closeMenus(); }
-  protected resetLayout(): void { this.sidebarDrag = undefined; this.leftDragWidth.set(undefined); this.rightDragWidth.set(undefined); this.layout.reset(); }
+  protected resetLayout(): void { this.sidebarResize.reset(); this.layout.reset(); }
   protected chooseLanguage(locale: 'en' | 'vi'): void { this.i18n.setLocale(locale); this.closeMenus(); }
   protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void { this.theme.setPreset(theme); this.closeMenus(); }
   protected chooseFont(font: 'geist' | 'minecraft-style'): void { this.theme.setFont(font); this.closeMenus(); }
@@ -262,44 +252,6 @@ export class EditorShellComponent implements OnDestroy {
     const handled = decoration ? (this.decorations.delete(decoration.instanceId), true) : this.editor.deleteSelection();
     this.closeMenus();
     return handled;
-  }
-  protected effectiveSidebarWidth(side: 'left' | 'right'): number { return side === 'left' ? this.leftDragWidth() ?? this.layout.preferences().leftSidebarWidth : this.rightDragWidth() ?? this.layout.preferences().rightSidebarWidth; }
-  protected beginSidebarResize(side: 'left' | 'right', event: PointerEvent): void {
-    if (event.button !== 0) return;
-    event.preventDefault(); event.stopPropagation();
-    const target = event.currentTarget as HTMLElement;
-    target.setPointerCapture?.(event.pointerId);
-    this.sidebarDrag = { side, pointerId: event.pointerId, startX: event.clientX, origin: this.effectiveSidebarWidth(side) };
-  }
-  protected adjustSidebarWithKeyboard(side: 'left' | 'right', event: KeyboardEvent): void {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const direction = side === 'left' ? (event.key === 'ArrowRight' ? 1 : -1) : (event.key === 'ArrowLeft' ? 1 : -1);
-    this.layout.setSidebarWidth(side, this.clampSidebarWidth(side, this.effectiveSidebarWidth(side) + direction * 16));
-  }
-  protected moveSidebarResize(event: PointerEvent): void {
-    const drag = this.sidebarDrag;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    const delta = drag.side === 'left' ? event.clientX - drag.startX : drag.startX - event.clientX;
-    const width = this.clampSidebarWidth(drag.side, drag.origin + delta);
-    (drag.side === 'left' ? this.leftDragWidth : this.rightDragWidth).set(width);
-  }
-  protected endSidebarResize(event?: PointerEvent): void {
-    const drag = this.sidebarDrag;
-    if (!drag || (event && event.pointerId !== drag.pointerId)) return;
-    const width = this.effectiveSidebarWidth(drag.side);
-    this.layout.setSidebarWidth(drag.side, width);
-    (drag.side === 'left' ? this.leftDragWidth : this.rightDragWidth).set(undefined);
-    this.sidebarDrag = undefined;
-  }
-  protected clampSidebarWidths(): void {
-    const preferences = this.layout.preferences();
-    for (const side of ['left', 'right'] as const) {
-      const current = side === 'left' ? preferences.leftSidebarWidth : preferences.rightSidebarWidth;
-      const clamped = this.clampSidebarWidth(side, current);
-      if (clamped !== current) this.layout.setSidebarWidth(side, clamped);
-    }
   }
   protected showMovePanel(): void { if (this.groups.activeGroup()) { this.movePanelVisible.set(true); this.scheduleMovePanelClamp(); } }
   protected hideMovePanel(): void { this.groups.resetMove(); this.movePanelVisible.set(false); this.moveDrag = undefined; }
@@ -398,13 +350,5 @@ export class EditorShellComponent implements OnDestroy {
 
   private currentViewport(): ViewportComponent | YLayerComponent | undefined {
     return this.mode.mode() === '3d' ? this.threeDViewport() : this.yLayerViewport();
-  }
-  private clampSidebarWidth(side: 'left' | 'right', width: number): number {
-    const total = this.editorBody()?.nativeElement.clientWidth || (typeof window === 'undefined' ? 1024 : window.innerWidth);
-    const minimum = side === 'left' ? 180 : 200;
-    const other = side === 'left' ? this.effectiveSidebarWidth('right') : this.effectiveSidebarWidth('left');
-    const otherVisible = side === 'left' ? this.layout.preferences().rightSidebarVisible : this.layout.preferences().leftSidebarVisible;
-    const maximum = Math.min(520, Math.max(minimum, total - (otherVisible ? other : 0) - 320));
-    return Math.round(Math.min(maximum, Math.max(minimum, width)));
   }
 }
