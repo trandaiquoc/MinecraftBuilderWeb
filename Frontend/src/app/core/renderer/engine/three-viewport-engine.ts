@@ -94,6 +94,7 @@ import { GroupHighlightPresenter } from '../presentation/group-highlight-present
 import { StructureBlockGuidePresenter } from '../presentation/structure-block-guide-presenter';
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 import { YLayerProjectionCoordinator, type VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
+import { ViewportStructureSyncState } from './viewport-structure-sync-state';
 import { blockCoordinateFromHit, cameraActionMovementDelta, canonicalRenderOptions, chunkKey, compareEmptySnapshots, createBoundedGrid, decorationSignature, DETAILED_SELECTION_OUTLINE_LIMIT, emptyResolvedModel, isHorizontalDirection, isolateKey, renderFilterKey, stableChunkBounds, stableValue, surfaceFaceDirectionFromHit, surfaceNeighbor, surfaceFaceNormal, unitVoxelEnvelope, vectorValue, boundsOfPositions, blockRenderSignature } from './viewport-render-helpers';
 export { cameraMovementDirection, cameraMovementDelta, blockCoordinateFromHit, surfaceFaceDirectionFromHit, surfaceFaceNormal } from './viewport-render-helpers';
 import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, PlacementPlanProvider } from './viewport-engine-contracts';
@@ -469,10 +470,7 @@ export class ThreeViewportEngine {
   private hemisphereLight?: THREE.HemisphereLight;
   private keyLight?: THREE.DirectionalLight;
   private blockBrightness = 3;
-  private structureSyncKey = '';
-  private syncedProject?: ProjectDocument;
-  private syncedBlockCount?: number;
-  private syncedBlocksReference?: readonly ProjectDocument['blocks'][number][];
+  private readonly structureSyncState = new ViewportStructureSyncState();
   private decorationSyncKey = '';
   private syncedDecorationProject?: ProjectDocument;
   private decorationRevision = 0;
@@ -564,10 +562,7 @@ export class ThreeViewportEngine {
       applyLayers: (project, renderOptions, layers, token) => this.applyLayerProjectionWork(project, renderOptions, layers, token),
       keySettled: (key) => this.isProjectionKeySettled(key),
       onCommit: (project, renderOptions) => {
-        this.syncedProject = project;
-        this.syncedBlockCount = project.blocks.length;
-        this.syncedBlocksReference = project.blocks;
-        this.structureSyncKey = `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(renderOptions)}`;
+        this.structureSyncState.commit(project, this.structureSyncState.keyFor(project, renderFilterKey(renderOptions)));
       },
       record: (metric) => this.instrumentation.record(metric),
     });
@@ -685,7 +680,7 @@ export class ThreeViewportEngine {
     if (this.disposed || !this.suspended) return;
     this.suspended = false;
     if (this.suspendedNeedsRefresh) {
-      this.structureSyncKey = '';
+      this.structureSyncState.invalidateKey();
       this.decorationSyncKey = '';
       this.suspendedNeedsRefresh = false;
     }
@@ -846,7 +841,7 @@ export class ThreeViewportEngine {
     // placeholder-only scene. A handoff between live providers is different:
     // existing terrain remains authoritative until a changed visual commits.
     const requiresStructureResync = !previousProvider || !provider;
-    if (requiresStructureResync) this.structureSyncKey = '';
+    if (requiresStructureResync) this.structureSyncState.invalidateKey();
     if (provider) this.syncSpecialVisualDescriptors();
     if (previousProvider && provider) {
       if (this.suspended) this.deferredProviderRefresh = { previous: this.deferredProviderRefresh?.previous ?? previousProvider, next: provider };
@@ -1090,11 +1085,12 @@ export class ThreeViewportEngine {
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
     const previousProject = this.project;
+    const structureState = this.structureSyncState.snapshot();
     const projectChanged = project?.id !== previousProject?.id;
     const previousOptions = this.renderOptions;
     const isolatePresentationChanged = isolateKey(previousOptions) !== isolateKey(options);
-    const previousSyncKey = this.structureSyncKey;
-    const nextSyncKey = project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${renderFilterKey(options)}` : 'empty';
+    const previousSyncKey = structureState.syncKey;
+    const nextSyncKey = this.structureSyncState.keyFor(project, renderFilterKey(options));
     const referenceOpacityOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && renderFilterKey(previousOptions) === renderFilterKey(options) && previousOptions.referenceOpacity !== options.referenceOpacity;
     const projectionDelta = this.yLayerProjection.plan(previousProject, previousOptions, options, options.layerIndex ?? this.layerIndex);
     const layerProjectionOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && !mutationHint && projectionDelta.changed && previousOptions.visibility === options.visibility && !!options.visibility && options.layerY !== undefined && previousOptions.layerY !== undefined && renderFilterKey(previousOptions) === renderFilterKey(options);
@@ -1107,26 +1103,20 @@ export class ThreeViewportEngine {
     if (this.suspended) {
       const nextDecorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
       this.suspendedNeedsRefresh = this.suspendedNeedsRefresh
-        || project !== this.syncedProject
-        || project?.blocks !== this.syncedBlocksReference
-        || project?.size.x !== this.syncedProject?.size.x
-        || project?.size.y !== this.syncedProject?.size.y
-        || project?.size.z !== this.syncedProject?.size.z
-        || renderFilterKey(previousOptions) !== renderFilterKey(options)
-        || nextDecorationKey !== this.decorationSyncKey;
+        || this.structureSyncState.requiresSuspendedRefresh(project, renderFilterKey(previousOptions) !== renderFilterKey(options), nextDecorationKey !== this.decorationSyncKey);
       return;
     }
-    const inPlaceBlockMutation = project === this.syncedProject && project !== undefined && (project.blocks !== this.syncedBlocksReference || project.blocks.length !== this.syncedBlockCount);
+    const inPlaceBlockMutation = this.structureSyncState.hasInPlaceBlockMutation(project);
     this.ensureSpatialIndex(project, incrementalMutation || layerProjectionOnly ? false : inPlaceBlockMutation, incrementalMutation || layerProjectionOnly);
     this.syncSpecialVisualDescriptors();
     const syncKey = nextSyncKey;
-    const blockInputChanged = !referenceOpacityOnly && !layerProjectionOnly && (project !== this.syncedProject || syncKey !== this.structureSyncKey);
+    const blockInputChanged = !referenceOpacityOnly && !layerProjectionOnly && (project !== structureState.project || syncKey !== structureState.syncKey);
     const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
     const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
-    const full = syncKey !== this.structureSyncKey;
+    const full = syncKey !== structureState.syncKey;
     if (layerProjectionOnly && project && projectionDelta.changedLayers.length) this.yLayerProjection.request(project, options, options.layerIndex ?? this.layerIndex);
     if (blockInputChanged || inPlaceBlockMutation) {
-      const projectIdentityChanged = project !== this.syncedProject;
+      const projectIdentityChanged = project !== structureState.project;
       const incrementalProjectChange = projectIdentityChanged && !full && this.renderedBlocks.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.pendingHydrationSignatures.size > 0 || this.placeholderSignatures.size > 0);
       if (incrementalMutation && project && mutationHint) {
         if (metadataMutation) this.applyMetadataMutation(previousProject!, previousOptions, project, options, mutationHint);
@@ -1138,9 +1128,9 @@ export class ThreeViewportEngine {
             projectIdentityChanged,
             structureSyncKeyChanged: full,
             renderFilterChanged: renderFilterKey(previousOptions) !== renderFilterKey(options),
-            previousProjectId: this.syncedProject?.id,
+            previousProjectId: structureState.project?.id,
             nextProjectId: project?.id,
-            previousProjectUpdatedAt: this.syncedProject?.metadata.updatedAt,
+            previousProjectUpdatedAt: structureState.project?.metadata.updatedAt,
             nextProjectUpdatedAt: project?.metadata.updatedAt,
             previousSyncKey,
             nextSyncKey,
@@ -1149,19 +1139,13 @@ export class ThreeViewportEngine {
         this.reconcileStructure(project, options, full);
       }
       if (project) this.yLayerProjection.setCommitted(project, options);
-      this.structureSyncKey = syncKey;
-      this.syncedProject = project;
-      this.syncedBlockCount = project?.blocks.length;
-      this.syncedBlocksReference = project?.blocks;
+      this.structureSyncState.commit(project, syncKey);
     }
     if (referenceOpacityOnly) {
       this.setReferenceOpacity(options.referenceOpacity ?? .28);
       if (project) this.yLayerProjection.setCommitted(project, { ...(this.yLayerProjection.committedOptionsFor(project) ?? previousOptions), referenceOpacity: options.referenceOpacity });
       this.yLayerProjection.associateVisibleProjection(project, options);
-      this.syncedProject = project;
-      this.syncedBlockCount = project?.blocks.length;
-      this.syncedBlocksReference = project?.blocks;
-      this.structureSyncKey = syncKey;
+      this.structureSyncState.commit(project, syncKey);
     }
     if (layerProjectionOnly) {
       if (previousOptions.referenceOpacity !== options.referenceOpacity) this.setReferenceOpacity(options.referenceOpacity ?? .28);
@@ -1757,7 +1741,7 @@ export class ThreeViewportEngine {
 
   private commitIsolatePresentation(keys: ReadonlySet<string>): void {
     this.isolatedKeys = new Set(keys);
-    const project = this.syncedProject;
+    const project = this.structureSyncState.snapshot().project;
     if (project) {
       const selection = this.visibleSelection(project, this.renderOptions);
       this.updateSelection(selection.selected, selection.positions, selection.kind, selection.count, selection.bounds, selection.box);
@@ -1769,7 +1753,7 @@ export class ThreeViewportEngine {
 
   private clearCommittedIsolatePresentation(): void {
     this.isolatedKeys.clear();
-    const project = this.syncedProject;
+    const project = this.structureSyncState.snapshot().project;
     if (project) {
       const selection = this.visibleSelection(project, this.renderOptions);
       this.updateSelection(selection.selected, selection.positions, selection.kind, selection.count, selection.bounds, selection.box);
@@ -2451,7 +2435,7 @@ export class ThreeViewportEngine {
       specialVisualRevision: this.specialVisualRevision,
       providerReady: !!this.visualProvider,
       projectId: this.project?.id,
-      syncedProjectId: this.syncedProject?.id,
+      syncedProjectId: this.structureSyncState.snapshot().project?.id,
       queuedBlockHydrationJobs: this.queuedBlockHydrationJobs(),
       queuedDecorationHydrationJobs: this.queuedDecorationHydrationJobs(),
       hydrationRunning: this.hydrationRunning,
@@ -2842,11 +2826,8 @@ export class ThreeViewportEngine {
     this.placeholderSignatures.clear();
     this.pendingDecorationSignatures.clear();
     this.yLayerProjection.clear();
-    this.structureSyncKey = '';
+    this.structureSyncState.clear();
     this.decorationSyncKey = '';
-    this.syncedProject = undefined;
-    this.syncedBlockCount = undefined;
-    this.syncedBlocksReference = undefined;
     this.syncedDecorationProject = undefined;
     this.spatialIndex = undefined;
     this.spatialIndexProject = undefined;

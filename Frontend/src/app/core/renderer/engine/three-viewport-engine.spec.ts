@@ -1567,14 +1567,14 @@ describe('group isolation presentation', () => {
     };
     const engine = new ThreeViewportEngine();
     engine.update(project, undefined);
-    const internal = engine as unknown as { structureSyncKey: string; hydrationGeneration: number; yLayerProjection: { visibleEntriesByKey: ReadonlyMap<string, unknown> } };
-    const beforeKey = internal.structureSyncKey;
+    const internal = engine as unknown as { structureSyncState: { snapshot(): { syncKey: string } }; hydrationGeneration: number; yLayerProjection: { visibleEntriesByKey: ReadonlyMap<string, unknown> } };
+    const beforeKey = internal.structureSyncState.snapshot().syncKey;
     const beforeGeneration = internal.hydrationGeneration;
     const beforeVisibleKeys = [...internal.yLayerProjection.visibleEntriesByKey.keys()];
     const before = engine.rendererCounters();
 
     engine.update(project, undefined, { isolatedGroupId: 'roof', isolatedGroupPositions: [{ x: 0, y: 0, z: 0 }] });
-    expect(internal.structureSyncKey).toBe(beforeKey);
+    expect(internal.structureSyncState.snapshot().syncKey).toBe(beforeKey);
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(before.fullSceneRebuilds);
     expect(engine.rendererCounters().fullReconcileFallbacks).toBe(before.fullReconcileFallbacks);
     expect(engine.rendererCounters().fullVisibleScans).toBe(before.fullVisibleScans);
@@ -1583,7 +1583,7 @@ describe('group isolation presentation', () => {
     expect(engine.isolationDiagnostics()).toMatchObject({ active: true, targetBlocks: 1 });
 
     engine.update(project, undefined, {});
-    expect(internal.structureSyncKey).toBe(beforeKey);
+    expect(internal.structureSyncState.snapshot().syncKey).toBe(beforeKey);
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(before.fullSceneRebuilds);
     expect(engine.rendererCounters().fullReconcileFallbacks).toBe(before.fullReconcileFallbacks);
     expect(engine.rendererCounters().fullVisibleScans).toBe(before.fullVisibleScans);
