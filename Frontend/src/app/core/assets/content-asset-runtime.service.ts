@@ -9,30 +9,27 @@ import type { ThumbnailPreviewState } from './vanilla/asset-thumbnail-service';
 import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CACHE_SCHEMA_VERSION, VANILLA_ASSET_VERSION } from './vanilla/vanilla-asset-provider';
 import { loadVanillaBlockRegistry } from '../blocks/registry/vanilla-block-registry';
 import { loadVanillaItemRegistry, VanillaItemRegistry } from '../items/registry/vanilla-item-registry';
-import { JarImportSource, providerFromBundle } from './bundle/asset-bundle';
 import { ContentSourceRegistry, PreparedContentSource } from './content-source/content-source-registry';
 import { ExternalModProvider } from './mod/external-mod-provider';
-import type { ModImportDiagnostic, ModImportReport, SerializedExternalMod } from './mod/external-mod-import-contracts';
-import type { ExternalCatalogProgress } from './mod/external-mod-catalog-builder';
-import { commitModImport, inspectModJar, ModImportProgress, PreparedModImport } from './mod/external-mod-importer';
+import type { ModImportReport } from './mod/external-mod-import-contracts';
+import { ModImportProgress, PreparedModImport } from './mod/external-mod-importer';
+import { ExternalModContentLifecycle, type ExternalModRestoreState } from './mod/external-mod-content-lifecycle';
 import { MojangVanillaAssetSource, VanillaDownloadProgress } from './vanilla/mojang-vanilla-asset-source';
+import { VanillaAssetLifecycle } from './vanilla/vanilla-asset-lifecycle';
 import { WorkspaceStateService } from '../workspace/workspace-state.service';
 import { DEFAULT_MINECRAFT_VERSION } from '../domain/project.types';
 import { AssetActivityService } from './asset-activity.service';
 import { VanillaResourceFormatProfile } from './vanilla/vanilla-resource-format';
 import { CompatibilityReport } from './vanilla/compatibility/compatibility.types';
-import { evaluateCompatibility } from './vanilla/compatibility/compatibility-evaluator';
 import { downloadCompatibilityReport } from './vanilla/compatibility/compatibility-report';
 import { PaintingVariantCatalogService } from '../decorations/catalog/painting-variant-catalog.service';
 import type { ThumbnailTaskPriority } from './vanilla/thumbnail-task-queue';
-import { yieldToBrowser } from './cooperative-yield';
-import { validateJarUpload } from './mod/jar-upload-validation';
-import { createPhaseWatchdog, isAbortError, throwIfAborted } from './mod/mod-import-cancellation';
+import { isAbortError, throwIfAborted } from './mod/mod-import-cancellation';
 import { ContentOperationCoordinator } from './content-operation-coordinator';
 
 export type VanillaAssetStatus = 'no-assets' | 'loading-cache' | 'downloading' | 'importing' | 'ready' | 'offline' | 'unsupported-format' | 'import-required' | 'cache-error';
 export interface VanillaAssetDiagnostics extends VanillaAssetProviderDiagnostics { readonly cacheSchema: number; readonly bundleFound: boolean; readonly generation: number; readonly providerReady: boolean; }
-export interface ImportedModSummary { readonly sourceId: string; readonly modId: string; readonly displayName: string; readonly version: string; readonly namespaces: readonly string[]; readonly candidateBlockCount: number; readonly fingerprint?: string; readonly iconUrl?: string; readonly report: ModImportReport; }
+export type { ImportedModSummary } from './mod/external-mod-content-lifecycle';
 export type ContentRestorePhase = 'vanilla' | 'restoring-mods' | 'ready' | 'partial' | 'error';
 export interface ContentRestoreState { readonly phase: ContentRestorePhase; readonly current: number; readonly total: number; readonly sourceName?: string; readonly failed: number; }
 export type AssetBootstrapStatusKind = 'loading-cache' | 'downloading' | 'preparing' | 'restoring-mods' | 'ready' | 'partial' | 'unavailable';
@@ -43,9 +40,10 @@ export class ContentAssetRuntimeService {
   private readonly cache = new IndexedDbAssetCache();
   private readonly workspace = inject(WorkspaceStateService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
-  private readonly official = new MojangVanillaAssetSource();
+  private readonly vanillaLifecycle = new VanillaAssetLifecycle(this.cache, new MojangVanillaAssetSource());
   readonly activity = inject(AssetActivityService);
   private readonly thumbnails!: AssetThumbnailService;
+  private externalMods!: ExternalModContentLifecycle;
   readonly thumbnailEpoch!: Signal<number>;
   readonly provider = signal<VanillaAssetProvider | undefined>(undefined);
   readonly visualProvider = signal<VanillaBlockVisualProvider | undefined>(undefined);
@@ -60,17 +58,22 @@ export class ContentAssetRuntimeService {
   readonly diagnostics = signal<VanillaAssetDiagnostics>({ cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION, bundleFound: false, generation: 0, providerReady: false, resourceCount: 0, stoneBlockstate: false, stoneModel: false, stoneTexture: false, language: false, itemDefinitions: 0, resourceFormat: { id: 'unsupported', support: 'unsupported-resource-format', blockstates: 0, models: 0, textures: 0, languages: 0, items: 0, label: 'Unsupported resource format' } });
   readonly cachedVersions = signal<readonly string[]>([]);
   readonly sources = new ContentSourceRegistry();
-  readonly importedMods = signal<readonly ImportedModSummary[]>([]);
+  get importedMods() { return this.externalMods.importedMods; }
   readonly compatibilityReport = signal<CompatibilityReport | undefined>(undefined);
   private loadRequest = 0;
   private inFlight?: { readonly version: string; readonly promise: Promise<void>; readonly controller: AbortController };
-  private restoringExternalMods = false;
   private restoreResumeQueued = false;
   private readonly contentOperations = new ContentOperationCoordinator();
 
   constructor() {
+    this.externalMods = new ExternalModContentLifecycle(this.cache, this.activity, this.contentOperations, {
+      sources: this.sources,
+      activate: (provider, restoring) => this.activateExternal(provider, restoring),
+      commitRestored: (prepared) => this.commitRestoredExternal(prepared),
+      remove: (sourceId) => this.removeExternalSource(sourceId),
+    }, () => this.activeVersion());
     this.thumbnails = new AssetThumbnailService(this.library, () => ({
-      generation: this.generation(), provider: this.provider(), visualProvider: this.visualProvider(), restoringExternalMods: this.restoringExternalMods,
+      generation: this.generation(), provider: this.provider(), visualProvider: this.visualProvider(), restoringExternalMods: this.externalMods.isRestoring,
     }));
     this.thumbnailEpoch = this.thumbnails.epoch;
     effect(() => { const version = this.workspace.project()?.metadata.minecraftVersion; if (version) void this.ensureVersion(version); });
@@ -79,17 +82,13 @@ export class ContentAssetRuntimeService {
 
   async importJar(file: File): Promise<void> {
     return this.contentOperations.run('foreground', async (signal) => {
-      validateJarUpload(file);
       const request = ++this.loadRequest;
       const protection = this.activity.protect(`Importing ${file.name}`);
       this.status.set('importing'); this.message.set('');
       this.activity.begin('manual-import', `Reading ${file.name}`);
       try {
-        const bundle = await new JarImportSource().load(file, this.activeVersion(), signal);
+        const provider = await this.vanillaLifecycle.importClientJar(file, this.activeVersion(), signal);
         throwIfAborted(signal);
-        const provider = providerFromBundle(bundle);
-        provider.assertUsable();
-        await this.cache.save(provider.serialize(), signal);
         await this.activateVersion(provider, request, signal);
         this.activity.finish('manual-import', `Imported ${file.name}`);
       } catch (error) {
@@ -103,149 +102,32 @@ export class ContentAssetRuntimeService {
   }
 
   async importModJar(file: File, signal?: AbortSignal): Promise<ModImportReport> {
-    const operation = this.contentOperations.run('foreground', async (sessionSignal) => {
-      const protection = this.activity.protect(`Importing ${file.name}`);
-      this.activity.begin('mod-import', `Reading ${file.name}`, 'mod');
-      try {
-        const prepared = await this.inspectModJar(file, undefined, sessionSignal);
-        let provider: ExternalModProvider | undefined;
-        let activated = false;
-        try {
-          provider = commitModImport(prepared, (progress) => this.reportModProgress(progress), sessionSignal);
-          this.assertExternalSourceAvailable(provider);
-          this.reportModProgress({ phase: 'saving-cache' });
-          const serialized = await provider.serializeForCacheAsync((progress) => this.reportModProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }), sessionSignal);
-          this.reportModProgress({ phase: 'finalizing-cache' });
-          await this.cache.saveExternalMod(serialized, sessionSignal);
-          this.reportModProgress({ phase: 'activating' });
-          throwIfAborted(sessionSignal);
-          this.activateExternal(provider);
-          activated = true;
-          this.activity.finish('mod-import', `Imported ${provider.metadata.displayName}`, 'mod');
-          return provider.report;
-        } finally { prepared.dispose(); if (provider && !activated) provider.dispose(); }
-      } catch (error) {
-        if (isAbortError(error) || sessionSignal.aborted) throw error;
-        this.activity.fail('mod-import', error instanceof Error ? error.message : 'Mod import failed', 'mod');
-        throw error;
-      } finally {
-        this.activity.releaseProtected(protection);
-      }
-    }, signal);
-    return operation.finally(() => this.scheduleExternalModRestore());
+    return this.externalMods.importJar(file, signal).finally(() => this.scheduleExternalModRestore());
   }
 
   async inspectModJar(file: File, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<PreparedModImport> {
-    const prepared = await inspectModJar(file, this.activeVersion(), (progress) => {
-      onProgress?.(progress);
-      this.activity.update(progress.processed === undefined ? undefined : { loaded: progress.processed, ...(progress.total === undefined ? {} : { total: progress.total }) }, progress.phase);
-    }, signal);
-    throwIfAborted(signal);
-    if (!prepared.report || !prepared.loaderSupported || !prepared.metadata) return prepared;
-    try {
-      const preview = prepared.provider ?? ExternalModProvider.create({ metadata: prepared.metadata, json: prepared.json, resources: prepared.resources, diagnostics: prepared.diagnostics, minecraftVersion: prepared.minecraftVersion, fingerprint: prepared.fingerprint });
-      const catalogWatchdog = createPhaseWatchdog('discovering-blocks', signal);
-      try { await preview.prepareCatalog((progress) => { catalogWatchdog.progress(); const event = { phase: 'discovering-blocks' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); }, catalogWatchdog.signal); }
-      finally { catalogWatchdog.stop(); }
-      const resourceConflicts = this.sources.resources.inspectProvider(preview);
-      const catalog = preview.catalog();
-      const conflictWatchdog = createPhaseWatchdog('checking-conflicts', signal);
-      let catalogConflicts: readonly ReturnType<ContentSourceRegistry['inspectCatalogContribution']>[number][];
-      try { catalogConflicts = await this.sources.inspectCatalogContributionAsync(catalog, (progress) => { conflictWatchdog.progress(); const event = { phase: 'checking-conflicts' as const, processed: progress.processed, total: progress.total }; onProgress?.(event); this.reportModProgress(event); }, conflictWatchdog.signal); }
-      finally { conflictWatchdog.stop(); }
-      const conflictDiagnostics: ModImportDiagnostic[] = [
-        ...resourceConflicts.map((conflict) => ({
-          severity: 'error' as const,
-          category: 'blocking' as const,
-          code: conflict.kind === 'tag-replacement' ? 'tag-replacement-unsupported' : 'resource-conflict',
-          message: conflict.kind === 'tag-replacement' ? 'A tag replacement conflicts with an active content source.' : 'A retained resource path conflicts with an active content source.',
-          path: conflict.path,
-        })),
-        ...catalogConflicts.map((conflict) => ({
-          severity: 'error' as const,
-          category: 'blocking' as const,
-          code: `${conflict.kind}-conflict`,
-          message: `A ${conflict.kind} is already provided by an active content source: ${conflict.id}.`,
-        })),
-      ];
-      if (!conflictDiagnostics.length) return prepared;
-      const diagnostics = [...prepared.diagnostics, ...conflictDiagnostics];
-      return {
-        ...prepared,
-        diagnostics,
-        report: {
-          ...prepared.report,
-          conflicts: [...prepared.report.conflicts, ...conflictDiagnostics],
-          diagnostics,
-          canActivate: false,
-        },
-        canActivate: false,
-      };
-    } catch (error) {
-      throwIfAborted(signal);
-      throw error;
-    }
+    return this.externalMods.inspectJar(file, onProgress, signal);
   }
 
   async commitPreparedModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<ModImportReport> {
-    const operation = this.contentOperations.run('foreground', async (sessionSignal) => {
-      throwIfAborted(sessionSignal);
-      const reportProgress = (progress: ModImportProgress): void => { onProgress?.(progress); this.reportModProgress(progress); };
-      const provider = commitModImport(prepared, reportProgress, sessionSignal);
-      let activated = false;
-      try {
-        this.assertExternalSourceAvailable(provider);
-        reportProgress({ phase: 'saving-cache' });
-        const saveWatchdog = createPhaseWatchdog('saving-cache', sessionSignal);
-        let serialized;
-        try { serialized = await provider.serializeForCacheAsync((progress) => { saveWatchdog.progress(); reportProgress({ phase: 'saving-cache', processed: progress.processed, total: progress.total }); }, saveWatchdog.signal); }
-        finally { saveWatchdog.stop(); }
-        reportProgress({ phase: 'finalizing-cache' });
-        const finalizeWatchdog = createPhaseWatchdog('finalizing-cache', sessionSignal);
-        try { await this.cache.saveExternalMod(serialized, finalizeWatchdog.signal); }
-        finally { finalizeWatchdog.stop(); }
-        throwIfAborted(sessionSignal);
-        const activationWatchdog = createPhaseWatchdog('activating', sessionSignal);
-        try { reportProgress({ phase: 'activating' }); throwIfAborted(activationWatchdog.signal); this.activateExternal(provider); }
-        finally { activationWatchdog.stop(); }
-        activated = true;
-        return provider.report;
-      } finally { if (!activated) provider.dispose(); }
-    }, signal);
-    return operation.finally(() => this.scheduleExternalModRestore());
+    return this.externalMods.commitPrepared(prepared, onProgress, signal).finally(() => this.scheduleExternalModRestore());
   }
 
   async removeMod(sourceId: string, signal?: AbortSignal): Promise<void> {
-    const operation = this.contentOperations.run('foreground', async (sessionSignal) => {
-      if (!this.sources.providerForSource(sourceId)) return;
-      throwIfAborted(sessionSignal);
-      this.transitionThumbnailGeneration(() => {
-        this.sources.remove(sourceId);
-        this.paintingCatalog.removeSource(sourceId);
-        this.library.removeSource(sourceId);
-        this.replaceVisualProvider();
-      });
-      this.importedMods.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
-      await this.cache.deleteExternalMod(sourceId, sessionSignal);
-    }, signal);
-    return operation.finally(() => this.scheduleExternalModRestore());
-  }
-
-  private reportModProgress(progress: ModImportProgress): void {
-    this.activity.update(progress.processed === undefined ? undefined : { loaded: progress.processed, ...(progress.total === undefined ? {} : { total: progress.total }) }, progress.phase);
+    return this.externalMods.remove(sourceId, signal).finally(() => this.scheduleExternalModRestore());
   }
 
   async redownload(): Promise<void> { await this.ensureVersion(this.activeVersion(), true); }
   async removeCachedVersion(version = this.activeVersion()): Promise<void> {
     return this.contentOperations.run('foreground', async (signal) => {
       if (version === this.activeVersion()) { this.loadRequest += 1; this.inFlight?.controller.abort(signal.reason); this.inFlight = undefined; }
-      await this.cache.deleteVanilla(version, signal); await this.refreshCachedVersions();
+      await this.vanillaLifecycle.removeCachedVersion(version, signal); await this.refreshCachedVersions();
       if (version === this.activeVersion()) { this.clearActiveSources(); this.compatibilityReport.set(undefined); this.status.set('no-assets'); this.sourceName.set(''); this.message.set(''); this.diagnostics.update((value) => ({ ...value, bundleFound: false, providerReady: false, resourceCount: 0 })); this.activity.event('cache', `Removed cached assets for Java ${version}`, 'info', 'cache'); }
     });
   }
 
   exportCompatibilityReport(): CompatibilityReport | undefined {
-    const report = this.compatibilityReport() ?? (this.provider() ? evaluateCompatibility(this.provider()!) : undefined);
+    const report = this.compatibilityReport() ?? (this.provider() ? this.vanillaLifecycle.compatibilityReport(this.provider()!) : undefined);
     if (!report) return undefined;
     this.compatibilityReport.set(report);
     downloadCompatibilityReport(report);
@@ -289,11 +171,11 @@ export class ContentAssetRuntimeService {
   private async loadVersion(version: string, request: number, signal: AbortSignal): Promise<void> {
     this.activity.begin('cache', `Checking cached assets for Java ${version}`, 'cache');
     try {
-      const cached = await this.cache.load(version, signal);
+      const cached = await this.vanillaLifecycle.loadCached(version, signal);
       if (request !== this.loadRequest) return;
       if (cached) {
         this.activity.event('cache', `Cached assets found for Java ${version}`, 'success', 'cache');
-        await this.activateVersion(providerFromBundle({ ...cached, id: `vanilla-${version}`, type: 'vanilla', version, namespaces: ['minecraft'], manifest: { format: 'minecraft-builder-asset-bundle', version: 1 } }), request, signal);
+        await this.activateVersion(cached, request, signal);
         return;
       }
       this.activity.event('cache', `No cached assets found for Java ${version}`, 'info', 'cache');
@@ -301,10 +183,7 @@ export class ContentAssetRuntimeService {
       const protection = this.activity.protect(`Downloading Minecraft Java ${version}`);
       this.activity.begin('metadata', `Resolving official Mojang metadata for Java ${version}`);
       try {
-        const provider = await this.official.load(version, (progress) => { if (request !== this.loadRequest) return; this.downloadProgress.set(progress); this.activity.update({ loaded: progress.loaded, ...(progress.total !== undefined ? { total: progress.total } : {}) }, progress.phase === 'download' ? `Downloading Minecraft Java ${version}` : undefined); }, signal);
-        this.activity.event('download', `Official client downloaded for Java ${version}`, 'success');
-        provider.assertUsable();
-        await this.cache.save(provider.serialize(), signal);
+        const provider = await this.vanillaLifecycle.downloadAndCache(version, (progress) => { if (request !== this.loadRequest) return; this.downloadProgress.set(progress); this.activity.update({ loaded: progress.loaded, ...(progress.total !== undefined ? { total: progress.total } : {}) }, progress.phase === 'download' ? `Downloading Minecraft Java ${version}` : undefined); }, signal, () => this.activity.event('download', `Official client downloaded for Java ${version}`, 'success'));
         this.activity.event('cache', `Saved normalized assets for Java ${version}`, 'success', 'cache');
         await this.refreshCachedVersions();
         if (request !== this.loadRequest) return;
@@ -359,28 +238,39 @@ export class ContentAssetRuntimeService {
     await Promise.resolve();
     if (request !== this.loadRequest || this.provider() !== provider) return;
     this.activity.begin('compatibility', `Evaluating common block compatibility for Java ${provider.minecraftVersion}`);
-    const report = evaluateCompatibility(provider);
+    const report = this.vanillaLifecycle.compatibilityReport(provider);
     if (request !== this.loadRequest || this.provider() !== provider) return;
     this.compatibilityReport.set(report);
     this.activity.finish('compatibility', `Compatibility report ready: ${report.summary.compatibleReused} reused, ${report.summary.changedNeedsDelta} changed, ${report.summary.newGenericSupported} generic, ${report.summary.unsupported} unsupported`);
   }
 
-  private activateExternal(provider: ExternalModProvider): void {
-    this.assertExternalSourceAvailable(provider);
+  private activateExternal(provider: ExternalModProvider, restoring: boolean): void {
     const catalog = provider.catalog();
-    if (!this.restoringExternalMods) this.transitionThumbnailGeneration(() => {
+    const publish = (): void => {
       if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider); else this.sources.register(provider);
       this.library.replaceSource(catalog);
       this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
+    };
+    if (restoring) publish();
+    else this.transitionThumbnailGeneration(() => { publish(); this.replaceVisualProvider(); });
+  }
+
+  private commitRestoredExternal(prepared: readonly PreparedContentSource[]): void {
+    this.transitionThumbnailGeneration(() => {
+      this.sources.commitBatch(prepared);
+      this.replaceVisualProvider();
+      this.library.replaceSources(prepared.map((entry) => entry.catalog));
+      this.paintingCatalog.replaceSources(prepared.map((entry) => ({ sourceId: entry.provider.source.id, variants: entry.catalog.paintingVariants ?? [] })));
+    });
+  }
+
+  private removeExternalSource(sourceId: string): void {
+    this.transitionThumbnailGeneration(() => {
+      this.sources.remove(sourceId);
+      this.paintingCatalog.removeSource(sourceId);
+      this.library.removeSource(sourceId);
       this.replaceVisualProvider();
     });
-    else {
-      if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider); else this.sources.register(provider);
-      this.library.replaceSource(catalog);
-      this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
-    }
-    const summary = summarizeMod(provider);
-    this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
   }
 
   private replaceVisualProvider(): void { this.visualProvider()?.dispose(); this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources)); }
@@ -390,127 +280,35 @@ export class ContentAssetRuntimeService {
     try { replace(); }
     finally { this.thumbnails.clearForContentGeneration(); }
   }
-  private assertExternalSourceAvailable(provider: ExternalModProvider): void {
-    const conflicts = this.sources.resources.inspectProvider(provider);
-    if (conflicts.length) throw new Error(`Mod resource conflict at ${conflicts[0].path} (${conflicts[0].sourceIds.join(', ')})`);
-    const contentConflicts = this.sources.inspectCatalogContribution(provider.catalog());
-    if (contentConflicts.length) throw new Error(`Mod ${contentConflicts[0].kind} conflict for ${contentConflicts[0].id} (${contentConflicts[0].sourceIds.join(', ')})`);
-  }
-
   private clearActiveSources(): void {
     this.thumbnails.clearForContentGeneration();
     for (const source of this.sources.sources()) { this.sources.remove(source.id); this.library.removeSource(source.id); this.paintingCatalog.removeSource(source.id); }
-    this.importedMods.set([]); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
+    this.externalMods.clear(); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
   }
 
   private async restoreExternalMods(version: string, signal?: AbortSignal): Promise<void> {
-    let stored: readonly SerializedExternalMod[] = [];
-    try { stored = await this.cache.loadExternalMods(signal); } catch (error) { if (isAbortError(error) || signal?.aborted) throw error; this.contentRestore.set({ phase: 'partial', current: 0, total: 0, failed: 1 }); return; }
-    throwIfAborted(signal);
-    const total = stored.length;
-    this.contentRestore.set({ phase: total ? 'restoring-mods' : 'ready', current: 0, total, failed: 0 });
-    if (!total) return;
-    await yieldToBrowser(signal);
-    let failed = 0; let current = 0;
-    const staged: PreparedContentSource[] = [];
-    const stagedProviders: ExternalModProvider[] = [];
-    let committed = false;
-    this.activity.begin('mod-restore', `Restoring imported Mods (0 / ${total})`, 'mod');
-    this.restoringExternalMods = true;
-    try {
-      for (const serialized of stored) {
-        let sourceName = serialized.metadata?.displayName;
-        let provider: ExternalModProvider | undefined;
-        try {
-          throwIfAborted(signal);
-          const existing = this.sources.providerForSource(serialized.sourceId) as ExternalModProvider | undefined;
-          if (existing && (!serialized.fingerprint || existing.fingerprint === serialized.fingerprint)) {
-            current += 1;
-            this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
-            await yieldToBrowser(signal);
-            continue;
-          }
-          provider = ExternalModProvider.deserialize(serialized, version);
-          sourceName = provider.metadata.displayName;
-          if (provider.report.canActivate === false) { provider.dispose(); provider = undefined; failed += 1; }
-          else {
-            const catalog = await provider.prepareCatalog((progress) => this.activity.update({ loaded: progress.processed, total: progress.total }, `Restoring ${sourceName} blocks (${progress.processed} / ${progress.total})`), signal);
-            throwIfAborted(signal);
-            staged.push({ provider, catalog, replaceExisting: !!existing });
-            stagedProviders.push(provider);
-            provider = undefined;
-          }
-        } catch (error) {
-          if (isAbortError(error) || signal?.aborted) throw error;
-          provider?.dispose?.();
-          failed += 1; /* A stale external cache is quarantined by omission; Vanilla remains usable. */
-        }
-        current += 1;
-        this.contentRestore.set({ phase: 'restoring-mods', current, total, failed, ...(sourceName ? { sourceName } : {}) });
-        this.activity.update({ loaded: current, total }, sourceName ? `Restoring imported Mods (${current} / ${total}): ${sourceName}` : `Restoring imported Mods (${current} / ${total})`);
-        await yieldToBrowser(signal);
-      }
-      throwIfAborted(signal);
-      if (staged.length) {
-        this.activity.update({ loaded: current, total }, 'Committing imported Mods');
-        try {
-          this.transitionThumbnailGeneration(() => {
-            // The visual provider is published after resources are committed but
-            // before catalog revisions, so reconciliation cannot observe a
-            // catalog that has no matching resource contract yet.
-            this.sources.commitBatch(staged);
-            this.replaceVisualProvider();
-            this.library.replaceSources(staged.map((entry) => entry.catalog));
-            this.paintingCatalog.replaceSources(staged.map((entry) => ({ sourceId: entry.provider.source.id, variants: entry.catalog.paintingVariants ?? [] })));
-            for (const entry of staged) {
-              const summary = summarizeMod(entry.provider as ExternalModProvider);
-              this.importedMods.update((mods) => [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) => left.displayName.localeCompare(right.displayName)));
-            }
-          });
-          committed = true;
-        } catch (error) {
-          if (isAbortError(error) || signal?.aborted) throw error;
-          failed += staged.length;
-          this.activity.event('mod-restore', error instanceof Error ? error.message : 'Imported Mod activation failed', 'warning', 'mod');
-        }
-      }
-    } finally {
-      this.restoringExternalMods = false;
-      // Staged providers are owned by the registry after commit. Any provider
-      // left in this list was never published and must not leak resources.
-      if (!committed) for (const provider of stagedProviders) if (!this.sources.providerForSource(provider.source.id)) provider.dispose?.();
-    }
-    this.contentRestore.set(contentRestoreAfterMods(total, failed));
-    this.activity.finish('mod-restore', failed ? `Imported Mods restored with ${failed} warning${failed === 1 ? '' : 's'}` : 'Imported Mods restored', 'mod');
+    await this.externalMods.restore(version, signal, (state) => this.contentRestore.set(state));
   }
 
   private scheduleExternalModRestore(): void {
-    if (this.restoreResumeQueued || this.status() !== 'ready' || this.restoringExternalMods) return;
+    if (this.restoreResumeQueued || this.status() !== 'ready' || this.externalMods.isRestoring) return;
     this.restoreResumeQueued = true;
     queueMicrotask(() => {
       this.restoreResumeQueued = false;
-      if (this.status() !== 'ready' || this.restoringExternalMods) return;
+      if (this.status() !== 'ready' || this.externalMods.isRestoring) return;
       void this.contentOperations.run('background', (signal) => this.restoreExternalMods(this.activeVersion(), signal)).catch((error) => {
         if (!isAbortError(error)) this.activity.event('mod-restore', error instanceof Error ? error.message : 'Imported Mod restore failed', 'warning', 'mod');
       });
     });
   }
 
-  private async refreshCachedVersions(): Promise<void> { try { this.cachedVersions.set(await this.cache.listVanillaVersions()); } catch { /* Cache availability is reported by the active load. */ } }
-}
-
-function summarizeMod(provider: ExternalModProvider): ImportedModSummary {
-  return { sourceId: provider.source.id, modId: provider.metadata.id, displayName: provider.metadata.displayName, version: provider.metadata.version, namespaces: provider.source.namespaces, candidateBlockCount: provider.report.candidateBlockCount, ...(provider.fingerprint ? { fingerprint: provider.fingerprint } : {}), ...(provider.iconUrl() ? { iconUrl: provider.iconUrl() } : {}), report: provider.report };
+  private async refreshCachedVersions(): Promise<void> { try { this.cachedVersions.set(await this.vanillaLifecycle.cachedVersions()); } catch { /* Cache availability is reported by the active load. */ } }
 }
 
 export function shouldStartVersionLoad(providerVersion: string | undefined, status: VanillaAssetStatus, requestedVersion: string, inFlightVersion: string | undefined, force = false): boolean {
   if (force) return true;
   if (providerVersion === requestedVersion && status === 'ready') return false;
   return inFlightVersion !== requestedVersion;
-}
-
-export function contentRestoreAfterMods(total: number, failed: number): ContentRestoreState {
-  return { phase: failed > 0 ? 'partial' : 'ready', current: Math.max(0, total), total: Math.max(0, total), failed: Math.max(0, failed) };
 }
 
 export function deriveAssetBootstrapStatus(status: VanillaAssetStatus, restore: ContentRestoreState, progress?: VanillaDownloadProgress): AssetBootstrapStatus {
