@@ -13,7 +13,7 @@ import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import type { BlockVisualProvider, BlockVisualResult, VisualCacheStats } from '../visuals/block-visual-provider-contract';
 import type { ResolvedBlockModel } from '../../blocks/resolver';
 import type { ResolvedItemVisual } from '../visuals/item-visual-resolver';
-import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-block-visuals';
+import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import { PlacementPlan } from '../../block-behavior/placement/placement-plan';

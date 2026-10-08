@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import type { PlacedBlock } from '../../domain/project.types';
 import type { ResolvedBlockModel } from '../../blocks/resolver';
 import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
-import type { NormalizedSpecialVisualDescriptor } from './special-block-visuals';
+import type { NormalizedSpecialVisualDescriptor } from './special-visual-contracts';
 import type { FluidRenderResolver, FluidWorldLookup } from '../fluids/fluid-state';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import type { ItemVisualKind } from './item-visual-resolver';

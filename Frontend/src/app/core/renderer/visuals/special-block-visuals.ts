@@ -3,27 +3,9 @@ import { PlacedBlock } from '../../domain/project.types';
 import { SpecialModelDescriptor } from './special-model-descriptor';
 import { createSpecialModel } from './special-model-geometry';
 import { resolveResourceLocation } from '../../content/resource-location';
-import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
-
-export interface SpecialVisualResourceProvider { readonly gameVersion?: string; readBinary(path: string): Uint8Array | undefined; }
-
-export interface SpecialVisualContext { readonly texture?: THREE.Texture; readonly textures?: Readonly<Record<string, THREE.Texture | undefined>>; }
-export interface NormalizedSpecialVisualDescriptor extends ContentSpecialVisualDescriptor { readonly contentId: string; }
-export interface SpecialVisualProviderMetadata { readonly providerId: string; readonly gameEdition: 'java'; readonly gameVersion: string; readonly namespace: string; readonly family: string; readonly priority: number; }
-export interface BedVisualDescriptor { readonly metadata: SpecialVisualProviderMetadata; matches(block: PlacedBlock): boolean; textureResource(block: PlacedBlock): string | undefined; model(block: PlacedBlock): SpecialModelDescriptor | undefined; transform(block: PlacedBlock, root: THREE.Group): void; }
-export interface SpecialBlockVisualAdapter { readonly family: string; readonly overrideGeneric?: boolean; readonly staticBatchable?: boolean; matches(block: PlacedBlock): boolean; textureResource?(block: PlacedBlock): string | undefined; textureResources?(block: PlacedBlock): Readonly<Record<string, string>>; create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group; }
-export interface SpecialVisualCompatibility { readonly adapter?: SpecialBlockVisualAdapter; readonly family?: string; readonly missingResources: readonly string[]; }
-export const SPECIAL_VISUAL_COMPATIBILITY: Readonly<Record<string, { readonly requiredState: readonly string[]; readonly requiredResource: string }>> = {
-  beds: { requiredState: ['part', 'facing', 'occupied'], requiredResource: 'entity/bed/<color>' },
-  chests: { requiredState: ['facing', 'type'], requiredResource: 'entity/chest/<variant>' },
-  containers: { requiredState: [], requiredResource: 'generic-or-fallback' },
-  signs: { requiredState: ['rotation|facing'], requiredResource: 'entity/signs/<wood>' },
-  banners: { requiredState: ['facing|rotation'], requiredResource: 'banner-or-generic-model' },
-  'heads-skulls': { requiredState: ['rotation|facing'], requiredResource: 'entity/<family>/<texture>' },
-  'shulker-boxes': { requiredState: ['facing'], requiredResource: 'entity/shulker/<color>' },
-  'decorated-pots': { requiredState: ['facing', 'waterlogged'], requiredResource: 'entity/decorated_pot/*' },
-  conduits: { requiredState: ['waterlogged'], requiredResource: 'entity/conduit/base' },
-};
+import { createCommonSignAdapter, SignVisualProvider } from './sign-visual-provider';
+import type { BedVisualDescriptor, NormalizedSpecialVisualDescriptor, SpecialBlockVisualAdapter, SpecialVisualCompatibility, SpecialVisualContext, SpecialVisualResourceProvider } from './special-visual-contracts';
+import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 
 /** Static editor visuals for vanilla blocks which have no generic JSON elements. */
 export class SpecialBlockVisualRegistry {
@@ -36,7 +18,7 @@ export class SpecialBlockVisualRegistry {
   constructor(gameVersionOrResources: string | SpecialVisualResourceProvider = '1.21.1') {
     this.resources = typeof gameVersionOrResources === 'string' ? undefined : gameVersionOrResources;
     this.gameVersion = typeof gameVersionOrResources === 'string' ? gameVersionOrResources : gameVersionOrResources.gameVersion ?? '1.21.1';
-    this.beds = new BedVisualProvider(this.gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider(this.gameVersion);
+    this.beds = new BedVisualProvider(this.gameVersion, [vanillaBedDescriptor]); this.signs = new SignVisualProvider();
     this.adapters = [this.beds, chestAdapter, barrelAdapter, this.signs, bannerAdapter, headAdapter, shulkerAdapter, decoratedPotAdapter, conduitAdapter];
   }
   registerBed(descriptor: BedVisualDescriptor): void { this.beds.register(descriptor); }
@@ -46,34 +28,12 @@ export class SpecialBlockVisualRegistry {
     for (const descriptor of descriptors) this.registerDescriptor(descriptor);
   }
   registerDescriptor(descriptor: NormalizedSpecialVisualDescriptor): void {
-    if (descriptor.contractId !== 'common-sign') return;
-    const texture = descriptor.resources['default'] ?? descriptor.resources['front'];
-    if (!texture) return;
+    const adapter = createCommonSignAdapter(descriptor);
+    if (!adapter) return;
+    const texture = descriptor.resources['default'] ?? descriptor.resources['front']!;
     const key = `${descriptor.contentId}|${descriptor.contractId}|${texture}`;
     if (this.descriptorAdapters.has(key)) return;
-    this.descriptorAdapters.set(key, {
-      family: 'signs',
-      matches: (block) => block.id === descriptor.contentId && (descriptor.variant !== undefined || descriptor.stateDependencies.every((property) => block.state[property] !== undefined)),
-      textureResource: () => texture,
-      create: (block, context) => {
-        const variant = descriptor.variant ?? (block.state['facing'] !== undefined && block.state['rotation'] === undefined ? 'wall' : 'standing');
-        const renderBlock = descriptor.variant ? withSignDefaults(block, variant) : block;
-        const wall = variant === 'wall' || variant === 'wall-hanging';
-        const model = variant === 'hanging' || variant === 'wall-hanging' ? hangingSignModel(variant, renderBlock.state['attached'] === 'true') : normalSignModel(!wall);
-        const root = new THREE.Group();
-        const modelRoot = createSpecialModel(model, context?.texture);
-        const modelBranch = new THREE.Group();
-        while (modelRoot.children.length) modelBranch.add(modelRoot.children[0]);
-        const placement = new THREE.Group();
-        placement.add(modelBranch, addSignText(renderBlock, variant));
-        root.add(placement);
-        if (variant === 'hanging' || variant === 'wall-hanging') applyHangingSignTransform(root, modelBranch, renderBlock);
-        else applyNormalSignTransform(root, placement, modelBranch, renderBlock, wall);
-        root.userData['providerId'] = 'minecraftbuilder:common-sign-descriptor';
-        root.userData['signVariant'] = variant;
-        return root;
-      },
-    });
+    this.descriptorAdapters.set(key, adapter);
   }
   private candidates(): readonly SpecialBlockVisualAdapter[] { return [...this.descriptorAdapters.values(), ...this.adapters]; }
   resolve(block: PlacedBlock): SpecialBlockVisualAdapter | undefined {
@@ -124,38 +84,6 @@ export class BedVisualProvider implements SpecialBlockVisualAdapter {
   textureResource(block: PlacedBlock): string | undefined { return this.resolve(block)?.textureResource(block); }
   create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group { const descriptor = this.resolve(block); if (!descriptor) return new THREE.Group(); const model = descriptor.model(block); if (!model) return new THREE.Group(); const root = createSpecialModel(model, context?.texture); descriptor.transform(block, root); root.userData['specialModel'] = model.id; root.userData['providerId'] = descriptor.metadata.providerId; return root; }
   private resolve(block: PlacedBlock): BedVisualDescriptor | undefined { return this.descriptors.filter((descriptor) => descriptor.metadata.namespace === block.namespace && descriptor.matches(block)).sort((left, right) => right.metadata.priority - left.metadata.priority)[0]; }
-}
-
-/** Java 1.21.1 block-entity sign renderer represented as ModelPart descriptors. */
-export class SignVisualProvider implements SpecialBlockVisualAdapter {
-  readonly family = 'signs';
-  constructor(private readonly gameVersion: string) {}
-  matches(block: PlacedBlock): boolean { return block.namespace === 'minecraft' && signVariant(block.id) !== undefined; }
-  textureResource(block: PlacedBlock): string | undefined {
-    const wood = signWood(block.id); const variant = signVariant(block.id);
-    return wood && variant ? `minecraft:entity/signs/${variant.includes('hanging') ? 'hanging/' : ''}${wood}` : undefined;
-  }
-  create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group {
-    const variant = signVariant(block.id);
-    if (!variant) return new THREE.Group();
-    const model = variant === 'standing' || variant === 'wall'
-      ? normalSignModel(variant === 'standing')
-      : hangingSignModel(variant, block.state['attached'] === 'true');
-    const root = new THREE.Group();
-    const modelRoot = createSpecialModel(model, context?.texture);
-    const modelBranch = new THREE.Group();
-    while (modelRoot.children.length) modelBranch.add(modelRoot.children[0]);
-    const textBranch = addSignText(block, variant);
-    const placement = new THREE.Group();
-    placement.add(modelBranch, textBranch);
-    root.add(placement);
-    if (variant === 'standing' || variant === 'wall') applyNormalSignTransform(root, placement, modelBranch, block, variant === 'wall');
-    else applyHangingSignTransform(root, modelBranch, block);
-    root.userData['specialModel'] = model.id;
-    root.userData['providerId'] = 'minecraft-java-sign-1.21.1-modelpart';
-    root.userData['signVariant'] = variant;
-    return root;
-  }
 }
 
 const material = (color: number, texture?: THREE.Texture) => new THREE.MeshLambertMaterial({ color, map: texture, transparent: true, opacity: .98 });
@@ -510,115 +438,6 @@ function applyBedTransform(root: THREE.Group, facing: string | undefined): void 
   root.userData['bedGeometry'] = 'minecraft-java-bed-1.21.1-modelpart'; root.userData['bedWorldFootOffset'] = 0;
 }
 function directionRotation(facing: string | undefined): number { return ({ south: 0, west: 90, north: 180, east: 270 } as Record<string, number>)[facing ?? 'north'] ?? 180; }
-
-export type SignVariant = 'standing' | 'wall' | 'hanging' | 'wall-hanging';
-export interface SignTextLayout { readonly y: number; readonly z: number; readonly scale: number; readonly lineHeight: number; readonly maxWidth: number; }
-export function signTextLayout(variant: SignVariant): SignTextLayout {
-  return variant === 'hanging' || variant === 'wall-hanging'
-    ? { y: -.32, z: .073, scale: .9, lineHeight: 9, maxWidth: 60 }
-    : { y: .33333334, z: .046666667, scale: 2 / 3, lineHeight: 10, maxWidth: 90 };
-}
-function withSignDefaults(block: PlacedBlock, variant: SignVariant): PlacedBlock {
-  const state = { ...block.state };
-  if (variant === 'standing' || variant === 'hanging') state['rotation'] ??= '0';
-  else state['facing'] ??= 'north';
-  if (variant === 'hanging') state['attached'] ??= 'false';
-  state['waterlogged'] ??= 'false';
-  return { ...block, state };
-}
-function signVariant(id: string): SignVariant | undefined {
-  if (id.endsWith('_wall_hanging_sign')) return 'wall-hanging';
-  if (id.endsWith('_hanging_sign')) return 'hanging';
-  if (id.endsWith('_wall_sign')) return 'wall';
-  if (id.endsWith('_sign')) return 'standing';
-  return undefined;
-}
-function signWood(id: string): string | undefined {
-  const name = id.split(':').at(-1) ?? '';
-  const wood = name.replace(/_(?:wall_)?(?:hanging_)?sign$/, '');
-  return wood && /^[a-z0-9_]+$/.test(wood) ? wood : undefined;
-}
-function normalSignModel(showStick: boolean): SpecialModelDescriptor {
-  return { id: `minecraft-java-normal-sign-1.21.1-${showStick ? 'standing' : 'wall'}`, textureSize: [64, 32], parts: [
-    { id: 'sign', cuboids: [{ id: 'board', uv: [0, 0], from: [-12, -14, -1], size: [24, 12, 2] }] },
-    { id: 'stick', visible: showStick, cuboids: [{ id: 'stick', uv: [0, 14], from: [-1, -2, -1], size: [2, 14, 2] }] },
-  ] };
-}
-function hangingSignModel(variant: 'hanging' | 'wall-hanging', attached: boolean): SpecialModelDescriptor {
-  const wall = variant === 'wall-hanging';
-  return { id: `minecraft-java-hanging-sign-1.21.1-${variant}-${attached ? 'attached' : 'chains'}`, textureSize: [64, 32], parts: [
-    { id: 'board', cuboids: [{ id: 'board', uv: [0, 12], from: [-7, 0, -1], size: [14, 10, 2] }] },
-    { id: 'plank', visible: wall, cuboids: [{ id: 'plank', uv: [0, 0], from: [-8, -6, -2], size: [16, 2, 4] }] },
-    { id: 'normal-chains', visible: wall || !attached, cuboids: [], children: [
-      { id: 'left-one', pivot: [-5, -6, 0], applyPivot: true, rotation: [0, -45, 0], cuboids: [{ id: 'chain-l1', uv: [0, 6], from: [-1.5, 0, 0], size: [3, 6, 0] }] },
-      { id: 'left-two', pivot: [-5, -6, 0], applyPivot: true, rotation: [0, 45, 0], cuboids: [{ id: 'chain-l2', uv: [6, 6], from: [-1.5, 0, 0], size: [3, 6, 0] }] },
-      { id: 'right-one', pivot: [5, -6, 0], applyPivot: true, rotation: [0, -45, 0], cuboids: [{ id: 'chain-r1', uv: [0, 6], from: [-1.5, 0, 0], size: [3, 6, 0] }] },
-      { id: 'right-two', pivot: [5, -6, 0], applyPivot: true, rotation: [0, 45, 0], cuboids: [{ id: 'chain-r2', uv: [6, 6], from: [-1.5, 0, 0], size: [3, 6, 0] }] },
-    ] },
-    { id: 'v-chains', visible: !wall && attached, cuboids: [{ id: 'v-chains', uv: [14, 6], from: [-6, -6, 0], size: [12, 6, 0] }] },
-  ] };
-}
-function applyNormalSignTransform(root: THREE.Group, placement: THREE.Group, modelBranch: THREE.Group, block: PlacedBlock, wall: boolean): void {
-  root.position.set(.5, .5, .5);
-  root.rotation.y = -signRotationRadians(block);
-  modelBranch.scale.set(2 / 3, -2 / 3, -2 / 3);
-  // The 2px board depth is scaled to 1/12 block. Centering its support edge
-  // on the adjacent voxel face leaves the board in front of, not inside, the
-  // supporting block for every horizontal facing.
-  if (wall) {
-    placement.position.set(0, -.3125, -.4375);
-  }
-}
-function applyHangingSignTransform(root: THREE.Group, modelBranch: THREE.Group, block: PlacedBlock): void {
-  root.position.set(.5, .9375, .5);
-  root.rotation.y = -signRotationRadians(block);
-  modelBranch.scale.set(1, -1, -1);
-  root.children[0]?.position.set(0, -.3125, 0);
-}
-function signRotationRadians(block: PlacedBlock): number {
-  const rotation = Number(block.state['rotation']);
-  if (Number.isInteger(rotation)) return rotation * Math.PI / 8;
-  return signFacingRotation(block.state['facing']);
-}
-function signFacingRotation(facing: string | undefined): number {
-  return ({ south: 0, west: Math.PI / 2, north: Math.PI, east: Math.PI * 1.5 } as Record<string, number>)[facing ?? 'north'] ?? Math.PI;
-}
-function addSignText(block: PlacedBlock, variant: SignVariant): THREE.Group {
-  const root = new THREE.Group();
-  const data = block.blockEntityData as { front?: { lines?: readonly string[]; color?: string }; back?: { lines?: readonly string[]; color?: string } } | undefined;
-  const offset = signTextLayout(variant);
-  addSignTextSide(root, data?.front, offset, false, 'front');
-  addSignTextSide(root, data?.back, offset, true, 'back');
-  root.userData['signTextScale'] = .015625 * offset.scale;
-  root.userData['signTextOffset'] = [0, offset.y, offset.z];
-  root.userData['signTextLineHeight'] = offset.lineHeight;
-  root.userData['signTextMaxWidth'] = offset.maxWidth;
-  return root;
-}
-function addSignTextSide(root: THREE.Group, side: { lines?: readonly string[]; color?: string; glowing?: boolean } | undefined, offset: { readonly y: number; readonly z: number; readonly scale: number; readonly lineHeight: number; readonly maxWidth: number }, back: boolean, sideName: 'front' | 'back'): void {
-  const sideBranch = new THREE.Group(); sideBranch.name = `${sideName}TextSide`; sideBranch.userData['signTextSide'] = sideName;
-  if (back) sideBranch.rotation.y = Math.PI;
-  const textOffset = new THREE.Group(); textOffset.name = `${sideName}TextOffset`; textOffset.position.set(0, offset.y, offset.z); textOffset.userData['signTextOffset'] = [0, offset.y, offset.z];
-  const textScale = new THREE.Group(); textScale.name = `${sideName}TextScale`; const worldScale = .015625 * offset.scale; textScale.scale.set(worldScale, -worldScale, worldScale); textScale.userData['signTextScale'] = worldScale;
-  sideBranch.add(textOffset); textOffset.add(textScale); root.add(sideBranch);
-  if (typeof document === 'undefined' || !side) return;
-  const pixelsPerUnit = 8;
-  const canvas = document.createElement('canvas'); canvas.width = offset.maxWidth * pixelsPerUnit; canvas.height = offset.lineHeight * 4 * pixelsPerUnit;
-  const context = canvas.getContext('2d'); if (!context) return;
-  context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = signTextColor(side.color, side.glowing === true); context.font = `${Math.max(12, offset.lineHeight * pixelsPerUnit * .75)}px sans-serif`; context.textAlign = 'center'; context.textBaseline = 'middle';
-  for (let index = 0; index < 4; index++) context.fillText(side.lines?.[index] ?? '', canvas.width / 2, (index + .5) * offset.lineHeight * pixelsPerUnit);
-  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.userData['ownedSignTexture'] = true;
-  texture.magFilter = THREE.LinearFilter; texture.minFilter = THREE.LinearFilter;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(offset.maxWidth, offset.lineHeight * 4), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-  mesh.name = `${sideName}SignText`; mesh.userData['signTextSide'] = sideName; textScale.add(mesh);
-}
-function signTextColor(color: string | undefined, glowing: boolean): string {
-  const palette: Readonly<Record<string, string>> = { white: '#f9fffe', orange: '#f9801d', magenta: '#c74ebd', light_blue: '#3ab3da', yellow: '#fed83d', lime: '#80c71f', pink: '#f38baa', gray: '#474f52', light_gray: '#9d9d97', cyan: '#169c9c', purple: '#8932b8', blue: '#3c44aa', brown: '#835432', green: '#5e7c16', red: '#b02e26', black: '#181818' };
-  const value = palette[color ?? 'black'] ?? palette['black'];
-  if (!glowing) return value;
-  const glowPalette: Readonly<Record<string, string>> = { white: '#ffffff', orange: '#ffb25c', magenta: '#f09be8', light_blue: '#8fe5ff', yellow: '#fff4a3', lime: '#c8ff62', pink: '#ffc2d8', gray: '#aab3b6', light_gray: '#e6e6de', cyan: '#69eeee', purple: '#d78aff', blue: '#8d96ff', brown: '#d6a36e', green: '#a8d65e', red: '#ff7770', black: '#777777' };
-  return glowPalette[color ?? 'black'] ?? value;
-}
 
 function resourcePath(resource: string): string {
   if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;

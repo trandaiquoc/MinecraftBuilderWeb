@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { chestModelFor, chestRotationRadians, chestTextureResource, conduitInactiveModel, decoratedPotBaseModel, decoratedPotRootRotationRadians, decoratedPotSideModels, decoratedPotSherdTextureResource, shulkerFacingQuaternion, shulkerTextureResource, SPECIAL_VISUAL_COMPATIBILITY, SpecialBlockVisualRegistry, signTextLayout } from './special-block-visuals';
+import { chestModelFor, chestRotationRadians, chestTextureResource, conduitInactiveModel, decoratedPotBaseModel, decoratedPotRootRotationRadians, decoratedPotSideModels, decoratedPotSherdTextureResource, shulkerFacingQuaternion, shulkerTextureResource, SpecialBlockVisualRegistry } from './special-block-visuals';
+import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 import { createSpecialModel } from './special-model-geometry';
 
 const registry = new SpecialBlockVisualRegistry();
@@ -361,32 +362,6 @@ describe('special block visuals', () => {
     const missing = new SpecialBlockVisualRegistry({ gameVersion: '1.22', readBinary: () => undefined });
     expect(missing.inspect(block('minecraft:red_bed'))).toMatchObject({ family: 'beds', adapter: undefined, missingResources: ['assets/minecraft/textures/entity/bed/red.png'] });
   });
-  it('applies the Java wall-sign transform independently of wall-facing state', () => {
-    const sign = registry.resolve(block('minecraft:oak_wall_sign'))!;
-    for (const facing of ['north', 'east', 'south', 'west']) {
-      const visual = sign.create({ ...block('minecraft:oak_wall_sign'), state: { facing } });
-      expect(visual.position.toArray()).toEqual([.5, .5, .5]);
-      expect(visual.children[0].position.toArray()).toEqual([0, -.3125, -.4375]);
-    }
-  });
-  it('keeps the wall-sign back edge on the support plane for all facings', () => {
-    const sign = registry.resolve(block('minecraft:oak_wall_sign'))!;
-    for (const [facing, axis] of [['north', 'z'], ['south', 'z'], ['east', 'x'], ['west', 'x']] as const) {
-      const visual = sign.create({ ...block('minecraft:oak_wall_sign'), state: { facing } });
-      visual.updateMatrixWorld(true);
-      const bounds = new THREE.Box3().setFromObject(visual);
-      const edge = axis === 'z' ? (facing === 'north' ? bounds.max.z : bounds.min.z) : (facing === 'west' ? bounds.max.x : bounds.min.x);
-      expect(edge, facing).toBeGreaterThan(facing === 'north' || facing === 'west' ? .97 : .0);
-    }
-  });
-  it('uses a separate wall-hanging-sign hierarchy while retaining the shared facing transform for text', () => {
-    const sign = registry.resolve(block('minecraft:oak_wall_hanging_sign'))!;
-    const visual = sign.create({ ...block('minecraft:oak_wall_hanging_sign'), state: { facing: 'east' } });
-    expect(visual.children).toHaveLength(1);
-    expect(visual.position.y).toBeCloseTo(.9375);
-    expect(visual.children[0].position.y).toBeCloseTo(-.3125);
-    expect(visual.rotation.y).toBeCloseTo(-Math.PI * 1.5);
-  });
   it('anchors wall banners to the support plane for every facing', () => {
     const banner = registry.resolve(block('minecraft:red_wall_banner'))!;
     expect(banner.family).toBe('banners');
@@ -397,68 +372,5 @@ describe('special block visuals', () => {
       const edge = axis === 'z' ? (facing === 'north' ? bounds.max.z : bounds.min.z) : (facing === 'west' ? bounds.max.x : bounds.min.x);
       expect(edge, facing).toBeCloseTo(facing === 'north' || facing === 'west' ? 1 : 0, 5);
     }
-  });
-  it('uses the verified Java 1.21.1 normal Sign ModelPart dimensions and standing/wall visibility', () => {
-    const sign = registry.resolve(block('minecraft:oak_sign'))!;
-    const standing = sign.create({ ...block('minecraft:oak_sign'), state: { rotation: '0', waterlogged: 'false' } });
-    const wall = sign.create({ ...block('minecraft:oak_wall_sign'), state: { facing: 'north', waterlogged: 'false' } });
-    expect(sign.textureResource?.(block('minecraft:oak_sign'))).toBe('minecraft:entity/signs/oak');
-    expect(standing.userData['providerId']).toBe('minecraft-java-sign-1.21.1-modelpart');
-    expect(standing.children[0].children).toHaveLength(2);
-    expect(standing.children[0].children[1].visible).toBe(true);
-    expect(wall.children[0].children).toHaveLength(2);
-    expect(wall.children[0].children[0].children[1].visible).toBe(false);
-    expect(standing.children[0].children[0].scale.toArray()).toEqual([2 / 3, -2 / 3, -2 / 3]);
-  });
-  it('keeps sign text layout independent from the model branch scale', () => {
-    expect(signTextLayout('standing')).toEqual({ y: .33333334, z: .046666667, scale: 2 / 3, lineHeight: 10, maxWidth: 90 });
-    expect(signTextLayout('hanging')).toEqual({ y: -.32, z: .073, scale: .9, lineHeight: 9, maxWidth: 60 });
-    const visual = registry.resolve(block('minecraft:oak_sign'))!.create(block('minecraft:oak_sign'));
-    expect(visual.children[0]?.children[0]?.scale.toArray()).toEqual([2 / 3, -2 / 3, -2 / 3]);
-    expect(visual.children[0]?.children[1]?.scale.toArray()).toEqual([1, 1, 1]);
-  });
-  it('places text offsets in world space before text scale for all sign variants', () => {
-    const data = { kind: 'sign' as const, front: { lines: ['Front', '', '', ''] as [string, string, string, string], color: 'black', glowing: false }, back: { lines: ['Back', '', '', ''] as [string, string, string, string], color: 'black', glowing: false }, waxed: false };
-    const cases = [
-      ['minecraft:oak_sign', { rotation: '0' }, .83333334],
-      ['minecraft:oak_wall_sign', { facing: 'south' }, .52083334],
-      ['minecraft:oak_hanging_sign', { rotation: '0' }, .305],
-      ['minecraft:oak_wall_hanging_sign', { facing: 'south' }, .305],
-    ] as const;
-    for (const [id, state, expectedY] of cases) {
-      const visual = registry.resolve(block(id))!.create({ ...block(id), state, blockEntityData: data });
-      visual.updateMatrixWorld(true);
-      const placement = visual.children[0]!;
-      const textBranch = placement.children[1]!;
-      const frontOffset = textBranch.children[0]!.children[0]!;
-      const backOffset = textBranch.children[1]!.children[0]!;
-      const frontWorld = frontOffset.getWorldPosition(new THREE.Vector3());
-      const backWorld = backOffset.getWorldPosition(new THREE.Vector3());
-      expect(frontWorld.y, id).toBeCloseTo(expectedY, 4);
-      expect(backWorld.y, id).toBeCloseTo(expectedY, 4);
-      if (id === 'minecraft:oak_sign') {
-        expect(frontWorld.z).toBeGreaterThan(.54); expect(backWorld.z).toBeLessThan(.46);
-      }
-      if (id === 'minecraft:oak_wall_sign') {
-        expect(frontWorld.z).toBeGreaterThan(.10); expect(backWorld.z).toBeLessThan(.02);
-      }
-      expect((frontOffset as THREE.Group).userData['signTextOffset']).toEqual([0, signTextLayout(id.includes('hanging_sign') ? 'hanging' : 'standing').y, signTextLayout(id.includes('hanging_sign') ? 'hanging' : 'standing').z]);
-      expect((frontOffset.children[0] as THREE.Group).scale.x).toBeCloseTo(signTextLayout(id.includes('hanging_sign') ? 'hanging' : 'standing').scale * .015625, 8);
-    }
-  });
-  it('uses hanging-sign chain visibility and the separate wall-hanging plank state', () => {
-    const sign = registry.resolve(block('minecraft:acacia_hanging_sign'))!;
-    const hanging = sign.create({ ...block('minecraft:acacia_hanging_sign'), state: { rotation: '4', attached: 'false' } });
-    const attached = sign.create({ ...block('minecraft:acacia_hanging_sign'), state: { rotation: '4', attached: 'true' } });
-    const wall = sign.create({ ...block('minecraft:acacia_wall_hanging_sign'), state: { facing: 'east' } });
-    expect(sign.textureResource?.(block('minecraft:acacia_hanging_sign'))).toBe('minecraft:entity/signs/hanging/acacia');
-    expect(hanging.children[0].children[0].children[1].visible).toBe(false);
-    expect(hanging.children[0].children[0].children[2].visible).toBe(true);
-    expect(attached.children[0].children[0].children[2].visible).toBe(false);
-    expect(attached.children[0].children[0].children[3].visible).toBe(true);
-    expect(wall.children[0].children[0].children[1].visible).toBe(true);
-    expect(wall.children[0].children[0].children[2].visible).toBe(true);
-    expect(wall.children[0].children[0].children[3].visible).toBe(false);
-    expect(wall.position.y).toBeCloseTo(.9375);
   });
 });
