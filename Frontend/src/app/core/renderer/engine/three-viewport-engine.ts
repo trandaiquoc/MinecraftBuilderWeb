@@ -53,8 +53,7 @@ import { ViewportCameraFramingController } from '../scheduling/viewport-camera-f
 import type { HydrationBlockScopeDelta, HydrationFinalizationSnapshot, HydrationLane, HydrationProgressSnapshot } from '../scheduling/hydration-progress-tracker';
 import { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
 import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
-import { ProviderRefreshCoordinator } from '../provider/provider-refresh-coordinator';
-import { ProviderRefreshPlanner, type ProviderRefreshPlannerProgress } from '../provider/provider-refresh-planner';
+import { ViewportProviderRefreshPipeline } from '../provider/viewport-provider-refresh-pipeline';
 import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
 import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
@@ -373,7 +372,6 @@ export class ThreeViewportEngine {
   private disposed = false;
   private suspended = false;
   private suspendedNeedsRefresh = false;
-  private deferredProviderRefresh?: { readonly previous: BlockVisualProvider; readonly next: BlockVisualProvider };
   private renderCount = 0;
   private canvasSize = { width: 0, height: 0 };
   private themeApplied = false;
@@ -403,7 +401,6 @@ export class ThreeViewportEngine {
     VIEWPORT_CAMERA_IDLE_GRACE_MS,
   );
   private readonly blockRepresentations = new ViewportBlockRepresentationStore();
-  private readonly providerLifecycle = new ProviderRefreshCoordinator<BlockVisualProvider>();
   private readonly pendingTerrainTemplates = new Map<string, Promise<readonly SurfaceFaceTemplate[] | undefined>>();
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer: StaticModelBatchRenderer;
@@ -438,19 +435,15 @@ export class ThreeViewportEngine {
     onProgressRegression: () => this.instrumentation.record('hydrationProgressRegressions'),
     onProgress: (progress) => this.runtimeTrace?.record('hydration-progress', { lane: progress.lane ?? 'structural', generation: progress.generation, status: progress.status, completed: progress.completed, total: progress.total, blocksCompleted: progress.blocksCompleted, blocksTotal: progress.blocksTotal, decorationsCompleted: progress.decorationsCompleted, decorationsTotal: progress.decorationsTotal, percent: progress.percent }),
   });
+  private readonly providerRefreshPipeline = new ViewportProviderRefreshPipeline<BlockVisualProvider, ProviderRefreshCandidate, BlockHydrationJob>(this.hydrationPipeline);
   private hemisphereLight?: THREE.HemisphereLight;
   private keyLight?: THREE.DirectionalLight;
   private blockBrightness = 3;
   private readonly structureSyncState = new ViewportStructureSyncState();
   private decorationSyncKey = '';
   private syncedDecorationProject?: ProjectDocument;
-  private get providerGeneration(): number { return this.providerLifecycle.generation; }
+  private get providerGeneration(): number { return this.providerRefreshPipeline.providerGeneration; }
   private get hydrationProgressState(): ViewportHydrationProgress { return this.hydrationPipeline.progress.snapshot(); }
-  private providerRefreshProgress?: { total: number; completed: number; startedAt: number };
-  private providerRefreshPlanning = false;
-  private providerRefreshGeneration = 0;
-  private readonly providerRefreshPlanner = new ProviderRefreshPlanner<ProviderRefreshCandidate, BlockHydrationJob>();
-  private providerRefreshPlanningDiagnostics = { processed: 0, total: 0, considered: 0, queued: 0, maxSliceMs: 0, yields: 0, durationMs: 0 };
   private providerStats?: VisualCacheStats;
   /** Ownership signatures for final fallback placeholders (no async job). */
   private readonly placeholderSignatures = new Map<string, string>();
@@ -640,10 +633,7 @@ export class ThreeViewportEngine {
     this.yLayerProjection.cancel();
     this.renderScheduler.cancel();
     this.hydrationPipeline.scheduler.cancel();
-    this.providerRefreshPlanner.cancel();
-    this.providerRefreshPlanning = false;
-    this.providerRefreshProgress = undefined;
-    this.providerRefreshGeneration += 1;
+    this.providerRefreshPipeline.cancelPlanning();
   }
 
   /** Resumes a retained viewport and lets its owner perform the current-state sync. */
@@ -655,8 +645,7 @@ export class ThreeViewportEngine {
       this.decorationSyncKey = '';
       this.suspendedNeedsRefresh = false;
     }
-    const deferred = this.deferredProviderRefresh;
-    this.deferredProviderRefresh = undefined;
+    const deferred = this.providerRefreshPipeline.takeDeferred();
     if (deferred && this.project && this.visualProvider === deferred.next) this.queueProviderRefresh(deferred.previous, deferred.next);
     this.resize();
     if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs()) this.scheduleHydrationPump();
@@ -792,7 +781,7 @@ export class ThreeViewportEngine {
       ? [...this.blockRepresentations.values()].filter((entry) => entry.fluidChunkKey !== undefined)
       : [];
     this.visualProvider = provider;
-    this.providerLifecycle.transition(previousProvider, provider);
+    this.providerRefreshPipeline.transition(previousProvider, provider);
     this.fluidCoordinator.setProvider(provider?.fluidRenderResolver && provider.fluidTexture ? {
       contractKey: provider.fluidRenderContractKey ?? `provider-object-v1|${this.providerGeneration}`,
       resolver: provider.fluidRenderResolver,
@@ -815,7 +804,7 @@ export class ThreeViewportEngine {
     if (requiresStructureResync) this.structureSyncState.invalidateKey();
     if (provider) this.syncSpecialVisualDescriptors();
     if (previousProvider && provider) {
-      if (this.suspended) this.deferredProviderRefresh = { previous: this.deferredProviderRefresh?.previous ?? previousProvider, next: provider };
+      if (this.suspended) this.providerRefreshPipeline.defer(previousProvider, provider);
       else this.queueProviderRefresh(previousProvider, provider);
     }
     const hadVisibleCache = this.yLayerProjection.visibleProject === this.project;
@@ -964,18 +953,10 @@ export class ThreeViewportEngine {
   private queueProviderRefresh(previousProvider: BlockVisualProvider, nextProvider: BlockVisualProvider): void {
     if (!this.project) return;
     if (this.suspended) {
-      this.deferredProviderRefresh = { previous: this.deferredProviderRefresh?.previous ?? previousProvider, next: nextProvider };
+      this.providerRefreshPipeline.defer(previousProvider, nextProvider);
       this.suspendedNeedsRefresh = true;
       return;
     }
-    this.providerRefreshPlanner.cancel();
-    this.hydrationPipeline.work.clearPendingProviderRefresh();
-    const planGeneration = ++this.providerRefreshGeneration;
-    this.providerRefreshPlanning = true;
-    this.providerRefreshProgress = undefined;
-    this.providerRefreshPlanningDiagnostics = { processed: 0, total: 0, considered: 0, queued: 0, maxSliceMs: 0, yields: 0, durationMs: 0 };
-    this.runtimeTrace?.record('provider-refresh-planning-start', { generation: planGeneration });
-    this.publishProviderRefreshProgress();
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
     const visible = this.yLayerProjection.hasVisibleProjection(this.project, this.renderOptions)
       ? this.yLayerProjection.visibleEntriesByKey
@@ -984,7 +965,7 @@ export class ThreeViewportEngine {
       const visibleEntry = visible.get(key);
       return visibleEntry ? [{ key, entry, visibleEntry, previousProvider, nextProvider, worldContext, visible }] : [];
     });
-    this.providerRefreshPlanner.start(inputs, (candidate) => {
+    this.providerRefreshPipeline.plan(inputs, (candidate, planGeneration) => {
       // Missing entries are finalized by the bounded content-resolution lane;
       // re-queuing them here would duplicate the pink -> resolved build.
       if (candidate.entry.block.kind === 'missing') return { considered: false };
@@ -1011,47 +992,17 @@ export class ThreeViewportEngine {
         },
       };
     }, {
-      onProgress: (progress: ProviderRefreshPlannerProgress) => {
-        if (planGeneration !== this.providerRefreshGeneration) return;
-        this.providerRefreshPlanningDiagnostics = { ...this.providerRefreshPlanningDiagnostics, processed: progress.processed, total: progress.total, considered: progress.considered, queued: progress.queued, maxSliceMs: progress.maxSliceMs, yields: progress.yields };
-        this.runtimeTrace?.record('provider-refresh-planning-progress', { ...progress });
-      },
-      onComplete: (result) => {
-        if (planGeneration !== this.providerRefreshGeneration) return;
-        this.providerRefreshPlanning = false;
-        const queued = result.jobs.reduce((count, job) => count + (this.hydrationPipeline.work.enqueueProviderRefresh(job) ? 1 : 0), 0);
-        this.providerRefreshPlanningDiagnostics = { processed: result.processed, total: inputs.length, considered: result.considered, queued, maxSliceMs: result.maxSliceMs, yields: result.yields, durationMs: result.durationMs };
-        this.runtimeTrace?.record('provider-refresh-planning-end', { generation: planGeneration, considered: result.considered, queued, processed: result.processed, durationMs: result.durationMs, maxSliceMs: result.maxSliceMs, yields: result.yields });
-        this.runtimeTrace?.record('provider-refresh-queued', { queued });
-        if (queued) {
-          this.providerRefreshProgress = { total: queued, completed: 0, startedAt: performance.now() };
-          this.runtimeTrace?.record('provider-refresh-start', { queued });
-        }
-        this.publishProviderRefreshProgress();
-        if (this.hydrationPipeline.work.queuedProviderRefresh()) this.scheduleHydrationPump();
-      },
-      onCancel: () => {
-        if (planGeneration !== this.providerRefreshGeneration) return;
-        this.providerRefreshPlanning = false;
-        this.providerRefreshProgress = undefined;
-        this.runtimeTrace?.record('provider-refresh-planning-cancel-terminal', { generation: planGeneration });
-        this.publishProviderRefreshProgress();
-      },
-      onError: (error) => {
-        if (planGeneration !== this.providerRefreshGeneration) return;
-        this.providerRefreshPlanning = false;
-        this.providerRefreshProgress = undefined;
-        this.runtimeTrace?.record('provider-refresh-planning-error-terminal', { generation: planGeneration, message: error instanceof Error ? error.message : String(error) });
-        this.publishProviderRefreshProgress();
-      },
+      onTrace: (event, details) => this.runtimeTrace?.record(event, details),
+      onStateChange: () => this.publishProviderRefreshProgress(),
+      onScheduleHydration: () => this.scheduleHydrationPump(),
     });
   }
 
   private releaseUnusedRetiredProviders(): void {
-    this.providerLifecycle.releaseUnused({
-      referenced: (provider) => [...this.blockRepresentations.values()].some((entry) => entry.provider === provider) || this.fluidCoordinator.referencedProviders().has(provider),
-      queued: (provider) => this.hydrationPipeline.work.providerRefreshJobs().some((job) => job.key && this.blockRepresentations.get(job.key)?.provider === provider),
-    });
+    this.providerRefreshPipeline.releaseUnused(
+      (provider) => [...this.blockRepresentations.values()].some((entry) => entry.provider === provider) || this.fluidCoordinator.referencedProviders().has(provider),
+      (provider) => this.hydrationPipeline.work.providerRefreshJobs().some((job) => job.key && this.blockRepresentations.get(job.key)?.provider === provider),
+    );
   }
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
@@ -2310,16 +2261,10 @@ export class ThreeViewportEngine {
     if (runningIsCurrent) this.hydrationPipeline.finishJobOwnership(job.key);
     this.hydrationPipeline.work.complete(job);
     this.instrumentation.record(job.providerRefresh ? 'providerRefreshCompleted' : 'regularHydrationCompleted');
-    if (job.providerRefresh && job.providerRefreshGeneration === this.providerRefreshGeneration && this.providerRefreshProgress) {
-      this.providerRefreshProgress.completed = Math.min(this.providerRefreshProgress.total, this.providerRefreshProgress.completed + 1);
-      const counts = this.hydrationPipeline.work.counts();
-      if (!counts.providerRefreshQueued && !counts.providerRefreshRunning) {
-        const durationMs = performance.now() - this.providerRefreshProgress.startedAt;
-        this.runtimeTrace?.record('provider-refresh-end', { completed: this.providerRefreshProgress.completed, durationMs });
-        this.providerRefreshProgress = undefined;
-      }
-      this.publishProviderRefreshProgress();
-    }
+    if (job.providerRefresh) this.providerRefreshPipeline.completeJob(job.providerRefreshGeneration, {
+      onTrace: (event, details) => this.runtimeTrace?.record(event, details),
+      onStateChange: () => this.publishProviderRefreshProgress(),
+    });
     this.hydrationPipeline.finishWork(job.token);
     const currentVisible = this.yLayerProjection.visibleEntry(job.key);
     const authoritative = !job.providerRefresh
@@ -2389,9 +2334,7 @@ export class ThreeViewportEngine {
     this.hydrationPipeline.clearBatchBudget();
     this.hydrationPipeline.scheduler.cancel();
     this.hydrationPipeline.progress.clear();
-    this.providerRefreshPlanner.cancel();
-    this.providerRefreshProgress = undefined;
-    this.providerRefreshPlanning = false;
+    this.providerRefreshPipeline.cancelPlanning();
     this.hydrationPipeline.setLane('structural');
     this.hydrationPipeline.progress.setLane('structural');
     this.resetHydrationProgress();
@@ -2938,7 +2881,7 @@ export class ThreeViewportEngine {
     this.placeholderGeometry.dispose();
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
     provider?.release?.();
-    this.providerLifecycle.clear();
+    this.providerRefreshPipeline.dispose();
     this.visualProvider = undefined;
     this.renderer = undefined;
     this.container = undefined;
@@ -3131,14 +3074,14 @@ export class ThreeViewportEngine {
       providerRefreshQueued: workCounts.providerRefreshQueued,
       regularRunning: workCounts.regularRunning,
       providerRefreshRunning: workCounts.providerRefreshRunning,
-      providerRefreshPlanning: this.providerRefreshPlanning,
-      providerRefreshPlanningProcessed: this.providerRefreshPlanningDiagnostics.processed,
-      providerRefreshPlanningTotal: this.providerRefreshPlanningDiagnostics.total,
-      providerRefreshPlanningConsidered: this.providerRefreshPlanningDiagnostics.considered,
-      providerRefreshPlanningQueued: this.providerRefreshPlanningDiagnostics.queued,
-      providerRefreshPlanningMaxSliceMs: this.providerRefreshPlanningDiagnostics.maxSliceMs,
-      providerRefreshPlanningYields: this.providerRefreshPlanningDiagnostics.yields,
-      providerRefreshPlanningDurationMs: this.providerRefreshPlanningDiagnostics.durationMs,
+      providerRefreshPlanning: this.providerRefreshPipeline.isPlanning,
+      providerRefreshPlanningProcessed: this.providerRefreshPipeline.planningDiagnostics.processed,
+      providerRefreshPlanningTotal: this.providerRefreshPipeline.planningDiagnostics.total,
+      providerRefreshPlanningConsidered: this.providerRefreshPipeline.planningDiagnostics.considered,
+      providerRefreshPlanningQueued: this.providerRefreshPipeline.planningDiagnostics.queued,
+      providerRefreshPlanningMaxSliceMs: this.providerRefreshPipeline.planningDiagnostics.maxSliceMs,
+      providerRefreshPlanningYields: this.providerRefreshPipeline.planningDiagnostics.yields,
+      providerRefreshPlanningDurationMs: this.providerRefreshPipeline.planningDiagnostics.durationMs,
     };
   }
 
@@ -3155,9 +3098,9 @@ export class ThreeViewportEngine {
   }
 
   private withProviderRefreshProgress(progress: HydrationProgressSnapshot): ViewportHydrationProgress {
-    const refresh = this.providerRefreshProgress;
+    const refresh = this.providerRefreshPipeline.progress;
     const baseFinalization = progress.finalization;
-    if (!refresh && !this.providerRefreshPlanning) return { ...progress, providerRefreshPlanning: false, terrainPending: this.terrainHydrationPending };
+    if (!refresh && !this.providerRefreshPipeline.isPlanning) return { ...progress, providerRefreshPlanning: false, terrainPending: this.terrainHydrationPending };
     const refreshTotal = refresh?.total ?? 0;
     const refreshCompleted = refresh?.completed ?? 0;
     const baseFinalReady = baseFinalization?.finalReadyBlocks ?? progress.blocksCompleted;
@@ -3180,7 +3123,7 @@ export class ThreeViewportEngine {
       decorationsCompleted: 0,
       decorationsTotal: 0,
       percent: refreshTotal ? refreshCompleted / refreshTotal * 100 : 0,
-      providerRefreshPlanning: this.providerRefreshPlanning,
+      providerRefreshPlanning: this.providerRefreshPipeline.isPlanning,
       providerRefreshQueued: this.hydrationPipeline.work.queuedProviderRefresh(),
       providerRefreshRunning: this.hydrationPipeline.work.counts().providerRefreshRunning,
       terrainPending: this.terrainHydrationPending,
