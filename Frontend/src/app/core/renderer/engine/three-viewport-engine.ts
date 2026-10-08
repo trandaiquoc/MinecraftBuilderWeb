@@ -1934,41 +1934,44 @@ export class ThreeViewportEngine {
     const projectionRevision = this.yLayerProjection.revision;
     const generation = this.hydrationPipeline.generation;
     const providerGeneration = this.providerGeneration;
-    this.terrainPipeline.scheduleBatch({
+    this.terrainPipeline.scheduleBatch(
       candidates,
-      affectedPositions,
-      initial,
-      local,
-      lane,
-      generation,
-      providerGeneration,
-      currentGeneration: () => this.hydrationPipeline.generation,
-      currentProviderGeneration: () => this.providerGeneration,
-      isDisposed: () => this.disposed,
-      projectionRevision,
-      candidateProjectionRevisions: new Map(candidates.map((candidate) => [candidate.key, this.yLayerProjection.revisionForKey(candidate.key)] as const)),
-      projectionRevisionFor: (key) => this.yLayerProjection.revisionForKey(key),
-      currentSignature: (key) => this.blockRepresentations.get(key)?.signature,
-      candidateSignature: (candidate) => candidate.next.signature,
-      cachedTemplates: (key) => this.terrainRenderer.templateCache.get(key),
-      cacheTemplates: (key, templates) => this.terrainRenderer.cacheTemplates(key, templates),
-      resolveTemplates: (candidate) => this.resolveTerrainTemplates(candidate.reusableKey, candidate.next.block, candidate.worldContext, candidate.provider),
-      toRecord: (candidate, templates) => ({ key: candidate.key, block: candidate.next.block, templates, role: candidate.next.role === 'reference' ? 'reference' as const : 'normal' as const }),
-      apply: (records, context) => local
-        ? this.terrainRenderer.applyBlockChanges(records.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: record.role === 'normal' })), true)
-        : this.terrainRenderer.bulkUpsert(records, initial ? occupancyEntries : undefined, context.affectedPositions, { initial }),
-      onCommit: (records, result, revision) => this.commitTerrainRecords(records, result, revision),
-      onStale: (items, staleLane) => {
-        if (!this.disposed && generation === this.hydrationPipeline.generation && providerGeneration === this.providerGeneration) this.enqueueFailedTerrainCandidates(items, staleLane as HydrationLane);
+      {
+        affectedPositions, initial, local, lane, generation, providerGeneration,
+        currentGeneration: () => this.hydrationPipeline.generation,
+        currentProviderGeneration: () => this.providerGeneration,
+        isDisposed: () => this.disposed,
+        projectionRevision,
+        candidateProjectionRevisions: new Map(candidates.map((candidate) => [candidate.key, this.yLayerProjection.revisionForKey(candidate.key)] as const)),
+        projectionRevisionFor: (key) => this.yLayerProjection.revisionForKey(key),
       },
-      onFailed: (items, failedLane) => this.enqueueFailedTerrainCandidates(items, failedLane as HydrationLane),
-      disposeTemplates: (templates) => this.disposeTerrainTemplates(templates),
-      onFinished: () => {
-        this.recordProviderCacheStats();
-        this.scheduleRender();
-        if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+      {
+        cachedTemplates: (key) => this.terrainRenderer.templateCache.get(key),
+        cacheTemplates: (key, templates) => this.terrainRenderer.cacheTemplates(key, templates),
+        resolveTemplates: (candidate) => this.resolveTerrainTemplates(candidate.reusableKey, candidate.next.block, candidate.worldContext, candidate.provider),
+        disposeTemplates: (templates) => this.disposeTerrainTemplates(templates),
       },
-    });
+      {
+        currentSignature: (key) => this.blockRepresentations.get(key)?.signature,
+        candidateSignature: (candidate) => candidate.next.signature,
+        toRecord: (candidate, templates) => ({ key: candidate.key, block: candidate.next.block, templates, role: candidate.next.role === 'reference' ? 'reference' as const : 'normal' as const }),
+        apply: (records, context) => local
+          ? this.terrainRenderer.applyBlockChanges(records.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: record.role === 'normal' })), true)
+          : this.terrainRenderer.bulkUpsert(records, initial ? occupancyEntries : undefined, context.affectedPositions, { initial }),
+      },
+      {
+        onCommit: (records, result, revision) => this.commitTerrainRecords(records, result, revision),
+        onStale: (items, staleLane) => {
+          if (!this.disposed && generation === this.hydrationPipeline.generation && providerGeneration === this.providerGeneration) this.enqueueFailedTerrainCandidates(items, staleLane as HydrationLane);
+        },
+        onFailed: (items, failedLane) => this.enqueueFailedTerrainCandidates(items, failedLane as HydrationLane),
+        onFinished: () => {
+          this.recordProviderCacheStats();
+          this.scheduleRender();
+          if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+        },
+      },
+    );
     if (this.terrainPipeline.pendingGroupCount) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane);
   }
 

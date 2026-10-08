@@ -39,14 +39,17 @@ describe('ViewportTerrainRepresentationPipeline', () => {
     const apply = vi.fn(() => ({ representedKeys: [candidate.key], failedKeys: [], pending: false }));
     const commit = vi.fn();
     const failed = vi.fn();
-    pipeline.scheduleBatch({
-      candidates: [candidate], affectedPositions: [], initial: true, local: false, lane: 'structural', generation: 0, providerGeneration: 0,
-      currentGeneration: () => 0, currentProviderGeneration: () => 0, isDisposed: () => false, projectionRevision: 1,
-      candidateProjectionRevisions: new Map([[candidate.key, 1]]), projectionRevisionFor: () => 1, currentSignature: () => candidate.signature,
-      candidateSignature: (item) => item.signature, cachedTemplates: () => undefined, cacheTemplates: vi.fn(),
-      resolveTemplates: async () => template, toRecord: (item, value) => ({ key: item.key, value }), apply, onCommit: commit,
-      onStale: vi.fn(), onFailed: failed, disposeTemplates: vi.fn(),
-    });
+    pipeline.scheduleBatch(
+      [candidate],
+      {
+        affectedPositions: [], initial: true, local: false, lane: 'structural', generation: 0, providerGeneration: 0,
+        currentGeneration: () => 0, currentProviderGeneration: () => 0, isDisposed: () => false, projectionRevision: 1,
+        candidateProjectionRevisions: new Map([[candidate.key, 1]]), projectionRevisionFor: () => 1,
+      },
+      { cachedTemplates: () => undefined, cacheTemplates: vi.fn(), resolveTemplates: async () => template, disposeTemplates: vi.fn() },
+      { currentSignature: () => candidate.signature, candidateSignature: (item) => item.signature, toRecord: (item, value) => ({ key: item.key, value }), apply },
+      { onCommit: commit, onStale: vi.fn(), onFailed: failed },
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(apply).toHaveBeenCalledOnce();
     expect(commit).toHaveBeenCalledOnce();
