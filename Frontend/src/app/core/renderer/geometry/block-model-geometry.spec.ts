@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ResolvedElement, ResolvedFace } from '../../blocks/resolver';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
-import { staticFluidTextureView, VanillaBlockVisualProvider, faceGeometry, grassColormapSampleCoordinate, isGrassTintBlock, sampleGrassColormap, shadeDirectionFactor, thumbnailPreviewRotationY, tintColorForFace } from './block-model-geometry';
+import { VanillaBlockVisualProvider, faceGeometry, shadeDirectionFactor, thumbnailPreviewRotationY } from './block-model-geometry';
 import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { buildPlaceableItems } from '../../blocks/placement-palette/placeable-item';
@@ -43,16 +43,6 @@ describe('block model geometry', () => {
     await expect(provider.perspectiveItemThumbnail!(item)).resolves.toMatchObject({ quality: 'enhanced', url: 'blob:enhanced' });
     expect(render).toHaveBeenCalledTimes(2);
   });
-  it('applies grass tint only to tintindexed vanilla grass faces', () => {
-    const grass = 0x79c05a;
-    expect(tintColorForFace('minecraft:grass_block', 0, grass)).toBe(grass);
-    expect(tintColorForFace('minecraft:short_grass', 0, grass)).toBe(grass);
-    expect(tintColorForFace('minecraft:tall_grass', 0, grass)).toBe(grass);
-    expect(tintColorForFace('minecraft:grass_block', undefined, grass)).toBeUndefined();
-    expect(tintColorForFace('minecraft:stone', 0, grass)).toBeUndefined();
-    expect(isGrassTintBlock('minecraft:tall_grass')).toBe(true);
-    expect(grassColormapSampleCoordinate(256, 256)).toEqual([127, 127]);
-  });
   it('maps explicit shade direction to deterministic material intent', () => {
     expect(shadeDirectionFactor('up')).toBe(1);
     expect(shadeDirectionFactor('down')).toBeLessThan(shadeDirectionFactor('north'));
@@ -70,13 +60,6 @@ describe('block model geometry', () => {
     expect(material?.userData['shadeDirectionOverride']).toBe('up');
   });
 
-  it('samples the vanilla default grass pixel from the colormap image data', () => {
-    const data = new Uint8Array(256 * 256 * 4);
-    const offset = (127 * 256 + 127) * 4;
-    data.set([0x72, 0xb8, 0x55, 0xff], offset);
-    const texture = new THREE.Texture({ width: 256, height: 256, data });
-    expect(sampleGrassColormap(texture)).toBe(0x72b855);
-  });
   it('preserves out-of-range element coordinates and reversed UV ordering', () => {
     const element: ResolvedElement = { from: [-2, 0, 0], to: [20, 8, 16], faces: { north: face } };
     const geometry = faceGeometry(element, 'north', face);
@@ -271,12 +254,6 @@ describe('block model geometry', () => {
     expect(water.mode).toBe('real'); expect(lava.mode).toBe('real');
     const waterMaterial = (water.object?.children[0] as THREE.Mesh).material as THREE.MeshLambertMaterial; const lavaMaterial = (lava.object?.children[0] as THREE.Mesh).material as THREE.MeshLambertMaterial;
     expect(waterMaterial.transparent).toBe(true); expect(lavaMaterial.transparent).toBe(false); expect(water.object?.userData['fluidKind']).toBe('water'); expect(lava.object?.userData['fluidKind']).toBe('lava');
-  });
-  it('uses one nearest-filtered frame from an animated fluid strip without mutating the cache texture', () => {
-    const source = new THREE.Texture(); source.image = { width: 16, height: 64 } as never;
-    const view = staticFluidTextureView(source, { animation: { frames: [{ index: 1 }], height: 16 } });
-    expect(view).not.toBe(source); expect(view.repeat.y).toBeCloseTo(.25); expect(view.offset.y).toBeCloseTo(.5);
-    expect(view.magFilter).toBe(THREE.NearestFilter); expect(view.minFilter).toBe(THREE.NearestFilter); expect(source.repeat.y).toBe(1);
   });
 });
 

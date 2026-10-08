@@ -10,6 +10,8 @@ import { FluidRenderResolver, vanillaFluidRenderResolver, FluidWorldLookup } fro
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { itemVisualResource, resolveItemVisual } from '../visuals/item-visual-resolver';
 import type { ItemVisualKind, ResolvedItemVisual } from '../visuals/item-visual-resolver';
+import { isGrassTintBlock, sampleGrassColormap, tintColorForFace } from './block-tint-resolver';
+import { staticFluidTextureView } from '../fluids/static-fluid-texture';
 
 export type BlockRenderMode = 'real' | 'partial' | 'fallback';
 export type BlockRenderDiagnosticCode = 'MODEL_NOT_FOUND' | 'TEXTURE_NOT_FOUND' | 'TEXTURE_DECODE_FAILED' | 'GEOMETRY_BUILD_FAILED' | 'UNKNOWN_ERROR';
@@ -474,58 +476,6 @@ export function shadeDirectionFactor(direction: string): number {
     default: return 1;
   }
 }
-
-export function isGrassTintBlock(blockId: string): boolean {
-  return blockId === 'minecraft:grass_block' || blockId === 'minecraft:short_grass' || blockId === 'minecraft:tall_grass';
-}
-
-export function tintColorForFace(blockId: string, tintIndex: number | undefined, grassColor: number | undefined): number | undefined {
-  return tintIndex === undefined || !isGrassTintBlock(blockId) ? undefined : grassColor;
-}
-
-export function grassColormapSampleCoordinate(width: number, height: number, temperature = 0.5, humidity = 1): readonly [number, number] {
-  const effectiveHumidity = humidity * temperature;
-  return [Math.floor((1 - temperature) * Math.max(width - 1, 0)), Math.floor((1 - effectiveHumidity) * Math.max(height - 1, 0))];
-}
-
-export function sampleGrassColormap(texture: THREE.Texture): number | undefined {
-  const image = texture.image as { readonly width?: number; readonly height?: number; readonly data?: ArrayLike<number> } | undefined;
-  const width = image?.width ?? 0; const height = image?.height ?? 0;
-  if (!image || !width || !height) return undefined;
-  const source = image;
-  const [x, y] = grassColormapSampleCoordinate(width, height);
-  if (source.data && source.data.length >= width * height * 4) {
-    const offset = (y * width + x) * 4;
-    return ((source.data[offset] ?? 255) << 16) | ((source.data[offset + 1] ?? 255) << 8) | (source.data[offset + 2] ?? 255);
-  }
-  if (typeof document === 'undefined') return undefined;
-  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-  const context = canvas.getContext('2d'); if (!context) return undefined;
-  context.drawImage(source as CanvasImageSource, 0, 0);
-  const pixel = context.getImageData(x, y, 1, 1).data;
-  return (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
-}
-
-/** Returns a nearest-filtered view of animation frame zero without changing the shared cache texture. */
-export function staticFluidTextureView(texture: THREE.Texture, metadata?: unknown): THREE.Texture {
-  const view = texture.clone();
-  const image = view.image as { readonly width?: number; readonly height?: number } | undefined;
-  const width = image?.width ?? 0; const height = image?.height ?? 0;
-  const animation = recordValue(recordValue(metadata)['animation']);
-  const explicitHeight = typeof animation['height'] === 'number' && animation['height'] > 0 ? animation['height'] : undefined;
-  const frameHeight = explicitHeight ?? (width > 0 && height > width ? width : height);
-  const frameIndex = Array.isArray(animation['frames']) && animation['frames'].length > 0 ? frameIndexValue(animation['frames'][0]) : 0;
-  if (height > frameHeight && frameHeight > 0) {
-    const frameCount = Math.max(1, Math.floor(height / frameHeight));
-    const index = Math.min(Math.max(frameIndex, 0), frameCount - 1);
-    view.repeat.set(1, frameHeight / height); view.offset.set(0, 1 - ((index + 1) * frameHeight) / height); view.wrapS = THREE.ClampToEdgeWrapping; view.wrapT = THREE.ClampToEdgeWrapping;
-  }
-  view.magFilter = THREE.NearestFilter; view.minFilter = THREE.NearestFilter; view.generateMipmaps = false; view.needsUpdate = true;
-  return view;
-}
-
-function recordValue(value: unknown): Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function frameIndexValue(value: unknown): number { if (typeof value === 'number') return value; const frame = recordValue(value); return typeof frame['index'] === 'number' ? frame['index'] : 0; }
 
 function validBounds(bounds: THREE.Box3): boolean { const size = bounds.getSize(new THREE.Vector3()); return bounds.min.toArray().every(Number.isFinite) && bounds.max.toArray().every(Number.isFinite) && size.lengthSq() > 0; }
 
