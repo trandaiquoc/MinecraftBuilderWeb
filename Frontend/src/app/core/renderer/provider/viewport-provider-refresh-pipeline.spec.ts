@@ -71,4 +71,12 @@ describe('ViewportProviderRefreshPipeline', () => {
     expect(pipeline.takeDeferred()).toEqual({ previous: oldProvider, next: latest });
     expect(pipeline.takeDeferred()).toBeUndefined();
   });
+
+  it('returns provider-refresh progress as a detached snapshot', () => {
+    const pipeline = new ViewportProviderRefreshPipeline<object, number, Job>(createHydrationPipeline());
+    pipeline.plan([1], (value, generation) => ({ considered: true, job: { key: String(value), token: 3, refreshGeneration: generation } }), {});
+    const progress = pipeline.progress as unknown as { completed: number };
+    progress.completed = 99;
+    expect(pipeline.progress?.completed).toBe(0);
+  });
 });

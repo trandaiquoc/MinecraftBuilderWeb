@@ -15,6 +15,12 @@ export interface ProviderRefreshPlanDiagnostics {
 }
 
 export interface ProviderRefreshProgress {
+  readonly total: number;
+  readonly completed: number;
+  readonly startedAt: number;
+}
+
+interface MutableProviderRefreshProgress {
   total: number;
   completed: number;
   startedAt: number;
@@ -32,7 +38,7 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
   private get hydrationWork() { return this.hydrationPipeline.work; }
   private currentPlanGeneration = 0;
   private planning = false;
-  private activeProgress?: ProviderRefreshProgress;
+  private activeProgress?: MutableProviderRefreshProgress;
   private diagnostics: ProviderRefreshPlanDiagnostics = emptyPlanDiagnostics();
   private deferred?: { readonly previous: P; readonly next: P };
 
@@ -41,7 +47,7 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
   get providerGeneration(): number { return this.providers.generation; }
   get planGeneration(): number { return this.currentPlanGeneration; }
   get isPlanning(): boolean { return this.planning; }
-  get progress(): ProviderRefreshProgress | undefined { return this.activeProgress; }
+  get progress(): ProviderRefreshProgress | undefined { return this.activeProgress ? { ...this.activeProgress } : undefined; }
   get planningDiagnostics(): ProviderRefreshPlanDiagnostics { return this.diagnostics; }
 
   transition(previous: P | undefined, next: P | undefined): void { this.providers.transition(previous, next); }
