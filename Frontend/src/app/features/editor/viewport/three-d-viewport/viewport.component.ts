@@ -19,7 +19,6 @@ import { WorkspaceStateService } from '../../../../core/workspace/workspace-stat
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../../core/ui/theme/theme.service';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
-import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-theme';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
@@ -40,6 +39,7 @@ import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/projec
 import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
 import { ViewportStatusService, hoverCoordinateForHit } from '../../../../core/editor/viewport/viewport-status.service';
 import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
+import { ViewportSessionOwner } from '../shared/viewport-session-owner';
 
 declare global {
   interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
@@ -82,13 +82,41 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
+  private readonly session = new ViewportSessionOwner({
+    engine: this.engine,
+    viewportActive: () => this.viewportActive(),
+    modeLabel: '3D',
+    workspace: this.workspace,
+    theme: this.theme,
+    preferences: this.preferences,
+    assets: this.assets,
+    hydrationStatus: this.hydrationStatus,
+    viewportStatus: this.viewportStatus,
+    paintingCatalog: this.paintingCatalog,
+    itemVisuals: this.itemVisuals,
+    visualResolvers: {
+      provider: () => this.assets.visualProvider(),
+      catalogRevision: () => this.library.catalogRevision(),
+      specialVisual: this.resolveSpecialVisual,
+      blockDefinition: this.resolveBlockDefinition,
+      decorationTexture: this.resolveDecorationTexture,
+      decorationItemResources: this.resolveDecorationItemResources,
+      decorationItemVisual: this.resolveDecorationItemVisual,
+      decorationItemPreview: this.resolveDecorationItemPreview,
+      paintingTexture: this.resolvePaintingTexture,
+    },
+    usage: {
+      revision: () => this.runtimeIndex.usageRevision(),
+      highlightedId: () => this.usageHighlight.highlightedBlockId(),
+      positions: (id) => this.runtimeIndex.blocksForId(id).map((block) => ({ ...block.position })),
+    },
+  });
   private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample(), checkpoint: () => this.engine.runtimeTraceHeavySample() });
   private readonly viewportTraceApi: ViewportRuntimeTraceApi = this.viewportTrace.getApi();
   private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();
   private readonly terrainAtlasProbeCommand = (blockId = 'minecraft:stone', state: Readonly<Record<string, string>> = {}) => runTerrainAtlasProbe(this.engine, this.assets.visualProvider(), blockId, state);
-  private readonly hydrationOwner = this.hydrationStatus.claim();
-  private readonly viewportStatusOwner = this.viewportStatus.claim();
-  private readonly hydrationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
+  private get hydrationOwner() { return this.session.hydrationOwner; }
+  private get viewportStatusOwner() { return this.session.viewportStatusOwner; }
   private previousTool?: EditorTool;
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
@@ -96,13 +124,6 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
   private freeSpaceDragStart?: { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane };
   private readonly onNativePointerMove = (event: PointerEvent) => this.pointerMove(event);
-  private readonly lifecycleSync = effect(() => { if (this.viewportActive()) { this.hydrationStatus.activate(this.hydrationOwner); this.engine.resume(); } else this.engine.suspend(); });
-  private readonly viewportStatusSync = effect(() => {
-    const active = this.viewportActive();
-    const projectId = this.workspace.project()?.id;
-    if (active) this.viewportStatus.activate(this.viewportStatusOwner, projectId);
-    else this.viewportStatus.deactivate(this.viewportStatusOwner);
-  });
   private readonly sync = effect(() => { const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
   private readonly toolSync = effect(() => {
     const tool = this.tool.active();
@@ -111,23 +132,6 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.clearGhost();
     this.viewportStatus.clear(this.viewportStatusOwner);
   });
-  private readonly usageHighlightSync = effect(() => { this.runtimeIndex.usageRevision(); const id = this.usageHighlight.highlightedBlockId(); this.engine.setBlockUsageHighlight(id, id ? this.runtimeIndex.blocksForId(id).map((block) => ({ ...block.position })) : undefined); });
-  private readonly themeSync = effect(() => { this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground())); });
-  private readonly controlSync = effect(() => { const preferences = this.preferences.effectivePreferences(); this.engine.setControlConfiguration(preferences.controls); this.engine.setMouseBindings(preferences.mouseBindings); this.engine.setBlockBrightness(preferences.accessibility.blockBrightness); this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide); });
-  private readonly assetSync = effect(() => { this.engine.setVisualProvider(this.assets.visualProvider()); this.engine.setSpecialVisualDescriptorResolver(this.resolveSpecialVisual, this.library.catalogRevision()); this.engine.setBlockDefinitionResolver(this.resolveBlockDefinition); this.engine.setDecorationTextureProvider(this.resolveDecorationTexture); this.engine.setDecorationItemResourceProvider(this.resolveDecorationItemResources); this.engine.setDecorationItemVisualProvider(this.resolveDecorationItemVisual); this.engine.setDecorationItemPreviewProvider(this.resolveDecorationItemPreview); this.paintingCatalog.variants(); this.engine.setPaintingTextureResolver(this.resolvePaintingTexture); });
-  private readonly finalizationSync = effect(() => {
-    if (!this.viewportActive()) return;
-    const restore = this.assets.contentRestore();
-    const terminal = restore.phase === 'ready' || restore.phase === 'partial' || restore.phase === 'error';
-    this.engine.setMissingBlocksTerminal(terminal);
-    this.hydrationStatus.setSourceRestoreState(this.hydrationOwner, { terminal, pending: !terminal, failed: restore.phase === 'error' });
-    this.hydrationStatus.setFinalizationAuditHooks(this.hydrationOwner, () => {
-      const progress = this.engine.finalizationAuditProgress();
-      const finalization = progress.finalization;
-      return { input: { progress, sourceRestoreTerminal: terminal, sourceRestorePending: !terminal, sourceRestoreFailed: restore.phase === 'error', providerRefreshPlanning: progress.providerRefreshPlanning, providerRefreshQueued: progress.providerRefreshQueued, providerRefreshRunning: progress.providerRefreshRunning, terrainPending: progress.terrainPending }, ownershipComplete: !!finalization && finalization.finalReadyBlocks + finalization.permanentMissingBlocks >= finalization.expectedBlocks };
-    }, () => this.engine.reconcileFinalizationAccounting());
-  });
-  private readonly lifecycleDiagnostics = effect(() => { const projectRestore = this.workspace.restoreStatus(); const assetStatus = this.assets.status(); const assets = this.assets.diagnostics(); if (isDevMode()) console.debug('[MinecraftBuilder][3D bootstrap]', { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() }); });
 
   ngAfterViewInit(): void {
     if (isDevMode() && typeof window !== 'undefined') {
@@ -165,7 +169,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.engine.cameraState(); const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.hydrationProgressUnsubscribe(); this.hydrationStatus.release(this.hydrationOwner); this.viewportStatus.release(this.viewportStatusOwner); this.sync.destroy(); this.lifecycleSync.destroy(); this.viewportStatusSync.destroy(); this.toolSync.destroy(); this.usageHighlightSync.destroy(); this.themeSync.destroy(); this.controlSync.destroy(); this.assetSync.destroy(); this.finalizationSync.destroy(); this.lifecycleDiagnostics.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

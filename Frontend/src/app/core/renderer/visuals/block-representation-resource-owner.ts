@@ -33,9 +33,10 @@ export class BlockRepresentationResourceOwner {
 
   remove(key: string, entry: RenderedBlockEntry): void {
     this.ports.invalidateDiagnostics();
-    this.ports.store.incrementRevision(entry.key);
+    const removalRevision = this.ports.store.incrementRevision(entry.key);
+    if (removalRevision === undefined) return;
     if (entry.fluidChunkKey !== undefined) {
-      if (this.ports.store.get(key) === entry) this.ports.store.remove(key);
+      this.ports.store.removeIfRevision(key, removalRevision);
       return;
     }
     if (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key)) this.ports.terrain.remove(key);
@@ -51,7 +52,7 @@ export class BlockRepresentationResourceOwner {
       if (entry.object && entry.object !== entry.fallback) disposeObject(entry.object);
       if (entry.fallback && entry.fallback !== entry.object) disposeObject(entry.fallback);
     }
-    if (this.ports.store.get(key) === entry) this.ports.store.remove(key);
+    this.ports.store.removeIfRevision(key, removalRevision);
     this.ports.trace('after-remove-entry', key, 'reconcile', entry);
   }
 

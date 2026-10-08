@@ -29,55 +29,44 @@ export interface RenderedBlockEntry {
   readonly fluidFallback?: boolean;
 }
 
-type MutableRenderedBlockEntry = {
-  -readonly [Property in keyof RenderedBlockEntry]: RenderedBlockEntry[Property];
-};
-
 /** Owns canonical per-voxel representation linkage; renderers retain their GPU state. */
 export class ViewportBlockRepresentationStore implements ReadonlyMap<string, RenderedBlockEntry> {
   private readonly entriesByKey = new Map<string, RenderedBlockEntry>();
 
   get(key: string): RenderedBlockEntry | undefined { return this.entriesByKey.get(key); }
   has(key: string): boolean { return this.entriesByKey.has(key); }
-  createOrReplace(entry: RenderedBlockEntry): void { this.entriesByKey.set(entry.key, entry); }
-  setBlock(key: string, block: ProjectDocument['blocks'][number]): boolean { return this.mutate(key, (entry) => { entry.block = block; }); }
+  createOrReplace(entry: RenderedBlockEntry): void { this.entriesByKey.set(entry.key, freezeEntry(entry)); }
+  setBlock(key: string, block: ProjectDocument['blocks'][number]): boolean { return this.replace(key, (entry) => ({ ...entry, block })); }
   incrementRevision(key: string): number | undefined {
-    const entry = this.entriesByKey.get(key) as MutableRenderedBlockEntry | undefined;
+    const entry = this.entriesByKey.get(key);
     if (!entry) return undefined;
-    entry.revision += 1;
-    return entry.revision;
+    const revision = entry.revision + 1;
+    this.entriesByKey.set(key, freezeEntry({ ...entry, revision }));
+    return revision;
   }
-  setFallback(key: string, fallback: THREE.Mesh): boolean { return this.mutate(key, (entry) => { entry.fallback = fallback; entry.object = fallback; }); }
-  setObject(key: string, object: THREE.Object3D | undefined): boolean { return this.mutate(key, (entry) => { entry.object = object; }); }
-  setProvider(key: string, provider: BlockVisualProvider | undefined): boolean { return this.mutate(key, (entry) => { entry.provider = provider; }); }
+  setFallback(key: string, fallback: THREE.Mesh): boolean { return this.replace(key, (entry) => ({ ...entry, fallback, object: fallback })); }
+  setObject(key: string, object: THREE.Object3D | undefined): boolean { return this.replace(key, (entry) => ({ ...entry, object })); }
+  setProvider(key: string, provider: BlockVisualProvider | undefined): boolean { return this.replace(key, (entry) => ({ ...entry, provider })); }
   setInstanceMembership(key: string, membership: { readonly batchKey?: string; readonly index?: number; readonly object?: THREE.Object3D }): boolean {
-    return this.mutate(key, (entry) => { entry.instanceBatchKey = membership.batchKey; entry.instanceIndex = membership.index; if (membership.object) entry.object = membership.object; });
+    return this.replace(key, (entry) => ({ ...entry, instanceBatchKey: membership.batchKey, instanceIndex: membership.index, object: membership.object ?? entry.object }));
   }
   setSurfaceMemberships(key: string, memberships: readonly SurfaceFaceMembership[] | undefined): boolean {
-    return this.mutate(key, (entry) => {
-      entry.surfaceFaceMemberships = memberships;
-      entry.surfaceExposedFaceCount = memberships?.length;
-      entry.surfaceNeighborFacesCulled = memberships === undefined ? undefined : 6 - memberships.length;
-    });
+    return this.replace(key, (entry) => ({ ...entry, surfaceFaceMemberships: memberships ? [...memberships] : undefined, surfaceExposedFaceCount: memberships?.length, surfaceNeighborFacesCulled: memberships === undefined ? undefined : 6 - memberships.length }));
   }
   setSurfaceObject(key: string, memberships: readonly SurfaceFaceMembership[], object: THREE.Object3D | undefined): boolean {
-    return this.mutate(key, (entry) => {
-      entry.surfaceFaceMemberships = memberships;
-      entry.surfaceExposedFaceCount = memberships.length;
-      entry.surfaceNeighborFacesCulled = 6 - memberships.length;
-      entry.object = object;
-    });
+    return this.replace(key, (entry) => ({ ...entry, surfaceFaceMemberships: [...memberships], surfaceExposedFaceCount: memberships.length, surfaceNeighborFacesCulled: 6 - memberships.length, object }));
   }
   setTerrainRepresentation(key: string, terrainChunkKey: string | undefined, reusableVisualKey?: string): boolean {
-    return this.mutate(key, (entry) => { entry.terrainChunkKey = terrainChunkKey; if (reusableVisualKey !== undefined) entry.reusableVisualKey = reusableVisualKey; });
+    return this.replace(key, (entry) => ({ ...entry, terrainChunkKey, reusableVisualKey: reusableVisualKey ?? entry.reusableVisualKey }));
   }
-  setReusableVisual(key: string, reusableVisualKey: string | undefined): boolean { return this.mutate(key, (entry) => { entry.reusableVisualKey = reusableVisualKey; }); }
+  setReusableVisual(key: string, reusableVisualKey: string | undefined): boolean { return this.replace(key, (entry) => ({ ...entry, reusableVisualKey })); }
   setStaticModel(key: string, values: { readonly attempted?: boolean; readonly decision?: RenderedBlockEntry['staticModelDecision']; readonly family?: string }): boolean {
-    return this.mutate(key, (entry) => { if (values.attempted !== undefined) entry.staticModelAttempted = values.attempted; if (values.decision !== undefined) entry.staticModelDecision = values.decision; if (values.family !== undefined) entry.staticModelFamily = values.family; });
+    return this.replace(key, (entry) => ({ ...entry, ...(values.attempted === undefined ? {} : { staticModelAttempted: values.attempted }), ...(values.decision === undefined ? {} : { staticModelDecision: values.decision }), ...(values.family === undefined ? {} : { staticModelFamily: values.family }) }));
   }
   setFluidRepresentation(key: string, fluidChunkKey: string | undefined, fallback?: boolean): boolean {
-    return this.mutate(key, (entry) => { entry.fluidChunkKey = fluidChunkKey; if (fallback !== undefined) entry.fluidFallback = fallback; });
+    return this.replace(key, (entry) => ({ ...entry, fluidChunkKey, ...(fallback === undefined ? {} : { fluidFallback: fallback }) }));
   }
+  removeIfRevision(key: string, revision: number): boolean { return this.entriesByKey.get(key)?.revision === revision && this.entriesByKey.delete(key); }
   remove(key: string): boolean { return this.entriesByKey.delete(key); }
   clear(): void { this.entriesByKey.clear(); }
   get size(): number { return this.entriesByKey.size; }
@@ -88,10 +77,10 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
     this.entriesByKey.forEach((value, key) => callbackfn.call(thisArg, value, key, this));
   }
   [Symbol.iterator](): IterableIterator<[string, RenderedBlockEntry]> { return this.entries(); }
-  private mutate(key: string, mutate: (entry: MutableRenderedBlockEntry) => void): boolean {
-    const entry = this.entriesByKey.get(key) as MutableRenderedBlockEntry | undefined;
+  private replace(key: string, update: (entry: RenderedBlockEntry) => RenderedBlockEntry): boolean {
+    const entry = this.entriesByKey.get(key);
     if (!entry) return false;
-    mutate(entry);
+    this.entriesByKey.set(key, freezeEntry(update(entry)));
     return true;
   }
   snapshot(): readonly Readonly<RenderedBlockDiagnosticSnapshot>[] {
@@ -114,6 +103,12 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
       fluidFallback: entry.fluidFallback,
     }));
   }
+}
+
+function freezeEntry(entry: RenderedBlockEntry): RenderedBlockEntry {
+  return Object.freeze(entry.surfaceFaceMemberships
+    ? { ...entry, surfaceFaceMemberships: Object.freeze([...entry.surfaceFaceMemberships]) }
+    : { ...entry });
 }
 
 /** Detached diagnostic data intentionally excludes live Three.js/provider ownership. */

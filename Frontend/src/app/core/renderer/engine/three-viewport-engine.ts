@@ -23,6 +23,8 @@ import { DecorationTextureCache } from '../visuals/decoration-visuals';
 import { DecorationRenderLifecycle } from '../visuals/decoration-render-lifecycle';
 import { BlockRepresentationResourceOwner } from '../visuals/block-representation-resource-owner';
 import { BlockRepresentationHydrationOwner } from '../visuals/block-representation-hydration-owner';
+import { BlockRepresentationCommitOwner, type BlockRepresentationRenderTargets } from '../visuals/block-representation-commit-owner';
+import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
 import { decorationRenderSignature } from '../visuals/decoration-render-signature';
 import type { ItemStackData } from '../../items/item-stack.types';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
@@ -54,6 +56,7 @@ import { ViewportCameraInputController, cancelViewportFrame, requestViewportFram
 import { ViewportCameraFramingController } from '../scheduling/viewport-camera-framing-controller';
 import type { HydrationBlockScopeDelta, HydrationFinalizationSnapshot, HydrationLane, HydrationProgressSnapshot } from '../scheduling/hydration-progress-tracker';
 import { ViewportBlockHydrationPipeline } from '../hydration/viewport-block-hydration-pipeline';
+import { MissingBlockAccountingOwner } from '../hydration/missing-block-accounting-owner';
 import type { HydrationExecutionPort } from '../hydration/viewport-block-hydration-pipeline';
 import { adoptCommittedHydrationKeys } from '../hydration/hydration-generation-adoption';
 import { ViewportProviderRefreshPipeline } from '../provider/viewport-provider-refresh-pipeline';
@@ -61,7 +64,7 @@ import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
 import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange, type TerrainOwnershipEvidence, type TerrainSurfaceRecord } from '../terrain/chunk-surface-renderer';
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
-import { ViewportTerrainRepresentationPipeline } from '../terrain/viewport-terrain-representation-pipeline';
+import { ViewportTerrainWorkflowOwner, type TerrainHydrationCandidate, type TerrainPlaceholderSignatureStore } from '../terrain/viewport-terrain-workflow-owner';
 import { blockMutationHint, type ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
@@ -112,22 +115,6 @@ type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-ident
 export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
 
 
-interface BlockHydrationJob {
-  readonly token: number;
-  readonly projectionRevision: number;
-  readonly key: string;
-  readonly block: ProjectDocument['blocks'][number];
-  readonly signature: string;
-  readonly role: RenderedBlockEntry['role'];
-  readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
-  readonly options: ViewportRenderOptions;
-  readonly allowInstancing: boolean;
-  readonly surfaceFastPathEligible: boolean;
-  readonly surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockEntry>;
-  readonly providerRefresh?: boolean;
-  readonly providerRefreshGeneration?: number;
-}
-
 interface ProviderRefreshCandidate {
   readonly key: string;
   readonly entry: RenderedBlockEntry;
@@ -142,13 +129,6 @@ interface TerrainHydrationResult extends BlockVisualResult {
 }
 
 type VisibleBlockEntry = VisibleBlockProjectionEntry;
-interface TerrainHydrationCandidate {
-  readonly key: string;
-  readonly next: VisibleBlockEntry;
-  readonly reusableKey: string;
-  readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
-  readonly provider: BlockVisualProvider;
-}
 export type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 export type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
@@ -413,11 +393,13 @@ export class ThreeViewportEngine {
     VIEWPORT_CAMERA_IDLE_GRACE_MS,
   );
   private readonly blockRepresentations = new ViewportBlockRepresentationStore();
-  private readonly terrainPipeline = new ViewportTerrainRepresentationPipeline<readonly SurfaceFaceTemplate[]>();
+  private terrainPipeline!: ViewportTerrainWorkflowOwner;
+  private get placeholderSignatures(): TerrainPlaceholderSignatureStore { return this.terrainPipeline.placeholderState; }
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer: StaticModelBatchRenderer;
   private readonly fluidCoordinator: FluidRenderCoordinator;
   private readonly blockRepresentationResources: BlockRepresentationResourceOwner;
+  private readonly blockRepresentationCommit: BlockRepresentationCommitOwner;
   private readonly blockRepresentationHydration: BlockRepresentationHydrationOwner;
   private get instanceBatches(): ReadonlyMap<string, InstanceBatch> { return this.instanceRenderer.batches; }
   private get instanceOwnershipIndex(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
@@ -504,8 +486,6 @@ export class ThreeViewportEngine {
   private get providerGeneration(): number { return this.providerRefreshPipeline.providerGeneration; }
   private get hydrationProgressState(): ViewportHydrationProgress { return this.hydrationPipeline.progressSnapshot(); }
   private providerStats?: VisualCacheStats;
-  /** Ownership signatures for final fallback placeholders (no async job). */
-  private readonly placeholderSignatures = new Map<string, string>();
   private get hydrationRunning(): number { return this.hydrationPipeline.runningTotal; }
   private cameraInteractingUntil = 0;
   private cameraRenderPending = false;
@@ -560,7 +540,8 @@ export class ThreeViewportEngine {
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
   private readonly culledBlockKeys = new Set<string>();
   private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
-  private missingBlocksTerminal = false;
+  private readonly missingBlockAccounting = new MissingBlockAccountingOwner();
+  private get missingBlocksTerminal(): boolean { return this.missingBlockAccounting.isTerminal; }
 
   constructor(readonly instrumentation = new RendererDiagnostics(), options: ViewportEngineOptions = {}) {
     this.decorationVisuals = new DecorationRenderLifecycle({
@@ -606,8 +587,8 @@ export class ThreeViewportEngine {
       providerGeneration: () => this.providerGeneration,
       isCameraInteracting: () => this.isCameraInteracting(),
       onAsyncApply: (records, result) => {
-        this.commitTerrainRecords(records, result);
-        if (result.failedKeys.length) this.enqueueFailedTerrainKeys(result.failedKeys);
+        this.terrainPipeline.commit(records, result);
+        if (result.failedKeys.length) this.terrainPipeline.enqueueFailed(result.failedKeys);
         this.scheduleRender();
         if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
       },
@@ -648,44 +629,97 @@ export class ThreeViewportEngine {
       invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
       trace: (phase, key, source, entry) => this.traceInstanceOwnership(phase as 'before-remove' | 'after-remove' | 'after-remove-entry', key, source as 'rollback' | 'reconcile', entry),
     });
-    this.blockRepresentationHydration = new BlockRepresentationHydrationOwner({
-      store: this.blockRepresentations,
-      resources: this.blockRepresentationResources,
-      blocksGroup: this.blocksGroup,
-      provider: () => this.visualProvider,
-      providerGeneration: () => this.providerGeneration,
-      requestReusableKey: (provider, block, world) => this.requestReusableVisualKey(provider, block, world),
-      createVisual: (provider, block, world) => this.createProviderVisual(provider, block, world),
-      resolveTerrain: (key, block, world, provider) => this.resolveTerrainHydration(key, block, world, provider),
+    const representationTargets: BlockRepresentationRenderTargets = {
       terrain: {
         templatesFor: (key) => this.terrainRenderer.templatesFor(key),
         cacheTemplates: (key, templates) => this.terrainRenderer.cacheTemplates(key, templates),
         chunkKey,
+        add: (block, key, templates, role) => this.addTerrainVisual(block, key, templates, role),
       },
       surface: {
         templatesFor: (key) => this.surfaceRenderer.templatesFor(key),
         cacheTemplates: (key, templates) => this.surfaceRenderer.cacheTemplates(key, templates),
         meshFor: (batchKey) => this.surfaceFaceBatches.get(batchKey)?.mesh,
+        add: (block, key, templates, visible) => this.addSurfaceFaceVisual(block, key, templates, visible),
       },
-      staticModels: {
+      instances: {
         shouldAttempt: (allowInstancing, reusableKey) => this.instanceRenderer.shouldAttempt(allowInstancing, reusableKey),
         templateFor: (key) => this.instanceRenderer.templateFor(key),
         decisionFor: (key) => this.instanceRenderer.decisionFor(key),
         batches: this.instanceBatches,
+        add: (object, block, key, reusableKey, source, role) => this.addInstanceVisual(object, block, key, reusableKey, source, role),
+        addFromTemplates: (templates, block, key, source, compiled, role) => this.addInstanceVisualFromTemplates(templates, block, key, source, compiled, role),
       },
-      addSurface: (block, key, templates, visible) => this.addSurfaceFaceVisual(block, key, templates, visible),
-      addTerrain: (block, key, templates, role) => this.addTerrainVisual(block, key, templates, role),
-      addInstance: (object, block, key, reusableKey, source, role) => this.addInstanceVisual(object, block, key, reusableKey, source, role),
-      addInstanceFromTemplates: (templates, block, key, source, compiled, role) => this.addInstanceVisualFromTemplates(templates, block, key, source, compiled, role),
-      applyBrightness: (object) => applyBlockBrightnessToObject(object, this.blockBrightness),
-      applyReferenceOpacity: (object, opacity) => applyReferenceOpacityToObject(object, opacity),
-      familyFromReusableKey,
-      familyFromVisual: visualFamily,
-      extractSurfaceTemplates: extractSurfaceFaceTemplates,
+      object: {
+        blocksGroup: this.blocksGroup,
+        applyBrightness: (object) => applyBlockBrightnessToObject(object, this.blockBrightness),
+        applyReferenceOpacity: (object, opacity) => applyReferenceOpacityToObject(object, opacity),
+        familyFromReusableKey,
+        familyFromVisual: visualFamily,
+        extractSurfaceTemplates: extractSurfaceFaceTemplates,
+      },
+    };
+    this.blockRepresentationCommit = new BlockRepresentationCommitOwner({
+      store: this.blockRepresentations,
+      resources: this.blockRepresentationResources,
+      targets: representationTargets,
       record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
       invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
       recordProviderCacheStats: () => this.recordProviderCacheStats(),
       releaseRetiredProviders: () => this.releaseUnusedRetiredProviders(),
+      scheduleRender: () => this.scheduleRender(),
+    });
+    this.blockRepresentationHydration = new BlockRepresentationHydrationOwner({
+      store: this.blockRepresentations,
+      provider: () => this.visualProvider,
+      providerGeneration: () => this.providerGeneration,
+      resolve: {
+        reusableKey: (provider, block, world) => this.requestReusableVisualKey(provider, block, world),
+        visual: (provider, block, world) => this.createProviderVisual(provider, block, world),
+        terrain: (key, block, world, provider) => this.resolveTerrainHydration(key, block, world, provider),
+      },
+      commit: this.blockRepresentationCommit,
+      invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
+    });
+    this.terrainPipeline = new ViewportTerrainWorkflowOwner({
+      representation: {
+        store: this.blockRepresentations,
+        visibleEntry: (key) => this.yLayerProjection.visibleEntry(key),
+        visibleSignature: (key) => this.yLayerProjection.visibleEntry(key)?.signature,
+        clearPending: (key) => this.hydrationPipeline.clearPendingSignature(key),
+        pending: (key) => this.hydrationPipeline.hasPendingSignature(key),
+        ensurePlaceholder: (key, block, role) => this.ensurePlaceholderVisual(key, block, role),
+        removePlaceholder: (key) => this.placeholderRenderer.removeBulk([key]),
+        complete: (generation, keys) => this.completeHydrationBatch(generation, keys),
+      },
+      projection: {
+        revision: () => this.yLayerProjection.revision,
+        revisionFor: (key) => this.yLayerProjection.revisionForKey(key),
+        disposed: () => this.disposed,
+      },
+      renderer: this.terrainRenderer,
+      hydration: {
+        generation: () => this.hydrationPipeline.generation,
+        providerGeneration: () => this.providerGeneration,
+        runningGenerationFor: (key) => this.hydrationPipeline.runningGenerationFor(key),
+        removePending: (keys) => this.hydrationPipeline.removePendingKeys(keys),
+        reorder: () => this.hydrationPipeline.prioritizeRegularJobs((job) => job.role),
+        beginProgress: (lane) => this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane),
+        queuedBlocks: () => this.queuedBlockHydrationJobs(),
+        schedule: () => this.scheduleHydrationPump(),
+      },
+      fallback: {
+        renderOptions: () => this.renderOptions,
+        worldContext: () => ({ getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) }),
+        enqueue: (job) => this.hydrationPipeline.enqueueRegular(job),
+        surfaceVisibleEntries: () => this.yLayerProjection.visibleEntriesByKey,
+      },
+      visual: {
+        create: (provider, block, world) => this.createProviderVisual(provider, block, world),
+        disposeTemplates: (templates) => { for (const template of templates) { template.geometry.dispose(); template.material.dispose(); } },
+      },
+      trace: (event, details) => this.runtimeTrace?.record(event, details),
+      recordProviderCacheStats: () => this.recordProviderCacheStats(),
       scheduleRender: () => this.scheduleRender(),
     });
     this.structureBlockGuideGroup.name = 'structureBlockGuide';
@@ -912,11 +946,7 @@ export class ThreeViewportEngine {
 
   /** Marks unresolved Missing blocks as terminal fallbacks once source restore is terminal. */
   setMissingBlocksTerminal(terminal: boolean): void {
-    if (this.missingBlocksTerminal === terminal) return;
-    this.missingBlocksTerminal = terminal;
-    for (const entry of this.yLayerProjection.visibleEntries) {
-      if (entry.block.kind === 'missing') this.hydrationPipeline.syncMissingBlockState(coordinateKey(entry.block.position), terminal ? 'permanent' : 'provisional');
-    }
+    if (!this.missingBlockAccounting.setTerminal(terminal, this.yLayerProjection.visibleEntries, (key, state) => this.hydrationPipeline.syncMissingBlockState(key, state))) return;
     this.hydrationPipeline.refreshProgress();
     this.scheduleRender();
   }
@@ -1415,7 +1445,7 @@ export class ThreeViewportEngine {
         terrainCandidates.push(terrainCandidate);
       } else this.hydrationPipeline.enqueueRegular({ token: this.hydrationPipeline.generation, projectionRevision: this.yLayerProjection.revisionForKey(key), key, block: next.block, signature: next.signature, role: next.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && isCompiledTerrainEntry(next), surfaceVisibleEntries: allVisibleMap });
     }
-    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, visible, terrainAffectedPositions, full, false, 'structural');
+    if (terrainCandidates.length) this.terrainPipeline.scheduleWorkflowBatch(terrainCandidates, visible, terrainAffectedPositions, full, false, 'structural');
     const normalJobs: BlockHydrationJob[] = [];
     const referenceJobs: BlockHydrationJob[] = [];
     const missingJobs: BlockHydrationJob[] = [];
@@ -1517,7 +1547,7 @@ export class ThreeViewportEngine {
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
     }
-    this.updateHydrationOrder();
+    this.hydrationPipeline.prioritizeRegularJobs((job) => job.role);
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     this.yLayerProjection.clearInFlightLayers();
@@ -1610,7 +1640,7 @@ export class ThreeViewportEngine {
     }
     if (terrainChanges.length) this.terrainRenderer.applyBlockChanges(terrainChanges, flushTerrain, [...changedProjectionKeys]);
     if (publishProgress) {
-      this.updateHydrationOrder();
+      this.hydrationPipeline.prioritizeRegularJobs((job) => job.role);
       this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
       if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     }
@@ -1925,11 +1955,11 @@ export class ThreeViewportEngine {
       terrainChanges.push({ key, position, afterOpaque: !!terrain });
     }
     const terrainResult = this.terrainRenderer.applyBlockChanges(terrainChanges, true, [...delta.hydrationInvalidatedKeys]);
-    if (!terrainResult.pending) this.commitTerrainRecords(preparedTerrainRecords.values(), terrainResult);
+    if (!terrainResult.pending) this.terrainPipeline.commit(preparedTerrainRecords.values(), terrainResult);
     const representedTerrainKeys = new Set(terrainResult.representedKeys);
-    if (!terrainResult.pending) this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate), lane);
-    if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true, lane);
-    this.updateHydrationOrder();
+    if (!terrainResult.pending) this.terrainPipeline.enqueueFailed([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate), lane);
+    if (terrainCandidates.length) this.terrainPipeline.scheduleWorkflowBatch(terrainCandidates, [], [...affectedPositions.values()], false, true, lane);
+    this.hydrationPipeline.prioritizeRegularJobs((job) => job.role);
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane);
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     // InstanceBatchRenderer updates swap-back ownership atomically for every
@@ -1939,126 +1969,6 @@ export class ThreeViewportEngine {
     this.runtimeTrace?.record(`${tracePrefix}-end`, { mutatedKeys: changedKeys.size, dependencyKeys: delta.dependencyKeys.size, terrainChunks: terrainResult.rebuiltChunks.length, terrainPending: terrainResult.pending ?? false });
   }
 
-  private commitTerrainRecords(records: Iterable<TerrainSurfaceRecord>, result: TerrainApplyResult, projectionRevision = this.yLayerProjection.revision): void {
-    if (projectionRevision !== this.yLayerProjection.revision) return;
-    const represented = new Set(result.representedKeys);
-    const failed = new Set(result.failedKeys);
-    for (const key of failed) {
-      const current = this.blockRepresentations.get(key);
-      if (!current || represented.has(key)) continue;
-      this.blockRepresentations.setTerrainRepresentation(key, undefined);
-      this.ensurePlaceholderVisual(key, current.block, current.role);
-      if (!this.hydrationPipeline.hasPendingSignature(key)) this.placeholderSignatures.set(key, current.signature);
-    }
-    for (const record of records) {
-      const current = this.blockRepresentations.get(record.key);
-      if (!current || current.signature !== this.yLayerProjection.visibleEntry(record.key)?.signature) continue;
-      if (!represented.has(record.key)) continue;
-      this.blockRepresentations.setTerrainRepresentation(record.key, chunkKey(record.block.position));
-      this.hydrationPipeline.clearPendingSignature(record.key);
-      this.placeholderSignatures.delete(record.key);
-      this.placeholderRenderer.removeBulk([record.key]);
-    }
-    const hydrationKeys = [...new Set(result.hydrationCandidateKeys ?? result.changedKeys)].filter((key) => represented.has(key));
-    if (hydrationKeys.length) {
-      this.completeHydrationBatch(this.hydrationPipeline.generation, hydrationKeys);
-      this.runtimeTrace?.record('terrain-commit-hydration', { candidateKeys: (result.hydrationCandidateKeys ?? result.changedKeys).length, completedKeys: hydrationKeys.length, publishCount: 1 });
-    }
-  }
-
-  private updateHydrationOrder(): void {
-    const normal: BlockHydrationJob[] = [], reference: BlockHydrationJob[] = [], missing: BlockHydrationJob[] = [];
-    for (const job of this.hydrationPipeline.regularJobs()) (job.role === 'normal' ? normal : job.role === 'reference' ? reference : missing).push(job);
-    this.hydrationPipeline.replaceRegular([...normal, ...reference, ...missing]);
-  }
-
-  private scheduleTerrainBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean, local = false, lane: HydrationLane = local ? 'local' : 'structural'): void {
-    const projectionRevision = this.yLayerProjection.revision;
-    const generation = this.hydrationPipeline.generation;
-    const providerGeneration = this.providerGeneration;
-    this.terrainPipeline.scheduleBatch(
-      candidates,
-      {
-        affectedPositions, initial, local, lane, generation, providerGeneration,
-        currentGeneration: () => this.hydrationPipeline.generation,
-        currentProviderGeneration: () => this.providerGeneration,
-        isDisposed: () => this.disposed,
-        projectionRevision,
-        candidateProjectionRevisions: new Map(candidates.map((candidate) => [candidate.key, this.yLayerProjection.revisionForKey(candidate.key)] as const)),
-        projectionRevisionFor: (key) => this.yLayerProjection.revisionForKey(key),
-      },
-      {
-      cachedTemplates: (key) => this.terrainRenderer.templatesFor(key),
-        cacheTemplates: (key, templates) => this.terrainRenderer.cacheTemplates(key, templates),
-        resolveTemplates: (candidate) => this.resolveTerrainTemplates(candidate.reusableKey, candidate.next.block, candidate.worldContext, candidate.provider),
-        disposeTemplates: (templates) => this.disposeTerrainTemplates(templates),
-      },
-      {
-        currentSignature: (key) => this.blockRepresentations.get(key)?.signature,
-        candidateSignature: (candidate) => candidate.next.signature,
-        toRecord: (candidate, templates) => ({ key: candidate.key, block: candidate.next.block, templates, role: candidate.next.role === 'reference' ? 'reference' as const : 'normal' as const }),
-        apply: (records, context) => local
-          ? this.terrainRenderer.applyBlockChanges(records.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: record.role === 'normal' })), true)
-          : this.terrainRenderer.bulkUpsert(records, initial ? occupancyEntries : undefined, context.affectedPositions, { initial }),
-      },
-      {
-        onCommit: (records, result, revision) => this.commitTerrainRecords(records, result, revision),
-        onStale: (items, staleLane) => {
-          if (!this.disposed && generation === this.hydrationPipeline.generation && providerGeneration === this.providerGeneration) this.enqueueFailedTerrainCandidates(items, staleLane as HydrationLane);
-        },
-        onFailed: (items, failedLane) => this.enqueueFailedTerrainCandidates(items, failedLane as HydrationLane),
-        onFinished: () => {
-          this.recordProviderCacheStats();
-          this.scheduleRender();
-          if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
-        },
-      },
-    );
-    if (this.terrainPipeline.pendingGroupCount) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane);
-  }
-
-  private enqueueFailedTerrainCandidates(candidates: readonly TerrainHydrationCandidate[], lane: HydrationLane = this.hydrationPipeline.lane): void {
-    this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key), lane);
-  }
-
-  /** Reconstructs fallback work from current viewport state after an async terrain disposition. */
-  private enqueueFailedTerrainKeys(keys: readonly string[], lane: HydrationLane = this.hydrationPipeline.lane): void {
-    const candidates = new Set<string>();
-    for (const key of keys) {
-      const next = this.yLayerProjection.visibleEntry(key);
-      const current = this.blockRepresentations.get(key);
-      if (!next || !current || current.signature !== next.signature) continue;
-      if (this.hydrationPipeline.runningGenerationFor(key) === this.hydrationPipeline.generation) continue;
-      candidates.add(key);
-    }
-    if (!candidates.size) return;
-    this.hydrationPipeline.removePendingKeys(candidates);
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
-    for (const key of candidates) {
-      const next = this.yLayerProjection.visibleEntry(key);
-      if (!next) continue;
-      // Terrain failure is only a surface-representation failure. Let the
-      // static classifier prove whether the provider visual can still batch.
-      this.hydrationPipeline.enqueueRegular({ token: this.hydrationPipeline.generation, projectionRevision: this.yLayerProjection.revisionForKey(key), key, block: next.block, signature: next.signature, role: next.role, worldContext, options: this.renderOptions, allowInstancing: true, surfaceFastPathEligible: false, surfaceVisibleEntries: this.yLayerProjection.visibleEntriesByKey });
-    }
-    this.instrumentation.record('terrainAsyncFallbackKeys', candidates.size);
-    this.updateHydrationOrder();
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane);
-    this.scheduleHydrationPump();
-  }
-
-  private resolveTerrainTemplates(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: TerrainHydrationCandidate['worldContext'], provider: BlockVisualProvider): Promise<readonly SurfaceFaceTemplate[] | undefined> {
-    return this.terrainPipeline.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
-      if (!visual.object) return undefined;
-      const templates = extractSurfaceFaceTemplates(visual.object);
-      disposeObject(visual.object);
-      return templates;
-    }));
-  }
-
-  private disposeTerrainTemplates(templates: readonly SurfaceFaceTemplate[]): void {
-    for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
-  }
 
   private visibleBlocks(project: ProjectDocument, options: ViewportRenderOptions, countScan = true): readonly VisibleBlockEntry[] {
     if (countScan) this.instrumentation.record('fullVisibleScans');
@@ -2354,12 +2264,7 @@ export class ThreeViewportEngine {
   }
 
   private resolveTerrainHydration(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, provider: BlockVisualProvider): Promise<TerrainHydrationResult> {
-    const pending = this.terrainPipeline.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
-      if (!visual.object) return undefined;
-      const templates = extractSurfaceFaceTemplates(visual.object);
-      disposeObject(visual.object);
-      return templates;
-    }));
+    const pending = this.terrainPipeline.resolveTemplatesFor(reusableKey, () => this.createProviderVisual(provider, block, worldContext));
     return pending.then((templates) => templates
       ? { object: undefined, terrainTemplates: templates, resolved: { blockId: block.id, state: block.state, parts: [], support: 'full' as const, diagnostics: [], trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [], modelResources: [], parentResources: [], elementCount: 0, faceCount: 0, textureResources: [] } }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }
       : this.createProviderVisual(provider, block, worldContext));
@@ -2691,7 +2596,7 @@ export class ThreeViewportEngine {
       renderedEntries: this.blockRepresentations,
       placeholderIndices: this.placeholderIndices,
       pendingSignatures: this.hydrationPipeline.pendingSnapshot(),
-      placeholderSignatures: this.placeholderSignatures,
+      placeholderSignatures: this.placeholderSignatures.snapshot(),
       queuedKeys: this.hydrationPipeline.regularJobs().map((job) => job.key),
       runningKeys: this.hydrationPipeline.runningKeyGenerationsSnapshot(),
       instanceBatches: this.instanceBatches.values(),
