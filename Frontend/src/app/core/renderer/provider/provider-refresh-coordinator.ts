@@ -14,7 +14,7 @@ export class ProviderRefreshCoordinator<P extends RetainableProvider> {
   private currentGeneration = 0;
 
   get generation(): number { return this.currentGeneration; }
-  get retiredProviders(): ReadonlySet<P> { return this.retired; }
+  get retiredProviders(): ReadonlySet<P> { return new Set(this.retired); }
   hasRetired(provider: P): boolean { return this.retired.has(provider); }
 
   transition(previous: P | undefined, next: P | undefined): number {

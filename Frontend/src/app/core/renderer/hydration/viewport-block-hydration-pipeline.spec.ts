@@ -18,6 +18,15 @@ describe('ViewportBlockHydrationPipeline', () => {
     expect(value.runningTotal).toBe(0);
   });
 
+  it('returns a detached running-generation snapshot', () => {
+    const value = pipeline();
+    value.startWork(4);
+    const snapshot = value.runningGenerationSnapshot() as Map<number, number>;
+    snapshot.set(9, 99);
+    expect(value.runningGenerationCount(4)).toBe(1);
+    expect(value.runningGenerationCount(9)).toBe(0);
+  });
+
   it('cancels pending generation work and clears pending/running accounting atomically', () => {
     const value = pipeline();
     value.setPendingSignature('a', 'stone');

@@ -59,7 +59,7 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   runningKeys(): IterableIterator<string> { return this.running.keys(); }
   runningSnapshot(): ReadonlyMap<string, RunningBlockHydrationOwnership> { return new Map(this.running); }
   runningGenerationCount(generation: number): number { return this.runningByGeneration.get(generation) ?? 0; }
-  runningGenerationSnapshot(): ReadonlyMap<number, number> { return this.runningByGeneration; }
+  runningGenerationSnapshot(): ReadonlyMap<number, number> { return new Map(this.runningByGeneration); }
   runningKeyGenerationsSnapshot(): ReadonlyMap<string, number> { return new Map([...this.running].map(([key, owner]) => [key, owner.generation])); }
 
   startWork(generation: number): void {

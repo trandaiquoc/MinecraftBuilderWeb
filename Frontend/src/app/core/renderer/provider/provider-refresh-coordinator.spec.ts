@@ -39,4 +39,14 @@ describe('ProviderRefreshCoordinator', () => {
     expect(first.retain).toHaveBeenCalledTimes(1);
     expect(second.release).not.toHaveBeenCalled();
   });
+
+  it('does not expose its mutable retirement set through a readonly view', () => {
+    const first = provider();
+    const second = provider();
+    const coordinator = new ProviderRefreshCoordinator<typeof first>();
+    coordinator.transition(undefined, first);
+    coordinator.transition(first, second);
+    (coordinator.retiredProviders as Set<typeof first>).clear();
+    expect(coordinator.hasRetired(first)).toBe(true);
+  });
 });
