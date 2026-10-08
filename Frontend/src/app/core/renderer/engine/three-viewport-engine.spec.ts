@@ -1567,10 +1567,10 @@ describe('group isolation presentation', () => {
     };
     const engine = new ThreeViewportEngine();
     engine.update(project, undefined);
-    const internal = engine as unknown as { structureSyncKey: string; hydrationGeneration: number; cachedVisibleMap: Map<string, unknown> };
+    const internal = engine as unknown as { structureSyncKey: string; hydrationGeneration: number; yLayerProjection: { visibleEntriesByKey: ReadonlyMap<string, unknown> } };
     const beforeKey = internal.structureSyncKey;
     const beforeGeneration = internal.hydrationGeneration;
-    const beforeVisibleKeys = [...internal.cachedVisibleMap.keys()];
+    const beforeVisibleKeys = [...internal.yLayerProjection.visibleEntriesByKey.keys()];
     const before = engine.rendererCounters();
 
     engine.update(project, undefined, { isolatedGroupId: 'roof', isolatedGroupPositions: [{ x: 0, y: 0, z: 0 }] });
@@ -1579,7 +1579,7 @@ describe('group isolation presentation', () => {
     expect(engine.rendererCounters().fullReconcileFallbacks).toBe(before.fullReconcileFallbacks);
     expect(engine.rendererCounters().fullVisibleScans).toBe(before.fullVisibleScans);
     expect(internal.hydrationGeneration).toBe(beforeGeneration);
-    expect([...internal.cachedVisibleMap.keys()]).toEqual(beforeVisibleKeys);
+    expect([...internal.yLayerProjection.visibleEntriesByKey.keys()]).toEqual(beforeVisibleKeys);
     expect(engine.isolationDiagnostics()).toMatchObject({ active: true, targetBlocks: 1 });
 
     engine.update(project, undefined, {});
@@ -1588,7 +1588,7 @@ describe('group isolation presentation', () => {
     expect(engine.rendererCounters().fullReconcileFallbacks).toBe(before.fullReconcileFallbacks);
     expect(engine.rendererCounters().fullVisibleScans).toBe(before.fullVisibleScans);
     expect(internal.hydrationGeneration).toBe(beforeGeneration);
-    expect([...internal.cachedVisibleMap.keys()]).toEqual(beforeVisibleKeys);
+    expect([...internal.yLayerProjection.visibleEntriesByKey.keys()]).toEqual(beforeVisibleKeys);
     expect(engine.isolationDiagnostics()).toMatchObject({ active: false, targetBlocks: 0 });
     engine.dispose();
   });
