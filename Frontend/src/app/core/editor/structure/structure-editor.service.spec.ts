@@ -4,7 +4,8 @@ import { BlockLibraryService } from '../../blocks/catalog/block-library.service'
 import { PlacedBlock, ProjectDocument } from '../../domain/project.types';
 import { HistoryService } from '../history/history.service';
 import { SelectionService } from '../selection/selection.service';
-import { isSignId, signLines, StructureEditorService } from './structure-editor.service';
+import { StructureEditorService } from './structure-editor.service';
+import { isSignId, signLines } from '../../block-entities/sign/sign-block-entity';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
 import type { ItemStackData } from '../../items/item-stack.types';

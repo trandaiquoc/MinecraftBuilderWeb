@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
-import { StructureEditorService, isSignDefinition, isSignId } from '../../../../core/editor/structure/structure-editor.service';
+import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
+import { isSignDefinition, isSignId } from '../../../../core/block-entities/sign/sign-block-entity';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';

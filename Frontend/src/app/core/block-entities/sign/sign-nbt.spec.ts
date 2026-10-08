@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSignData } from '../../editor/structure/structure-editor.service';
+import { defaultSignData } from './sign-block-entity';
 import { toMinecraftSignBlockEntityNbt } from './sign-nbt';
 
 describe('Minecraft sign block entity mapper', () => {

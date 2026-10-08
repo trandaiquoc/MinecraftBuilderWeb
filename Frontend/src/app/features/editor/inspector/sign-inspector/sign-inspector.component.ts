@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { coordinateKey } from '../../../../core/domain/coordinates';
-import { isSignDefinition, isSignId, signData, signLineWidth, StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
+import { isSignDefinition, isSignId, signData, signLineWidth } from '../../../../core/block-entities/sign/sign-block-entity';
+import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';

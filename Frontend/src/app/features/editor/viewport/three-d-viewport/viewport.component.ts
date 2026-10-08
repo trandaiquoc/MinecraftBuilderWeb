@@ -24,7 +24,7 @@ import { VanillaAssetsService } from '../../../../core/assets/vanilla/vanilla-as
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
 import { visibleBlockEntries } from '../../../../core/editor/viewport/visible-blocks';
-import { isSignDefinition, isSignId } from '../../../../core/editor/structure/structure-editor.service';
+import { isSignDefinition, isSignId } from '../../../../core/block-entities/sign/sign-block-entity';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
 import { facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
