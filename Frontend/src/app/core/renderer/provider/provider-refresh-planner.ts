@@ -37,9 +37,9 @@ export class ProviderRefreshPlanner<TInput, TJob> {
     this.controller = undefined;
   }
 
-  start(
-    inputs: readonly TInput[],
-    classify: (input: TInput) => { readonly considered: boolean; readonly job?: TJob },
+  start<TPlanInput extends TInput>(
+    inputs: readonly TPlanInput[],
+    classify: (input: TPlanInput) => { readonly considered: boolean; readonly job?: TJob },
     callbacks: { readonly onStart?: (total: number) => void; readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void; readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void; readonly onCancel?: () => void; readonly onError?: (error: unknown) => void },
     options: ProviderRefreshPlannerOptions = {},
   ): void {
@@ -56,9 +56,9 @@ export class ProviderRefreshPlanner<TInput, TJob> {
     });
   }
 
-  private async run(
-    inputs: readonly TInput[],
-    classify: (input: TInput) => { readonly considered: boolean; readonly job?: TJob },
+  private async run<TPlanInput extends TInput>(
+    inputs: readonly TPlanInput[],
+    classify: (input: TPlanInput) => { readonly considered: boolean; readonly job?: TJob },
     callbacks: { readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void; readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void; readonly onCancel?: () => void },
     budget: CooperativeWorkBudget,
     yieldWork: (signal?: AbortSignal) => Promise<void>,

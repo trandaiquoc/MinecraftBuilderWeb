@@ -1,8 +1,8 @@
 import { HydrationProgressTracker } from '../scheduling/hydration-progress-tracker';
-import type { HydrationLane, HydrationProgressSnapshot } from '../scheduling/hydration-progress-tracker';
+import type { HydrationBlockScopeDelta, HydrationLane, HydrationProgressSnapshot } from '../scheduling/hydration-progress-tracker';
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
-import type { HydrationWorkItem } from '../scheduling/hydration-work-coordinator';
+import type { HydrationWorkCounts, HydrationWorkItem } from '../scheduling/hydration-work-coordinator';
 
 export interface RunningBlockHydrationOwnership {
   readonly generation: number;
@@ -79,6 +79,48 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   runningGenerationCount(generation: number): number { return this.runningByGeneration.get(generation) ?? 0; }
   runningGenerationSnapshot(): ReadonlyMap<number, number> { return new Map(this.runningByGeneration); }
   runningKeyGenerationsSnapshot(): ReadonlyMap<string, number> { return new Map([...this.running].map(([key, owner]) => [key, owner.generation])); }
+
+  // Semantic queue/progress surface. Consumers do not need to reach into the
+  // scheduler, work coordinator, or progress tracker owned by this pipeline.
+  workCounts(): HydrationWorkCounts { return this.work.counts(); }
+  regularJobs(): readonly T[] { return this.work.regularJobs(); }
+  providerRefreshJobs(): readonly T[] { return this.work.providerRefreshJobs(); }
+  enqueueRegular(job: T): void { this.work.enqueueRegular(job); }
+  enqueueProviderRefresh(job: T): boolean { return this.work.enqueueProviderRefresh(job); }
+  replaceRegular(jobs: readonly T[]): void { this.work.replaceRegular(jobs); }
+  retainPending(predicate: (job: T) => boolean): void { this.work.retainPending(predicate); }
+  removePendingKeys(keys: ReadonlySet<string>): void { this.work.removePendingKeys(keys); }
+  clearPendingWork(): void { this.work.clearPending(); }
+  clearPendingProviderRefreshWork(): void { this.work.clearPendingProviderRefresh(); }
+  compactWork(): void { this.work.compact(); }
+  compactConsumedWork(): void { this.work.compactConsumed(); }
+  queuedWork(): number { return this.work.queuedTotal(); }
+  queuedProviderRefreshWork(): number { return this.work.queuedProviderRefresh(); }
+  isScheduled(): boolean { return this.scheduler.isScheduled; }
+  isTimerActive(): boolean { return this.scheduler.timerActive; }
+  cancelScheduledWork(): void { this.scheduler.cancel(); }
+
+  progressSnapshot(): HydrationProgressSnapshot { return this.progress.snapshot(); }
+  onProgress(listener: (progress: HydrationProgressSnapshot) => void): () => void { return this.progress.onProgress(listener); }
+  setBlockScope(keys: readonly string[]): void { this.progress.setBlockScope(keys); }
+  applyBlockScopeDelta(delta: HydrationBlockScopeDelta, publish = true): void { this.progress.applyBlockScopeDelta(delta, publish); }
+  addBlockKey(key: string): void { this.progress.addBlockKey(key); }
+  removeBlockKey(key: string): void { this.progress.removeBlockKey(key); }
+  hasBlockKey(key: string): boolean { return this.progress.hasBlockKey(key); }
+  invalidateBlock(key: string): void { this.progress.invalidate('block', key); }
+  syncMissingBlockState(key: string, state: 'resolved' | 'provisional' | 'permanent' | 'pending'): void { this.progress.syncMissingBlockState(key, state); }
+  missingStateKeys(): readonly string[] { return this.progress.missingStateKeys(); }
+  adoptBlockKeys(generation: number, keys: readonly string[]): void { this.progress.adoptBlockKeys(generation, keys); }
+  setDecorationScope(ids: readonly string[]): void { this.progress.setDecorationScope(ids); }
+  adoptDecorationIds(generation: number, ids: readonly string[]): void { this.progress.adoptDecorationIds(generation, ids); }
+  setProgressLane(lane: HydrationLane): void { this.progress.setLane(lane); }
+  refreshProgress(): void { this.progress.refresh(); }
+  beginProgress(generation: number, lane?: HydrationLane): void { this.progress.begin(generation, lane); }
+  completeProgress(generation: number, kind: 'block' | 'decoration', key: string): void { this.progress.complete(generation, kind, key); }
+  completeProgressBatch(generation: number, kind: 'block' | 'decoration', keys: readonly string[]): void { this.progress.completeBatch(generation, kind, keys); }
+  publishProgress(progress: HydrationProgressSnapshot): void { this.progress.publish(progress); }
+  resetProgress(): void { this.progress.reset(this.currentGeneration); }
+  clearProgress(): void { this.progress.clear(); }
 
   startWork(generation: number): void {
     this.runningByGeneration.set(generation, this.runningGenerationCount(generation) + 1);

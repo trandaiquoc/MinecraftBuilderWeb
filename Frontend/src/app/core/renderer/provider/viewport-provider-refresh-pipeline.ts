@@ -31,11 +31,25 @@ export interface ProviderRefreshCandidateResult<TJob> {
   readonly job?: TJob;
 }
 
+export interface ProviderRefreshInput<P> {
+  readonly previousProvider: P;
+  readonly nextProvider: P;
+}
+
+export interface ProviderRefreshOptions<P, TInput, TJob extends HydrationWorkItem> {
+  readonly isMissing: (candidate: TInput) => boolean;
+  readonly isFluid: (candidate: TInput) => boolean;
+  readonly reusableKey: (candidate: TInput, provider: P) => string | undefined;
+  readonly createJob: (candidate: TInput, generation: number) => TJob;
+  readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void;
+  readonly onStateChange?: () => void;
+  readonly onScheduleHydration?: () => void;
+}
+
 /** Coordinates provider handoff planning, hydration enqueueing, and retired-provider lifetime. */
 export class ViewportProviderRefreshPipeline<P extends { retain?(): void; release?(): void }, TInput, TJob extends HydrationWorkItem> {
   readonly providers = new ProviderRefreshCoordinator<P>();
   private readonly planner = new ProviderRefreshPlanner<TInput, TJob>();
-  private get hydrationWork() { return this.hydrationPipeline.work; }
   private currentPlanGeneration = 0;
   private planning = false;
   private activeProgress?: MutableProviderRefreshProgress;
@@ -62,9 +76,9 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
     return deferred;
   }
 
-  plan(
-    inputs: readonly TInput[],
-    classify: (input: TInput, generation: number) => ProviderRefreshCandidateResult<TJob>,
+  plan<TPlanInput extends TInput>(
+    inputs: readonly TPlanInput[],
+    classify: (input: TPlanInput, generation: number) => ProviderRefreshCandidateResult<TJob>,
     callbacks: {
       readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void;
       readonly onStateChange?: () => void;
@@ -72,7 +86,7 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
     },
   ): number {
     this.planner.cancel();
-    this.hydrationWork.clearPendingProviderRefresh();
+    this.hydrationPipeline.clearPendingProviderRefreshWork();
     const generation = ++this.currentPlanGeneration;
     this.planning = true;
     this.activeProgress = undefined;
@@ -106,24 +120,15 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
   }
 
   /** Builds provider-refresh candidates from representation inputs before handing jobs to hydration. */
-  refresh(
-    inputs: readonly TInput[],
-    options: {
-      readonly isMissing: (candidate: TInput) => boolean;
-      readonly isFluid: (candidate: TInput) => boolean;
-      readonly reusableKey: (candidate: TInput, provider: P) => string | undefined;
-      readonly createJob: (candidate: TInput, generation: number) => TJob;
-      readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void;
-      readonly onStateChange?: () => void;
-      readonly onScheduleHydration?: () => void;
-    },
+  refresh<TCandidate extends TInput & ProviderRefreshInput<P>>(
+    inputs: readonly TCandidate[],
+    options: ProviderRefreshOptions<P, TCandidate, TJob>,
   ): number {
     return this.plan(inputs, (candidate, generation) => {
       if (options.isMissing(candidate)) return { considered: false };
       if (options.isFluid(candidate)) return { considered: true };
-      const typed = candidate as TInput & { readonly previousProvider: P; readonly nextProvider: P };
-      const oldKey = options.reusableKey(candidate, typed.previousProvider);
-      const newKey = options.reusableKey(candidate, typed.nextProvider);
+      const oldKey = options.reusableKey(candidate, candidate.previousProvider);
+      const newKey = options.reusableKey(candidate, candidate.nextProvider);
       if (oldKey === newKey && oldKey !== undefined) return { considered: true };
       return { considered: true, job: options.createJob(candidate, generation) };
     }, options);
@@ -132,10 +137,10 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
   refreshRepresentations<E, V>(
     representations: Iterable<[string, E]>,
     visible: ReadonlyMap<string, V>,
-    createInput: (key: string, entry: E, visibleEntry: V) => TInput,
-    options: Parameters<ViewportProviderRefreshPipeline<P, TInput, TJob>['refresh']>[1],
+    createInput: (key: string, entry: E, visibleEntry: V) => TInput & ProviderRefreshInput<P>,
+    options: ProviderRefreshOptions<P, TInput & ProviderRefreshInput<P>, TJob>,
   ): number {
-    const inputs: TInput[] = [];
+    const inputs: Array<TInput & ProviderRefreshInput<P>> = [];
     for (const [key, entry] of representations) {
       const visibleEntry = visible.get(key);
       if (visibleEntry) inputs.push(createInput(key, entry, visibleEntry));
@@ -146,7 +151,7 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
   completeJob(generation: number | undefined, callbacks: { readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void; readonly onStateChange?: () => void }): void {
     if (generation !== this.currentPlanGeneration || !this.activeProgress) return;
     this.activeProgress.completed = Math.min(this.activeProgress.total, this.activeProgress.completed + 1);
-    const counts = this.hydrationWork.counts();
+    const counts = this.hydrationPipeline.workCounts();
     if (!counts.providerRefreshQueued && !counts.providerRefreshRunning) {
       callbacks.onTrace?.('provider-refresh-end', { completed: this.activeProgress.completed, durationMs: performance.now() - this.activeProgress.startedAt });
       this.activeProgress = undefined;
@@ -157,7 +162,7 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
   cancelPlanning(): void {
     this.currentPlanGeneration += 1;
     this.planner.cancel();
-    this.hydrationWork.clearPendingProviderRefresh();
+    this.hydrationPipeline.clearPendingProviderRefreshWork();
     this.planning = false;
     this.activeProgress = undefined;
   }
@@ -171,7 +176,7 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
   private completePlan(generation: number, inputCount: number, result: ProviderRefreshPlannerResult<TJob>, callbacks: { readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void; readonly onStateChange?: () => void; readonly onScheduleHydration?: () => void }): void {
     if (generation !== this.currentPlanGeneration) return;
     this.planning = false;
-    const queued = result.jobs.reduce((count, job) => count + (this.hydrationWork.enqueueProviderRefresh(job) ? 1 : 0), 0);
+    const queued = result.jobs.reduce((count, job) => count + (this.hydrationPipeline.enqueueProviderRefresh(job) ? 1 : 0), 0);
     this.diagnostics = { processed: result.processed, total: inputCount, considered: result.considered, queued, maxSliceMs: result.maxSliceMs, yields: result.yields, durationMs: result.durationMs };
     callbacks.onTrace?.('provider-refresh-planning-end', { generation, considered: result.considered, queued, processed: result.processed, durationMs: result.durationMs, maxSliceMs: result.maxSliceMs, yields: result.yields });
     callbacks.onTrace?.('provider-refresh-queued', { queued });
@@ -180,7 +185,7 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
       callbacks.onTrace?.('provider-refresh-start', { queued });
     }
     callbacks.onStateChange?.();
-    if (this.hydrationWork.queuedProviderRefresh()) callbacks.onScheduleHydration?.();
+    if (this.hydrationPipeline.queuedProviderRefreshWork()) callbacks.onScheduleHydration?.();
   }
 }
 
