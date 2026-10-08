@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BoundedTraceBuffer, percentile, sanitizeTraceScenario, stableTraceJson, viewportTraceFilename, ViewportRuntimeTrace, type TraceDurationSummary, type ViewportTraceSample } from './viewport-runtime-trace';
+import { sanitizeTraceScenario, stableTraceJson, viewportTraceFilename } from './viewport-trace-export';
+import type { TraceDurationSummary } from './viewport-trace-statistics';
+import { ViewportRuntimeTrace, type ViewportTraceSample } from './viewport-runtime-trace';
 
 function sample(overrides: Partial<ViewportTraceSample> = {}): ViewportTraceSample {
   return {
@@ -12,19 +14,6 @@ function sample(overrides: Partial<ViewportTraceSample> = {}): ViewportTraceSamp
 }
 
 describe('ViewportRuntimeTrace', () => {
-  it('keeps bounded buffers and reports dropped values', () => {
-    const buffer = new BoundedTraceBuffer<number>(2);
-    buffer.push(1); buffer.push(2); buffer.push(3);
-    expect(buffer.toArray()).toEqual([2, 3]);
-    expect(buffer.droppedCount).toBe(1);
-  });
-
-  it('calculates interpolated percentiles and safe filenames', () => {
-    expect(percentile([1, 2, 3, 4], .5)).toBe(2.5);
-    expect(sanitizeTraceScenario(' rmb first / test ')).toBe('rmb-first-test');
-    expect(viewportTraceFilename('rmb first', new Date('2026-10-04T01:02:03.004Z'))).toBe('minecraftbuilder-viewport-trace-rmb-first-2026-10-04T01-02-03-004Z.json');
-  });
-
   it('records lifecycle, marks, summary and stable JSON', () => {
     const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 12, minecraftVersion: '1.21.1' }), sample: () => sample({ staticModels: { standaloneLogical: 4, standaloneReasonCounts: { transparent: 2 } }, fluids: { fluidLogicalVoxels: 16, fluidChunkMeshes: 1, fluidStandaloneMeshes: 0 } }) });
     trace.start('idle-build'); trace.mark('checkpoint');
