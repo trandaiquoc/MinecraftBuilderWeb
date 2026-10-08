@@ -24,7 +24,7 @@ import { IndexedDbProjectStore } from '../../../core/persistence/project-store/i
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
-import { clampGroupMovePanelPosition, PanelPosition } from '../../../features/editor/shell/group-move/group-move-panel';
+import { GroupMovePanelSession } from './group-move/group-move-panel-session';
 import { EditorSidebarResizeSession } from './editor-sidebar-resize-session';
 import { DecorationService } from '../../../core/decorations/decoration.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog/settings-dialog.component';
@@ -47,7 +47,7 @@ export function hasEditorSelectionState(decorationSelected: boolean, logicalCoun
   return decorationSelected || logicalCount > 0 || boxSelected;
 }
 
-@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, BlockUsagePanelComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelDrag($event); sidebarResize.move($event)', '(document:pointerup)': 'endMovePanelDrag($event); sidebarResize.end($event)', '(document:pointercancel)': 'endMovePanelDrag($event); sidebarResize.end($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'sidebarResize.clampToViewport()' } })
+@Component({ selector: 'app-editor-shell', imports: [RouterLink, BlockBrowserComponent, DecorationBrowserComponent, GroupsPanelComponent, SelectionInspectorComponent, BlockUsagePanelComponent, EditorStatusBarComponent, QuickBlockBarComponent, ViewportComponent, YLayerComponent, SettingsDialogComponent, ShortcutsHelpDialogComponent, AssetManagerDialogComponent, ProjectDiagnosticsDialogComponent, StructureJsonExportDialogComponent, StructureJsonImportDialogComponent, StructureNbtExportDialogComponent, LucideChevronDown, LucideRedo2, LucideRotateCcw, LucideUndo2, LucideX, UiTooltipDirective], templateUrl: './editor-shell.component.html', styleUrl: './editor-shell.component.scss', host: { '(document:keydown)': 'handleEditorShortcut($event)', '(document:keyup)': 'handleEditorKeyup($event)', '(document:focusin)': 'handleFocusIn($event)', '(document:visibilitychange)': 'handleVisibilityChange($event)', '(document:click)': 'closeMenus()', '(document:pointermove)': 'movePanelSession.move($event); sidebarResize.move($event)', '(document:pointerup)': 'movePanelSession.end($event); sidebarResize.end($event)', '(document:pointercancel)': 'movePanelSession.end($event); sidebarResize.end($event)', '(window:blur)': 'handleWindowBlur($event)', '(window:resize)': 'sidebarResize.clampToViewport()' } })
 export class EditorShellComponent implements OnDestroy {
   protected readonly i18n = inject(I18nService);
   protected readonly theme = inject(ThemeService);
@@ -99,20 +99,12 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly movePanelVisible = signal(false);
   private readonly viewportHost = viewChild<ElementRef<HTMLElement>>('viewportHost');
   private readonly movePanel = viewChild<ElementRef<HTMLElement>>('groupMovePanel');
-  protected readonly movePanelPosition = computed(() => {
-    const preferences = this.layout.preferences();
-    const host = this.viewportHost()?.nativeElement;
-    const width = host?.clientWidth ?? 640;
-    const height = host?.clientHeight ?? 480;
-    const panel = this.movePanel()?.nativeElement;
-    return clampGroupMovePanelPosition(
-      { x: preferences.groupMovePanelX ?? Math.max(16, width - 316), y: preferences.groupMovePanelY ?? 16 },
-      { width, height },
-      { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 },
-    );
-  });
+  protected readonly movePanelSession = new GroupMovePanelSession(
+    this.layout,
+    () => ({ width: this.viewportHost()?.nativeElement.clientWidth ?? 640, height: this.viewportHost()?.nativeElement.clientHeight ?? 480 }),
+    () => ({ width: this.movePanel()?.nativeElement.offsetWidth ?? 300, height: this.movePanel()?.nativeElement.offsetHeight ?? 280 }),
+  );
   private previousActiveGroupId: string | undefined;
-  private moveDrag?: { readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: PanelPosition };
   private readonly movementInput = new EditorMovementInputSession({
     movementDown: (action) => this.currentViewport()?.cameraKeyDown(action),
     movementUp: (action) => this.currentViewport()?.cameraKeyUp(action),
@@ -126,10 +118,11 @@ export class EditorShellComponent implements OnDestroy {
       if (activeGroupId === this.previousActiveGroupId) return;
       this.previousActiveGroupId = activeGroupId;
       this.groups.resetMove();
+      this.movePanelSession.cancelDrag();
       if (!activeGroupId) this.movePanelVisible.set(false);
     });
   }
-  ngOnDestroy(): void { this.sidebarResize.end(); this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
+  ngOnDestroy(): void { this.sidebarResize.end(); this.movePanelSession.cancelDrag(); this.clearPressedMovementActions(); void this.autosave.flush().catch(() => undefined); }
 
   protected saveStatusLabel(): string { return this.i18n.t(this.autosave.status() === 'pending' || this.autosave.status() === 'saving' ? 'savingProject' : this.autosave.status() === 'error' ? 'saveProjectError' : 'projectSaved'); }
   protected shortcutTitle(action: KeyboardAction): string { return `${this.i18n.t(action === 'undo' ? 'undo' : 'redo')} (${this.keyboard.bindings()[action].replaceAll('|', ' / ')})`; }
@@ -183,7 +176,7 @@ export class EditorShellComponent implements OnDestroy {
   protected openAssetManager(): void { this.closeMenus(); this.assetManagerOpen.set(true); }
   protected openProjectDiagnostics(): void { this.closeMenus(); this.diagnosticsOpen.set(true); }
   protected closeSettingsDialog(): void { this.settingsDialogOpen.set(false); }
-  protected toggleLayout(key: 'editorToolbarVisible' | 'leftSidebarVisible' | 'rightSidebarVisible' | 'quickBarVisible' | 'statusBarVisible'): void { this.layout.set(key, !this.layout.preferences()[key]); this.scheduleMovePanelClamp(); this.closeMenus(); }
+  protected toggleLayout(key: 'editorToolbarVisible' | 'leftSidebarVisible' | 'rightSidebarVisible' | 'quickBarVisible' | 'statusBarVisible'): void { this.layout.set(key, !this.layout.preferences()[key]); this.movePanelSession.scheduleClamp(); this.closeMenus(); }
   protected resetLayout(): void { this.sidebarResize.reset(); this.layout.reset(); }
   protected chooseLanguage(locale: 'en' | 'vi'): void { this.i18n.setLocale(locale); this.closeMenus(); }
   protected chooseTheme(theme: 'light' | 'dark' | 'craft'): void { this.theme.setPreset(theme); this.closeMenus(); }
@@ -253,45 +246,9 @@ export class EditorShellComponent implements OnDestroy {
     this.closeMenus();
     return handled;
   }
-  protected showMovePanel(): void { if (this.groups.activeGroup()) { this.movePanelVisible.set(true); this.scheduleMovePanelClamp(); } }
-  protected hideMovePanel(): void { this.groups.resetMove(); this.movePanelVisible.set(false); this.moveDrag = undefined; }
-  protected beginMovePanelDrag(event: PointerEvent): void {
-    if (event.button !== 0 || (event.target instanceof HTMLElement && event.target.closest('button, input, select, textarea'))) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const position = this.movePanelPosition();
-    this.moveDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, origin: position };
-    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-  }
-  protected movePanelDrag(event: PointerEvent): void {
-    const drag = this.moveDrag;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const position = this.clampMovePanelPosition({ x: drag.origin.x + event.clientX - drag.startX, y: drag.origin.y + event.clientY - drag.startY });
-    this.layout.setGroupMovePanelPosition(position.x, position.y);
-  }
-  protected endMovePanelDrag(event?: PointerEvent): void {
-    if (event && this.moveDrag && event.pointerId !== this.moveDrag.pointerId) return;
-    this.moveDrag = undefined;
-  }
-  protected clampMovePanel(): void { this.persistClampedMovePanelPosition(); }
+  protected showMovePanel(): void { if (this.groups.activeGroup()) { this.movePanelVisible.set(true); this.movePanelSession.scheduleClamp(); } }
+  protected hideMovePanel(): void { this.groups.resetMove(); this.movePanelVisible.set(false); this.movePanelSession.cancelDrag(); }
   protected moveReason(): string { const reason = this.groups.movePreview()?.reason; return reason === 'bounds' ? this.i18n.t('moveOutsideBounds') : reason === 'collision' ? this.i18n.t('moveCollision') : reason === 'locked' ? this.i18n.t('moveLocked') : ''; }
-  private scheduleMovePanelClamp(): void {
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this.persistClampedMovePanelPosition());
-    else queueMicrotask(() => this.persistClampedMovePanelPosition());
-  }
-  private persistClampedMovePanelPosition(): void {
-    if (!this.movePanelVisible()) return;
-    const position = this.movePanelPosition();
-    const preferences = this.layout.preferences();
-    if (preferences.groupMovePanelX !== position.x || preferences.groupMovePanelY !== position.y) this.layout.setGroupMovePanelPosition(position.x, position.y);
-  }
-  private clampMovePanelPosition(position: PanelPosition): PanelPosition {
-    const host = this.viewportHost()?.nativeElement;
-    const panel = this.movePanel()?.nativeElement;
-    return clampGroupMovePanelPosition(position, { width: host?.clientWidth ?? 640, height: host?.clientHeight ?? 480 }, { width: panel?.offsetWidth ?? 300, height: panel?.offsetHeight ?? 280 });
-  }
   protected handleEditorShortcut(event: KeyboardEvent): void {
     if (this.settingsDialogOpen() || this.controlsHelpOpen() || this.assetManagerOpen() || this.diagnosticsOpen() || this.structureJsonImportOpen() || this.structureJsonExportOpen() || this.structureNbtExportOpen()) return;
     if (event.key === 'Escape') {

@@ -205,7 +205,7 @@
       @if (layout.preferences().rightSidebarVisible) { <button type="button" (click)="openDrawer('right', $event)" [attr.aria-label]="i18n.t('openRightSidebar')">{{ i18n.t('selection') }}</button> }
     </div>
     @if (leftDrawerOpen() || rightDrawerOpen()) { <button type="button" class="drawer-backdrop" aria-label="{{ i18n.t('closePanel') }}" (click)="closeDrawers()"></button> }
-    <main #viewportHost class="viewport" [attr.aria-label]="i18n.t('viewport')" (window:resize)="clampMovePanel()">
+    <main #viewportHost class="viewport" [attr.aria-label]="i18n.t('viewport')" (window:resize)="movePanelSession.clampPersistedPosition()">
       @if (visitedModes().has('3d')) {
         <div class="viewport-session" [class.viewport-session-active]="mode.mode() === '3d'">
           <app-viewport [viewportActive]="mode.mode() === '3d'"></app-viewport>
@@ -222,11 +222,11 @@
           #groupMovePanel
           class="group-move-toolbar"
           [class.invalid]="groups.movePreview()?.valid === false"
-          [style.left.px]="movePanelPosition().x"
-          [style.top.px]="movePanelPosition().y"
+          [style.left.px]="movePanelSession.position().x"
+          [style.top.px]="movePanelSession.position().y"
           (wheel)="$event.stopPropagation()"
         >
-          <header class="group-move-header" (pointerdown)="beginMovePanelDrag($event)">
+          <header class="group-move-header" (pointerdown)="movePanelSession.begin($event)" (lostpointercapture)="movePanelSession.end()">
             <strong>{{ i18n.t('moveGroup') }}: {{ active.name }}</strong>
             <button type="button" class="group-move-close ui-close-button" uiTooltip="{{ i18n.t('hideMove') }}" [attr.aria-label]="i18n.t('hideMove')" (pointerdown)="$event.stopPropagation()" (click)="hideMovePanel()"><svg lucideX aria-hidden="true"></svg></button>
           </header>
