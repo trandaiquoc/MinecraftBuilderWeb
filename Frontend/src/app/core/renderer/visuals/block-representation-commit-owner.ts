@@ -146,17 +146,19 @@ export class BlockRepresentationCommitOwner {
       this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates);
       const settle = (resolve: () => void): TerrainRepresentationCommitCallbacks => ({
         onCommitted: () => {
-          if (!ownsTransaction()) { resolve(); return; }
-          this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
-          this.ports.targets.object.blocksGroup.remove(fallback);
-          this.finish();
-          resolve();
+          try {
+            if (!ownsTransaction()) return;
+            this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
+            this.ports.targets.object.blocksGroup.remove(fallback);
+            this.finish();
+          } finally { resolve(); }
         },
         onFailed: () => {
-          if (!ownsTransaction()) { resolve(); return; }
-          this.updateFallback(fallback, visual);
-          this.finish();
-          resolve();
+          try {
+            if (!ownsTransaction()) return;
+            this.updateFallback(fallback, visual);
+            this.finish();
+          } finally { resolve(); }
         },
       });
       let resolvePending!: () => void;
@@ -230,21 +232,23 @@ export class BlockRepresentationCommitOwner {
       let resolvePending: (() => void) | undefined;
       const pending = new Promise<void>((resolve) => { resolvePending = resolve; });
       const commit = (): void => {
-        if (!ownsTransaction()) { resolvePending?.(); return; }
-        this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates!);
-        this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'terrain');
-        this.ports.store.createOrReplace({ key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, terrainChunkKey: this.ports.targets.terrain.chunkKey(job.block.position) });
-        this.finish();
-        resolvePending?.();
+        try {
+          if (!ownsTransaction()) return;
+          this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates!);
+          this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'terrain');
+          this.ports.store.createOrReplace({ key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, terrainChunkKey: this.ports.targets.terrain.chunkKey(job.block.position) });
+          this.finish();
+        } finally { resolvePending?.(); }
       };
       const fail = (status: 'failed' | 'cancelled'): void => {
-        if (!ownsTransaction()) { resolvePending?.(); return; }
-        const fallback = current.fallback ?? this.ports.resources.ensureFallback(current);
-        this.ports.store.setTerrainRepresentation(job.key, undefined);
-        fallback.userData['diagnostics'] = [{ code: 'PROVIDER_REFRESH_FAILED', message: status === 'cancelled' ? 'Terrain replacement was cancelled' : 'Terrain replacement failed' }];
-        this.ports.invalidateDiagnostics();
-        this.finish();
-        resolvePending?.();
+        try {
+          if (!ownsTransaction()) return;
+          const fallback = current.fallback ?? this.ports.resources.ensureFallback(current);
+          this.ports.store.setTerrainRepresentation(job.key, undefined);
+          fallback.userData['diagnostics'] = [{ code: 'PROVIDER_REFRESH_FAILED', message: status === 'cancelled' ? 'Terrain replacement was cancelled' : 'Terrain replacement failed' }];
+          this.ports.invalidateDiagnostics();
+          this.finish();
+        } finally { resolvePending?.(); }
       };
       const status = this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal', { onCommitted: commit, onFailed: fail });
       if (status === 'committed') {
@@ -280,6 +284,17 @@ export class BlockRepresentationCommitOwner {
     this.ports.resources.rollbackPartial(job.key);
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }];
+    this.finish();
+  }
+
+  /** Converts an unexpected cached-terrain rejection into the same fallback state as other provider failures. */
+  failCached(job: BlockHydrationJob, error: unknown): void {
+    const current = this.ports.store.get(job.key);
+    if (!current) return;
+    const fallback = current.fallback ?? this.ports.resources.ensureFallback(current);
+    this.ports.store.setTerrainRepresentation(job.key, undefined);
+    fallback.userData['renderMode'] = 'fallback';
+    fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : String(error) }];
     this.finish();
   }
 

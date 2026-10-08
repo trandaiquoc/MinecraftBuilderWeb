@@ -171,7 +171,9 @@ export class ViewportProviderRefreshPipeline<P extends { retain?(): void; releas
     this.providers.releaseUnused({ referenced });
   }
 
-  dispose(): void { this.cancelPlanning(); this.providers.clear(); this.deferred = undefined; }
+  retire(provider: P | undefined): void { this.providers.retire(provider); }
+
+  dispose(referenced?: (provider: P) => boolean): void { this.cancelPlanning(); this.providers.clear(referenced); this.deferred = undefined; }
 
   private completePlan(generation: number, inputCount: number, result: ProviderRefreshPlannerResult<TJob>, callbacks: { readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void; readonly onStateChange?: () => void; readonly onScheduleHydration?: () => void }): void {
     if (generation !== this.currentPlanGeneration) return;

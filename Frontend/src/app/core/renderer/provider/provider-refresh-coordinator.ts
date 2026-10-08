@@ -32,8 +32,15 @@ export class ProviderRefreshCoordinator<P extends RetainableProvider> {
     }
   }
 
-  clear(): void {
-    for (const provider of this.retired) provider.release?.();
-    this.retired.clear();
+  retire(provider: P | undefined): void {
+    if (provider) this.retired.add(provider);
+  }
+
+  clear(referenced?: (provider: P) => boolean): void {
+    for (const provider of [...this.retired]) {
+      if (referenced?.(provider)) continue;
+      provider.release?.();
+      this.retired.delete(provider);
+    }
   }
 }

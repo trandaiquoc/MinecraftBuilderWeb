@@ -50,7 +50,9 @@ export class ViewportTerrainRepresentationPipeline<T> {
   resolve(key: string, create: () => Promise<T | undefined>): Promise<T | undefined> {
     const existing = this.pendingByKey.get(key);
     if (existing) return existing;
-    const pending = create();
+    let pending: Promise<T | undefined>;
+    try { pending = create(); }
+    catch (error: unknown) { pending = Promise.reject(error); }
     this.pendingByKey.set(key, pending);
     const clear = (): void => { if (this.pendingByKey.get(key) === pending) this.pendingByKey.delete(key); };
     void pending.then(clear, clear);

@@ -49,4 +49,15 @@ describe('ProviderRefreshCoordinator', () => {
     (coordinator.retiredProviders as Set<typeof first>).clear();
     expect(coordinator.hasRetired(first)).toBe(true);
   });
+
+  it('keeps a retired provider through conditional disposal until async owners release it', () => {
+    const first = provider();
+    const coordinator = new ProviderRefreshCoordinator<typeof first>();
+    coordinator.transition(undefined, first);
+    coordinator.retire(first);
+    coordinator.clear(() => true);
+    expect(first.release).not.toHaveBeenCalled();
+    coordinator.releaseUnused({ referenced: () => false });
+    expect(first.release).toHaveBeenCalledOnce();
+  });
 });

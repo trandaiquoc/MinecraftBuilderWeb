@@ -99,4 +99,20 @@ describe('ViewportBlockHydrationPipeline', () => {
     expect(completed).toHaveBeenCalledTimes(2);
     expect(value.runningTotal).toBe(0);
   });
+
+  it('finishes running ownership even when a completion observer throws', () => {
+    const value = pipeline();
+    value.enqueueRegular({ key: 'throwing-completion', token: 0, projectionRevision: 0, signature: 'a' });
+    const port: HydrationExecutionPort<Job> = {
+      isStopped: () => false, isInteractive: () => false, now: () => 1, budgetMs: () => 10,
+      interactiveJobLimit: () => 8, jobLimit: () => 8,
+      ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
+      execute: (_job, finish) => finish(), onBatchStart: vi.fn(), onJobStarted: vi.fn(),
+      onExecutionFailure: vi.fn(), onJobComplete: () => { throw new Error('observer failure'); },
+      processAdditionalWork: vi.fn(), hasAdditionalWork: () => false,
+    };
+
+    expect(() => value.process(port)).not.toThrow();
+    expect(value.runningTotal).toBe(0);
+  });
 });

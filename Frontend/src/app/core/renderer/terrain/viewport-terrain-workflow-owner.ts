@@ -58,6 +58,7 @@ export interface TerrainWorkflowPorts {
   readonly visual: {
     readonly create: (provider: BlockVisualProvider, block: TerrainBlock, world: TerrainHydrationCandidate['worldContext']) => Promise<BlockVisualResult & { readonly terrainTemplates?: readonly SurfaceFaceTemplate[] }>;
     readonly disposeTemplates: (templates: readonly SurfaceFaceTemplate[]) => void;
+    readonly acquireProviderReference: (provider: BlockVisualProvider) => () => void;
   };
   readonly trace: (event: string, details: Record<string, unknown>) => void;
   readonly recordProviderCacheStats: () => void;
@@ -101,13 +102,20 @@ export class ViewportTerrainWorkflowOwner {
   resolveTemplatesFor(
     key: string,
     create: () => Promise<HydratedBlockVisualResult>,
+    provider?: BlockVisualProvider,
   ): Promise<readonly SurfaceFaceTemplate[] | undefined> {
-    return this.batches.resolve(key, () => create().then((visual) => {
-      if (!visual.object) return visual.terrainTemplates;
-      const templates = visual.terrainTemplates ?? extractSurfaceFaceTemplates(visual.object);
-      disposeObject(visual.object);
-      return templates;
-    }));
+    return this.batches.resolve(key, () => {
+      const releaseProvider = provider ? this.ports.visual.acquireProviderReference(provider) : undefined;
+      return Promise.resolve().then(create).then((visual) => {
+        if (!visual.object) return visual.terrainTemplates;
+        const templates = visual.terrainTemplates ?? extractSurfaceFaceTemplates(visual.object);
+        disposeObject(visual.object);
+        return templates;
+      }).then((templates) => {
+        if (templates) this.ports.renderer.cacheTemplates(key, templates);
+        return templates;
+      }).finally(() => releaseProvider?.());
+    });
   }
 
   commit(records: Iterable<TerrainSurfaceRecord>, result: TerrainApplyResult, projectionRevision = this.ports.projection.revision()): void {
@@ -226,6 +234,6 @@ export class ViewportTerrainWorkflowOwner {
   dispose(): void { this.batches.dispose(); this.placeholderState.clear(); }
 
   private resolveTemplates(candidate: TerrainHydrationCandidate): Promise<readonly SurfaceFaceTemplate[] | undefined> {
-    return this.resolveTemplatesFor(candidate.reusableKey, () => this.ports.visual.create(candidate.provider, candidate.next.block, candidate.worldContext));
+    return this.resolveTemplatesFor(candidate.reusableKey, () => this.ports.visual.create(candidate.provider, candidate.next.block, candidate.worldContext), candidate.provider);
   }
 }

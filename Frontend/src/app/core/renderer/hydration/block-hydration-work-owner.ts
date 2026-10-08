@@ -143,16 +143,24 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
       this.startWork(job.token);
       started += 1;
       port.onJobStarted(job, deferred);
+      let terminal = false;
       const complete = (): void => {
+        if (terminal) return;
+        terminal = true;
         const ownership = port.ownership(job);
         const authoritative = !job.providerRefresh && this.ownsJob(job.key, job.token, ownership.revision, ownership.signature);
         if (authoritative) this.finishJobOwnership(job.key);
         this.completeJob(job);
-        port.onJobComplete(job, authoritative);
-        this.finishWork(job.token);
-        this.scheduleNext(port);
+        try { port.onJobComplete(job, authoritative); }
+        finally {
+          this.finishWork(job.token);
+          this.scheduleNext(port);
+        }
       };
-      try { port.execute(job, complete); } catch (error: unknown) { port.onExecutionFailure(job, error); complete(); }
+      try { port.execute(job, complete); } catch (error: unknown) {
+        try { port.onExecutionFailure(job, error); }
+        finally { complete(); }
+      }
     }
     port.processAdditionalWork(token, deadline);
     const workRemaining = this.queuedWork() > 0 || port.hasAdditionalWork();

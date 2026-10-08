@@ -798,14 +798,14 @@ export class ChunkSurfaceRenderer {
       if (!callbacks) continue;
       pending.delete(key);
       this.pendingRepresentationCommitChunks.delete(key);
-      callbacks.onCommitted();
+      try { callbacks.onCommitted(); } catch { /* The pending operation is terminal even if its consumer fails. */ }
     }
     for (const key of failedKeys) {
       const callbacks = pending.get(key);
       if (!callbacks) continue;
       pending.delete(key);
       this.pendingRepresentationCommitChunks.delete(key);
-      callbacks.onFailed(failureStatus);
+      try { callbacks.onFailed(failureStatus); } catch { /* Keep settling sibling callbacks and the chunk state. */ }
     }
     if (!pending.size) this.pendingRepresentationCommitsByChunk.delete(chunkKey);
   }
@@ -822,7 +822,7 @@ export class ChunkSurfaceRenderer {
     pending!.delete(key);
     this.pendingRepresentationCommitChunks.delete(key);
     if (!pending!.size) this.pendingRepresentationCommitsByChunk.delete(chunkKey);
-    callbacks.onFailed('cancelled');
+    try { callbacks.onFailed('cancelled'); } catch { /* Cancellation is terminal for the caller. */ }
   }
 
   private cancelPendingRepresentationCommits(): void {

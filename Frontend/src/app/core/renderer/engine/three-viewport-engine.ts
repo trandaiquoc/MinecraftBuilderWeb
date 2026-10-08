@@ -718,6 +718,7 @@ export class ThreeViewportEngine {
       visual: {
         create: (provider, block, world) => this.createProviderVisual(provider, block, world),
         disposeTemplates: (templates) => { for (const template of templates) { template.geometry.dispose(); template.material.dispose(); } },
+        acquireProviderReference: (provider) => this.blockRepresentationHydration.acquireProviderReference(provider),
       },
       trace: (event, details) => this.runtimeTrace?.record(event, details),
       recordProviderCacheStats: () => this.recordProviderCacheStats(),
@@ -2266,7 +2267,7 @@ export class ThreeViewportEngine {
   }
 
   private resolveTerrainHydration(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, provider: BlockVisualProvider): Promise<TerrainHydrationResult> {
-    const pending = this.terrainPipeline.resolveTemplatesFor(reusableKey, () => this.createProviderVisual(provider, block, worldContext));
+    const pending = this.terrainPipeline.resolveTemplatesFor(reusableKey, () => this.createProviderVisual(provider, block, worldContext), provider);
     return pending.then((templates) => templates
       ? { object: undefined, terrainTemplates: templates, resolved: { blockId: block.id, state: block.state, parts: [], support: 'full' as const, diagnostics: [], trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [], modelResources: [], parentResources: [], elementCount: 0, faceCount: 0, textureResources: [] } }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }
       : this.createProviderVisual(provider, block, worldContext));
@@ -2496,6 +2497,7 @@ export class ThreeViewportEngine {
     this.cancelPendingHover(false);
     this.yLayerProjection.dispose();
     this.cancelHydration('dispose');
+    this.blockRepresentationHydration.dispose();
     this.isolationPresentation.dispose();
     this.isolatedKeys.clear();
     const provider = this.visualProvider;
@@ -2531,9 +2533,10 @@ export class ThreeViewportEngine {
     this.clearPlaceholderVisuals();
     this.placeholderGeometry.dispose();
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
-    provider?.release?.();
-    this.providerRefreshPipeline.dispose();
     this.terrainPipeline.dispose();
+    this.providerRefreshPipeline.retire(provider);
+    this.providerRefreshPipeline.dispose((candidate) => this.blockRepresentationHydration.hasActiveProviderReference(candidate));
+    this.releaseUnusedRetiredProviders();
     this.visualProvider = undefined;
     this.renderer = undefined;
     this.container = undefined;
