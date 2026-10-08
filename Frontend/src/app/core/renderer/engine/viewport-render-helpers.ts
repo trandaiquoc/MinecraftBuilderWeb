@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import type { CameraPreset, CameraVector } from '../../editor/camera/camera';
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
@@ -43,7 +42,6 @@ export function blockRenderSignature(block: ProjectDocument['blocks'][number]): 
   const entity = block.blockEntityData === undefined ? '' : `|entity=${stableValue(block.blockEntityData)}`;
   return `${block.kind}|${block.id}|${block.namespace}|${block.position.x},${block.position.y},${block.position.z}|${state}${entity}`;
 }
-export function decorationSignature(decoration: PlacedDecoration | undefined): string { return decoration === undefined ? '' : stableValue(decoration); }
 export function compareEmptySnapshots<TMesh extends EmptyTransitionMesh, TVisual extends EmptyTransitionVisual>(firstEmpty: EmptyTransitionSnapshot<TMesh, TVisual>, secondEmpty: EmptyTransitionSnapshot<TMesh, TVisual>) {
   const key = (visual: TVisual): string => `${visual.owner}|${visual.uuid}|${stableValue(visual.position)}|${stableValue(visual.worldBounds)}`;
   const meshKey = (mesh: TMesh): string => `${mesh.owner}|${mesh.uuid}|${stableValue(mesh.worldPosition)}|${stableValue(mesh.worldBounds)}`;

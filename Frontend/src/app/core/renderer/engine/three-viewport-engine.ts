@@ -20,7 +20,9 @@ import { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import { coordinateKey } from '../../domain/coordinates';
 import { PlacedDecoration } from '../../decorations/decoration.types';
 import { DecorationPlacementPlan, decorationAabb, facingFromNormal, planDecorationPlacement } from '../../decorations/placement/decoration-placement';
-import { applyDecorationItemPreview, createDecorationVisual, DecorationTextureCache } from '../visuals/decoration-visuals';
+import { DecorationTextureCache } from '../visuals/decoration-visuals';
+import { DecorationRenderLifecycle } from '../visuals/decoration-render-lifecycle';
+import { decorationRenderSignature } from '../visuals/decoration-render-signature';
 import type { ItemStackData } from '../../items/item-stack.types';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { MouseAction } from '../../editor/input/mouse-bindings';
@@ -95,7 +97,7 @@ import { StructureBlockGuidePresenter } from '../presentation/structure-block-gu
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 import { YLayerProjectionCoordinator, type VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
-import { blockCoordinateFromHit, cameraActionMovementDelta, canonicalRenderOptions, chunkKey, compareEmptySnapshots, createBoundedGrid, decorationSignature, DETAILED_SELECTION_OUTLINE_LIMIT, emptyResolvedModel, isHorizontalDirection, isolateKey, renderFilterKey, stableChunkBounds, stableValue, surfaceFaceDirectionFromHit, surfaceNeighbor, surfaceFaceNormal, unitVoxelEnvelope, vectorValue, boundsOfPositions, blockRenderSignature } from './viewport-render-helpers';
+import { blockCoordinateFromHit, cameraActionMovementDelta, canonicalRenderOptions, chunkKey, compareEmptySnapshots, createBoundedGrid, DETAILED_SELECTION_OUTLINE_LIMIT, emptyResolvedModel, isHorizontalDirection, isolateKey, renderFilterKey, stableChunkBounds, stableValue, surfaceFaceDirectionFromHit, surfaceNeighbor, surfaceFaceNormal, unitVoxelEnvelope, vectorValue, boundsOfPositions, blockRenderSignature } from './viewport-render-helpers';
 export { cameraMovementDirection, cameraMovementDelta, blockCoordinateFromHit, surfaceFaceDirectionFromHit, surfaceFaceNormal } from './viewport-render-helpers';
 import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, PlacementPlanProvider } from './viewport-engine-contracts';
 type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
@@ -126,13 +128,6 @@ interface RenderedBlockEntry {
   fluidFallback?: boolean;
 }
 
-interface RenderedDecorationEntry {
-  readonly id: string;
-  decoration: PlacedDecoration;
-  readonly signature: string;
-  readonly object: THREE.Object3D;
-}
-
 interface BlockHydrationJob {
   readonly token: number;
   readonly projectionRevision: number;
@@ -158,13 +153,6 @@ interface ProviderRefreshCandidate {
   readonly worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined };
   readonly visible: ReadonlyMap<string, VisibleBlockEntry>;
 }
-interface DecorationHydrationJob {
-  readonly token: number;
-  readonly id: string;
-  readonly decoration: PlacedDecoration;
-  readonly signature: string;
-}
-
 interface TerrainHydrationResult extends BlockVisualResult {
   readonly terrainTemplates?: readonly SurfaceFaceTemplate[];
 }
@@ -248,7 +236,7 @@ export class ThreeViewportEngine {
   });
   private get decorationGhostGroup(): THREE.Group { return this.decorationGhostPresenter.group; }
   private readonly decorationSelectionPresenter = new DecorationSelectionPresenter(viewportThemePalette('dark'), {
-    selected: (id) => { const entry = this.renderedDecorations.get(id); return entry ? { object: entry.object } : undefined; },
+    selected: (id) => { const entry = this.decorationVisuals.get(id); return entry ? { object: entry.object } : undefined; },
   });
   private get decorationSelectionGroup(): THREE.Group { return this.decorationSelectionPresenter.group; }
   private readonly groupHighlightPresenter = new GroupHighlightPresenter(this.scene, viewportThemePalette('dark'), {
@@ -444,7 +432,7 @@ export class ThreeViewportEngine {
   private get instanceOwnershipIndex(): Map<string, { readonly batchKey: string; readonly index: number }> { return this.instanceRenderer.ownershipIndex; }
   /** Compatibility view for diagnostics/tests; ownership remains in the batching module. */
   private get reusableInstanceTemplates(): ReadonlyMap<string, CompiledInstanceTemplates> { return this.instanceRenderer.templateCacheView(); }
-  private readonly renderedDecorations = new Map<string, RenderedDecorationEntry>();
+  private readonly decorationVisuals: DecorationRenderLifecycle;
   private staticModelDiagnosticsCache?: StaticModelDiagnosticSnapshot;
   private staticModelDiagnosticsBuildCount = 0;
   private readonly surfaceRenderer = new SurfaceFaceBatchRenderer({
@@ -473,7 +461,6 @@ export class ThreeViewportEngine {
   private readonly structureSyncState = new ViewportStructureSyncState();
   private decorationSyncKey = '';
   private syncedDecorationProject?: ProjectDocument;
-  private decorationRevision = 0;
   private get providerGeneration(): number { return this.providerLifecycle.generation; }
   private get hydrationProgressState(): ViewportHydrationProgress { return this.hydrationProgressTracker.snapshot(); }
   private providerRefreshProgress?: { total: number; completed: number; startedAt: number };
@@ -489,9 +476,6 @@ export class ThreeViewportEngine {
   private readonly runningHydrationKeys = new Map<string, number>();
   private readonly runningHydrationRevisions = new Map<string, number>();
   private readonly runningHydrationSignatures = new Map<string, string>();
-  private decorationHydrationQueue: DecorationHydrationJob[] = [];
-  private decorationHydrationQueueHead = 0;
-  private readonly pendingDecorationSignatures = new Map<string, string>();
   private terrainHydrationPending = 0;
   private readonly hydrationRunningByGeneration = new Map<number, number>();
   private hydrationBatchBudget = 0;
@@ -556,6 +540,21 @@ export class ThreeViewportEngine {
   private missingBlocksTerminal = false;
 
   constructor(readonly instrumentation = new RendererDiagnostics(), options: ViewportEngineOptions = {}) {
+    this.decorationVisuals = new DecorationRenderLifecycle({
+      group: this.decorationsGroup,
+      textureUrl: () => this.decorationTextureUrl,
+      textureCache: () => this.decorationTextureCache,
+      paintingResource: () => this.paintingResource,
+      itemResources: () => this.decorationItemResources,
+      itemVisual: () => this.decorationItemVisual,
+      itemPreview: () => this.decorationItemPreview,
+      isSelected: (id) => this.renderOptions.selectedDecorationId === id,
+      providerGeneration: () => this.providerGeneration,
+      scheduleRender: () => this.scheduleRender(),
+      scheduleHydration: () => this.scheduleHydrationPump(),
+      complete: (generation, id) => this.completeHydrationPart(generation, 'decoration', id),
+      record: (metric) => this.instrumentation.record(metric),
+    });
     this.yLayerProjection = new YLayerProjectionCoordinator({
       isDisposed: () => this.disposed,
       isSuspended: () => this.suspended,
@@ -906,35 +905,35 @@ export class ThreeViewportEngine {
     this.decorationTextureCache?.dispose();
     this.decorationTextureCache = provider ? new DecorationTextureCache(provider, undefined, () => this.scheduleRender()) : undefined;
     this.decorationTextureUrl = provider;
-    this.decorationRevision += 1;
+    this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemResourceProvider(provider: ((itemId: string) => readonly string[]) | undefined): void {
     if (provider === this.decorationItemResources) return;
     this.decorationItemResources = provider;
-    this.decorationRevision += 1;
+    this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemVisualProvider(provider: ((itemId: string) => ResolvedItemVisual | undefined) | undefined): void {
     if (provider === this.decorationItemVisual) return;
     this.decorationItemVisual = provider;
-    this.decorationRevision += 1;
+    this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setDecorationItemPreviewProvider(provider: ((item: ItemStackData) => Promise<string | undefined>) | undefined): void {
     if (provider === this.decorationItemPreview) return;
     this.decorationItemPreview = provider;
-    this.decorationRevision += 1;
+    this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
   setPaintingTextureResolver(provider: ((variantId: string) => string | undefined) | undefined): void {
     if (provider === this.paintingResource) return;
     this.paintingResource = provider;
-    this.decorationRevision += 1;
+    this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
@@ -1101,7 +1100,7 @@ export class ThreeViewportEngine {
     this.renderOptions = options;
     if (!layerProjectionOnly) this.yLayerProjection.cancel();
     if (this.suspended) {
-      const nextDecorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
+      const nextDecorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationVisuals.revision}` : 'empty';
       this.suspendedNeedsRefresh = this.suspendedNeedsRefresh
         || this.structureSyncState.requiresSuspendedRefresh(project, renderFilterKey(previousOptions) !== renderFilterKey(options), nextDecorationKey !== this.decorationSyncKey);
       return;
@@ -1111,7 +1110,7 @@ export class ThreeViewportEngine {
     this.syncSpecialVisualDescriptors();
     const syncKey = nextSyncKey;
     const blockInputChanged = !referenceOpacityOnly && !layerProjectionOnly && (project !== structureState.project || syncKey !== structureState.syncKey);
-    const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationRevision}` : 'empty';
+    const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationVisuals.revision}` : 'empty';
     const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
     const full = syncKey !== structureState.syncKey;
     if (layerProjectionOnly && project && projectionDelta.changedLayers.length) this.yLayerProjection.request(project, options, options.layerIndex ?? this.layerIndex);
@@ -1180,8 +1179,7 @@ export class ThreeViewportEngine {
     this.clearDecorationGhost();
     this.updateDecorationSelection(options.selectedDecorationId);
     if (options.selectedDecorationId) {
-      const selectedDecoration = this.renderedDecorations.get(options.selectedDecorationId);
-      if (selectedDecoration) this.hydrateDecorationItemPreview(selectedDecoration);
+      this.decorationVisuals.hydrateSelectedItemPreview(options.selectedDecorationId);
     }
     this.updateGhost(undefined, project, active);
     this.recordProviderCacheStats();
@@ -1684,24 +1682,14 @@ export class ThreeViewportEngine {
   }
 
   private applyMetadataDecorationMutation(previousProject: ProjectDocument, previousOptions: ViewportRenderOptions, project: ProjectDocument, options: ViewportRenderOptions, hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>): void {
-    const visible = (decoration: PlacedDecoration | undefined, current: ProjectDocument, currentOptions: ViewportRenderOptions): boolean => !!decoration && isDecorationVisible(decoration, current.groups) && (currentOptions.layerY === undefined || decoration.anchor.y === currentOptions.layerY || currentOptions.visibility === 'whole-structure' || currentOptions.visibility === 'all-below' && decoration.anchor.y <= (currentOptions.layerY ?? decoration.anchor.y));
-    for (const change of hint.decorationChanges ?? []) {
-      const beforeVisible = visible(change.before, previousProject, previousOptions);
-      const afterVisible = visible(change.after, project, options);
-      const current = this.renderedDecorations.get(change.id);
-      if (beforeVisible && afterVisible && current && change.after) current.decoration = change.after;
-      else if (beforeVisible && !afterVisible && current) {
-        this.removeDecorationEntry(change.id, current);
-        this.pendingDecorationSignatures.delete(change.id);
-        this.decorationHydrationQueue = this.decorationHydrationQueue.filter((job) => job.id !== change.id);
-      } else if (!beforeVisible && afterVisible && change.after && !current) {
-        const signature = `${decorationSignature(change.after)}|${this.decorationRevision}`;
-        this.pendingDecorationSignatures.set(change.id, signature);
-        this.decorationHydrationQueue.push({ token: this.hydrationGeneration, id: change.id, decoration: change.after, signature });
-      }
-    }
-    this.decorationHydrationQueueHead = 0;
-    if (this.decorationHydrationQueue.length) this.scheduleHydrationPump();
+    this.decorationVisuals.applyMetadataChanges(
+      hint.decorationChanges ?? [],
+      previousProject,
+      previousOptions,
+      project,
+      options,
+      this.hydrationGeneration,
+    );
   }
 
   private applyIsolatePresentation(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
@@ -1715,7 +1703,7 @@ export class ThreeViewportEngine {
     this.requestedIsolatedKeys = keys;
     const blocks = this.isolateBlockSnapshots(project, keys);
     const decorations: IsolateDecorationVisualSnapshot[] = [];
-    for (const current of this.renderedDecorations.values()) {
+    for (const current of this.decorationVisuals.values()) {
       const decoration = current.decoration;
       if (!decorationHasGroup(decoration, options.isolatedGroupId) || !isDecorationVisible(decoration, project.groups)) continue;
       decorations.push({ id: decoration.instanceId, decoration, object: current.object });
@@ -2210,9 +2198,9 @@ export class ThreeViewportEngine {
   private adoptCommittedDecorationOwnership(entries: readonly PlacedDecoration[]): void {
     const adopted = entries
       .filter((decoration) => {
-        const entry = this.renderedDecorations.get(decoration.instanceId);
-        return entry?.signature === `${decorationSignature(decoration)}|${this.decorationRevision}`
-          && !this.pendingDecorationSignatures.has(decoration.instanceId);
+        const entry = this.decorationVisuals.get(decoration.instanceId);
+        return entry?.signature === `${decorationRenderSignature(decoration)}|${this.decorationVisuals.revision}`
+          && !this.decorationVisuals.hasPending(decoration.instanceId);
       })
       .map((decoration) => decoration.instanceId);
     if (adopted.length) this.hydrationProgressTracker.adoptDecorationIds(this.hydrationGeneration, adopted);
@@ -2282,9 +2270,9 @@ export class ThreeViewportEngine {
   private queuedBlockHydrationJobs(): number {
     return this.hydrationWork.queuedTotal();
   }
-  private queuedDecorationHydrationJobs(): number { return this.decorationHydrationQueue.length - this.decorationHydrationQueueHead; }
-  private compactHydrationQueues(): void { this.hydrationWork.compact(); if (this.decorationHydrationQueueHead > 0) { this.decorationHydrationQueue = this.decorationHydrationQueue.slice(this.decorationHydrationQueueHead); this.decorationHydrationQueueHead = 0; } }
-  private compactConsumedHydrationQueues(): void { this.hydrationWork.compactConsumed(); if (this.decorationHydrationQueueHead === this.decorationHydrationQueue.length) { this.decorationHydrationQueue = []; this.decorationHydrationQueueHead = 0; } }
+  private queuedDecorationHydrationJobs(): number { return this.decorationVisuals.queuedCount; }
+  private compactHydrationQueues(): void { this.hydrationWork.compact(); this.decorationVisuals.compactQueue(); }
+  private compactConsumedHydrationQueues(): void { this.hydrationWork.compactConsumed(); this.decorationVisuals.compactQueue(); }
 
   private processHydrationBatch(): void {
     if (this.disposed || this.suspended) return;
@@ -2401,26 +2389,10 @@ export class ThreeViewportEngine {
   }
 
   private processDecorationBatch(token: number, deadline: number): void {
-    let processed = 0;
     const interactive = this.isCameraInteracting();
     const maxJobs = interactive ? VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH : VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH;
-    while (processed < maxJobs && this.queuedDecorationHydrationJobs() && performance.now() < deadline) {
-      const job = this.decorationHydrationQueue[this.decorationHydrationQueueHead++];
-      if (job.token !== token || token !== this.hydrationGeneration) continue;
-      if (interactive) this.instrumentation.record('hydrationJobsStartedWhileCamera');
-      this.pendingDecorationSignatures.delete(job.id);
-      this.instrumentation.record('decorationVisualCreations');
-      const visual = createDecorationVisual(job.decoration, this.decorationTextureUrl, this.decorationTextureCache, this.paintingResource, this.decorationItemResources, this.decorationItemVisual, false);
-      visual.userData['decorationInstanceId'] = job.id; visual.userData['decoration'] = job.decoration;
-      visual.traverse((child) => { child.userData['decorationInstanceId'] = job.id; child.userData['decoration'] = job.decoration; });
-      this.decorationsGroup.add(visual);
-      const entry = { id: job.id, decoration: job.decoration, signature: job.signature, object: visual };
-      this.renderedDecorations.set(job.id, entry);
-      this.hydrateDecorationItemPreview(entry);
-      this.completeHydrationPart(job.token, 'decoration', job.id);
-      processed += 1;
-    }
-    if (processed > 0) this.scheduleRender();
+    const processed = this.decorationVisuals.processBatch(token, deadline, maxJobs);
+    if (interactive && processed) this.instrumentation.record('hydrationJobsStartedWhileCamera', processed);
   }
 
   private cancelHydration(reason: HydrationCancellationReason = 'structure-sync-key-changed', context: Readonly<Record<string, unknown>> = {}): void {
@@ -2471,9 +2443,7 @@ export class ThreeViewportEngine {
   }
 
   private cancelDecorationHydration(): void {
-    this.decorationHydrationQueue = [];
-    this.decorationHydrationQueueHead = 0;
-    this.pendingDecorationSignatures.clear();
+    this.decorationVisuals.cancelPending();
   }
 
   private scheduleRender(): void {
@@ -2816,7 +2786,7 @@ export class ThreeViewportEngine {
     for (const [key, entry] of this.renderedBlocks) this.removeBlockEntry(key, entry);
     this.fluidCoordinator.clear();
     this.releaseUnusedRetiredProviders();
-    for (const [id, entry] of this.renderedDecorations) this.removeDecorationEntry(id, entry);
+    this.decorationVisuals.clear();
     this.clearPlaceholderVisuals();
     this.clearReusableInstanceTemplates();
     this.instanceRenderer.resetMetrics();
@@ -2824,7 +2794,6 @@ export class ThreeViewportEngine {
     this.instanceOwnershipIndex.clear();
     this.pendingHydrationSignatures.clear();
     this.placeholderSignatures.clear();
-    this.pendingDecorationSignatures.clear();
     this.yLayerProjection.clear();
     this.structureSyncState.clear();
     this.decorationSyncKey = '';
@@ -2845,47 +2814,10 @@ export class ThreeViewportEngine {
   }
 
   private reconcileDecorations(project: ProjectDocument | undefined, options: ViewportRenderOptions, full: boolean): void {
-    if (!project) {
-      for (const [id, entry] of this.renderedDecorations) this.removeDecorationEntry(id, entry);
-      this.cancelDecorationHydration();
-      this.setHydrationDecorationScope([]);
-      return;
-    }
-    const visible = (project.decorations ?? []).filter((decoration) => isDecorationVisible(decoration, project.groups) && (options.layerY === undefined || decoration.anchor.y === options.layerY || options.visibility === 'whole-structure' || options.visibility === 'all-below' && decoration.anchor.y <= (options.layerY ?? decoration.anchor.y)));
+    const visible = this.decorationVisuals.reconcile(project, options, this.hydrationGeneration, full);
     this.setHydrationDecorationScope(visible.map((decoration) => decoration.instanceId));
     this.adoptCommittedDecorationOwnership(visible);
-    const map = new Map(visible.map((decoration) => [decoration.instanceId, decoration] as const));
-    this.decorationHydrationQueue = this.decorationHydrationQueue.filter((job) => decorationSignature(map.get(job.id)) === decorationSignature(job.decoration));
-    this.decorationHydrationQueueHead = 0;
-    for (const [id, entry] of this.renderedDecorations) if (!map.has(id)) { this.removeDecorationEntry(id, entry); this.pendingDecorationSignatures.delete(id); this.instrumentation.record('decorationRemovals'); }
-    for (const id of this.pendingDecorationSignatures.keys()) if (!map.has(id)) this.pendingDecorationSignatures.delete(id);
-    for (const [id, decoration] of map) {
-      const signature = `${decorationSignature(decoration)}|${this.decorationRevision}`; const current = this.renderedDecorations.get(id);
-      const pendingSignature = this.pendingDecorationSignatures.get(id);
-      if ((!full && current?.signature === signature) || (!current && pendingSignature === signature)) continue;
-      if (current) { this.removeDecorationEntry(id, current); this.instrumentation.record('decorationUpdates'); }
-      else if (pendingSignature === undefined) this.instrumentation.record('decorationAdds');
-      else this.instrumentation.record('decorationUpdates');
-      this.pendingDecorationSignatures.set(id, signature);
-      this.decorationHydrationQueue.push({ token: this.hydrationGeneration, id, decoration, signature });
-    }
-    this.scheduleHydrationPump();
-  }
-
-  private removeDecorationEntry(id: string, entry: RenderedDecorationEntry): void { if (entry.object.parent === this.decorationsGroup) this.decorationsGroup.remove(entry.object); disposeObject(entry.object); this.renderedDecorations.delete(id); }
-
-  private hydrateDecorationItemPreview(entry: RenderedDecorationEntry): void {
-    const provider = this.decorationItemPreview;
-    const item = entry.decoration.item;
-    if (!provider || !item || entry.id !== this.renderOptions.selectedDecorationId) return;
-    const sprite = entry.object.children.find((child) => child.userData['decorationItemId'] === item.id);
-    if (!sprite) return;
-    const generation = this.providerGeneration;
-    void provider(item).then((url) => {
-      if (!url || generation !== this.providerGeneration || this.renderedDecorations.get(entry.id) !== entry) return;
-      if (sprite.userData['itemVisualPreview'] === url) return;
-      if (applyDecorationItemPreview(sprite, url, this.decorationTextureCache)) this.scheduleRender();
-    }).catch(() => undefined);
+    if (!project) this.setHydrationDecorationScope([]);
   }
 
   private updateDecorationSelection(selectedId: string | undefined): void {
@@ -3027,6 +2959,7 @@ export class ThreeViewportEngine {
     for (const child of this.blocksGroup.children) disposeObject(child);
     this.blocksGroup.clear();
     this.instanceRenderer.clear();
+    this.decorationVisuals.clear();
     for (const child of this.decorationsGroup.children) disposeObject(child);
     this.decorationsGroup.clear();
     this.selectionPresenter.dispose();
@@ -3034,7 +2967,7 @@ export class ThreeViewportEngine {
     this.groupHighlightPresenter.dispose();
     this.decorationGhostPresenter.dispose();
     this.decorationSelectionPresenter.dispose();
-    this.renderedBlocks.clear(); this.renderedDecorations.clear();
+    this.renderedBlocks.clear();
     this.structureBlockGuidePresenter.dispose();
     this.blockGhostPresenter.dispose();
     this.movePreviewPresenter.dispose();
@@ -3319,8 +3252,8 @@ export class ThreeViewportEngine {
   }
 
   performanceEvidence(): ViewportPerformanceEvidence {
-    const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.renderedBlocks.values(), renderedDecorations: this.renderedDecorations.values() });
-    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.renderedBlocks.size, renderedDecorations: this.renderedDecorations.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.culledBlockKeys.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
+    const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.renderedBlocks.values(), renderedDecorations: this.decorationVisuals.values() });
+    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.renderedBlocks.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.culledBlockKeys.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
   }
 
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
