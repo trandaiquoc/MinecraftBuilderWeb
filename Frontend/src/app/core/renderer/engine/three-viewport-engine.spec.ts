@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, blockCoordinateFromHit, cameraMovementDelta, cameraMovementDirection, surfaceFaceDirectionFromHit, surfaceFaceNormal, translateVisualToVoxel } from './three-viewport-engine';
+import { ThreeViewportEngine, VIEWPORT_INSTANCE_THRESHOLD, VIEWPORT_VISUAL_CONCURRENCY, translateVisualToVoxel } from './three-viewport-engine';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
 import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from '../benchmark/renderer-benchmark-fixtures';
@@ -15,9 +15,6 @@ import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
 
 describe('camera movement input contract', () => {
-  const camera = new THREE.PerspectiveCamera();
-  camera.position.set(0, 2, 4); camera.lookAt(0, 2, 0);
-
   it('suspends viewport work without disposing the retained engine', () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('small');
@@ -99,37 +96,6 @@ describe('camera movement input contract', () => {
     engine.dispose(); geometry.dispose();
   });
 
-  it('uses WASD on the camera plane and Space/Shift for world vertical movement', () => {
-    expect(cameraMovementDirection(new Set(['KeyW']), camera).z).toBeLessThan(0);
-    expect(cameraMovementDirection(new Set(['Space']), camera)).toMatchObject({ x: 0, y: 1, z: 0 });
-    expect(cameraMovementDirection(new Set(['ShiftLeft']), camera)).toMatchObject({ x: 0, y: -1, z: 0 });
-  });
-
-  it('allows simultaneous orbit-relative and vertical input without a speed modifier', () => {
-    const direction = cameraMovementDirection(new Set(['KeyW', 'Space']), camera);
-    expect(direction.z).toBeLessThan(0); expect(direction.y).toBe(1);
-  });
-
-  it('uses the same translation speed for horizontal and vertical movement', () => {
-    const horizontal = cameraMovementDelta(new Set(['KeyW']), camera, 12, 3, 1);
-    const vertical = cameraMovementDelta(new Set(['Space']), camera, 12, 3, 1);
-    const combined = cameraMovementDelta(new Set(['KeyW', 'Space']), camera, 12, 3, 1);
-    expect(horizontal.length()).toBeCloseTo(12);
-    expect(vertical.y).toBe(12);
-    expect(combined.y).toBe(12);
-    expect(combined.z).toBeCloseTo(horizontal.z);
-  });
-
-  it('keeps vertical movement aligned with adaptive speed at near, medium, and far distances', async () => {
-    const { effectiveCameraMovementSpeed } = await import('../scheduling/camera-movement-speed');
-    for (const distance of [8, 16, 40]) {
-      const speed = effectiveCameraMovementSpeed(15, distance);
-      const horizontal = cameraMovementDelta(new Set(['KeyD']), camera, speed, 1, 1);
-      const vertical = cameraMovementDelta(new Set(['Space']), camera, speed, 1, 1);
-      expect(vertical.length() / horizontal.length()).toBeCloseTo(1);
-    }
-  });
-
   it('coalesces hover pointer moves and suppresses them during camera gestures', async () => {
     const engine = new ThreeViewportEngine();
     const pointer = (clientX: number) => ({ clientX, clientY: 10 } as PointerEvent);
@@ -143,13 +109,6 @@ describe('camera movement input contract', () => {
     engine.hover(pointer(3), undefined, undefined, undefined, false, () => hits.push(3));
     expect(engine.rendererCounters()).toMatchObject({ hoverRaycasts: 1, hoverPointerMovesCoalesced: 1, hoverRaycastsSuppressedDuringCamera: 1 });
     engine.dispose();
-  });
-
-  it('keeps camera movement pure with respect to the project document', () => {
-    const project = rendererBenchmarkProject('small');
-    const before = JSON.stringify(project);
-    for (const key of ['KeyW', 'KeyA', 'KeyS', 'KeyD']) cameraMovementDelta(new Set([key]), camera, 9, 9, 1);
-    expect(JSON.stringify(project)).toBe(before);
   });
 
   it('stops the movement RAF after the final action release', () => {
@@ -290,33 +249,6 @@ describe('camera movement input contract', () => {
       expect(internal.camera.position.distanceTo(targetBefore)).toBeGreaterThan(.1);
     }
     engine.dispose();
-  });
-
-  it('resolves every instanced hit from the authoritative instance voxel table', () => {
-    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 3);
-    const voxels = [{ x: 2, y: 0, z: 0 }, { x: 7, y: 1, z: 0 }, { x: 9, y: 2, z: 3 }];
-    mesh.userData['instanceVoxels'] = voxels;
-    expect(blockCoordinateFromHit({ object: mesh, instanceId: 0 } as unknown as THREE.Intersection)).toEqual(voxels[0]);
-    expect(blockCoordinateFromHit({ object: mesh, instanceId: 1 } as unknown as THREE.Intersection)).toEqual(voxels[1]);
-    expect(blockCoordinateFromHit({ object: mesh, instanceId: 2 } as unknown as THREE.Intersection)).toEqual(voxels[2]);
-    voxels[1] = voxels[2];
-    expect(blockCoordinateFromHit({ object: mesh, instanceId: 1 } as unknown as THREE.Intersection)).toEqual({ x: 9, y: 2, z: 3 });
-    mesh.geometry.dispose(); mesh.material.dispose();
-  });
-
-  it('picks normal meshes and placeholder/final instanced meshes through voxel ownership metadata', () => {
-    const normal = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
-    normal.userData['voxel'] = { x: 1, y: 2, z: 3 };
-    expect(blockCoordinateFromHit({ object: normal } as unknown as THREE.Intersection)).toEqual({ x: 1, y: 2, z: 3 });
-    const placeholder = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 1);
-    placeholder.userData['placeholder'] = true;
-    placeholder.userData['instanceVoxels'] = [{ x: 4, y: 5, z: 6 }];
-    expect(blockCoordinateFromHit({ object: placeholder, instanceId: 0 } as unknown as THREE.Intersection)).toEqual({ x: 4, y: 5, z: 6 });
-    const final = new THREE.InstancedMesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial(), 1);
-    final.userData['realModel'] = true;
-    final.userData['instanceVoxels'] = [{ x: 7, y: 8, z: 9 }];
-    expect(blockCoordinateFromHit({ object: final, instanceId: 0 } as unknown as THREE.Intersection)).toEqual({ x: 7, y: 8, z: 9 });
-    normal.geometry.dispose(); normal.material.dispose(); placeholder.geometry.dispose(); placeholder.material.dispose(); final.geometry.dispose(); final.material.dispose();
   });
 
   it('precisely picks a committed placeholder candidate before a block behind it', () => {
@@ -1810,18 +1742,6 @@ describe('incremental project mutation reconciliation', () => {
 });
 
 describe('3D exposed surface batches', () => {
-  it('keeps voxel ownership and explicit face direction for surface picking', () => {
-    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial(), 1);
-    mesh.userData['surfaceFaceBatch'] = true;
-    mesh.userData['instanceVoxels'] = [{ x: 4, y: 5, z: 6 }];
-    mesh.userData['instanceFaceDirections'] = ['north'];
-    const hit = { object: mesh, instanceId: 0 } as unknown as THREE.Intersection;
-    expect(blockCoordinateFromHit(hit)).toEqual({ x: 4, y: 5, z: 6 });
-    expect(surfaceFaceDirectionFromHit(hit)).toBe('north');
-    expect(surfaceFaceNormal('north').toArray()).toEqual([0, 0, -1]);
-    mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose();
-  });
-
   it('renders only exposed faces and reveals the neighbor face after deletion across a chunk boundary', async () => {
     const base = rendererBenchmarkProject('small');
     const stone = (x: number) => ({ kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state: {} });

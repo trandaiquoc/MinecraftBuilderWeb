@@ -5,13 +5,12 @@ import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../.
 import { FaceNormal, resolveAttachmentPlacement, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
 import type { LayerBlockIndex } from '../../editor/viewport/y-layer';
 import { isBlockVisibleForViewport, visibleBlockEntries } from '../../editor/viewport/visible-blocks';
-import { CameraBounds, CameraPreset, CameraState, CameraVector, projectCameraBounds } from '../../editor/camera/camera';
+import { CameraBounds, CameraPreset, CameraState, projectCameraBounds } from '../../editor/camera/camera';
 import { isBlockVisible } from '../../editor/groups/group-membership';
 import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
 import { GroupMovePreview } from '../../editor/groups/group.service';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import type { BlockVisualProvider, BlockVisualResult, VisualCacheStats } from '../visuals/block-visual-provider-contract';
-import type { ResolvedBlockModel } from '../../blocks/resolver';
 import type { ResolvedItemVisual } from '../visuals/item-visual-resolver';
 import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';
 import type { ContentSpecialVisualDescriptor } from '../../content/content-introspection';
@@ -98,8 +97,16 @@ import { StructureBlockGuidePresenter } from '../presentation/structure-block-gu
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 import { YLayerProjectionCoordinator, type VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
-import { blockCoordinateFromHit, cameraActionMovementDelta, canonicalRenderOptions, chunkKey, compareEmptySnapshots, createBoundedGrid, DETAILED_SELECTION_OUTLINE_LIMIT, emptyResolvedModel, isHorizontalDirection, isolateKey, renderFilterKey, stableChunkBounds, stableValue, surfaceFaceDirectionFromHit, surfaceNeighbor, surfaceFaceNormal, unitVoxelEnvelope, vectorValue, boundsOfPositions, blockRenderSignature } from './viewport-render-helpers';
-export { cameraMovementDirection, cameraMovementDelta, blockCoordinateFromHit, surfaceFaceDirectionFromHit, surfaceFaceNormal } from './viewport-render-helpers';
+import { cameraActionMovementDelta } from '../scheduling/viewport-camera-geometry';
+import { blockCoordinateFromHit, surfaceFaceDirectionFromHit } from '../interaction/viewport-hit-ownership';
+import { isHorizontalDirection, surfaceNeighbor, surfaceFaceNormal } from '../visibility/voxel-face-directions';
+import { renderChunkKey as chunkKey, renderChunkBounds as stableChunkBounds, unitVoxelEnvelope, RENDER_CHUNK_SIZE } from '../batching/render-chunk-geometry';
+import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-overlay-presenter';
+import { selectionBounds } from '../presentation/selection-bounds';
+import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
+import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-diff';
+import { blockRenderSignature, canonicalRenderOptions, isolateKey, renderFilterKey } from './viewport-render-signatures';
+import { stableValueKey } from '../../domain/stable-value-key';
 import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, PlacementPlanProvider } from './viewport-engine-contracts';
 type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
 export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
@@ -171,7 +178,7 @@ export type { CompiledInstanceTemplates, InstancePartTemplate } from '../batchin
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
 export const VIEWPORT_VISUAL_CONCURRENCY = 6;
-export const VIEWPORT_INSTANCE_CHUNK_SIZE = 16;
+export const VIEWPORT_INSTANCE_CHUNK_SIZE = RENDER_CHUNK_SIZE;
 /** Presentation regions reduce far-view batch fragmentation while preserving culling locality. */
 export const VIEWPORT_RENDER_REGION_SIZE = 32;
 export const VIEWPORT_INSTANCE_THRESHOLD = 256;
@@ -298,7 +305,7 @@ export class ThreeViewportEngine {
   private renderer?: THREE.WebGLRenderer;
   private controls?: OrbitControls;
   private ground?: THREE.Mesh;
-  private readonly editingPlanePresenter = new EditingPlanePresenter(this.scene, createBoundedGrid, viewportThemePalette('dark'));
+  private readonly editingPlanePresenter = new EditingPlanePresenter(this.scene, viewportThemePalette('dark'));
   private get editingPlane(): THREE.Mesh | undefined { return this.editingPlanePresenter.plane; }
   private get editingGrid(): THREE.LineSegments | undefined { return this.editingPlanePresenter.grid; }
   private get selectionOutline(): THREE.LineSegments { return this.selectionPresenter.selectionOutline; }
@@ -973,7 +980,7 @@ export class ThreeViewportEngine {
 
   private syncSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): boolean {
     const descriptors = this.collectSpecialVisualDescriptors(plannedBlocks);
-    const signature = stableValue(descriptors.slice().sort((left, right) => left.contentId.localeCompare(right.contentId)));
+    const signature = stableValueKey(descriptors.slice().sort((left, right) => left.contentId.localeCompare(right.contentId)));
     const changed = signature !== this.specialVisualSignature;
     if (!changed) return false;
     this.specialVisualSignature = signature;
@@ -2133,7 +2140,7 @@ export class ThreeViewportEngine {
     const selected = options.selected && isInProjection(options.selected) ? options.selected : undefined;
     const inBounds = (position: VoxelCoordinate, bounds: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }): boolean => position.x >= bounds.min.x && position.x <= bounds.max.x && position.y >= bounds.min.y && position.y <= bounds.max.y && position.z >= bounds.min.z && position.z <= bounds.max.z;
     const boundedVisible = options.selectionBounds ? visible.filter((entry) => inBounds(entry.block.position, options.selectionBounds!) && isInProjection(entry.block.position)).map((entry) => entry.block.position) : [];
-    const bounds = options.selectionBounds ? boundsOfPositions(boundedVisible) : undefined;
+    const bounds = options.selectionBounds ? selectionBounds(boundedVisible) : undefined;
     const box = options.selectionBox && visible.some((entry) => inBounds(entry.block.position, options.selectionBox!) && isInProjection(entry.block.position)) ? options.selectionBox : undefined;
     const count = options.selectionBounds ? boundedVisible.length : positions.length || (selected ? 1 : 0);
     return { selected, positions, kind: options.selectionKind, count, bounds, box };
@@ -2665,7 +2672,7 @@ export class ThreeViewportEngine {
       void pending.then(() => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); }, () => { if (this.pendingTerrainTemplates.get(reusableKey) === pending) this.pendingTerrainTemplates.delete(reusableKey); });
     }
     return pending.then((templates) => templates
-      ? { object: undefined, terrainTemplates: templates, resolved: emptyResolvedModel(block), mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }
+      ? { object: undefined, terrainTemplates: templates, resolved: { blockId: block.id, state: block.state, parts: [], support: 'full' as const, diagnostics: [], trace: { blockstateResource: '', matchedVariantKeys: [], selectedModelIds: [], modelResources: [], parentResources: [], elementCount: 0, faceCount: 0, textureResources: [] } }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } }
       : this.createProviderVisual(provider, block, worldContext));
   }
 
@@ -2901,7 +2908,7 @@ export class ThreeViewportEngine {
     } else {
       this.clearDecorationGhost();
     }
-    const hoverVisualKey = `${target ? coordinateKey(target) : ''}|${previewStatus ?? ''}|${this.ghostModelKey}|${decorationPlan?.decoration ? stableValue(decorationPlan.decoration) : ''}`;
+    const hoverVisualKey = `${target ? coordinateKey(target) : ''}|${previewStatus ?? ''}|${this.ghostModelKey}|${decorationPlan?.decoration ? stableValueKey(decorationPlan.decoration) : ''}`;
     if (hoverVisualKey !== this.lastHoverVisualKey) { this.lastHoverVisualKey = hoverVisualKey; this.scheduleRender(); }
     if (started) { const elapsed = Math.max(0, performance.now() - started); this.instrumentation.record('hoverPickMs', elapsed); this.instrumentation.record('hoverPickCount'); this.instrumentation.record('hoverPickMaxMs', Math.max(0, elapsed - this.instrumentation.snapshot().hoverPickMaxMs)); }
     if (previewStarted) { const elapsed = Math.max(0, performance.now() - previewStarted); this.instrumentation.record('placementPreviewCount'); this.instrumentation.record('placementPreviewMaxMs', Math.max(0, elapsed - this.instrumentation.snapshot().placementPreviewMaxMs)); }

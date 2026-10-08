@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
+import { unitVoxelEnvelope } from './render-chunk-geometry';
 
 export interface InstancePartTemplate {
   readonly geometry: THREE.BufferGeometry;
@@ -146,8 +147,4 @@ function mergeTransformedGeometries(templates: readonly InstancePartTemplate[]):
 function newTypedArray(source: THREE.TypedArray, length: number): THREE.TypedArray {
   const Constructor = source.constructor as THREE.TypedArrayConstructor;
   return new Constructor(length);
-}
-
-function unitVoxelEnvelope(): THREE.Box3 {
-  return new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 1, 1));
 }

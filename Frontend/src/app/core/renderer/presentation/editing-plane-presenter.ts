@@ -1,15 +1,14 @@
 import * as THREE from 'three';
 import type { ProjectDocument } from '../../domain/project.types';
+import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import type { ViewportThemePalette } from '../engine/viewport-theme';
-
-export type EditingGridFactory = (sizeX: number, sizeZ: number, color: number) => THREE.LineSegments;
 
 /** Owns only the transient Y-layer plane and grid visuals. */
 export class EditingPlanePresenter {
   private editingPlane?: THREE.Mesh;
   private editingGrid?: THREE.LineSegments;
 
-  constructor(private readonly scene: THREE.Scene, private readonly createGrid: EditingGridFactory, private palette: ViewportThemePalette) {}
+  constructor(private readonly scene: THREE.Scene, private palette: ViewportThemePalette) {}
 
   get plane(): THREE.Mesh | undefined { return this.editingPlane; }
   get grid(): THREE.LineSegments | undefined { return this.editingGrid; }
@@ -28,7 +27,7 @@ export class EditingPlanePresenter {
     this.editingGrid?.geometry.dispose();
     (this.editingGrid?.material as THREE.Material | undefined)?.dispose();
     if (this.editingGrid) this.scene.remove(this.editingGrid);
-    this.editingGrid = this.createGrid(project.size.x, project.size.z, this.palette.editingGrid);
+    this.editingGrid = createBoundedGrid(project.size.x, project.size.z, this.palette.editingGrid);
     this.scene.add(this.editingGrid);
     this.editingPlane.geometry.dispose();
     this.editingPlane.geometry = new THREE.PlaneGeometry(project.size.x, project.size.z);

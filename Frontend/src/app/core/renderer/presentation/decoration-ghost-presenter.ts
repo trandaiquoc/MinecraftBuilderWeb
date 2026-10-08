@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { stableValueKey } from '../../domain/stable-value-key';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { DecorationPlacementPlan } from '../../decorations/placement/decoration-placement';
 import { createDecorationVisual, type DecorationTextureCache } from '../visuals/decoration-visuals';
@@ -40,7 +41,7 @@ export class DecorationGhostPresenter {
   }
 
   update(candidate: PlacedDecoration, status: DecorationPlacementPlan['status']): void {
-    const key = `${stableValue(candidate)}|${status}`;
+    const key = `${stableValueKey(candidate)}|${status}`;
     if (key === this.key) return;
     this.clear();
     this.key = key;
@@ -59,10 +60,4 @@ export class DecorationGhostPresenter {
   }
 
   dispose(): void { this.clear(); }
-}
-
-function stableValue(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableValue((value as Record<string, unknown>)[key])}`).join(',')}}`;
-  return JSON.stringify(value);
 }

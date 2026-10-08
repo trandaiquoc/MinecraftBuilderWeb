@@ -17,11 +17,7 @@ describe('viewport presentation presenters', () => {
     selection.mount();
     selection.update({ selected: { x: 2, y: 3, z: 4 }, selectedPositions: [{ x: 2, y: 3, z: 4 }] });
     expect(selection.logicalSelectionGroup.children).toHaveLength(1);
-    const plane = new EditingPlanePresenter(scene, (x, z, color) => {
-      const grid = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color }));
-      grid.scale.set(x, 1, z);
-      return grid;
-    }, palette);
+    const plane = new EditingPlanePresenter(scene, palette);
     const project = { id: 'p', size: { x: 8, y: 4, z: 8 }, blocks: [], groups: [] } as never;
     plane.set(2, project);
     expect(plane.plane?.position.y).toBeCloseTo(2.002);

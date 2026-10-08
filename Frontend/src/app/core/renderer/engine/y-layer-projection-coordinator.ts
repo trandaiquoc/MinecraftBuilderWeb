@@ -5,7 +5,7 @@ import { cancelViewportFrame, requestViewportFrame } from '../scheduling/viewpor
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { coordinateKey } from '../../domain/coordinates';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
-import { renderFilterKey } from './viewport-render-helpers';
+import { renderFilterKey } from './viewport-render-signatures';
 
 type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits';
 type ProjectionSnapshot = { readonly project: ProjectDocument; readonly options: ViewportRenderOptions };

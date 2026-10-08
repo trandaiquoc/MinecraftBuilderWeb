@@ -4,7 +4,7 @@ import type { CameraBounds, CameraPreset, CameraState, CameraVector } from '../.
 import { cameraBoundsCenter, cameraDistanceForBounds, projectCameraBounds, structureCameraBounds } from '../../editor/camera/camera';
 import { blocksForLayers, type YLayerVisibility } from '../../editor/viewport/y-layer';
 import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { perspectiveDirection, presetDirection, vectorValue } from '../engine/viewport-render-helpers';
+import { perspectiveDirection, presetDirection, vectorValue } from './viewport-camera-geometry';
 
 export interface ViewportCameraFramingCallbacks {
   readonly project: () => ProjectDocument | undefined;
