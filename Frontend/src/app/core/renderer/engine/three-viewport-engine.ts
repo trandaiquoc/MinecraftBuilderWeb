@@ -59,7 +59,7 @@ import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainBlockChange,
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
 import { groupTerrainCandidates } from '../terrain/terrain-hydration-coordinator';
-import { TerrainTemplateResolutionCache } from '../terrain/terrain-template-resolution-cache';
+import { ViewportTerrainTemplatePipeline } from '../terrain/viewport-terrain-template-pipeline';
 import { blockMutationHint, type ProjectMutationHint } from '../../editor/mutations/project-mutation-hint';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import { runTerrainAtlasGpuProbe, runTerrainAtlasGpuProbeVariants, type TerrainAtlasGpuProbeBeforeVariant, type TerrainAtlasGpuProbeDraw, type TerrainAtlasGpuProbeResult, type TerrainAtlasGpuProbeVariantDraw, type TerrainAtlasGpuProbeVariantsResult } from '../terrain/atlas/terrain-atlas-gpu-probe';
@@ -402,7 +402,7 @@ export class ThreeViewportEngine {
     VIEWPORT_CAMERA_IDLE_GRACE_MS,
   );
   private readonly blockRepresentations = new ViewportBlockRepresentationStore();
-  private readonly terrainTemplateResolutions = new TerrainTemplateResolutionCache<readonly SurfaceFaceTemplate[]>();
+  private readonly terrainPipeline = new ViewportTerrainTemplatePipeline<readonly SurfaceFaceTemplate[]>();
   private readonly renderRegionPolicy = new RenderRegionPolicy(VIEWPORT_RENDER_REGION_SIZE);
   private readonly instanceRenderer: StaticModelBatchRenderer;
   private readonly fluidCoordinator: FluidRenderCoordinator;
@@ -448,7 +448,6 @@ export class ThreeViewportEngine {
   private providerStats?: VisualCacheStats;
   /** Ownership signatures for final fallback placeholders (no async job). */
   private readonly placeholderSignatures = new Map<string, string>();
-  private terrainHydrationPending = 0;
   private get hydrationRunning(): number { return this.hydrationPipeline.runningTotal; }
   private cameraInteractingUntil = 0;
   private cameraRenderPending = false;
@@ -1080,7 +1079,7 @@ export class ThreeViewportEngine {
       this.syncedDecorationProject = project;
       if (!metadataMutation) {
         this.reconcileDecorations(project, options, false);
-        this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+        this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
       }
     }
     if (isolatePresentationChanged) {
@@ -1172,7 +1171,7 @@ export class ThreeViewportEngine {
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
-      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.hydrationPipeline.pendingCount, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.blockRepresentations.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainHydrationPending, hydrationScheduled: this.hydrationPipeline.scheduler.isScheduled, hydrationTimerActive: this.hydrationPipeline.scheduler.timerActive, currentBatchBudget: this.hydrationPipeline.batchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
+      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.hydrationPipeline.pendingCount, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.blockRepresentations.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainPipeline.pendingGroupCount, hydrationScheduled: this.hydrationPipeline.scheduler.isScheduled, hydrationTimerActive: this.hydrationPipeline.scheduler.timerActive, currentBatchBudget: this.hydrationPipeline.batchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
       render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.length + this.decorationsGroup.children.length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain['terrainChunkMeshes'], standaloneMeshCount: 0, renderRegionCount: this.instanceBatches.size + this.surfaceFaceBatches.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationPipeline.generation, specialVisualRevision: this.specialVisualRevision },
@@ -1349,7 +1348,7 @@ export class ThreeViewportEngine {
     this.hydrationPipeline.work.replaceRegular([...normalJobs, ...referenceJobs, ...missingJobs]);
     const previousMax = this.instrumentation.snapshot().maxPendingVisualJobs;
     if (this.queuedBlockHydrationJobs() > previousMax) this.instrumentation.record('maxPendingVisualJobs', this.queuedBlockHydrationJobs() - previousMax);
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     this.reconcileInstanceOwnership();
     this.previousVisibleBlockPositions.clear();
@@ -1439,7 +1438,7 @@ export class ThreeViewportEngine {
       }
     }
     this.updateHydrationOrder();
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     this.yLayerProjection.clearInFlightLayers();
     return this.yLayerProjection.isWorkCurrent(token);
@@ -1532,7 +1531,7 @@ export class ThreeViewportEngine {
     if (terrainChanges.length) this.terrainRenderer.applyBlockChanges(terrainChanges, flushTerrain, [...changedProjectionKeys]);
     if (publishProgress) {
       this.updateHydrationOrder();
-      this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs());
+      this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
       if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     }
     const durationMs = performance.now() - started;
@@ -1853,7 +1852,7 @@ export class ThreeViewportEngine {
     if (!terrainResult.pending) this.enqueueFailedTerrainCandidates([...preparedTerrainCandidates.entries()].filter(([key]) => !representedTerrainKeys.has(key)).map(([, candidate]) => candidate), lane);
     if (terrainCandidates.length) this.scheduleTerrainBatch(terrainCandidates, [], [...affectedPositions.values()], false, true, lane);
     this.updateHydrationOrder();
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), lane);
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane);
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     // InstanceBatchRenderer updates swap-back ownership atomically for every
     // touched entry. Full ownership reconciliation remains on structural
@@ -1905,17 +1904,17 @@ export class ThreeViewportEngine {
     const resolved = [...groups.entries()].map(([reusableKey, group]) => {
       const cached = this.terrainRenderer.templatesFor(reusableKey);
       if (cached) return Promise.resolve({ reusableKey, group, templates: cached, owned: false });
-      this.terrainHydrationPending += 1;
+      this.terrainPipeline.beginGroups(1);
       return this.resolveTerrainTemplates(reusableKey, group[0].next.block, group[0].worldContext, group[0].provider)
         .then((templates) => ({ reusableKey, group, templates, owned: true }), () => ({ reusableKey, group, templates: undefined, owned: false }));
     });
     const pendingGroups = resolved.filter((_, index) => !this.terrainRenderer.templateCache.has([...groups.keys()][index])).length;
-    if (pendingGroups) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), lane);
+    if (pendingGroups) this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane);
     void Promise.all(resolved).then((results) => {
       const staleProjection = [...projectionRevisions].some(([key, revision]) => this.yLayerProjection.revisionForKey(key) !== revision);
       if (token !== this.hydrationPipeline.generation || staleProjection || providerGeneration !== this.providerGeneration || this.disposed) {
         for (const result of results) if (result.owned && result.templates && ![...this.terrainRenderer.templateCache.values()].some((templates) => templates === result.templates)) this.disposeTerrainTemplates(result.templates);
-        this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
+        this.terrainPipeline.finishGroups(pendingGroups);
         // A structural batch can become stale because a local edit replaced
         // its projection while the provider promise was pending. Requeue the
         // current representation in the lane that owns that replacement; do
@@ -1945,14 +1944,14 @@ export class ThreeViewportEngine {
         if (candidate) failed.push(candidate);
       }
       this.enqueueFailedTerrainCandidates(failed, lane);
-      this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
+      this.terrainPipeline.finishGroups(pendingGroups);
       this.recordProviderCacheStats();
       this.scheduleRender();
       if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     }).catch(() => {
       // Promise.all is intentionally normalized above; this is only a guard
       // for an unexpected coordinator failure.
-      this.terrainHydrationPending = Math.max(0, this.terrainHydrationPending - pendingGroups);
+      this.terrainPipeline.finishGroups(pendingGroups);
       this.enqueueFailedTerrainKeys(candidates.map((candidate) => candidate.key), lane);
     });
   }
@@ -1983,12 +1982,12 @@ export class ThreeViewportEngine {
     }
     this.instrumentation.record('terrainAsyncFallbackKeys', candidates.size);
     this.updateHydrationOrder();
-    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainHydrationPending, this.queuedDecorationHydrationJobs(), lane);
+    this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs(), lane);
     this.scheduleHydrationPump();
   }
 
   private resolveTerrainTemplates(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: TerrainHydrationCandidate['worldContext'], provider: BlockVisualProvider): Promise<readonly SurfaceFaceTemplate[] | undefined> {
-    return this.terrainTemplateResolutions.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
+    return this.terrainPipeline.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
       if (!visual.object) return undefined;
       const templates = extractSurfaceFaceTemplates(visual.object);
       disposeObject(visual.object);
@@ -2316,7 +2315,7 @@ export class ThreeViewportEngine {
       placeholderSignatureCount: this.placeholderSignatures.size,
       placeholderVisualCount: this.placeholderIndices.size,
       renderedBlockCount: this.blockRepresentations.size,
-      terrainHydrationPending: this.terrainHydrationPending,
+      terrainHydrationPending: this.terrainPipeline.pendingGroupCount,
       cameraInteractionInProgress: this.cameraGestureInProgress || this.pressedActions.size > 0,
     });
     if (this.cameraGestureInProgress || this.pressedActions.size > 0) this.instrumentation.record('cameraOnlyGenerationChanges');
@@ -2324,7 +2323,7 @@ export class ThreeViewportEngine {
     if (this.queuedBlockHydrationJobs() || this.hydrationRunning) this.instrumentation.record('cancelledHydrations');
     this.hydrationPipeline.work.clearPending();
     this.hydrationPipeline.clearPendingSignatures();
-    this.terrainHydrationPending = 0;
+    this.terrainPipeline.resetGroups();
     this.hydrationPipeline.clearRunningOwnership();
     this.cancelDecorationHydration();
     this.hydrationPipeline.clearBatchBudget();
@@ -2554,7 +2553,7 @@ export class ThreeViewportEngine {
   }
 
   private resolveTerrainHydration(reusableKey: string, block: ProjectDocument['blocks'][number], worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }, provider: BlockVisualProvider): Promise<TerrainHydrationResult> {
-    const pending = this.terrainTemplateResolutions.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
+    const pending = this.terrainPipeline.resolve(reusableKey, () => this.createProviderVisual(provider, block, worldContext).then((visual) => {
       if (!visual.object) return undefined;
       const templates = extractSurfaceFaceTemplates(visual.object);
       disposeObject(visual.object);
@@ -2874,7 +2873,7 @@ export class ThreeViewportEngine {
     this.placeholderMaterials.normal.dispose(); this.placeholderMaterials.reference.dispose(); this.placeholderMaterials.missing.dispose();
     provider?.release?.();
     this.providerRefreshPipeline.dispose();
-    this.terrainTemplateResolutions.clearPending();
+    this.terrainPipeline.dispose();
     this.visualProvider = undefined;
     this.renderer = undefined;
     this.container = undefined;
@@ -3093,7 +3092,7 @@ export class ThreeViewportEngine {
   private withProviderRefreshProgress(progress: HydrationProgressSnapshot): ViewportHydrationProgress {
     const refresh = this.providerRefreshPipeline.progress;
     const baseFinalization = progress.finalization;
-    if (!refresh && !this.providerRefreshPipeline.isPlanning) return { ...progress, providerRefreshPlanning: false, terrainPending: this.terrainHydrationPending };
+    if (!refresh && !this.providerRefreshPipeline.isPlanning) return { ...progress, providerRefreshPlanning: false, terrainPending: this.terrainPipeline.pendingGroupCount };
     const refreshTotal = refresh?.total ?? 0;
     const refreshCompleted = refresh?.completed ?? 0;
     const baseFinalReady = baseFinalization?.finalReadyBlocks ?? progress.blocksCompleted;
@@ -3119,7 +3118,7 @@ export class ThreeViewportEngine {
       providerRefreshPlanning: this.providerRefreshPipeline.isPlanning,
       providerRefreshQueued: this.hydrationPipeline.work.queuedProviderRefresh(),
       providerRefreshRunning: this.hydrationPipeline.work.counts().providerRefreshRunning,
-      terrainPending: this.terrainHydrationPending,
+      terrainPending: this.terrainPipeline.pendingGroupCount,
       finalization,
       ...(refresh ? { providerRefreshCompleted: refresh.completed, providerRefreshTotal: refresh.total } : {}),
     };

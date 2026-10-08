@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TerrainTemplateResolutionCache } from './terrain-template-resolution-cache';
+import { ViewportTerrainTemplatePipeline } from './viewport-terrain-template-pipeline';
 
-describe('TerrainTemplateResolutionCache', () => {
+describe('ViewportTerrainTemplatePipeline', () => {
   it('coalesces same-key in-flight extraction and clears settled ownership', async () => {
-    const cache = new TerrainTemplateResolutionCache<object>();
+    const cache = new ViewportTerrainTemplatePipeline<object>();
     const template = {};
     const create = vi.fn(async () => template);
     const first = cache.resolve('model|state', create);
@@ -16,9 +16,19 @@ describe('TerrainTemplateResolutionCache', () => {
   });
 
   it('drops rejected promises from its pending ownership', async () => {
-    const cache = new TerrainTemplateResolutionCache<object>();
+    const cache = new ViewportTerrainTemplatePipeline<object>();
     const failure = new Error('template failed');
     await expect(cache.resolve('bad', async () => { throw failure; })).rejects.toBe(failure);
     expect(cache.pendingCount).toBe(0);
+  });
+
+  it('owns grouped terrain hydration accounting and safely resets stale work', () => {
+    const pipeline = new ViewportTerrainTemplatePipeline<object>();
+    pipeline.beginGroups(3);
+    pipeline.finishGroups(1);
+    expect(pipeline.pendingGroupCount).toBe(2);
+    pipeline.resetGroups();
+    pipeline.finishGroups(1);
+    expect(pipeline.pendingGroupCount).toBe(0);
   });
 });
