@@ -144,11 +144,45 @@ describe('YLayerProjectionCoordinator', () => {
     frame?.(0);
     for (let count = 0; count < 100 && coordinator.committedOptionsFor(document)?.layerY !== 9; count += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(applied).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 256, 256, 88]);
-    expect(metrics.filter((metric) => metric === 'yLayerProjectionSlices')).toHaveLength(12);
-    expect(metrics.filter((metric) => metric === 'yLayerProjectionYields')).toHaveLength(11);
+    expect(applied).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 384, 216]);
+    expect(metrics.filter((metric) => metric === 'yLayerProjectionSlices')).toHaveLength(11);
+    expect(metrics.filter((metric) => metric === 'yLayerProjectionYields')).toHaveLength(10);
     expect(finish).toHaveBeenCalledOnce();
     expect(coordinator.committedOptionsFor(document)?.layerY).toBe(9);
+    coordinator.dispose();
+  });
+
+  it('cooperatively slices a dense single-layer visibility change outside all-below mode', async () => {
+    let frame: FrameRequestCallback | undefined;
+    const blocks = Array.from({ length: 600 }, (_, index) => ({ ...block(index), position: { x: index, y: 9, z: 0 } }));
+    const index = { blocksAtY: (y: number) => y === 9 ? blocks : [], occupiedLayers: () => [9], allBlocks: () => blocks };
+    const applied: number[] = [];
+    const metrics: string[] = [];
+    const committed = vi.fn();
+    const coordinator = new YLayerProjectionCoordinator({
+      isDisposed: () => false,
+      isSuspended: () => false,
+      applyDelta: (_document, _options, delta) => { applied.push(delta.blockOverrides?.get(9)?.length ?? 0); },
+      finishCooperativeWork: () => undefined,
+      keySettled: () => true,
+      onCommit: committed,
+      onWorkFailure: () => undefined,
+      record: (metric) => metrics.push(metric),
+      recordMax: () => undefined,
+    }, (callback) => { frame = callback; return 1; }, () => undefined);
+    const document = { ...project(blocks), size: { x: 600, y: 12, z: 1 } };
+    coordinator.setCommitted(document, { layerY: 9, visibility: 'current-only', layerIndex: index });
+    coordinator.request(document, { layerY: 9, visibility: 'whole-structure', layerIndex: index }, index);
+    frame?.(0);
+    for (let count = 0; count < 100 && coordinator.committedOptionsFor(document)?.visibility !== 'whole-structure'; count += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    expect(applied).toEqual([384, 216]);
+    expect(metrics.filter((metric) => metric === 'yLayerProjectionSlices')).toHaveLength(2);
+    expect(metrics.filter((metric) => metric === 'yLayerProjectionYields')).toHaveLength(1);
+    expect(committed).toHaveBeenCalledOnce();
+    expect(coordinator.committedOptionsFor(document)?.visibility).toBe('whole-structure');
     coordinator.dispose();
   });
 
@@ -156,10 +190,10 @@ describe('YLayerProjectionCoordinator', () => {
     let frame: FrameRequestCallback | undefined;
     let started!: () => void;
     const firstStarted = new Promise<void>((resolve) => { started = resolve; });
-    const blocksByLayer = new Map<number, ResolvedPlacedBlock[]>([[9, Array.from({ length: 300 }, (_, i) => ({ ...block(i), position: { x: i, y: 9, z: 0 } }))]]);
+    const blocksByLayer = new Map<number, ResolvedPlacedBlock[]>([[9, Array.from({ length: 600 }, (_, i) => ({ ...block(i), position: { x: i, y: 9, z: 0 } }))]]);
     const index = { blocksAtY: (y: number) => blocksByLayer.get(y) ?? [], occupiedLayers: () => Array.from({ length: 10 }, (_, y) => y), allBlocks: () => [] };
     const applied: number[][] = [];
-    const document = { ...project([...blocksByLayer.values()][0]), size: { x: 300, y: 12, z: 1 } };
+    const document = { ...project([...blocksByLayer.values()][0]), size: { x: 600, y: 12, z: 1 } };
     const coordinator = new YLayerProjectionCoordinator({
       isDisposed: () => false,
       isSuspended: () => false,

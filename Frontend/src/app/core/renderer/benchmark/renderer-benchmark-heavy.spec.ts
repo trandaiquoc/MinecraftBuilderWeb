@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ThreeViewportEngine } from '../engine/three-viewport-engine';
+import { Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT } from '../engine/y-layer-projection-coordinator';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import { benchmarkBlock, rendererBenchmarkProject, rendererBenchmarkVisualProvider } from './renderer-benchmark-fixtures';
 import * as THREE from 'three';
@@ -299,7 +300,7 @@ describe('explicit renderer benchmark', () => {
     await settleHydration(20, engine);
     const before = diagnostics.snapshot();
     engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 47 } }, undefined, { layerY: 47, visibility: 'all-below', layerIndex });
-    const expectedSlices = project.size.y * Math.ceil((project.size.x * project.size.z) / 256);
+    const expectedSlices = project.size.y * Math.ceil((project.size.x * project.size.z) / Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT);
     for (let index = 0; index < 3000 && diagnostics.snapshot().yLayerProjectionSlices < expectedSlices; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
     const after = diagnostics.snapshot();
     expect(after.yLayerProjectionSlices).toBeGreaterThan(1);

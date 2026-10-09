@@ -526,7 +526,7 @@ export class ThreeViewportEngine {
       onCommit: (project, renderOptions) => {
         this.structureSyncState.commit(project, this.structureSyncState.keyFor(project, renderFilterKey(renderOptions)));
       },
-      onWorkFailure: (error) => this.runtimeTrace?.record('y-layer-projection-failed', { error: error instanceof Error ? error.message : String(error) }),
+      onWorkFailure: (error) => this.recoverFailedLayerProjection(error),
       record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
       recordMax: (metric, value) => this.instrumentation.recordMax(metric, value),
     });
@@ -817,6 +817,13 @@ export class ThreeViewportEngine {
   }
 
   setLayerIndex(index: LayerBlockIndex | undefined): void { this.layerIndex = index; }
+  /** Prepares Y-layer membership without mounting a renderer or starting hydration. */
+  prewarmYLayerProjection(project: ProjectDocument, options: ViewportRenderOptions): number {
+    if (this.disposed || !this.suspended || this.renderer || this.project !== project || options.layerY === undefined || !options.visibility) return 0;
+    const entries = this.visibleBlocks(project, options, false);
+    this.yLayerProjection.prewarmVisible(project, options, entries, this.providerGeneration);
+    return entries.length;
+  }
   setBlockUsageHighlight(id: string | undefined, positions: readonly VoxelCoordinate[] | undefined): void { this.blockUsageHighlightId = id; this.blockUsageHighlightPositions = positions; this.updateBlockUsageHighlight(id, positions); this.scheduleRender(); }
 
   /** Updates reference presentation without invalidating model or terrain caches. */
@@ -1103,7 +1110,7 @@ export class ThreeViewportEngine {
     const nextSyncKey = this.structureSyncState.keyFor(project, renderFilterKey(options));
     const referenceOpacityOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && renderFilterKey(previousOptions) === renderFilterKey(options) && previousOptions.referenceOpacity !== options.referenceOpacity;
     const projectionDelta = this.yLayerProjection.plan(previousProject, previousOptions, options, options.layerIndex ?? this.layerIndex);
-    const layerProjectionOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && !mutationHint && projectionDelta.changed && previousOptions.visibility === options.visibility && !!options.visibility && options.layerY !== undefined && previousOptions.layerY !== undefined && renderFilterKey(previousOptions) === renderFilterKey(options);
+    const layerProjectionOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.groups === previousProject.groups && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && !mutationHint && projectionDelta.changed && !!previousOptions.visibility && !!options.visibility && options.layerY !== undefined && previousOptions.layerY !== undefined && previousOptions.exposedFaceRendering === options.exposedFaceRendering;
     const incrementalMutation = !!project && !!previousProject && project !== previousProject && !!mutationHint && nextSyncKey === previousSyncKey && renderFilterKey(previousOptions) === renderFilterKey(options) && this.yLayerProjection.visibleProject === previousProject && this.indexedProject === previousProject;
     const metadataMutation = mutationHint?.kind === 'metadata-delta';
     this.project = project;
@@ -1125,6 +1132,11 @@ export class ThreeViewportEngine {
     const decorationInputChanged = project !== this.syncedDecorationProject || decorationKey !== this.decorationSyncKey;
     const full = syncKey !== structureState.syncKey;
     if (layerProjectionOnly && project && projectionDelta.changedLayers.length) this.yLayerProjection.request(project, options, options.layerIndex ?? this.layerIndex);
+    else if (layerProjectionOnly && project) {
+      this.yLayerProjection.setCommitted(project, options);
+      this.yLayerProjection.associateVisibleProjection(project, options);
+      this.structureSyncState.commit(project, syncKey);
+    }
     if (blockInputChanged || inPlaceBlockMutation) {
       const projectIdentityChanged = project !== structureState.project;
       const incrementalProjectChange = projectIdentityChanged && !full && this.blockRepresentations.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.hydrationPipeline.pendingCount > 0 || this.placeholderSignatures.size > 0);
@@ -1316,7 +1328,9 @@ export class ThreeViewportEngine {
     }
     this.compactHydrationQueues();
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
-    const visible = visibleOverride ?? this.visibleBlocks(project, options);
+    const prewarmed = visibleOverride ? undefined : this.yLayerProjection.takePrewarmedVisible(project, options, this.providerGeneration);
+    if (prewarmed && 'fallbackReason' in prewarmed) this.runtimeTrace?.record('y-layer-prewarm-fallback', { reason: prewarmed.fallbackReason, projectId: project.id });
+    const visible = visibleOverride ?? (prewarmed && 'entries' in prewarmed ? prewarmed.entries : this.visibleBlocks(project, options));
     this.setHydrationBlockScope(visible);
     this.yLayerProjection.replaceVisible(project, options, visible);
     const allVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
@@ -1460,6 +1474,25 @@ export class ThreeViewportEngine {
     this.hydrationPipeline.prioritizeRegularJobs((job) => job.role);
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
+  }
+
+  private recoverFailedLayerProjection(error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    this.runtimeTrace?.record('y-layer-projection-failed', { error: detail, recovery: 'full-reconcile' });
+    if (this.disposed) return;
+    if (this.suspended) {
+      this.suspendedNeedsRefresh = true;
+      this.structureSyncState.invalidateKey();
+      return;
+    }
+    const project = this.project;
+    if (!project) return;
+    this.yLayerProjection.cancel();
+    this.cancelHydration('structure-sync-key-changed', { source: 'y-layer-projection-recovery', error: detail });
+    const syncKey = this.structureSyncState.keyFor(project, renderFilterKey(this.renderOptions));
+    this.reconcileStructure(project, this.renderOptions, true);
+    this.yLayerProjection.setCommitted(project, this.renderOptions);
+    this.structureSyncState.commit(project, syncKey);
   }
 
   private applyLayerProjectionDelta(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], blockOverrides?: ReadonlyMap<number, readonly ProjectDocument['blocks'][number][]>, flushTerrain = true, publishProgress = true): void {

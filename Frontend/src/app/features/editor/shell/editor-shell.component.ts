@@ -53,11 +53,7 @@ export class EditorShellComponent implements OnDestroy {
   protected readonly theme = inject(ThemeService);
   protected readonly workspace = inject(WorkspaceStateService);
   protected readonly mode = inject(EditorModeService);
-  protected readonly visitedModes = signal<ReadonlySet<'3d' | 'y-layer'>>(new Set([this.mode.mode()]));
-  private readonly visitedModeSync = effect(() => {
-    const current = this.mode.mode();
-    this.visitedModes.update((visited) => visited.has(current) ? visited : new Set([...visited, current]));
-  });
+  protected readonly visitedModes = signal<ReadonlySet<'3d' | 'y-layer'>>(new Set(['3d', 'y-layer']));
   protected readonly tool = inject(EditorToolService);
   protected readonly selection = inject(SelectionService);
   protected readonly groups = inject(GroupService);

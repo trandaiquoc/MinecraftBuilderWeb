@@ -287,6 +287,8 @@ describe('editor shell retained viewport lifecycle', () => {
     fixture.detectChanges();
     const three = fixture.debugElement.query(By.css('test-viewport'));
     expect(three).toBeDefined();
+    const yLayerInitially = fixture.debugElement.query(By.css('test-y-layer'));
+    expect(yLayerInitially).toBeDefined();
 
     mode.setMode('y-layer');
     fixture.detectChanges();
@@ -294,6 +296,7 @@ describe('editor shell retained viewport lifecycle', () => {
     fixture.detectChanges();
     const yLayer = fixture.debugElement.query(By.css('test-y-layer'));
     expect(yLayer).toBeDefined();
+    expect(yLayer).toBe(yLayerInitially);
     const threeInstance = three.componentInstance as TestViewportStub;
     const yLayerInstance = yLayer.componentInstance as TestYLayerStub;
 

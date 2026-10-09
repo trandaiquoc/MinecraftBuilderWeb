@@ -7,9 +7,19 @@ import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { coordinateKey } from '../../domain/coordinates';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import { blockRenderSignature, canonicalRenderOptions, renderFilterKey } from './viewport-render-signatures';
+import { yieldToBrowser } from '../../assets/cooperative-yield';
 
 type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits' | 'yLayerProjectionSlices' | 'yLayerProjectionYields' | 'yLayerProjectionCancellations' | 'blockSignatureComputations' | 'yLayerProjectionChangedLayers' | 'yLayerProjectionChangedBlocks' | 'yLayerProjectionAddedVisible' | 'yLayerProjectionRemovedVisible' | 'yLayerProjectionRoleChanged';
+export const Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT = 384;
 type ProjectionSnapshot = { readonly project: ProjectDocument; readonly options: ViewportRenderOptions };
+type PrewarmedProjection = {
+  readonly project: ProjectDocument;
+  readonly options: ViewportRenderOptions;
+  readonly providerGeneration: number;
+};
+export type PrewarmedProjectionResult =
+  | { readonly entries: readonly VisibleBlockProjectionEntry[] }
+  | { readonly fallbackReason: 'project-changed' | 'provider-changed' | 'projection-changed' };
 export interface ProjectionLayerDelta {
   readonly layers: readonly number[];
   readonly blockOverrides?: ReadonlyMap<number, readonly PlacedBlock[]>;
@@ -68,7 +78,9 @@ export class YLayerProjectionCoordinator {
   private readonly visibleIndices = new Map<string, number>();
   private visibleProjectValue?: ProjectDocument;
   private visibleKey = '';
-  private static readonly sliceBlockLimit = 256;
+  private prewarmedProjection?: PrewarmedProjection;
+  private static readonly cooperativeBlockThreshold = Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT;
+  private static readonly sliceBlockLimit = Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT;
 
   constructor(
     private readonly ports: YLayerProjectionPorts,
@@ -92,9 +104,8 @@ export class YLayerProjectionCoordinator {
 
   canUseCachedVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): boolean {
     if (this.hasVisibleProjection(project, options)) return true;
-    return this.pending?.project === project
-      && this.pending.options.visibility === 'whole-structure'
-      && this.committed?.options.visibility === 'whole-structure';
+    return this.pending?.project === project && this.committed?.project.id === project.id
+      && this.committed.project.blocks === project.blocks;
   }
 
   visibleEntry(key: string): VisibleBlockProjectionEntry | undefined { return this.visibleMap.get(key); }
@@ -114,7 +125,7 @@ export class YLayerProjectionCoordinator {
     layerIndex: LayerBlockIndex | undefined,
     occlusionClass: (block: PlacedBlock) => OcclusionClass,
   ): ProjectionVisibleDeltaPlan {
-    const blocksForLayer = (layer: number): readonly PlacedBlock[] => blockOverrides?.get(layer) ?? layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
+    const blocksForLayer = createLayerLookup(project, layerIndex, blockOverrides);
     const changes = new Map<string, ProjectionVisibleChange>();
     const visibilityOptions = { ...canonicalRenderOptions(options), layerIndex };
     for (const layer of layers) for (const block of blocksForLayer(layer)) {
@@ -150,11 +161,28 @@ export class YLayerProjectionCoordinator {
   }
 
   replaceVisible(project: ProjectDocument, options: ViewportRenderOptions, entries: readonly VisibleBlockProjectionEntry[]): void {
+    this.prewarmedProjection = undefined;
     this.visibleEntriesValue = [...entries];
     this.visibleMap = new Map(entries.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     this.visibleIndices.clear();
     this.visibleEntriesValue.forEach((entry, index) => this.visibleIndices.set(coordinateKey(entry.block.position), index));
     this.associateVisibleProjection(project, options);
+  }
+
+  prewarmVisible(project: ProjectDocument, options: ViewportRenderOptions, entries: readonly VisibleBlockProjectionEntry[], providerGeneration: number): void {
+    this.replaceVisible(project, options, entries);
+    this.prewarmedProjection = { project, options, providerGeneration };
+  }
+
+  takePrewarmedVisible(project: ProjectDocument, options: ViewportRenderOptions, providerGeneration: number): PrewarmedProjectionResult | undefined {
+    const prepared = this.prewarmedProjection;
+    this.prewarmedProjection = undefined;
+    if (!prepared) return undefined;
+    if (prepared.project !== project) return { fallbackReason: 'project-changed' };
+    if (prepared.providerGeneration !== providerGeneration) return { fallbackReason: 'provider-changed' };
+    if (prepared.options.layerY !== options.layerY || prepared.options.visibility !== options.visibility
+      || prepared.options.exposedFaceRendering !== options.exposedFaceRendering) return { fallbackReason: 'projection-changed' };
+    return { entries: this.visibleEntriesValue };
   }
 
   associateVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): void {
@@ -187,7 +215,7 @@ export class YLayerProjectionCoordinator {
 
   plan(project: ProjectDocument | undefined, fallback: ViewportRenderOptions, next: ViewportRenderOptions, index?: LayerBlockIndex) {
     const base = this.committedOptionsFor(project) ?? fallback;
-    return planYLayerProjectionDelta(base.layerY, base.visibility, next.layerY, next.visibility, index);
+    return planYLayerProjectionDelta(base.layerY, base.visibility, next.layerY, next.visibility, index, project?.blocks);
   }
 
   setCommitted(project: ProjectDocument, options: ViewportRenderOptions): void { this.committed = { project, options }; }
@@ -226,6 +254,7 @@ export class YLayerProjectionCoordinator {
     this.visibleIndices.clear();
     this.visibleProjectValue = undefined;
     this.visibleKey = '';
+    this.prewarmedProjection = undefined;
   }
 
   dispose(): void { this.clear(); this.listeners.clear(); }
@@ -281,8 +310,10 @@ export class YLayerProjectionCoordinator {
   }
 
   private async applyLayerWork(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], layerIndex: LayerBlockIndex | undefined, token: number): Promise<boolean> {
-    const blocksForLayer = (layer: number): readonly PlacedBlock[] => layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
-    const cooperative = options.visibility === 'all-below' && changedLayers.length > 8;
+    const blocksForLayer = createLayerLookup(project, layerIndex);
+    const layerBlocks = changedLayers.map((layer) => [layer, blocksForLayer(layer)] as const);
+    const totalBlocks = layerBlocks.reduce((count, [, blocks]) => count + blocks.length, 0);
+    const cooperative = changedLayers.length > 8 || totalBlocks > YLayerProjectionCoordinator.cooperativeBlockThreshold;
     if (!cooperative) {
       if (!this.isWorkCurrent(token)) return false;
       try {
@@ -294,8 +325,7 @@ export class YLayerProjectionCoordinator {
     }
 
     const batches: ProjectionLayerDelta[] = [];
-    for (const layer of changedLayers) {
-      const blocks = blocksForLayer(layer);
+    for (const [layer, blocks] of layerBlocks) {
       if (!blocks.length) {
         batches.push({ layers: [layer], blockOverrides: new Map([[layer, []]]), flushTerrain: false, publishProgress: false });
         continue;
@@ -319,7 +349,7 @@ export class YLayerProjectionCoordinator {
         this.ports.record('yLayerProjectionSlices');
         if (index + 1 < batches.length) {
           this.ports.record('yLayerProjectionYields');
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          await yieldToBrowser();
         }
       }
       if (!this.isWorkCurrent(token)) return false;
@@ -349,4 +379,30 @@ export class YLayerProjectionCoordinator {
     const state = this.state;
     for (const listener of this.listeners) listener(state);
   }
+}
+
+function createLayerLookup(
+  project: ProjectDocument,
+  index?: LayerBlockIndex,
+  overrides?: ReadonlyMap<number, readonly PlacedBlock[]>,
+): (layer: number) => readonly PlacedBlock[] {
+  let fallback: Map<number, PlacedBlock[]> | undefined;
+  return (layer) => {
+    const override = overrides?.get(layer);
+    if (override) return override;
+    const indexed = index?.blocksAtY(layer);
+    if (indexed) return indexed;
+    fallback ??= groupBlocksByLayer(project.blocks);
+    return fallback.get(layer) ?? [];
+  };
+}
+
+function groupBlocksByLayer(blocks: readonly PlacedBlock[]): Map<number, PlacedBlock[]> {
+  const byLayer = new Map<number, PlacedBlock[]>();
+  for (const block of blocks) {
+    let layer = byLayer.get(block.position.y);
+    if (!layer) byLayer.set(block.position.y, layer = []);
+    layer.push(block);
+  }
+  return byLayer;
 }

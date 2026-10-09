@@ -55,6 +55,28 @@ describe('editor viewport engine teardown', () => {
 
   it.each([
     ['3D', ViewportComponent],
+    ['Y-layer', YLayerComponent],
+  ] as const)('does not mount an inactive %s GPU viewport until it becomes active', async (_label, component) => {
+    const componentType = component as unknown as Type<unknown>;
+    await TestBed.configureTestingModule({ imports: [componentType] })
+      .overrideComponent(componentType, { set: { template: '<div #host></div>' } })
+      .compileComponents();
+    const mount = vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => undefined);
+    vi.spyOn(ThreeViewportEngine.prototype, 'update').mockImplementation(() => undefined);
+    vi.spyOn(ThreeViewportEngine.prototype, 'dispose').mockImplementation(() => undefined);
+    const fixture = TestBed.createComponent(componentType);
+    fixture.componentRef.setInput('viewportActive', false);
+    fixture.detectChanges();
+    expect(mount).not.toHaveBeenCalled();
+
+    fixture.componentRef.setInput('viewportActive', true);
+    fixture.detectChanges();
+    expect(mount).toHaveBeenCalledTimes(1);
+    fixture.destroy();
+  });
+
+  it.each([
+    ['3D', ViewportComponent],
     ['Y-Layer', YLayerComponent],
   ] as const)('keeps resolver callbacks stable while refreshing %s content revisions', async (_mode, component) => {
     const componentType = component as unknown as Type<unknown>;

@@ -44,4 +44,15 @@ describe('Y-layer projection', () => {
     expect(planYLayerProjectionDelta(20, 'current-only', 21, 'current-only')).toEqual({ changed: true, changedLayers: [20, 21] });
     expect(planYLayerProjectionDelta(20, 'previous-current-next', 21, 'previous-current-next').changedLayers).toEqual([19, 20, 21, 22]);
   });
+
+  it('plans only the occupied layers visible before or after a visibility-mode change', () => {
+    const index = {
+      blocksAtY: (y: number) => blocks.filter((block) => block.position.y === y),
+      occupiedLayers: () => [1, 3, 5, 10],
+      allBlocks: () => blocks,
+    };
+    expect(planYLayerProjectionDelta(1, 'current-only', 1, 'whole-structure', index).changedLayers).toEqual([1, 3, 5, 10]);
+    expect(planYLayerProjectionDelta(1, 'whole-structure', 1, 'current-next', index).changedLayers).toEqual([1, 2, 3, 5, 10]);
+    expect(planYLayerProjectionDelta(10, 'all-below', 5, 'current-only', index).changedLayers).toEqual([1, 3, 5, 10]);
+  });
 });

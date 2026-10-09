@@ -63,6 +63,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private readonly session = new ViewportSessionOwner(this.engine, () => this.viewportActive(), '3D');
+  private readonly viewReady = signal(false);
+  private viewportMounted = false;
   private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample(), checkpoint: () => this.engine.runtimeTraceHeavySample() });
   private readonly viewportTraceApi: ViewportRuntimeTraceApi = this.viewportTrace.getApi();
   private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();
@@ -76,7 +78,11 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private faceDragStart?: { readonly block: import('../../../../core/domain/project.types').VoxelCoordinate; readonly normal: import('../../../../core/editor/placement/placement').FaceNormal; readonly hitPoint?: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane };
   private freeSpaceDragStart?: { readonly point: { readonly x: number; readonly y: number; readonly z: number }; readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane };
   private readonly onNativePointerMove = (event: PointerEvent) => this.pointerMove(event);
-  private readonly sync = effect(() => { const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
+  private readonly mountActiveViewport = effect(() => {
+    if (!this.viewReady() || !this.viewportActive() || this.viewportMounted) return;
+    this.mountViewport();
+  });
+  private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
   private readonly toolSync = effect(() => {
     const tool = this.tool.active();
     if (!shouldClearGhostForToolChange(this.previousTool, tool)) return;
@@ -86,6 +92,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   });
 
   ngAfterViewInit(): void {
+    this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project));
+    this.host().nativeElement.addEventListener('pointermove', this.onNativePointerMove, { passive: true });
+    this.viewReady.set(true);
+  }
+
+  private mountViewport(): void {
     if (isDevMode() && typeof window !== 'undefined') {
       this.engine.setRuntimeDiagnosticsEnabled(true);
       // Arm the bounded dev trace before mount so the first hydration/update
@@ -96,16 +108,13 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       this.engine.setRuntimeTrace(this.viewportTrace);
       window.__mbViewportDiagnostics = this.runtimeDiagnosticsCommand;
     }
-    this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project));
     this.engine.mount(this.host().nativeElement);
     if (isDevMode() && typeof window !== 'undefined') {
       window.__minecraftBuilderDiagnostics = { ...window.__minecraftBuilderDiagnostics, runTerrainAtlasProbe: this.terrainAtlasProbeCommand, viewportTrace: this.viewportTraceApi };
     }
-    this.host().nativeElement.addEventListener('pointermove', this.onNativePointerMove, { passive: true });
     const project = this.workspace.project();
     this.engine.restoreCamera(this.cameraState.get('3d', project?.id), project?.id);
-    const renderSelection = this.selection.renderState(project);
-    this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() });
+    this.viewportMounted = true;
     if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics());
   }
   ngOnDestroy(): void {
@@ -120,8 +129,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.setRuntimeTrace(undefined);
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
-    const state = this.engine.cameraState(); const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.engine.dispose();
+    const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

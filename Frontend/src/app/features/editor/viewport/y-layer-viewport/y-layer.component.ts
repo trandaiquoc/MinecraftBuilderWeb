@@ -20,6 +20,7 @@ import { WorkspaceStateService } from '../../../../core/workspace/workspace-stat
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
 import { ViewportStatusService, hoverCoordinateForHit } from '../../../../core/editor/viewport/viewport-status.service';
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
+import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
@@ -52,6 +53,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly decorations = inject(DecorationService);
   private readonly input = inject(KeyboardBindingService);
   private readonly session = inject(EditorSessionService);
+  private readonly hydrationStatus = inject(ViewportHydrationStatusService);
   private readonly viewportStatus = inject(ViewportStatusService);
   protected readonly visibility = computed<YLayerVisibility>(() => this.workspace.project()?.editorSettings.layerVisibility ?? 'current-only');
   protected readonly visibilityOptions = computed<readonly ThemedSelectOption[]>(() => [
@@ -62,6 +64,8 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private readonly viewportSession = new ViewportSessionOwner(this.engine, () => this.viewportActive(), 'Y-layer');
+  private readonly viewReady = signal(false);
+  private viewportMounted = false;
   protected readonly projectionBusy = signal(false);
   protected readonly projectionIndicatorVisible = signal(false);
   private projectionIndicatorTimer?: ReturnType<typeof setTimeout>;
@@ -70,14 +74,54 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private get hydrationOwner() { return this.viewportSession.hydrationOwner; }
   private get viewportStatusOwner() { return this.viewportSession.viewportStatusOwner; }
   private readonly layerIndexSync = effect(() => { const project = this.workspace.project(); if (project) this.layerIndex.ensure(project); this.engine.setLayerIndex(this.layerIndex); });
+  private readonly mountActiveViewport = effect(() => {
+    if (!this.viewReady() || !this.viewportActive() || this.viewportMounted) return;
+    const host = this.host()?.nativeElement;
+    if (!host) return;
+    this.engine.mount(host);
+    this.engine.restoreCamera(this.cameraState.get('y-layer', this.workspace.project()?.id), this.workspace.project()?.id);
+    this.viewportMounted = true;
+  });
+  private readonly prewarmInactiveProjection = effect((onCleanup) => {
+    if (!this.viewReady() || this.viewportActive()) return;
+    const project = this.workspace.project();
+    const finalization = this.hydrationStatus.finalization();
+    if (!project || !finalization || (!finalization.ready && !finalization.warning)
+      || finalization.progress?.blocksTotal !== project.blocks.length) return;
+
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let idleWindow: (Window & { cancelIdleCallback?: (handle: number) => void }) | undefined;
+    let idleHandle: number | undefined;
+    const prewarm = (): void => {
+      if (cancelled || this.viewportActive() || this.workspace.project() !== project) return;
+      this.layerIndex.ensure(project);
+      this.engine.prewarmYLayerProjection(project, {
+        layerY: this.session.committedCurrentY(project),
+        visibility: project.editorSettings.layerVisibility,
+        layerIndex: this.layerIndex,
+      });
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleWindow = window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (handle: number) => void };
+      idleHandle = idleWindow.requestIdleCallback(prewarm, { timeout: 1500 });
+    } else timeout = setTimeout(prewarm, 0);
+
+    onCleanup(() => {
+      cancelled = true;
+      if (timeout !== undefined) clearTimeout(timeout);
+      if (idleHandle !== undefined) idleWindow?.cancelIdleCallback?.(idleHandle);
+    });
+  });
   private pointerStart?: { x: number; y: number };
   private gestureAction?: MouseAction;
   private pickConsumed = false;
   private boxCornerStart?: VoxelCoordinate;
-  private readonly sync = effect(() => { const activeViewport = this.viewportActive(); const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: this.committedY(), visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), groupMovePreview: this.groups.movePreview() }, activeViewport ? this.mutationHints.consume(project, 'y-layer-viewport') : undefined); });
+  private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: this.committedY(), visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), groupMovePreview: this.groups.movePreview() }, activeViewport ? this.mutationHints.consume(project, 'y-layer-viewport') : undefined); });
 
-  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); const element = this.host()?.nativeElement; if (element) this.engine.mount(element); const project = this.workspace.project(); this.engine.restoreCamera(this.cameraState.get('y-layer', project?.id), project?.id); this.refresh(); if (isDevMode()) console.debug('[MinecraftBuilder][Y-layer mounted]', this.engine.diagnostics()); }
-  ngOnDestroy(): void { const state = this.engine.cameraState(); const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.engine.dispose(); }
+  ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); this.viewReady.set(true); }
+  ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prewarmInactiveProjection.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }
@@ -196,8 +240,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   cameraKeyDown(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyDown(action); }
   cameraKeyUp(action: import('../../../../core/editor/input/keyboard-bindings').MovementAction): void { this.engine.cameraKeyUp(action); }
   clearCameraInput(): void { this.engine.clearInput(); }
-
-  private refresh(): void { const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: this.committedY(), visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), groupMovePreview: this.groups.movePreview() }); }
 
   private handleProjectionActivity(state: ViewportProjectionState): void {
     const busy = state.activity !== 'idle';

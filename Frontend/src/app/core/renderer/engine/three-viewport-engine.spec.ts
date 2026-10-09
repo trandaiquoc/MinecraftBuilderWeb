@@ -2121,7 +2121,9 @@ describe('selection visualization scalability', () => {
     const before = engine.rendererCounters();
     const next = { ...project, editorSettings: { ...project.editorSettings, currentY: 1 } };
     engine.update(next, undefined, { ...options, layerY: 1 });
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    for (let attempt = 0; attempt < 500 && engine.projectionActivity().activity !== 'idle'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
     const after = engine.rendererCounters();
     expect(after.fullVisibleScans).toBe(before.fullVisibleScans);
     expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
@@ -2131,6 +2133,79 @@ describe('selection visualization scalability', () => {
     expect(after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks).toBe(8192);
     expect(after.blockSignatureComputations - before.blockSignatureComputations).toBe(8192);
     expect(after.yLayerProjectionMaxCommitMs).toBeGreaterThanOrEqual(0);
+    engine.dispose();
+  });
+
+  it('switches visibility modes incrementally and slices a 20k projection without full reconciliation', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('stress');
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    engine.setLayerIndex(layerIndex);
+    engine.update(project, undefined, { layerY: 0, visibility: 'current-only' });
+    const before = engine.rendererCounters();
+
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure' });
+    for (let attempt = 0; attempt < 500 && engine.projectionActivity().activity !== 'idle'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+
+    const after = engine.rendererCounters();
+    expect(after.fullVisibleScans).toBe(before.fullVisibleScans);
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.structuralReconciles).toBe(before.structuralReconciles);
+    expect(after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks).toBe(20_000 - 4_096);
+    expect(after.yLayerProjectionSlices - before.yLayerProjectionSlices).toBeGreaterThan(1);
+    expect(engine.projectionActivity().activity).toBe('idle');
+    expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(20_000);
+    engine.dispose();
+  });
+
+  it('reuses a CPU-prewarmed Y-layer projection when the retained viewport resumes', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('stress');
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()], allBlocks: () => project.blocks };
+    const options = { layerY: 0, visibility: 'current-only' as const, layerIndex };
+    engine.suspend();
+    engine.setLayerIndex(layerIndex);
+    engine.update(project, undefined, options);
+
+    expect(engine.prewarmYLayerProjection(project, options)).toBe(4_096);
+    engine.resume();
+    engine.update(project, undefined, options);
+
+    expect(engine.rendererCounters().fullVisibleScans).toBe(0);
+    expect(engine.rendererCounters().fullSceneRebuilds).toBe(1);
+    expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(4_096);
+    engine.dispose();
+  });
+
+  it('falls back to a full projection reconcile after an incremental projection slice fails', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('medium');
+    const original = (engine as unknown as { applyLayerProjectionDelta: (...args: unknown[]) => void }).applyLayerProjectionDelta;
+    let failOnce = true;
+    (engine as unknown as { applyLayerProjectionDelta: (...args: unknown[]) => void }).applyLayerProjectionDelta = (...args) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new Error('projection slice failure');
+      }
+      original.apply(engine, args);
+    };
+    engine.update(project, undefined, { layerY: 0, visibility: 'current-only' });
+    const before = engine.rendererCounters();
+
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure' });
+    for (let attempt = 0; attempt < 500 && engine.projectionActivity().activity !== 'idle'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+
+    expect(engine.rendererCounters().fullSceneRebuilds).toBeGreaterThan(before.fullSceneRebuilds);
+    expect(engine.projectionActivity().activity).toBe('idle');
+    expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(project.blocks.length);
     engine.dispose();
   });
 

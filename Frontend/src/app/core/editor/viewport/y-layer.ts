@@ -11,13 +11,14 @@ export interface YLayerProjectionDelta {
   readonly changed: boolean;
 }
 
-export function planYLayerProjectionDelta(previousY: number | undefined, previousMode: YLayerVisibility | undefined, nextY: number | undefined, nextMode: YLayerVisibility | undefined, index?: LayerBlockIndex): YLayerProjectionDelta {
+export function planYLayerProjectionDelta(previousY: number | undefined, previousMode: YLayerVisibility | undefined, nextY: number | undefined, nextMode: YLayerVisibility | undefined, index?: LayerBlockIndex, blocks?: readonly PlacedBlock[]): YLayerProjectionDelta {
   if (previousY === nextY && previousMode === nextMode) return { changedLayers: [], changed: false };
-  if (previousY === undefined || nextY === undefined || previousMode === undefined || nextMode === undefined || previousMode !== nextMode) return { changedLayers: [], changed: true };
+  if (previousY === undefined || nextY === undefined || previousMode === undefined || nextMode === undefined) return { changedLayers: [], changed: true };
   const occupiedBetween = (left: number, right: number): readonly number[] => {
     const min = Math.min(left, right);
     const max = Math.max(left, right);
-    return index ? index.occupiedLayers().filter((layer) => layer >= min && layer <= max) : [left, right];
+    const layers = index?.occupiedLayers() ?? (blocks ? occupiedLayers(blocks) : [left, right]);
+    return layers.filter((layer) => layer >= min && layer <= max);
   };
   const affected = (y: number, mode: YLayerVisibility, otherY: number): readonly number[] => {
     switch (mode) {
@@ -29,7 +30,15 @@ export function planYLayerProjectionDelta(previousY: number | undefined, previou
       case 'whole-structure': return [y];
     }
   };
-  return { changedLayers: [...new Set([...affected(previousY, previousMode, nextY), ...affected(nextY, nextMode, previousY)])].sort((left, right) => left - right), changed: true };
+  const changedLayers = previousMode !== nextMode
+    ? [...new Set([
+        ...visibleLayerSet(previousY, blocks ?? [], previousMode, index),
+        ...visibleLayerSet(nextY, blocks ?? [], nextMode, index),
+      ])].sort((left, right) => left - right)
+    : previousMode === 'all-below'
+      ? occupiedBetween(previousY, nextY)
+      : [...new Set([...affected(previousY, previousMode, nextY), ...affected(nextY, nextMode, previousY)])].sort((left, right) => left - right);
+  return { changedLayers, changed: true };
 }
 
 export type YLayerVisibility = 'current-only' | 'current-previous' | 'current-next' | 'previous-current-next' | 'all-below' | 'whole-structure';
