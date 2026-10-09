@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, ErrorHandler, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
@@ -22,6 +22,7 @@ import { DEFAULT_MINECRAFT_VERSION } from '../../../core/domain/project.types';
 import { SettingsDialogComponent } from '../../editor/settings/settings-dialog/settings-dialog.component';
 import type { StructureJsonProjectImportError, StructureJsonProjectImportPreview } from '../../../core/persistence/structure-json/structure-json-project-import';
 import { StructureJsonProjectImportWorkflow } from './structure-json-project-import-workflow';
+import { navigateToEditor } from './editor-navigation';
 
 @Component({
   selector: 'app-project-screen',
@@ -33,6 +34,7 @@ export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
   private readonly router = inject(Router);
+  private readonly errorHandler = inject(ErrorHandler);
   private readonly workspace = inject(WorkspaceStateService);
   private readonly dialogs = inject(DialogService);
   private readonly session = inject(EditorSessionService);
@@ -96,11 +98,15 @@ export class ProjectScreenComponent {
   protected async createProjectFromStructureJson(): Promise<void> {
     const project = await this.structureJsonImport.createProject();
     if (!project) return;
-    try {
-      this.session.resetForProjectChange(project.id);
-      this.workspace.activate(project);
-      await this.router.navigateByUrl('/editor');
-    } catch { /* The validated project is already committed; keep the current screen state intact. */ }
+    this.session.resetForProjectChange(project.id);
+    this.workspace.activate(project);
+    const navigation = await navigateToEditor(this.router);
+    if (navigation.status === 'navigated') return;
+    if (navigation.status === 'error') this.errorHandler.handleError(navigation.error);
+    const message = this.i18n.t('structureJsonProjectNavigationError');
+    this.error.set(message);
+    await this.loadProjects();
+    await this.dialogs.error(this.i18n.t('openErrorTitle'), message);
   }
   protected structureJsonImportProgressLabel(): string {
     const progress = this.structureJsonImport.progress();
