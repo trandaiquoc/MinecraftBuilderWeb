@@ -78,6 +78,30 @@ describe('Structure JSON import validation preview', () => {
     expect(asyncResult).toEqual(sync);
   });
 
+  it('keeps every shared diagnostic category and decoration result identical across sync and async paths', async () => {
+    const get = (id: string) => id === stone.id ? stone : id === stairs.id ? stairs : id === dandelion.id ? dandelion : undefined;
+    const baseProject = { schemaVersion: 3 as const, id: 'base', metadata: { name: 'Base', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' }, size: { x: 4, y: 4, z: 4 }, structureMode: 'vanilla-structure-block' as const, blocks: [{ kind: 'resolved' as const, id: stone.id, namespace: 'minecraft', position: { x: 1, y: 1, z: 1 }, state: {} }], groups: [], decorations: [], editorSettings: { currentY: 0, layerVisibility: 'whole-structure' as const, referenceLayerOpacity: 0.5 } };
+    const parsed = { format: 'minecraftbuilder-structure', minecraftVersion: '1.21.1', blocks: [
+      { id: stone.id, x: 0, y: 0, z: 0 }, { id: stone.id, x: 0, y: 0, z: 0 },
+      { id: stairs.id, x: 2, y: 0, z: 0, state: { facing: 'west' } },
+      { id: 'mod:missing', x: 0, y: 1, z: 0, blockEntity: { kind: 'container', items: [] } },
+      { id: dandelion.id, x: 3, y: 1, z: 0 },
+    ], decorations: [
+      { kind: 'item-frame', anchor: { x: 1, y: 1, z: 0 }, facing: 'north', item: { id: 'minecraft:emerald' } },
+      { kind: 'item-frame', anchor: { x: 1, y: 1, z: 0 }, facing: 'north', item: { id: 'minecraft:emerald' } },
+      { kind: 'painting', anchor: { x: 0, y: 1, z: 0 }, facing: 'north', variantId: 'unknown:variant' },
+    ], } as const;
+    const options = { contentLimitsEnabled: true, contentLimits: limits({ blocks: [stone.id], items: ['minecraft:diamond'] }) };
+    const resolver = () => 64;
+    const sync = validateStructureJsonPreview(JSON.stringify(parsed), baseProject.size, get, undefined, baseProject, resolver, options);
+    const asyncResult = await validateParsedStructureJsonPreviewAsync(parsed, baseProject.size, get, undefined, undefined, baseProject, resolver, options);
+    expect(asyncResult).toEqual(sync);
+    expect(sync.issues.duplicate).toHaveLength(1);
+    expect(sync.issues.state.some((entry) => entry.reason.code === 'invalid-block-entity' && entry.reason.detail === 'missing-host')).toBe(true);
+    expect(sync.decorationIssues.some((entry) => entry.category === 'conflict')).toBe(true);
+    expect(sync.decorationIssues.some((entry) => entry.category === 'missing-asset')).toBe(true);
+  });
+
   it('reports semantic progress at chunk boundaries instead of once per block', async () => {
     const blocks = Array.from({ length: STRUCTURE_JSON_VALIDATION_CHUNK_SIZE * 3 + 5 }, (_, index) => ({ id: 'minecraft:stone', x: index % size.x, y: Math.floor(index / size.x) % size.y, z: Math.floor(index / (size.x * size.y)) }));
     const progress: number[] = [];

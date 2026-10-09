@@ -30,12 +30,12 @@ export async function buildStructureImportSpatialContextAsync(blocks: readonly P
   const occupiedCoordinates = new Set<string>();
   for (let index = 0; index < blocks.length; index += 1) {
     const key = coordinateKey(blocks[index].position); blockByCoordinate.set(key, blocks[index]); occupiedCoordinates.add(key);
-    if (await spatialCheckpoint(budget, index + 1, cancellation)) return undefined;
+    const checkpoint = spatialCheckpoint(budget, index + 1, cancellation); if (checkpoint === true || checkpoint instanceof Promise && await checkpoint) return undefined;
   }
   const decorationIndex = buildDecorationSpatialIndex([]);
   for (let index = 0; index < decorations.length; index += 1) {
     addDecorationToSpatialIndex(decorationIndex, decorations[index]);
-    if (await spatialCheckpoint(budget, index + 1, cancellation)) return undefined;
+    const checkpoint = spatialCheckpoint(budget, index + 1, cancellation); if (checkpoint === true || checkpoint instanceof Promise && await checkpoint) return undefined;
   }
   return { blockByCoordinate, occupiedCoordinates, decorations: decorationIndex };
 }
@@ -96,9 +96,9 @@ export function intersectsBlock(box: SpatialAabb, position: VoxelCoordinate): bo
   return box.min.x < position.x + 1 && box.max.x > position.x && box.min.y < position.y + 1 && box.max.y > position.y && box.min.z < position.z + 1 && box.max.z > position.z;
 }
 
-async function spatialCheckpoint(budget: CooperativeWorkBudget, processed: number, cancellation?: SpatialBuildCancellation): Promise<boolean> {
+function spatialCheckpoint(budget: CooperativeWorkBudget, processed: number, cancellation?: SpatialBuildCancellation): boolean | Promise<boolean> {
   if (cancellation?.signal?.aborted || cancellation?.isCancelled?.()) return true;
   if (!budget.shouldYieldNow()) return false;
-  budget.reset(); await yieldToBrowser();
-  return Boolean(cancellation?.signal?.aborted || cancellation?.isCancelled?.());
+  budget.reset();
+  return yieldToBrowser().then(() => Boolean(cancellation?.signal?.aborted || cancellation?.isCancelled?.()));
 }
