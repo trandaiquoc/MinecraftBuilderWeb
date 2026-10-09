@@ -1,120 +1,105 @@
-import { effect, type EffectRef } from '@angular/core';
-import type { BlockDefinition } from '../../../../core/blocks/catalog/block-definition.types';
-import type { BlockVisualProvider } from '../../../../core/renderer/visuals/block-visual-provider-contract';
-import type { ContentSpecialVisualDescriptor } from '../../../../core/content/content-introspection';
-import type { ResolvedItemVisual } from '../../../../core/renderer/visuals/item-visual-resolver';
+import { effect, inject, type EffectRef } from '@angular/core';
+import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
+import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
+import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
+import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/visuals/item-visual-resolver';
 import type { ItemStackData } from '../../../../core/items/item-stack.types';
 import { viewportThemePalette } from '../../../../core/renderer/engine/viewport-theme';
 import type { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
-import type { ThemeService } from '../../../../core/ui/theme/theme.service';
-import type { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
-import type { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import type { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
-import type { ViewportStatusService } from '../../../../core/editor/viewport/viewport-status.service';
-import type { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
-import type { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
-import type { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
-
-export interface ViewportSessionOwnerOptions {
-  readonly engine: ThreeViewportEngine;
-  readonly viewportActive: () => boolean;
-  readonly modeLabel: string;
-  readonly workspace: WorkspaceStateService;
-  readonly theme: ThemeService;
-  readonly preferences: UiPreferencesService;
-  readonly assets: ContentAssetRuntimeService;
-  readonly hydrationStatus: ViewportHydrationStatusService;
-  readonly viewportStatus: ViewportStatusService;
-  readonly paintingCatalog: PaintingVariantCatalogService;
-  readonly itemVisuals: ItemVisualService;
-  readonly visualResolvers: {
-    readonly provider: () => BlockVisualProvider | undefined;
-    readonly catalogRevision: () => number;
-    readonly specialVisual: (id: string) => ContentSpecialVisualDescriptor | undefined;
-    readonly blockDefinition: (id: string) => BlockDefinition | undefined;
-    readonly decorationTexture: (resource: string) => string | undefined;
-    readonly decorationItemResources: (itemId: string) => readonly string[];
-    readonly decorationItemVisual: (itemId: string) => ResolvedItemVisual | undefined;
-    readonly decorationItemPreview: (item: ItemStackData) => Promise<string | undefined>;
-    readonly paintingTexture: (id: string) => string | undefined;
-  };
-  readonly usage: {
-    readonly revision: () => number;
-    readonly highlightedId: () => string | undefined;
-    readonly positions: (id: string) => readonly { readonly x: number; readonly y: number; readonly z: number }[];
-  };
-}
+import { ThemeService } from '../../../../core/ui/theme/theme.service';
+import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
+import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { ViewportStatusService } from '../../../../core/editor/viewport/viewport-status.service';
+import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
+import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
+import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
 
 /** Owns the lifecycle/effect composition shared by retained 3D and Y-layer viewports. */
 export class ViewportSessionOwner {
+  private readonly workspace = inject(WorkspaceStateService);
+  private readonly theme = inject(ThemeService);
+  private readonly preferences = inject(UiPreferencesService);
+  private readonly assets = inject(ContentAssetRuntimeService);
+  private readonly hydrationStatus = inject(ViewportHydrationStatusService);
+  private readonly viewportStatus = inject(ViewportStatusService);
+  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
+  private readonly itemVisuals = inject(ItemVisualService);
+  private readonly library = inject(BlockLibraryService);
+  private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
+  private readonly usageHighlight = inject(BlockUsageHighlightService);
   readonly hydrationOwner;
   readonly viewportStatusOwner;
   private readonly progressUnsubscribe: () => void;
   private readonly effects: EffectRef[] = [];
 
-  constructor(private readonly options: ViewportSessionOwnerOptions) {
-    this.hydrationOwner = options.hydrationStatus.claim();
-    this.viewportStatusOwner = options.viewportStatus.claim();
-    this.progressUnsubscribe = options.engine.onHydrationProgress((progress) => options.hydrationStatus.publish(this.hydrationOwner, progress));
+  constructor(
+    private readonly engine: ThreeViewportEngine,
+    private readonly viewportActive: () => boolean,
+    private readonly modeLabel: string,
+  ) {
+    this.hydrationOwner = this.hydrationStatus.claim();
+    this.viewportStatusOwner = this.viewportStatus.claim();
+    this.progressUnsubscribe = engine.onHydrationProgress((progress) => this.hydrationStatus.publish(this.hydrationOwner, progress));
     this.effects.push(
       effect(() => {
-        if (options.viewportActive()) {
-          options.hydrationStatus.activate(this.hydrationOwner);
-          options.engine.resume();
+        if (this.viewportActive()) {
+          this.hydrationStatus.activate(this.hydrationOwner);
+          this.engine.resume();
         } else {
-          options.engine.suspend();
+          this.engine.suspend();
         }
       }),
       effect(() => {
-        const projectId = options.workspace.project()?.id;
-        if (options.viewportActive()) options.viewportStatus.activate(this.viewportStatusOwner, projectId);
-        else options.viewportStatus.deactivate(this.viewportStatusOwner);
+        const projectId = this.workspace.project()?.id;
+        if (this.viewportActive()) this.viewportStatus.activate(this.viewportStatusOwner, projectId);
+        else this.viewportStatus.deactivate(this.viewportStatusOwner);
       }),
       effect(() => {
-        options.engine.applyTheme(viewportThemePalette(options.theme.editorBackground()));
+        this.engine.applyTheme(viewportThemePalette(this.theme.editorBackground()));
       }),
       effect(() => {
-        const preferences = options.preferences.effectivePreferences();
-        options.engine.setControlConfiguration(preferences.controls);
-        options.engine.setMouseBindings(preferences.mouseBindings);
-        options.engine.setBlockBrightness(preferences.accessibility.blockBrightness);
-        options.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide);
+        const preferences = this.preferences.effectivePreferences();
+        this.engine.setControlConfiguration(preferences.controls);
+        this.engine.setMouseBindings(preferences.mouseBindings);
+        this.engine.setBlockBrightness(preferences.accessibility.blockBrightness);
+        this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide);
       }),
       effect(() => {
-        const resolver = options.visualResolvers;
-        options.engine.setVisualProvider(resolver.provider());
-        options.engine.setSpecialVisualDescriptorResolver(resolver.specialVisual, resolver.catalogRevision());
-        options.engine.setBlockDefinitionResolver(resolver.blockDefinition);
-        options.engine.setDecorationTextureProvider(resolver.decorationTexture);
-        options.engine.setDecorationItemResourceProvider(resolver.decorationItemResources);
-        options.engine.setDecorationItemVisualProvider(resolver.decorationItemVisual);
-        options.engine.setDecorationItemPreviewProvider(resolver.decorationItemPreview);
-        options.paintingCatalog.variants();
-        options.engine.setPaintingTextureResolver(resolver.paintingTexture);
+        this.engine.setVisualProvider(this.assets.visualProvider());
+        this.engine.setSpecialVisualDescriptorResolver((id) => this.library.get(id)?.specialVisual, this.library.catalogRevision());
+        this.engine.setBlockDefinitionResolver((id) => this.library.get(id));
+        this.engine.setDecorationTextureProvider((resource) => this.assets.sources.resources.textureUrl(resource));
+        this.engine.setDecorationItemResourceProvider((itemId) => itemVisualTextureResources(this.assets.sources.resources, itemId));
+        this.engine.setDecorationItemVisualProvider((itemId) => resolveItemVisual(this.assets.sources.resources, itemId));
+        this.engine.setDecorationItemPreviewProvider((item) => this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]));
+        this.paintingCatalog.variants();
+        this.engine.setPaintingTextureResolver((id) => this.paintingCatalog.get(id)?.assetPath);
       }),
       effect(() => {
-        options.usage.revision();
-        const id = options.usage.highlightedId();
-        options.engine.setBlockUsageHighlight(id, id ? options.usage.positions(id) : undefined);
+        this.runtimeIndex.usageRevision();
+        const id = this.usageHighlight.highlightedBlockId();
+        const positions = id ? this.runtimeIndex.blocksForId(id).map((block) => ({ ...block.position })) : undefined;
+        this.engine.setBlockUsageHighlight(id, positions);
       }),
       effect(() => {
-        if (!options.viewportActive()) return;
-        const restore = options.assets.contentRestore();
+        if (!this.viewportActive()) return;
+        const restore = this.assets.contentRestore();
         const terminal = restore.phase === 'ready' || restore.phase === 'partial' || restore.phase === 'error';
-        options.engine.setMissingBlocksTerminal(terminal);
-        options.hydrationStatus.setSourceRestoreState(this.hydrationOwner, { terminal, pending: !terminal, failed: restore.phase === 'error' });
-        options.hydrationStatus.setFinalizationAuditHooks(this.hydrationOwner, () => {
-          const progress = options.engine.finalizationAuditProgress();
+        this.engine.setMissingBlocksTerminal(terminal);
+        this.hydrationStatus.setSourceRestoreState(this.hydrationOwner, { terminal, pending: !terminal, failed: restore.phase === 'error' });
+        this.hydrationStatus.setFinalizationAuditHooks(this.hydrationOwner, () => {
+          const progress = this.engine.finalizationAuditProgress();
           const finalization = progress.finalization;
           return { input: { progress, sourceRestoreTerminal: terminal, sourceRestorePending: !terminal, sourceRestoreFailed: restore.phase === 'error', providerRefreshPlanning: progress.providerRefreshPlanning, providerRefreshQueued: progress.providerRefreshQueued, providerRefreshRunning: progress.providerRefreshRunning, terrainPending: progress.terrainPending }, ownershipComplete: !!finalization && finalization.finalReadyBlocks + finalization.permanentMissingBlocks >= finalization.expectedBlocks };
-        }, () => options.engine.reconcileFinalizationAccounting());
+        }, () => this.engine.reconcileFinalizationAccounting());
       }),
       effect(() => {
-        if (typeof console === 'undefined' || !options.workspace.restoreStatus) return;
-        const projectRestore = options.workspace.restoreStatus();
-        const assetStatus = options.assets.status();
-        const assets = options.assets.diagnostics();
-        if (typeof ngDevMode !== 'undefined' && ngDevMode) console.debug(`[MinecraftBuilder][${options.modeLabel} bootstrap]`, { projectRestore, assetStatus, assets, viewport: options.engine.diagnostics() });
+        if (typeof console === 'undefined' || !this.workspace.restoreStatus) return;
+        const projectRestore = this.workspace.restoreStatus();
+        const assetStatus = this.assets.status();
+        const assets = this.assets.diagnostics();
+        if (typeof ngDevMode !== 'undefined' && ngDevMode) console.debug(`[MinecraftBuilder][${this.modeLabel} bootstrap]`, { projectRestore, assetStatus, assets, viewport: this.engine.diagnostics() });
       }),
     );
   }
@@ -122,7 +107,7 @@ export class ViewportSessionOwner {
   destroy(): void {
     this.progressUnsubscribe();
     for (const effectRef of this.effects) effectRef.destroy();
-    this.options.hydrationStatus.release(this.hydrationOwner);
-    this.options.viewportStatus.release(this.viewportStatusOwner);
+    this.hydrationStatus.release(this.hydrationOwner);
+    this.viewportStatus.release(this.viewportStatusOwner);
   }
 }

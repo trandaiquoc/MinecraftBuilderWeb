@@ -14,12 +14,10 @@ import { clampVoxelBox, faceLockedSelectionPlane, freeSpaceSelectionBox, normali
 import { ThreeViewportEngine, ViewportOwnershipDiagnostics, ViewportRuntimeDiagnostics } from '../../../../core/renderer/engine/three-viewport-engine';
 import type { ViewportPerformanceEvidence } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
-import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/visuals/item-visual-resolver';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
-import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { ThemeService } from '../../../../core/ui/theme/theme.service';
-import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import { I18nService } from '../../../../core/ui/localization/i18n.service';
+import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
 import { visibleBlockEntries } from '../../../../core/editor/viewport/visible-blocks';
@@ -29,14 +27,9 @@ import { decorationAabb } from '../../../../core/decorations/placement/decoratio
 import { facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
 import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-binding.service';
 import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
-import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
-import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
-import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
 import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/terrain-atlas-browser-runner';
 import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
-import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
-import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
 import { ViewportStatusService, hoverCoordinateForHit } from '../../../../core/editor/viewport/viewport-status.service';
 import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
@@ -52,65 +45,24 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly workspace = inject(WorkspaceStateService);
   private readonly active = inject(ActiveBlockService);
   private readonly library = inject(BlockLibraryService);
+  private readonly preferences = inject(UiPreferencesService);
+  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly editor = inject(StructureEditorService);
   private readonly selection = inject(SelectionService);
   private readonly tool = inject(EditorToolService);
   private readonly cameraState = inject(CameraStateService);
   private readonly groups = inject(GroupService);
   protected readonly i18n = inject(I18nService);
-  private readonly theme = inject(ThemeService);
-  private readonly preferences = inject(UiPreferencesService);
-  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly signTextSide = inject(SignTextSideService);
   private readonly decorations = inject(DecorationService);
   private readonly input = inject(KeyboardBindingService);
-  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
-  private readonly itemVisuals = inject(ItemVisualService);
-  private readonly hydrationStatus = inject(ViewportHydrationStatusService);
   private readonly mutationHints = inject(ProjectMutationHintService);
-  private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
-  private readonly usageHighlight = inject(BlockUsageHighlightService);
   private readonly viewportStatus = inject(ViewportStatusService);
-  private readonly resolveSpecialVisual = (id: string) => this.library.get(id)?.specialVisual;
-  private readonly resolveBlockDefinition = (id: string) => this.library.get(id);
-  private readonly resolveDecorationTexture = (resource: string) => this.assets.sources.resources.textureUrl(resource);
-  private readonly resolveDecorationItemResources = (itemId: string) => itemVisualTextureResources(this.assets.sources.resources, itemId);
-  private readonly resolveDecorationItemVisual = (itemId: string) => resolveItemVisual(this.assets.sources.resources, itemId);
-  private readonly resolveDecorationItemPreview = (item: import('../../../../core/items/item-stack.types').ItemStackData) => this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]);
-  private readonly resolvePaintingTexture = (id: string) => this.paintingCatalog.get(id)?.assetPath;
   protected readonly placementFeedback = signal<ReturnType<typeof placementFeedbackForHit> | undefined>(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
-  private readonly session = new ViewportSessionOwner({
-    engine: this.engine,
-    viewportActive: () => this.viewportActive(),
-    modeLabel: '3D',
-    workspace: this.workspace,
-    theme: this.theme,
-    preferences: this.preferences,
-    assets: this.assets,
-    hydrationStatus: this.hydrationStatus,
-    viewportStatus: this.viewportStatus,
-    paintingCatalog: this.paintingCatalog,
-    itemVisuals: this.itemVisuals,
-    visualResolvers: {
-      provider: () => this.assets.visualProvider(),
-      catalogRevision: () => this.library.catalogRevision(),
-      specialVisual: this.resolveSpecialVisual,
-      blockDefinition: this.resolveBlockDefinition,
-      decorationTexture: this.resolveDecorationTexture,
-      decorationItemResources: this.resolveDecorationItemResources,
-      decorationItemVisual: this.resolveDecorationItemVisual,
-      decorationItemPreview: this.resolveDecorationItemPreview,
-      paintingTexture: this.resolvePaintingTexture,
-    },
-    usage: {
-      revision: () => this.runtimeIndex.usageRevision(),
-      highlightedId: () => this.usageHighlight.highlightedBlockId(),
-      positions: (id) => this.runtimeIndex.blocksForId(id).map((block) => ({ ...block.position })),
-    },
-  });
+  private readonly session = new ViewportSessionOwner(this.engine, () => this.viewportActive(), '3D');
   private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample(), checkpoint: () => this.engine.runtimeTraceHeavySample() });
   private readonly viewportTraceApi: ViewportRuntimeTraceApi = this.viewportTrace.getApi();
   private readonly runtimeDiagnosticsCommand = () => this.engine.runtimeGhostDiagnostics();

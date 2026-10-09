@@ -14,7 +14,6 @@ import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/select
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
 import type { ViewportPerformanceEvidence, ViewportProjectionState } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
-import { itemVisualTextureResources, resolveItemVisual } from '../../../../core/renderer/visuals/item-visual-resolver';
 import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -23,8 +22,6 @@ import { ViewportStatusService, hoverCoordinateForHit } from '../../../../core/e
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
-import { ThemeService } from '../../../../core/ui/theme/theme.service';
-import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb, facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
@@ -32,11 +29,7 @@ import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-b
 import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { LucideChevronLeft, LucideChevronRight } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
-import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
-import { ItemVisualService } from '../../../../core/items/catalog/item-visual.service';
-import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
 import { EditorSessionService } from '../../../../core/editor/state/editor-session.service';
-import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
 
 export const Y_LAYER_PROJECTION_STATUS_DELAY_MS = 180;
 
@@ -47,7 +40,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly workspace = inject(WorkspaceStateService);
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly layerIndex = inject(ProjectBlockRuntimeIndex);
-  private readonly usageHighlight = inject(BlockUsageHighlightService);
   private readonly editor = inject(StructureEditorService);
   private readonly active = inject(ActiveBlockService);
   private readonly library = inject(BlockLibraryService);
@@ -56,23 +48,11 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly cameraState = inject(CameraStateService);
   private readonly groups = inject(GroupService);
   protected readonly i18n = inject(I18nService);
-  private readonly theme = inject(ThemeService);
   private readonly preferences = inject(UiPreferencesService);
-  private readonly assets = inject(ContentAssetRuntimeService);
   private readonly decorations = inject(DecorationService);
   private readonly input = inject(KeyboardBindingService);
-  private readonly paintingCatalog = inject(PaintingVariantCatalogService);
-  private readonly itemVisuals = inject(ItemVisualService);
-  private readonly hydrationStatus = inject(ViewportHydrationStatusService);
-  private readonly viewportStatus = inject(ViewportStatusService);
   private readonly session = inject(EditorSessionService);
-  private readonly resolveSpecialVisual = (id: string) => this.library.get(id)?.specialVisual;
-  private readonly resolveBlockDefinition = (id: string) => this.library.get(id);
-  private readonly resolveDecorationTexture = (resource: string) => this.assets.sources.resources.textureUrl(resource);
-  private readonly resolveDecorationItemResources = (itemId: string) => itemVisualTextureResources(this.assets.sources.resources, itemId);
-  private readonly resolveDecorationItemVisual = (itemId: string) => resolveItemVisual(this.assets.sources.resources, itemId);
-  private readonly resolveDecorationItemPreview = (item: import('../../../../core/items/item-stack.types').ItemStackData) => this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]);
-  private readonly resolvePaintingTexture = (id: string) => this.paintingCatalog.get(id)?.assetPath;
+  private readonly viewportStatus = inject(ViewportStatusService);
   protected readonly visibility = computed<YLayerVisibility>(() => this.workspace.project()?.editorSettings.layerVisibility ?? 'current-only');
   protected readonly visibilityOptions = computed<readonly ThemedSelectOption[]>(() => [
     { id: 'current-only', label: this.i18n.t('visibilityCurrent') }, { id: 'current-previous', label: this.i18n.t('visibilityPrevious') }, { id: 'current-next', label: this.i18n.t('visibilityNext') }, { id: 'previous-current-next', label: this.i18n.t('visibilityThree') }, { id: 'all-below', label: this.i18n.t('visibilityBelow') }, { id: 'whole-structure', label: this.i18n.t('visibilityWhole') },
@@ -81,35 +61,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
-  private readonly viewportSession = new ViewportSessionOwner({
-    engine: this.engine,
-    viewportActive: () => this.viewportActive(),
-    modeLabel: 'Y-layer',
-    workspace: this.workspace,
-    theme: this.theme,
-    preferences: this.preferences,
-    assets: this.assets,
-    hydrationStatus: this.hydrationStatus,
-    viewportStatus: this.viewportStatus,
-    paintingCatalog: this.paintingCatalog,
-    itemVisuals: this.itemVisuals,
-    visualResolvers: {
-      provider: () => this.assets.visualProvider(),
-      catalogRevision: () => this.library.catalogRevision(),
-      specialVisual: this.resolveSpecialVisual,
-      blockDefinition: this.resolveBlockDefinition,
-      decorationTexture: this.resolveDecorationTexture,
-      decorationItemResources: this.resolveDecorationItemResources,
-      decorationItemVisual: this.resolveDecorationItemVisual,
-      decorationItemPreview: this.resolveDecorationItemPreview,
-      paintingTexture: this.resolvePaintingTexture,
-    },
-    usage: {
-      revision: () => this.layerIndex.usageRevision(),
-      highlightedId: () => this.usageHighlight.highlightedBlockId(),
-      positions: (id) => this.layerIndex.blocksForId(id).map((block) => ({ ...block.position })),
-    },
-  });
+  private readonly viewportSession = new ViewportSessionOwner(this.engine, () => this.viewportActive(), 'Y-layer');
   protected readonly projectionBusy = signal(false);
   protected readonly projectionIndicatorVisible = signal(false);
   private projectionIndicatorTimer?: ReturnType<typeof setTimeout>;

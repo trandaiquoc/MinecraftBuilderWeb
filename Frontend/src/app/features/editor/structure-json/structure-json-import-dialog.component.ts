@@ -2,7 +2,6 @@ import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { LucideCheck, LucideX } from '@lucide/angular';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
-import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
 import type { ProjectDocument } from '../../../core/domain/project.types';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
@@ -30,10 +29,7 @@ export class StructureJsonImportDialogComponent {
   protected readonly activeTab = signal<ImportDialogTab>('import');
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
   protected readonly importWorkspace = viewChild(StructureJsonImportWorkspaceComponent);
-  protected readonly placeableItems = computed(() => {
-    const source = this.library as unknown as { readonly allPlaceableItems?: () => readonly PlaceableItemDefinition[]; readonly allItems?: () => readonly PlaceableItemDefinition[] };
-    return source.allPlaceableItems?.() ?? source.allItems?.() ?? [];
-  });
+  protected readonly placeableItems = computed(() => this.library.allPlaceableItems());
   protected readonly contentLimits = computed<ExternalAiContentLimits>(() => normalizeExternalAiContentLimits(this.preferences.preferences().externalAiContentLimits, this.placeableItems()));
   protected readonly contentLimitsEnabled = computed(() => this.preferences.preferences().externalAiContentLimitsEnabled);
 

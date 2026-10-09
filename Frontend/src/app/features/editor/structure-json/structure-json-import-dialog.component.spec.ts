@@ -44,7 +44,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: () => undefined } },
+        { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [] } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [] }) } },
       ],
     }).compileComponents();
@@ -67,7 +67,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: () => undefined } },
+        { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [] } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [] }) } },
       ],
     }).compileComponents();
@@ -101,7 +101,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: () => undefined } },
+        { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [] } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => ({ minecraftVersion: '1.21.1', vanillaSource: 'test', projectContext, mods: [{ sourceId: 'source-example', id: 'example', name: 'Example', version: '1.0.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:block'], items: [{ id: 'example:item' }], decorations: [{ id: 'example:painting', kind: 'painting' }] }] }) } },
       ],
     }).compileComponents();
@@ -145,7 +145,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: () => undefined } },
+        { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [] } },
         { provide: ExternalAiPromptContextService, useValue: { snapshot: () => snapshot } },
       ],
     }).compileComponents();
@@ -211,7 +211,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: () => undefined } },
+        { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [] } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -229,7 +229,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => (supplementalTranslations.vi as Record<string, string>)[key] ?? key } },
-        { provide: BlockLibraryService, useValue: { get: () => undefined } },
+        { provide: BlockLibraryService, useValue: { get: () => undefined, allPlaceableItems: () => [] } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
@@ -249,7 +249,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
+        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined, allPlaceableItems: () => [] } },
         { provide: DialogService, useValue: dialogs },
       ],
     }).compileComponents();
@@ -278,7 +278,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
+        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined, allPlaceableItems: () => [] } },
         { provide: DialogService, useValue: dialogs },
       ],
     }).compileComponents();
@@ -301,7 +301,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
+        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined, allPlaceableItems: () => [] } },
         { provide: DialogService, useValue: dialogs },
       ],
     }).compileComponents();
@@ -322,7 +322,7 @@ describe('StructureJsonImportDialogComponent', () => {
       providers: [
         ...catalogProviders,
         { provide: I18nService, useValue: { t: (key: string) => key } },
-        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined } },
+        { provide: BlockLibraryService, useValue: { get: (id: string) => id === stone.id ? stone : undefined, allPlaceableItems: () => [] } },
         { provide: DialogService, useValue: dialogs },
       ],
     }).compileComponents();
