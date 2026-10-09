@@ -1,5 +1,6 @@
 import type { AssetActivityEntry } from '../../../../core/assets/asset-activity.service';
 import type { ModImportProgress } from '../../../../core/assets/mod/external-mod-importer';
+import type { TranslationKey } from '../../../../core/ui/localization/translation-catalogs';
 import type { ModImportReport } from '../../../../core/assets/mod/external-mod-import-contracts';
 
 export type ImportStage = 'reading' | 'compatibility' | 'resources' | 'content' | 'validation' | 'import';
@@ -7,7 +8,7 @@ export type ImportStageState = 'pending' | 'active' | 'complete' | 'awaiting-use
 export type ImportOperationKind = 'preflight' | 'commit' | undefined;
 export type ImportOperationStatus = 'running' | 'cancelling' | 'cancelled' | 'timed-out' | 'failed' | 'ready' | undefined;
 
-export const importStages: readonly { readonly id: ImportStage; readonly phases: readonly ModImportProgress['phase'][]; readonly label: string }[] = [
+export const importStages: readonly { readonly id: ImportStage; readonly phases: readonly ModImportProgress['phase'][]; readonly label: TranslationKey }[] = [
   { id: 'reading', phases: ['opening-archive', 'reading-metadata'], label: 'assetManagerReadingJar' },
   { id: 'compatibility', phases: ['checking-compatibility'], label: 'assetManagerCompatibility' },
   { id: 'resources', phases: ['indexing-resources', 'extracting-resources'], label: 'assetManagerResourcesStage' },

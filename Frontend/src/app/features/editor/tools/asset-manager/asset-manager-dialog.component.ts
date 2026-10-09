@@ -10,6 +10,7 @@ import { SupportedModLoader } from '../../../../core/assets/mod/mod-loader';
 import { AssetActivityEntry, AssetActivityProgress } from '../../../../core/assets/asset-activity.service';
 import { DialogService } from '../../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
+import type { TranslationKey } from '../../../../core/ui/localization/translation-catalogs';
 import { JarUploadValidationError, validateJarUpload } from '../../../../core/assets/mod/jar-upload-validation';
 import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.component';
 import { ModImportTimeoutError } from '../../../../core/assets/mod/mod-import-cancellation';
@@ -19,6 +20,12 @@ import { AssetManagerModDetailsComponent } from './asset-manager-mod-details.com
 type AssetManagerTab = 'vanilla' | 'mods';
 type DiagnosticDialogState = { readonly modName: string; readonly kind: 'warning' | 'blocking'; readonly diagnostics: readonly ModImportDiagnostic[] };
 const phases: readonly ModImportProgress['phase'][] = importStages.flatMap(({ phases }) => phases);
+const phaseLabels = {
+  'opening-archive': 'assetPhase_opening_archive', 'reading-metadata': 'assetPhase_reading_metadata', 'checking-compatibility': 'assetPhase_checking_compatibility',
+  'indexing-resources': 'assetPhase_indexing_resources', 'extracting-resources': 'assetPhase_extracting_resources', 'discovering-blocks': 'assetPhase_discovering_blocks',
+  'discovering-items': 'assetPhase_discovering_items', 'discovering-decorations': 'assetPhase_discovering_decorations', 'evaluating-behavior': 'assetPhase_evaluating_behavior',
+  'checking-conflicts': 'assetPhase_checking_conflicts', 'saving-cache': 'assetPhase_saving_cache', 'finalizing-cache': 'assetPhase_finalizing_cache', activating: 'assetPhase_activating',
+} as const satisfies Record<ModImportProgress['phase'], TranslationKey>;
 
 @Component({ selector: 'app-asset-manager-dialog', imports: [LucideArrowLeft, LucideCheckCircle2, LucideChevronDown, LucideChevronUp, LucideCircleX, LucideTrash2, LucideTriangleAlert, LucideX, CdkTrapFocus, CdkConnectedOverlay, CdkOverlayOrigin, UiProgressComponent, AssetManagerModDetailsComponent], templateUrl: './asset-manager-dialog.component.html', styleUrl: './asset-manager-dialog.component.scss', host: { '(document:keydown.escape)': 'closeFromEscape()' } })
 export class AssetManagerDialogComponent {
@@ -139,9 +146,9 @@ export class AssetManagerDialogComponent {
   protected operationDetail(): string { const progress = this.preflightProgress(); return progress ? this.progressDetail(progress) : this.i18n.t('assetManagerWorking'); }
   protected formatTime(timestamp: number): string { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(timestamp); }
   protected statusLabel(): string { const status = this.assets.status(); return status === 'ready' ? this.i18n.t('assetsReady') : status === 'importing' || status === 'downloading' || status === 'loading-cache' ? this.i18n.t('loadingAssets') : status === 'offline' ? this.i18n.t('assetsOffline') : status === 'unsupported-format' ? this.i18n.t('assetsUnsupportedFormat') : status === 'no-assets' ? this.i18n.t('noAssets') : this.i18n.t('importRequired'); }
-  protected phaseLabel(phase: ModImportProgress['phase']): string { return this.i18n.t(`assetPhase_${phase.replaceAll('-', '_')}`); }
+  protected phaseLabel(phase: ModImportProgress['phase']): string { return this.i18n.t(phaseLabels[phase]); }
   protected phaseState(phase: ModImportProgress['phase']): 'pending' | 'active' | 'complete' { return importPhaseState(phase, this.stageStateContext()); }
-  protected stageLabel(stage: ImportStage): string { const value = importStages.find((candidate) => candidate.id === stage)?.label ?? stage; return this.i18n.t(value); }
+  protected stageLabel(stage: ImportStage): string { return this.i18n.t(importStages.find((candidate) => candidate.id === stage)?.label ?? 'assetManagerImportStage'); }
   protected stageState(stage: ImportStage): ImportStageState { return importStageState(stage, this.stageStateContext()); }
   protected stageStateContext(): ImportStageStateContext { const prepared = this.preflight(); return { operationKind: this.operationKind(), operationStatus: this.operationStatus(), prepared: !!prepared, canActivate: prepared?.canActivate ?? false, progressPhase: this.preflightProgress()?.phase }; }
   protected preflightIsAwaitingImport(): boolean { return !!this.preflight() && this.stageState('import') === 'awaiting-user'; }

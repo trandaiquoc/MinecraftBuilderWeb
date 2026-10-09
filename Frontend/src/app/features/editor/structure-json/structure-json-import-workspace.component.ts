@@ -14,6 +14,7 @@ import type { StructureJson } from '../../../core/persistence/structure-json/str
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ViewportHydrationStatusService } from '../../../core/editor/state/viewport-hydration-status.service';
 import type { ExternalAiContentLimits } from '../../../core/persistence/structure-json/external-ai-content-limits';
+import type { TranslationKey } from '../../../core/ui/localization/translation-catalogs';
 
 type OversizedImportChoice = 'resize' | 'keep' | 'cancel';
 
@@ -73,7 +74,11 @@ export class StructureJsonImportWorkspaceComponent {
     this.modePlanCache.set('replace', plan);
     this.preview.set(this.previewForPlan(result, plan)); this.importMode.set('replace'); this.importPlan.set(plan); this.progress.set('ready');
   }
-  protected progressLabel(): string { return this.i18n.t(`structureJsonProgress${this.progress()[0].toUpperCase()}${this.progress().slice(1)}`); }
+  protected progressLabel(): string {
+    const labels: Partial<Record<'idle' | 'reading' | 'parsing' | 'checking' | 'planning' | 'ready' | 'complete', TranslationKey>> = { reading: 'structureJsonProgressReading', parsing: 'structureJsonProgressParsing', checking: 'structureJsonProgressChecking', planning: 'structureJsonProgressPlanning', ready: 'structureJsonProgressReady' };
+    const key = labels[this.progress()];
+    return key ? this.i18n.t(key) : '';
+  }
   protected issueGroups(): readonly { readonly category: 'missing' | 'bounds' | 'state' | 'contentLimit' | 'support' | 'warning'; readonly label: string; readonly severity: StructureJsonValidationSeverity }[] { return [{ category: 'missing', label: this.i18n.t('structureJsonMissingBlocks'), severity: structureJsonBlockIssueSeverity('missing') }, { category: 'bounds', label: this.i18n.t('structureJsonOutOfBounds'), severity: structureJsonBlockIssueSeverity('bounds') }, { category: 'state', label: this.i18n.t('structureJsonInvalidStates'), severity: structureJsonBlockIssueSeverity('state') }, { category: 'contentLimit', label: this.i18n.t('structureJsonContentLimitViolations'), severity: structureJsonBlockIssueSeverity('content-limit') }, { category: 'support', label: this.i18n.t('structureJsonMissingSupport'), severity: structureJsonBlockIssueSeverity('support') }, { category: 'warning', label: this.i18n.t('structureJsonValidationWarnings'), severity: structureJsonBlockIssueSeverity('warning') }]; }
   protected issues(category: 'missing' | 'bounds' | 'state' | 'contentLimit' | 'support' | 'warning'): readonly StructureJsonBlockIssue[] { return (this.preview()?.issues[category] ?? []).slice(0, 12); }
   protected duplicateConflicts(): readonly StructureJsonCoordinateConflict[] { return (this.preview()?.issues.duplicate ?? []).slice(0, 12); }

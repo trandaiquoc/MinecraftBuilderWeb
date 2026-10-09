@@ -1,5 +1,5 @@
 export type Locale = 'en' | 'vi';
-export type TranslationKey = keyof typeof translations.en;
+export type TranslationKey = keyof typeof translations.en | keyof typeof supplementalTranslations.en | keyof typeof structureJsonValidationTranslations.en | keyof typeof structureExportUiTranslations.en | keyof typeof structureJsonProjectUiTranslations.en;
 
 export const translations = {
   en: {
@@ -378,7 +378,7 @@ export const translations = {
   },
 } as const;
 
-export const supplementalTranslations = {
+const supplementalTranslationSource = {
   en: {
     structureJsonProgressPlanning: 'Preparing import', structureJsonProgressReady: 'Ready',
     structureJsonAiContentLimitsTitle: 'Content limits', structureJsonAiContentLimitsHelper: 'Choose blocks, items, or decorations that External AI must not use.', structureJsonAiContentLimitsSearch: 'Search content', structureJsonAiContentLimitsCategory: 'Content category', structureJsonAiContentLimitsBlocks: 'Blocks', structureJsonAiContentLimitsItems: 'Items', structureJsonAiContentLimitsDecorations: 'Decorations', structureJsonAiContentLimitsReset: 'Restore defaults', structureJsonAiContentLimitsClear: 'Clear all', structureJsonAiContentLimitsJsonTitle: 'Limit list', structureJsonAiContentLimitsJsonHelper: 'These IDs are included in the copied prompt when Content limits is enabled.', structureJsonAiContentLimitsNoMatches: 'No matching content.', structureJsonAiContentLimitsUnavailable: 'Currently unavailable',
@@ -415,19 +415,47 @@ export const supplementalTranslations = {
   },
 } as const;
 
+const keysOwnedByOtherCatalogs = ['assetManagerDiagnostics', 'untitledStructure', 'structureJsonLimitations', 'structureJsonImportDescription', 'structureJsonValidationShape'] as const;
+function omitTranslationKeys<T extends Readonly<Record<string, string>>, K extends keyof T>(source: T, keys: readonly K[]): Omit<T, K> {
+  const result: Partial<Record<keyof T, string>> = { ...source };
+  for (const key of keys) delete result[key];
+  return result as unknown as Omit<T, K>;
+}
+export const supplementalTranslations = {
+  en: omitTranslationKeys(supplementalTranslationSource.en, keysOwnedByOtherCatalogs),
+  vi: omitTranslationKeys(supplementalTranslationSource.vi, keysOwnedByOtherCatalogs),
+} as const;
+
+export const structureJsonProjectUiTranslations = {
+  en: {
+    structureJsonCurrentFormat: 'MinecraftBuilder Structure JSON',
+    structureJsonLimitations: 'Structure JSON includes blocks, decorations, and verified semantic block entities. Unsupported opaque data may require Project Backup for full fidelity.',
+    structureJsonImportStale: 'The project changed while this import was waiting. Validate again before applying.',
+    structureJsonImportDescription: 'Paste or load the current Structure JSON format to inspect it before any project changes.',
+    structureJsonValidationShape: 'The document does not match the current Structure JSON shape.',
+  },
+  vi: {
+    structureJsonCurrentFormat: 'Structure JSON MinecraftBuilder',
+    structureJsonLimitations: 'Structure JSON bao gom block, do trang tri va block entity semantic da xac minh. Du lieu raw khong duoc ho tro co the can Ban sao luu du an de giu nguyen.',
+    structureJsonImportStale: 'Dự án đã thay đổi trong khi chờ nhập. Hãy kiểm tra lại trước khi áp dụng.',
+    structureJsonImportDescription: 'Dán hoặc tải Structure JSON hiện tại để kiểm tra trước khi thay đổi dự án.',
+    structureJsonValidationShape: 'Tai lieu khong dung cau truc Structure JSON hien tai.',
+  },
+} as const;
+
 export const translationKeySets = {
   en: Object.keys(translations.en).sort(),
   vi: Object.keys(translations.vi).sort(),
 } as const;
 
-export const structureJsonValidationTranslations: Record<Locale, Readonly<Record<string, string>>> = {
+export const structureJsonValidationTranslations = {
   en: {
     structureJsonContentLimitViolations: 'Content limit violations', structureJsonMissingSupport: 'Missing block support', structureJsonValidationWarnings: 'Validation warnings', structureJsonStructureWarning: 'Structure warning', structureJsonReasonContentLimit: 'This content is restricted by the current Content Limits policy.', structureJsonReasonMissingSupport: 'This block is missing verified support in the imported layout.', structureJsonReasonOriginOffset: 'The structure starts at a positive local {axis} offset ({value}).', structureJsonReasonPossibleFloating: 'The structure may be unintentionally floating above y=0.', structureJsonReasonTreeGrounding: 'This sapling has no block support directly below it.', structureJsonImportBlockedContentLimit: 'Remove restricted content before applying this import.', structureJsonImportBlockedSupport: 'Add the required support blocks before applying this import.',
   },
   vi: {
     structureJsonContentLimitViolations: 'Nội dung bị giới hạn', structureJsonMissingSupport: 'Thiếu block hỗ trợ', structureJsonValidationWarnings: 'Cảnh báo kiểm tra', structureJsonStructureWarning: 'Cảnh báo cấu trúc', structureJsonReasonContentLimit: 'Nội dung này bị giới hạn theo chính sách Content Limits hiện tại.', structureJsonReasonMissingSupport: 'Block này thiếu block hỗ trợ đã xác minh trong layout nhập vào.', structureJsonReasonOriginOffset: 'Cấu trúc bắt đầu với offset {axis} dương ({value}).', structureJsonReasonPossibleFloating: 'Cấu trúc có thể đang lơ lửng phía trên y=0.', structureJsonReasonTreeGrounding: 'Sapling này không có block hỗ trợ ngay bên dưới.', structureJsonImportBlockedContentLimit: 'Hãy gỡ nội dung bị giới hạn trước khi nhập.', structureJsonImportBlockedSupport: 'Hãy thêm block hỗ trợ cần thiết trước khi nhập.',
   },
-};
+} as const;
 
 export const structureExportUiTranslations = {
   en: {
@@ -436,4 +464,12 @@ export const structureExportUiTranslations = {
   vi: {
     structureExportDialogTitle: '\u0058u\u1ea5t c\u1ea5u tr\u00fac Minecraft', structureExportDialogDescription: 'Ch\u1ecdn t\u1ec7p Structure NBT \u0111\u1ed9c l\u1eadp ho\u1eb7c g\u00f3i datapack ZIP s\u1eb5n s\u00e0ng ch\u00e9p.', structureExportMode: '\u0110\u1ecbnh d\u1ea1ng xu\u1ea5t', structureExportStandalone: 'Structure NBT (.nbt)', structureExportStandaloneHint: 'M\u1ed9t t\u1ec7p c\u1ea5u tr\u00fac trong th\u01b0 m\u1ee5c generated c\u1ee7a th\u1ebf gi\u1edbi.', structureExportDatapack: 'Datapack ZIP (.zip)', structureExportDatapackHint: 'G\u00f3i ZIP \u0111\u1ec3 ch\u00e9p v\u00e0o th\u01b0 m\u1ee5c datapacks c\u1ee7a th\u1ebf gi\u1edbi.', structureExportNamespace: 'Namespace', structureExportPath: '\u0110\u01b0\u1eddng d\u1eabn c\u1ea5u tr\u00fac', structureExportArchive: 'T\u00ean t\u1ec7p g\u00f3i', structureExportArchiveHint: 'Ch\u1ec9 nh\u1eadp ph\u1ea7n t\u00ean; .zip s\u1ebd \u0111\u01b0\u1ee3c th\u00eam t\u1ef1 \u0111\u1ed9ng.', structureExportDescription: 'M\u00f4 t\u1ea3 datapack', structureExportResourceLocation: 'ResourceLocation', structureExportFilename: 'T\u00ean t\u1ec7p t\u1ea3i xu\u1ed1ng', structureExportInstall: 'C\u00e0i v\u00e0o world', structureExportLoadCommand: 'N\u1ea1p', structureExportValidationSummary: 'H\u00e3y ki\u1ec3m tra c\u00e1c gi\u00e1 tr\u1ecb \u0111\u01b0\u1ee3c \u0111\u00e1nh d\u1ea5u tr\u01b0\u1edbc khi t\u1ea3i xu\u1ed1ng.', structureExportFailed: 'Xu\u1ea5t th\u1ea5t b\u1ea1i', structureExportWorking: '\u0110ang chu\u1ea9n b\u1ecb...', structureExportDownload: 'T\u1ea3i xu\u1ed1ng', structureExportDownloadNbt: 'T\u1ea3i NBT', structureExportDownloadDatapack: 'T\u1ea3i g\u00f3i datapack ZIP', structureExportSuccess: '\u0110\u00e3 t\u1ea3i xu\u1ed1ng', structureExportSizeWarning: 'D\u1ef1 \u00e1n v\u01b0\u1ee3t gi\u1edbi h\u1ea1n 48 block m\u1ed7i tr\u1ee5c c\u1ee7a vanilla. C\u1ea7n Huge Structure Blocks.', structureExportHugeBlocksWarning: 'T\u01b0\u01a1ng th\u00edch Huge Structure Blocks (t\u1ed1i \u0111a 512 m\u1ed7i tr\u1ee5c)', structureExportTooLarge: 'Qu\u00e1 l\u1edbn v\u1edbi quy tr\u00ecnh xu\u1ea5t hi\u1ec7n t\u1ea1i', structureExportVanillaCompatible: 'T\u01b0\u01a1ng th\u00edch Structure Block vanilla', structureExportIdentity: 'Danh t\u00ednh c\u1ea5u tr\u00fac', structureExportPackage: 'G\u00f3i v\u00e0 t\u1ec7p', structureExportCompatibility: 'T\u01b0\u01a1ng th\u00edch', structureExportCopy: 'Sao ch\u00e9p', structureExportCopied: '\u0110\u00e3 sao ch\u00e9p v\u00e0o b\u1ed9 nh\u1edb t\u1ea1m.', structureExportCopyFailed: 'Kh\u00f4ng th\u1ec3 sao ch\u00e9p. H\u00e3y ki\u1ec3m tra quy\u1ec1n clipboard c\u1ee7a tr\u00ecnh duy\u1ec7t.', structureExportInstallSteps: 'C\u00e0i v\u00e0o world', structureExportStepCopyTitle: 'Ch\u00e9p file', structureExportStepReloadTitle: 'N\u1ea1p l\u1ea1i world', structureExportStepReopenTitle: 'M\u1edf l\u1ea1i world', structureExportStepReopen: 'M\u1edf l\u1ea1i world tr\u01b0\u1edbc khi n\u1ea1p c\u1ea5u tr\u00fac.', structureExportStepLoadTitle: 'N\u1ea1p c\u1ea5u tr\u00fac',
   },
+} as const;
+
+export const translationCatalogs = {
+  translations,
+  supplementalTranslations,
+  structureJsonValidationTranslations,
+  structureExportUiTranslations,
+  structureJsonProjectUiTranslations,
 } as const;
