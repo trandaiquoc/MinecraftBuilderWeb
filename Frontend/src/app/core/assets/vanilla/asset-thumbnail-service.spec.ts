@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
 import type { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
 import type { VanillaAssetProvider } from './vanilla-asset-provider';
 import { AssetThumbnailService } from './asset-thumbnail-service';

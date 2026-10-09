@@ -1,7 +1,7 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { ActiveBlock, ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
-import { canonicalPlaceableItemId } from '../../blocks/placement-palette/placeable-item';
+import { canonicalPlaceableItemId } from '../../blocks/placement-palette/placeable-item-resolution';
 import { DecorationService } from '../../decorations/decoration.service';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 

@@ -1,106 +1,47 @@
-import type { BlockDefinition, BlockPlacementVariants, BlockSupportLevel, CatalogItemEvidence, VisualSupportLevel } from '../catalog/block-definition.types';
+import type { BlockDefinition } from '../catalog/block-definition.types';
 import { addBlockCapability } from '../capabilities/block-capability-resolver';
-import { BlockCapabilityProfile } from '../capabilities/block-capability.types';
-import { BlockState, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
-import { PlacementContext } from '../../editor/placement/placement';
-import { rankSearchResults } from '../../search/relevance-search';
+import type { BlockCapabilityProfile } from '../capabilities/block-capability.types';
+import type { BlockPlacementVariants } from '../catalog/block-definition.types';
 import { isInternalContent, isTechnicalBlockId, isDecorationEntityId, vanillaTechnicalBlockIds } from '../../content/content-classifier';
-import type { MinecraftContentKind } from '../../content/content-classifier';
-import { expandLogicalPlacement, logicalPlacementForBehavior } from '../../block-behavior/logical-objects/logical-placement';
-import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
+import { logicalPlacementForBehavior } from '../../block-behavior/logical-objects/logical-placement';
+import { rankSearchResults } from '../../search/relevance-search';
+import type { PlaceableItemDefinition, PlaceableItemEvidence, PlaceableManifestEntry } from './placeable-item.types';
+import { vanillaPlaceableForConcreteId, VANILLA_PLACEABLE_MANIFEST } from './manifest/vanilla-placeable-manifest';
+import { createPlaceablePreviewBlocks } from './logical-placement-preview';
 
-export type PlaceablePlacementKind =
-  | 'direct' | 'sign' | 'hanging-sign' | 'torch' | 'head' | 'banner' | 'coral-fan'
-  | 'bed' | 'door' | 'tall-plant' | 'multi-block' | 'fluid-bucket';
+export type { PlaceableItemDefinition, PlaceableItemEvidence, PlaceableManifestEntry, PlaceablePlacementKind, PreviewRecipe } from './placeable-item.types';
+export { VANILLA_PLACEABLE_MANIFEST } from './manifest/vanilla-placeable-manifest';
+export { canonicalPlaceableItemId, resolveConcreteBlockId, resolveItemBlock } from './placeable-item-resolution';
+export { previewBlocksForItem } from './logical-placement-preview';
 
-export type PreviewRecipe = 'single' | 'bed' | 'door' | 'tall-plant' | 'vertical-two-part' | 'horizontal-two-part';
-
-export interface PlaceableItemDefinition {
-  readonly itemId: string;
-  readonly displayBlockId: string;
-  readonly namespace: string;
-  readonly displayName: string;
-  readonly modName?: string;
-  readonly sourceId?: string;
-  readonly sourceName?: string;
-  readonly maxStackSize?: number;
-  readonly defaultState: BlockState;
-  /** State used only for browser/thumbnail representation; placement keeps defaultState. */
-  readonly previewState?: BlockState;
-  readonly concreteBlockIds: readonly string[];
-  readonly placementVariants?: BlockPlacementVariants;
-  readonly placementKind: PlaceablePlacementKind;
-  readonly previewRecipe: PreviewRecipe;
-  readonly logicalPlacement?: LogicalPlacementMetadata;
-  readonly support: BlockSupportLevel;
-  readonly visualSupport: VisualSupportLevel;
-  /** Runtime item-backed profile; block definitions remain independent of item catalogs. */
-  readonly capabilities: BlockCapabilityProfile;
-  readonly contentKind?: MinecraftContentKind;
-  readonly previewBlocks: readonly PlacedBlock[];
-}
-
-// Search metadata stays runtime-only and deliberately outside the catalog
-// contract; ranking is computed only for the current query.
-
-export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName' | 'maxStackSize'>> { readonly itemId: string; readonly placeable?: boolean; readonly contentKind?: MinecraftContentKind; }
-
-interface ManifestEntry { readonly itemId: string; readonly concreteBlockIds: readonly string[]; readonly kind: PlaceablePlacementKind; readonly recipe: PreviewRecipe; readonly displayName?: string; readonly defaultState?: BlockState; readonly placementVariants?: BlockPlacementVariants; readonly logicalPlacement?: LogicalPlacementMetadata; }
-
-const WOODS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
-const COLORS = ['white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black'] as const;
-const HEADS = [
-  ['skeleton_skull', 'skeleton_wall_skull'], ['wither_skeleton_skull', 'wither_skeleton_wall_skull'],
-  ['zombie_head', 'zombie_wall_head'], ['creeper_head', 'creeper_wall_head'], ['piglin_head', 'piglin_wall_head'],
-  ['player_head', 'player_wall_head'], ['dragon_head', 'dragon_wall_head'],
-] as const;
-const CORAL = ['tube', 'brain', 'bubble', 'fire', 'horn'] as const;
-const DOORS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'bamboo', 'crimson', 'warped'] as const;
-const TALL_PLANTS = ['sunflower', 'lilac', 'rose_bush', 'peony', 'tall_grass', 'large_fern', 'small_dripleaf'] as const;
-
-function id(name: string): string { return `minecraft:${name}`; }
-function manifest(): readonly ManifestEntry[] {
-  const entries: ManifestEntry[] = [];
-  entries.push({ itemId: id('water_bucket'), concreteBlockIds: [id('water')], kind: 'fluid-bucket', recipe: 'single', displayName: 'Water Bucket', defaultState: { level: '0' } });
-  entries.push({ itemId: id('lava_bucket'), concreteBlockIds: [id('lava')], kind: 'fluid-bucket', recipe: 'single', displayName: 'Lava Bucket', defaultState: { level: '0' } });
-  for (const wood of WOODS) {
-    entries.push({ itemId: id(`${wood}_sign`), concreteBlockIds: [id(`${wood}_sign`), id(`${wood}_wall_sign`)], kind: 'sign', recipe: 'single', placementVariants: { standing: id(`${wood}_sign`), wall: id(`${wood}_wall_sign`) } });
-    entries.push({ itemId: id(`${wood}_hanging_sign`), concreteBlockIds: [id(`${wood}_hanging_sign`), id(`${wood}_wall_hanging_sign`)], kind: 'hanging-sign', recipe: 'single', placementVariants: { hanging: id(`${wood}_hanging_sign`), wallHanging: id(`${wood}_wall_hanging_sign`) } });
-  }
-  for (const name of ['torch', 'soul_torch', 'redstone_torch']) { const wall = name === 'torch' ? 'wall_torch' : name.replace('_torch', '_wall_torch'); entries.push({ itemId: id(name), concreteBlockIds: [id(name), id(wall)], kind: 'torch', recipe: 'single' }); }
-  for (const [standing, wall] of HEADS) entries.push({ itemId: id(standing), concreteBlockIds: [id(standing), id(wall)], kind: 'head', recipe: 'single' });
-  for (const color of COLORS) entries.push({ itemId: id(`${color}_banner`), concreteBlockIds: [id(`${color}_banner`), id(`${color}_wall_banner`)], kind: 'banner', recipe: 'single' });
-  for (const type of CORAL) for (const dead of ['', 'dead_']) entries.push({ itemId: id(`${dead}${type}_coral_fan`), concreteBlockIds: [id(`${dead}${type}_coral_fan`), id(`${dead}${type}_coral_wall_fan`)], kind: 'coral-fan', recipe: 'single' });
-  for (const color of COLORS) entries.push({ itemId: id(`${color}_bed`), concreteBlockIds: [id(`${color}_bed`)], kind: 'bed', recipe: 'bed' });
-  for (const door of DOORS) entries.push({ itemId: id(`${door}_door`), concreteBlockIds: [id(`${door}_door`)], kind: 'door', recipe: 'door' });
-  for (const plant of TALL_PLANTS) entries.push({ itemId: id(plant), concreteBlockIds: [id(plant)], kind: 'tall-plant', recipe: 'tall-plant' });
-  return entries;
-}
-
-export const VANILLA_PLACEABLE_MANIFEST = manifest();
-const MANIFEST_BY_CONCRETE = new Map(VANILLA_PLACEABLE_MANIFEST.flatMap((entry) => entry.concreteBlockIds.map((blockId) => [blockId, entry] as const)));
-
+/** Palette selection policy: whether a registry block is a standalone item. */
 export function isNormalBuildingPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace' | 'contentKind' | 'itemEvidence'>): boolean {
   const contentKind = block.contentKind ?? block.itemEvidence?.contentKind;
   return !isTechnicalBlockId(block.id) && !isInternalContent(contentKind) && !isDecorationEntityId(block.id);
 }
 
-/** A palette policy: can the user choose this ID as an independent item? */
-export function isPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace' | 'contentKind' | 'itemEvidence'>): boolean { return isNormalBuildingPaletteEligible(block); }
+export function isPaletteEligible(block: Pick<BlockDefinition, 'id' | 'namespace' | 'contentKind' | 'itemEvidence'>): boolean {
+  return isNormalBuildingPaletteEligible(block);
+}
 
-/** A world policy: valid concrete internal variants remain serializable. */
-export function isWorldBlockSerializable(blockId: string): boolean { return !isTechnicalBlockId(blockId) && !isDecorationEntityId(blockId); }
+/** World serialization policy is distinct from palette visibility. */
+export function isWorldBlockSerializable(blockId: string): boolean {
+  return !isTechnicalBlockId(blockId) && !isDecorationEntityId(blockId);
+}
 
 /** @deprecated Use isWorldBlockSerializable; retained for callers during the policy split. */
-export function isNormalBuildingExportEligible(blockId: string): boolean { return isWorldBlockSerializable(blockId); }
-export function technicalBuildingIds(): readonly string[] { return vanillaTechnicalBlockIds(); }
+export function isNormalBuildingExportEligible(blockId: string): boolean {
+  return isWorldBlockSerializable(blockId);
+}
+
+export function technicalBuildingIds(): readonly string[] {
+  return vanillaTechnicalBlockIds();
+}
 
 export function buildPlaceableItems(definitions: readonly BlockDefinition[], targetItems: readonly PlaceableItemEvidence[] = [], targetItemsAvailable?: boolean): readonly PlaceableItemDefinition[] {
   const byId = new Map(definitions.map((definition) => [definition.id, definition]));
   const targetItemIds = new Set(targetItems.filter((item) => isTargetItemPlaceable(item, byId)).map((item) => item.itemId));
   const hasTargetItemEvidence = targetItemsAvailable ?? (targetItems.length > 0 || definitions.some((definition) => definition.itemEvidence !== undefined));
-  // Hand-authored/legacy callers may only have same-ID evidence attached to a
-  // BlockDefinition. Modern sources pass the independent targetItems catalog.
   if (targetItemsAvailable === undefined && targetItems.length === 0) {
     for (const definition of definitions) if (definition.itemEvidence?.placeable === true) targetItemIds.add(definition.itemEvidence.itemId);
   }
@@ -123,15 +64,11 @@ export function buildPlaceableItems(definitions: readonly BlockDefinition[], tar
     result.push(toItem(display, entry, entry.concreteBlockIds));
   }
   for (const definition of definitions) {
-    if (!isNormalBuildingPaletteEligible(definition) || covered.has(definition.id) || MANIFEST_BY_CONCRETE.has(definition.id)) continue;
-    // A block catalog is intentionally broader than the player-facing item
-    // palette. Once the target resource set exposes item definitions, only
-    // blocks backed by that evidence may become direct palette entries.
+    if (!isNormalBuildingPaletteEligible(definition) || covered.has(definition.id) || vanillaPlaceableForConcreteId(definition.id)) continue;
     if (hasTargetItemEvidence && !targetItemIds.has(definition.id)) continue;
     result.push(toItem(definition, { itemId: definition.id, concreteBlockIds: [definition.id], kind: 'direct', recipe: 'single' }, [definition.id]));
   }
-  const sorted = result.sort((left, right) => left.displayName.localeCompare(right.displayName));
-  return sorted;
+  return result.sort((left, right) => left.displayName.localeCompare(right.displayName));
 }
 
 function isTargetItemPlaceable(item: PlaceableItemEvidence, byId: ReadonlyMap<string, BlockDefinition>): boolean {
@@ -147,12 +84,12 @@ function isTargetItemPlaceable(item: PlaceableItemEvidence, byId: ReadonlyMap<st
   return explicit !== undefined && byId.has(explicit) && isNormalBuildingPaletteEligible(byId.get(explicit)!);
 }
 
-function entryDisplayId(entry: ManifestEntry, byId: ReadonlyMap<string, BlockDefinition>, fallback: string): string {
+function entryDisplayId(entry: PlaceableManifestEntry, byId: ReadonlyMap<string, BlockDefinition>, fallback: string): string {
   return byId.has(entry.itemId) ? entry.itemId : entry.concreteBlockIds.find((blockId) => byId.has(blockId)) ?? fallback;
 }
 
-function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: ReadonlyMap<string, BlockDefinition>): readonly ManifestEntry[] {
-  const entries: ManifestEntry[] = [];
+function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: ReadonlyMap<string, BlockDefinition>): readonly PlaceableManifestEntry[] {
+  const entries: PlaceableManifestEntry[] = [];
   const seen = new Set<string>();
   for (const definition of definitions) {
     if (seen.has(definition.id)) continue;
@@ -161,7 +98,7 @@ function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: R
       const ids = [...new Set(Object.values(variants).filter((value): value is string => !!value))];
       if (ids.every((id) => byId.has(id))) {
         const itemId = variants.standing ?? variants.hanging!;
-        const kind: PlaceablePlacementKind = variants.hanging ? 'hanging-sign' : 'sign';
+        const kind = variants.hanging ? 'hanging-sign' : 'sign';
         if (!seen.has(itemId)) { ids.forEach((id) => seen.add(id)); entries.push({ itemId, concreteBlockIds: ids, kind, recipe: 'single', placementVariants: variants }); }
       }
       continue;
@@ -172,62 +109,26 @@ function discoverLogicalEntries(definitions: readonly BlockDefinition[], byId: R
   return entries;
 }
 
-function toItem(definition: BlockDefinition, entry: ManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {
+function toItem(definition: BlockDefinition, entry: PlaceableManifestEntry, concreteBlockIds: readonly string[]): PlaceableItemDefinition {
   const defaultState = { ...definition.defaultState, ...(entry.defaultState ?? {}) };
   const previewState = definition.contentDescriptor?.representativeVisualState ? { ...defaultState, ...definition.contentDescriptor.representativeVisualState } : undefined;
   const logicalPlacement = entry.logicalPlacement ?? definition.logicalPlacement ?? logicalPlacementForBehavior(definition.behavior);
-  const previewBlocks = previewFor(entry, definition, previewState ?? defaultState, logicalPlacement);
-  const placementVariants = entry.placementVariants ?? (definition.namespace === 'minecraft' && entry.concreteBlockIds.length > 1 ? { standing: entry.concreteBlockIds[0], wall: entry.concreteBlockIds[1] } : undefined);
+  const previewBlocks = createPlaceablePreviewBlocks(entry, definition, previewState ?? defaultState, logicalPlacement);
+  const placementVariants: BlockPlacementVariants | undefined = entry.placementVariants ?? (definition.namespace === 'minecraft' && entry.concreteBlockIds.length > 1 ? { standing: entry.concreteBlockIds[0], wall: entry.concreteBlockIds[1] } : undefined);
   const itemEvidence = definition.sourceId && definition.sourceId !== 'vanilla' ? 'inferred' : 'verified';
   const contentKind = definition.contentKind ?? definition.itemEvidence?.contentKind;
-  return { itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace, displayName: entry.displayName ?? definition.displayName, modName: definition.modName, sourceId: definition.sourceId, sourceName: definition.sourceName, ...(definition.itemEvidence?.maxStackSize === undefined ? {} : { maxStackSize: definition.itemEvidence.maxStackSize }), ...(contentKind ? { contentKind } : {}), defaultState, ...(previewState ? { previewState } : {}), concreteBlockIds, ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind, previewRecipe: entry.recipe, ...(logicalPlacement ? { logicalPlacement } : {}), support: definition.support, visualSupport: definition.visualSupport, capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks };
-}
-
-function previewFor(entry: ManifestEntry, definition: BlockDefinition, itemState: BlockState, logicalPlacement?: LogicalPlacementMetadata): readonly PlacedBlock[] {
-  const state = { ...itemState };
-  const make = (position: VoxelCoordinate, overrides: BlockState = {}, concreteId = definition.id): PlacedBlock => ({ kind: 'resolved', id: concreteId, namespace: concreteId.split(':')[0] ?? 'minecraft', position, state: { ...state, ...overrides } });
-  if (logicalPlacement) return expandLogicalPlacement(make({ x: 0, y: 0, z: 0 }), logicalPlacement);
-  return [make({ x: 0, y: 0, z: 0 })];
-}
-
-export function canonicalPlaceableItemId(concreteId: string, items?: readonly PlaceableItemDefinition[]): string {
-  const dynamic = items?.find((item) => item.concreteBlockIds.includes(concreteId));
-  return dynamic?.itemId ?? MANIFEST_BY_CONCRETE.get(concreteId)?.itemId ?? concreteId;
-}
-
-export function resolveConcreteBlockId(item: PlaceableItemDefinition, context?: PlacementContext): string {
-  const variants = item.placementVariants;
-  const normal = variants?.standing ?? item.displayBlockId;
-  const side = !!context?.faceNormal && Math.abs(context.faceNormal.x) + Math.abs(context.faceNormal.z) > 0 && context.faceNormal.y === 0;
-  if (item.placementKind === 'hanging-sign') {
-    if (side) return variants?.wallHanging ?? normal;
-    if (context?.faceNormal?.y === -1) return variants?.hanging ?? normal;
-    return normal;
-  }
-  return side ? variants?.wall ?? normal : normal;
-}
-export function resolveItemBlock(item: PlaceableItemDefinition, state: BlockState, position: VoxelCoordinate, context?: PlacementContext, definition?: (id: string) => BlockDefinition | undefined): PlacedBlock {
-  const blockId = resolveConcreteBlockId(item, context);
-  const target = definition?.(blockId);
-  const source = { ...state, ...context?.stateOverride };
-  const finalState: Record<string, string> = {};
-  if (target) {
-    for (const entry of target.stateDefinitions) {
-      const value = source[entry.name] ?? target.defaultState[entry.name];
-      if (typeof value === 'string') finalState[entry.name] = value;
-    }
-  } else {
-    Object.assign(finalState, source);
-  }
-  return { kind: 'resolved', id: blockId, namespace: item.namespace, position: { ...position }, state: finalState, blockEntityData: undefined };
-}
-
-/** Builds final, internally consistent preview blocks for a logical item state. */
-export function previewBlocksForItem(item: PlaceableItemDefinition, state: BlockState = item.defaultState): readonly PlacedBlock[] {
-  const source = item.previewBlocks;
-  if (!item.logicalPlacement || source.length === 0) return source.map((block) => ({ ...block, state: { ...block.state, ...state } }));
-  const origin = { ...source[0], state: { ...source[0].state, ...state } };
-  return expandLogicalPlacement(origin, item.logicalPlacement);
+  return {
+    itemId: entry.itemId, displayBlockId: definition.id, namespace: definition.namespace,
+    displayName: entry.displayName ?? definition.displayName, modName: definition.modName,
+    sourceId: definition.sourceId, sourceName: definition.sourceName,
+    ...(definition.itemEvidence?.maxStackSize === undefined ? {} : { maxStackSize: definition.itemEvidence.maxStackSize }),
+    ...(contentKind ? { contentKind } : {}), defaultState,
+    ...(previewState ? { previewState } : {}), concreteBlockIds,
+    ...(placementVariants ? { placementVariants } : {}), placementKind: entry.kind,
+    previewRecipe: entry.recipe, ...(logicalPlacement ? { logicalPlacement } : {}),
+    support: definition.support, visualSupport: definition.visualSupport,
+    capabilities: addBlockCapability(definition.capabilities, { kind: 'item-backed', evidence: itemEvidence }), previewBlocks,
+  };
 }
 
 export function placementItemSearch(items: readonly PlaceableItemDefinition[], query: string): readonly PlaceableItemDefinition[] {

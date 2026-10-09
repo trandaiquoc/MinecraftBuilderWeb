@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { PlacedBlock } from '../../domain/project.types';
 import { BlockDefinition, BlockSupportLevel } from '../catalog/block-definition.types';
-import { PlaceableItemDefinition } from './placeable-item';
+import type { PlaceableItemDefinition } from './placeable-item.types';
 
 export interface ActiveBlock {
   readonly id: string;

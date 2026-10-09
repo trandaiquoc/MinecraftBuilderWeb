@@ -1,5 +1,5 @@
-import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
-import { canonicalPlaceableItemId } from '../../blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
+import { canonicalPlaceableItemId } from '../../blocks/placement-palette/placeable-item-resolution';
 
 export type ExternalAiContentCategory = 'blocks' | 'items' | 'decorations';
 

@@ -1,6 +1,6 @@
 import { computed, effect, Injectable, inject, signal, type Signal } from '@angular/core';
 import { BlockDefinition } from '../blocks/catalog/block-definition.types';
-import { PlaceableItemDefinition } from '../blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../blocks/placement-palette/placeable-item.types';
 import { BlockLibraryService } from '../blocks/catalog/block-library.service';
 import { VanillaBlockVisualProvider } from '../renderer/geometry/vanilla-block-visual-provider';
 import { IndexedDbAssetCache } from './cache/indexeddb-asset-cache';

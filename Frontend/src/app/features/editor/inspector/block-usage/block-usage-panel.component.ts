@@ -7,7 +7,7 @@ import { BlockUsageHighlightService } from '../../../../core/editor/state/block-
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ThumbnailVisibilityDirective } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
-import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item.types';
 import type { ThumbnailTaskPriority } from '../../../../core/assets/vanilla/thumbnail-task-queue';
 
 type UsageSort = 'count-desc' | 'count-asc' | 'name-asc' | 'name-desc';

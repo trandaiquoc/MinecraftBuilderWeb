@@ -1,5 +1,5 @@
 import { Component, computed, effect, ElementRef, inject, output, signal, viewChild } from '@angular/core';
-import { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item.types';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';

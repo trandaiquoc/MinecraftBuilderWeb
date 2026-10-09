@@ -1,6 +1,6 @@
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
-import { resolveItemBlock } from '../../blocks/placement-palette/placeable-item';
-import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
+import { resolveItemBlock } from '../../blocks/placement-palette/placeable-item-resolution';
+import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacementContext } from '../../editor/placement/placement';

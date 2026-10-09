@@ -3,7 +3,8 @@ import { VanillaAssetProvider, texturePath } from './vanilla-asset-provider';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { parseVanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
 import { parseVanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
-import { buildPlaceableItems, isWorldBlockSerializable, resolveConcreteBlockId } from '../../blocks/placement-palette/placeable-item';
+import { buildPlaceableItems, isWorldBlockSerializable } from '../../blocks/placement-palette/placeable-item';
+import { resolveConcreteBlockId } from '../../blocks/placement-palette/placeable-item-resolution';
 
 describe('VanillaAssetProvider', () => {
   afterEach(() => vi.restoreAllMocks());

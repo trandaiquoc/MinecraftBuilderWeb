@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BlockCatalog } from '../catalog/block-catalog';
 import { representativeBlockFixture } from '../catalog/block-catalog.fixture';
-import { buildPlaceableItems, canonicalPlaceableItemId, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, isWorldBlockSerializable, placementItemSearch, previewBlocksForItem, resolveConcreteBlockId, resolveItemBlock } from './placeable-item';
+import { buildPlaceableItems, isNormalBuildingExportEligible, isNormalBuildingPaletteEligible, isWorldBlockSerializable, placementItemSearch } from './placeable-item';
+import { VANILLA_PLACEABLE_MANIFEST } from './manifest/vanilla-placeable-manifest';
+import { canonicalPlaceableItemId, resolveConcreteBlockId, resolveItemBlock } from './placeable-item-resolution';
+import { previewBlocksForItem } from './logical-placement-preview';
 import type { AssetBlockRecord } from '../catalog/block-definition.types';
 import { blockCapability } from '../capabilities/block-capability-resolver';
 
@@ -12,6 +15,11 @@ function catalogWith(...ids: string[]): BlockCatalog {
 }
 
 describe('vanilla placeable item layer', () => {
+  it('keeps manifest item identities unique while allowing explicit concrete variants', () => {
+    expect(new Set(VANILLA_PLACEABLE_MANIFEST.map((entry) => entry.itemId)).size).toBe(VANILLA_PLACEABLE_MANIFEST.length);
+    expect(VANILLA_PLACEABLE_MANIFEST.find((entry) => entry.itemId === 'minecraft:oak_sign')?.concreteBlockIds).toEqual(['minecraft:oak_sign', 'minecraft:oak_wall_sign']);
+  });
+
   it('canonicalizes standing and wall variants to one logical item', () => {
     const catalog = catalogWith('minecraft:oak_sign', 'minecraft:oak_wall_sign', 'minecraft:torch', 'minecraft:wall_torch', 'minecraft:skeleton_skull', 'minecraft:skeleton_wall_skull', 'minecraft:red_banner', 'minecraft:red_wall_banner');
     const items = buildPlaceableItems(catalog.all());

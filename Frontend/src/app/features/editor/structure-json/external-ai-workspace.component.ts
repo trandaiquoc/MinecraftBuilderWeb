@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { LucideCopy } from '@lucide/angular';
-import { canonicalPlaceableItemId } from '../../../core/blocks/placement-palette/placeable-item';
-import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
+import { canonicalPlaceableItemId } from '../../../core/blocks/placement-palette/placeable-item-resolution';
+import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item.types';
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import type { PaintingVariant } from '../../../core/decorations/decoration.types';
 import type { ProjectDocument } from '../../../core/domain/project.types';

@@ -5,7 +5,7 @@ import { textureResourcePath } from '../../content/resource-location';
 import { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';
-import { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
 import { createFluidGeometry } from '../fluids/fluid-geometry';
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import type { OcclusionClass } from '../visibility/interior-occlusion';

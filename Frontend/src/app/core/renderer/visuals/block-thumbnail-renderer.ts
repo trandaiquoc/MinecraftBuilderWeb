@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { PlacedBlock } from '../../domain/project.types';
 import type { ResolvedBlockModel, ResolvedModelPart } from '../../blocks/resolver';
 import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
-import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
 import { itemVisualResource, resolveItemVisual } from './item-visual-resolver';
 import type { SpecialBlockVisualRegistry } from './special-block-visual-registry';
 import type { BlockVisualResult, PerspectiveThumbnailResult } from './block-visual-provider-contract';

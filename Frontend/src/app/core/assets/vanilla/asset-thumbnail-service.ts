@@ -1,7 +1,7 @@
 import { Signal, signal } from '@angular/core';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item';
-import { previewBlocksForItem } from '../../blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
+import { previewBlocksForItem } from '../../blocks/placement-palette/logical-placement-preview';
 import type { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import type { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
 import type { PerspectiveThumbnailResult } from '../../renderer/visuals/block-visual-provider-contract';
