@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AssetBlockRecord, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
 import { extractBehaviorFingerprint, matchVanillaBehaviorCandidates } from './behavior-fingerprint';
+import { inferBehaviorTraits } from './behavior-traits';
 
 function record(id: string, definitions: readonly BlockStateDefinition[], model: string, blockstate: unknown): AssetBlockRecord {
   const [namespace, path] = id.split(':');
@@ -8,6 +9,12 @@ function record(id: string, definitions: readonly BlockStateDefinition[], model:
 }
 
 describe('generic behavior fingerprint candidates', () => {
+  it('infers orientation separately from attachment semantics', () => {
+    const directional = extractBehaviorFingerprint(record('example:directional', [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }], 'example:block/model', { variants: {} }));
+    expect(inferBehaviorTraits(directional)).toContain('six-face-orientation');
+    expect(inferBehaviorTraits(directional)).not.toContain('face-attachment');
+  });
+
   it('normalizes a wall schema whose resource omits none/false default branches', () => {
     const definitions = (['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['low', 'tall'] }));
     const blockstate = { multipart: [

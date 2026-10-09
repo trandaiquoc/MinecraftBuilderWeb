@@ -1,6 +1,11 @@
 import type { AssetBlockRecord, BlockBehavior, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
 import type { ContentPropertyDescriptor, NormalizedContentDescriptor } from '../../content/content-introspection';
 import { GENERIC_BEHAVIOR_PROFILES, type GenericBehaviorProfile } from './behavior-profiles';
+import { hasWallResourceEvidence, inferBehaviorTraits } from './behavior-traits';
+
+const SIX_FACE_VALUES = GENERIC_BEHAVIOR_PROFILES.attachedSixFace.requiredStates.facing;
+const HORIZONTAL_VALUES = GENERIC_BEHAVIOR_PROFILES.wallMounted.requiredStates.facing;
+const BOOLEAN_VALUES = GENERIC_BEHAVIOR_PROFILES.fence.requiredStates['north'];
 
 export type BehaviorTrait =
   | 'horizontal-connection'
@@ -73,9 +78,6 @@ interface BehaviorCandidate {
   readonly stateDefinitions?: readonly BlockStateDefinition[];
 }
 
-const SIX_FACE_VALUES = GENERIC_BEHAVIOR_PROFILES.attachedSixFace.requiredStates.facing;
-const HORIZONTAL_VALUES = GENERIC_BEHAVIOR_PROFILES.wallMounted.requiredStates.facing;
-const BOOLEAN_VALUES = GENERIC_BEHAVIOR_PROFILES.fence.requiredStates['north'];
 
 export function extractBehaviorFingerprint(record: AssetBlockRecord, resources?: BehaviorFingerprintResourceProvider, descriptor?: NormalizedContentDescriptor): BehaviorFingerprint {
   const properties = descriptor?.properties?.map(toStateDefinition) ?? record.stateDefinitions;
@@ -127,29 +129,6 @@ export function extractBehaviorFingerprint(record: AssetBlockRecord, resources?:
   return { ...base, traits: inferBehaviorTraits(base) };
 }
 
-export function inferBehaviorTraits(fingerprint: Omit<BehaviorFingerprint, 'traits'> | BehaviorFingerprint): readonly BehaviorTrait[] {
-  const traits = new Set<BehaviorTrait>();
-  const has = (name: string, values?: readonly string[]) => {
-    const property = fingerprint.properties.find((entry) => entry.name === name);
-    return !!property && (!values || values.every((value) => property.values.includes(value)));
-  };
-  const horizontalConnection = HORIZONTAL_VALUES.every((name) => has(name, BOOLEAN_VALUES));
-  const wallState = wallSchema(fingerprint) && wallResourceEvidence(fingerprint);
-  const stairs = has('facing', HORIZONTAL_VALUES) && has('half', ['top', 'bottom']) && has('shape', ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right']);
-  const sixFace = has('facing', SIX_FACE_VALUES);
-  if (horizontalConnection || wallState) traits.add('horizontal-connection');
-  if (wallState || stairs) traits.add('neighbor-derived-shape');
-  if (sixFace) traits.add('six-face-orientation');
-  if (sixFace && hasFaceAttachmentEvidence(fingerprint)) traits.add('face-attachment');
-  if (has('waterlogged', BOOLEAN_VALUES)) traits.add('waterloggable');
-  if (has('axis', ['x', 'y', 'z'])) traits.add('axis-orientation');
-  if (fingerprint.supportContracts.some((contract) => contract === 'floor' || contract === 'plantable-soil') || fingerprint.supportRequirements.some((requirement) => requirement.startsWith('below:'))) traits.add('floor-support');
-  if (fingerprint.supportContracts.some((contract) => contract === 'ceiling') || fingerprint.supportRequirements.some((requirement) => requirement.startsWith('above:'))) traits.add('ceiling-support');
-  if (fingerprint.capabilities.some((capability) => capability === 'block-entity')) traits.add('block-entity');
-  if (fingerprint.capabilities.some((capability) => capability === 'solid' || capability === 'support-provider')) traits.add('solid-support-provider');
-  return [...traits];
-}
-
 export function matchVanillaBehaviorCandidates(fingerprint: BehaviorFingerprint): { readonly behavior?: BlockBehavior; readonly family?: string; readonly defaults?: Readonly<Record<string, string>>; readonly stateDefinitions?: readonly BlockStateDefinition[]; readonly classification: BehaviorClassificationSummary } {
   const candidates = generateCandidates(fingerprint);
   const valid = candidates.filter((candidate) => candidate.contradictions.length === 0);
@@ -186,7 +165,7 @@ function generateCandidates(fingerprint: BehaviorFingerprint): readonly Behavior
   addSchemaCandidates(candidates, fingerprint, definitions);
   const wallProfile = GENERIC_BEHAVIOR_PROFILES.wall;
   const wall = compatibleSchema(definitions, wallProfile.requiredStates);
-  if (wall.present && wall.valid && wallResourceEvidence(fingerprint)) {
+  if (wall.present && wall.valid && hasWallResourceEvidence(fingerprint)) {
     const evidence = evidenceFor(fingerprint, ['state-schema', 'blockstate', 'model', 'tag']);
     const missing = HORIZONTAL_VALUES.filter((property) => !fingerprint.predicates.includes(property));
     if (missing.length) candidates.push(rejected('wall', `wall model selection omits ${missing.join(', ')}`, evidence));
@@ -279,28 +258,6 @@ function addTrustedSignCandidates(candidates: BehaviorCandidate[], fingerprint: 
 function resourceRelationship(fingerprint: BehaviorFingerprint, tokens: readonly string[]): boolean {
   const resources = `${fingerprint.modelReferences.join(' ')} ${fingerprint.modelParents.join(' ')}`.toLowerCase();
   return tokens.some((token) => resources.includes(token));
-}
-
-function hasFaceAttachmentEvidence(fingerprint: Omit<BehaviorFingerprint, 'traits'> | BehaviorFingerprint): boolean {
-  if (fingerprint.supportContracts.includes('six-face-attachment')) return true;
-  // Generic floor/wall/ceiling support is intentionally insufficient. The
-  // contract must identify the six-face attachment semantics, or the resource
-  // graph must show the verified cross-model/facing pattern used by buds and
-  // clusters.
-  return fingerprint.predicates.includes('facing') && fingerprint.modelParents.some((parent) => parent.endsWith('block/cross')) && SIX_FACE_VALUES.every((value) => fingerprint.predicates.includes(`facing:${value}`));
-}
-
-function wallResourceEvidence(fingerprint: Omit<BehaviorFingerprint, 'traits'> | BehaviorFingerprint): boolean {
-  return fingerprint.trustedFamilies.includes('wall')
-    || fingerprint.tags.some((tag) => /(?:^|:)walls$/.test(tag))
-    || fingerprint.modelParents.some((parent) => parent.includes('template_wall_'))
-    || fingerprint.modelReferences.some((model) => /(?:^|\/)(?:post|side|side_tall)$/.test(model.replace(/\.json$/, '')))
-    || HORIZONTAL_VALUES.every((property) => fingerprint.predicates.includes(property)) && fingerprint.modelReferences.length > 0;
-}
-
-function wallSchema(fingerprint: Omit<BehaviorFingerprint, 'traits'> | BehaviorFingerprint): boolean {
-  const definitions = fingerprint.properties;
-  return compatibleSchema(definitions, GENERIC_BEHAVIOR_PROFILES.wall.requiredStates).valid;
 }
 
 function wallDefinitions(definitions: readonly BlockStateDefinition[]): readonly BlockStateDefinition[] {
