@@ -85,7 +85,7 @@ export class BlockRepresentationCommitOwner {
         onCommitted: () => {
           if (this.ports.store.get(job.key) !== cachedEntry) { resolvePending?.(); return; }
           this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
-          this.finish();
+          this.finish(job);
           resolvePending?.();
         },
         onFailed: () => {
@@ -93,14 +93,14 @@ export class BlockRepresentationCommitOwner {
           const current = this.ports.store.get(job.key);
           if (current) this.ports.resources.ensureFallback(current);
           this.ports.store.setTerrainRepresentation(job.key, undefined);
-          this.finish();
+          this.finish(job);
           resolvePending?.();
         },
       });
       if (status === 'committed') {
         resolvePending = undefined;
         this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
-        this.finish();
+        this.finish(job);
         return true;
       }
       if (status === 'pending') return pending;
@@ -110,7 +110,7 @@ export class BlockRepresentationCommitOwner {
       const memberships = this.ports.targets.surface.add(job.block, job.key, surface, job.surfaceVisibleEntries, role);
       if (memberships) {
         this.ports.store.setSurfaceObject(job.key, memberships, memberships.length ? this.ports.targets.surface.meshFor(memberships[0].batchKey) : undefined);
-        this.finish();
+        this.finish(job);
         return true;
       }
     }
@@ -122,7 +122,7 @@ export class BlockRepresentationCommitOwner {
         this.ports.record('cachedTemplateInsertions');
         this.ports.store.setInstanceMembership(job.key, { batchKey: instance.batchKey, index: instance.index, object: this.ports.targets.instances.batches.get(instance.batchKey)?.parts[0] });
         this.ports.store.setStaticModel(job.key, { attempted: true, decision: this.ports.targets.instances.decisionFor(job.key), family: this.ports.targets.object.familyFromReusableKey(reusableKey) });
-        this.finish();
+        this.finish(job);
         return true;
       }
     }
@@ -150,14 +150,14 @@ export class BlockRepresentationCommitOwner {
             if (!ownsTransaction()) return;
             this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
             this.ports.targets.object.blocksGroup.remove(fallback);
-            this.finish();
+            this.finish(job);
           } finally { resolve(); }
         },
         onFailed: () => {
           try {
             if (!ownsTransaction()) return;
             this.updateFallback(fallback, visual);
-            this.finish();
+            this.finish(job);
           } finally { resolve(); }
         },
       });
@@ -167,7 +167,7 @@ export class BlockRepresentationCommitOwner {
       if (status === 'committed') {
         this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
         this.ports.targets.object.blocksGroup.remove(fallback);
-        this.finish();
+        this.finish(job);
         return;
       }
       if (status === 'pending') return pending;
@@ -220,7 +220,7 @@ export class BlockRepresentationCommitOwner {
       this.ports.store.setObject(job.key, object);
       this.ports.store.setStaticModel(job.key, { decision: this.ports.targets.instances.decisionFor(job.key) });
     }
-    this.finish();
+    this.finish(job);
   }
 
   commitRefresh(job: BlockHydrationJob, visual: HydratedBlockVisualResult, reusableKey: string | undefined, provider: BlockVisualProvider): void | Promise<void> {
@@ -237,7 +237,7 @@ export class BlockRepresentationCommitOwner {
           this.ports.targets.terrain.cacheTemplates(reusableKey, visual.terrainTemplates!);
           this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'terrain');
           this.ports.store.createOrReplace({ key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, terrainChunkKey: this.ports.targets.terrain.chunkKey(job.block.position) });
-          this.finish();
+          this.finish(job);
         } finally { resolvePending?.(); }
       };
       const fail = (status: 'failed' | 'cancelled'): void => {
@@ -247,7 +247,7 @@ export class BlockRepresentationCommitOwner {
           this.ports.store.setTerrainRepresentation(job.key, undefined);
           fallback.userData['diagnostics'] = [{ code: 'PROVIDER_REFRESH_FAILED', message: status === 'cancelled' ? 'Terrain replacement was cancelled' : 'Terrain replacement failed' }];
           this.ports.invalidateDiagnostics();
-          this.finish();
+          this.finish(job);
         } finally { resolvePending?.(); }
       };
       const status = this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal', { onCommitted: commit, onFailed: fail });
@@ -260,7 +260,7 @@ export class BlockRepresentationCommitOwner {
     }
     if (!visual.object) {
       this.recordRefreshFailure(job, 'Visual provider returned no replacement representation');
-      this.finish();
+      this.finish(job);
       return;
     }
     const object = this.prepareObject(visual.object, job, visual);
@@ -277,14 +277,14 @@ export class BlockRepresentationCommitOwner {
       this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'object');
       this.ports.store.createOrReplace({ ...base, object });
     }
-    this.finish();
+    this.finish(job);
   }
 
   fail(job: BlockHydrationJob, fallback: THREE.Mesh, error: unknown): void {
     this.ports.resources.rollbackPartial(job.key);
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }];
-    this.finish();
+    this.finish(job);
   }
 
   /** Converts an unexpected cached-terrain rejection into the same fallback state as other provider failures. */
@@ -295,7 +295,7 @@ export class BlockRepresentationCommitOwner {
     this.ports.store.setTerrainRepresentation(job.key, undefined);
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : String(error) }];
-    this.finish();
+    this.finish(job);
   }
 
   recordRefreshFailure(job: BlockHydrationJob, error: unknown): void {
@@ -326,7 +326,8 @@ export class BlockRepresentationCommitOwner {
     fallback.userData['renderMode'] = visual.mode;
   }
 
-  private finish(): void {
+  private finish(job?: BlockHydrationJob): void {
+    if (job?.layerPrewarm) return;
     this.ports.recordProviderCacheStats();
     this.ports.invalidateDiagnostics();
     this.ports.scheduleRender();

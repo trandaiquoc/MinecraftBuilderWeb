@@ -314,6 +314,12 @@ export class ThreeViewportEngine {
     prepared: number;
     skipped: number;
   };
+  private layerResidencyScope?: {
+    readonly project: ProjectDocument;
+    readonly providerGeneration: number;
+    readonly supportsStaticResidency: boolean;
+    readonly usesTerrainTemplates: boolean;
+  };
   private layerResidencyEvidenceValue: YLayerRepresentationPrewarmEvidence = {
     state: 'idle', blocksTotal: 0, blocksVisited: 0, representationsResident: 0,
     representationsSkipped: 0, jobsPending: 0, rendererPath: 'static-instance-only', gpuPresentationState: 'viewport-dependent',
@@ -873,17 +879,33 @@ export class ThreeViewportEngine {
     if (this.disposed || !this.visualProvider || this.project?.id !== project.id || this.project.blocks !== project.blocks) return;
     const providerGeneration = this.providerGeneration;
     const usesTerrainTemplates = this.preloadUsesTerrainTemplates();
-    if (usesTerrainTemplates) this.layerResidencyEvidenceValue = {
-      state: 'partial', blocksTotal: project.blocks.length, blocksVisited: 0, representationsResident: 0,
-      representationsSkipped: project.blocks.length, jobsPending: 0, rendererPath: 'unsupported-active-path', gpuPresentationState: 'viewport-dependent',
+    const supportsStaticResidency = !usesTerrainTemplates && this.renderOptions.layerY !== undefined;
+    if (this.layerResidencyScope?.project === project && this.layerResidencyScope.providerGeneration === providerGeneration
+      && this.layerResidencyScope.supportsStaticResidency === supportsStaticResidency
+      && this.layerResidencyScope.usesTerrainTemplates === usesTerrainTemplates) return;
+    this.layerResidencyScope = { project, providerGeneration, supportsStaticResidency, usesTerrainTemplates };
+    this.layerResidencyEvidenceValue = {
+      state: supportsStaticResidency ? 'preparing' : 'partial', blocksTotal: project.blocks.length,
+      blocksVisited: 0, representationsResident: 0, representationsSkipped: supportsStaticResidency ? 0 : project.blocks.length,
+      jobsPending: 0, rendererPath: supportsStaticResidency ? 'static-instance-only' : 'unsupported-active-path',
+      gpuPresentationState: 'viewport-dependent',
     };
     const preparation = this.yLayerVisualPreloader.start(project.blocks, providerGeneration, usesTerrainTemplates ? 'terrain-surface' : 'static-instance');
-    if (!usesTerrainTemplates && this.renderOptions.layerY !== undefined) {
-      void preparation.then((evidence) => {
-        if (evidence.state === 'cancelled' || this.disposed || this.project !== project || this.providerGeneration !== providerGeneration) return;
+    if (usesTerrainTemplates || this.renderOptions.layerY === undefined) return;
+    void preparation.then((evidence) => {
+      if (this.disposed || this.project !== project || this.providerGeneration !== providerGeneration) return;
+      if (evidence.state === 'cancelled') {
+        this.layerResidencyEvidenceValue = { ...this.layerResidencyEvidenceValue, state: 'cancelled' };
+        this.layerResidencyScope = undefined;
+      } else if (evidence.templateState !== 'ready') {
+        this.layerResidencyEvidenceValue = {
+          ...this.layerResidencyEvidenceValue, state: 'partial',
+          representationsSkipped: project.blocks.length, blocksVisited: evidence.blocksVisited,
+        };
+      } else {
         this.beginLayerRepresentationPrewarm(project, providerGeneration);
-      });
-    }
+      }
+    });
   }
 
   /** Physical residency is bounded to one project and a small scheduler window. */
@@ -953,6 +975,9 @@ export class ThreeViewportEngine {
         jobsPending: 0,
       };
       this.layerResidencyPrewarm = undefined;
+      this.recordProviderCacheStats();
+      this.invalidateStaticModelDiagnostics();
+      this.scheduleRender();
       return;
     }
     if (!queued && prewarm.inFlight === 0 && prewarm.index < prewarm.blocks.length) setTimeout(() => this.pumpLayerRepresentationPrewarm(), 0);
@@ -991,6 +1016,7 @@ export class ThreeViewportEngine {
     }
     if (this.layerResidencyPrewarm) this.layerResidencyEvidenceValue = { ...this.layerResidencyEvidenceValue, state: 'cancelled', jobsPending: 0 };
     this.layerResidencyPrewarm = undefined;
+    this.layerResidencyScope = undefined;
   }
 
   private preloadUsesTerrainTemplates(): boolean { return this.renderOptions.exposedFaceRendering === true; }
@@ -1880,7 +1906,7 @@ export class ThreeViewportEngine {
       }
       if (current && current.role !== change.after.role
         && blockRenderSignature(current.block) === blockRenderSignature(change.after.block)
-        && this.retargetProjectionRole(key, current, change.after)) {
+        && this.retargetProjectionRole(key, current, change.after, false)) {
         continue;
       }
       if (current) this.removeBlockEntry(key, current);
@@ -1903,13 +1929,14 @@ export class ThreeViewportEngine {
       this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
       if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     }
+    if (flushTerrain) this.scheduleRender();
     const durationMs = performance.now() - started;
     this.instrumentation.record('yLayerProjectionCommitMs', durationMs);
     this.instrumentation.recordMax('yLayerProjectionMaxCommitMs', durationMs);
     this.runtimeTrace?.record('y-layer-projection-delta', { layers: changedLayers, changedBlocks: changes.size, addedVisible, removedVisible, roleChanged, projectionRevision: this.yLayerProjection.revision, durationMs });
   }
 
-  private retargetProjectionRole(key: string, current: RenderedBlockEntry, next: VisibleBlockEntry): boolean {
+  private retargetProjectionRole(key: string, current: RenderedBlockEntry, next: VisibleBlockEntry, scheduleRender = true): boolean {
     const role = next.role === 'reference' ? 'reference' : 'normal';
     const opacity = this.renderOptions.referenceOpacity ?? .28;
     if (current.terrainChunkKey !== undefined || this.terrainRenderer.has(key)) {
@@ -1929,7 +1956,7 @@ export class ThreeViewportEngine {
       return false;
     }
     this.blockRepresentations.createOrReplace({ ...current, block: next.block, signature: next.signature, role: next.role });
-    this.scheduleRender();
+    if (scheduleRender) this.scheduleRender();
     return true;
   }
 

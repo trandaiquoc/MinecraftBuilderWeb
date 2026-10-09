@@ -2179,6 +2179,7 @@ describe('selection visualization scalability', () => {
     expect(after.fullVisibleScans).toBe(before.fullVisibleScans);
     expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
     expect(after.structuralReconciles).toBe(before.structuralReconciles);
+    expect(after.renderInvalidations - before.renderInvalidations).toBeLessThanOrEqual(3);
     expect(after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks).toBe(20_000 - 4_096);
     expect(after.yLayerProjectionSlices - before.yLayerProjectionSlices).toBeGreaterThan(1);
     expect(engine.projectionActivity().activity).toBe('idle');
@@ -2338,6 +2339,9 @@ describe('selection visualization scalability', () => {
     if (!exposedFaceRendering) {
       await waitForYLayerRepresentationPrewarm(engine);
       expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'ready', blocksTotal: 2, representationsResident: 2, jobsPending: 0, gpuPresentationState: 'viewport-dependent' });
+      const prewarmedJobs = engine.rendererCounters().yLayerRepresentationJobsQueued;
+      engine.prepareYLayerVisualResources(project);
+      expect(engine.rendererCounters().yLayerRepresentationJobsQueued).toBe(prewarmedJobs);
     } else {
       expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'partial', rendererPath: 'unsupported-active-path' });
     }
@@ -2360,6 +2364,26 @@ describe('selection visualization scalability', () => {
     await settleHydration(100, engine);
     expect(provider.create).toHaveBeenCalledTimes(createsAfterPreload);
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(afterFirstSwitch.fullSceneRebuilds);
+    engine.dispose();
+  });
+
+  it('does not report static Y-layer residency while the viewport has no Y-layer presentation', async () => {
+    const project = rendererBenchmarkProject('small');
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(axisCubeProvider());
+    engine.update(project, undefined, {});
+
+    engine.prepareYLayerVisualResources(project);
+
+    expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'partial', representationsSkipped: project.blocks.length, rendererPath: 'unsupported-active-path' });
+    await waitForYLayerPreload(engine);
+    engine.update(project, undefined, { layerY: 0, visibility: 'current-only' });
+    engine.prepareYLayerVisualResources(project);
+    await waitForYLayerPreload(engine);
+    await waitForYLayerRepresentationPrewarm(engine);
+    const layerEvidence = engine.yLayerRepresentationPrewarmEvidence();
+    expect(['ready', 'partial']).toContain(layerEvidence.state);
+    expect(layerEvidence).toMatchObject({ blocksTotal: project.blocks.length, blocksVisited: project.blocks.length, jobsPending: 0 });
     engine.dispose();
   });
 

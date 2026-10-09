@@ -34,6 +34,7 @@ function createOwner(overrides: Partial<BlockRepresentationHydrationOwnerPorts> 
   readonly provider: BlockVisualProvider;
   readonly store: ViewportBlockRepresentationStore;
   readonly releaseRetiredProviders: ReturnType<typeof vi.fn>;
+  readonly invalidateDiagnostics: ReturnType<typeof vi.fn>;
   readonly commit: Record<string, ReturnType<typeof vi.fn>>;
 } {
   const provider = { create: vi.fn(), thumbnailUrl: vi.fn() } as unknown as BlockVisualProvider;
@@ -49,6 +50,7 @@ function createOwner(overrides: Partial<BlockRepresentationHydrationOwnerPorts> 
     recordRefreshFailure: vi.fn(),
   };
   const releaseRetiredProviders = vi.fn();
+  const invalidateDiagnostics = vi.fn();
   const store = new ViewportBlockRepresentationStore();
   const ports: BlockRepresentationHydrationOwnerPorts = {
     store,
@@ -60,14 +62,30 @@ function createOwner(overrides: Partial<BlockRepresentationHydrationOwnerPorts> 
       terrain: () => Promise.resolve(visual()),
     },
     commit: commit as unknown as BlockRepresentationHydrationOwnerPorts['commit'],
-    invalidateDiagnostics: vi.fn(),
+    invalidateDiagnostics,
     releaseRetiredProviders,
     ...overrides,
   };
-  return { owner: new BlockRepresentationHydrationOwner(ports), provider, store, releaseRetiredProviders, commit };
+  return { owner: new BlockRepresentationHydrationOwner(ports), provider, store, releaseRetiredProviders, invalidateDiagnostics, commit };
 }
 
 describe('BlockRepresentationHydrationOwner provider lifetime', () => {
+  it('defers diagnostics invalidation for layer-prewarm hydration jobs', () => {
+    const fixture = createOwner();
+
+    fixture.owner.create({ ...job, layerPrewarm: true });
+
+    expect(fixture.invalidateDiagnostics).not.toHaveBeenCalled();
+  });
+
+  it('invalidates diagnostics immediately for interactive hydration jobs', () => {
+    const fixture = createOwner();
+
+    fixture.owner.create(job);
+
+    expect(fixture.invalidateDiagnostics).toHaveBeenCalledOnce();
+  });
+
   it('counts concurrent jobs independently and releases each lease once', async () => {
     const first = deferred<HydratedBlockVisualResult>();
     const second = deferred<HydratedBlockVisualResult>();

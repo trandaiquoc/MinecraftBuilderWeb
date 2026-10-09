@@ -28,7 +28,7 @@ function visual(object?: THREE.Group, terrainTemplates?: readonly SurfaceFaceTem
   };
 }
 
-function createOwner(store: ViewportBlockRepresentationStore, group: THREE.Group, terrainAdd: (templates: readonly SurfaceFaceTemplate[], callbacks?: { readonly onCommitted: () => void; readonly onFailed: (status: 'failed' | 'cancelled') => void }) => TerrainRepresentationCommitStatus, release: (key: string, entry: unknown, replacement: string) => void): BlockRepresentationCommitOwner {
+function createOwner(store: ViewportBlockRepresentationStore, group: THREE.Group, terrainAdd: (templates: readonly SurfaceFaceTemplate[], callbacks?: { readonly onCommitted: () => void; readonly onFailed: (status: 'failed' | 'cancelled') => void }) => TerrainRepresentationCommitStatus, release: (key: string, entry: unknown, replacement: string) => void): { readonly owner: BlockRepresentationCommitOwner; readonly ports: BlockRepresentationCommitOwnerPorts } {
   const ports: BlockRepresentationCommitOwnerPorts = {
     store,
     resources: {
@@ -46,7 +46,7 @@ function createOwner(store: ViewportBlockRepresentationStore, group: THREE.Group
     },
     record: vi.fn(), invalidateDiagnostics: vi.fn(), recordProviderCacheStats: vi.fn(), scheduleRender: vi.fn(),
   };
-  return new BlockRepresentationCommitOwner(ports);
+  return { owner: new BlockRepresentationCommitOwner(ports), ports };
 }
 
 describe('BlockRepresentationCommitOwner refresh transitions', () => {
@@ -57,7 +57,7 @@ describe('BlockRepresentationCommitOwner refresh transitions', () => {
     group.add(oldObject);
     store.createOrReplace({ key: job.key, block, signature: 'old', role: 'normal', revision: 2, object: oldObject, provider });
     const release = vi.fn();
-    const owner = createOwner(store, group, () => 'failed', release);
+    const { owner } = createOwner(store, group, () => 'failed', release);
 
     owner.commitRefresh(job, visual(undefined, [{} as SurfaceFaceTemplate]), 'stone', provider);
 
@@ -80,7 +80,7 @@ describe('BlockRepresentationCommitOwner refresh transitions', () => {
       const previous = entry as { readonly object?: THREE.Object3D };
       if (previous.object) group.remove(previous.object);
     });
-    const owner = createOwner(store, group, () => 'committed', release);
+    const { owner } = createOwner(store, group, () => 'committed', release);
 
     owner.commitRefresh(job, visual(replacement), 'stone', provider);
 
@@ -98,7 +98,7 @@ describe('BlockRepresentationCommitOwner refresh transitions', () => {
     store.createOrReplace({ key: job.key, block, signature: 'old', role: 'normal', revision: 2, object: oldObject, provider });
     let callbacks: { readonly onCommitted: () => void; readonly onFailed: (status: 'failed' | 'cancelled') => void } | undefined;
     const release = vi.fn();
-    const owner = createOwner(store, group, (_templates, next) => { callbacks = next; return 'pending'; }, release);
+    const { owner } = createOwner(store, group, (_templates, next) => { callbacks = next; return 'pending'; }, release);
 
     const pending = owner.commitRefresh(job, visual(undefined, [{} as SurfaceFaceTemplate]), 'stone', provider);
     expect(pending).toBeInstanceOf(Promise);
@@ -108,5 +108,36 @@ describe('BlockRepresentationCommitOwner refresh transitions', () => {
     await pending;
     expect(store.get(job.key)?.signature).toBe(job.signature);
     expect(release).toHaveBeenCalledOnce();
+  });
+});
+
+describe('BlockRepresentationCommitOwner Y-layer prewarm commits', () => {
+  it('batches cache, diagnostics, and render side effects for prewarmed blocks', () => {
+    const store = new ViewportBlockRepresentationStore();
+    const group = new THREE.Group();
+    const { owner, ports } = createOwner(store, group, () => 'committed', vi.fn());
+    const prewarmJob = { ...job, providerRefresh: undefined, layerPrewarm: true };
+    const fallback = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+
+    owner.begin(prewarmJob, provider);
+    owner.commitCreate(prewarmJob, visual(new THREE.Group()), undefined, fallback, false);
+
+    expect(ports.recordProviderCacheStats).not.toHaveBeenCalled();
+    expect(ports.invalidateDiagnostics).not.toHaveBeenCalled();
+    expect(ports.scheduleRender).not.toHaveBeenCalled();
+  });
+
+  it('keeps ordinary hydration side effects immediate', () => {
+    const store = new ViewportBlockRepresentationStore();
+    const group = new THREE.Group();
+    const { owner, ports } = createOwner(store, group, () => 'committed', vi.fn());
+    const fallback = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+
+    owner.begin(job, provider);
+    owner.commitCreate(job, visual(new THREE.Group()), undefined, fallback, false);
+
+    expect(ports.recordProviderCacheStats).toHaveBeenCalledOnce();
+    expect(ports.invalidateDiagnostics).toHaveBeenCalledOnce();
+    expect(ports.scheduleRender).toHaveBeenCalledOnce();
   });
 });

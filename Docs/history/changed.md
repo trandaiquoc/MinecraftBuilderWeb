@@ -2580,3 +2580,27 @@ writes remain necessary for initial membership insertion and ordinary 3D
 membership edits. Exposed-face, terrain-chunk, fluid, and non-reusable special
 visual prewarming are not covered by this static residency path; their previous
 cache/readiness limitations remain in force.
+
+Static representation prewarm suppresses per-voxel diagnostics/cache-stat
+sampling and render invalidations, then publishes those side effects once when
+preparation finishes. Repeated preparation of the same project/provider scope
+is deduplicated until project/provider/hydration invalidation. Representation
+evidence enters `preparing` before template preparation begins; 3D-only and
+exposed-face paths remain explicitly `partial`. Projection role retargets defer
+render invalidation to the end of a cooperative projection slice. Projection
+planning and bookkeeping still visit affected voxels, and first presentation
+still requires renderer/GPU work; this does not claim constant-time visibility
+transitions or GPU readiness.
+
+Local browser benchmark note (110,592-block synthetic fixture, headless Chrome
+with SwiftShader, not a hardware GPU): after suppressing per-block prewarm side
+effects, static prewarm changed from 17.39 s / 14.92 s accumulated long-task
+time to 3.33 s / 0 ms observed long-task time. Whole Structure changed from
+about 7.40 s to 3.77 s (3.46 s observed long-task time remains); All Below was
+about 2.11 s. Warm single-layer switches measured 108–157 ms with zero provider
+hydrations and zero member-matrix writes. Whole/All Below still process 52,992
+and 55,296 changed voxel records respectively. The renderer reported 391 draw
+calls at Whole Structure and Chrome JS heap peaked near 264 MB used / 319 MB
+allocated during this run. SwiftShader context counters do not provide GPU byte
+residency, and this does not verify production hardware performance or the
+terrain/fluid/special renderer families.

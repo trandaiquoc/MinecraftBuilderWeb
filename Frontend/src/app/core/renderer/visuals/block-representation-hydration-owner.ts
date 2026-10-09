@@ -81,7 +81,7 @@ export class BlockRepresentationHydrationOwner {
   }
 
   create(job: BlockHydrationJob, onComplete?: () => void): void {
-    this.ports.invalidateDiagnostics();
+    if (!job.layerPrewarm) this.ports.invalidateDiagnostics();
     if (this.disposed) { this.complete(onComplete); return; }
     const provider = this.ports.provider();
     const finish = this.beginOperation(provider, onComplete);
