@@ -75,6 +75,7 @@ import { collectOwnershipDiagnostics, collectVisibleSceneDiagnostics } from '../
 import { collectRendererOwnershipDiagnostics } from '../diagnostics/renderer-ownership-diagnostics';
 import { collectInstanceOwnershipViolations, collectInstanceOwnershipViolationsForKey } from '../diagnostics/instance-ownership-diagnostics';
 import { captureViewportGhostSceneSnapshot } from '../diagnostics/viewport-snapshot-diagnostics';
+import { ViewportRuntimeDiagnosticsOwner } from '../diagnostics/viewport-runtime-diagnostics-owner';
 import type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTransitionDiagnostics, ViewportGhostSceneSnapshot, ViewportHydrationDiagnostics, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics, ViewportPerformanceEvidence, ViewportProjectionState, ViewportRuntimeDiagnostics, ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../diagnostics/viewport-diagnostics-contracts';
 export type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTransitionDiagnostics, ViewportGhostSceneSnapshot, ViewportHydrationDiagnostics, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics, ViewportPerformanceEvidence, ViewportProjectionState, ViewportRuntimeDiagnostics, ViewportSuspiciousVisualDiagnostic, ViewportVisibleMeshDiagnostic, ViewportVoxelOwnershipDiagnostic, VisibleSceneDiagnostics } from '../diagnostics/viewport-diagnostics-contracts';
 import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
@@ -491,11 +492,8 @@ export class ThreeViewportEngine {
     },
     record: (name, value = 1) => this.instrumentation.record(name, value),
   });
-  private runtimeDiagnosticsEnabled = false;
   private runtimeTrace?: ViewportRuntimeTrace;
-  private runtimeObservedProjectBlockCount = 0;
-  private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
-  private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
+  private readonly runtimeDiagnostics = new ViewportRuntimeDiagnosticsOwner();
   private readonly interiorCulling = new ViewportInteriorCullingOwner((name, delta = 1) => this.instrumentation.record(name, delta));
   private readonly missingBlockAccounting = new MissingBlockAccountingOwner();
   private get missingBlocksTerminal(): boolean { return this.missingBlockAccounting.isTerminal; }
@@ -579,7 +577,7 @@ export class ThreeViewportEngine {
         removeOrphaned: (key, source, entry) => this.instanceRenderer.removeOrphaned(key, source, entry),
         reconcile: (entries) => this.instanceRenderer.reconcile(entries),
       },
-      scanInstanceMembershipsForDiagnostics: () => this.runtimeDiagnosticsEnabled,
+      scanInstanceMembershipsForDiagnostics: () => this.runtimeDiagnostics.enabled,
       placeholders: { remove: (key) => this.placeholderRenderer.remove(key), clear: () => this.placeholderRenderer.clear() },
       fallbackGeometry: this.fallbackGeometry,
       fallbackMaterials: this.fallbackMaterials,
@@ -1190,11 +1188,7 @@ export class ThreeViewportEngine {
     } else if (project && this.controls && !this.cameraFraming.hasCameraFrame) this.resetCamera();
     this.scheduleRender();
     const projectBlockCount = project?.blocks.length ?? 0;
-    if (this.runtimeDiagnosticsEnabled && this.runtimeObservedProjectBlockCount > 0 && projectBlockCount === 0) {
-      this.emptyTransitionSnapshots.push(this.captureGhostSceneSnapshot());
-      if (this.emptyTransitionSnapshots.length > 2) this.emptyTransitionSnapshots.shift();
-    }
-    this.runtimeObservedProjectBlockCount = projectBlockCount;
+    this.runtimeDiagnostics.observeProjectBlockCount(projectBlockCount, () => this.captureGhostSceneSnapshot());
     this.recordSpatialLookupDelta();
   }
 
@@ -1203,10 +1197,7 @@ export class ThreeViewportEngine {
   }
 
   setRuntimeDiagnosticsEnabled(enabled: boolean): void {
-    this.runtimeDiagnosticsEnabled = enabled;
-    this.runtimeObservedProjectBlockCount = this.project?.blocks.length ?? 0;
-    this.emptyTransitionSnapshots.length = 0;
-    this.instanceOwnershipTrace.length = 0;
+    this.runtimeDiagnostics.setEnabled(enabled, this.project?.blocks.length ?? 0);
   }
 
   setRuntimeTrace(trace: ViewportRuntimeTrace | undefined): void { this.runtimeTrace = trace; }
@@ -1285,8 +1276,9 @@ export class ThreeViewportEngine {
 
   runtimeGhostDiagnostics(): ViewportRuntimeDiagnostics {
     const current = this.captureGhostSceneSnapshot();
-    const firstEmpty = this.emptyTransitionSnapshots.at(-2) ?? null;
-    const secondEmpty = this.emptyTransitionSnapshots.at(-1) ?? null;
+    const emptyTransitions = this.runtimeDiagnostics.emptyTransitionSnapshots;
+    const firstEmpty = emptyTransitions.at(-2) ?? null;
+    const secondEmpty = emptyTransitions.at(-1) ?? null;
     const differences = firstEmpty && secondEmpty ? compareEmptySnapshots(firstEmpty, secondEmpty) : null;
     return { current, emptyTransitions: { firstEmpty, secondEmpty, differences } };
   }
@@ -1949,7 +1941,7 @@ export class ThreeViewportEngine {
   }
 
   private recordMissingAccountingInvariant(checkpoint: string): void {
-    if (!this.runtimeDiagnosticsEnabled && !this.runtimeTrace?.isActive) return;
+    if (!this.runtimeDiagnostics.enabled && !this.runtimeTrace?.isActive) return;
     const projectMissing = new Set((this.project?.blocks ?? []).filter((block) => block.kind === 'missing').map((block) => coordinateKey(block.position)));
     const staleKeys = this.hydrationPipeline.missingStateKeys().filter((key) => !projectMissing.has(key));
     if (staleKeys.length) this.runtimeTrace?.record('missing-accounting-anomaly', { checkpoint, staleKeys: staleKeys.length });
@@ -2289,7 +2281,6 @@ export class ThreeViewportEngine {
   private performHit(clientX: number, clientY: number, project: ProjectDocument | undefined, active: ActiveBlock | undefined, planeY?: number, showGhost = true): ViewportHit {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     if (!this.renderer || !this.container || !project) return {};
-    this.flushInstanceBatchBounds();
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
@@ -2451,12 +2442,11 @@ export class ThreeViewportEngine {
   }
 
   private traceInstanceOwnership(phase: ViewportInstanceOwnershipEvent['phase'], key?: string, source?: ViewportInstanceOwnershipEvent['source'], entry?: RenderedBlockEntry): void {
-    if (!this.runtimeDiagnosticsEnabled) return;
+    if (!this.runtimeDiagnostics.enabled) return;
     const physicalMemberships = key ? this.instanceMemberships(key) : [];
     const previousEntry = entry && (entry.instanceBatchKey !== undefined || entry.instanceIndex !== undefined) ? { ...(entry.instanceBatchKey !== undefined ? { batchKey: entry.instanceBatchKey } : {}), ...(entry.instanceIndex !== undefined ? { index: entry.instanceIndex } : {}) } : undefined;
-    const violations = key ? collectInstanceOwnershipViolationsForKey({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.blockRepresentations, runtimeChecks: this.runtimeDiagnosticsEnabled }, key) : collectInstanceOwnershipViolations({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.blockRepresentations, runtimeChecks: this.runtimeDiagnosticsEnabled });
-    this.instanceOwnershipTrace.push({ phase, ...(key ? { key } : {}), ...(source ? { source } : {}), generation: this.hydrationPipeline.generation, ...(previousEntry ? { previousEntry } : {}), physicalMemberships, violations });
-    if (this.instanceOwnershipTrace.length > 256) this.instanceOwnershipTrace.shift();
+    const violations = key ? collectInstanceOwnershipViolationsForKey({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.blockRepresentations, runtimeChecks: this.runtimeDiagnostics.enabled }, key) : collectInstanceOwnershipViolations({ batches: this.instanceBatches.values(), ownershipIndex: this.instanceOwnershipIndex, renderedEntries: this.blockRepresentations, runtimeChecks: this.runtimeDiagnostics.enabled });
+    this.runtimeDiagnostics.recordInstanceOwnership({ phase, ...(key ? { key } : {}), ...(source ? { source } : {}), generation: this.hydrationPipeline.generation, ...(previousEntry ? { previousEntry } : {}), physicalMemberships, violations });
   }
 
   rendererOwnershipDiagnostics(): ViewportOwnershipDiagnostics {
@@ -2499,7 +2489,7 @@ export class ThreeViewportEngine {
       instanceBatches: this.instanceBatches.values(),
       instanceOwnershipIndex: this.instanceOwnershipIndex,
       placeholderBatches: this.placeholderBatches.values(),
-      runtimeChecks: this.runtimeDiagnosticsEnabled,
+      runtimeChecks: this.runtimeDiagnostics.enabled,
       preview: previewState,
       previewActivity: { activeBlock: !!this.activeBlock, groupMoveActive: !!this.renderOptions.groupMovePreview, decorationActive: !!this.renderOptions.activeDecoration },
       hydration: {
@@ -2513,7 +2503,7 @@ export class ThreeViewportEngine {
   }
 
   private captureGhostSceneSnapshot(): ViewportGhostSceneSnapshot {
-    return captureViewportGhostSceneSnapshot(this.rendererOwnershipDiagnostics(), this.activeBlock ? { id: this.activeBlock.id, state: { ...this.activeBlock.state } } : undefined, this.instanceOwnershipTrace);
+    return captureViewportGhostSceneSnapshot(this.rendererOwnershipDiagnostics(), this.activeBlock ? { id: this.activeBlock.id, state: { ...this.activeBlock.state } } : undefined, this.runtimeDiagnostics.instanceOwnershipTrace);
   }
 
   rendererCounters(): RendererCounters {
@@ -2811,7 +2801,6 @@ export class ThreeViewportEngine {
   }
 
   private render(): void {
-    this.flushInstanceBatchBounds();
     if (!this.renderer) return;
     const now = performance.now();
     if (this.lastRenderTimestamp > 0) this.frameDurationMs = this.frameDurationMs === 0 ? now - this.lastRenderTimestamp : this.frameDurationMs * .8 + (now - this.lastRenderTimestamp) * .2;
@@ -2826,9 +2815,6 @@ export class ThreeViewportEngine {
     this.lastRendererMetrics = { calls: info.render.calls, triangles: info.render.triangles, lines: info.render.lines, points: info.render.points, geometries: info.memory.geometries, textures: info.memory.textures };
     this.renderCount++;
   }
-
-  /** Chunk bounds are conservative and assigned once at batch creation. */
-  private flushInstanceBatchBounds(): void { }
 
 }
 
