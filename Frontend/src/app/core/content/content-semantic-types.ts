@@ -7,6 +7,15 @@ export interface ContentSpecialVisualDescriptor { readonly contractId: string; r
 export interface ContentItemHostVisualSlot { readonly index: number; readonly position?: readonly [number, number, number]; readonly rotation?: readonly [number, number, number]; readonly scale?: readonly [number, number, number]; }
 export interface ContentItemHostVisualDescriptor { readonly slots: readonly ContentItemHostVisualSlot[]; readonly provenance: EvidenceProvenance; }
 export interface ContentPropertyEffects { readonly visual: boolean; readonly placement: boolean; readonly behavior: boolean; readonly attachment: boolean; readonly connection: boolean; readonly itemDisplay: boolean; readonly runtimeUnknown: boolean; }
+export interface ContentPropertyDescriptor {
+  readonly name: string;
+  readonly values: readonly string[];
+  readonly defaultValue?: string;
+  readonly derived: boolean;
+  readonly provenance: EvidenceProvenance;
+  readonly effects: ContentPropertyEffects;
+  readonly evidence: readonly string[];
+}
 export interface ContentPropertySupplement { readonly name: string; readonly values: readonly string[]; readonly defaultValue?: string; readonly derived?: boolean; readonly effects?: Partial<ContentPropertyEffects>; readonly provenance?: EvidenceProvenance; readonly evidence?: readonly string[]; }
 export interface ContentSemanticSupplement {
   readonly id: string;
