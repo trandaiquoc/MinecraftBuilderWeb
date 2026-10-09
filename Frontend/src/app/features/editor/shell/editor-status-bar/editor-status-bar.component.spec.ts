@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
@@ -14,6 +14,9 @@ import { EditorModeService } from '../../../../core/editor/state/editor-mode.ser
 import { EditorSessionService } from '../../../../core/editor/state/editor-session.service';
 import { ViewportStatusService } from '../../../../core/editor/viewport/viewport-status.service';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
+
+beforeEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
+afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
 
 describe('EditorStatusBarComponent asset bootstrap status', () => {
   it('renders determinate Mod restore progress and removes it when ready', async () => {

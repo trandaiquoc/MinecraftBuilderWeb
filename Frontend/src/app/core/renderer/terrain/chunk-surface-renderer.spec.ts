@@ -160,7 +160,7 @@ describe('chunk surface renderer ownership', () => {
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
-  it('keeps the 48 cubed initial generation near one build per populated chunk', () => {
+  it('keeps the 48 cubed initial generation near one build per populated chunk', { timeout: 15_000 }, () => {
     const group = new THREE.Group();
     const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff });

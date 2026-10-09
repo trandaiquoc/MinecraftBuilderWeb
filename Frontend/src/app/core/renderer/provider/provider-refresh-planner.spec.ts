@@ -9,7 +9,7 @@ describe('ProviderRefreshPlanner', () => {
     planner.start([1, 2, 3, 4], (value) => ({ considered: true, job: value * 2 }), {
       onProgress: (value) => progress.push(value.processed),
       onComplete: (value) => { result = value; },
-    }, { maxItems: 2, yield: async () => undefined });
+    }, { maxMilliseconds: 60_000, maxItems: 2, yield: async () => undefined });
     await vi.waitFor(() => expect(result).toBeDefined());
     expect(progress).toEqual([2, 4]);
     expect(result).toMatchObject({ jobs: [2, 4, 6, 8], yields: 1 });
