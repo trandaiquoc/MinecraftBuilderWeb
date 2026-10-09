@@ -1,6 +1,6 @@
 import { itemVisualTextureResources, resolveItemVisual } from '../../renderer/visuals/item-visual-resolver';
 import type { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
-import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
+import { textureResourcePath } from '../../content/resource-location';
 import type { ItemVisualInfo, ItemVisualTrace } from './item-catalog';
 import { itemIdentityEvidenceFromProvider } from '../../assets/vanilla/format/item-evidence';
 
@@ -24,7 +24,7 @@ export function resolveCatalogItemVisual(provider: RenderableAssetResourceProvid
     const diagnostics = [...resolved.diagnostics, 'static item model has no texture resources'];
     return { status: 'missing-resource', kind: resolved.kind, resourcePaths: [], previewUrls: [], diagnostics, trace: trace('missing-resource', [], diagnostics.at(-1)) };
   }
-  const missing = resources.filter((resource) => !provider.readBinary(texturePath(resource)));
+  const missing = resources.filter((resource) => !provider.readBinary(textureResourcePath(resource)));
   const previewUrls = resources.flatMap((resource) => { const url = provider.textureUrl(resource); return url ? [url] : []; });
   const status = missing.length || (resources.length > 0 && previewUrls.length !== resources.length) ? 'missing-resource' : 'available';
   const diagnostics = missing.length ? missing.map((resource) => `missing texture: ${resource}`) : resolved.diagnostics;

@@ -19,6 +19,7 @@ export class CompositeAssetResourceProvider implements AssetResourceProvider, Re
     if (this.providers.size && [...this.providers.values()].some((provider) => provider.source.minecraftVersion !== version)) throw new Error('Remove content sources before changing the active Minecraft version.');
     this.activeVersion = version;
   }
+  get activeMinecraftVersion(): string { return this.activeVersion; }
   get revision(): number { return this.revisionValue; }
   get generation(): number { return this.revisionValue; }
   get gameVersion(): string | undefined { return this.sources()[0]?.minecraftVersion; }

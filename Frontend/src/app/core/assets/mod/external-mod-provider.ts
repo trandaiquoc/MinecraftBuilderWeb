@@ -1,7 +1,7 @@
 import type { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { ContentSourceProvider } from '../content-source/content-source.types';
 import { CONTENT_SOURCE_MINECRAFT_VERSION } from '../content-source/content-source.types';
-import { texturePath } from '../vanilla/vanilla-asset-provider';
+import { textureResourcePath } from '../../content/resource-location';
 import { ExternalModCatalogBuilder } from './external-mod-catalog-builder';
 import type { ExternalCatalogProgress, ExternalModCatalog } from './external-mod-catalog-builder';
 import { evaluateMinecraftRequirement } from './minecraft-version-predicate';
@@ -109,7 +109,7 @@ export class ExternalModProvider implements ContentSourceProvider {
   readBinary(path: string): Uint8Array | undefined { return this.binary.get(path); }
   paths(): readonly string[] { return [...new Set([...Object.keys(this.json), ...this.binary.keys()])]; }
   textureUrl(resource: string): string | undefined {
-    const path = texturePath(resource); const bytes = this.binary.get(path); if (!bytes) return undefined;
+    const path = textureResourcePath(resource); const bytes = this.binary.get(path); if (!bytes) return undefined;
     const existing = this.objectUrls.get(path); if (existing) return existing;
     const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'image/png' })); this.objectUrls.set(path, url); return url;
   }

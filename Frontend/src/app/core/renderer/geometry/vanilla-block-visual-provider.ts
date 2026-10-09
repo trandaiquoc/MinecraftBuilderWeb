@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { BlockModelResolver, ResolvedBlockModel, ResolvedElement, ResolvedFace, ResolvedModelPart } from '../../blocks/resolver';
-import { texturePath } from '../../assets/vanilla/vanilla-asset-provider';
+import { textureResourcePath } from '../../content/resource-location';
 import { RenderableAssetResourceProvider } from '../../assets/content-source/content-source.types';
 import { SpecialBlockVisualRegistry } from '../visuals/special-block-visual-registry';
 import type { NormalizedSpecialVisualDescriptor } from '../visuals/special-visual-contracts';
@@ -60,7 +60,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const resolved = this.resolve(block.id, block.state);
     if (this.fluidRenderResolver.resolve(block, context)) return this.createFluid(block, resolved, context);
     const resources = resolved.trace.textureResources;
-    const texturePaths = resources.map(texturePath);
+    const texturePaths = resources.map(textureResourcePath);
     const compatibleSpecial = this.specialVisuals.resolveCompatible(block);
     const diagnosticSpecial = this.specialVisuals.resolveDiagnosticFallback(block);
     const special = compatibleSpecial ?? (resolved.parts.some((part) => part.elements.length) ? undefined : diagnosticSpecial);
@@ -71,7 +71,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       const diagnostics: BlockRenderDiagnostic[] = [];
       const textures: Record<string, THREE.Texture | undefined> = {};
       for (const [role, pathResource] of entries) {
-        const path = texturePath(pathResource);
+        const path = textureResourcePath(pathResource);
         if (!this.assets.readBinary(path)) { diagnostics.push({ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${path}`, resource: path }); continue; }
         const loaded = await this.texture(pathResource);
         textures[role] = loaded;
@@ -82,10 +82,10 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
       object.userData['specialVisualFamily'] = special.family;
       object.userData['staticBatchable'] = special.staticBatchable === true;
       object.updateMatrixWorld(true);
-      const specialTexturePaths = entries.map(([, value]) => texturePath(value));
+      const specialTexturePaths = entries.map(([, value]) => textureResourcePath(value));
       const requiredTexturesReady = entries.every(([role]) => !!textures[role]);
       const knownTexturedFamily = special.family === 'beds' || special.family === 'signs' || special.family === 'chests' || special.family === 'shulker-boxes' || special.family === 'decorated-pots' || special.family === 'conduits';
-      return { object, resolved, mode: knownTexturedFamily && requiredTexturesReady ? 'real' : 'partial', diagnostics, trace: { texturePaths: specialTexturePaths, pngBytesFound: entries.every(([, value]) => !!this.assets.readBinary(texturePath(value))), textureDecoded: requiredTexturesReady, geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(object)) } };
+      return { object, resolved, mode: knownTexturedFamily && requiredTexturesReady ? 'real' : 'partial', diagnostics, trace: { texturePaths: specialTexturePaths, pngBytesFound: entries.every(([, value]) => !!this.assets.readBinary(textureResourcePath(value))), textureDecoded: requiredTexturesReady, geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(object)) } };
     }
     if (!resolved.parts.some((part) => part.elements.length)) return {
       resolved, mode: 'fallback', diagnostics: [{ code: 'MODEL_NOT_FOUND', message: resolved.diagnostics.map((item) => item.message).join('; ') || `No renderable model elements for ${block.id}` }],
@@ -93,7 +93,7 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     };
     const diagnostics: BlockRenderDiagnostic[] = [];
     const textures = await Promise.all(resources.map(async (resource) => {
-      const path = texturePath(resource);
+      const path = textureResourcePath(resource);
       if (!this.assets.readBinary(path)) { diagnostics.push({ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${path}`, resource: path }); return undefined; }
       const texture = await this.texture(resource);
       if (!texture) diagnostics.push({ code: 'TEXTURE_DECODE_FAILED', message: `Texture could not be decoded: ${path}`, resource: path });
@@ -153,20 +153,20 @@ export class VanillaBlockVisualProvider implements BlockVisualProvider {
     const fluid = this.fluidRenderResolver.resolve(block, context); if (!fluid) return { resolved, mode: 'fallback', diagnostics: [{ code: 'MODEL_NOT_FOUND', message: `No fluid descriptor for ${block.id}` }], trace: { texturePaths: [], pngBytesFound: false, textureDecoded: false, geometryBuilt: false, meshBuilt: false } };
     const resources = [fluid.stillTexture, fluid.flowTexture];
     const diagnostics: BlockRenderDiagnostic[] = []; const textures = await Promise.all(resources.map(async (resource) => {
-      const path = texturePath(resource); if (!this.assets.readBinary(path)) { diagnostics.push({ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${path}`, resource: path }); return undefined; }
+      const path = textureResourcePath(resource); if (!this.assets.readBinary(path)) { diagnostics.push({ code: 'TEXTURE_NOT_FOUND', message: `Texture resource was not found: ${path}`, resource: path }); return undefined; }
       const texture = await this.texture(resource); if (!texture) diagnostics.push({ code: 'TEXTURE_DECODE_FAILED', message: `Texture could not be decoded: ${path}`, resource: path }); return texture;
     }));
-    const geometry = createFluidGeometry(block, context, this.fluidRenderResolver); if (!geometry) return { resolved, mode: 'fallback', diagnostics: [{ code: 'GEOMETRY_BUILD_FAILED', message: `Could not build fluid geometry for ${block.id}` }], trace: { texturePaths: resources.map(texturePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(texturePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: false, meshBuilt: false } };
+    const geometry = createFluidGeometry(block, context, this.fluidRenderResolver); if (!geometry) return { resolved, mode: 'fallback', diagnostics: [{ code: 'GEOMETRY_BUILD_FAILED', message: `Could not build fluid geometry for ${block.id}` }], trace: { texturePaths: resources.map(textureResourcePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(textureResourcePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: false, meshBuilt: false } };
     const state = block.state['level'] ?? '0'; const flowing = geometry.flowAngle !== 0; const texture = this.staticFluidTexture(resources[flowing ? 1 : 0], textures[flowing ? 1 : 0]);
     const material = new THREE.MeshLambertMaterial({ map: texture, color: fluid.tint ?? 0xffffff, transparent: fluid.renderLayer === 'translucent', opacity: fluid.opacity ?? 1, depthWrite: fluid.depthWrite, side: fluid.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
     const mesh = new THREE.Mesh(geometry.geometry, material); const root = new THREE.Group(); root.add(mesh); root.userData['fluidKind'] = fluid.kind; root.userData['fluidTypeId'] = fluid.fluidTypeId; root.userData['fluidLevel'] = state; root.userData['fluidFlowAngle'] = geometry.flowAngle; root.userData['fluidRenderLayer'] = fluid.renderLayer;
-    return { object: root, resolved, mode: diagnostics.length ? 'partial' : 'real', diagnostics, trace: { texturePaths: resources.map(texturePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(texturePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(root)) } };
+    return { object: root, resolved, mode: diagnostics.length ? 'partial' : 'real', diagnostics, trace: { texturePaths: resources.map(textureResourcePath), pngBytesFound: resources.every((resource) => !!this.assets.readBinary(textureResourcePath(resource))), textureDecoded: textures.every(Boolean), geometryBuilt: true, meshBuilt: true, bounds: boxBounds(new THREE.Box3().setFromObject(root)) } };
   }
 
   private staticFluidTexture(resource: string, texture: THREE.Texture | undefined): THREE.Texture | undefined {
     if (!texture) return undefined;
     const cached = this.fluidTextureCache.get(resource); if (cached) return cached;
-    const metadata = this.assets.readJson(`${texturePath(resource)}.mcmeta`);
+    const metadata = this.assets.readJson(`${textureResourcePath(resource)}.mcmeta`);
     const view = staticFluidTextureView(texture, metadata); this.fluidTextureCache.set(resource, view); return view;
   }
 

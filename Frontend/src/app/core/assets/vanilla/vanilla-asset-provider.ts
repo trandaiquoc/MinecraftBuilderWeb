@@ -13,7 +13,7 @@ import type { TargetItemEvidence } from './format/item-evidence';
 import { classifyContent, isDecorationEntityId } from '../../content/content-classifier';
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
-import { resolveResourceLocation } from '../../content/resource-location';
+import { textureResourcePath } from '../../content/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
 import { ContentIntrospectionEngine, SemanticManifestEvidenceProvider } from '../../content/content-introspection';
 import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
@@ -126,7 +126,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   }
 
   textureUrl(resource: string): string | undefined {
-    const path = texturePath(resource);
+    const path = textureResourcePath(resource);
     const bytes = this.binary.get(path);
     if (!bytes) return undefined;
     const cached = this.objectUrls.get(path);
@@ -184,7 +184,7 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       const registryEnriched = behaviorRegistry.enrich(generated);
       const enriched = registryEnriched.behavior ? registryEnriched : applyCommonBehavior(registryEnriched, evaluateCommonBehavior(registryEnriched, this));
       const resolved = resolver.resolve(id, enriched.defaultState, 'catalog');
-      const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(texturePath(resource)));
+      const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(textureResourcePath(resource)));
       const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
       const visualSupport = fluid ? 'partial' : resolved.parts.length ? resolved.support === 'full' && texturesAvailable ? 'real' : 'partial' : known ? 'fallback' : 'partial';
       const intentionallyInvisible = intentionallyInvisibleBlocks.has(id) || known?.capabilities?.some((capability) => capability.kind === 'intentionally-invisible') === true;
@@ -231,14 +231,7 @@ function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<ty
   };
 }
 
-export function texturePath(resource: string): string {
-  if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
-  const normalized = resolveResourceLocation(resource.replace(/^textures\//, '').replace(/\.png$/, ''));
-  if (!normalized) return resource;
-  const [namespace, rawPath] = normalized.split(':', 2);
-  const path = rawPath.replace(/^textures\//, '').replace(/\.png$/, '');
-  return `assets/${namespace}/textures/${path}.png`;
-}
+export { textureResourcePath as texturePath } from '../../content/resource-location';
 
 function configuredModelIds(value: unknown): string[] {
   const result = new Set<string>();

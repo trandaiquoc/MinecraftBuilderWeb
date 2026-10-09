@@ -48,6 +48,15 @@ export function resourcePath(value: string, directory: 'blockstates' | 'models' 
   return `assets/${namespace}/${directory}/${path}.${extension}`;
 }
 
+export function textureResourcePath(resource: string): string {
+  if (resource.startsWith('assets/')) return resource.endsWith('.png') ? resource : `${resource}.png`;
+  const normalized = resolveResourceLocation(resource.replace(/^textures\//, '').replace(/\.png$/, ''));
+  if (!normalized) return resource;
+  const [namespace, rawPath] = normalized.split(':', 2);
+  const path = rawPath.replace(/^textures\//, '').replace(/\.png$/, '');
+  return `assets/${namespace}/textures/${path}.png`;
+}
+
 export function resourceIdFromPath(path: string, directory: 'blockstates' | 'models' | 'textures' | 'items' | 'atlases', extension = 'json'): string | undefined {
   const match = new RegExp(`^assets/([^/]+)/${directory}/(.+)\\.${extension.replace('.', '\\.')}$`).exec(path);
   return match ? `${match[1]}:${match[2]}` : undefined;

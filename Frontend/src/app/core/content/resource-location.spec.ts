@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidNamespacedResourceLocation, parseResourceLocation, resourcePath, resolveResourceLocation } from './resource-location';
+import { isValidNamespacedResourceLocation, parseResourceLocation, resourcePath, resolveResourceLocation, textureResourcePath } from './resource-location';
 
 describe('resource locations', () => {
   it('normalizes namespaced and bare locations to the default namespace', () => {
@@ -19,5 +19,11 @@ describe('resource locations', () => {
     expect(isValidNamespacedResourceLocation('Example:stone')).toBe(false);
     expect(isValidNamespacedResourceLocation('example:bad path')).toBe(false);
     expect(isValidNamespacedResourceLocation('example:')).toBe(false);
+  });
+  it('resolves generic texture resources independently of the Vanilla provider', () => {
+    expect(textureResourcePath('minecraft:block/stone')).toBe('assets/minecraft/textures/block/stone.png');
+    expect(textureResourcePath('example:textures/entity/sign.png')).toBe('assets/example/textures/entity/sign.png');
+    expect(textureResourcePath('assets/example/textures/entity/sign.png')).toBe('assets/example/textures/entity/sign.png');
+    expect(textureResourcePath('example:bad path')).toBe('example:bad path');
   });
 });

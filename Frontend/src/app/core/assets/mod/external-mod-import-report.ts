@@ -1,4 +1,5 @@
-import { discoverPaintingVariants, externalItemEvidence } from './external-mod-catalog-builder';
+import { discoverPaintingVariants } from './external-mod-painting-catalog';
+import { externalItemEvidence } from './external-mod-item-evidence';
 import { isModConflictDiagnostic, type ModImportDiagnostic, type ModImportReport } from './external-mod-import-contracts';
 import type { FabricModMetadata, ModCompatibilityResult, NormalizedModMetadata } from './mod-loader';
 
