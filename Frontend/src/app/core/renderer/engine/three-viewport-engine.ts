@@ -612,7 +612,7 @@ export class ThreeViewportEngine {
         templatesFor: (key) => this.surfaceRenderer.templatesFor(key),
         cacheTemplates: (key, templates) => this.surfaceRenderer.cacheTemplates(key, templates),
         meshFor: (batchKey) => this.surfaceFaceBatches.get(batchKey)?.mesh,
-        add: (block, key, templates, visible) => this.addSurfaceFaceVisual(block, key, templates, visible),
+        add: (block, key, templates, visible, role) => this.addSurfaceFaceVisual(block, key, templates, visible, role),
       },
       instances: {
         shouldAttempt: (allowInstancing, reusableKey) => this.instanceRenderer.shouldAttempt(allowInstancing, reusableKey),
@@ -625,7 +625,7 @@ export class ThreeViewportEngine {
       object: {
         blocksGroup: this.blocksGroup,
         applyBrightness: (object) => applyBlockBrightnessToObject(object, this.blockBrightness),
-        applyReferenceOpacity: (object, opacity) => applyReferenceOpacityToObject(object, opacity),
+        applyReferenceOpacity: (object, opacity) => applyBlockRenderRole(object, 'reference', opacity),
         familyFromReusableKey,
         familyFromVisual: visualFamily,
         extractSurfaceTemplates: extractSurfaceFaceTemplates,
@@ -922,9 +922,10 @@ export class ThreeViewportEngine {
     this.placeholderMaterials.reference.opacity = opacity;
     this.instanceRenderer.setReferenceOpacity(opacity);
     this.terrainRenderer.setReferenceOpacity(opacity);
+    this.surfaceRenderer.setReferenceOpacity(opacity);
     for (const entry of this.blockRepresentations.values()) {
       if (entry.role !== 'reference' || !entry.object || entry.instanceBatchKey !== undefined || entry.terrainChunkKey !== undefined || entry.surfaceFaceMemberships !== undefined) continue;
-      applyReferenceOpacityToObject(entry.object, opacity);
+      applyBlockRenderRole(entry.object, 'reference', opacity);
     }
     this.scheduleRender();
   }
@@ -1722,6 +1723,11 @@ export class ThreeViewportEngine {
         if (options.exposedFaceRendering === true) terrainChanges.push({ key, position: change.position, afterOpaque: isCompiledTerrainEntry(change.after) });
         continue;
       }
+      if (current && current.role !== change.after.role
+        && blockRenderSignature(current.block) === blockRenderSignature(change.after.block)
+        && this.retargetProjectionRole(key, current, change.after)) {
+        continue;
+      }
       if (current) this.removeBlockEntry(key, current);
       this.ensurePlaceholderVisual(key, change.after.block, change.after.role);
       this.hydrationPipeline.setPendingSignature(key, change.after.signature);
@@ -1745,6 +1751,30 @@ export class ThreeViewportEngine {
     this.instrumentation.record('yLayerProjectionCommitMs', durationMs);
     this.instrumentation.recordMax('yLayerProjectionMaxCommitMs', durationMs);
     this.runtimeTrace?.record('y-layer-projection-delta', { layers: changedLayers, changedBlocks: changes.size, addedVisible, removedVisible, roleChanged, projectionRevision: this.yLayerProjection.revision, durationMs });
+  }
+
+  private retargetProjectionRole(key: string, current: RenderedBlockEntry, next: VisibleBlockEntry): boolean {
+    const role = next.role === 'reference' ? 'reference' : 'normal';
+    const opacity = this.renderOptions.referenceOpacity ?? .28;
+    if (current.terrainChunkKey !== undefined || this.terrainRenderer.has(key)) {
+      if (!this.terrainRenderer.setRecordRole(key, role)) return false;
+    } else if (current.fluidChunkKey !== undefined) {
+      return false;
+    } else if (current.instanceBatchKey !== undefined) {
+      if (!this.instanceRenderer.setMemberRole(key, role)) return false;
+    } else if (current.surfaceFaceMemberships !== undefined) {
+      if (!this.surfaceRenderer.setMemberRole(key, role, opacity)) return false;
+      const memberships = this.surfaceRenderer.ownership.get(key);
+      const object = memberships?.[0] ? this.surfaceFaceBatches.get(memberships[0].batchKey)?.mesh : undefined;
+      if (memberships && object) this.blockRepresentations.setSurfaceObject(key, memberships, object);
+    } else if (current.object && current.object !== current.fallback) {
+      applyBlockRenderRole(current.object, role, opacity);
+    } else {
+      return false;
+    }
+    this.blockRepresentations.createOrReplace({ ...current, block: next.block, signature: next.signature, role: next.role });
+    this.scheduleRender();
+    return true;
   }
 
   private applyProjectionFluidRepresentationDelta(changes: ReadonlyMap<string, ProjectionFluidChange>, worldContext: FluidWorldLookup): ReadonlySet<string> {
@@ -2298,10 +2328,10 @@ export class ThreeViewportEngine {
     return this.blockRepresentationResources.ensureFallback(entry, referenceOpacity);
   }
 
-  private addSurfaceFaceVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockEntry>): readonly SurfaceFaceMembership[] | undefined {
+  private addSurfaceFaceVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockEntry>, role: 'normal' | 'reference' = 'normal'): readonly SurfaceFaceMembership[] | undefined {
     const visibleEntry = visible.get(key);
     if (!visibleEntry) return undefined;
-    return this.surfaceRenderer.add(block, key, templates, new Set(exposedFaceDirections(visibleEntry, visible)));
+    return this.surfaceRenderer.add(block, key, templates, new Set(exposedFaceDirections(visibleEntry, visible)), role, this.renderOptions.referenceOpacity ?? .28);
   }
 
   private addTerrainVisual(block: ProjectDocument['blocks'][number], key: string, templates: readonly SurfaceFaceTemplate[], role: 'normal' | 'reference' = 'normal', callbacks?: TerrainRepresentationCommitCallbacks): TerrainRepresentationCommitStatus {
@@ -2974,11 +3004,30 @@ function cameraYaw(camera: THREE.Camera): number {
 function toTraceVector(value: THREE.Vector3): TraceVector3 { return { x: value.x, y: value.y, z: value.z }; }
 function visualFamily(object: THREE.Object3D): string | undefined { let family: unknown; object.traverse((child) => { family ??= child.userData['specialVisualFamily']; }); return typeof family === 'string' ? family : undefined; }
 function familyFromReusableKey(key: string | undefined): string | undefined { const prefix = 'special-template-v1|'; return key?.startsWith(prefix) ? key.slice(prefix.length).split('|', 1)[0] : undefined; }
-function applyReferenceOpacityToObject(object: THREE.Object3D, opacity: number): void {
+function applyBlockRenderRole(object: THREE.Object3D, role: 'normal' | 'reference', opacity: number): void {
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
-    const materials = Array.isArray(child.material) ? child.material : [child.material];
-    for (const material of materials) { material.transparent = true; material.opacity = opacity; material.needsUpdate = true; }
+    const originals = Array.isArray(child.material) ? child.material : [child.material];
+    if (child.userData['blockRoleOriginalMaterials'] === undefined) child.userData['blockRoleOriginalMaterials'] = originals;
+    const materials = originals.map((material) => {
+      if (material.userData['blockRoleMaterial'] === true) return material;
+      const presentation = material.clone();
+      presentation.userData['blockRoleMaterial'] = true;
+      presentation.userData['blockRoleBaseTransparent'] = material.transparent;
+      presentation.userData['blockRoleBaseOpacity'] = material.opacity;
+      presentation.userData['blockRoleBaseDepthWrite'] = material.depthWrite;
+      return presentation;
+    });
+    child.material = Array.isArray(child.material) ? materials : materials[0];
+    for (const material of materials) {
+      const transparent = role === 'reference' || material.userData['blockRoleBaseTransparent'] === true;
+      const nextOpacity = role === 'reference' ? opacity : Number(material.userData['blockRoleBaseOpacity'] ?? 1);
+      const nextDepthWrite = Boolean(material.userData['blockRoleBaseDepthWrite'] ?? true);
+      if (material.transparent !== transparent) material.transparent = transparent;
+      material.opacity = nextOpacity;
+      material.depthWrite = nextDepthWrite;
+      material.needsUpdate = true;
+    }
   });
 }
 

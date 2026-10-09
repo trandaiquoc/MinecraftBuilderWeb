@@ -24,7 +24,7 @@ export interface BlockRepresentationRenderTargets {
     readonly templatesFor: (key: string) => readonly SurfaceFaceTemplate[] | undefined;
     readonly cacheTemplates: (key: string, templates: readonly SurfaceFaceTemplate[]) => void;
     readonly meshFor: (batchKey: string) => THREE.Object3D | undefined;
-    readonly add: (block: CommitBlock, key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockProjectionEntry>) => readonly SurfaceFaceMembership[] | undefined;
+    readonly add: (block: CommitBlock, key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockProjectionEntry>, role: 'normal' | 'reference') => readonly SurfaceFaceMembership[] | undefined;
   };
   readonly instances: {
     readonly shouldAttempt: (allowInstancing: boolean, reusableKey: string | undefined) => boolean;
@@ -107,7 +107,7 @@ export class BlockRepresentationCommitOwner {
     }
     const surface = job.surfaceFastPathEligible ? this.ports.targets.surface.templatesFor(reusableKey) : undefined;
     if (surface) {
-      const memberships = this.ports.targets.surface.add(job.block, job.key, surface, job.surfaceVisibleEntries);
+      const memberships = this.ports.targets.surface.add(job.block, job.key, surface, job.surfaceVisibleEntries, role);
       if (memberships) {
         this.ports.store.setSurfaceObject(job.key, memberships, memberships.length ? this.ports.targets.surface.meshFor(memberships[0].batchKey) : undefined);
         this.finish();
@@ -196,7 +196,7 @@ export class BlockRepresentationCommitOwner {
         if (!cachedTerrain) {
           const cachedSurface = this.ports.targets.surface.templatesFor(reusableKey);
           if (!cachedSurface) this.ports.targets.surface.cacheTemplates(reusableKey, templates);
-          surfaceMemberships = this.ports.targets.surface.add(job.block, job.key, cachedSurface ?? templates, job.surfaceVisibleEntries);
+          surfaceMemberships = this.ports.targets.surface.add(job.block, job.key, cachedSurface ?? templates, job.surfaceVisibleEntries, job.role === 'reference' ? 'reference' : 'normal');
         }
       }
     }

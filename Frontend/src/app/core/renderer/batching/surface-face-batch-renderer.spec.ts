@@ -26,6 +26,27 @@ describe('SurfaceFaceBatchRenderer', () => {
     renderer.clear([]); geometry.dispose(); material.dispose();
   });
 
+  it('moves retained exposed faces between role batches using the same templates', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new SurfaceFaceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => '0,0,0', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), unitEnvelope: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(1, 1, 1)), record: () => undefined, getEntry: () => undefined });
+    const directions = ['north', 'east', 'south', 'west', 'up', 'down'] as const;
+    const templates: SurfaceFaceTemplate[] = directions.map((direction) => ({ geometry, material, direction, matrix: new THREE.Matrix4() }));
+    renderer.add({ position: { x: 2, y: 3, z: 4 } }, 'voxel', templates, new Set(['north', 'up']));
+    const oldBatch = renderer.batches.values().next().value!;
+
+    expect(renderer.setMemberRole('voxel', 'reference', .4)).toBe(true);
+    const nextBatches = [...renderer.batches.values()];
+    expect(nextBatches).toHaveLength(1);
+    expect(nextBatches[0].renderRole).toBe('reference');
+    expect((nextBatches[0].mesh.material as THREE.Material & { opacity: number }).opacity).toBe(.4);
+    expect(nextBatches.flatMap((batch) => batch.keys)).toEqual(['voxel', 'voxel']);
+    expect(nextBatches.every((batch) => batch.template.geometry === geometry)).toBe(true);
+    expect(oldBatch.mesh.parent).toBeNull();
+    renderer.clear([]); geometry.dispose(); material.dispose();
+  });
+
   it('tracks all exposed memberships and removes them safely', () => {
     const group = new THREE.Group();
     const geometry = new THREE.PlaneGeometry(1, 1);

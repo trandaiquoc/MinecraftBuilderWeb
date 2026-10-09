@@ -2553,3 +2553,11 @@ provider changes, or resource-budget eviction prevent stale/unbounded reuse.
 This improves repeated projection transitions after a variant has been shown,
 but does not claim that every layer/visibility variant or GPU presentation is
 preloaded at startup. First visits remain cold and require compilation.
+
+Normal/reference-only Y-layer transitions now retarget existing standalone
+materials, static instance memberships, exposed-face memberships, and terrain
+records without invalidating the provider visual signature. Terrain may still
+compile or restore a role-specific chunk mesh; fluids retain role-specific
+chunk variants and may compile a cold role variant on first use. Presentation
+role is therefore separated from provider/model hydration, not from every
+renderer-family geometry bucket.

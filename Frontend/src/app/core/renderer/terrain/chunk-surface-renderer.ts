@@ -199,6 +199,20 @@ export class ChunkSurfaceRenderer {
   ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.ownership.get(key); }
   isRepresented(key: string): boolean { return this.ownership.has(key); }
 
+  setRecordRole(key: string, role: 'normal' | 'reference'): boolean {
+    const record = this.records.get(key);
+    if (!record || (record.role ?? 'normal') === role) return !!record;
+    const chunkKey = terrainChunkKey(worldToTerrainChunk(record.block.position));
+    const chunkRecords = this.recordsByChunk.get(chunkKey);
+    if (!chunkRecords) return false;
+    const updated = { ...record, role };
+    this.records.set(key, updated);
+    chunkRecords.set(key, updated);
+    this.dirtyChunks.add(chunkKey);
+    this.scheduleFlush();
+    return true;
+  }
+
   /** Resolves when the current batch has reached a terminal worker/commit state. */
   whenSettled(): Promise<TerrainSettlement> {
     if (this.disposed) return Promise.resolve({ status: 'cancelled', failedKeys: [] });

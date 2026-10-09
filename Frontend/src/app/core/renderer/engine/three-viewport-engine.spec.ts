@@ -2404,6 +2404,50 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
+  it.each([false, true] as const)('retargets normal/reference presentation without provider hydration (surface=%s)', async (exposedFaceRendering) => {
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} },
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 1, z: 0 }, state: {} },
+    ];
+    const project: ProjectDocument = { ...base, blocks, groups: [], decorations: [] };
+    const byY = new Map([[0, [blocks[0]] as PlacedBlock[]], [1, [blocks[1]] as PlacedBlock[]]]);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const source = axisCubeProvider();
+    const provider = {
+      ...source,
+      create: vi.fn((block: PlacedBlock, world?: Parameters<NonNullable<BlockVisualProvider['create']>>[1]) => source.create!(block, world)),
+    } as BlockVisualProvider & { create: ReturnType<typeof vi.fn> };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex, exposedFaceRendering });
+    await settleHydration(100, engine);
+    const before = engine.rendererCounters();
+    const created = provider.create.mock.calls.length;
+    const keys = blocks.map((block) => `${block.position.x},${block.position.y},${block.position.z}`);
+    const internal = engine as unknown as { blockRepresentations: Map<string, { object?: THREE.Object3D; instanceBatchKey?: string; terrainChunkKey?: string; surfaceFaceMemberships?: readonly unknown[]; role?: string }> };
+    const beforeVisuals = keys.map((key) => internal.blockRepresentations.get(key));
+
+    engine.update(project, undefined, { layerY: 1, visibility: 'whole-structure', layerIndex, exposedFaceRendering });
+    await waitForProjectionIdle(engine);
+    await settleHydration(100, engine);
+
+    expect(provider.create).toHaveBeenCalledTimes(created);
+    expect(engine.rendererCounters().regularHydrationStarted).toBe(before.regularHydrationStarted);
+    expect(engine.rendererCounters().providerObjectCreations).toBe(before.providerObjectCreations);
+    if (!exposedFaceRendering) {
+      expect(internal.blockRepresentations.get(keys[0])?.object).toBe(beforeVisuals[0]?.object);
+      expect(internal.blockRepresentations.get(keys[1])?.object).toBe(beforeVisuals[1]?.object);
+    } else {
+      expect(internal.blockRepresentations.get(keys[0])?.terrainChunkKey).toBeDefined();
+      expect(internal.blockRepresentations.get(keys[1])?.terrainChunkKey).toBeDefined();
+    }
+    expect(internal.blockRepresentations.get(keys[0])?.role).toBe('reference');
+    expect(internal.blockRepresentations.get(keys[1])?.role).toBe('normal');
+    engine.dispose();
+  });
+
   it('falls back to a full projection reconcile after an incremental projection slice fails', async () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('medium');

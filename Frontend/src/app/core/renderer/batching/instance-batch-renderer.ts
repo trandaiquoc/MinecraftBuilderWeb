@@ -146,6 +146,15 @@ export class InstanceBatchRenderer {
     return true;
   }
 
+  setMemberRole(key: string, role: 'normal' | 'reference'): boolean {
+    const membership = this.ownershipStore.get(key);
+    const batch = membership ? this.batchStore.get(membership.batchKey) : undefined;
+    if (!membership || !batch) return false;
+    if (batch.renderRole === role) return true;
+    const position = batch.positions[membership.index];
+    return !!this.addFromTemplates(batch.templates, position, key, 'cached-template', undefined, role);
+  }
+
   remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void {
     this.options.trace?.('before-remove', key, 'reconcile');
     this.removeOrphaned(key, source, entry);
@@ -291,6 +300,7 @@ export class InstanceBatchRenderer {
 
   private disposeMergedTemplateGeometry(template: InstancePartTemplate): void {
     if (this.options.disposeMergedTemplateGeometry) { this.options.disposeMergedTemplateGeometry(template, this.batchStore); return; }
+    if ([...this.batchStore.values()].some((batch) => batch.templates.includes(template))) return;
     if (template.ownsGeometry && template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
   }
 }

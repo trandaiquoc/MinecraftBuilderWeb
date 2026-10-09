@@ -229,4 +229,32 @@ describe('InstanceBatchRenderer', () => {
     expect(reference?.parts[0].material).toMatchObject({ opacity: .5 });
     renderer.clear(); geometry.dispose(); material.dispose();
   });
+
+  it('retargets a retained instance between presentation roles without resolving another visual', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const entry: { instanceBatchKey?: string; instanceIndex?: number; object?: THREE.Object3D } = {};
+    const renderer = new InstanceBatchRenderer({
+      blocksGroup: group,
+      capacity: 16,
+      chunkKey: () => '0,0,0',
+      stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)),
+      record: () => undefined,
+      getEntry: () => entry,
+      setEntryObject: (_key, batchKey, index, object) => Object.assign(entry, { instanceBatchKey: batchKey, instanceIndex: index, object }),
+      disposeMergedTemplateGeometry: () => undefined,
+    });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+    renderer.addFromTemplates(templates, { x: 1, y: 2, z: 3 }, 'voxel');
+    const originalGeometry = renderer.batches.values().next().value!.parts[0].geometry;
+
+    expect(renderer.setMemberRole('voxel', 'reference')).toBe(true);
+    expect(renderer.batches.size).toBe(1);
+    const reference = renderer.batches.values().next().value!;
+    expect(reference.renderRole).toBe('reference');
+    expect(reference.parts[0].geometry).toBe(originalGeometry);
+    expect(reference.positions).toEqual([{ x: 1, y: 2, z: 3 }]);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
 });

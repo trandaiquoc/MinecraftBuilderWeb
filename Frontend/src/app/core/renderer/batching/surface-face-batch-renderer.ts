@@ -33,6 +33,7 @@ export interface SurfaceFaceBatch {
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
   readonly directions: SurfaceFaceDirection[];
+  readonly renderRole: 'normal' | 'reference';
 }
 
 export interface SurfaceFaceBatchRendererOptions {
@@ -53,6 +54,7 @@ export class SurfaceFaceBatchRenderer {
   private readonly ownershipStore = new Map<string, SurfaceFaceMembership[]>();
   private readonly hiddenKeys = new Set<string>();
   private readonly templateStore = new Map<string, readonly SurfaceFaceTemplate[]>();
+  private readonly templatesByKey = new Map<string, readonly SurfaceFaceTemplate[]>();
   private readonly translation = new THREE.Matrix4();
   private readonly hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -81,13 +83,13 @@ export class SurfaceFaceBatchRenderer {
     return true;
   }
 
-  add(block: { readonly position: VoxelCoordinate }, key: string, templates: readonly SurfaceFaceTemplate[], exposed: ReadonlySet<SurfaceFaceDirection>): readonly SurfaceFaceMembership[] | undefined {
+  add(block: { readonly position: VoxelCoordinate }, key: string, templates: readonly SurfaceFaceTemplate[], exposed: ReadonlySet<SurfaceFaceDirection>, role: 'normal' | 'reference' = 'normal', referenceOpacity = .28): readonly SurfaceFaceMembership[] | undefined {
     if (templates.length !== 6) return undefined;
     const memberships: SurfaceFaceMembership[] = [];
     for (const template of templates) {
       if (!exposed.has(template.direction)) continue;
       const region = this.options.regionPolicy?.key(block.position) ?? this.options.chunkKey(block.position);
-      const baseKey = `${region}|surface|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
+      const baseKey = `${region}|surface|role:${role}|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
       let segment = 0;
       let batchKey = `${baseKey}|segment:${segment}`;
       let batch = this.batchStore.get(batchKey);
@@ -97,7 +99,10 @@ export class SurfaceFaceBatchRenderer {
         batch = this.batchStore.get(batchKey);
       }
       if (!batch) {
-        const mesh = new THREE.InstancedMesh(template.geometry, template.material.clone(), this.options.capacity);
+        const material = template.material.clone();
+        material.transparent = role === 'reference' || template.material.transparent;
+        material.opacity = role === 'reference' ? referenceOpacity : template.material.opacity;
+        const mesh = new THREE.InstancedMesh(template.geometry, material, this.options.capacity);
         mesh.count = 0;
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.userData['instanceVoxels'] = [];
@@ -110,7 +115,7 @@ export class SurfaceFaceBatchRenderer {
         mesh.boundingBox = this.options.regionPolicy?.bounds(region, this.options.unitEnvelope()) ?? this.options.stableBounds(region, this.options.unitEnvelope());
         mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
         this.options.record('instancedBoundsComputations');
-        batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [] };
+        batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [], renderRole: role };
         this.batchStore.set(batchKey, batch);
       }
       if (batch.keys.length >= batch.capacity) return undefined;
@@ -128,11 +133,48 @@ export class SurfaceFaceBatchRenderer {
       memberships.push({ batchKey, index });
     }
     this.ownershipStore.set(key, memberships);
+    this.templatesByKey.set(key, templates);
     this.hiddenKeys.delete(key);
     this.options.record('surfaceFastPathBlocks');
     this.options.record('exposedFaceInstances', memberships.length);
     this.options.record('neighborFacesCulled', 6 - memberships.length);
+    if (role === 'reference') for (const membership of memberships) {
+      const material = this.batchStore.get(membership.batchKey)?.mesh.material;
+      if (material) for (const item of Array.isArray(material) ? material : [material]) { item.transparent = true; item.opacity = referenceOpacity; item.needsUpdate = true; }
+    }
     return memberships;
+  }
+
+  setMemberRole(key: string, role: 'normal' | 'reference', referenceOpacity = .28): boolean {
+    const memberships = this.ownershipStore.get(key);
+    const templates = this.templatesByKey.get(key);
+    if (!memberships?.length || !templates) return false;
+    const firstBatch = this.batchStore.get(memberships[0].batchKey);
+    if (!firstBatch) return false;
+    if (firstBatch.renderRole === role) return true;
+    const position = firstBatch.positions[memberships[0].index];
+    const exposed = new Set<SurfaceFaceDirection>();
+    for (const membership of memberships) {
+      const batch = this.batchStore.get(membership.batchKey);
+      if (!batch) continue;
+      exposed.add(batch.directions[membership.index]);
+    }
+    if (!exposed.size) return false;
+    const block = { position };
+    this.remove(key);
+    const result = this.add(block, key, templates, exposed, role, referenceOpacity);
+    return !!result;
+  }
+
+  setReferenceOpacity(opacity: number): void {
+    for (const batch of this.batchStore.values()) {
+      if (batch.renderRole !== 'reference') continue;
+      for (const material of Array.isArray(batch.mesh.material) ? batch.mesh.material : [batch.mesh.material]) {
+        material.transparent = true;
+        material.opacity = Math.max(0, Math.min(1, opacity));
+        material.needsUpdate = true;
+      }
+    }
   }
 
   remove(key: string, entry?: SurfaceFaceEntry): void {
@@ -140,6 +182,7 @@ export class SurfaceFaceBatchRenderer {
     for (const membership of [...memberships].sort((left, right) => right.index - left.index)) this.removeMembership(membership.batchKey, membership.index, key);
     this.ownershipStore.delete(key);
     this.hiddenKeys.delete(key);
+    this.templatesByKey.delete(key);
     if (entry?.surfaceFaceMemberships !== undefined) {
       this.options.record('surfaceFastPathBlocks', -1);
       this.options.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? memberships.length));
@@ -206,6 +249,7 @@ export class SurfaceFaceBatchRenderer {
     this.batchStore.clear();
     this.ownershipStore.clear();
     this.hiddenKeys.clear();
+    this.templatesByKey.clear();
     for (const templates of this.templateStore.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateStore.clear();
   }

@@ -67,6 +67,11 @@ export class StaticModelBatchRenderer {
       getEntry: options.getEntry,
       setEntryObject: options.setEntryObject,
       trace: options.trace,
+      disposeMergedTemplateGeometry: (template, batches) => {
+        const retainedByTemplateCache = [...this.templateCache.values()].some((compiled) => compiled.templates.includes(template));
+        const retainedByBatch = [...batches.values()].some((batch) => batch.templates.includes(template));
+        if (!retainedByTemplateCache && !retainedByBatch && template.ownsGeometry && template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
+      },
     });
   }
 
@@ -147,6 +152,8 @@ export class StaticModelBatchRenderer {
     this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: compiled ? 'reusable-template-cache' : 'precompiled-static-model', templatePartCount: resolvedCompiled.templates.length });
     return result;
   }
+
+  setMemberRole(key: string, role: 'normal' | 'reference'): boolean { return this.delegate.setMemberRole(key, role); }
 
   remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void { this.delegate.remove(key, entry, source); this.decisions.delete(key); }
   memberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] { return this.delegate.memberships(key, scanAll); }
