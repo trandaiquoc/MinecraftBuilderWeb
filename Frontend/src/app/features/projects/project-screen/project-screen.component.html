@@ -79,18 +79,18 @@
       @if (deleteError()) { <p class="error recent-project-error" role="alert">{{ deleteError() }}</p> }
     </section>
   </section>
-  @if (structureJsonImportOpen()) {
+  @if (structureJsonImport.open()) {
     <div class="project-import-backdrop" role="presentation">
       <section class="project-import-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" tabindex="-1" autofocus [attr.aria-label]="i18n.t('createFromStructureJson')">
         <header class="project-import-header">
           <div><p class="eyebrow">{{ i18n.t('structureJsonFormat') }}</p><h2>{{ i18n.t('createFromStructureJson') }}</h2><p>{{ i18n.t('createFromStructureJsonDescription') }}</p></div>
-          <button type="button" class="ui-close-button" [attr.aria-label]="i18n.t('cancel')" [attr.title]="i18n.t('cancel')" (click)="closeStructureJsonImport()"><svg lucideX aria-hidden="true"></svg></button>
+          <button type="button" class="ui-close-button" [disabled]="structureJsonImport.creating()" [attr.aria-label]="i18n.t('cancel')" [attr.title]="i18n.t('cancel')" (click)="closeStructureJsonImport()"><svg lucideX aria-hidden="true"></svg></button>
         </header>
         <div class="project-import-body">
-          <div class="project-import-file"><span>{{ i18n.t('structureJsonSource') }}</span><code>{{ structureJsonImportFilename() }}</code></div>
-          @if (structureJsonImportProgress() === 'reading' || structureJsonImportProgress() === 'parsing' || structureJsonImportProgress() === 'checking' || structureJsonImportProgress() === 'saving') { <p class="project-import-progress" role="status" aria-live="polite">{{ structureJsonImportProgressLabel() }}</p> }
-          @if (structureJsonImportError(); as importError) { <p class="project-import-error" role="alert">{{ importError }}</p> }
-          @if (structureJsonImportPreview(); as imported) {
+          <div class="project-import-file"><span>{{ i18n.t('structureJsonSource') }}</span><code>{{ structureJsonImport.filename() }}</code></div>
+          @if (structureJsonImport.progress() === 'reading' || structureJsonImport.progress() === 'parsing' || structureJsonImport.progress() === 'checking' || structureJsonImport.progress() === 'saving') { <p class="project-import-progress" role="status" aria-live="polite">{{ structureJsonImportProgressLabel() }}</p> }
+          @if (structureJsonImport.failure()) { <p class="project-import-error" role="alert">{{ structureJsonImportErrorMessage() }}</p> }
+          @if (structureJsonImport.preview(); as imported) {
             <dl class="project-import-summary">
               <div><dt>{{ i18n.t('projectName') }}</dt><dd>{{ imported.projectName }}</dd></div>
               <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ i18n.t('minecraftJavaVersion').replace('{version}', imported.minecraftVersion) }} <span class="project-import-support">{{ imported.minecraftVersion === defaultMinecraftVersion ? i18n.t('verifiedSupport') : i18n.t('resourceCompatibility') }}</span></dd></div>
@@ -108,7 +108,7 @@
             }
           }
         </div>
-        <footer class="project-import-footer"><button type="button" class="ui-button ui-button--ghost" (click)="closeStructureJsonImport()">{{ i18n.t('cancel') }}</button><button type="button" class="ui-button ui-button--primary" [disabled]="!structureJsonImportPreview()?.project || structureJsonImportCreating()" (click)="createProjectFromStructureJson()">{{ structureJsonImportPreview()?.requiresHugeConfirmation ? i18n.t('structureJsonProjectUseHugeAndCreate') : i18n.t('structureJsonProjectCreate') }}</button></footer>
+        <footer class="project-import-footer"><button type="button" class="ui-button ui-button--ghost" [disabled]="structureJsonImport.creating()" (click)="closeStructureJsonImport()">{{ i18n.t('cancel') }}</button><button type="button" class="ui-button ui-button--primary" [disabled]="!structureJsonImport.preview()?.project || structureJsonImport.creating()" (click)="createProjectFromStructureJson()">{{ structureJsonImport.preview()?.requiresHugeConfirmation ? i18n.t('structureJsonProjectUseHugeAndCreate') : i18n.t('structureJsonProjectCreate') }}</button></footer>
       </section>
     </div>
   }
