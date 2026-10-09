@@ -1697,8 +1697,8 @@ describe('incremental project mutation reconciliation', () => {
     expect(counters.spatialIndexBuilds).toBe(beforeCounters.spatialIndexBuilds);
     expect(counters.incrementalBlockReconciles).toBe(beforeCounters.incrementalBlockReconciles + 1);
     expect(counters.incrementalChangedVoxels).toBeGreaterThan(0);
-    const spatialIndex = (engine as unknown as { spatialIndex: { get: (position: VoxelCoordinate) => PlacedBlock | undefined } }).spatialIndex;
-    expect(spatialIndex.get(before.position)).toEqual(after);
+    const blockIndexOwner = (engine as unknown as { blockIndexOwner: { get: (position: VoxelCoordinate) => PlacedBlock | undefined } }).blockIndexOwner;
+    expect(blockIndexOwner.get(before.position)).toEqual(after);
     engine.dispose();
   });
 

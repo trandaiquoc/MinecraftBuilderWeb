@@ -38,7 +38,6 @@ import { coordinateNeighbors } from '../visibility/interior-occlusion';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
-import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-index';
 import { fluidCoordinateFromHit } from '../interaction/viewport-raycast-controller';
 import { compileInstanceTemplates as compileInstanceTemplatesFromCache, mergeInstanceTemplateParts as mergeInstanceTemplatePartsFromCache } from '../batching/instance-template-cache';
 import type { CompiledInstanceTemplates, InstancePartTemplate } from '../batching/instance-template-cache';
@@ -179,14 +178,14 @@ export class ThreeViewportEngine {
   private readonly blockGhostPresenter = new BlockGhostPresenter(this.scene, viewportThemePalette('dark'), {
     provider: () => this.visualProvider,
     providerGeneration: () => this.providerGeneration,
-    blockLookup: () => this.spatialIndex ? (position) => this.spatialIndex?.get(position) : undefined,
+    blockLookup: () => this.blockIndexOwner.hasIndex ? (position) => this.blockIndexOwner.get(position) : undefined,
     record: (name) => this.instrumentation.record(name),
     scheduleRender: () => this.scheduleRender(),
   });
   private get ghost(): THREE.Mesh { return this.blockGhostPresenter.ghost; }
   private readonly selectionPresenter = new SelectionOverlayPresenter(this.scene, viewportThemePalette('dark'), DETAILED_SELECTION_OUTLINE_LIMIT);
   private readonly movePreviewPresenter = new MovePreviewPresenter(viewportThemePalette('dark'), {
-    getBlock: (position) => this.spatialIndex?.get(position),
+    getBlock: (position) => this.blockIndexOwner.get(position),
     textureUrl: (resource) => this.decorationTextureUrl?.(resource),
     textureCache: () => this.decorationTextureCache,
     paintingResource: (variantId) => this.paintingResource?.(variantId),
@@ -209,7 +208,7 @@ export class ThreeViewportEngine {
   private get decorationSelectionGroup(): THREE.Group { return this.decorationSelectionPresenter.group; }
   private readonly groupHighlightPresenter = new GroupHighlightPresenter(this.scene, viewportThemePalette('dark'), {
     visibleBlock: (key) => { const entry = this.yLayerProjection.visibleEntry(key); return entry ? { block: entry.block } : undefined; },
-    blockAt: (position) => this.spatialIndex?.get(position),
+    blockAt: (position) => this.blockIndexOwner.get(position),
     isolated: (key) => this.isolatedKeys.has(key),
     isolationActive: () => this.isolationPresentation.isActive(),
     decorationIsolated: (entry) => decorationHasGroup(entry, this.renderOptions.isolatedGroupId ?? ''),
@@ -284,9 +283,7 @@ export class ThreeViewportEngine {
     onVisibilityChange: () => this.onVisibilityChange(),
   });
   private project?: ProjectDocument;
-  private get spatialIndex(): ProjectBlockSpatialIndex | undefined { return this.blockIndexOwner.current; }
-  private get spatialIndexProject(): ProjectDocument | undefined { return this.blockIndexOwner.currentProject; }
-  private get spatialIndexBlocksReference(): readonly ProjectDocument['blocks'][number][] | undefined { return this.blockIndexOwner.currentBlocksReference; }
+  private get indexedProject(): ProjectDocument | undefined { return this.blockIndexOwner.currentProject; }
   private layerIndex?: LayerBlockIndex;
   private readonly yLayerProjection: YLayerProjectionCoordinator;
   private cachedBoundsKey = '';
@@ -667,7 +664,7 @@ export class ThreeViewportEngine {
       },
       fallback: {
         renderOptions: () => this.renderOptions,
-        worldContext: () => ({ getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) }),
+        worldContext: () => ({ getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) }),
         enqueue: (job) => this.hydrationPipeline.enqueueRegular(job),
         surfaceVisibleEntries: () => this.yLayerProjection.visibleEntriesByKey,
       },
@@ -940,7 +937,7 @@ export class ThreeViewportEngine {
 
   private fluidWorldContext(): FluidWorldLookup {
     return {
-      getBlock: (position) => this.spatialIndex?.get(position),
+      getBlock: (position) => this.blockIndexOwner.get(position),
       getDefinition: (blockId) => this.definitionResolver?.(blockId),
       getOcclusionClass: (block) => this.visualProvider?.occlusionClass?.(block) ?? 'unknown',
     };
@@ -1044,7 +1041,7 @@ export class ThreeViewportEngine {
       this.suspendedNeedsRefresh = true;
       return;
     }
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     const visible = this.yLayerProjection.hasVisibleProjection(this.project, this.renderOptions)
       ? this.yLayerProjection.visibleEntriesByKey
       : new Map(this.visibleBlocks(this.project, this.renderOptions).map((entry) => [coordinateKey(entry.block.position), entry] as const));
@@ -1092,7 +1089,7 @@ export class ThreeViewportEngine {
     const referenceOpacityOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && renderFilterKey(previousOptions) === renderFilterKey(options) && previousOptions.referenceOpacity !== options.referenceOpacity;
     const projectionDelta = this.yLayerProjection.plan(previousProject, previousOptions, options, options.layerIndex ?? this.layerIndex);
     const layerProjectionOnly = !!project && !!previousProject && project.blocks === previousProject.blocks && project.id === previousProject.id && project.size.x === previousProject.size.x && project.size.y === previousProject.size.y && project.size.z === previousProject.size.z && !mutationHint && projectionDelta.changed && previousOptions.visibility === options.visibility && !!options.visibility && options.layerY !== undefined && previousOptions.layerY !== undefined && renderFilterKey(previousOptions) === renderFilterKey(options);
-    const incrementalMutation = !!project && !!previousProject && project !== previousProject && !!mutationHint && nextSyncKey === previousSyncKey && renderFilterKey(previousOptions) === renderFilterKey(options) && this.yLayerProjection.visibleProject === previousProject && this.spatialIndexProject === previousProject;
+    const incrementalMutation = !!project && !!previousProject && project !== previousProject && !!mutationHint && nextSyncKey === previousSyncKey && renderFilterKey(previousOptions) === renderFilterKey(options) && this.yLayerProjection.visibleProject === previousProject && this.indexedProject === previousProject;
     const metadataMutation = mutationHint?.kind === 'metadata-delta';
     this.project = project;
     this.activeBlock = active;
@@ -1303,7 +1300,7 @@ export class ThreeViewportEngine {
       return;
     }
     this.compactHydrationQueues();
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     const visible = visibleOverride ?? this.visibleBlocks(project, options);
     this.setHydrationBlockScope(visible);
     this.yLayerProjection.replaceVisible(project, options, visible);
@@ -1419,7 +1416,7 @@ export class ThreeViewportEngine {
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     this.reconcileInstanceOwnership();
-    this.structureSyncState.replaceVisiblePositions(visible.map((entry) => entry.block.position));
+    this.structureSyncState.replaceVisibleProjection(visible);
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
   }
 
@@ -1567,7 +1564,7 @@ export class ThreeViewportEngine {
       this.placeholderSignatures.delete(key);
     }
 
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     const fluidKeys = this.syncProjectionFluidDelta(changes, worldContext);
     this.interiorCulling.updateDelta(changes, (key) => this.yLayerProjection.visibleEntry(key), this.yLayerProjection.visibleEntriesByKey);
     const terrainChanges: TerrainBlockChange[] = [];
@@ -1731,7 +1728,7 @@ export class ThreeViewportEngine {
     const snapshots: IsolateBlockVisualSnapshot[] = [];
     for (const key of keys) {
       const [x, y, z] = key.split(',').map(Number);
-      const block = this.spatialIndex?.get({ x, y, z });
+      const block = this.blockIndexOwner.get({ x, y, z });
       if (!block || !isBlockVisible(block, project.groups)) continue;
       const entry = this.blockRepresentations.get(key);
       const terrain = terrainByKey.get(key);
@@ -1799,7 +1796,7 @@ export class ThreeViewportEngine {
     this.blockIndexOwner.adoptProject(project);
     this.yLayerProjection.associateVisibleProjection(project, options);
     for (const [key, position] of affectedPositions) {
-      const block = this.spatialIndex?.get(position);
+      const block = this.blockIndexOwner.get(position);
       if (block && isBlockVisibleForViewport(block, project, canonicalRenderOptions(options))) this.yLayerProjection.cacheVisibleEntry(key, this.visibleEntry(block, options));
       else this.yLayerProjection.removeVisibleEntry(key);
       if (block) this.structureSyncState.rememberVisiblePosition(block.position);
@@ -1811,12 +1808,12 @@ export class ThreeViewportEngine {
       this.hydrationPipeline.clearPendingSignature(key);
       this.placeholderSignatures.delete(key);
     }
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.spatialIndex?.get(position) };
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     this.runtimeTrace?.record('fluid-delta-start', { changed: hint.changes.length, affected: affectedPositions.size });
     const fluidKeys = applyLocalFluidDelta(hint, [...affectedPositions.values()], {
       resolver: this.visualProvider?.fluidRenderResolver,
       hasTexture: !!this.visualProvider?.fluidTexture,
-      getBlock: (position) => this.spatialIndex?.get(position),
+      getBlock: (position) => this.blockIndexOwner.get(position),
       getVisibleEntry: (key) => this.yLayerProjection.visibleEntry(key),
       getRenderedEntry: (key) => this.blockRepresentations.get(key),
       removeRenderedEntry: (key) => this.blockRepresentations.remove(key),
@@ -2274,7 +2271,7 @@ export class ThreeViewportEngine {
   }
 
   private ddaPick(project: ProjectDocument): { readonly position: VoxelCoordinate; readonly normal: FaceNormal; readonly point: THREE.Vector3; readonly distance: number } | undefined {
-    if (!this.spatialIndex) return undefined;
+    if (!this.blockIndexOwner.hasIndex) return undefined;
     return this.raycastController.pick(this.raycaster.ray, project.size);
   }
 
@@ -2319,14 +2316,14 @@ export class ThreeViewportEngine {
       if (hitVoxel && (planeY === undefined || hitVoxel.y === planeY)) block = hitVoxel;
     }
     const facing = active?.state['facing'];
-    attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, this.spatialIndex ?? project.blocks, this.definitionResolver) : undefined;
+    attachment = block && hitPoint ? resolveAttachmentPlacement(active?.id, block, hitPoint, this.blockIndexOwner.hasIndex ? this.blockIndexOwner : project.blocks, this.definitionResolver) : undefined;
     if (attachment) {
       if (!target) target = attachment.target;
       faceNormal = { x: 0, y: attachment.snapType === 'chain-extension' ? 1 : -1, z: 0 };
     } else if (!target && block && faceNormal) target = targetFromBlockFace(block, faceNormal);
     const placementContext = faceNormal ? { faceNormal, hitPoint: hitPoint ? { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z } : undefined, facing: isHorizontalDirection(facing) ? facing : undefined, yaw: cameraYaw(this.camera), stateOverride: attachment?.stateOverride } : undefined;
     const previewStarted = showGhost && typeof performance !== 'undefined' ? performance.now() : 0;
-    const placement = resolvePlacementPreview({ requested: showGhost && !this.renderOptions.activeDecoration, project, active, target, context: placementContext, lookup: this.spatialIndex, provider: this.placementPlanProvider });
+    const placement = resolvePlacementPreview({ requested: showGhost && !this.renderOptions.activeDecoration, project, active, target, context: placementContext, lookup: this.blockIndexOwner.hasIndex ? this.blockIndexOwner : undefined, provider: this.placementPlanProvider });
     if (previewStarted) this.instrumentation.record('placementPreviewMs', Math.max(0, performance.now() - previewStarted));
     const decorationPlan = showGhost && this.renderOptions.activeDecoration && block && faceNormal ? planDecorationPlacement(project, this.renderOptions.activeDecoration, block, facingFromNormal(faceNormal) ?? 'up') : undefined;
     const previewStatus = decorationPlan?.status ?? placement.status;
@@ -2516,7 +2513,7 @@ export class ThreeViewportEngine {
 
   performanceEvidence(): ViewportPerformanceEvidence {
     const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.blockRepresentations.values(), renderedDecorations: this.decorationVisuals.values() });
-    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.blockRepresentations.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.interiorCulling.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.spatialIndex?.lookups ?? 0, terrainAtlasMode: this.terrainAtlasMode });
+    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.blockRepresentations.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.interiorCulling.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.blockIndexOwner.lookupCount, terrainAtlasMode: this.terrainAtlasMode });
   }
 
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }

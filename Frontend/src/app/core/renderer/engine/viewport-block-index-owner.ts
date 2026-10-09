@@ -1,20 +1,21 @@
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { ProjectBlockSpatialIndex } from '../../domain/project-block-spatial-index';
+import { ProjectBlockSpatialIndex, type ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 
 /** Owns the block lookup index and the project identity it represents. */
-export class ViewportBlockIndexOwner {
+export class ViewportBlockIndexOwner implements ReadonlyBlockLookup {
   private index?: ProjectBlockSpatialIndex;
   private project?: ProjectDocument;
   private blocksReference?: readonly PlacedBlock[];
   private specialVisualIds = new Set<string>();
   private observedLookups = 0;
-
   constructor(private readonly record: (metric: string, delta?: number) => void) {}
 
-  get current(): ProjectBlockSpatialIndex | undefined { return this.index; }
+  get hasIndex(): boolean { return this.index !== undefined; }
   get currentProject(): ProjectDocument | undefined { return this.project; }
-  get currentBlocksReference(): readonly PlacedBlock[] | undefined { return this.blocksReference; }
   get lookupCount(): number { return this.index?.lookups ?? 0; }
+
+  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.index?.get(position); }
+  has(position: VoxelCoordinate): boolean { return this.index?.has(position) ?? false; }
 
   ensure(project: ProjectDocument | undefined, force = false, preserveForIncrementalTransition = false): void {
     if (!project) {

@@ -10,12 +10,11 @@ describe('viewport block index owner', () => {
     const next = { ...first, metadata: { ...first.metadata, updatedAt: 'next' } };
 
     owner.ensure(first);
-    const index = owner.current;
+    const lookup = owner;
     owner.ensure(next, false, true);
 
-    expect(owner.current).toBe(index);
+    expect(owner).toBe(lookup);
     expect(owner.currentProject).toBe(next);
-    expect(owner.currentBlocksReference).toBe(next.blocks);
     expect(record).toHaveBeenCalledTimes(1);
   });
 
@@ -23,11 +22,12 @@ describe('viewport block index owner', () => {
     const owner = new ViewportBlockIndexOwner(() => undefined);
     const first = project('first');
     owner.ensure(first);
-    const index = owner.current;
+    const lookup = owner;
     owner.replace(first.blocks[0].position, { ...first.blocks[0], id: 'minecraft:dirt' });
 
-    expect(owner.current).toBe(index);
-    expect(owner.current?.get({ x: 0, y: 0, z: 0 })?.id).toBe('minecraft:dirt');
+    expect(owner).toBe(lookup);
+    expect(owner.get({ x: 0, y: 0, z: 0 })?.id).toBe('minecraft:dirt');
+    expect(owner.has({ x: 0, y: 0, z: 0 })).toBe(true);
     expect(owner.specialVisualIdsFor(undefined, [])).toContain('minecraft:dirt');
   });
 
@@ -35,12 +35,12 @@ describe('viewport block index owner', () => {
     const metrics = new Map<string, number>();
     const owner = new ViewportBlockIndexOwner((name, delta = 1) => metrics.set(name, (metrics.get(name) ?? 0) + delta));
     owner.ensure(project('first'));
-    owner.current?.get({ x: 0, y: 0, z: 0 });
+    owner.get({ x: 0, y: 0, z: 0 });
     owner.recordLookupDelta();
     owner.recordLookupDelta();
     expect(metrics.get('spatialIndexLookups')).toBe(1);
     owner.clear();
-    expect(owner.current).toBeUndefined();
+    expect(owner.hasIndex).toBe(false);
     expect(owner.currentProject).toBeUndefined();
   });
 });

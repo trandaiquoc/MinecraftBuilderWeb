@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectDocument } from '../../domain/project.types';
+import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
 
 const project = (): ProjectDocument => ({
@@ -70,5 +70,17 @@ describe('ViewportStructureSyncState', () => {
     expect([...positions.keys()]).toEqual(['0,0,0', '1,0,0']);
     state.clear();
     expect(positions.size).toBe(0);
+  });
+
+  it('accepts a visible projection iterable directly', () => {
+    const state = new ViewportStructureSyncState();
+    function* entries(): Iterable<{ readonly block: { readonly position: VoxelCoordinate } }> {
+      yield { block: { position: { x: 4, y: 1, z: 2 } } };
+      yield { block: { position: { x: 5, y: 1, z: 2 } } };
+    }
+
+    state.replaceVisibleProjection(entries());
+
+    expect([...state.previousVisiblePositionsSnapshot().keys()]).toEqual(['4,1,2', '5,1,2']);
   });
 });

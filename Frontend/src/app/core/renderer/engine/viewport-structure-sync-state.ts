@@ -9,6 +9,10 @@ export interface ViewportStructureSyncSnapshot {
   readonly blocksReference?: ProjectDocument['blocks'];
 }
 
+interface VisibleProjectionEntry {
+  readonly block: { readonly position: VoxelCoordinate };
+}
+
 /** Owns the last project structure committed to the viewport's canonical rendering. */
 export class ViewportStructureSyncState {
   private current: ViewportStructureSyncSnapshot = { syncKey: '' };
@@ -28,6 +32,11 @@ export class ViewportStructureSyncState {
   replaceVisiblePositions(positions: readonly VoxelCoordinate[]): void {
     this.previousVisiblePositions.clear();
     for (const position of positions) this.rememberVisiblePosition(position);
+  }
+
+  replaceVisibleProjection(entries: Iterable<VisibleProjectionEntry>): void {
+    this.previousVisiblePositions.clear();
+    for (const entry of entries) this.rememberVisiblePosition(entry.block.position);
   }
 
   keyFor(project: ProjectDocument | undefined, filterKey: string): string {
