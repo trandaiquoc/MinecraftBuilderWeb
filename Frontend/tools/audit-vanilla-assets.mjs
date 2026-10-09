@@ -21,13 +21,15 @@ const reportJsonPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-cover
 const reportMarkdownPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-coverage-${version}.md`).replaceAll('\\', '/'));
 const providerModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-provider'));
 const auditModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit'));
+const reportModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit-report'));
 try {
   writeFileSync(testPath, `
 import { describe, it } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { VanillaAssetProvider } from '${providerModule}';
-import { auditVanillaAssets, coverageReportMarkdown } from '${auditModule}';
+import { auditVanillaAssets } from '${auditModule}';
+import { coverageReportMarkdown } from '${reportModule}';
 describe('vanilla coverage command', () => it('writes the report', async () => {
   const root = ${literalRoot}; const version = ${literalVersion};
   const json = {}; const binary = new Map();

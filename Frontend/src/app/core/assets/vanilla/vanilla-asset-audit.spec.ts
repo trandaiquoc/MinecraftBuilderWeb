@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { auditContentDomains, auditPaletteLeaks, auditVanillaAssets, classifyVisualSupport, coverageReportMarkdown } from './vanilla-asset-audit';
+import { auditVanillaAssets, classifyVisualSupport } from './vanilla-asset-audit';
+import { coverageReportMarkdown } from './vanilla-asset-audit-report';
+import { auditContentDomains, auditPaletteLeaks } from './vanilla-content-domain-audit';
 import { VanillaAssetProvider } from './vanilla-asset-provider';
 
 describe('vanilla asset coverage audit', () => {
