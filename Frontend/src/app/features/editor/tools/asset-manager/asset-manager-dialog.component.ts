@@ -79,8 +79,13 @@ export class AssetManagerDialogComponent {
   protected openJarPicker(input: HTMLInputElement): void { if (this.importing() || this.assets.status() === 'importing') return; input.value = ''; const picker = input as HTMLInputElement & { showPicker?: () => void }; if (typeof picker.showPicker === 'function') { try { picker.showPicker(); return; } catch { /* native click fallback */ } } input.click(); }
   protected async importJar(event: Event): Promise<void> { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; try { validateJarUpload(file); } catch (error) { this.modError.set(this.jarValidationMessage(error)); input.value = ''; return; } const confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerManualImportConfirmTitle'), text: this.i18n.t('assetManagerManualImportConfirmText').replace('{version}', this.assets.activeVersion()), confirmButtonText: this.i18n.t('assetManagerImport'), cancelButtonText: this.i18n.t('cancel') }); if (!confirmed) { input.value = ''; return; } this.importing.set(true); try { await this.assets.importJar(file); } finally { this.importing.set(false); input.value = ''; } }
   protected async inspectMod(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; if (this.importing()) this.cancelPreflight();
-    try { validateJarUpload(file); } catch (error) { this.preflightError.set(this.jarValidationMessage(error)); input.value = ''; return; }
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) await this.inspectFile(file, input);
+  }
+  private async inspectFile(file: File, input?: HTMLInputElement): Promise<void> {
+    if (this.importing()) this.cancelPreflight();
+    try { validateJarUpload(file); } catch (error) { this.preflightError.set(this.jarValidationMessage(error)); if (input) input.value = ''; return; }
     this.lastModFile = file;
     this.cancelPreflight(); this.preflight.set(undefined); this.beginOperation('preflight'); this.modError.set(''); this.preflightError.set(''); this.preflightProgress.set(undefined);
     const operation = this.operationController!; const id = this.operationId;
@@ -92,7 +97,7 @@ export class AssetManagerDialogComponent {
       if (id !== this.operationId) return;
       if (isAbortError(error)) { if (error instanceof ModImportTimeoutError) { this.operationStatus.set('timed-out'); this.preflightError.set(this.timeoutMessage(error)); this.assets.activity.timeout('mod-preflight', this.preflightError(), 'mod'); } else { this.operationStatus.set('cancelled'); this.assets.activity.cancel('mod-preflight', this.i18n.t('assetManagerTaskCancelled'), 'mod'); } }
       else { this.operationStatus.set('failed'); this.preflightError.set(error instanceof Error ? error.message : this.i18n.t('assetManagerImportError')); this.assets.activity.fail('mod-preflight', this.preflightError(), 'mod'); }
-    } finally { if (id === this.operationId) this.finishOperation(); input.value = ''; }
+    } finally { if (id === this.operationId) this.finishOperation(); if (input) input.value = ''; }
   }
   private jarValidationMessage(error: unknown): string { if (error instanceof JarUploadValidationError) return this.i18n.t(error.code === 'jar-extension' ? 'assetManagerJarOnly' : 'assetManagerJarTooLarge'); return error instanceof Error ? error.message : this.i18n.t('assetManagerImportError'); }
   protected async confirmModImport(): Promise<void> {
@@ -118,7 +123,7 @@ export class AssetManagerDialogComponent {
   }
   protected cancelActiveOperation(): void { this.cancelPreflight(); }
   protected canRetryPreflight(): boolean { return !!this.lastModFile && !this.importing(); }
-  protected retryPreflight(): void { const file = this.lastModFile; if (!file || this.importing()) return; const input = { files: [file], value: '' } as unknown as HTMLInputElement; void this.inspectMod({ target: input } as unknown as Event); }
+  protected retryPreflight(): void { const file = this.lastModFile; if (!file || this.importing()) return; void this.inspectFile(file); }
   protected async removeMod(mod: ImportedModSummary): Promise<void> { if (this.removing()) return; this.confirming.set(true); let confirmed = false; try { confirmed = await this.dialog.confirm({ title: this.i18n.t('assetManagerRemoveModTitle'), text: this.i18n.t('assetManagerRemoveModText').replace('{name}', mod.displayName), confirmButtonText: this.i18n.t('remove'), cancelButtonText: this.i18n.t('cancel'), destructive: true }); } finally { this.confirming.set(false); } if (!confirmed) return; this.removing.set(mod.sourceId); try { await this.assets.removeMod(mod.sourceId); if (this.detailsSourceId() === mod.sourceId) this.closeDetails(); } finally { this.removing.set(undefined); } }
   protected openDiagnostics(report: ModImportReport | undefined, modName: string, kind: 'warning' | 'blocking' = 'warning'): void { if (!report) return; const diagnostics = report.diagnostics.filter((diagnostic) => kind === 'warning' ? diagnostic.severity === 'warning' : diagnostic.severity === 'error' || diagnostic.category === 'blocking'); if (diagnostics.length) this.diagnosticDialog.set({ modName, kind, diagnostics }); }
   protected closeDiagnostics(): void { this.diagnosticDialog.set(undefined); }
