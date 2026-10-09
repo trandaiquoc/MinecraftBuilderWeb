@@ -3,7 +3,7 @@ import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.
 import type { PaintingVariant } from '../../decorations/decoration.types';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
-import { CompositeAssetResourceProvider } from './composite-asset-provider';
+import { CompositeAssetResourceProvider, ContentSourceCleanupError } from './composite-asset-provider';
 import { TagIndex } from '../../content/tag-index';
 import { yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../mod/mod-import-cancellation';
@@ -50,11 +50,8 @@ export class ContentSourceRegistry {
       sourceIds.add(id);
       const existing = this.providerForSource(id);
       if (existing && !entry.replaceExisting) throw new Error(`Content source is already registered: ${id}`);
-      const resourceConflicts = this.resources.inspectProvider(entry.provider);
-      if (resourceConflicts.length) throw new Error(formatContentConflict(resourceConflicts[0]));
     }
 
-    const stagedPaths = new Map<string, ContentSourceProvider>();
     const liveCatalog = this.catalog();
     // Validate normalization before touching live resources. This keeps an
     // invalid prepared record from failing after the resource boundary.
@@ -65,11 +62,6 @@ export class ContentSourceRegistry {
     const livePaintings = new Map(this.paintingVariants().filter((painting) => !sourceIds.has(painting.sourceId ?? 'vanilla')).map((painting) => [painting.id, painting.sourceId ?? 'vanilla'] as const));
     for (const entry of entries) {
       const id = entry.provider.source.id;
-      for (const path of entry.provider.paths?.() ?? []) {
-        const previous = stagedPaths.get(path);
-        if (previous && !isAdditiveTag(path, previous, entry.provider)) throw new Error(formatContentConflict({ path, sourceIds: [previous.source.id, id].sort(), kind: isTagPath(path) ? 'tag-replacement' : 'resource-collision' }));
-        stagedPaths.set(path, entry.provider);
-      }
       const catalog = entry.catalog;
       for (const block of catalog.blocks) {
         const owner = liveBlocks.get(block.id);
@@ -88,36 +80,46 @@ export class ContentSourceRegistry {
       }
     }
 
-    for (const entry of entries) {
-      const id = entry.provider.source.id;
-      if (entry.replaceExisting && this.providerForSource(id)) this.resources.replace(entry.provider);
-      else this.resources.register(entry.provider);
-      this.contributions.set(id, entry.catalog);
-      this.paintingContributions.set(id, entry.catalog.paintingVariants ?? []);
+    let cleanupError: ContentSourceCleanupError | undefined;
+    try { this.resources.commitBatch(entries.map(({ provider, replaceExisting }) => ({ provider, replaceExisting }))); }
+    catch (error) {
+      if (!(error instanceof ContentSourceCleanupError) || !error.committed) throw error;
+      cleanupError = error;
     }
+    for (const entry of entries) this.publishCatalog(entry.provider.source.id, entry.catalog);
+    if (cleanupError) throw cleanupError;
   }
 
   register(provider: ContentSourceProvider): void {
     assertCompatibleSource(provider.source, this.activeMinecraftVersion());
+    const catalog = provider.catalog?.();
     this.resources.register(provider);
-    try {
-      const catalog = provider.catalog?.();
-      if (catalog) { this.contributions.set(provider.source.id, catalog); this.paintingContributions.set(provider.source.id, catalog.paintingVariants ?? []); }
-    } catch (error) { this.resources.remove(provider.source.id); throw error; }
+    if (catalog) this.publishCatalog(provider.source.id, catalog);
   }
   replace(provider: ContentSourceProvider): void {
     assertCompatibleSource(provider.source, this.activeMinecraftVersion());
     const catalog = provider.catalog?.();
-    this.resources.replace(provider);
-    if (catalog) { this.contributions.set(provider.source.id, catalog); this.paintingContributions.set(provider.source.id, catalog.paintingVariants ?? []); }
-    else { this.contributions.delete(provider.source.id); this.paintingContributions.delete(provider.source.id); }
+    let cleanupError: ContentSourceCleanupError | undefined;
+    try { this.resources.replace(provider); }
+    catch (error) {
+      if (!(error instanceof ContentSourceCleanupError) || !error.committed) throw error;
+      cleanupError = error;
+    }
+    if (catalog) this.publishCatalog(provider.source.id, catalog);
+    else this.removeCatalog(provider.source.id);
+    if (cleanupError) throw cleanupError;
   }
   remove(sourceId: string): boolean {
-    const removed = this.resources.remove(sourceId);
-    if (removed) {
-      this.contributions.delete(sourceId);
-      this.paintingContributions.delete(sourceId);
+    let removed = false;
+    let cleanupError: ContentSourceCleanupError | undefined;
+    try { removed = this.resources.remove(sourceId); }
+    catch (error) {
+      if (!(error instanceof ContentSourceCleanupError) || !error.committed) throw error;
+      removed = true;
+      cleanupError = error;
     }
+    if (removed) this.removeCatalog(sourceId);
+    if (cleanupError) throw cleanupError;
     return removed;
   }
   get generation(): number { return this.resources.revision; }
@@ -171,15 +173,16 @@ export class ContentSourceRegistry {
     }
     return catalog;
   }
-}
 
-function isAdditiveTag(path: string, left: ContentSourceProvider, right: ContentSourceProvider): boolean {
-  return isTagPath(path) && !isReplaceTag(left.readJson(path)) && !isReplaceTag(right.readJson(path));
-}
-function isTagPath(path: string): boolean { return /^data\/[^/]+\/tags\/(?:block|item|painting_variant)\/.+\.json$/.test(path); }
-function isReplaceTag(value: unknown): boolean { return !!value && typeof value === 'object' && !Array.isArray(value) && (value as Record<string, unknown>)['replace'] === true; }
-function formatContentConflict(conflict: { readonly path: string; readonly sourceIds: readonly string[]; readonly kind: 'resource-collision' | 'tag-replacement' }): string {
-  return `${conflict.kind === 'tag-replacement' ? 'Tag replacement' : 'Resource collision'} at ${conflict.path} (${conflict.sourceIds.join(', ')})`;
+  private publishCatalog(sourceId: string, source: BlockCatalogSource & { readonly paintingVariants?: readonly PaintingVariant[] }): void {
+    this.contributions.set(sourceId, source);
+    this.paintingContributions.set(sourceId, source.paintingVariants ?? []);
+  }
+
+  private removeCatalog(sourceId: string): void {
+    this.contributions.delete(sourceId);
+    this.paintingContributions.delete(sourceId);
+  }
 }
 
 export function assertCompatibleSource(source: Pick<ContentSourceDescriptor, 'minecraftVersion'>, activeVersion = '1.21.1'): void {

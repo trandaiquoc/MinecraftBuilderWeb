@@ -8,6 +8,26 @@ export interface ResourceContributionConflict {
   readonly kind: 'resource-collision' | 'tag-replacement';
 }
 
+export interface ContentSourcePublication {
+  readonly provider: ContentSourceProvider;
+  readonly replaceExisting?: boolean;
+}
+
+export interface ContentSourceCleanupFailure {
+  readonly sourceId: string;
+  readonly error: unknown;
+}
+
+/** Indicates publication succeeded, but one or more retired providers failed cleanup. */
+export class ContentSourceCleanupError extends Error {
+  readonly committed = true;
+
+  constructor(readonly failures: readonly ContentSourceCleanupFailure[]) {
+    super(`Content source publication committed, but cleanup failed for: ${failures.map(({ sourceId }) => sourceId).join(', ')}.`);
+    this.name = 'ContentSourceCleanupError';
+  }
+}
+
 /** Routes resources by exact path while allowing additive cross-namespace contributions. */
 export class CompositeAssetResourceProvider implements AssetResourceProvider, RenderableAssetResourceProvider {
   private readonly providers = new Map<string, ContentSourceProvider>();
@@ -26,36 +46,54 @@ export class CompositeAssetResourceProvider implements AssetResourceProvider, Re
   sources(): readonly ContentSourceDescriptor[] { return [...this.providers.values()].map((provider) => provider.source); }
 
   register(provider: ContentSourceProvider): void {
-    if (provider.source.minecraftVersion !== this.activeVersion) throw new Error(`Unsupported content source Minecraft version: ${provider.source.minecraftVersion}. Expected ${this.activeVersion}.`);
-    if (this.providers.has(provider.source.id)) throw new Error(`Content source is already registered: ${provider.source.id}`);
-    const conflicts = this.inspectProvider(provider);
-    if (conflicts.length) throw new Error(formatConflict(conflicts[0]));
-    this.providers.set(provider.source.id, provider);
-    this.providerPaths.set(provider.source.id, [...(provider.paths?.() ?? [])]);
-    this.revisionValue += 1;
+    this.commitBatch([{ provider }]);
   }
 
   remove(sourceId: string): boolean {
     const provider = this.providers.get(sourceId); if (!provider) return false;
-    this.providers.delete(sourceId); this.providerPaths.delete(sourceId); provider.dispose?.(); this.revisionValue += 1; return true;
+    this.providers.delete(sourceId);
+    this.providerPaths.delete(sourceId);
+    this.revisionValue += 1;
+    this.disposeRetired([{ sourceId, provider }]);
+    return true;
   }
 
   replace(provider: ContentSourceProvider): void {
-    const existing = this.providers.get(provider.source.id);
-    if (!existing) { this.register(provider); return; }
-    const previousPaths = this.providerPaths.get(existing.source.id) ?? [];
-    this.providers.delete(existing.source.id);
-    this.providerPaths.delete(existing.source.id);
-    this.revisionValue += 1;
-    try {
-      this.register(provider);
-      existing.dispose?.();
-    } catch (error) {
-      this.providers.set(existing.source.id, existing);
-      this.providerPaths.set(existing.source.id, [...previousPaths]);
-      this.revisionValue += 1;
-      throw error;
+    this.commitBatch([{ provider, replaceExisting: true }]);
+  }
+
+  /** Prepares every route before publishing any, then retires replaced providers. */
+  commitBatch(publications: readonly ContentSourcePublication[]): void {
+    if (!publications.length) return;
+
+    const publicationIds = new Set<string>();
+    const prepared = publications.map(({ provider, replaceExisting }) => {
+      const id = provider.source.id;
+      if (provider.source.minecraftVersion !== this.activeVersion) throw new Error(`Unsupported content source Minecraft version: ${provider.source.minecraftVersion}. Expected ${this.activeVersion}.`);
+      if (publicationIds.has(id)) throw new Error(`Content source is duplicated in batch: ${id}`);
+      publicationIds.add(id);
+      const existing = this.providers.get(id);
+      if (existing && !replaceExisting) throw new Error(`Content source is already registered: ${id}`);
+      const paths = existing === provider
+        ? [...(this.providerPaths.get(id) ?? [])]
+        : [...new Set(provider.paths?.() ?? [])];
+      return { id, provider, paths, existing };
+    });
+
+    const conflicts = this.findPublicationConflicts(prepared);
+    if (conflicts.length) throw new Error(formatConflict(conflicts[0]));
+
+    const retired: { sourceId: string; provider: ContentSourceProvider }[] = [];
+    let changed = 0;
+    for (const entry of prepared) {
+      if (entry.existing === entry.provider) continue;
+      this.providers.set(entry.id, entry.provider);
+      this.providerPaths.set(entry.id, entry.paths);
+      changed += 1;
+      if (entry.existing) retired.push({ sourceId: entry.id, provider: entry.existing });
     }
+    this.revisionValue += changed;
+    this.disposeRetired(retired);
   }
 
   providerForSource(sourceId: string): ContentSourceProvider | undefined { return this.providers.get(sourceId); }
@@ -98,6 +136,42 @@ export class CompositeAssetResourceProvider implements AssetResourceProvider, Re
   paths(): readonly string[] { return [...new Set([...this.providerPaths.values()].flat())].sort(); }
 
   private effectiveResource(path: string): ContentSourceProvider | undefined { return this.providerForExactPath(path)[0]; }
+  private findPublicationConflicts(prepared: readonly { readonly id: string; readonly provider: ContentSourceProvider; readonly paths: readonly string[] }[]): ResourceContributionConflict[] {
+    const replacingIds = new Set(prepared.map(({ id }) => id));
+    const candidatesAtPath = (path: string): ContentSourceProvider[] => {
+      const explicit = [...this.providers.values()].filter((candidate) => !replacingIds.has(candidate.source.id) && this.providerPaths.get(candidate.source.id)?.includes(path));
+      if (explicit.length) return explicit;
+      const namespace = /^assets\/([^/]+)\//.exec(path)?.[1] ?? /^data\/([^/]+)\//.exec(path)?.[1];
+      return namespace ? [...this.providers.values()].filter((candidate) => !replacingIds.has(candidate.source.id) && candidate.source.namespaces.includes(namespace) && !(this.providerPaths.get(candidate.source.id)?.length)) : [];
+    };
+    const conflicts: ResourceContributionConflict[] = [];
+    const staged = new Map<string, ContentSourceProvider[]>();
+    for (const entry of prepared) {
+      for (const path of entry.paths) {
+        const existing = candidatesAtPath(path);
+        const previous = staged.get(path);
+        const otherStaged = previous ?? [];
+        const providers = [...existing, ...otherStaged];
+        if (providers.length) {
+          const additiveTag = isTagPath(path) && providers.every((candidate) => !isReplaceTag(candidate.readJson(path))) && !isReplaceTag(entry.provider.readJson(path));
+          if (!additiveTag) conflicts.push({ path, sourceIds: [...providers.map((candidate) => candidate.source.id), entry.id].sort(), kind: isTagPath(path) ? 'tag-replacement' : 'resource-collision' });
+        }
+        if (previous) previous.push(entry.provider);
+        else staged.set(path, [entry.provider]);
+      }
+    }
+    return conflicts;
+  }
+
+  private disposeRetired(retired: readonly { readonly sourceId: string; readonly provider: ContentSourceProvider }[]): void {
+    const failures: ContentSourceCleanupFailure[] = [];
+    for (const { sourceId, provider } of retired) {
+      try { provider.dispose?.(); }
+      catch (error) { failures.push({ sourceId, error }); }
+    }
+    if (failures.length) throw new ContentSourceCleanupError(failures);
+  }
+
   private collectConflicts(): readonly ResourceContributionConflict[] {
     const byPath = new Map<string, ContentSourceProvider[]>();
     for (const provider of this.providers.values()) for (const path of this.providerPaths.get(provider.source.id) ?? []) byPath.set(path, [...(byPath.get(path) ?? []), provider]);

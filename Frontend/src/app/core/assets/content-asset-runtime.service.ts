@@ -10,6 +10,7 @@ import { VanillaAssetProvider, VanillaAssetProviderDiagnostics, VANILLA_ASSET_CA
 import { loadVanillaBlockRegistry } from '../blocks/registry/vanilla-block-registry';
 import { loadVanillaItemRegistry, VanillaItemRegistry } from '../items/registry/vanilla-item-registry';
 import { ContentSourceRegistry, PreparedContentSource } from './content-source/content-source-registry';
+import { ContentSourceCleanupError } from './content-source/composite-asset-provider';
 import { ExternalModProvider } from './mod/external-mod-provider';
 import type { ModImportReport } from './mod/external-mod-import-contracts';
 import { ModImportProgress, PreparedModImport } from './mod/external-mod-importer';
@@ -220,7 +221,7 @@ export class ContentAssetRuntimeService {
     this.transitionThumbnailGeneration(() => {
       this.sources.setActiveVersion(version);
       this.provider.set(provider);
-      if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider);
+      this.publishSourceChange(() => { if (this.sources.providerForSource('vanilla')) this.sources.replace(provider); else this.sources.register(provider); });
       this.replaceVisualProvider();
       this.library.replaceSource(catalog);
       this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
@@ -247,7 +248,7 @@ export class ContentAssetRuntimeService {
   private activateExternal(provider: ExternalModProvider, restoring: boolean): void {
     const catalog = provider.catalog();
     const publish = (): void => {
-      if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider); else this.sources.register(provider);
+      this.publishSourceChange(() => { if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider); else this.sources.register(provider); });
       this.library.replaceSource(catalog);
       this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
     };
@@ -257,7 +258,7 @@ export class ContentAssetRuntimeService {
 
   private commitRestoredExternal(prepared: readonly PreparedContentSource[]): void {
     this.transitionThumbnailGeneration(() => {
-      this.sources.commitBatch(prepared);
+      this.publishSourceChange(() => this.sources.commitBatch(prepared));
       this.replaceVisualProvider();
       this.library.replaceSources(prepared.map((entry) => entry.catalog));
       this.paintingCatalog.replaceSources(prepared.map((entry) => ({ sourceId: entry.provider.source.id, variants: entry.catalog.paintingVariants ?? [] })));
@@ -266,7 +267,7 @@ export class ContentAssetRuntimeService {
 
   private removeExternalSource(sourceId: string): void {
     this.transitionThumbnailGeneration(() => {
-      this.sources.remove(sourceId);
+      this.publishSourceChange(() => { this.sources.remove(sourceId); });
       this.paintingCatalog.removeSource(sourceId);
       this.library.removeSource(sourceId);
       this.replaceVisualProvider();
@@ -282,8 +283,20 @@ export class ContentAssetRuntimeService {
   }
   private clearActiveSources(): void {
     this.thumbnails.clearForContentGeneration();
-    for (const source of this.sources.sources()) { this.sources.remove(source.id); this.library.removeSource(source.id); this.paintingCatalog.removeSource(source.id); }
+    for (const source of this.sources.sources()) {
+      this.publishSourceChange(() => { this.sources.remove(source.id); });
+      this.library.removeSource(source.id);
+      this.paintingCatalog.removeSource(source.id);
+    }
     this.externalMods.clear(); this.provider.set(undefined); this.visualProvider()?.dispose(); this.visualProvider.set(undefined);
+  }
+
+  private publishSourceChange(publish: () => void): void {
+    try { publish(); }
+    catch (error) {
+      if (!(error instanceof ContentSourceCleanupError) || !error.committed) throw error;
+      this.activity.event('cache', error.message, 'warning', 'cache');
+    }
   }
 
   private async restoreExternalMods(version: string, signal?: AbortSignal): Promise<void> {
