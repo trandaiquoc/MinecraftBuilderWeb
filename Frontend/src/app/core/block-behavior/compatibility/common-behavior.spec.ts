@@ -5,6 +5,7 @@ import { evaluateCommonBehavior } from './common-behavior';
 function record(id: string, definitions: readonly BlockStateDefinition[], model = `${id.replace(':', '/')}`, extra: Partial<AssetBlockRecord> = {}): AssetBlockRecord {
   return {
     id,
+    sourceId: 'vanilla',
     displayName: id,
     defaultState: {},
     stateDefinitions: definitions,
@@ -83,6 +84,14 @@ describe('common resource behavior evaluation', () => {
     const result = evaluateCommonBehavior(record('example:unknown', [
       ...(['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['true', 'false'] })),
     ]));
+    expect(result.behavior).toBeUndefined();
+    expect(result.compatible).toBe(false);
+  });
+
+  it('does not use the trusted vanilla fallback for unverified external records', () => {
+    const result = evaluateCommonBehavior(record('examplemod:oak_fence', [
+      { name: 'north', values: ['true', 'false'] },
+    ], 'examplemod:block/oak_fence', { sourceId: 'examplemod' }));
     expect(result.behavior).toBeUndefined();
     expect(result.compatible).toBe(false);
   });

@@ -1,5 +1,7 @@
 import { AssetBlockRecord, BlockBehavior, BlockStateDefinition, DefaultStateSource } from '../../blocks/catalog/block-definition.types';
-import { extractBehaviorFingerprint, matchVanillaBehaviorCandidates, type BehaviorClassificationSummary } from './behavior-fingerprint';
+import { extractBehaviorFingerprint } from './behavior-fingerprint';
+import { matchVanillaBehaviorCandidates } from './behavior-classifier';
+import type { BehaviorClassificationSummary } from './behavior-fingerprint';
 import { GENERIC_BEHAVIOR_PROFILES } from './behavior-profiles';
 
 export interface CommonBehaviorResourceProvider { readJson(path: string): unknown | undefined; }
@@ -38,7 +40,7 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   // recognizers below predate fingerprints and intentionally use compatibility
   // fallbacks for trusted vanilla records; allowing them to run for external
   // content would let an ID/model-name heuristic bypass an Unknown result.
-  if (record.behaviorEvidenceRequired === true) {
+  if (!canUseTrustedVanillaCompatibilityFallback(record)) {
     const reason = candidate.classification.candidates.length
       ? candidate.classification.selectionReason === 'ambiguous'
         ? 'Multiple vanilla behavior candidates remain evidence-ambiguous.'
@@ -130,6 +132,11 @@ export function evaluateCommonBehavior(record: AssetBlockRecord, resources?: Com
   if (stairs.partial && isStairsEvidence(blockstate, record.resources.model, record)) return changed(record, definitions, defaultState, 'stairs', 'Stair state contract differs from the common facing/half/shape properties.');
 
   return { defaultState, stateDefinitions: definitions, defaultStateSource: record.defaultStateSource === 'resource-render-fallback' || usesArbitraryValue(definitions) ? 'resource-render-fallback' : Object.keys(defaultState).length ? 'resource-derived' : 'unknown', compatible: false };
+}
+
+function canUseTrustedVanillaCompatibilityFallback(record: AssetBlockRecord): boolean {
+  return record.behaviorEvidenceRequired !== true
+    && (record.id.startsWith('minecraft:') || record.sourceId === 'vanilla');
 }
 
 function complete(record: AssetBlockRecord, definitions: readonly BlockStateDefinition[], family: string, behavior: BlockBehavior, defaults: Readonly<Record<string, string>>, source: DefaultStateSource, classification?: BehaviorClassificationSummary): CommonBehaviorEvaluation {
