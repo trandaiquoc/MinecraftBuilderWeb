@@ -111,6 +111,7 @@ import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-
 import { blockRenderSignature, canonicalRenderOptions, isolateKey, renderFilterKey } from './viewport-render-signatures';
 import { stableValueKey } from '../../domain/stable-value-key';
 import { ViewportBlockRepresentationStore, type RenderedBlockEntry } from './viewport-block-representation-store';
+import { ViewportBlockIndexOwner } from './viewport-block-index-owner';
 import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, PlacementPlanProvider } from './viewport-engine-contracts';
 type HydrationCancellationReason = 'structure-sync-key-changed' | 'project-identity-changed' | 'in-place-project-mutation' | 'dispose';
 export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
@@ -159,6 +160,7 @@ export function viewportRenderSize(width: number, height: number): { readonly wi
 
 export class ThreeViewportEngine {
   private readonly scene = new THREE.Scene();
+  private readonly blockIndexOwner = new ViewportBlockIndexOwner((name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta));
   private readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
@@ -281,14 +283,12 @@ export class ThreeViewportEngine {
     onVisibilityChange: () => this.onVisibilityChange(),
   });
   private project?: ProjectDocument;
-  private spatialIndex?: ProjectBlockSpatialIndex;
-  private spatialIndexProject?: ProjectDocument;
-  private spatialIndexBlocksReference?: readonly ProjectDocument['blocks'][number][];
+  private get spatialIndex(): ProjectBlockSpatialIndex | undefined { return this.blockIndexOwner.current; }
+  private get spatialIndexProject(): ProjectDocument | undefined { return this.blockIndexOwner.currentProject; }
+  private get spatialIndexBlocksReference(): readonly ProjectDocument['blocks'][number][] | undefined { return this.blockIndexOwner.currentBlocksReference; }
   private layerIndex?: LayerBlockIndex;
   private readonly yLayerProjection: YLayerProjectionCoordinator;
-  private structuralSpecialVisualIds = new Set<string>();
   private cachedBoundsKey = '';
-  private observedSpatialIndexLookups = 0;
   private lastActiveGroupProject?: ProjectDocument;
   private lastActiveGroupId?: string;
   private lastActiveGroupPositions?: readonly VoxelCoordinate[];
@@ -1012,24 +1012,11 @@ export class ThreeViewportEngine {
   }
 
   private ensureSpatialIndex(project: ProjectDocument | undefined, force = false, preserveForIncrementalTransition = false): void {
-    if (!project) { this.spatialIndex = undefined; this.spatialIndexProject = undefined; this.spatialIndexBlocksReference = undefined; this.structuralSpecialVisualIds.clear(); this.observedSpatialIndexLookups = 0; return; }
-    if (preserveForIncrementalTransition && !force && this.spatialIndex) {
-      this.spatialIndexProject = project;
-      this.spatialIndexBlocksReference = project.blocks;
-      return;
-    }
-    if (!force && this.spatialIndexProject === project && this.spatialIndexBlocksReference === project.blocks && this.spatialIndex) return;
-    this.spatialIndex = new ProjectBlockSpatialIndex(project.blocks);
-    this.spatialIndexProject = project;
-    this.spatialIndexBlocksReference = project.blocks;
-    this.observedSpatialIndexLookups = 0;
-    this.structuralSpecialVisualIds = new Set(project.blocks.map((block) => block.id));
-    this.instrumentation.record('spatialIndexBuilds');
+    this.blockIndexOwner.ensure(project, force, preserveForIncrementalTransition);
   }
 
   private collectSpecialVisualDescriptors(plannedBlocks: readonly PlacedBlock[] = []): readonly NormalizedSpecialVisualDescriptor[] {
-    const ids = new Set([...this.structuralSpecialVisualIds, ...(this.activeBlock ? [this.activeBlock.id] : []), ...plannedBlocks.map((block) => block.id)]);
-    return [...ids].flatMap((id) => { const descriptor = this.specialVisualResolver?.(id); return descriptor ? [{ ...descriptor, contentId: id }] : []; });
+    return this.blockIndexOwner.specialVisualIdsFor(this.activeBlock?.id, plannedBlocks).flatMap((id) => { const descriptor = this.specialVisualResolver?.(id); return descriptor ? [{ ...descriptor, contentId: id }] : []; });
   }
 
   private requestReusableVisualKey(provider: BlockVisualProvider, block: PlacedBlock, worldContext: { getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined }): string | undefined {
@@ -1213,9 +1200,7 @@ export class ThreeViewportEngine {
   }
 
   private recordSpatialLookupDelta(): void {
-    const total = this.spatialIndex?.lookups ?? 0;
-    if (total > this.observedSpatialIndexLookups) this.instrumentation.record('spatialIndexLookups', total - this.observedSpatialIndexLookups);
-    this.observedSpatialIndexLookups = total;
+    this.blockIndexOwner.recordLookupDelta();
   }
 
   setRuntimeDiagnosticsEnabled(enabled: boolean): void {
@@ -1665,7 +1650,7 @@ export class ThreeViewportEngine {
       const afterVisible = isBlockVisibleForViewport(after, project, { ...canonicalRenderOptions(options), layerIndex: options.layerIndex ?? this.layerIndex });
       if (beforeVisible !== afterVisible) visibilityChanges.push({ position: after.position, before, after });
       else {
-        this.spatialIndex?.replace(before.position, after);
+        this.blockIndexOwner.replace(before.position, after);
         if (afterVisible) this.yLayerProjection.cacheVisibleEntry(coordinateKey(after.position), this.visibleEntry(after, options));
         const rendered = this.blockRepresentations.get(coordinateKey(after.position));
         if (rendered) this.blockRepresentations.setBlock(rendered.key, after);
@@ -1674,8 +1659,7 @@ export class ThreeViewportEngine {
     if (visibilityChanges.length) {
       this.applyIncrementalMutation(project, options, blockMutationHint(visibilityChanges, hint.source ?? 'group-visibility'));
     } else {
-      this.spatialIndexProject = project;
-      this.spatialIndexBlocksReference = project.blocks;
+      this.blockIndexOwner.adoptProject(project);
       this.yLayerProjection.associateVisibleProjection(project, options);
     }
     this.runtimeTrace?.record('group-metadata-delta', { source: hint.source ?? 'unknown', changedBlocks: hint.changes.length, visibilityChangedBlocks: visibilityChanges.length });
@@ -1816,15 +1800,13 @@ export class ThreeViewportEngine {
         else this.hydrationPipeline.invalidateBlock(afterKey);
         this.hydrationPipeline.syncMissingBlockState(afterKey, change.after.kind === 'missing' ? (this.missingBlocksTerminal ? 'permanent' : 'provisional') : 'resolved');
       }
-      this.spatialIndex?.replace(change.before?.position, change.after);
-      if (change.after) this.structuralSpecialVisualIds.add(change.after.id);
+      this.blockIndexOwner.replace(change.before?.position, change.after);
     }
     this.hydrationPipeline.refreshProgress();
     if (lane === 'content') this.recordMissingAccountingInvariant('content-resolution-delta');
     this.syncSpecialVisualDescriptors();
     this.instrumentation.record('incrementalChangedVoxels', affectedPositions.size);
-    this.spatialIndexProject = project;
-    this.spatialIndexBlocksReference = project.blocks;
+    this.blockIndexOwner.adoptProject(project);
     this.yLayerProjection.associateVisibleProjection(project, options);
     for (const [key, position] of affectedPositions) {
       const block = this.spatialIndex?.get(position);
@@ -2263,10 +2245,7 @@ export class ThreeViewportEngine {
     this.structureSyncState.clear();
     this.decorationSyncKey = '';
     this.syncedDecorationProject = undefined;
-    this.spatialIndex = undefined;
-    this.spatialIndexProject = undefined;
-    this.spatialIndexBlocksReference = undefined;
-    this.structuralSpecialVisualIds.clear();
+    this.blockIndexOwner.clear();
     this.ghostPlan = undefined;
     this.lastHoverVisualKey = '';
     this.decorationGhostKey = '';
