@@ -86,20 +86,21 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.mountViewport();
   });
   private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); this.engine.update(project, this.active.active(), this.renderOptions(project), activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
-  private readonly prewarmInactiveViewport = effect((onCleanup) => {
-    if (!this.viewReady() || this.viewportActive()) return;
+  private readonly prepareViewportResources = effect((onCleanup) => {
+    if (!this.viewReady()) return;
+    const activeViewport = this.viewportActive();
     const project = this.workspace.project();
     const finalization = this.hydrationStatus.finalization();
-    if (!project || !finalization || (!finalization.ready && !finalization.warning)
-      || finalization.progress?.blocksTotal !== project.blocks.length) return;
+    if (!project || !finalization || (!finalization.ready && !finalization.warning)) return;
 
     let cancelled = false;
     let idleWindow: (Window & { cancelIdleCallback?: (handle: number) => void }) | undefined;
     let idleHandle: number | undefined;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const prewarm = (): void => {
-      if (cancelled || this.viewportActive() || this.workspace.project() !== project) return;
-      this.engine.prepareInactiveViewport(project, this.active.active(), this.renderOptions(project));
+      if (cancelled || this.viewportActive() !== activeViewport || this.workspace.project() !== project) return;
+      if (!activeViewport) this.engine.prepareInactiveViewport(project, this.active.active(), this.renderOptions(project));
+      this.engine.prepareYLayerVisualResources(project);
     };
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       idleWindow = window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (handle: number) => void };
@@ -178,7 +179,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prewarmInactiveViewport.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prepareViewportResources.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

@@ -280,6 +280,8 @@ export class ChunkSurfaceRenderer {
     return templates;
   }
 
+  hasTemplates(key: string): boolean { return this.templateStore.has(key); }
+
   upsert(record: TerrainSurfaceRecord, flush = false): boolean {
     if (this.disposed) return false;
     if (record.templates.length !== 6) return false;

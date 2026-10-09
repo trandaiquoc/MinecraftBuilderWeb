@@ -99,6 +99,7 @@ import { GroupHighlightPresenter } from '../presentation/group-highlight-present
 import { StructureBlockGuidePresenter } from '../presentation/structure-block-guide-presenter';
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 import { YLayerProjectionCoordinator, type VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
+import { YLayerVisualPreloader, yieldYLayerPreloadToBrowser, type YLayerVisualPreloadEvidence } from './y-layer-visual-preloader';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
 import { planStructureReconciliation } from './structure-reconciliation-plan';
 import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
@@ -129,6 +130,11 @@ interface ProviderRefreshCandidate {
 }
 interface TerrainHydrationResult extends BlockVisualResult {
   readonly terrainTemplates?: readonly SurfaceFaceTemplate[];
+}
+interface PreparedYLayerVisualResource {
+  readonly reusableKey: string;
+  readonly renderer: 'terrain' | 'instance';
+  readonly compiled?: CompiledInstanceTemplates;
 }
 
 type VisibleBlockEntry = VisibleBlockProjectionEntry;
@@ -287,6 +293,7 @@ export class ThreeViewportEngine {
   private get indexedProject(): ProjectDocument | undefined { return this.blockIndexOwner.currentProject; }
   private layerIndex?: LayerBlockIndex;
   private readonly yLayerProjection: YLayerProjectionCoordinator;
+  private readonly yLayerVisualPreloader: YLayerVisualPreloader<PreparedYLayerVisualResource>;
   private cachedBoundsKey = '';
   private lastActiveGroupProject?: ProjectDocument;
   private lastActiveGroupId?: string;
@@ -687,6 +694,55 @@ export class ThreeViewportEngine {
       recordProviderCacheStats: () => this.recordProviderCacheStats(),
       scheduleRender: () => this.scheduleRender(),
     });
+    this.yLayerVisualPreloader = new YLayerVisualPreloader<PreparedYLayerVisualResource>({
+      hasCached: (key) => this.preloadUsesTerrainTemplates()
+        ? this.terrainRenderer.hasTemplates(key)
+        : this.instanceRenderer.hasTemplate(key),
+      reusableKey: (block) => {
+        const provider = this.visualProvider;
+        return provider?.reusableVisualKey?.(block, { getBlock: (position) => this.blockIndexOwner.get(position) });
+      },
+      create: async (block, key) => {
+        const provider = this.visualProvider;
+        if (!provider) return undefined;
+        const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+        const blocks = this.project?.blocks;
+        const providerGeneration = this.providerGeneration;
+        if (this.preloadUsesTerrainTemplates()) {
+          const templates = await this.terrainPipeline.resolveTemplatesFor(
+            key,
+            () => this.createProviderVisual(provider, block, worldContext),
+            provider,
+            () => this.visualProvider === provider && this.project?.blocks === blocks && this.providerGeneration === providerGeneration,
+          );
+          if (!templates || !this.terrainRenderer.hasTemplates(key)) return undefined;
+          return { value: { reusableKey: key, renderer: 'terrain' }, estimatedBytes: estimateSurfaceTemplateBytes(templates), alreadyCached: true };
+        }
+
+        const releaseProvider = this.blockRepresentationHydration.acquireProviderReference(provider);
+        let visual: TerrainHydrationResult | undefined;
+        try {
+          visual = await this.createProviderVisual(provider, block, worldContext);
+          if (!visual?.object || this.visualProvider !== provider || this.project?.blocks !== blocks || this.providerGeneration !== providerGeneration) return undefined;
+          const prepared = this.instanceRenderer.prepareReusableTemplate(visual.object);
+          return !prepared
+            ? undefined
+            : { value: { reusableKey: key, renderer: 'instance', compiled: prepared.compiled }, estimatedBytes: prepared.estimatedBytes };
+        } finally {
+          releaseProvider();
+          if (visual?.object) disposeObject(visual.object);
+        }
+      },
+      commit: (key, resource) => resource.value.renderer === 'instance' && resource.value.compiled
+        ? this.instanceRenderer.cachePreparedTemplate(key, resource.value.compiled)
+        : true,
+      dispose: (resource) => {
+        if (resource.value.renderer === 'instance' && resource.value.compiled) this.instanceRenderer.disposePreparedTemplate(resource.value.compiled);
+      },
+      isCurrent: (blocks, generation) => !this.disposed && this.project?.blocks === blocks && this.providerGeneration === generation,
+      providerGeneration: () => this.providerGeneration,
+      yieldToBrowser: yieldYLayerPreloadToBrowser,
+    });
     this.hydrationExecutionOwner = new ViewportHydrationExecutionOwner({
       hydrationPipeline: this.hydrationPipeline,
       blockRepresentationHydration: this.blockRepresentationHydration,
@@ -787,6 +843,13 @@ export class ThreeViewportEngine {
 
   get isSuspended(): boolean { return this.suspended; }
 
+  prepareYLayerVisualResources(project: ProjectDocument): void {
+    if (this.disposed || !this.visualProvider || this.project?.id !== project.id || this.project.blocks !== project.blocks) return;
+    void this.yLayerVisualPreloader.start(project.blocks, this.providerGeneration, this.preloadUsesTerrainTemplates() ? 'terrain-surface' : 'static-instance');
+  }
+
+  private preloadUsesTerrainTemplates(): boolean { return this.renderOptions.exposedFaceRendering === true; }
+
   /** Reconciles and hydrates an inactive retained scene without mounting a second WebGL renderer. */
   prepareInactiveViewport(project: ProjectDocument, active: ActiveBlock | undefined, options: ViewportRenderOptions): number {
     if (this.disposed || !this.suspended || this.renderer || this.project !== project) return 0;
@@ -794,6 +857,7 @@ export class ThreeViewportEngine {
     this.suspended = false;
     try {
       this.update(project, active, options);
+      this.prepareYLayerVisualResources(project);
       const sync = this.structureSyncState.snapshot();
       const expectedKey = this.structureSyncState.keyFor(project, renderFilterKey(options));
       const decorationKey = `${project.id}|${renderFilterKey(options)}|${this.decorationVisuals.revision}`;
@@ -914,6 +978,7 @@ export class ThreeViewportEngine {
 
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
+    this.yLayerVisualPreloader.cancel();
     const previousProvider = this.visualProvider;
     const previousProviderGeneration = this.providerGeneration;
     const previousFluidEntries = !provider
@@ -941,6 +1006,7 @@ export class ThreeViewportEngine {
     const requiresStructureResync = !previousProvider || !provider;
     if (requiresStructureResync) this.structureSyncState.invalidateKey();
     if (provider) this.syncSpecialVisualDescriptors();
+    if (this.project) this.prepareYLayerVisualResources(this.project);
     if (previousProvider && provider) {
       if (this.suspended) this.providerRefreshPipeline.defer(previousProvider, provider);
       else this.queueProviderRefresh(previousProvider, provider);
@@ -981,10 +1047,12 @@ export class ThreeViewportEngine {
   }
   setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined, revision?: number): void {
     if (resolver === this.specialVisualResolver && revision === this.specialVisualRevision) return;
+    this.yLayerVisualPreloader.cancel();
     this.specialVisualResolver = resolver;
     this.specialVisualRevision = revision;
     if (this.suspended) {
       this.suspendedNeedsRefresh = true;
+      if (this.project) this.prepareYLayerVisualResources(this.project);
       return;
     }
     if (this.syncSpecialVisualDescriptors()) {
@@ -994,6 +1062,7 @@ export class ThreeViewportEngine {
       this.structureBlockGuideKey = '';
       this.update(this.project, this.activeBlock, this.renderOptions);
     }
+    if (this.project) this.prepareYLayerVisualResources(this.project);
   }
   setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined, revision?: unknown): void {
     if (provider === this.decorationTextureUrl && Object.is(revision, this.decorationTextureRevision)) return;
@@ -1123,6 +1192,7 @@ export class ThreeViewportEngine {
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
     const previousProject = this.project;
+    if (project?.blocks !== previousProject?.blocks) this.yLayerVisualPreloader.cancel();
     const structureState = this.structureSyncState.snapshot();
     const projectChanged = project?.id !== previousProject?.id;
     const previousOptions = this.renderOptions;
@@ -2414,6 +2484,7 @@ export class ThreeViewportEngine {
     this.clearInput();
     this.cancelPendingHover(false);
     this.yLayerProjection.dispose();
+    this.yLayerVisualPreloader.dispose();
     this.cancelHydration('dispose');
     this.blockRepresentationHydration.dispose();
     this.isolationPresentation.dispose();
@@ -2543,6 +2614,10 @@ export class ThreeViewportEngine {
 
   rendererCounters(): RendererCounters {
     return this.instrumentation.snapshot();
+  }
+
+  yLayerVisualPreloadEvidence(): YLayerVisualPreloadEvidence {
+    return this.yLayerVisualPreloader.evidence;
   }
 
   isolationDiagnostics() {
@@ -2870,6 +2945,14 @@ function applyReferenceOpacityToObject(object: THREE.Object3D, opacity: number):
   });
 }
 
+function estimateSurfaceTemplateBytes(templates: readonly SurfaceFaceTemplate[]): number {
+  let byteLength = 0;
+  for (const template of templates) {
+    for (const attribute of Object.values(template.geometry.attributes)) byteLength += attribute.array.byteLength;
+    if (template.geometry.index) byteLength += template.geometry.index.array.byteLength;
+  }
+  return byteLength;
+}
 
 export const mergeInstanceTemplateParts = mergeInstanceTemplatePartsFromCache;
 export const compileInstanceTemplates = compileInstanceTemplatesFromCache;

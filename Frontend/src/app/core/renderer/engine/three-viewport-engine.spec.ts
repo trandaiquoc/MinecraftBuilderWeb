@@ -2309,6 +2309,54 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
+  it.each([false, true] as const)('preloads hidden occupied layers and reuses %s-path visuals when they become visible', async (exposedFaceRendering) => {
+    const base = rendererBenchmarkProject('small');
+    const lower: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} };
+    const upper: PlacedBlock = { kind: 'resolved', id: 'test:mod_block', namespace: 'test', position: { x: 0, y: 1, z: 0 }, state: {}, groupIds: ['hidden'] };
+    const blocks = [lower, upper];
+    const project: ProjectDocument = { ...base, size: { x: 2, y: 2, z: 2 }, blocks, groups: [{ id: 'hidden', name: 'Hidden', visible: false, locked: false }], decorations: [] };
+    const byY = new Map([[0, [lower]], [1, [upper]]]);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const baseProvider = axisCubeProvider();
+    const provider = {
+      ...baseProvider,
+      reusableVisualKey: (block: PlacedBlock) => block.id,
+      create: vi.fn((block: PlacedBlock) => baseProvider.create!(block, { getBlock: () => undefined })),
+    } as unknown as BlockVisualProvider & { create: ReturnType<typeof vi.fn> };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(provider);
+    const currentLayer = { layerY: 0, visibility: 'current-only' as const, layerIndex, exposedFaceRendering };
+    engine.update(project, undefined, currentLayer);
+    await settleHydration(100, engine);
+
+    engine.prepareYLayerVisualResources(project);
+    await waitForYLayerPreload(engine);
+    const preloadEvidence = engine.yLayerVisualPreloadEvidence();
+    expect(preloadEvidence).toMatchObject({ state: 'complete', layersTotal: 2, layersReady: 2 });
+    expect(preloadEvidence.reusableVariantsPrepared).toBeGreaterThan(0);
+    const createsAfterPreload = provider.create.mock.calls.length;
+    const beforeSwitch = engine.rendererCounters();
+
+    engine.update({ ...project, groups: [{ ...project.groups[0], visible: true }] }, undefined, { ...currentLayer, layerY: 1 });
+    await waitForProjectionIdle(engine);
+    await settleHydration(100, engine);
+
+    expect(provider.create).toHaveBeenCalledTimes(createsAfterPreload);
+    expect(engine.rendererCounters().hydrationGenerations).toBe(beforeSwitch.hydrationGenerations + 1);
+    if (exposedFaceRendering) expect(engine.rendererCounters().terrainTemplateCacheHits).toBeGreaterThan(beforeSwitch.terrainTemplateCacheHits);
+    const afterFirstSwitch = engine.rendererCounters();
+    engine.update({ ...project, groups: [{ ...project.groups[0], visible: true }] }, undefined, { ...currentLayer, layerY: 0 });
+    await waitForProjectionIdle(engine);
+    await settleHydration(100, engine);
+    engine.update({ ...project, groups: [{ ...project.groups[0], visible: true }] }, undefined, { ...currentLayer, layerY: 1 });
+    await waitForProjectionIdle(engine);
+    await settleHydration(100, engine);
+    expect(provider.create).toHaveBeenCalledTimes(createsAfterPreload);
+    expect(engine.rendererCounters().fullSceneRebuilds).toBe(afterFirstSwitch.fullSceneRebuilds);
+    engine.dispose();
+  });
+
   it('falls back to a full projection reconcile after an incremental projection slice fails', async () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('medium');
@@ -2487,6 +2535,12 @@ async function settleHydration(rounds = 20, engine?: ThreeViewportEngine): Promi
 
 async function waitForProjectionIdle(engine: ThreeViewportEngine, attempts = 2_000): Promise<void> {
   for (let attempt = 0; attempt < attempts && engine.projectionActivity().activity !== 'idle'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
+async function waitForYLayerPreload(engine: ThreeViewportEngine, attempts = 2_000): Promise<void> {
+  for (let attempt = 0; attempt < attempts && engine.yLayerVisualPreloadEvidence().state === 'preparing'; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }

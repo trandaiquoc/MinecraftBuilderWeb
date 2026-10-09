@@ -2500,3 +2500,33 @@ compiled templates have identical bounds. External blocks with the complete,
 exact door state schema (`facing`, `half`, `hinge`, `open`, `powered`) are now
 accepted as strong structural evidence without requiring a tag or name token.
 Incomplete or conflicting schemas remain fail-closed.
+
+## Y-Layer visual preload and retained terrain templates
+
+Once project hydration reaches a terminal ready/warning state, each retained
+viewport schedules cooperative preparation of reusable visual resources for
+all occupied layers, independent of saved editor mode, current Y, group
+visibility, or visibility mode. Active viewport work retains priority; the
+inactive viewport scene is still prepared separately without constructing a
+second WebGL renderer. The preloader follows the selected representation path:
+compiled static-instance templates for normal block rendering and terrain
+surface templates when exposed-face rendering is enabled. Switching Y does
+not recreate an unchanged visual when its provider supplies a reusable key and
+the visual is accepted by that representation path. Existing in-flight
+terrain template resolution is shared with the terrain workflow.
+
+Preload evidence is deliberately distinct from visible hydration completion:
+it reports visited blocks, ready occupied layers, reusable variants, and an
+estimated geometry-template byte count. It does not claim that a layer has
+been presented by the GPU. GPU presentation readiness requires a mounted
+renderer and a successful frame and is not available for a retained inactive
+viewport. The cooperative preloader reports `partial` if non-reusable,
+failed, or over-budget resources prevent complete reusable-template coverage;
+its acceptance threshold is 4,096 variants and an estimated 64 MiB of newly
+prepared geometry. This is not a hard aggregate memory ceiling: reusable
+templates are owned by the existing engine caches, active scene records may
+retain templates, and provider model/texture and GPU allocations are separate.
+No generalized cache eviction policy is introduced here; caches are released
+with engine disposal. Provider/project generation and representation-scope
+changes cancel stale work, and resource equivalence remains governed by the
+provider reusable-key contract.

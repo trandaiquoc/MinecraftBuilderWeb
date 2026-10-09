@@ -310,6 +310,81 @@ describe('explicit renderer benchmark', () => {
     engine.dispose();
   });
 
+  it('measures all-layer visual preload and visibility reuse for the opt-in 110k fixture', { timeout: 300000 }, async () => {
+    const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['Y_LAYER_PRELOAD_BENCHMARK'] === '1';
+    if (!benchmarkEnabled) return;
+    const baseProject = rendererBenchmarkProject('mega');
+    const project = { ...baseProject, blocks: baseProject.blocks.map((block) => ({ ...block, id: 'minecraft:stone', namespace: 'minecraft', state: {} })) };
+    const byY = new Map<number, ReturnType<typeof benchmarkBlock>[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    const diagnostics = new RendererDiagnostics();
+    const engine = new ThreeViewportEngine(diagnostics);
+    const provider = rendererBenchmarkVisualProvider();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(provider);
+    const options = (layerY: number, visibility: 'current-only' | 'all-below' | 'whole-structure') => ({ layerY, visibility, layerIndex });
+    const time = async (name: string, operation: () => Promise<void>): Promise<number> => {
+      const started = performance.now();
+      await operation();
+      const elapsed = performance.now() - started;
+      console.info(`[y-layer preload benchmark] ${name}=${elapsed.toFixed(1)}ms`);
+      return elapsed;
+    };
+    const switchLayer = async (layerY: number): Promise<void> => {
+      engine.update(project, undefined, options(layerY, 'current-only'));
+      await waitForProjection(engine);
+      await settleHydration(300, engine);
+    };
+    const initialStarted = performance.now();
+    engine.update(project, undefined, options(24, 'current-only'));
+    await settleHydration(300, engine);
+    const initial = performance.now() - initialStarted;
+    console.info(`[y-layer preload benchmark] initial-current-layer-hydration=${initial.toFixed(1)}ms`);
+    const coldSwitch = await time('first-switch-before-preload', () => switchLayer(47));
+    await switchLayer(24);
+    const preloadTime = await time('all-occupied-layer-preload', async () => {
+      engine.prepareYLayerVisualResources(project);
+      await waitForYLayerPreload(engine);
+    });
+    const preload = engine.yLayerVisualPreloadEvidence();
+    expect(preload.blocksTotal).toBe(110_592);
+    expect(preload.blocksVisited).toBe(110_592);
+    expect(preload.layersTotal).toBe(48);
+    expect(preload.layersReady).toBe(48);
+    expect(preload.state).toBe('complete');
+    const createsBeforeWarmSwitch = engine.rendererCounters().providerObjectCreations;
+    const warmSwitch = await time('first-switch-after-preload', () => switchLayer(47));
+    const createsAfterWarmSwitch = engine.rendererCounters().providerObjectCreations;
+    await time('repeated-switch', async () => { await switchLayer(24); await switchLayer(47); });
+
+    const beforeExpand = diagnostics.snapshot();
+    const allBelow = await time('expand-all-below', async () => {
+      engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 24, layerVisibility: 'all-below' } }, undefined, options(24, 'all-below'));
+      await waitForProjection(engine);
+    });
+    const belowCount = (engine as unknown as { yLayerProjection: { visibleEntries: readonly unknown[] } }).yLayerProjection.visibleEntries.length;
+    const whole = await time('expand-all-below-to-whole', async () => {
+      engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 24, layerVisibility: 'whole-structure' } }, undefined, options(24, 'whole-structure'));
+      await waitForProjection(engine);
+    });
+    const wholeCount = (engine as unknown as { yLayerProjection: { visibleEntries: readonly unknown[] } }).yLayerProjection.visibleEntries.length;
+    const contract = await time('contract-whole-to-current-only', async () => {
+      engine.update(project, undefined, options(24, 'current-only'));
+      await waitForProjection(engine);
+    });
+    const afterVisibility = diagnostics.snapshot();
+    expect(wholeCount).toBe(110_592);
+    expect(wholeCount).toBeGreaterThan(belowCount);
+    expect(afterVisibility.fullSceneRebuilds - beforeExpand.fullSceneRebuilds).toBe(0);
+    expect(engine.rendererCounters().providerObjectCreations).toBe(createsAfterWarmSwitch);
+    const processMemory = (globalThis as { process?: { memoryUsage?: () => { heapUsed: number; rss: number } } }).process?.memoryUsage?.();
+    console.info(`[y-layer preload benchmark] summary=${JSON.stringify({ blocks: project.blocks.length, preload, initialMs: initial, coldSwitchMs: coldSwitch, warmSwitchMs: warmSwitch, allBelowMs: allBelow, wholeExpansionMs: whole, contractionMs: contract, providerObjectCreationsBeforeWarmSwitch: createsBeforeWarmSwitch, providerObjectCreationsAfterWarmSwitch: createsAfterWarmSwitch, providerObjectCreationsAfterVisibility: engine.rendererCounters().providerObjectCreations, projectionCounters: { slices: afterVisibility.yLayerProjectionSlices - beforeExpand.yLayerProjectionSlices, changedBlocks: afterVisibility.yLayerProjectionChangedBlocks - beforeExpand.yLayerProjectionChangedBlocks, yields: afterVisibility.yLayerProjectionYields - beforeExpand.yLayerProjectionYields }, processMemory, gpuPresentation: 'not measurable in Vitest without WebGL/browser' })}`);
+    expect(initial).toBeGreaterThanOrEqual(0);
+    engine.dispose();
+    provider.dispose();
+  });
+
   it('measures generic chunked fluid representation when explicitly requested', { timeout: 120000 }, async () => {
     const benchmarkEnabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['FLUID_BENCHMARK'] === '1';
     if (!benchmarkEnabled) return;
@@ -343,6 +418,15 @@ async function settleHydration(rounds: number, engine: ThreeViewportEngine): Pro
     const hydration = engine.runtimeTraceSample().hydration;
     if (hydration && hydration['queued'] === 0 && hydration['running'] === 0) return;
   }
+}
+
+async function waitForYLayerPreload(engine: ThreeViewportEngine, attempts = 30_000): Promise<void> {
+  for (let index = 0; index < attempts && engine.yLayerVisualPreloadEvidence().state === 'preparing'; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function waitForProjection(engine: ThreeViewportEngine, attempts = 30_000): Promise<void> {
+  for (let index = 0; index < attempts && engine.projectionActivity().activity !== 'idle'; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(engine.projectionActivity().activity).toBe('idle');
 }
 
 function countObjectsWithUserData(root: THREE.Object3D, key: string): number {

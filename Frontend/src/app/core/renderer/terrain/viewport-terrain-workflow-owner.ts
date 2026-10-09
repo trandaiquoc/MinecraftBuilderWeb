@@ -104,6 +104,7 @@ export class ViewportTerrainWorkflowOwner {
     key: string,
     create: () => Promise<HydratedBlockVisualResult>,
     provider?: BlockVisualProvider,
+    canCommit: () => boolean = () => true,
   ): Promise<readonly SurfaceFaceTemplate[] | undefined> {
     if (this.disposed) return Promise.reject(new Error('Terrain workflow is disposed'));
     return this.batches.resolve(key, () => {
@@ -114,9 +115,10 @@ export class ViewportTerrainWorkflowOwner {
         disposeObject(visual.object);
         return templates;
       }).then((templates) => {
-        if (this.disposed) {
+        if (this.disposed || !canCommit()) {
           if (templates) this.ports.visual.disposeTemplates(templates);
-          throw new Error('Terrain workflow was disposed during template resolution');
+          if (this.disposed) throw new Error('Terrain workflow was disposed during template resolution');
+          return undefined;
         }
         if (templates) this.ports.renderer.cacheTemplates(key, templates);
         return templates;

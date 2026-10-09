@@ -82,21 +82,22 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     this.engine.restoreCamera(this.cameraState.get('y-layer', this.workspace.project()?.id), this.workspace.project()?.id);
     this.viewportMounted = true;
   });
-  private readonly prewarmInactiveProjection = effect((onCleanup) => {
-    if (!this.viewReady() || this.viewportActive()) return;
+  private readonly prepareViewportResources = effect((onCleanup) => {
+    if (!this.viewReady()) return;
+    const activeViewport = this.viewportActive();
     const project = this.workspace.project();
     const finalization = this.hydrationStatus.finalization();
-    if (!project || !finalization || (!finalization.ready && !finalization.warning)
-      || finalization.progress?.blocksTotal !== project.blocks.length) return;
+    if (!project || !finalization || (!finalization.ready && !finalization.warning)) return;
 
     let cancelled = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let idleWindow: (Window & { cancelIdleCallback?: (handle: number) => void }) | undefined;
     let idleHandle: number | undefined;
     const prewarm = (): void => {
-      if (cancelled || this.viewportActive() || this.workspace.project() !== project) return;
+      if (cancelled || this.viewportActive() !== activeViewport || this.workspace.project() !== project) return;
       this.layerIndex.ensure(project);
-      this.engine.prepareInactiveViewport(project, this.active.active(), this.renderOptions(project));
+      if (!activeViewport) this.engine.prepareInactiveViewport(project, this.active.active(), this.renderOptions(project));
+      this.engine.prepareYLayerVisualResources(project);
     };
 
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
@@ -123,7 +124,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); this.viewReady.set(true); }
-  ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prewarmInactiveProjection.destroy(); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prepareViewportResources.destroy(); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }

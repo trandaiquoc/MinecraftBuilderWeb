@@ -90,6 +90,29 @@ export class StaticModelBatchRenderer {
     return template;
   }
 
+  hasTemplate(key: string): boolean { return this.templateCache.has(key); }
+
+  prepareReusableTemplate(object: THREE.Object3D): { readonly compiled: CompiledInstanceTemplates; readonly estimatedBytes: number } | undefined {
+    const classification = classifyStaticModel(object, this.options.instrumentation);
+    if (!classification.compiled) { this.reject(classification.kind); return undefined; }
+    return { compiled: classification.compiled, estimatedBytes: compiledTemplateBytes(classification.compiled) };
+  }
+
+  cachePreparedTemplate(key: string, compiled: CompiledInstanceTemplates): boolean {
+    if (this.templateCache.has(key)) {
+      disposeCompiledTemplate(compiled);
+      return true;
+    }
+    this.templateCache.set(key, compiled);
+    this.templateCacheMisses += 1;
+    this.options.instrumentation.record('reusableTemplateCreations');
+    return true;
+  }
+
+  disposePreparedTemplate(compiled: CompiledInstanceTemplates): void {
+    disposeCompiledTemplate(compiled);
+  }
+
   tryAdd(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey: string | undefined, source: 'provider-async' | 'cached-template' = 'provider-async', renderRole: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
     const cached = reusableKey ? this.templateCache.get(reusableKey) : undefined;
     if (cached) {
@@ -146,11 +169,7 @@ export class StaticModelBatchRenderer {
   clearTemplates(): void {
     const compiled = [...this.templateCache.values()];
     this.templateCache.clear();
-    for (const item of compiled) for (const template of item.templates) {
-      template.material.dispose();
-      if (template.ownsGeometry) template.geometry.dispose();
-      else if (template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
-    }
+    for (const item of compiled) disposeCompiledTemplate(item);
   }
 
   resetMetrics(): void {
@@ -163,4 +182,20 @@ export class StaticModelBatchRenderer {
   setReferenceOpacity(opacity: number): void { this.delegate.setReferenceOpacity(opacity); }
 
   private reject(kind: StaticModelClassificationKind): void { this.rejectionCounts.set(kind, (this.rejectionCounts.get(kind) ?? 0) + 1); }
+}
+
+function compiledTemplateBytes(compiled: CompiledInstanceTemplates): number {
+  let bytes = 0;
+  for (const template of compiled.templates) {
+    for (const attribute of Object.values(template.geometry.attributes)) bytes += attribute.array.byteLength;
+    if (template.geometry.index) bytes += template.geometry.index.array.byteLength;
+  }
+  return bytes;
+}
+
+function disposeCompiledTemplate(compiled: CompiledInstanceTemplates): void {
+  for (const template of compiled.templates) {
+    template.material.dispose();
+    if (template.ownsGeometry || template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
+  }
 }
