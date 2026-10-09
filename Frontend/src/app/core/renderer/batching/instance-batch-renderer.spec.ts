@@ -4,6 +4,50 @@ import { InstanceBatchRenderer } from './instance-batch-renderer';
 import { RenderRegionPolicy } from './render-region-policy';
 
 describe('InstanceBatchRenderer', () => {
+  it('toggles a voxel presentation without removing its batch membership', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new InstanceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => '0,0,0', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), record: () => undefined, getEntry: () => undefined });
+    renderer.addFromTemplates([{ geometry, material, matrix: new THREE.Matrix4() }], { x: 2, y: 3, z: 4 }, 'voxel');
+    const batch = [...renderer.batches.values()][0];
+    const matrix = new THREE.Matrix4();
+
+    expect(renderer.setMemberVisible('voxel', false)).toBe(true);
+    batch.parts[0].getMatrixAt(0, matrix);
+    expect(matrix.determinant()).toBe(0);
+    expect(batch.keys).toEqual(['voxel']);
+    expect(renderer.ownershipIndex.get('voxel')).toMatchObject({ batchKey: batch.key, index: 0 });
+
+    expect(renderer.setMemberVisible('voxel', true)).toBe(true);
+    batch.parts[0].getMatrixAt(0, matrix);
+    expect(matrix.determinant()).not.toBe(0);
+    expect(batch.keys).toEqual(['voxel']);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
+  it('preserves a hidden member when swap-back removal moves it to another index', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new InstanceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => '0,0,0', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), record: () => undefined, getEntry: () => undefined });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+    renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'removed');
+    renderer.addFromTemplates(templates, { x: 1, y: 0, z: 0 }, 'hidden');
+    renderer.setMemberVisible('hidden', false);
+    renderer.remove('removed', undefined);
+
+    const batch = [...renderer.batches.values()][0];
+    const matrix = new THREE.Matrix4();
+    batch.parts[0].getMatrixAt(0, matrix);
+    expect(batch.keys).toEqual(['hidden']);
+    expect(matrix.determinant()).toBe(0);
+    renderer.setMemberVisible('hidden', true);
+    batch.parts[0].getMatrixAt(0, matrix);
+    expect(matrix.determinant()).not.toBe(0);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
   it('does not scan every batch when asked to clear an unindexed key', () => {
     const group = new THREE.Group();
     const geometry = new THREE.BoxGeometry(1, 1, 1);

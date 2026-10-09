@@ -4,6 +4,28 @@ import { SurfaceFaceBatchRenderer, SurfaceFaceTemplate } from './surface-face-ba
 import { RenderRegionPolicy } from './render-region-policy';
 
 describe('SurfaceFaceBatchRenderer', () => {
+  it('hides and restores all retained face memberships without removing them', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new SurfaceFaceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => '0,0,0', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), unitEnvelope: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(1, 1, 1)), record: () => undefined, getEntry: () => undefined });
+    const templates: SurfaceFaceTemplate[] = (['north', 'east', 'south', 'west', 'up', 'down'] as const).map((direction) => ({ geometry, material, direction, matrix: new THREE.Matrix4() }));
+    const memberships = renderer.add({ position: { x: 1, y: 2, z: 3 } }, 'voxel', templates, new Set(['north', 'up']));
+    const batch = renderer.batches.get(memberships![0].batchKey)!;
+    const matrix = new THREE.Matrix4();
+
+    expect(renderer.setMemberVisible('voxel', false)).toBe(true);
+    batch.mesh.getMatrixAt(memberships![0].index, matrix);
+    expect(matrix.determinant()).toBe(0);
+    expect(batch.keys).toEqual(['voxel', 'voxel']);
+    expect(renderer.ownership.get('voxel')).toEqual(memberships);
+
+    expect(renderer.setMemberVisible('voxel', true)).toBe(true);
+    batch.mesh.getMatrixAt(memberships![0].index, matrix);
+    expect(matrix.determinant()).not.toBe(0);
+    renderer.clear([]); geometry.dispose(); material.dispose();
+  });
+
   it('tracks all exposed memberships and removes them safely', () => {
     const group = new THREE.Group();
     const geometry = new THREE.PlaneGeometry(1, 1);

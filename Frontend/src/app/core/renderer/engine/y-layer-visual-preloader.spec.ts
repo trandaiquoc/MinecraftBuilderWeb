@@ -34,7 +34,7 @@ describe('YLayerVisualPreloader', () => {
 
     const evidence = await subject.preloader.start(blocks, 1);
 
-    expect(evidence).toMatchObject({ state: 'complete', blocksVisited: 4, layersTotal: 3, layersReady: 3, reusableVariantsPrepared: 2 });
+    expect(evidence).toMatchObject({ state: 'templates-ready', templateState: 'ready', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent', blocksVisited: 4, layersTotal: 3, layersReady: 3, reusableVariantsPrepared: 2 });
     expect(subject.create).toHaveBeenCalledTimes(2);
   });
 

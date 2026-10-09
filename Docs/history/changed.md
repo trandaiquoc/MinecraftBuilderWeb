@@ -2515,13 +2515,16 @@ not recreate an unchanged visual when its provider supplies a reusable key and
 the visual is accepted by that representation path. Existing in-flight
 terrain template resolution is shared with the terrain workflow.
 
-Preload evidence is deliberately distinct from visible hydration completion:
-it reports visited blocks, ready occupied layers, reusable variants, and an
-estimated geometry-template byte count. It does not claim that a layer has
-been presented by the GPU. GPU presentation readiness requires a mounted
-renderer and a successful frame and is not available for a retained inactive
-viewport. The cooperative preloader reports `partial` if non-reusable,
-failed, or over-budget resources prevent complete reusable-template coverage;
+Preload evidence is deliberately distinct from representation and GPU
+presentation readiness. Its terminal state is `templates-ready` only when
+every occupied layer has reusable template coverage; the evidence separately
+reports `representationState: viewport-lazy` and
+`gpuPresentationState: viewport-dependent`. It does not claim that a layer
+has rendered memberships or has been presented by the GPU. GPU presentation
+readiness requires a mounted renderer and a successful frame and is not
+available for a retained inactive viewport. The cooperative preloader reports
+`partial` if non-reusable, failed, or over-budget resources prevent complete
+reusable-template coverage;
 its acceptance threshold is 4,096 variants and an estimated 64 MiB of newly
 prepared geometry. This is not a hard aggregate memory ceiling: reusable
 templates are owned by the existing engine caches, active scene records may
@@ -2530,3 +2533,15 @@ No generalized cache eviction policy is introduced here; caches are released
 with engine disposal. Provider/project generation and representation-scope
 changes cancel stale work, and resource equivalence remains governed by the
 provider reusable-key contract.
+
+## Y-Layer block representation residency follow-up
+
+Projection contraction now hides reusable instance, exposed-surface, and
+standalone object representations while retaining their canonical entries.
+Expansion restores the same physical memberships, and runtime hydration
+evidence separates visible `renderedBlockCount` from `residentBlockCount`.
+Retention is permitted only while the canonical voxel still exists with the
+same render signature; deletion or changed content follows normal disposal.
+Terrain and fluid chunk representations are not retained by this path and can
+still incur chunk work when projection visibility changes. No claim is made
+that all-layer representations or GPU presentation are preloaded.

@@ -7,10 +7,11 @@ export interface BlockRepresentationResourceOwnerPorts {
   readonly store: ViewportBlockRepresentationStore;
   readonly blocksGroup: THREE.Group;
   readonly terrain: { readonly has: (key: string) => boolean; readonly remove: (key: string) => void; readonly clear: () => void; readonly dispose: () => void };
-  readonly surface: { readonly ownership: ReadonlyMap<string, unknown>; readonly remove: (key: string, entry?: RenderedBlockEntry) => void; readonly clear: (entries: Iterable<RenderedBlockEntry>) => void };
+  readonly surface: { readonly ownership: ReadonlyMap<string, unknown>; readonly setVisible: (key: string, visible: boolean) => boolean; readonly remove: (key: string, entry?: RenderedBlockEntry) => void; readonly clear: (entries: Iterable<RenderedBlockEntry>) => void };
   readonly instance: {
     readonly ownershipIndex: ReadonlyMap<string, unknown>;
     readonly memberships: (key: string, scanAll?: boolean) => readonly unknown[];
+    readonly setVisible: (key: string, visible: boolean) => boolean;
     readonly remove: (key: string, entry: RenderedBlockEntry, source: 'rollback' | 'reconcile') => void;
     readonly removeOrphaned: (key: string, source: 'rollback' | 'reconcile', entry?: RenderedBlockEntry) => void;
     readonly reconcile: (entries: ReadonlyMap<string, RenderedBlockEntry>) => void;
@@ -56,6 +57,18 @@ export class BlockRepresentationResourceOwner {
     }
     this.ports.store.removeIfRevision(key, removalRevision);
     this.ports.trace('after-remove-entry', key, 'reconcile', entry);
+  }
+
+  setPresentationVisible(key: string, entry: RenderedBlockEntry, visible: boolean): boolean {
+    if (entry.fluidChunkKey !== undefined || entry.terrainChunkKey !== undefined || this.ports.terrain.has(key)) return false;
+    if (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key)) {
+      if (!this.ports.instance.setVisible(key, visible)) return false;
+    } else if (entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key)) {
+      if (!this.ports.surface.setVisible(key, visible)) return false;
+    } else if (entry.object) entry.object.visible = visible;
+    else return false;
+    this.ports.store.setPresentationVisible(key, visible);
+    return true;
   }
 
   /**

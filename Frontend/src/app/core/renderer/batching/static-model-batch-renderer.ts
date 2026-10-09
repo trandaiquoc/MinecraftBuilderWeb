@@ -92,6 +92,8 @@ export class StaticModelBatchRenderer {
 
   hasTemplate(key: string): boolean { return this.templateCache.has(key); }
 
+  setMemberVisible(key: string, visible: boolean): boolean { return this.delegate.setMemberVisible(key, visible); }
+
   prepareReusableTemplate(object: THREE.Object3D): { readonly compiled: CompiledInstanceTemplates; readonly estimatedBytes: number } | undefined {
     const classification = classifyStaticModel(object, this.options.instrumentation);
     if (!classification.compiled) { this.reject(classification.kind); return undefined; }

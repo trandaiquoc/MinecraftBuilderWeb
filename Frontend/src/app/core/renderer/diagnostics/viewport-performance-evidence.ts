@@ -13,6 +13,8 @@ export interface ViewportPerformanceEvidencePort {
   readonly fluidDiagnostics: ReturnType<FluidRenderCoordinator['diagnostics']>;
   readonly lastRendererMetrics: { readonly calls: number; readonly triangles: number; readonly geometries: number; readonly textures: number; readonly lines: number; readonly points: number };
   readonly renderedBlocks: number;
+  readonly residentBlocks: number;
+  readonly terrainHydrationQueue: number;
   readonly renderedDecorations: number;
   readonly renderRegionSize: number;
   readonly instanceBatchCount: number;
@@ -36,6 +38,8 @@ export function collectPerformanceEvidence(port: ViewportPerformanceEvidencePort
       geometries: port.lastRendererMetrics.geometries,
       textures: port.lastRendererMetrics.textures,
       renderedBlocks: port.renderedBlocks,
+      residentBlocks: port.residentBlocks,
+      terrainHydrationQueue: port.terrainHydrationQueue,
       renderedDecorations: port.renderedDecorations,
       object3dCount: renderCost.object3dCount,
       meshCount: renderCost.meshCount,

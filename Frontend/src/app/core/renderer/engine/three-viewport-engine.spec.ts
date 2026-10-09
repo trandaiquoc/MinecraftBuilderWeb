@@ -2333,7 +2333,7 @@ describe('selection visualization scalability', () => {
     engine.prepareYLayerVisualResources(project);
     await waitForYLayerPreload(engine);
     const preloadEvidence = engine.yLayerVisualPreloadEvidence();
-    expect(preloadEvidence).toMatchObject({ state: 'complete', layersTotal: 2, layersReady: 2 });
+    expect(preloadEvidence).toMatchObject({ state: 'templates-ready', templateState: 'ready', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent', layersTotal: 2, layersReady: 2 });
     expect(preloadEvidence.reusableVariantsPrepared).toBeGreaterThan(0);
     const createsAfterPreload = provider.create.mock.calls.length;
     const beforeSwitch = engine.rendererCounters();
@@ -2354,6 +2354,53 @@ describe('selection visualization scalability', () => {
     await settleHydration(100, engine);
     expect(provider.create).toHaveBeenCalledTimes(createsAfterPreload);
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(afterFirstSwitch.fullSceneRebuilds);
+    engine.dispose();
+  });
+
+  it('retains stable Y-layer representations across Whole -> Current -> Whole without hydration or membership churn', async () => {
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} },
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 1, z: 0 }, state: {} },
+    ];
+    const project: ProjectDocument = { ...base, blocks, decorations: [], groups: [] };
+    const byY = new Map([[0, [blocks[0]] as PlacedBlock[]], [1, [blocks[1]] as PlacedBlock[]]]);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const baseProvider = axisCubeProvider();
+    const provider = {
+      ...baseProvider,
+      create: vi.fn((block: PlacedBlock, world?: Parameters<NonNullable<BlockVisualProvider['create']>>[1]) => baseProvider.create!(block, world)),
+    } as BlockVisualProvider & { create: ReturnType<typeof vi.fn> };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex });
+    await settleHydration(100, engine);
+    const prepared = engine.rendererCounters();
+    const created = provider.create.mock.calls.length;
+
+    engine.update(project, undefined, { layerY: 0, visibility: 'current-only', layerIndex });
+    await waitForProjectionIdle(engine);
+    await settleHydration(100, engine);
+    const contracted = engine.rendererCounters();
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ expectedVisibleVoxelCount: 1, renderedVoxelCount: 1 });
+    expect(engine.runtimeTraceSample().hydration).toMatchObject({ renderedBlockCount: 1, residentBlockCount: 2 });
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex });
+    await waitForProjectionIdle(engine);
+    await settleHydration(100, engine);
+    const expanded = engine.rendererCounters();
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ expectedVisibleVoxelCount: 2, renderedVoxelCount: 2 });
+    expect(engine.runtimeTraceSample().hydration).toMatchObject({ renderedBlockCount: 2, residentBlockCount: 2 });
+
+    expect(provider.create).toHaveBeenCalledTimes(created);
+    expect(expanded.blockVisualCreations).toBe(prepared.blockVisualCreations);
+    expect(expanded.regularHydrationStarted).toBe(prepared.regularHydrationStarted);
+    expect(expanded.blockRemovals).toBe(prepared.blockRemovals);
+    expect(expanded.instancedBlockAdds - prepared.instancedBlockAdds).toBe(0);
+    expect(expanded.instancedBlockRemovals - prepared.instancedBlockRemovals).toBe(0);
+    expect(contracted.blockVisualCreations).toBe(prepared.blockVisualCreations);
+    const retained = engine as unknown as { blockRepresentations: Map<string, { presentationVisible?: boolean }> };
+    expect([...retained.blockRepresentations.values()].filter((entry) => entry.presentationVisible === false)).toHaveLength(0);
     engine.dispose();
   });
 

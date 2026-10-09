@@ -51,8 +51,10 @@ export interface SurfaceFaceBatchRendererOptions {
 export class SurfaceFaceBatchRenderer {
   private readonly batchStore = new Map<string, SurfaceFaceBatch>();
   private readonly ownershipStore = new Map<string, SurfaceFaceMembership[]>();
+  private readonly hiddenKeys = new Set<string>();
   private readonly templateStore = new Map<string, readonly SurfaceFaceTemplate[]>();
   private readonly translation = new THREE.Matrix4();
+  private readonly hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(private readonly options: SurfaceFaceBatchRendererOptions) {}
 
@@ -61,6 +63,23 @@ export class SurfaceFaceBatchRenderer {
   get templateCache(): ReadonlyMap<string, readonly SurfaceFaceTemplate[]> { return this.templateStore; }
   templatesFor(key: string): readonly SurfaceFaceTemplate[] | undefined { return this.templateStore.get(key); }
   cacheTemplates(key: string, templates: readonly SurfaceFaceTemplate[]): void { this.templateStore.set(key, templates); }
+
+  setMemberVisible(key: string, visible: boolean): boolean {
+    const memberships = this.ownershipStore.get(key);
+    if (!memberships) return false;
+    if (visible) this.hiddenKeys.delete(key);
+    else this.hiddenKeys.add(key);
+    for (const membership of memberships) {
+      const batch = this.batchStore.get(membership.batchKey);
+      if (!batch) continue;
+      if (visible) {
+        const position = batch.positions[membership.index];
+        batch.mesh.setMatrixAt(membership.index, this.translation.makeTranslation(position.x, position.y, position.z).multiply(batch.template.matrix));
+      } else batch.mesh.setMatrixAt(membership.index, this.hiddenMatrix);
+      batch.mesh.instanceMatrix.needsUpdate = true;
+    }
+    return true;
+  }
 
   add(block: { readonly position: VoxelCoordinate }, key: string, templates: readonly SurfaceFaceTemplate[], exposed: ReadonlySet<SurfaceFaceDirection>): readonly SurfaceFaceMembership[] | undefined {
     if (templates.length !== 6) return undefined;
@@ -109,6 +128,7 @@ export class SurfaceFaceBatchRenderer {
       memberships.push({ batchKey, index });
     }
     this.ownershipStore.set(key, memberships);
+    this.hiddenKeys.delete(key);
     this.options.record('surfaceFastPathBlocks');
     this.options.record('exposedFaceInstances', memberships.length);
     this.options.record('neighborFacesCulled', 6 - memberships.length);
@@ -119,6 +139,7 @@ export class SurfaceFaceBatchRenderer {
     const memberships = this.ownershipStore.get(key) ?? entry?.surfaceFaceMemberships ?? [];
     for (const membership of [...memberships].sort((left, right) => right.index - left.index)) this.removeMembership(membership.batchKey, membership.index, key);
     this.ownershipStore.delete(key);
+    this.hiddenKeys.delete(key);
     if (entry?.surfaceFaceMemberships !== undefined) {
       this.options.record('surfaceFastPathBlocks', -1);
       this.options.record('exposedFaceInstances', -(entry.surfaceExposedFaceCount ?? memberships.length));
@@ -184,6 +205,7 @@ export class SurfaceFaceBatchRenderer {
     }
     this.batchStore.clear();
     this.ownershipStore.clear();
+    this.hiddenKeys.clear();
     for (const templates of this.templateStore.values()) for (const template of templates) { template.geometry.dispose(); template.material.dispose(); }
     this.templateStore.clear();
   }

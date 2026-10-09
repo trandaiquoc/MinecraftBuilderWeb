@@ -38,6 +38,7 @@ export interface InstanceBatchRendererOptions {
 export class InstanceBatchRenderer {
   private readonly batchStore = new Map<string, InstanceBatch>();
   private readonly ownershipStore = new Map<string, { readonly batchKey: string; readonly index: number }>();
+  private readonly hiddenKeys = new Set<string>();
   private readonly translation = new THREE.Matrix4();
   private readonly transformed = new THREE.Matrix4();
 
@@ -100,6 +101,7 @@ export class InstanceBatchRenderer {
     this.options.trace?.('before-insert', key, source);
     if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
     else if (this.ownershipStore.has(key)) this.removeOrphaned(key, 'reconcile', existingEntry);
+    this.hiddenKeys.delete(key);
     const index = batch.keys.length;
     const copiedPosition = { ...position };
     batch.keys.push(key);
@@ -132,6 +134,16 @@ export class InstanceBatchRenderer {
         for (const material of materials) { material.transparent = true; material.opacity = this.referenceOpacity; material.needsUpdate = true; }
       }
     }
+  }
+
+  setMemberVisible(key: string, visible: boolean): boolean {
+    const membership = this.ownershipStore.get(key);
+    const batch = membership ? this.batchStore.get(membership.batchKey) : undefined;
+    if (!membership || !batch) return false;
+    if (visible) this.hiddenKeys.delete(key);
+    else this.hiddenKeys.add(key);
+    this.writeMemberMatrices(batch, membership.index, key, visible);
+    return true;
   }
 
   remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void {
@@ -188,23 +200,26 @@ export class InstanceBatchRenderer {
       const movedPosition = batch.positions[last];
       batch.keys[index] = movedKey;
       batch.positions[index] = movedPosition;
+      for (const part of batch.parts) {
+        const keys = part.userData['instanceKeys'] as string[];
+        const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[];
+        keys[index] = movedKey;
+        voxels[index] = { ...movedPosition };
+      }
       const movedEntry = this.options.getEntry(movedKey);
       if (movedEntry?.instanceBatchKey === batchKey) this.options.setEntryObject?.(movedKey, batchKey, index, batch.parts[0]);
       this.ownershipStore.set(movedKey, { batchKey, index });
-      const translation = this.translation.makeTranslation(movedPosition.x, movedPosition.y, movedPosition.z);
-      batch.parts.forEach((part, partIndex) => {
-        this.transformed.copy(translation).multiply(batch.templates[partIndex].matrix);
-        part.setMatrixAt(index, this.transformed);
+      this.writeMemberMatrices(batch, index, movedKey, !this.hiddenKeys.has(movedKey));
+      batch.parts.forEach((part) => {
         const voxels = part.userData['instanceVoxels'] as VoxelCoordinate[];
-        const keys = part.userData['instanceKeys'] as string[];
         voxels[index] = { ...movedPosition };
-        keys[index] = movedKey;
         part.instanceMatrix.needsUpdate = true;
       });
     }
     batch.keys.pop();
     batch.positions.pop();
     this.ownershipStore.delete(expectedKey);
+    this.hiddenKeys.delete(expectedKey);
     batch.parts.forEach((part) => {
       (part.userData['instanceVoxels'] as VoxelCoordinate[]).pop();
       (part.userData['instanceKeys'] as string[]).pop();
@@ -252,6 +267,26 @@ export class InstanceBatchRenderer {
     }
     this.batchStore.clear();
     this.ownershipStore.clear();
+    this.hiddenKeys.clear();
+  }
+
+  private writeMemberMatrices(batch: InstanceBatch, index: number, key: string, visible: boolean): void {
+    if (!visible) {
+      this.transformed.makeScale(0, 0, 0);
+      for (const part of batch.parts) part.setMatrixAt(index, this.transformed);
+    } else {
+      const position = batch.positions[index];
+      const translation = this.translation.makeTranslation(position.x, position.y, position.z);
+      batch.parts.forEach((part, partIndex) => {
+        this.transformed.copy(translation).multiply(batch.templates[partIndex].matrix);
+        part.setMatrixAt(index, this.transformed);
+      });
+    }
+    for (const part of batch.parts) {
+      part.instanceMatrix.needsUpdate = true;
+      const keys = part.userData['instanceKeys'] as string[];
+      if (keys[index] !== key) throw new Error(`Instance membership changed while toggling ${key}`);
+    }
   }
 
   private disposeMergedTemplateGeometry(template: InstancePartTemplate): void {

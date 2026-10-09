@@ -110,7 +110,7 @@ import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-over
 import { selectionBounds } from '../presentation/selection-bounds';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-diff';
-import { canonicalRenderOptions, isolateKey, renderFilterKey } from './viewport-render-signatures';
+import { blockRenderSignature, canonicalRenderOptions, isolateKey, renderFilterKey } from './viewport-render-signatures';
 import { stableValueKey } from '../../domain/stable-value-key';
 import { ViewportBlockRepresentationStore, type RenderedBlockEntry } from './viewport-block-representation-store';
 import { ViewportBlockIndexOwner } from './viewport-block-index-owner';
@@ -584,10 +584,11 @@ export class ThreeViewportEngine {
       store: this.blockRepresentations,
       blocksGroup: this.blocksGroup,
       terrain: { has: (key) => this.terrainRenderer.has(key), remove: (key) => this.terrainRenderer.remove(key), clear: () => this.terrainRenderer.clear(), dispose: () => this.terrainRenderer.dispose() },
-      surface: { ownership: this.surfaceFaceOwnership, remove: (key, entry) => this.surfaceRenderer.remove(key, entry), clear: (entries) => this.surfaceRenderer.clear(entries) },
+      surface: { ownership: this.surfaceFaceOwnership, setVisible: (key, visible) => this.surfaceRenderer.setMemberVisible(key, visible), remove: (key, entry) => this.surfaceRenderer.remove(key, entry), clear: (entries) => this.surfaceRenderer.clear(entries) },
       instance: {
         ownershipIndex: this.instanceOwnershipIndex,
         memberships: (key, scanAll) => this.instanceRenderer.memberships(key, scanAll),
+        setVisible: (key, visible) => this.instanceRenderer.setMemberVisible(key, visible),
         remove: (key, entry, source) => this.instanceRenderer.remove(key, entry, source),
         removeOrphaned: (key, source, entry) => this.instanceRenderer.removeOrphaned(key, source, entry),
         reconcile: (entries) => this.instanceRenderer.reconcile(entries),
@@ -863,7 +864,7 @@ export class ThreeViewportEngine {
       const decorationKey = `${project.id}|${renderFilterKey(options)}|${this.decorationVisuals.revision}`;
       if (sync.project === project && sync.syncKey === expectedKey && this.syncedDecorationProject === project && this.decorationSyncKey === decorationKey) {
         this.suspendedNeedsRefresh = false;
-        return this.blockRepresentations.size + this.placeholderIndices.size;
+        return this.visibleBlockRepresentationCount() + this.placeholderIndices.size;
       }
       return 0;
     } finally {
@@ -1409,7 +1410,7 @@ export class ThreeViewportEngine {
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
-      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.hydrationPipeline.pendingCount, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.blockRepresentations.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainPipeline.pendingGroupCount, hydrationScheduled: this.hydrationPipeline.isScheduled(), hydrationTimerActive: this.hydrationPipeline.isTimerActive(), currentBatchBudget: this.hydrationPipeline.batchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
+      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.hydrationPipeline.pendingCount, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.visibleBlockRepresentationCount(), residentBlockCount: this.blockRepresentations.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainPipeline.pendingGroupCount, hydrationScheduled: this.hydrationPipeline.isScheduled(), hydrationTimerActive: this.hydrationPipeline.isTimerActive(), currentBatchBudget: this.hydrationPipeline.batchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
       render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.length + this.decorationsGroup.children.length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain['terrainChunkMeshes'], standaloneMeshCount: 0, renderRegionCount: this.instanceBatches.size + this.surfaceFaceBatches.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationPipeline.generation, specialVisualRevision: this.specialVisualRevision },
@@ -1478,12 +1479,17 @@ export class ThreeViewportEngine {
     const prewarmed = visibleOverride ? undefined : this.yLayerProjection.takePrewarmedVisible(project, options, this.providerGeneration);
     if (prewarmed && 'fallbackReason' in prewarmed) this.runtimeTrace?.record('y-layer-prewarm-fallback', { reason: prewarmed.fallbackReason, projectId: project.id });
     const visible = visibleOverride ?? (prewarmed && 'entries' in prewarmed ? prewarmed.entries : this.visibleBlocks(project, options));
+    for (const [key, entry] of this.blockRepresentations) {
+      const currentBlock = this.blockIndexOwner.get(entry.block.position);
+      if (!currentBlock || blockRenderSignature(currentBlock) !== blockRenderSignature(entry.block)) this.removeBlockEntry(key, entry);
+      else this.blockRepresentations.setBlock(key, currentBlock);
+    }
     this.setHydrationBlockScope(visible);
     this.yLayerProjection.replaceVisible(project, options, visible);
     const allVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     const reconciliation = planStructureReconciliation({
       visibleByKey: allVisibleMap,
-      representations: this.blockRepresentations,
+      representations: new Map([...this.blockRepresentations].filter(([, entry]) => entry.presentationVisible !== false)),
       previousVisiblePositions: this.structureSyncState.previousVisiblePositionsSnapshot(),
       pendingSignatureMatches: (key, signature) => this.hydrationPipeline.pendingSignature(key) === signature,
       placeholderSignatures: this.placeholderSignatures,
@@ -1515,7 +1521,14 @@ export class ThreeViewportEngine {
       return !!next && job.signature === next.signature;
     });
     if (full) this.instrumentation.record('fullSceneRebuilds');
-    for (const [key, entry] of this.blockRepresentations) if (entry.fluidChunkKey === undefined && !visibleMap.has(key)) { this.removeBlockEntry(key, entry); this.hydrationPipeline.clearPendingSignature(key); this.placeholderSignatures.delete(key); this.instrumentation.record('blockRemovals'); }
+    for (const [key, entry] of this.blockRepresentations) if (entry.fluidChunkKey === undefined && !visibleMap.has(key)) {
+      const canonicalBlock = this.blockIndexOwner.get(entry.block.position);
+      const retained = !!canonicalBlock && blockRenderSignature(canonicalBlock) === blockRenderSignature(entry.block)
+        && this.blockRepresentationResources.setPresentationVisible(key, entry, false);
+      if (!retained) { this.removeBlockEntry(key, entry); this.instrumentation.record('blockRemovals'); }
+      this.hydrationPipeline.clearPendingSignature(key);
+      this.placeholderSignatures.delete(key);
+    }
     for (const key of this.placeholderIndices.keys()) if (!visibleMap.has(key)) this.removePlaceholderVisual(key);
     for (const key of this.hydrationPipeline.pendingKeys()) if (!visibleMap.has(key)) this.hydrationPipeline.clearPendingSignature(key);
     for (const key of this.placeholderSignatures.keys()) if (!visibleMap.has(key)) this.placeholderSignatures.delete(key);
@@ -1523,6 +1536,12 @@ export class ThreeViewportEngine {
       const current = this.blockRepresentations.get(key);
       const pendingSignature = this.hydrationPipeline.pendingSignature(key);
       const placeholderSignature = this.placeholderSignatures.get(key);
+      if (current && current.signature === entry.signature && current.role === entry.role) {
+        if (current.presentationVisible === false) this.blockRepresentationResources.setPresentationVisible(key, current, true);
+        this.blockRepresentations.setBlock(key, entry.block);
+        this.removePlaceholderVisual(key);
+        continue;
+      }
       if (full || !current || current.signature !== entry.signature || current.role !== entry.role) {
         if (!current && pendingSignature === entry.signature) continue;
         // A placeholder is only an existing representation. It is not proof
@@ -1686,14 +1705,23 @@ export class ThreeViewportEngine {
     for (const [key, change] of changes) {
       const current = this.blockRepresentations.get(key);
       if (!change.after) {
-        if (current) this.removeBlockEntry(key, current);
-        else this.terrainRenderer.remove(key);
+        const canonicalBlock = this.blockIndexOwner.get(change.position);
+        const retained = current && canonicalBlock && blockRenderSignature(canonicalBlock) === blockRenderSignature(current.block)
+          && this.blockRepresentationResources.setPresentationVisible(key, current, false);
+        if (current && !retained) this.removeBlockEntry(key, current);
+        else if (!current) this.terrainRenderer.remove(key);
         this.removePlaceholderVisual(key);
-        terrainChanges.push({ key, position: change.position, afterOpaque: false });
+        if (options.exposedFaceRendering === true) terrainChanges.push({ key, position: change.position, afterOpaque: false });
         continue;
       }
       if (fluidKeys.has(key)) continue;
-      if (current && (current.signature !== change.after.signature || current.role !== change.after.role)) this.removeBlockEntry(key, current);
+      if (current && current.signature === change.after.signature && current.role === change.after.role) {
+        if (current.presentationVisible === false) this.blockRepresentationResources.setPresentationVisible(key, current, true);
+        this.blockRepresentations.setBlock(key, change.after.block);
+        if (options.exposedFaceRendering === true) terrainChanges.push({ key, position: change.position, afterOpaque: isCompiledTerrainEntry(change.after) });
+        continue;
+      }
+      if (current) this.removeBlockEntry(key, current);
       this.ensurePlaceholderVisual(key, change.after.block, change.after.role);
       this.hydrationPipeline.setPendingSignature(key, change.after.signature);
       if (!this.visualProvider) {
@@ -1704,7 +1732,7 @@ export class ThreeViewportEngine {
       }
       this.placeholderSignatures.delete(key);
       this.hydrationPipeline.enqueueRegular({ token: this.hydrationPipeline.generation, projectionRevision: this.yLayerProjection.revisionForKey(key), key, block: change.after.block, signature: change.after.signature, role: change.after.role, worldContext, options, allowInstancing, surfaceFastPathEligible: options.exposedFaceRendering === true && isCompiledTerrainEntry(change.after), surfaceVisibleEntries: this.yLayerProjection.visibleEntriesByKey });
-      terrainChanges.push({ key, position: change.position, afterOpaque: isCompiledTerrainEntry(change.after) });
+      if (options.exposedFaceRendering === true) terrainChanges.push({ key, position: change.position, afterOpaque: isCompiledTerrainEntry(change.after) });
     }
     if (terrainChanges.length) this.terrainRenderer.applyBlockChanges(terrainChanges, flushTerrain, [...changedProjectionKeys], !flushTerrain);
     if (publishProgress) {
@@ -2192,7 +2220,8 @@ export class ThreeViewportEngine {
       pendingSignatureCount: this.hydrationPipeline.pendingCount,
       placeholderSignatureCount: this.placeholderSignatures.size,
       placeholderVisualCount: this.placeholderIndices.size,
-      renderedBlockCount: this.blockRepresentations.size,
+      renderedBlockCount: this.visibleBlockRepresentationCount(),
+      residentBlockCount: this.blockRepresentations.size,
       terrainHydrationPending: this.terrainPipeline.pendingGroupCount,
       cameraInteractionInProgress: this.cameraGestureInProgress || this.pressedActions.size > 0,
     });
@@ -2541,6 +2570,12 @@ export class ThreeViewportEngine {
     return collectVisibleSceneDiagnostics({ expectedKeys, renderedKeys: this.blockRepresentations.keys(), placeholderKeys: this.placeholderIndices.keys(), pendingKeys: this.hydrationPipeline.pendingKeys() });
   }
 
+  private visibleBlockRepresentationCount(): number {
+    let count = 0;
+    for (const entry of this.blockRepresentations.values()) if (entry.presentationVisible !== false) count += 1;
+    return count;
+  }
+
   ownershipDiagnostics(): readonly ViewportVoxelOwnershipDiagnostic[] {
     const expected = this.project ? new Set(this.visibleBlocks(this.project, this.renderOptions).map((entry) => coordinateKey(entry.block.position))) : new Set<string>();
       const queued = new Set(this.hydrationPipeline.regularJobs().map((job) => job.key));
@@ -2626,7 +2661,7 @@ export class ThreeViewportEngine {
 
   performanceEvidence(): ViewportPerformanceEvidence {
     const renderCost = collectSceneRenderCost({ scene: this.scene, blocksGroup: this.blocksGroup, decorationsGroup: this.decorationsGroup, instanceBatches: this.instanceBatches.values(), surfaceBatches: this.surfaceFaceBatches.values(), placeholderBatches: this.placeholderBatches.values(), renderedBlocks: this.blockRepresentations.values(), renderedDecorations: this.decorationVisuals.values() });
-    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.blockRepresentations.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.interiorCulling.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.blockIndexOwner.lookupCount, terrainAtlasMode: this.terrainAtlasMode });
+    return collectPerformanceEvidence({ counters: this.instrumentation.snapshot(), terrain: this.terrainRenderer.evidence(), renderCost, staticModelMetrics: this.instanceRenderer.metrics(), fluidDiagnostics: this.fluidCoordinator.diagnostics(), lastRendererMetrics: this.lastRendererMetrics, renderedBlocks: this.visibleBlockRepresentationCount(), residentBlocks: this.blockRepresentations.size, renderedDecorations: this.decorationVisuals.size, renderRegionSize: this.renderRegionPolicy.size, instanceBatchCount: this.instanceBatches.size, surfaceFaceBatchCount: this.surfaceFaceBatches.size, terrainHydrationQueue: this.terrainPipeline.pendingGroupCount, hydrationQueue: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), hydrationRunning: this.hydrationRunning, interiorBlocksCulled: this.interiorCulling.size, frameDurationMs: this.frameDurationMs, renderCpuMs: this.renderCpuMs, spatialIndexLookups: this.blockIndexOwner.lookupCount, terrainAtlasMode: this.terrainAtlasMode });
   }
 
   hydrationProgress(): ViewportHydrationProgress { return this.hydrationProgressState; }
@@ -2708,7 +2743,8 @@ export class ThreeViewportEngine {
       pendingSignatureCount: this.hydrationPipeline.pendingCount,
       placeholderSignatureCount: this.placeholderSignatures.size,
       placeholderVisualCount: this.placeholderIndices.size,
-      renderedBlockCount: this.blockRepresentations.size,
+      renderedBlockCount: this.visibleBlockRepresentationCount(),
+      residentBlockCount: this.blockRepresentations.size,
       expectedVisibleBlockCount,
       runningOwnershipCount: this.hydrationPipeline.runningCount,
       runningByGeneration,

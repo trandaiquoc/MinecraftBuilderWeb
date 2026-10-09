@@ -27,6 +27,7 @@ export interface RenderedBlockEntry {
   readonly staticModelFamily?: string;
   readonly fluidChunkKey?: string;
   readonly fluidFallback?: boolean;
+  readonly presentationVisible?: boolean;
 }
 
 /** Owns canonical per-voxel representation linkage; renderers retain their GPU state. */
@@ -45,6 +46,7 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
     this.entriesByKey.set(entry.key, freezeEntry(entry));
   }
   setBlock(key: string, block: ProjectDocument['blocks'][number]): boolean { return this.replace(key, (entry) => ({ ...entry, block })); }
+  setPresentationVisible(key: string, presentationVisible: boolean): boolean { return this.replace(key, (entry) => ({ ...entry, presentationVisible })); }
   incrementRevision(key: string): number | undefined {
     const entry = this.entriesByKey.get(key);
     if (!entry) return undefined;
@@ -130,6 +132,7 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
       staticModelFamily: entry.staticModelFamily,
       fluidChunkKey: entry.fluidChunkKey,
       fluidFallback: entry.fluidFallback,
+      presentationVisible: entry.presentationVisible,
     }));
   }
 }
@@ -158,6 +161,7 @@ export interface RenderedBlockDiagnosticSnapshot {
   readonly staticModelFamily?: string;
   readonly fluidChunkKey?: string;
   readonly fluidFallback?: boolean;
+  readonly presentationVisible?: boolean;
 }
 
 function cloneDiagnosticValue<T>(value: T): T {

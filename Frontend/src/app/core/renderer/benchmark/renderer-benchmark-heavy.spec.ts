@@ -352,7 +352,7 @@ describe('explicit renderer benchmark', () => {
     expect(preload.blocksVisited).toBe(110_592);
     expect(preload.layersTotal).toBe(48);
     expect(preload.layersReady).toBe(48);
-    expect(preload.state).toBe('complete');
+    expect(preload).toMatchObject({ state: 'templates-ready', templateState: 'ready', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent' });
     const createsBeforeWarmSwitch = engine.rendererCounters().providerObjectCreations;
     const warmSwitch = await time('first-switch-after-preload', () => switchLayer(47));
     const createsAfterWarmSwitch = engine.rendererCounters().providerObjectCreations;

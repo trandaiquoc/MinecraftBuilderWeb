@@ -5,14 +5,18 @@ export const Y_LAYER_PRELOAD_SLICE_BLOCKS = 48;
 export const Y_LAYER_PRELOAD_MAX_VARIANTS = 4096;
 export const Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES = 64 * 1024 * 1024;
 
-export type YLayerVisualPreloadState = 'idle' | 'preparing' | 'complete' | 'partial' | 'cancelled';
+export type YLayerVisualPreloadState = 'idle' | 'preparing' | 'templates-ready' | 'partial' | 'cancelled';
 
 export interface YLayerVisualPreloadEvidence {
   readonly state: YLayerVisualPreloadState;
   readonly blocksTotal: number;
   readonly blocksVisited: number;
   readonly layersTotal: number;
+  /** Layers whose reusable CPU/GPU templates are available, not rendered memberships. */
   readonly layersReady: number;
+  readonly templateState: 'idle' | 'preparing' | 'ready' | 'partial' | 'cancelled';
+  readonly representationState: 'viewport-lazy';
+  readonly gpuPresentationState: 'viewport-dependent';
   readonly reusableVariantsPrepared: number;
   readonly reusableVariantsReused: number;
   readonly reusableVariantsSkipped: number;
@@ -52,7 +56,7 @@ export class YLayerVisualPreloader<T> {
 
     this.cancel();
     const token = this.runToken;
-    this.evidenceValue = { ...emptyEvidence(), state: 'preparing', blocksTotal: blocks.length };
+    this.evidenceValue = { ...emptyEvidence(), state: 'preparing', templateState: 'preparing', blocksTotal: blocks.length };
     const completion = this.prepare(blocks, providerGeneration, token);
     this.active = { blocks, providerGeneration, scopeKey, completion };
     return completion;
@@ -60,7 +64,7 @@ export class YLayerVisualPreloader<T> {
 
   cancel(): void {
     this.runToken += 1;
-    if (this.evidenceValue.state === 'preparing') this.evidenceValue = { ...this.evidenceValue, state: 'cancelled' };
+    if (this.evidenceValue.state === 'preparing') this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', templateState: 'cancelled' };
     this.active = undefined;
   }
 
@@ -140,7 +144,7 @@ export class YLayerVisualPreloader<T> {
       }
 
       this.evidenceValue = {
-        state: 'preparing', blocksTotal: blocks.length, blocksVisited,
+        state: 'preparing', templateState: 'preparing', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent', blocksTotal: blocks.length, blocksVisited,
         layersTotal: totalByLayer.size, layersReady: countReadyLayers(totalByLayer, readyByLayer, failedLayers),
         reusableVariantsPrepared: variantsPrepared, reusableVariantsReused: variantsReused,
         reusableVariantsSkipped: variantsSkipped, estimatedTemplateBytes,
@@ -152,7 +156,10 @@ export class YLayerVisualPreloader<T> {
     const layersReady = countReadyLayers(totalByLayer, readyByLayer, failedLayers);
     this.evidenceValue = {
       ...this.evidenceValue,
-      state: layersReady === totalByLayer.size ? 'complete' : 'partial',
+      state: layersReady === totalByLayer.size ? 'templates-ready' : 'partial',
+      templateState: layersReady === totalByLayer.size ? 'ready' : 'partial',
+      representationState: 'viewport-lazy',
+      gpuPresentationState: 'viewport-dependent',
       blocksVisited,
       layersTotal: totalByLayer.size,
       layersReady,
@@ -170,7 +177,7 @@ export class YLayerVisualPreloader<T> {
   }
 
   private finishCancelled(): YLayerVisualPreloadEvidence {
-    if (this.evidenceValue.state === 'preparing') this.evidenceValue = { ...this.evidenceValue, state: 'cancelled' };
+    if (this.evidenceValue.state === 'preparing') this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', templateState: 'cancelled' };
     return this.evidenceValue;
   }
 }
@@ -188,7 +195,7 @@ function countReadyLayers(
 }
 
 function emptyEvidence(): YLayerVisualPreloadEvidence {
-  return { state: 'idle', blocksTotal: 0, blocksVisited: 0, layersTotal: 0, layersReady: 0, reusableVariantsPrepared: 0, reusableVariantsReused: 0, reusableVariantsSkipped: 0, estimatedTemplateBytes: 0 };
+  return { state: 'idle', templateState: 'idle', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent', blocksTotal: 0, blocksVisited: 0, layersTotal: 0, layersReady: 0, reusableVariantsPrepared: 0, reusableVariantsReused: 0, reusableVariantsSkipped: 0, estimatedTemplateBytes: 0 };
 }
 
 export function yieldYLayerPreloadToBrowser(): Promise<void> { return yieldToBrowser(); }
