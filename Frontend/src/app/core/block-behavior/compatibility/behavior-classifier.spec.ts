@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AssetBlockRecord, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
 import { extractBehaviorFingerprint } from './behavior-fingerprint';
 import { matchVanillaBehaviorCandidates } from './behavior-classifier';
+import { generateBehaviorCandidates } from './behavior-candidate-generator';
 import { inferBehaviorTraits } from './behavior-traits';
 
 function record(id: string, definitions: readonly BlockStateDefinition[], model: string, blockstate: unknown): AssetBlockRecord {
@@ -66,5 +67,13 @@ describe('generic behavior fingerprint candidates', () => {
   it('does not create a candidate from a registry name alone', () => {
     const fingerprint = extractBehaviorFingerprint(record('example:wall', [{ name: 'north', values: ['true', 'false'] }], 'example:block/cube', { variants: { '': { model: 'example:block/cube' } } }));
     expect(matchVanillaBehaviorCandidates(fingerprint).behavior).toBeUndefined();
+  });
+
+  it('keeps candidate generation separate from classification and scoring', () => {
+    const definitions = [{ name: 'facing', values: ['north', 'east', 'south', 'west'] }, { name: 'half', values: ['top', 'bottom'] }, { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] }];
+    const variants = Object.fromEntries(['north', 'east', 'south', 'west'].flatMap((facing) => ['top', 'bottom'].flatMap((half) => ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'].map((shape) => [`facing=${facing},half=${half},shape=${shape}`, { model: 'example:block/stairs' }]))));
+    const fingerprint = extractBehaviorFingerprint(record('example:cut_stairs', definitions, 'example:block/stairs', { variants }), { readJson: (path) => path.includes('/blockstates/') ? { variants } : undefined });
+    expect(generateBehaviorCandidates(fingerprint).map((candidate) => candidate.family)).toContain('stairs');
+    expect(matchVanillaBehaviorCandidates(fingerprint).behavior).toMatchObject({ kind: 'stairs' });
   });
 });
