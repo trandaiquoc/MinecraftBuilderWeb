@@ -80,11 +80,11 @@ export type { ViewportControlConfiguration, ViewportDiagnostics, ViewportEmptyTr
 import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
 import { collectPerformanceEvidence } from '../diagnostics/viewport-performance-evidence';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
-import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
+import { FluidRenderCoordinator, type ProjectionFluidChange } from '../fluids/fluid-render-coordinator';
 import { fluidChunkKey } from '../fluids/fluid-mesh-core';
 import { planLocalRenderDelta } from '../mutations/local-render-delta';
 import { applyLocalFluidDelta } from '../mutations/local-fluid-render-delta';
-import type { FluidWorldLookup, ResolvedFluidRenderState } from '../fluids/fluid-state';
+import type { FluidWorldLookup } from '../fluids/fluid-state';
 import { GroupIsolationPresentation, type GroupIsolationSnapshot, type IsolateBlockVisualSnapshot, type IsolateDecorationVisualSnapshot } from '../isolation/group-isolation-presentation';
 import { EditingPlanePresenter } from '../presentation/editing-plane-presenter';
 import { SelectionOverlayPresenter } from '../presentation/selection-overlay-presenter';
@@ -100,6 +100,7 @@ import { StructureBlockGuidePresenter } from '../presentation/structure-block-gu
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 import { YLayerProjectionCoordinator, type VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
+import { planStructureReconciliation } from './structure-reconciliation-plan';
 import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
 import { blockCoordinateFromHit, surfaceFaceDirectionFromHit } from '../interaction/viewport-hit-ownership';
 import { isHorizontalDirection, surfaceNeighbor, surfaceFaceNormal } from '../visibility/voxel-face-directions';
@@ -108,7 +109,7 @@ import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-over
 import { selectionBounds } from '../presentation/selection-bounds';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-diff';
-import { blockRenderSignature, canonicalRenderOptions, isolateKey, renderFilterKey } from './viewport-render-signatures';
+import { canonicalRenderOptions, isolateKey, renderFilterKey } from './viewport-render-signatures';
 import { stableValueKey } from '../../domain/stable-value-key';
 import { ViewportBlockRepresentationStore, type RenderedBlockEntry } from './viewport-block-representation-store';
 import { ViewportBlockIndexOwner } from './viewport-block-index-owner';
@@ -147,7 +148,6 @@ export const VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH = 8;
 export const VIEWPORT_CAMERA_IDLE_GRACE_MS = 160;
 export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
 export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
-const Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT = 256;
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
@@ -520,12 +520,15 @@ export class ThreeViewportEngine {
     this.yLayerProjection = new YLayerProjectionCoordinator({
       isDisposed: () => this.disposed,
       isSuspended: () => this.suspended,
-      applyLayers: (project, renderOptions, layers, token) => this.applyLayerProjectionWork(project, renderOptions, layers, token),
+      applyDelta: (project, renderOptions, delta) => this.applyLayerProjectionDelta(project, renderOptions, delta.layers, delta.blockOverrides, delta.flushTerrain, delta.publishProgress),
+      finishCooperativeWork: () => this.finishCooperativeLayerProjectionWork(),
       keySettled: (key) => this.isProjectionKeySettled(key),
       onCommit: (project, renderOptions) => {
         this.structureSyncState.commit(project, this.structureSyncState.keyFor(project, renderFilterKey(renderOptions)));
       },
-      record: (metric) => this.instrumentation.record(metric),
+      onWorkFailure: (error) => this.runtimeTrace?.record('y-layer-projection-failed', { error: error instanceof Error ? error.message : String(error) }),
+      record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
+      recordMax: (metric, value) => this.instrumentation.recordMax(metric, value),
     });
     this.terrainAtlasMode = options.terrainAtlasMode ?? 'on';
     this.fluidCoordinator = new FluidRenderCoordinator(new FluidChunkRenderer(this.blocksGroup), {
@@ -1317,34 +1320,17 @@ export class ThreeViewportEngine {
     this.setHydrationBlockScope(visible);
     this.yLayerProjection.replaceVisible(project, options, visible);
     const allVisibleMap = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
-    const changed = new Set<string>();
-    for (const [key, entry] of this.blockRepresentations) {
-      if (!allVisibleMap.has(key)) {
-        changed.add(key);
-        for (const neighbor of coordinateNeighbors(entry.block.position)) changed.add(coordinateKey(neighbor));
-      }
-    }
-    for (const [key, position] of this.structureSyncState.previousVisiblePositionsSnapshot()) {
-      if (!allVisibleMap.has(key)) {
-        changed.add(key);
-        for (const neighbor of coordinateNeighbors(position)) changed.add(coordinateKey(neighbor));
-      }
-    }
-    for (const entry of visible) {
-      const key = coordinateKey(entry.block.position);
-      const current = this.blockRepresentations.get(key);
-      const pendingSignature = this.hydrationPipeline.pendingSignature(key);
-      const placeholderSignature = this.placeholderSignatures.get(key);
-      if (full || !current || current.signature !== entry.signature || current.role !== entry.role) {
-        if (!( !current && pendingSignature === entry.signature) && !( !current && !this.visualProvider && placeholderSignature === entry.signature)) changed.add(key);
-      }
-    }
-    if (!full) for (const key of [...changed]) {
-      const position = allVisibleMap.get(key)?.block.position ?? this.structureSyncState.previousVisiblePosition(key) ?? this.blockRepresentations.get(key)?.block.position;
-      if (!position) continue;
-      for (const neighbor of coordinateNeighbors(position)) if (allVisibleMap.has(coordinateKey(neighbor))) changed.add(coordinateKey(neighbor));
-    }
-    const terrainAffectedPositions = [...changed].map((key) => allVisibleMap.get(key)?.block.position ?? this.structureSyncState.previousVisiblePosition(key)).filter((position): position is VoxelCoordinate => !!position);
+    const reconciliation = planStructureReconciliation({
+      visibleByKey: allVisibleMap,
+      representations: this.blockRepresentations,
+      previousVisiblePositions: this.structureSyncState.previousVisiblePositionsSnapshot(),
+      pendingSignatureMatches: (key, signature) => this.hydrationPipeline.pendingSignature(key) === signature,
+      placeholderSignatures: this.placeholderSignatures,
+      providerAvailable: !!this.visualProvider,
+      full,
+    });
+    const changed = reconciliation.changedKeys;
+    const terrainAffectedPositions = reconciliation.terrainAffectedPositions;
     this.syncFluidVisuals(visible, worldContext, full ? undefined : terrainAffectedPositions);
     // Initial terrain occupancy is committed together with the first bulk
     // terrain batch. Incremental edits retain the existing conservative sync.
@@ -1467,93 +1453,33 @@ export class ThreeViewportEngine {
   }
 
   private visibleEntry(block: ProjectDocument['blocks'][number], options: ViewportRenderOptions): VisibleBlockEntry {
-    const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
-    this.instrumentation.record('blockSignatureComputations');
-    return { block, role, signature: `${blockRenderSignature(block)}|${role}`, occlusionClass: this.visualProvider?.occlusionClass?.(block) ?? 'unknown' };
+    return this.yLayerProjection.createVisibleEntry(block, options, this.visualProvider?.occlusionClass?.(block) ?? 'unknown');
   }
 
-  private async applyLayerProjectionWork(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], token: number): Promise<boolean> {
-    const layerIndex = options.layerIndex ?? this.layerIndex;
-    const blocksForLayer = (layer: number): readonly ProjectDocument['blocks'][number][] => layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
-    const cooperative = options.visibility === 'all-below' && changedLayers.length > 8;
-    if (!cooperative) {
-      if (!this.yLayerProjection.isWorkCurrent(token)) return false;
-      this.applyLayerProjectionDelta(project, options, changedLayers);
-      this.yLayerProjection.clearInFlightLayers();
-      return this.yLayerProjection.isWorkCurrent(token);
-    }
-
-    const batches: Array<{ readonly layers: readonly number[]; readonly blocks: ReadonlyMap<number, readonly ProjectDocument['blocks'][number][]> }> = [];
-    for (const layer of changedLayers) {
-      const blocks = blocksForLayer(layer);
-      if (!blocks.length) {
-        batches.push({ layers: [layer], blocks: new Map([[layer, []]]) });
-        continue;
-      }
-      for (let start = 0; start < blocks.length; start += Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT) {
-        batches.push({ layers: [layer], blocks: new Map([[layer, blocks.slice(start, start + Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT)]]) });
-      }
-    }
-
-    for (let index = 0; index < batches.length; index += 1) {
-      if (!this.yLayerProjection.isWorkCurrent(token)) {
-        this.instrumentation.record('yLayerProjectionCancellations');
-        return false;
-      }
-      const slice = batches[index];
-      const sliceLayers = slice.layers;
-      for (const layer of sliceLayers) this.yLayerProjection.addInFlightLayer(layer);
-      const started = performance.now();
-      this.applyLayerProjectionDelta(project, options, sliceLayers, slice.blocks, false, false);
-      const sliceMs = performance.now() - started;
-      this.instrumentation.record('yLayerProjectionSlices');
-      this.instrumentation.recordMax('yLayerProjectionMaxSliceMs', sliceMs);
-      if (index + 1 < batches.length) {
-        this.instrumentation.record('yLayerProjectionYields');
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      }
-    }
+  private finishCooperativeLayerProjectionWork(): void {
     this.hydrationPipeline.prioritizeRegularJobs((job) => job.role);
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
-    this.yLayerProjection.clearInFlightLayers();
-    return this.yLayerProjection.isWorkCurrent(token);
   }
 
   private applyLayerProjectionDelta(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], blockOverrides?: ReadonlyMap<number, readonly ProjectDocument['blocks'][number][]>, flushTerrain = true, publishProgress = true): void {
     const started = performance.now();
     const layerIndex = options.layerIndex ?? this.layerIndex;
-    const blocksForLayer = (layer: number): readonly ProjectDocument['blocks'][number][] => blockOverrides?.get(layer) ?? layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
-    const changes = new Map<string, { readonly before?: VisibleBlockEntry; readonly after?: VisibleBlockEntry; readonly position: VoxelCoordinate }>();
-    for (const layer of changedLayers) {
-      for (const block of blocksForLayer(layer)) {
-        const key = coordinateKey(block.position);
-        if (changes.has(key)) continue;
-        const before = this.yLayerProjection.visibleEntry(key);
-        const after = isBlockVisibleForViewport(block, project, { ...canonicalRenderOptions(options), layerIndex }) ? this.visibleEntry(block, options) : undefined;
-        if (before?.signature === after?.signature && before?.role === after?.role) continue;
-        changes.set(key, { before, after, position: block.position });
-      }
-    }
-
-    let addedVisible = 0;
-    let removedVisible = 0;
-    let roleChanged = 0;
+    const plan = this.yLayerProjection.applyLayerDelta(project, options, changedLayers, blockOverrides, layerIndex, (block) => this.visualProvider?.occlusionClass?.(block) ?? 'unknown');
+    const changes = plan.changes;
+    const { addedVisible, removedVisible, roleChanged } = plan;
     const added: string[] = [];
     const removed: string[] = [];
     const invalidated: string[] = [];
     const missing = new Map<string, 'resolved' | 'provisional' | 'permanent'>();
     for (const [key, change] of changes) {
-      if (!change.before && change.after) { addedVisible += 1; added.push(key); }
-      else if (change.before && !change.after) { removedVisible += 1; removed.push(key); }
-      else if (change.before && change.after) { roleChanged += change.before.role !== change.after.role ? 1 : 0; invalidated.push(key); }
+      if (!change.before && change.after) added.push(key);
+      else if (change.before && !change.after) removed.push(key);
+      else if (change.before && change.after) invalidated.push(key);
       if (change.after) missing.set(key, change.after.block.kind === 'missing' ? (this.missingBlocksTerminal ? 'permanent' : 'provisional') : 'resolved');
-      if (change.after) this.yLayerProjection.cacheVisibleEntry(key, change.after);
-      else this.yLayerProjection.removeVisibleEntry(key);
       if (change.after) this.structureSyncState.rememberVisiblePosition(change.position);
       else this.structureSyncState.forgetVisiblePosition(key);
     }
-    this.yLayerProjection.associateVisibleProjection(project, options);
     const changedProjectionKeys = new Set(changes.keys());
     if (!changedProjectionKeys.size) {
       const durationMs = performance.now() - started;
@@ -1564,11 +1490,6 @@ export class ThreeViewportEngine {
     const scopeDelta: HydrationBlockScopeDelta = { add: added, remove: removed, invalidate: invalidated, missing };
     this.yLayerProjection.markPendingKeys(changedProjectionKeys);
     this.hydrationPipeline.applyBlockScopeDelta(scopeDelta, false);
-    this.instrumentation.record('yLayerProjectionChangedLayers', changedLayers.length);
-    this.instrumentation.record('yLayerProjectionChangedBlocks', changes.size);
-    this.instrumentation.record('yLayerProjectionAddedVisible', addedVisible);
-    this.instrumentation.record('yLayerProjectionRemovedVisible', removedVisible);
-    this.instrumentation.record('yLayerProjectionRoleChanged', roleChanged);
     this.hydrationPipeline.removePendingKeys(changedProjectionKeys);
     this.yLayerProjection.bumpKeyRevisions(changedProjectionKeys);
     for (const key of changedProjectionKeys) {
@@ -1577,7 +1498,7 @@ export class ThreeViewportEngine {
     }
 
     const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
-    const fluidKeys = this.syncProjectionFluidDelta(changes, worldContext);
+    const fluidKeys = this.applyProjectionFluidRepresentationDelta(changes, worldContext);
     this.interiorCulling.updateDelta(changes, (key) => this.yLayerProjection.visibleEntry(key), this.yLayerProjection.visibleEntriesByKey);
     const terrainChanges: TerrainBlockChange[] = [];
     const allowInstancing = this.yLayerProjection.visibleEntries.length >= VIEWPORT_INSTANCE_THRESHOLD || this.instanceBatches.size > 0;
@@ -1616,27 +1537,20 @@ export class ThreeViewportEngine {
     this.runtimeTrace?.record('y-layer-projection-delta', { layers: changedLayers, changedBlocks: changes.size, addedVisible, removedVisible, roleChanged, projectionRevision: this.yLayerProjection.revision, durationMs });
   }
 
-  private syncProjectionFluidDelta(changes: ReadonlyMap<string, { readonly before?: VisibleBlockEntry; readonly after?: VisibleBlockEntry; readonly position: VoxelCoordinate }>, worldContext: FluidWorldLookup): ReadonlySet<string> {
+  private applyProjectionFluidRepresentationDelta(changes: ReadonlyMap<string, ProjectionFluidChange>, worldContext: FluidWorldLookup): ReadonlySet<string> {
     const resolver = this.visualProvider?.fluidRenderResolver;
     if (!resolver || !this.visualProvider?.fluidTexture) return new Set<string>();
-    const fluidChanges: Array<{ readonly position: VoxelCoordinate; readonly before?: { readonly block: ProjectDocument['blocks'][number]; readonly state: ResolvedFluidRenderState; readonly role: 'normal' | 'reference' }; readonly after?: { readonly block: ProjectDocument['blocks'][number]; readonly state: ResolvedFluidRenderState; readonly role: 'normal' | 'reference' } }> = [];
-    const afterKeys = new Set<string>();
+    const plan = this.fluidCoordinator.prepareProjectionDelta(changes, resolver, worldContext);
+    this.instrumentation.record('yLayerProjectionFluidBlocksVisited', plan.visitedBlocks);
     for (const [key, change] of changes) {
-      const beforeState = change.before && resolver.resolve(change.before.block, worldContext);
-      const afterState = change.after && resolver.resolve(change.after.block, worldContext);
-      this.instrumentation.record('yLayerProjectionFluidBlocksVisited', 1);
-      const before = beforeState ? { block: change.before!.block, state: beforeState, role: change.before!.role === 'reference' ? 'reference' as const : 'normal' as const } : undefined;
-      const after = afterState ? { block: change.after!.block, state: afterState, role: change.after!.role === 'reference' ? 'reference' as const : 'normal' as const } : undefined;
-      if (after) afterKeys.add(key);
-      if (before || after) fluidChanges.push({ position: change.position, before, after });
       const current = this.blockRepresentations.get(key);
-      if (after) {
+      if (plan.afterKeys.has(key) && change.after) {
         if (current && current.fluidChunkKey === undefined) this.removeBlockEntry(key, current);
-        this.blockRepresentations.createOrReplace({ key, block: after.block, signature: change.after!.signature, role: change.after!.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(after.block.position) });
+        this.blockRepresentations.createOrReplace({ key, block: change.after.block, signature: change.after.signature, role: change.after.role, revision: 0, provider: this.visualProvider, fluidChunkKey: fluidChunkKey(change.after.block.position) });
       } else if (current?.fluidChunkKey !== undefined) this.blockRepresentations.remove(key);
     }
-    if (fluidChanges.length) void this.fluidCoordinator.syncDelta(fluidChanges, [...changes.values()].map((change) => change.position), worldContext, this.hydrationPipeline.generation).then(() => { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); });
-    return afterKeys;
+    if (plan.changes.length) void this.fluidCoordinator.syncDelta(plan.changes, [...changes.values()].map((change) => change.position), worldContext, this.hydrationPipeline.generation).then(() => { this.invalidateStaticModelDiagnostics(); this.scheduleRender(); });
+    return plan.afterKeys;
   }
 
   private applyMetadataMutation(previousProject: ProjectDocument, previousOptions: ViewportRenderOptions, project: ProjectDocument, options: ViewportRenderOptions, hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>): void {

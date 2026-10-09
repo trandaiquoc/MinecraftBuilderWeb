@@ -1,14 +1,32 @@
-import type { ProjectDocument } from '../../domain/project.types';
+import type { ProjectDocument, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { planYLayerProjectionDelta, type LayerBlockIndex } from '../../editor/viewport/y-layer';
+import { isBlockVisibleForViewport } from '../../editor/viewport/visible-blocks';
 import type { ViewportProjectionActivity, ViewportProjectionState } from '../diagnostics/viewport-diagnostics-contracts';
 import { cancelViewportFrame, requestViewportFrame } from '../scheduling/viewport-camera-input-controller';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { coordinateKey } from '../../domain/coordinates';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
-import { renderFilterKey } from './viewport-render-signatures';
+import { blockRenderSignature, canonicalRenderOptions, renderFilterKey } from './viewport-render-signatures';
 
-type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits';
+type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits' | 'yLayerProjectionSlices' | 'yLayerProjectionYields' | 'yLayerProjectionCancellations' | 'blockSignatureComputations' | 'yLayerProjectionChangedLayers' | 'yLayerProjectionChangedBlocks' | 'yLayerProjectionAddedVisible' | 'yLayerProjectionRemovedVisible' | 'yLayerProjectionRoleChanged';
 type ProjectionSnapshot = { readonly project: ProjectDocument; readonly options: ViewportRenderOptions };
+export interface ProjectionLayerDelta {
+  readonly layers: readonly number[];
+  readonly blockOverrides?: ReadonlyMap<number, readonly PlacedBlock[]>;
+  readonly flushTerrain: boolean;
+  readonly publishProgress: boolean;
+}
+export interface ProjectionVisibleChange {
+  readonly before?: VisibleBlockProjectionEntry;
+  readonly after?: VisibleBlockProjectionEntry;
+  readonly position: VoxelCoordinate;
+}
+export interface ProjectionVisibleDeltaPlan {
+  readonly changes: ReadonlyMap<string, ProjectionVisibleChange>;
+  readonly addedVisible: number;
+  readonly removedVisible: number;
+  readonly roleChanged: number;
+}
 export type VisibleBlockProjectionEntry = {
   readonly block: ProjectDocument['blocks'][number];
   readonly role: 'normal' | 'reference' | 'missing';
@@ -21,10 +39,13 @@ type FrameCancel = (frame: number) => void;
 export interface YLayerProjectionPorts {
   readonly isDisposed: () => boolean;
   readonly isSuspended: () => boolean;
-  readonly applyLayers: (project: ProjectDocument, options: ViewportRenderOptions, layers: readonly number[], token: number) => Promise<boolean>;
+  readonly applyDelta: (project: ProjectDocument, options: ViewportRenderOptions, delta: ProjectionLayerDelta) => void;
+  readonly finishCooperativeWork: () => void;
   readonly keySettled: (key: string) => boolean;
   readonly onCommit: (project: ProjectDocument, options: ViewportRenderOptions) => void;
-  readonly record: (metric: ProjectionMetric) => void;
+  readonly onWorkFailure: (error: unknown) => void;
+  readonly record: (metric: ProjectionMetric, delta?: number) => void;
+  readonly recordMax: (metric: 'yLayerProjectionMaxSliceMs', value: number) => void;
 }
 
 /** Owns committed/pending Y-layer projection state, work cancellation, revisions, and settlement. */
@@ -47,6 +68,7 @@ export class YLayerProjectionCoordinator {
   private readonly visibleIndices = new Map<string, number>();
   private visibleProjectValue?: ProjectDocument;
   private visibleKey = '';
+  private static readonly sliceBlockLimit = 256;
 
   constructor(
     private readonly ports: YLayerProjectionPorts,
@@ -77,6 +99,55 @@ export class YLayerProjectionCoordinator {
 
   visibleEntry(key: string): VisibleBlockProjectionEntry | undefined { return this.visibleMap.get(key); }
   hasVisibleEntry(key: string): boolean { return this.visibleMap.has(key); }
+
+  createVisibleEntry(block: PlacedBlock, options: ViewportRenderOptions, occlusionClass: OcclusionClass): VisibleBlockProjectionEntry {
+    const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
+    this.ports.record('blockSignatureComputations');
+    return { block, role, signature: `${blockRenderSignature(block)}|${role}`, occlusionClass };
+  }
+
+  applyLayerDelta(
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+    layers: readonly number[],
+    blockOverrides: ReadonlyMap<number, readonly PlacedBlock[]> | undefined,
+    layerIndex: LayerBlockIndex | undefined,
+    occlusionClass: (block: PlacedBlock) => OcclusionClass,
+  ): ProjectionVisibleDeltaPlan {
+    const blocksForLayer = (layer: number): readonly PlacedBlock[] => blockOverrides?.get(layer) ?? layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
+    const changes = new Map<string, ProjectionVisibleChange>();
+    const visibilityOptions = { ...canonicalRenderOptions(options), layerIndex };
+    for (const layer of layers) for (const block of blocksForLayer(layer)) {
+      const key = coordinateKey(block.position);
+      if (changes.has(key)) continue;
+      const before = this.visibleMap.get(key);
+      const after = isBlockVisibleForViewport(block, project, visibilityOptions)
+        ? this.createVisibleEntry(block, options, occlusionClass(block))
+        : undefined;
+      if (before?.signature === after?.signature && before?.role === after?.role) continue;
+      changes.set(key, { before, after, position: block.position });
+    }
+
+    let addedVisible = 0;
+    let removedVisible = 0;
+    let roleChanged = 0;
+    for (const [key, change] of changes) {
+      if (!change.before && change.after) addedVisible += 1;
+      else if (change.before && !change.after) removedVisible += 1;
+      else if (change.before && change.after && change.before.role !== change.after.role) roleChanged += 1;
+      if (change.after) this.cacheVisibleEntry(key, change.after);
+      else this.removeVisibleEntry(key);
+    }
+    this.associateVisibleProjection(project, options);
+    if (changes.size) {
+      this.ports.record('yLayerProjectionChangedLayers', layers.length);
+      this.ports.record('yLayerProjectionChangedBlocks', changes.size);
+      this.ports.record('yLayerProjectionAddedVisible', addedVisible);
+      this.ports.record('yLayerProjectionRemovedVisible', removedVisible);
+      this.ports.record('yLayerProjectionRoleChanged', roleChanged);
+    }
+    return { changes, addedVisible, removedVisible, roleChanged };
+  }
 
   replaceVisible(project: ProjectDocument, options: ViewportRenderOptions, entries: readonly VisibleBlockProjectionEntry[]): void {
     this.visibleEntriesValue = [...entries];
@@ -168,8 +239,6 @@ export class YLayerProjectionCoordinator {
   revisionForKey(key: string): number { return this.keyRevisions.get(key) ?? 0; }
   bumpKeyRevisions(keys: ReadonlySet<string>): void { for (const key of keys) this.keyRevisions.set(key, this.revisionForKey(key) + 1); }
   markPendingKeys(keys: ReadonlySet<string>): void { for (const key of keys) this.pendingKeys.add(key); }
-  addInFlightLayer(layer: number): void { this.inFlightLayers.add(layer); }
-  clearInFlightLayers(): void { this.inFlightLayers.clear(); }
   isWorkCurrent(token: number): boolean { return token === this.workToken; }
 
   private commitPending(): void {
@@ -197,14 +266,68 @@ export class YLayerProjectionCoordinator {
     this.activityRevision = this.revisionValue;
     this.pendingKeys.clear();
     const token = ++this.workToken;
-    void this.ports.applyLayers(pending.project, pending.options, layers, token).then((completed) => {
+    void this.applyLayerWork(pending.project, pending.options, layers, index ?? pending.options.layerIndex, token).then((completed) => {
       if (!completed || !this.isWorkCurrent(token) || this.ports.isDisposed()) return;
       this.committed = pending;
       this.ports.onCommit(pending.project, pending.options);
       this.ports.record('yLayerProjectionCommits');
       this.setActivity('settling', this.revisionValue);
       this.scheduleSettlement(this.revisionValue);
+    }).catch((error: unknown) => {
+      if (this.ports.isDisposed()) return;
+      this.ports.onWorkFailure(error);
+      if (this.isWorkCurrent(token) && !this.pending && this.frame === undefined) this.setActivity('idle', this.activityRevision);
     });
+  }
+
+  private async applyLayerWork(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], layerIndex: LayerBlockIndex | undefined, token: number): Promise<boolean> {
+    const blocksForLayer = (layer: number): readonly PlacedBlock[] => layerIndex?.blocksAtY(layer) ?? project.blocks.filter((block) => block.position.y === layer);
+    const cooperative = options.visibility === 'all-below' && changedLayers.length > 8;
+    if (!cooperative) {
+      if (!this.isWorkCurrent(token)) return false;
+      try {
+        this.ports.applyDelta(project, options, { layers: changedLayers, flushTerrain: true, publishProgress: true });
+        return this.isWorkCurrent(token);
+      } finally {
+        if (this.isWorkCurrent(token)) this.inFlightLayers.clear();
+      }
+    }
+
+    const batches: ProjectionLayerDelta[] = [];
+    for (const layer of changedLayers) {
+      const blocks = blocksForLayer(layer);
+      if (!blocks.length) {
+        batches.push({ layers: [layer], blockOverrides: new Map([[layer, []]]), flushTerrain: false, publishProgress: false });
+        continue;
+      }
+      for (let start = 0; start < blocks.length; start += YLayerProjectionCoordinator.sliceBlockLimit) {
+        batches.push({ layers: [layer], blockOverrides: new Map([[layer, blocks.slice(start, start + YLayerProjectionCoordinator.sliceBlockLimit)]]), flushTerrain: false, publishProgress: false });
+      }
+    }
+
+    try {
+      for (let index = 0; index < batches.length; index += 1) {
+        if (!this.isWorkCurrent(token)) {
+          this.ports.record('yLayerProjectionCancellations');
+          return false;
+        }
+        const batch = batches[index];
+        for (const layer of batch.layers) this.inFlightLayers.add(layer);
+        const started = performance.now();
+        this.ports.applyDelta(project, options, batch);
+        this.ports.recordMax('yLayerProjectionMaxSliceMs', performance.now() - started);
+        this.ports.record('yLayerProjectionSlices');
+        if (index + 1 < batches.length) {
+          this.ports.record('yLayerProjectionYields');
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+      }
+      if (!this.isWorkCurrent(token)) return false;
+      this.ports.finishCooperativeWork();
+      return this.isWorkCurrent(token);
+    } finally {
+      if (this.isWorkCurrent(token)) this.inFlightLayers.clear();
+    }
   }
 
   private scheduleSettlement(revision: number): void {

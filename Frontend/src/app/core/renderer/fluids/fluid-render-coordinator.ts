@@ -1,8 +1,26 @@
 import * as THREE from 'three';
-import { VoxelCoordinate } from '../../domain/project.types';
+import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { RetainableProvider } from '../provider/provider-refresh-coordinator';
 import { FluidChunkChange, FluidChunkDiagnostics, FluidChunkRecord, FluidChunkRenderer, FluidChunkSyncResult, FluidChunkVisualProvider } from './fluid-chunk-renderer';
-import { FluidWorldLookup } from './fluid-state';
+import { FluidRenderResolver, FluidWorldLookup } from './fluid-state';
+
+export interface ProjectionFluidEntry {
+  readonly block: PlacedBlock;
+  readonly signature: string;
+  readonly role: 'normal' | 'reference' | 'missing';
+}
+
+export interface ProjectionFluidChange {
+  readonly before?: ProjectionFluidEntry;
+  readonly after?: ProjectionFluidEntry;
+  readonly position: VoxelCoordinate;
+}
+
+export interface ProjectionFluidDeltaPlan {
+  readonly changes: readonly FluidChunkChange[];
+  readonly afterKeys: ReadonlySet<string>;
+  readonly visitedBlocks: number;
+}
 
 export interface FluidLifecycleDiagnostics extends FluidChunkDiagnostics {
   readonly fluidDetectedVoxels: number;
@@ -41,6 +59,21 @@ export class FluidRenderCoordinator {
   private trackingTransitionRebuild = false;
 
   constructor(private readonly renderer: FluidChunkRenderer, private readonly callbacks: FluidLifecycleCallbacks) {}
+
+  /** Resolves only the changed projection entries; representation-store commits remain with the viewport transaction. */
+  prepareProjectionDelta(changes: ReadonlyMap<string, ProjectionFluidChange>, resolver: FluidRenderResolver, world: FluidWorldLookup): ProjectionFluidDeltaPlan {
+    const fluidChanges: FluidChunkChange[] = [];
+    const afterKeys = new Set<string>();
+    for (const [key, change] of changes) {
+      const beforeState = change.before && resolver.resolve(change.before.block, world);
+      const afterState = change.after && resolver.resolve(change.after.block, world);
+      const before = beforeState ? { block: change.before!.block, state: beforeState, role: change.before!.role === 'reference' ? 'reference' as const : 'normal' as const } : undefined;
+      const after = afterState ? { block: change.after!.block, state: afterState, role: change.after!.role === 'reference' ? 'reference' as const : 'normal' as const } : undefined;
+      if (after) afterKeys.add(key);
+      if (before || after) fluidChanges.push({ position: change.position, before, after });
+    }
+    return { changes: fluidChanges, afterKeys, visitedBlocks: changes.size };
+  }
 
   setProvider(provider: FluidChunkVisualProvider | undefined, lease?: RetainableProvider): void {
     const previous = this.provider;

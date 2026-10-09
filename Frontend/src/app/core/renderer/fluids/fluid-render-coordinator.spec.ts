@@ -110,4 +110,23 @@ describe('FluidRenderCoordinator', () => {
     expect(coordinator.diagnostics()).toMatchObject({ fluidDetectedVoxels: 2, fluidCommittedVoxels: 2, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0 });
     coordinator.dispose(); texture.dispose();
   });
+
+  it('prepares projection fluid records and claims only after-states resolved by the fluid owner', () => {
+    const coordinator = new FluidRenderCoordinator(new FluidChunkRenderer(new THREE.Group()), { onTerminal: () => undefined });
+    const before = block(0);
+    const after = { ...before, state: { level: '4' } };
+    const nonFluid = { ...block(2, 'minecraft:stone'), state: {} };
+    const changes = new Map([
+      ['0,0,0', { before: { block: before, signature: 'water-before', role: 'normal' as const }, after: { block: after, signature: 'water-after', role: 'reference' as const }, position: before.position }],
+      ['2,0,0', { before: { block: nonFluid, signature: 'stone', role: 'normal' as const }, position: nonFluid.position }],
+    ]);
+
+    const plan = coordinator.prepareProjectionDelta(changes, vanillaFluidRenderResolver, worldFor([after]));
+
+    expect(plan.visitedBlocks).toBe(2);
+    expect(plan.changes).toHaveLength(1);
+    expect(plan.changes[0]).toMatchObject({ position: before.position, before: { block: before }, after: { block: after, role: 'reference' } });
+    expect(plan.afterKeys).toEqual(new Set(['0,0,0']));
+    coordinator.dispose();
+  });
 });
