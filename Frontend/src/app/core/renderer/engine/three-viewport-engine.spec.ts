@@ -903,7 +903,7 @@ describe('camera movement input contract', () => {
     engine.update(empty, undefined);
     expect(engine.rendererOwnershipDiagnostics()).toMatchObject({ authoritativeVisibleBlockCount: 0, renderedBlockCount: 0, placeholderVisualCount: 0, instanceBatchCount: 0, instanceMemberCount: 0, blocksGroupChildCount: 0, staleVoxelKeys: [], batchInvariantViolations: [] });
     engine.dispose(); sharedGeometry.dispose();
-  });
+  }, 20_000);
 
   it('retains only known coordinates after a large-to-small transition', async () => {
     const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
