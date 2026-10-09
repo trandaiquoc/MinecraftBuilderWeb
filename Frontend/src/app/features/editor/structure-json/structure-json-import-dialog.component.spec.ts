@@ -14,7 +14,7 @@ import { ExternalAiPromptContextService } from '../../../core/persistence/struct
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
-import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item';
+import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item.types';
 import { ExternalAiWorkspaceComponent } from './external-ai-workspace.component';
 import { StructureJsonImportWorkspaceComponent } from './structure-json-import-workspace.component';
 import { StructureJsonImportDialogComponent } from './structure-json-import-dialog.component';

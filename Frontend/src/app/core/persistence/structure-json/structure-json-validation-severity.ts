@@ -1,4 +1,4 @@
-import type { StructureJsonDecorationIssueCategory, StructureJsonIssueCategory } from './structure-json-import';
+import type { StructureJsonDecorationIssueCategory, StructureJsonIssueCategory } from './structure-json-validation.types';
 import type { StructureJsonImportBlockerCode } from './structure-json-import-plan';
 
 export type StructureJsonValidationSeverity = 'error' | 'warning';
