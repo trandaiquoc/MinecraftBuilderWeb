@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../../domain/project.types';
 import { HistoryService } from '../history/history.service';
-import { GroupService, validateGroupMove } from './group.service';
+import { GroupService } from './group.service';
+import { validateGroupMove } from './group-move-planner';
 import { SelectionService } from '../selection/selection.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { isBlockVisible } from './group-membership';

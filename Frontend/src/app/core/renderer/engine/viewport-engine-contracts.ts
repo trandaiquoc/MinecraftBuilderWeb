@@ -5,7 +5,7 @@ import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { DecorationPlacementPlan } from '../../decorations/placement/decoration-placement';
 import type { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import type { ActiveDecoration } from '../../decorations/decoration.service';
-import type { GroupMovePreview } from '../../editor/groups/group.service';
+import type { GroupMovePreview } from '../../editor/groups/group-move-planner';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';

@@ -8,7 +8,7 @@ import { isBlockVisibleForViewport, visibleBlockEntries } from '../../editor/vie
 import { CameraBounds, CameraPreset, CameraState, projectCameraBounds } from '../../editor/camera/camera';
 import { isBlockVisible } from '../../editor/groups/group-membership';
 import { isDecorationVisible, decorationHasGroup } from '../../editor/groups/decoration-membership';
-import { GroupMovePreview } from '../../editor/groups/group.service';
+import type { GroupMovePreview } from '../../editor/groups/group-move-planner';
 import { ViewportThemePalette, viewportThemePalette } from './viewport-theme';
 import type { BlockVisualProvider, BlockVisualResult, VisualCacheStats } from '../visuals/block-visual-provider-contract';
 import type { ResolvedItemVisual } from '../visuals/item-visual-resolver';
