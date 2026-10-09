@@ -1355,6 +1355,31 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('keeps decoration cache stable for the same resolver revision and refreshes it for new content', () => {
+    const engine = new ThreeViewportEngine();
+    const textureProvider = (_resource: string) => 'blob:content-v1';
+    const internal = engine as unknown as {
+      decorationTextureCache?: { dispose: () => void };
+      decorationVisuals: { revision: number };
+    };
+
+    engine.setDecorationTextureProvider(textureProvider, 1);
+    const firstCache = internal.decorationTextureCache;
+    const disposeFirstCache = vi.spyOn(firstCache!, 'dispose');
+    const firstVisualRevision = internal.decorationVisuals.revision;
+
+    engine.setDecorationTextureProvider(textureProvider, 1);
+    expect(internal.decorationTextureCache).toBe(firstCache);
+    expect(disposeFirstCache).not.toHaveBeenCalled();
+    expect(internal.decorationVisuals.revision).toBe(firstVisualRevision);
+
+    engine.setDecorationTextureProvider(textureProvider, 2);
+    expect(internal.decorationTextureCache).not.toBe(firstCache);
+    expect(disposeFirstCache).toHaveBeenCalledTimes(1);
+    expect(internal.decorationVisuals.revision).toBe(firstVisualRevision + 1);
+    engine.dispose();
+  });
+
   it('replaces a missing-block fallback when the project block resolves', async () => {
     const provider = { create: vi.fn(async () => ({ object: new THREE.Group(), resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
     const base = rendererBenchmarkProject('small');

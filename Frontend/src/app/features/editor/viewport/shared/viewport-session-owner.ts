@@ -28,6 +28,13 @@ export class ViewportSessionOwner {
   private readonly library = inject(BlockLibraryService);
   private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
   private readonly usageHighlight = inject(BlockUsageHighlightService);
+  private readonly specialVisualDescriptorResolver = (id: string) => this.library.get(id)?.specialVisual;
+  private readonly blockDefinitionResolver = (id: string) => this.library.get(id);
+  private readonly decorationTextureProvider = (resource: string) => this.assets.sources.resources.textureUrl(resource);
+  private readonly decorationItemResourceProvider = (itemId: string) => itemVisualTextureResources(this.assets.sources.resources, itemId);
+  private readonly decorationItemVisualProvider = (itemId: string) => resolveItemVisual(this.assets.sources.resources, itemId);
+  private readonly decorationItemPreviewProvider = (item: ItemStackData) => this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]);
+  private readonly paintingTextureResolver = (id: string) => this.paintingCatalog.get(id)?.assetPath;
   readonly hydrationOwner;
   readonly viewportStatusOwner;
   private readonly progressUnsubscribe: () => void;
@@ -66,15 +73,18 @@ export class ViewportSessionOwner {
         this.engine.setStructureBlockGuideVisible(preferences.showStructureBlockGuide);
       }),
       effect(() => {
+        const assetGeneration = this.assets.generation();
+        const catalogRevision = this.library.catalogRevision();
+        const paintingVariants = this.paintingCatalog.variants();
+        const itemVisualRevision = `${assetGeneration}:${catalogRevision}`;
         this.engine.setVisualProvider(this.assets.visualProvider());
-        this.engine.setSpecialVisualDescriptorResolver((id) => this.library.get(id)?.specialVisual, this.library.catalogRevision());
-        this.engine.setBlockDefinitionResolver((id) => this.library.get(id));
-        this.engine.setDecorationTextureProvider((resource) => this.assets.sources.resources.textureUrl(resource));
-        this.engine.setDecorationItemResourceProvider((itemId) => itemVisualTextureResources(this.assets.sources.resources, itemId));
-        this.engine.setDecorationItemVisualProvider((itemId) => resolveItemVisual(this.assets.sources.resources, itemId));
-        this.engine.setDecorationItemPreviewProvider((item) => this.itemVisuals.request(item, 'high').then((info) => info.previewUrls[0]));
-        this.paintingCatalog.variants();
-        this.engine.setPaintingTextureResolver((id) => this.paintingCatalog.get(id)?.assetPath);
+        this.engine.setSpecialVisualDescriptorResolver(this.specialVisualDescriptorResolver, catalogRevision);
+        this.engine.setBlockDefinitionResolver(this.blockDefinitionResolver, catalogRevision);
+        this.engine.setDecorationTextureProvider(this.decorationTextureProvider, assetGeneration);
+        this.engine.setDecorationItemResourceProvider(this.decorationItemResourceProvider, itemVisualRevision);
+        this.engine.setDecorationItemVisualProvider(this.decorationItemVisualProvider, itemVisualRevision);
+        this.engine.setDecorationItemPreviewProvider(this.decorationItemPreviewProvider, itemVisualRevision);
+        this.engine.setPaintingTextureResolver(this.paintingTextureResolver, paintingVariants);
       }),
       effect(() => {
         this.runtimeIndex.usageRevision();

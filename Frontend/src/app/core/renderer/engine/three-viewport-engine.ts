@@ -338,14 +338,20 @@ export class ThreeViewportEngine {
   private palette: ViewportThemePalette = viewportThemePalette('dark');
   private visualProvider?: BlockVisualProvider;
   private decorationTextureUrl?: (resource: string) => string | undefined;
+  private decorationTextureRevision?: unknown;
   private decorationItemResources?: (itemId: string) => readonly string[];
+  private decorationItemResourcesRevision?: unknown;
   private decorationItemVisual?: (itemId: string) => ResolvedItemVisual | undefined;
+  private decorationItemVisualRevision?: unknown;
   private decorationItemPreview?: (item: ItemStackData) => Promise<string | undefined>;
+  private decorationItemPreviewRevision?: unknown;
   private paintingResource?: (variantId: string) => string | undefined;
+  private paintingResourceRevision?: unknown;
   private specialVisualResolver?: (blockId: string) => ContentSpecialVisualDescriptor | undefined;
   private specialVisualRevision?: number;
   private specialVisualSignature = '';
   private definitionResolver?: (blockId: string) => BlockDefinition | undefined;
+  private definitionResolverRevision?: unknown;
   private decorationTextureCache?: DecorationTextureCache;
   private placementPlanProvider?: PlacementPlanProvider;
   private get ghostGeneration(): number { return this.blockGhostPresenter.generation; }
@@ -958,48 +964,54 @@ export class ThreeViewportEngine {
       this.update(this.project, this.activeBlock, this.renderOptions);
     }
   }
-  setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined): void {
-    if (provider === this.decorationTextureUrl) return;
+  setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined, revision?: unknown): void {
+    if (provider === this.decorationTextureUrl && Object.is(revision, this.decorationTextureRevision)) return;
     this.decorationTextureCache?.dispose();
     this.decorationTextureCache = provider ? new DecorationTextureCache(provider, undefined, () => this.scheduleRender()) : undefined;
     this.decorationTextureUrl = provider;
+    this.decorationTextureRevision = revision;
     this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
-  setDecorationItemResourceProvider(provider: ((itemId: string) => readonly string[]) | undefined): void {
-    if (provider === this.decorationItemResources) return;
+  setDecorationItemResourceProvider(provider: ((itemId: string) => readonly string[]) | undefined, revision?: unknown): void {
+    if (provider === this.decorationItemResources && Object.is(revision, this.decorationItemResourcesRevision)) return;
     this.decorationItemResources = provider;
+    this.decorationItemResourcesRevision = revision;
     this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
-  setDecorationItemVisualProvider(provider: ((itemId: string) => ResolvedItemVisual | undefined) | undefined): void {
-    if (provider === this.decorationItemVisual) return;
+  setDecorationItemVisualProvider(provider: ((itemId: string) => ResolvedItemVisual | undefined) | undefined, revision?: unknown): void {
+    if (provider === this.decorationItemVisual && Object.is(revision, this.decorationItemVisualRevision)) return;
     this.decorationItemVisual = provider;
+    this.decorationItemVisualRevision = revision;
     this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
-  setDecorationItemPreviewProvider(provider: ((item: ItemStackData) => Promise<string | undefined>) | undefined): void {
-    if (provider === this.decorationItemPreview) return;
+  setDecorationItemPreviewProvider(provider: ((item: ItemStackData) => Promise<string | undefined>) | undefined, revision?: unknown): void {
+    if (provider === this.decorationItemPreview && Object.is(revision, this.decorationItemPreviewRevision)) return;
     this.decorationItemPreview = provider;
+    this.decorationItemPreviewRevision = revision;
     this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
-  setPaintingTextureResolver(provider: ((variantId: string) => string | undefined) | undefined): void {
-    if (provider === this.paintingResource) return;
+  setPaintingTextureResolver(provider: ((variantId: string) => string | undefined) | undefined, revision?: unknown): void {
+    if (provider === this.paintingResource && Object.is(revision, this.paintingResourceRevision)) return;
     this.paintingResource = provider;
+    this.paintingResourceRevision = revision;
     this.decorationVisuals.advanceRevision();
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
   }
 
   setPlacementPlanProvider(provider: PlacementPlanProvider | undefined): void { this.placementPlanProvider = provider; }
-  setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined): void {
-    if (this.definitionResolver === resolver) return;
+  setBlockDefinitionResolver(resolver: ((blockId: string) => BlockDefinition | undefined) | undefined, revision?: unknown): void {
+    if (this.definitionResolver === resolver && Object.is(revision, this.definitionResolverRevision)) return;
     this.definitionResolver = resolver;
+    this.definitionResolverRevision = revision;
     this.structureBlockGuideKey = '';
     if (this.suspended) { this.suspendedNeedsRefresh = true; return; }
     this.update(this.project, this.activeBlock, this.renderOptions);
