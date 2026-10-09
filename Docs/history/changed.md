@@ -2550,9 +2550,9 @@ identity, and provider generation; fluid keys include the fluid records, role,
 provider contract, and canonical world visual revision. A hit reattaches the
 same meshes/geometries and restores ownership without remeshing. Mutations,
 provider changes, or resource-budget eviction prevent stale/unbounded reuse.
-This improves repeated projection transitions after a variant has been shown,
-but does not claim that every layer/visibility variant or GPU presentation is
-preloaded at startup. First visits remain cold and require compilation.
+At that checkpoint, only previously presented projection variants could be
+restored; first visits remained cold and required compilation. The later static
+residency follow-up below changes this for reusable static-instance blocks only.
 
 Normal/reference-only Y-layer transitions now retarget existing standalone
 materials, static instance memberships, exposed-face memberships, and terrain
@@ -2561,3 +2561,22 @@ compile or restore a role-specific chunk mesh; fluids retain role-specific
 chunk variants and may compile a cold role variant on first use. Presentation
 role is therefore separated from provider/model hydration, not from every
 renderer-family geometry bucket.
+
+## Static Y-layer residency and batch presentation follow-up
+
+For the non-exposed-face static-instance path, reusable templates are followed by
+cooperative physical representation prewarm across occupied layers. The queue is
+bounded to 192 outstanding jobs, yields after 96 candidate voxels, keeps active
+projection work ahead of prewarm, and is invalidated with project/provider
+hydration generations. `yLayerRepresentationPrewarmEvidence()` reports physical
+representation coverage separately; its GPU presentation state remains
+`viewport-dependent` and is never inferred from template or instance insertion.
+Blocks without a compiled reusable static template remain partial.
+
+Static instance and exposed-surface batches are partitioned by Y only while a
+Y-layer presentation is active. Visibility changes update layer mesh visibility
+and layer role/material state rather than rewriting member matrices. Matrix
+writes remain necessary for initial membership insertion and ordinary 3D
+membership edits. Exposed-face, terrain-chunk, fluid, and non-reusable special
+visual prewarming are not covered by this static residency path; their previous
+cache/readiness limitations remain in force.

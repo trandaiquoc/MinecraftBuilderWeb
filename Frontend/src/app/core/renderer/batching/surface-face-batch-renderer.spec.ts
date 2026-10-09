@@ -26,7 +26,7 @@ describe('SurfaceFaceBatchRenderer', () => {
     renderer.clear([]); geometry.dispose(); material.dispose();
   });
 
-  it('moves retained exposed faces between role batches using the same templates', () => {
+  it('moves a 3D surface membership to the requested role batch using the same templates', () => {
     const group = new THREE.Group();
     const geometry = new THREE.PlaneGeometry(1, 1);
     const material = new THREE.MeshBasicMaterial();
@@ -35,6 +35,7 @@ describe('SurfaceFaceBatchRenderer', () => {
     const templates: SurfaceFaceTemplate[] = directions.map((direction) => ({ geometry, material, direction, matrix: new THREE.Matrix4() }));
     renderer.add({ position: { x: 2, y: 3, z: 4 } }, 'voxel', templates, new Set(['north', 'up']));
     const oldBatch = renderer.batches.values().next().value!;
+    const matrixVersion = oldBatch.mesh.instanceMatrix.version;
 
     expect(renderer.setMemberRole('voxel', 'reference', .4)).toBe(true);
     const nextBatches = [...renderer.batches.values()];
@@ -44,6 +45,30 @@ describe('SurfaceFaceBatchRenderer', () => {
     expect(nextBatches.flatMap((batch) => batch.keys)).toEqual(['voxel', 'voxel']);
     expect(nextBatches.every((batch) => batch.template.geometry === geometry)).toBe(true);
     expect(oldBatch.mesh.parent).toBeNull();
+    expect(oldBatch.mesh.instanceMatrix.version).toBeGreaterThan(matrixVersion);
+    expect(group.children).toHaveLength(1);
+    renderer.clear([]); geometry.dispose(); material.dispose();
+  });
+
+  it('changes Y-layer visibility and role by surface batch without per-face matrix writes', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new SurfaceFaceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => 'region', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), unitEnvelope: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(1, 1, 1)), record: () => undefined, getEntry: () => undefined });
+    const directions = ['north', 'east', 'south', 'west', 'up', 'down'] as const;
+    const templates: SurfaceFaceTemplate[] = directions.map((direction) => ({ geometry, material, direction, matrix: new THREE.Matrix4() }));
+    renderer.setLayerPresentation(new Set([10, 11]), 10, .25);
+    renderer.add({ position: { x: 0, y: 10, z: 0 } }, 'lower', templates, new Set(['north', 'up']));
+    renderer.add({ position: { x: 0, y: 11, z: 0 } }, 'upper', templates, new Set(['north', 'up']));
+    const batches = [...renderer.batches.values()];
+    const matrixVersions = batches.map((batch) => batch.mesh.instanceMatrix.version);
+
+    renderer.setLayerPresentation(new Set([11]), 11, .25);
+
+    expect(batches).toHaveLength(2);
+    expect(batches.filter((batch) => batch.layer === 10).every((batch) => !batch.mesh.visible && batch.renderRole === 'reference')).toBe(true);
+    expect(batches.filter((batch) => batch.layer === 11).every((batch) => batch.mesh.visible && batch.renderRole === 'normal')).toBe(true);
+    expect(batches.map((batch) => batch.mesh.instanceMatrix.version)).toEqual(matrixVersions);
     renderer.clear([]); geometry.dispose(); material.dispose();
   });
 

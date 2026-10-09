@@ -2335,6 +2335,12 @@ describe('selection visualization scalability', () => {
     const preloadEvidence = engine.yLayerVisualPreloadEvidence();
     expect(preloadEvidence).toMatchObject({ state: 'templates-ready', templateState: 'ready', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent', layersTotal: 2, layersReady: 2 });
     expect(preloadEvidence.reusableVariantsPrepared).toBeGreaterThan(0);
+    if (!exposedFaceRendering) {
+      await waitForYLayerRepresentationPrewarm(engine);
+      expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'ready', blocksTotal: 2, representationsResident: 2, jobsPending: 0, gpuPresentationState: 'viewport-dependent' });
+    } else {
+      expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'partial', rendererPath: 'unsupported-active-path' });
+    }
     const createsAfterPreload = provider.create.mock.calls.length;
     const beforeSwitch = engine.rendererCounters();
 
@@ -2398,9 +2404,46 @@ describe('selection visualization scalability', () => {
     expect(expanded.blockRemovals).toBe(prepared.blockRemovals);
     expect(expanded.instancedBlockAdds - prepared.instancedBlockAdds).toBe(0);
     expect(expanded.instancedBlockRemovals - prepared.instancedBlockRemovals).toBe(0);
+    expect(contracted.instanceMatrixWrites).toBe(prepared.instanceMatrixWrites);
+    expect(expanded.instanceMatrixWrites).toBe(contracted.instanceMatrixWrites);
     expect(contracted.blockVisualCreations).toBe(prepared.blockVisualCreations);
     const retained = engine as unknown as { blockRepresentations: Map<string, { presentationVisible?: boolean }> };
     expect([...retained.blockRepresentations.values()].filter((entry) => entry.presentationVisible === false)).toHaveLength(0);
+    engine.dispose();
+  });
+
+  it('keeps static instance matrices resident while visibility changes at layer-batch granularity', async () => {
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [];
+    for (const y of [0, 1]) for (let x = 0; x < 16; x += 1) for (let z = 0; z < 16; z += 1) {
+      blocks.push({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+    }
+    const project: ProjectDocument = { ...base, size: { x: 16, y: 2, z: 16 }, blocks, groups: [], decorations: [] };
+    const byY = new Map([[0, blocks.filter((block) => block.position.y === 0)], [1, blocks.filter((block) => block.position.y === 1)]]);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(axisCubeProvider());
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex });
+    await settleHydration(200, engine);
+    const before = engine.rendererCounters();
+    const internal = engine as unknown as { instanceBatches: Map<string, { layer: number; parts: THREE.InstancedMesh[] }> };
+    const versions = [...internal.instanceBatches.values()].map((batch) => [batch.layer, batch.parts.map((part) => part.instanceMatrix.version)] as const);
+
+    engine.update(project, undefined, { layerY: 0, visibility: 'current-only', layerIndex });
+    await waitForProjectionIdle(engine);
+    await settleHydration(40, engine);
+    const contracted = engine.rendererCounters();
+    expect([...internal.instanceBatches.values()].filter((batch) => batch.layer === 1).every((batch) => batch.parts.every((part) => !part.visible))).toBe(true);
+    expect(contracted.instanceMatrixWrites).toBe(before.instanceMatrixWrites);
+
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex });
+    await waitForProjectionIdle(engine);
+    await settleHydration(40, engine);
+    const expanded = engine.rendererCounters();
+    expect([...internal.instanceBatches.values()].map((batch) => [batch.layer, batch.parts.map((part) => part.instanceMatrix.version)])).toEqual(versions);
+    expect(expanded.instanceMatrixWrites).toBe(contracted.instanceMatrixWrites);
+    expect(expanded.yLayerBatchVisibilityUpdates).toBeGreaterThan(contracted.yLayerBatchVisibilityUpdates);
     engine.dispose();
   });
 
@@ -2632,6 +2675,12 @@ async function waitForProjectionIdle(engine: ThreeViewportEngine, attempts = 2_0
 
 async function waitForYLayerPreload(engine: ThreeViewportEngine, attempts = 2_000): Promise<void> {
   for (let attempt = 0; attempt < attempts && engine.yLayerVisualPreloadEvidence().state === 'preparing'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
+async function waitForYLayerRepresentationPrewarm(engine: ThreeViewportEngine, attempts = 2_000): Promise<void> {
+  for (let attempt = 0; attempt < attempts && engine.yLayerRepresentationPrewarmEvidence().state === 'preparing'; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }

@@ -25,6 +25,7 @@ export interface BlockHydrationJob {
   readonly allowInstancing: boolean;
   readonly surfaceFastPathEligible: boolean;
   readonly surfaceVisibleEntries: ReadonlyMap<string, VisibleBlockProjectionEntry>;
+  readonly layerPrewarm?: boolean;
   readonly providerRefresh?: boolean;
   readonly providerRefreshGeneration?: number;
 }

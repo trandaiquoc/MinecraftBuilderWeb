@@ -27,13 +27,14 @@ export interface SurfaceFaceBatch {
   readonly key: string;
   readonly regionKey: string;
   readonly segment: number;
+  readonly layer: number;
   readonly capacity: number;
   readonly template: SurfaceFaceTemplate;
   readonly mesh: THREE.InstancedMesh;
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
   readonly directions: SurfaceFaceDirection[];
-  readonly renderRole: 'normal' | 'reference';
+  renderRole: 'normal' | 'reference';
 }
 
 export interface SurfaceFaceBatchRendererOptions {
@@ -57,6 +58,9 @@ export class SurfaceFaceBatchRenderer {
   private readonly templatesByKey = new Map<string, readonly SurfaceFaceTemplate[]>();
   private readonly translation = new THREE.Matrix4();
   private readonly hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+  private readonly swapMatrix = new THREE.Matrix4();
+  private visibleLayers?: ReadonlySet<number>;
+  private layerPresentation?: { readonly currentY: number; readonly referenceOpacity: number };
 
   constructor(private readonly options: SurfaceFaceBatchRendererOptions) {}
 
@@ -79,6 +83,7 @@ export class SurfaceFaceBatchRenderer {
         batch.mesh.setMatrixAt(membership.index, this.translation.makeTranslation(position.x, position.y, position.z).multiply(batch.template.matrix));
       } else batch.mesh.setMatrixAt(membership.index, this.hiddenMatrix);
       batch.mesh.instanceMatrix.needsUpdate = true;
+      this.options.record('instanceMatrixWrites');
     }
     return true;
   }
@@ -89,7 +94,9 @@ export class SurfaceFaceBatchRenderer {
     for (const template of templates) {
       if (!exposed.has(template.direction)) continue;
       const region = this.options.regionPolicy?.key(block.position) ?? this.options.chunkKey(block.position);
-      const baseKey = `${region}|surface|role:${role}|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
+      const layer = this.layerPresentation ? Math.trunc(block.position.y) : -1;
+      const roleKey = this.layerPresentation ? '' : `|role:${role}`;
+      const baseKey = `${region}|layer:${layer}|surface${roleKey}|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
       let segment = 0;
       let batchKey = `${baseKey}|segment:${segment}`;
       let batch = this.batchStore.get(batchKey);
@@ -112,12 +119,14 @@ export class SurfaceFaceBatchRenderer {
         mesh.userData['realModel'] = true;
         mesh.userData['instanceBatchKey'] = batchKey;
         this.options.blocksGroup.add(mesh);
+        if (this.visibleLayers) mesh.visible = this.visibleLayers.has(layer);
         mesh.boundingBox = this.options.regionPolicy?.bounds(region, this.options.unitEnvelope()) ?? this.options.stableBounds(region, this.options.unitEnvelope());
         mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
         this.options.record('instancedBoundsComputations');
-        batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [], renderRole: role };
+        batch = { key: batchKey, regionKey: region, segment, layer, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [], renderRole: role };
         this.batchStore.set(batchKey, batch);
       }
+      if (this.layerPresentation) this.setBatchRole(batch, layer === this.layerPresentation.currentY ? 'normal' : 'reference', this.layerPresentation.referenceOpacity);
       if (batch.keys.length >= batch.capacity) return undefined;
       const index = batch.keys.length;
       const position = { ...block.position };
@@ -127,6 +136,7 @@ export class SurfaceFaceBatchRenderer {
       batch.mesh.setMatrixAt(index, this.translation.makeTranslation(position.x, position.y, position.z).multiply(template.matrix));
       batch.mesh.count = index + 1;
       batch.mesh.instanceMatrix.needsUpdate = true;
+      this.options.record('instanceMatrixWrites');
       (batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[]).push(position);
       (batch.mesh.userData['instanceKeys'] as string[]).push(key);
       (batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[]).push(template.direction);
@@ -149,21 +159,61 @@ export class SurfaceFaceBatchRenderer {
     const memberships = this.ownershipStore.get(key);
     const templates = this.templatesByKey.get(key);
     if (!memberships?.length || !templates) return false;
-    const firstBatch = this.batchStore.get(memberships[0].batchKey);
-    if (!firstBatch) return false;
-    if (firstBatch.renderRole === role) return true;
-    const position = firstBatch.positions[memberships[0].index];
-    const exposed = new Set<SurfaceFaceDirection>();
-    for (const membership of memberships) {
+    if (this.layerPresentation) return true;
+    const firstMembership = memberships[0];
+    const firstBatch = this.batchStore.get(firstMembership.batchKey);
+    const position = firstBatch?.positions[firstMembership.index];
+    if (!position) return false;
+    if (memberships.every((membership) => this.batchStore.get(membership.batchKey)?.renderRole === role)) return true;
+    const exposed = new Set(memberships.flatMap((membership) => {
       const batch = this.batchStore.get(membership.batchKey);
-      if (!batch) continue;
-      exposed.add(batch.directions[membership.index]);
+      return batch ? [batch.directions[membership.index]] : [];
+    }));
+    const wasHidden = this.hiddenKeys.has(key);
+    this.remove(key, this.options.getEntry(key));
+    const moved = this.add({ position }, key, templates, exposed, role, referenceOpacity);
+    if (!moved) return false;
+    if (wasHidden) this.setMemberVisible(key, false);
+    return true;
+  }
+
+  /** Applies Y-layer visibility and role at batch granularity. */
+  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number): void {
+    this.visibleLayers = visibleLayers;
+    this.layerPresentation = { currentY, referenceOpacity };
+    for (const batch of this.batchStore.values()) {
+      const visible = visibleLayers.has(batch.layer);
+      if (batch.mesh.visible !== visible) {
+        batch.mesh.visible = visible;
+        this.options.record('yLayerBatchVisibilityUpdates');
+      }
+      this.setBatchRole(batch, batch.layer === currentY ? 'normal' : 'reference', referenceOpacity);
     }
-    if (!exposed.size) return false;
-    const block = { position };
-    this.remove(key);
-    const result = this.add(block, key, templates, exposed, role, referenceOpacity);
-    return !!result;
+  }
+
+  clearLayerPresentation(): void {
+    this.visibleLayers = undefined;
+    this.layerPresentation = undefined;
+    for (const batch of this.batchStore.values()) {
+      batch.mesh.visible = true;
+      this.setBatchRole(batch, 'normal', 1);
+    }
+  }
+
+  private setLayerRole(layer: number, role: 'normal' | 'reference', opacity: number): void {
+    for (const batch of this.batchStore.values()) if (batch.layer === layer) this.setBatchRole(batch, role, opacity);
+  }
+
+  private setBatchRole(batch: SurfaceFaceBatch, role: 'normal' | 'reference', referenceOpacity: number): void {
+    if (batch.renderRole === role) return;
+    batch.renderRole = role;
+    const materials = Array.isArray(batch.mesh.material) ? batch.mesh.material : [batch.mesh.material];
+    for (const material of materials) {
+      material.transparent = role === 'reference' || batch.template.material.transparent;
+      material.opacity = role === 'reference' ? referenceOpacity : batch.template.material.opacity;
+      material.needsUpdate = true;
+    }
+    this.options.record(this.layerPresentation ? 'yLayerBatchRoleUpdates' : 'renderBatchRoleUpdates');
   }
 
   setReferenceOpacity(opacity: number): void {
@@ -204,6 +254,9 @@ export class SurfaceFaceBatchRenderer {
       batch.keys[index] = movedKey;
       batch.positions[index] = movedPosition;
       batch.directions[index] = movedDirection;
+      batch.mesh.getMatrixAt(last, this.swapMatrix);
+      batch.mesh.setMatrixAt(index, this.swapMatrix);
+      this.options.record('instanceMatrixWrites');
       const voxels = batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[];
       const keys = batch.mesh.userData['instanceKeys'] as string[];
       const directions = batch.mesh.userData['instanceFaceDirections'] as SurfaceFaceDirection[];

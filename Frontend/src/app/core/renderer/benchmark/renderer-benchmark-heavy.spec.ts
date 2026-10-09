@@ -346,13 +346,16 @@ describe('explicit renderer benchmark', () => {
     const preloadTime = await time('all-occupied-layer-preload', async () => {
       engine.prepareYLayerVisualResources(project);
       await waitForYLayerPreload(engine);
+      await waitForRepresentationPrewarm(engine);
     });
     const preload = engine.yLayerVisualPreloadEvidence();
+    const representationPreload = engine.yLayerRepresentationPrewarmEvidence();
     expect(preload.blocksTotal).toBe(110_592);
     expect(preload.blocksVisited).toBe(110_592);
     expect(preload.layersTotal).toBe(48);
     expect(preload.layersReady).toBe(48);
     expect(preload).toMatchObject({ state: 'templates-ready', templateState: 'ready', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent' });
+    expect(representationPreload).toMatchObject({ state: 'ready', blocksTotal: 110_592, blocksVisited: 110_592, representationsResident: 110_592, jobsPending: 0 });
     const createsBeforeWarmSwitch = engine.rendererCounters().providerObjectCreations;
     const warmSwitch = await time('first-switch-after-preload', () => switchLayer(47));
     const createsAfterWarmSwitch = engine.rendererCounters().providerObjectCreations;
@@ -378,8 +381,9 @@ describe('explicit renderer benchmark', () => {
     expect(wholeCount).toBeGreaterThan(belowCount);
     expect(afterVisibility.fullSceneRebuilds - beforeExpand.fullSceneRebuilds).toBe(0);
     expect(engine.rendererCounters().providerObjectCreations).toBe(createsAfterWarmSwitch);
+    expect(afterVisibility.instanceMatrixWrites - beforeExpand.instanceMatrixWrites).toBe(0);
     const processMemory = (globalThis as { process?: { memoryUsage?: () => { heapUsed: number; rss: number } } }).process?.memoryUsage?.();
-    console.info(`[y-layer preload benchmark] summary=${JSON.stringify({ blocks: project.blocks.length, preload, initialMs: initial, coldSwitchMs: coldSwitch, warmSwitchMs: warmSwitch, allBelowMs: allBelow, wholeExpansionMs: whole, contractionMs: contract, providerObjectCreationsBeforeWarmSwitch: createsBeforeWarmSwitch, providerObjectCreationsAfterWarmSwitch: createsAfterWarmSwitch, providerObjectCreationsAfterVisibility: engine.rendererCounters().providerObjectCreations, projectionCounters: { slices: afterVisibility.yLayerProjectionSlices - beforeExpand.yLayerProjectionSlices, changedBlocks: afterVisibility.yLayerProjectionChangedBlocks - beforeExpand.yLayerProjectionChangedBlocks, yields: afterVisibility.yLayerProjectionYields - beforeExpand.yLayerProjectionYields }, processMemory, gpuPresentation: 'not measurable in Vitest without WebGL/browser' })}`);
+    console.info(`[y-layer preload benchmark] summary=${JSON.stringify({ blocks: project.blocks.length, preload, representationPreload, initialMs: initial, coldSwitchMs: coldSwitch, warmSwitchMs: warmSwitch, allBelowMs: allBelow, wholeExpansionMs: whole, contractionMs: contract, providerObjectCreationsBeforeWarmSwitch: createsBeforeWarmSwitch, providerObjectCreationsAfterWarmSwitch: createsAfterWarmSwitch, providerObjectCreationsAfterVisibility: engine.rendererCounters().providerObjectCreations, matrixWritesTotal: afterVisibility.instanceMatrixWrites, matrixWritesDuringVisibility: afterVisibility.instanceMatrixWrites - beforeExpand.instanceMatrixWrites, layerBatchVisibilityUpdates: afterVisibility.yLayerBatchVisibilityUpdates - beforeExpand.yLayerBatchVisibilityUpdates, layerBatchRoleUpdates: afterVisibility.yLayerBatchRoleUpdates - beforeExpand.yLayerBatchRoleUpdates, projectionCounters: { slices: afterVisibility.yLayerProjectionSlices - beforeExpand.yLayerProjectionSlices, changedBlocks: afterVisibility.yLayerProjectionChangedBlocks - beforeExpand.yLayerProjectionChangedBlocks, yields: afterVisibility.yLayerProjectionYields - beforeExpand.yLayerProjectionYields }, processMemory, gpuPresentation: 'not measurable in Vitest without WebGL/browser' })}`);
     expect(initial).toBeGreaterThanOrEqual(0);
     engine.dispose();
     provider.dispose();
@@ -422,6 +426,14 @@ async function settleHydration(rounds: number, engine: ThreeViewportEngine): Pro
 
 async function waitForYLayerPreload(engine: ThreeViewportEngine, attempts = 30_000): Promise<void> {
   for (let index = 0; index < attempts && engine.yLayerVisualPreloadEvidence().state === 'preparing'; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function waitForRepresentationPrewarm(engine: ThreeViewportEngine, timeoutMs = 120_000): Promise<void> {
+  const started = performance.now();
+  while (engine.yLayerRepresentationPrewarmEvidence().state === 'preparing' && performance.now() - started < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  if (engine.yLayerRepresentationPrewarmEvidence().state === 'preparing') throw new Error('Y-layer physical representation prewarm timed out');
 }
 
 async function waitForProjection(engine: ThreeViewportEngine, attempts = 30_000): Promise<void> {

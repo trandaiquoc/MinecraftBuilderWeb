@@ -26,6 +26,29 @@ describe('InstanceBatchRenderer', () => {
     renderer.clear(); geometry.dispose(); material.dispose();
   });
 
+  it('changes Y-layer visibility and role by batch without writing per-voxel matrices', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new InstanceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => 'region', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), record: () => undefined, getEntry: () => undefined });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+    renderer.setLayerPresentation(new Set([10, 11]), 10, .25);
+    renderer.addFromTemplates(templates, { x: 0, y: 10, z: 0 }, 'lower');
+    renderer.addFromTemplates(templates, { x: 0, y: 11, z: 0 }, 'upper');
+    const batches = [...renderer.batches.values()];
+    const matrixVersions = batches.map((batch) => batch.parts.map((part) => part.instanceMatrix.version));
+
+    renderer.setLayerPresentation(new Set([11]), 11, .25);
+
+    expect(batches).toHaveLength(2);
+    expect(batches.find((batch) => batch.layer === 10)?.parts[0].visible).toBe(false);
+    expect(batches.find((batch) => batch.layer === 11)?.parts[0].visible).toBe(true);
+    expect(batches.find((batch) => batch.layer === 10)?.renderRole).toBe('reference');
+    expect(batches.find((batch) => batch.layer === 11)?.renderRole).toBe('normal');
+    expect(batches.map((batch) => batch.parts.map((part) => part.instanceMatrix.version))).toEqual(matrixVersions);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
   it('preserves a hidden member when swap-back removal moves it to another index', () => {
     const group = new THREE.Group();
     const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -255,6 +278,24 @@ describe('InstanceBatchRenderer', () => {
     expect(reference.renderRole).toBe('reference');
     expect(reference.parts[0].geometry).toBe(originalGeometry);
     expect(reference.positions).toEqual([{ x: 1, y: 2, z: 3 }]);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
+  it('changes only the owning 3D role batch when Y-layer presentation is inactive', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new InstanceBatchRenderer({ blocksGroup: group, capacity: 16, chunkKey: () => '0,0,0', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), record: () => undefined, getEntry: () => undefined, disposeMergedTemplateGeometry: () => undefined });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+    renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'normal');
+    renderer.addFromTemplates(templates, { x: 2, y: 0, z: 0 }, 'other-normal');
+    renderer.addFromTemplates(templates, { x: 1, y: 0, z: 0 }, 'reference', 'provider-async', undefined, 'reference');
+
+    expect(renderer.setMemberRole('normal', 'reference')).toBe(true);
+    const batches = [...renderer.batches.values()];
+    expect(batches.filter((batch) => batch.keys.includes('normal')).every((batch) => batch.renderRole === 'reference')).toBe(true);
+    expect(batches.filter((batch) => batch.keys.includes('other-normal')).every((batch) => batch.renderRole === 'normal')).toBe(true);
+    expect(batches.filter((batch) => batch.keys.includes('reference')).every((batch) => batch.renderRole === 'reference')).toBe(true);
     renderer.clear(); geometry.dispose(); material.dispose();
   });
 });

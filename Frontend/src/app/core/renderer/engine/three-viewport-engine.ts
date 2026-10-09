@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ActiveBlock } from '../../blocks/placement-palette/active-block.service';
 import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import { FaceNormal, resolveAttachmentPlacement, projectGridBounds, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit, PlacementContext, PlacementStatus } from '../../editor/placement/placement';
-import type { LayerBlockIndex } from '../../editor/viewport/y-layer';
+import { visibleLayerSet, type LayerBlockIndex } from '../../editor/viewport/y-layer';
 import { isBlockVisibleForViewport, visibleBlockEntries } from '../../editor/viewport/visible-blocks';
 import { CameraBounds, CameraPreset, CameraState, projectCameraBounds } from '../../editor/camera/camera';
 import { isBlockVisible } from '../../editor/groups/group-membership';
@@ -143,6 +143,17 @@ export type { CompiledInstanceTemplates, InstancePartTemplate } from '../batchin
 export const VIEWPORT_BOOTSTRAP_SIZE: ProjectSize = { x: 16, y: 16, z: 16 };
 export const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
 export const VIEWPORT_VISUAL_CONCURRENCY = 6;
+
+export interface YLayerRepresentationPrewarmEvidence {
+  readonly state: 'idle' | 'preparing' | 'ready' | 'partial' | 'cancelled';
+  readonly blocksTotal: number;
+  readonly blocksVisited: number;
+  readonly representationsResident: number;
+  readonly representationsSkipped: number;
+  readonly jobsPending: number;
+  readonly rendererPath: 'static-instance-only' | 'unsupported-active-path';
+  readonly gpuPresentationState: 'viewport-dependent';
+}
 export const VIEWPORT_INSTANCE_CHUNK_SIZE = RENDER_CHUNK_SIZE;
 /** Presentation regions reduce far-view batch fragmentation while preserving culling locality. */
 export const VIEWPORT_RENDER_REGION_SIZE = 32;
@@ -294,6 +305,19 @@ export class ThreeViewportEngine {
   private layerIndex?: LayerBlockIndex;
   private readonly yLayerProjection: YLayerProjectionCoordinator;
   private readonly yLayerVisualPreloader: YLayerVisualPreloader<PreparedYLayerVisualResource>;
+  private layerResidencyPrewarm?: {
+    readonly project: ProjectDocument;
+    readonly blocks: readonly ProjectDocument['blocks'][number][];
+    readonly providerGeneration: number;
+    index: number;
+    inFlight: number;
+    prepared: number;
+    skipped: number;
+  };
+  private layerResidencyEvidenceValue: YLayerRepresentationPrewarmEvidence = {
+    state: 'idle', blocksTotal: 0, blocksVisited: 0, representationsResident: 0,
+    representationsSkipped: 0, jobsPending: 0, rendererPath: 'static-instance-only', gpuPresentationState: 'viewport-dependent',
+  };
   private cachedBoundsKey = '';
   private lastActiveGroupProject?: ProjectDocument;
   private lastActiveGroupId?: string;
@@ -752,12 +776,13 @@ export class ThreeViewportEngine {
       decorations: this.decorationVisuals,
       diagnostics: this.instrumentation,
       runtimeTrace: () => this.runtimeTrace,
-      isStopped: () => this.disposed || (this.suspended && !this.backgroundPreparation),
+      isStopped: () => this.disposed || (this.suspended && !this.backgroundPreparation && !this.layerResidencyPrewarm),
       isInteractive: () => this.isCameraInteracting(),
       rollbackPartialInstanceVisual: (key) => this.rollbackPartialInstanceVisual(key),
       markHydrationFailure: (job, error) => this.markHydrationFailure(job, error),
       publishProviderRefreshProgress: () => this.publishProviderRefreshProgress(),
       completeHydrationPart: (token, key) => this.completeHydrationPart(token, 'block', key),
+      onLayerPrewarmComplete: (job, authoritative) => this.onLayerPrewarmComplete(job, authoritative),
     }, {
       syncBudgetMs: VIEWPORT_HYDRATION_SYNC_BUDGET_MS,
       interactiveSyncBudgetMs: VIEWPORT_INTERACTIVE_HYDRATION_SYNC_BUDGET_MS,
@@ -846,7 +871,126 @@ export class ThreeViewportEngine {
 
   prepareYLayerVisualResources(project: ProjectDocument): void {
     if (this.disposed || !this.visualProvider || this.project?.id !== project.id || this.project.blocks !== project.blocks) return;
-    void this.yLayerVisualPreloader.start(project.blocks, this.providerGeneration, this.preloadUsesTerrainTemplates() ? 'terrain-surface' : 'static-instance');
+    const providerGeneration = this.providerGeneration;
+    const usesTerrainTemplates = this.preloadUsesTerrainTemplates();
+    if (usesTerrainTemplates) this.layerResidencyEvidenceValue = {
+      state: 'partial', blocksTotal: project.blocks.length, blocksVisited: 0, representationsResident: 0,
+      representationsSkipped: project.blocks.length, jobsPending: 0, rendererPath: 'unsupported-active-path', gpuPresentationState: 'viewport-dependent',
+    };
+    const preparation = this.yLayerVisualPreloader.start(project.blocks, providerGeneration, usesTerrainTemplates ? 'terrain-surface' : 'static-instance');
+    if (!usesTerrainTemplates && this.renderOptions.layerY !== undefined) {
+      void preparation.then((evidence) => {
+        if (evidence.state === 'cancelled' || this.disposed || this.project !== project || this.providerGeneration !== providerGeneration) return;
+        this.beginLayerRepresentationPrewarm(project, providerGeneration);
+      });
+    }
+  }
+
+  /** Physical residency is bounded to one project and a small scheduler window. */
+  private beginLayerRepresentationPrewarm(project: ProjectDocument, providerGeneration: number): void {
+    if (this.layerResidencyPrewarm?.project === project && this.layerResidencyPrewarm.providerGeneration === providerGeneration) return;
+    this.layerResidencyPrewarm = { project, blocks: project.blocks, providerGeneration, index: 0, inFlight: 0, prepared: 0, skipped: 0 };
+    this.layerResidencyEvidenceValue = {
+      state: 'preparing', blocksTotal: project.blocks.length, blocksVisited: 0,
+      representationsResident: 0, representationsSkipped: 0, jobsPending: 0,
+      rendererPath: 'static-instance-only', gpuPresentationState: 'viewport-dependent',
+    };
+    this.pumpLayerRepresentationPrewarm();
+  }
+
+  private pumpLayerRepresentationPrewarm(): void {
+    const prewarm = this.layerResidencyPrewarm;
+    if (!prewarm || this.disposed || this.project !== prewarm.project || this.providerGeneration !== prewarm.providerGeneration) return;
+    const maxInFlight = 192;
+    const sliceLimit = 96;
+    let queued = 0;
+    let scanned = 0;
+    const worldContext = { visualRevisionKey: this.blockIndexOwner.visualRevision, getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+    while (prewarm.index < prewarm.blocks.length && prewarm.inFlight < maxInFlight && scanned < sliceLimit) {
+      const block = prewarm.blocks[prewarm.index++];
+      scanned += 1;
+      const key = coordinateKey(block.position);
+      if (this.blockRepresentations.has(key)) { prewarm.prepared += 1; continue; }
+      if (this.hydrationPipeline.hasPendingSignature(key)) { prewarm.skipped += 1; continue; }
+      const reusableKey = this.visualProvider?.reusableVisualKey?.(block, worldContext);
+      if (!reusableKey || !this.instanceRenderer.hasTemplate(reusableKey)) { prewarm.skipped += 1; continue; }
+      const entry = this.visibleEntry(block, this.renderOptions);
+      this.hydrationPipeline.setPendingSignature(key, entry.signature);
+      this.hydrationPipeline.enqueueRegular({
+        token: this.hydrationPipeline.generation,
+        projectionRevision: this.yLayerProjection.revisionForKey(key),
+        key,
+        block,
+        signature: entry.signature,
+        role: entry.role,
+        worldContext,
+        options: this.renderOptions,
+        allowInstancing: true,
+        surfaceFastPathEligible: false,
+        surfaceVisibleEntries: this.yLayerProjection.visibleEntriesByKey,
+        layerPrewarm: true,
+      });
+      prewarm.inFlight += 1;
+      queued += 1;
+    }
+    if (queued) {
+      this.instrumentation.record('yLayerRepresentationJobsQueued', queued);
+      this.scheduleHydrationPump(true);
+    }
+    this.layerResidencyEvidenceValue = {
+      ...this.layerResidencyEvidenceValue,
+      blocksVisited: prewarm.index,
+      representationsResident: prewarm.prepared,
+      representationsSkipped: prewarm.skipped,
+      jobsPending: prewarm.inFlight,
+    };
+    if (prewarm.index >= prewarm.blocks.length && prewarm.inFlight === 0) {
+      if (prewarm.skipped) this.instrumentation.record('yLayerRepresentationJobsSkipped', prewarm.skipped);
+      this.instrumentation.record('yLayerRepresentationPrewarmCompleted', prewarm.prepared);
+      this.layerResidencyEvidenceValue = {
+        ...this.layerResidencyEvidenceValue,
+        state: prewarm.skipped ? 'partial' : 'ready',
+        jobsPending: 0,
+      };
+      this.layerResidencyPrewarm = undefined;
+      return;
+    }
+    if (!queued && prewarm.inFlight === 0 && prewarm.index < prewarm.blocks.length) setTimeout(() => this.pumpLayerRepresentationPrewarm(), 0);
+  }
+
+  private onLayerPrewarmComplete(job: BlockHydrationJob, authoritative: boolean): void {
+    this.settleLayerPrewarmJob(job, authoritative);
+  }
+
+  private settleLayerPrewarmJob(job: BlockHydrationJob, authoritative: boolean): void {
+    const prewarm = this.layerResidencyPrewarm;
+    if (!prewarm || job.token !== this.hydrationPipeline.generation || prewarm.project !== this.project) return;
+    prewarm.inFlight = Math.max(0, prewarm.inFlight - 1);
+    const canonical = this.blockIndexOwner.get(job.block.position);
+    const entry = this.blockRepresentations.get(job.key);
+    const valid = authoritative && this.providerGeneration === prewarm.providerGeneration
+      && canonical && blockRenderSignature(canonical) === blockRenderSignature(job.block)
+      && entry && entry.signature === job.signature;
+    if (valid) {
+      prewarm.prepared += 1;
+      this.instrumentation.record('yLayerRepresentationJobsCompleted');
+    } else if (entry?.signature === job.signature && canonical && blockRenderSignature(canonical) !== blockRenderSignature(job.block)) {
+      this.removeBlockEntry(job.key, entry);
+      prewarm.skipped += 1;
+    } else {
+      prewarm.skipped += 1;
+    }
+    this.pumpLayerRepresentationPrewarm();
+  }
+
+  private cancelLayerRepresentationPrewarm(): void {
+    const keys = new Set(this.hydrationPipeline.regularJobs().filter((job) => job.layerPrewarm).map((job) => job.key));
+    if (keys.size) {
+      this.hydrationPipeline.removePendingKeys(keys);
+      for (const key of keys) this.hydrationPipeline.clearPendingSignature(key);
+    }
+    if (this.layerResidencyPrewarm) this.layerResidencyEvidenceValue = { ...this.layerResidencyEvidenceValue, state: 'cancelled', jobsPending: 0 };
+    this.layerResidencyPrewarm = undefined;
   }
 
   private preloadUsesTerrainTemplates(): boolean { return this.renderOptions.exposedFaceRendering === true; }
@@ -980,6 +1124,7 @@ export class ThreeViewportEngine {
 
   setVisualProvider(provider: BlockVisualProvider | undefined): void {
     if (this.visualProvider === provider) return;
+    this.cancelLayerRepresentationPrewarm();
     this.yLayerVisualPreloader.cancel();
     const previousProvider = this.visualProvider;
     const previousProviderGeneration = this.providerGeneration;
@@ -1224,6 +1369,7 @@ export class ThreeViewportEngine {
     this.project = project;
     this.activeBlock = active;
     this.renderOptions = options;
+    this.applyLayerBatchPresentation(project, options);
     if (!layerProjectionOnly) this.yLayerProjection.cancel();
     if (this.suspended) {
       if (this.backgroundPreparation && (project !== previousProject && !structureInputsUnchanged || nextSyncKey !== previousSyncKey || !!mutationHint)) {
@@ -1520,19 +1666,24 @@ export class ThreeViewportEngine {
     const visibleMap = new Map(renderVisible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
     this.hydrationPipeline.retainPending((job) => {
       const next = visibleMap.get(job.key);
-      return !!next && job.signature === next.signature;
+      return job.layerPrewarm ? !next || job.signature === next.signature : !!next && job.signature === next.signature;
     });
     if (full) this.instrumentation.record('fullSceneRebuilds');
+    const projectionVisibleLayers = options.layerY !== undefined && options.visibility !== undefined
+      ? visibleLayerSet(options.layerY, project.blocks, options.visibility, options.layerIndex ?? this.layerIndex)
+      : undefined;
     for (const [key, entry] of this.blockRepresentations) if (entry.fluidChunkKey === undefined && !visibleMap.has(key)) {
       const canonicalBlock = this.blockIndexOwner.get(entry.block.position);
+      const hiddenByProjectionLayer = canonicalBlock && projectionVisibleLayers && !projectionVisibleLayers.has(canonicalBlock.position.y);
       const retained = !!canonicalBlock && blockRenderSignature(canonicalBlock) === blockRenderSignature(entry.block)
-        && this.blockRepresentationResources.setPresentationVisible(key, entry, false);
+        && (hiddenByProjectionLayer || this.blockRepresentationResources.setPresentationVisible(key, entry, false));
       if (!retained) { this.removeBlockEntry(key, entry); this.instrumentation.record('blockRemovals'); }
       this.hydrationPipeline.clearPendingSignature(key);
       this.placeholderSignatures.delete(key);
     }
     for (const key of this.placeholderIndices.keys()) if (!visibleMap.has(key)) this.removePlaceholderVisual(key);
-    for (const key of this.hydrationPipeline.pendingKeys()) if (!visibleMap.has(key)) this.hydrationPipeline.clearPendingSignature(key);
+    const retainedPrewarmKeys = new Set(this.hydrationPipeline.regularJobs().filter((job) => job.layerPrewarm).map((job) => job.key));
+    for (const key of this.hydrationPipeline.pendingKeys()) if (!visibleMap.has(key) && !retainedPrewarmKeys.has(key)) this.hydrationPipeline.clearPendingSignature(key);
     for (const key of this.placeholderSignatures.keys()) if (!visibleMap.has(key)) this.placeholderSignatures.delete(key);
     for (const [key, entry] of visibleMap) {
       const current = this.blockRepresentations.get(key);
@@ -1586,6 +1737,7 @@ export class ThreeViewportEngine {
     const missingJobs: BlockHydrationJob[] = [];
     const pendingHydrationJobs = this.hydrationPipeline.regularJobs();
     for (const job of pendingHydrationJobs) {
+      if (job.layerPrewarm) { missingJobs.push(job); continue; }
       if (job.role === 'normal') normalJobs.push(job);
       else if (job.role === 'reference') referenceJobs.push(job);
       else missingJobs.push(job);
@@ -1692,7 +1844,9 @@ export class ThreeViewportEngine {
     const scopeDelta: HydrationBlockScopeDelta = { add: added, remove: removed, invalidate: invalidated, missing };
     this.yLayerProjection.markPendingKeys(changedProjectionKeys);
     this.hydrationPipeline.applyBlockScopeDelta(scopeDelta, false);
+    const cancelledPrewarmJobs = this.hydrationPipeline.regularJobs().filter((job) => job.layerPrewarm && changedProjectionKeys.has(job.key));
     this.hydrationPipeline.removePendingKeys(changedProjectionKeys);
+    for (const job of cancelledPrewarmJobs) this.settleLayerPrewarmJob(job, false);
     this.yLayerProjection.bumpKeyRevisions(changedProjectionKeys);
     for (const key of changedProjectionKeys) {
       this.hydrationPipeline.clearPendingSignature(key);
@@ -1709,7 +1863,8 @@ export class ThreeViewportEngine {
       if (!change.after) {
         const canonicalBlock = this.blockIndexOwner.get(change.position);
         const retained = current && canonicalBlock && blockRenderSignature(canonicalBlock) === blockRenderSignature(current.block)
-          && this.blockRepresentationResources.setPresentationVisible(key, current, false);
+          && (options.layerY !== undefined && options.visibility !== undefined
+            || this.blockRepresentationResources.setPresentationVisible(key, current, false));
         if (current && !retained) this.removeBlockEntry(key, current);
         else if (!current) this.terrainRenderer.remove(key);
         this.removePlaceholderVisual(key);
@@ -1742,6 +1897,7 @@ export class ThreeViewportEngine {
       if (options.exposedFaceRendering === true) terrainChanges.push({ key, position: change.position, afterOpaque: isCompiledTerrainEntry(change.after) });
     }
     if (terrainChanges.length) this.terrainRenderer.applyBlockChanges(terrainChanges, flushTerrain, [...changedProjectionKeys], !flushTerrain);
+    this.applyLayerBatchPresentation(project, options);
     if (publishProgress) {
       this.hydrationPipeline.prioritizeRegularJobs((job) => job.role);
       this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
@@ -1775,6 +1931,17 @@ export class ThreeViewportEngine {
     this.blockRepresentations.createOrReplace({ ...current, block: next.block, signature: next.signature, role: next.role });
     this.scheduleRender();
     return true;
+  }
+
+  private applyLayerBatchPresentation(project: ProjectDocument | undefined, options: ViewportRenderOptions): void {
+    if (!project || options.layerY === undefined || options.visibility === undefined) {
+      this.instanceRenderer.clearLayerPresentation();
+      this.surfaceRenderer.clearLayerPresentation();
+      return;
+    }
+    const layers = visibleLayerSet(options.layerY, project.blocks, options.visibility, options.layerIndex ?? this.layerIndex);
+    this.instanceRenderer.setLayerPresentation(layers, options.layerY, options.referenceOpacity ?? .28);
+    this.surfaceRenderer.setLayerPresentation(layers, options.layerY, options.referenceOpacity ?? .28);
   }
 
   private applyProjectionFluidRepresentationDelta(changes: ReadonlyMap<string, ProjectionFluidChange>, worldContext: FluidWorldLookup): ReadonlySet<string> {
@@ -2207,7 +2374,7 @@ export class ThreeViewportEngine {
   }
 
   private scheduleHydrationPump(delay: boolean | number = false): void {
-    if (this.disposed || (this.suspended && !this.backgroundPreparation)) return;
+    if (this.disposed || (this.suspended && !this.backgroundPreparation && !this.layerResidencyPrewarm)) return;
     const backgroundDelay = this.backgroundPreparation && !delay ? true : delay;
     this.hydrationPipeline.schedule(() => this.hydrationPipeline.process(this.hydrationExecutionOwner.port), backgroundDelay);
   }
@@ -2233,6 +2400,7 @@ export class ThreeViewportEngine {
   }
 
   private cancelHydration(reason: HydrationCancellationReason = 'structure-sync-key-changed', context: Readonly<Record<string, unknown>> = {}): void {
+    this.cancelLayerRepresentationPrewarm();
     const previousGeneration = this.hydrationPipeline.generation;
     this.hydrationPipeline.advanceGeneration();
     this.runtimeTrace?.record('hydration-generation-start', {
@@ -2603,7 +2771,9 @@ export class ThreeViewportEngine {
 
   private visibleBlockRepresentationCount(): number {
     let count = 0;
-    for (const entry of this.blockRepresentations.values()) if (entry.presentationVisible !== false) count += 1;
+    for (const entry of this.blockRepresentations.values()) {
+      if (entry.presentationVisible !== false && this.yLayerProjection.hasVisibleEntry(entry.key)) count += 1;
+    }
     return count;
   }
 
@@ -2684,6 +2854,10 @@ export class ThreeViewportEngine {
 
   yLayerVisualPreloadEvidence(): YLayerVisualPreloadEvidence {
     return this.yLayerVisualPreloader.evidence;
+  }
+
+  yLayerRepresentationPrewarmEvidence(): YLayerRepresentationPrewarmEvidence {
+    return { ...this.layerResidencyEvidenceValue };
   }
 
   isolationDiagnostics() {

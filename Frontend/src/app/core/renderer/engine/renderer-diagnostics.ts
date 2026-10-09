@@ -128,6 +128,15 @@ export interface RendererCounters {
   readonly yLayerProjectionYields: number;
   readonly yLayerProjectionCancellations: number;
   readonly yLayerProjectionMaxSliceMs: number;
+  readonly yLayerBatchVisibilityUpdates: number;
+  readonly yLayerBatchRoleUpdates: number;
+  readonly renderBatchRoleUpdates: number;
+  readonly instanceMatrixWrites: number;
+  readonly yLayerRepresentationJobsQueued: number;
+  readonly yLayerRepresentationJobsStarted: number;
+  readonly yLayerRepresentationJobsCompleted: number;
+  readonly yLayerRepresentationJobsSkipped: number;
+  readonly yLayerRepresentationPrewarmCompleted: number;
   readonly staleHydrationCompletionsIgnored: number;
   readonly fullReconcileFallbacks: number;
   readonly fullVisibleScans: number;
@@ -265,6 +274,15 @@ const EMPTY_COUNTERS: RendererCounters = {
   yLayerProjectionYields: 0,
   yLayerProjectionCancellations: 0,
   yLayerProjectionMaxSliceMs: 0,
+  yLayerBatchVisibilityUpdates: 0,
+  yLayerBatchRoleUpdates: 0,
+  renderBatchRoleUpdates: 0,
+  instanceMatrixWrites: 0,
+  yLayerRepresentationJobsQueued: 0,
+  yLayerRepresentationJobsStarted: 0,
+  yLayerRepresentationJobsCompleted: 0,
+  yLayerRepresentationJobsSkipped: 0,
+  yLayerRepresentationPrewarmCompleted: 0,
   staleHydrationCompletionsIgnored: 0,
   fullReconcileFallbacks: 0,
   fullVisibleScans: 0,

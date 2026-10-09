@@ -13,12 +13,13 @@ export interface InstanceBatch {
   readonly key: string;
   readonly regionKey: string;
   readonly segment: number;
+  readonly layer: number;
   readonly capacity: number;
   readonly templates: readonly InstancePartTemplate[];
   readonly parts: readonly THREE.InstancedMesh[];
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
-  readonly renderRole: 'normal' | 'reference';
+  renderRole: 'normal' | 'reference';
 }
 
 export interface InstanceBatchRendererOptions {
@@ -41,6 +42,8 @@ export class InstanceBatchRenderer {
   private readonly hiddenKeys = new Set<string>();
   private readonly translation = new THREE.Matrix4();
   private readonly transformed = new THREE.Matrix4();
+  private visibleLayers?: ReadonlySet<number>;
+  private layerPresentation?: { readonly currentY: number };
 
   constructor(private readonly options: InstanceBatchRendererOptions) {}
 
@@ -58,7 +61,9 @@ export class InstanceBatchRenderer {
     const resolved = compiled ?? compileInstanceTemplates(templates);
     if (this.options.capacity <= 0 || !resolved.templates.length) return undefined;
     const region = this.options.regionPolicy?.key(position) ?? this.options.chunkKey(position);
-    const baseKey = `${region}|${resolved.signature}|role:${renderRole}`;
+    const layer = this.layerPresentation ? Math.trunc(position.y) : -1;
+    const roleKey = this.layerPresentation ? '' : `|role:${renderRole}`;
+    const baseKey = `${region}|layer:${layer}|${resolved.signature}${roleKey}`;
     const existingEntry = this.options.getEntry(key);
     const existingMembership = existingEntry?.instanceBatchKey
       ? this.batchStore.get(existingEntry.instanceBatchKey)
@@ -92,11 +97,14 @@ export class InstanceBatchRenderer {
         return mesh;
       });
       this.options.record('instancedBoundsComputations', parts.length);
-      batch = { key: batchKey, regionKey: region, segment, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
+      batch = { key: batchKey, regionKey: region, segment, layer, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
       this.batchStore.set(batchKey, batch);
+      if (this.visibleLayers) for (const part of parts) part.visible = this.visibleLayers.has(layer);
+      if (this.layerPresentation) this.setBatchRole(batch, layer === this.layerPresentation.currentY ? 'normal' : 'reference');
       this.options.record('instancedBatchCreations');
       this.options.record('instancedMeshCount', parts.length);
     }
+    if (this.layerPresentation) this.setBatchRole(batch, layer === this.layerPresentation.currentY ? 'normal' : 'reference');
     if (batch.keys.length >= batch.capacity) return undefined;
     this.options.trace?.('before-insert', key, source);
     if (existingEntry?.instanceBatchKey) this.remove(key, existingEntry, 'reconcile');
@@ -115,6 +123,7 @@ export class InstanceBatchRenderer {
       (part.userData['instanceKeys'] as string[]).push(key);
       part.instanceMatrix.needsUpdate = true;
     });
+    this.options.record('instanceMatrixWrites', batch.parts.length);
     this.options.record('instancedBlockAdds');
     this.options.record('instancedMembers');
     this.ownershipStore.set(key, { batchKey, index });
@@ -150,9 +159,57 @@ export class InstanceBatchRenderer {
     const membership = this.ownershipStore.get(key);
     const batch = membership ? this.batchStore.get(membership.batchKey) : undefined;
     if (!membership || !batch) return false;
+    if (this.layerPresentation) return true;
     if (batch.renderRole === role) return true;
-    const position = batch.positions[membership.index];
-    return !!this.addFromTemplates(batch.templates, position, key, 'cached-template', undefined, role);
+    const wasHidden = this.hiddenKeys.has(key);
+    const moved = this.addFromTemplates(batch.templates, batch.positions[membership.index], key, 'cached-template', undefined, role);
+    if (!moved) return false;
+    if (wasHidden) this.setMemberVisible(key, false);
+    return true;
+  }
+
+  /** Applies Y-layer presentation without rewriting per-voxel instance matrices. */
+  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number): void {
+    this.visibleLayers = visibleLayers;
+    this.referenceOpacity = Math.max(0, Math.min(1, referenceOpacity));
+    this.layerPresentation = { currentY };
+    for (const batch of this.batchStore.values()) {
+      for (const part of batch.parts) {
+        const visible = visibleLayers.has(batch.layer);
+        if (part.visible !== visible) {
+          part.visible = visible;
+          this.options.record('yLayerBatchVisibilityUpdates');
+        }
+      }
+      this.setBatchRole(batch, batch.layer === currentY ? 'normal' : 'reference');
+    }
+  }
+
+  clearLayerPresentation(): void {
+    this.visibleLayers = undefined;
+    this.layerPresentation = undefined;
+    for (const batch of this.batchStore.values()) {
+      for (const part of batch.parts) part.visible = true;
+      this.setBatchRole(batch, 'normal');
+    }
+  }
+
+  private setLayerRole(layer: number, role: 'normal' | 'reference'): void {
+    for (const batch of this.batchStore.values()) if (batch.layer === layer) this.setBatchRole(batch, role);
+  }
+
+  private setBatchRole(batch: InstanceBatch, role: 'normal' | 'reference'): void {
+    if (batch.renderRole === role) return;
+    batch.renderRole = role;
+    for (const part of batch.parts) {
+      const materials = Array.isArray(part.material) ? part.material : [part.material];
+      for (const material of materials) {
+        material.transparent = role === 'reference';
+        material.opacity = role === 'reference' ? this.referenceOpacity : 1;
+        material.needsUpdate = true;
+      }
+    }
+    this.options.record(this.layerPresentation ? 'yLayerBatchRoleUpdates' : 'renderBatchRoleUpdates');
   }
 
   remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void {
@@ -296,6 +353,7 @@ export class InstanceBatchRenderer {
       const keys = part.userData['instanceKeys'] as string[];
       if (keys[index] !== key) throw new Error(`Instance membership changed while toggling ${key}`);
     }
+    this.options.record('instanceMatrixWrites', batch.parts.length);
   }
 
   private disposeMergedTemplateGeometry(template: InstancePartTemplate): void {

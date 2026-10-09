@@ -155,6 +155,12 @@ export class StaticModelBatchRenderer {
 
   setMemberRole(key: string, role: 'normal' | 'reference'): boolean { return this.delegate.setMemberRole(key, role); }
 
+  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number): void {
+    this.delegate.setLayerPresentation(visibleLayers, currentY, referenceOpacity);
+  }
+
+  clearLayerPresentation(): void { this.delegate.clearLayerPresentation(); }
+
   remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void { this.delegate.remove(key, entry, source); this.decisions.delete(key); }
   memberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] { return this.delegate.memberships(key, scanAll); }
   removeOrphaned(key: string, source: 'rollback' | 'reconcile', entry?: InstanceBatchEntry): void { this.delegate.removeOrphaned(key, source, entry); }

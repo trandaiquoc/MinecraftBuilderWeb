@@ -30,6 +30,7 @@ export interface ViewportHydrationExecutionDependencies {
   readonly markHydrationFailure: (job: BlockHydrationJob, error: unknown) => void;
   readonly publishProviderRefreshProgress: () => void;
   readonly completeHydrationPart: (token: number, key: string) => void;
+  readonly onLayerPrewarmComplete: (job: BlockHydrationJob, authoritative: boolean) => void;
 }
 
 /** Owns the adapter between viewport concerns and the generic hydration scheduler. */
@@ -74,7 +75,8 @@ export class ViewportHydrationExecutionOwner {
     const d = this.dependencies;
     if (fairnessDeferrals) d.diagnostics.record('hydrationFairnessDeferrals', fairnessDeferrals);
     if (d.isInteractive()) d.diagnostics.record('hydrationJobsStartedWhileCamera');
-    d.diagnostics.record(job.providerRefresh ? 'providerRefreshStarted' : 'regularHydrationStarted');
+    if (job.layerPrewarm) d.diagnostics.record('yLayerRepresentationJobsStarted');
+    else d.diagnostics.record(job.providerRefresh ? 'providerRefreshStarted' : 'regularHydrationStarted');
     if (job.providerRefresh) {
       const counts = d.hydrationPipeline.workCounts();
       if (counts.regularQueued > 0) {
@@ -85,6 +87,10 @@ export class ViewportHydrationExecutionOwner {
 
   private onJobComplete(job: BlockHydrationJob, authoritative: boolean): void {
     const d = this.dependencies;
+    if (job.layerPrewarm) {
+      d.onLayerPrewarmComplete(job, authoritative);
+      return;
+    }
     d.diagnostics.record(job.providerRefresh ? 'providerRefreshCompleted' : 'regularHydrationCompleted');
     if (job.providerRefresh) {
       d.providerRefreshPipeline.completeJob(job.providerRefreshGeneration, {
