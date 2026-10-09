@@ -10,6 +10,7 @@ class FakeSource implements ContentSourceProvider {
   private readonly json: Readonly<Record<string, unknown>>;
   private readonly binary = new Map<string, Uint8Array>();
   disposed = false;
+  disposeCount = 0;
   constructor(id: string, namespaces: readonly string[], json: Readonly<Record<string, unknown>>, blocks: readonly AssetBlockRecord[] = [], minecraftVersion = '1.21.1') {
     this.source = { id, kind: id === 'vanilla' ? 'vanilla' as const : 'external' as const, displayName: id === 'vanilla' ? 'Vanilla' : 'Example Content', minecraftVersion, namespaces };
     this.json = json; this.blocks = blocks;
@@ -22,7 +23,7 @@ class FakeSource implements ContentSourceProvider {
   catalog() { return { minecraftVersion: '1.21.1' as const, sourceId: this.source.id, sourceName: this.source.displayName, blocks: this.blocks, targetItems: this.items, itemEvidenceAvailable: this.items.length > 0, paintingVariants: this.paintings }; }
   items: readonly import('../../blocks/catalog/block-definition.types').CatalogItemEvidence[] = [];
   paintings: readonly import('../../decorations/decoration.types').PaintingVariant[] = [];
-  dispose(): void { this.disposed = true; }
+  dispose(): void { this.disposed = true; this.disposeCount += 1; }
 }
 
 const block = (id: string, sourceId: string) => ({ id, displayName: id, defaultState: {}, stateDefinitions: [], resources: { blockstate: `assets/${id.split(':')[0]}/blockstates/${id.split(':')[1]}.json`, model: `assets/${id.split(':')[0]}/models/block/${id.split(':')[1]}.json`, textures: [] }, support: 'full' as const, visualSupport: 'real' as const, behaviorSupport: 'unknown' as const, defaultStateSource: 'unknown' as const, sourceId });
@@ -100,6 +101,32 @@ describe('ContentSourceRegistry', () => {
     expect(registry.catalogConflicts()).toEqual([{ id: 'shared:block', sourceIds: ['one', 'two'] }]);
     registry.remove('two');
     expect(registry.catalogConflicts()).toEqual([]);
+  });
+
+  it('prepares replacement catalog before publication and preserves the old provider on failure', () => {
+    const registry = new ContentSourceRegistry();
+    const previous = new FakeSource('replaceable', ['example'], {}, [block('example:old', 'replaceable')]);
+    registry.register(previous);
+    const replacement = new FakeSource('replaceable', ['example'], {}, [block('example:new', 'replaceable')]);
+    replacement.catalog = () => { throw new Error('catalog construction failed'); };
+
+    expect(() => registry.replace(replacement)).toThrow('catalog construction failed');
+    expect(registry.providerForSource('replaceable')).toBe(previous);
+    expect(previous.disposed).toBe(false);
+    expect(previous.disposeCount).toBe(0);
+    expect(registry.catalog().all().map((entry) => entry.id)).toEqual(['example:old']);
+    expect(registry.generation).toBe(1);
+  });
+
+  it('disposes a provider exactly once when its registration is replaced or removed', () => {
+    const registry = new ContentSourceRegistry();
+    const first = new FakeSource('replaceable', ['example'], {});
+    const second = new FakeSource('replaceable', ['example'], {});
+    registry.register(first);
+    registry.replace(second);
+    expect(first.disposeCount).toBe(1);
+    registry.remove('replaceable');
+    expect(second.disposeCount).toBe(1);
   });
 
   it('exposes independent item evidence from every active content source', () => {

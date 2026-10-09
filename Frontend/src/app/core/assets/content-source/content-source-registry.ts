@@ -29,10 +29,10 @@ export class ContentSourceRegistry {
   private readonly contributions = new Map<string, BlockCatalogSource>();
   private readonly paintingContributions = new Map<string, readonly PaintingVariant[]>();
   private conflictsValue: SourceRegistrationDiagnostic[] = [];
-  constructor(private activeVersion = '1.21.1') { this.resources.setActiveVersion(activeVersion); }
+  constructor(activeVersion = '1.21.1') { this.resources.setActiveVersion(activeVersion); }
 
-  setActiveVersion(version: string): void { this.activeVersion = version; this.resources.setActiveVersion(version); }
-  activeMinecraftVersion(): string { return this.activeVersion; }
+  setActiveVersion(version: string): void { this.resources.setActiveVersion(version); }
+  activeMinecraftVersion(): string { return this.resources.activeMinecraftVersion; }
   clear(): void { for (const source of this.sources()) this.remove(source.id); }
 
   /**
@@ -44,7 +44,7 @@ export class ContentSourceRegistry {
     if (!entries.length) return;
     const sourceIds = new Set<string>();
     for (const entry of entries) {
-      assertCompatibleSource(entry.provider.source, this.activeVersion);
+      assertCompatibleSource(entry.provider.source, this.activeMinecraftVersion());
       const id = entry.provider.source.id;
       if (sourceIds.has(id)) throw new Error(`Content source is duplicated in batch: ${id}`);
       sourceIds.add(id);
@@ -98,7 +98,7 @@ export class ContentSourceRegistry {
   }
 
   register(provider: ContentSourceProvider): void {
-    assertCompatibleSource(provider.source, this.activeVersion);
+    assertCompatibleSource(provider.source, this.activeMinecraftVersion());
     this.resources.register(provider);
     try {
       const catalog = provider.catalog?.();
@@ -106,26 +106,17 @@ export class ContentSourceRegistry {
     } catch (error) { this.resources.remove(provider.source.id); throw error; }
   }
   replace(provider: ContentSourceProvider): void {
-    assertCompatibleSource(provider.source, this.activeVersion);
-    const previous = this.resources.providerForSource(provider.source.id);
+    assertCompatibleSource(provider.source, this.activeMinecraftVersion());
+    const catalog = provider.catalog?.();
     this.resources.replace(provider);
-    try {
-      const catalog = provider.catalog?.();
-      if (catalog) { this.contributions.set(provider.source.id, catalog); this.paintingContributions.set(provider.source.id, catalog.paintingVariants ?? []); } else { this.contributions.delete(provider.source.id); this.paintingContributions.delete(provider.source.id); }
-      if (previous && previous !== provider) previous.dispose?.();
-    } catch (error) {
-      this.resources.remove(provider.source.id);
-      if (previous) this.resources.register(previous);
-      throw error;
-    }
+    if (catalog) { this.contributions.set(provider.source.id, catalog); this.paintingContributions.set(provider.source.id, catalog.paintingVariants ?? []); }
+    else { this.contributions.delete(provider.source.id); this.paintingContributions.delete(provider.source.id); }
   }
   remove(sourceId: string): boolean {
-    const provider = this.resources.providerForSource(sourceId);
     const removed = this.resources.remove(sourceId);
     if (removed) {
       this.contributions.delete(sourceId);
       this.paintingContributions.delete(sourceId);
-      provider?.dispose?.();
     }
     return removed;
   }
