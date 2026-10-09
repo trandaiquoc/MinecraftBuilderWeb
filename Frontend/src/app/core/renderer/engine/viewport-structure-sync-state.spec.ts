@@ -55,4 +55,20 @@ describe('ViewportStructureSyncState', () => {
     expect(state.requiresSuspendedRefresh(current, false, true)).toBe(true);
     expect(state.requiresSuspendedRefresh(project(), false, false)).toBe(true);
   });
+
+  it('owns the previous visible projection positions without cloning the map for culling consumers', () => {
+    const state = new ViewportStructureSyncState();
+    state.rememberVisiblePosition({ x: 2, y: 3, z: 4 });
+    const positions = state.previousVisiblePositionsSnapshot();
+
+    expect(positions.get('2,3,4')).toEqual({ x: 2, y: 3, z: 4 });
+    expect(state.previousVisiblePosition('2,3,4')).toBe(positions.get('2,3,4'));
+
+    state.forgetVisiblePosition('2,3,4');
+    expect(positions.has('2,3,4')).toBe(false);
+    state.replaceVisiblePositions([{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }]);
+    expect([...positions.keys()]).toEqual(['0,0,0', '1,0,0']);
+    state.clear();
+    expect(positions.size).toBe(0);
+  });
 });

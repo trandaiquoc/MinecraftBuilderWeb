@@ -497,7 +497,6 @@ export class ThreeViewportEngine {
   private readonly emptyTransitionSnapshots: ViewportGhostSceneSnapshot[] = [];
   private readonly instanceOwnershipTrace: ViewportInstanceOwnershipEvent[] = [];
   private readonly interiorCulling = new ViewportInteriorCullingOwner((name, delta = 1) => this.instrumentation.record(name, delta));
-  private readonly previousVisibleBlockPositions = new Map<string, VoxelCoordinate>();
   private readonly missingBlockAccounting = new MissingBlockAccountingOwner();
   private get missingBlocksTerminal(): boolean { return this.missingBlockAccounting.isTerminal; }
 
@@ -1307,7 +1306,7 @@ export class ThreeViewportEngine {
     if (!project) {
       this.clearPersistentVisuals();
       this.interiorCulling.clear();
-      this.previousVisibleBlockPositions.clear();
+      this.structureSyncState.replaceVisiblePositions([]);
       this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
       return;
     }
@@ -1324,7 +1323,7 @@ export class ThreeViewportEngine {
         for (const neighbor of coordinateNeighbors(entry.block.position)) changed.add(coordinateKey(neighbor));
       }
     }
-    for (const [key, position] of this.previousVisibleBlockPositions) {
+    for (const [key, position] of this.structureSyncState.previousVisiblePositionsSnapshot()) {
       if (!allVisibleMap.has(key)) {
         changed.add(key);
         for (const neighbor of coordinateNeighbors(position)) changed.add(coordinateKey(neighbor));
@@ -1340,16 +1339,16 @@ export class ThreeViewportEngine {
       }
     }
     if (!full) for (const key of [...changed]) {
-      const position = allVisibleMap.get(key)?.block.position ?? this.previousVisibleBlockPositions.get(key) ?? this.blockRepresentations.get(key)?.block.position;
+      const position = allVisibleMap.get(key)?.block.position ?? this.structureSyncState.previousVisiblePosition(key) ?? this.blockRepresentations.get(key)?.block.position;
       if (!position) continue;
       for (const neighbor of coordinateNeighbors(position)) if (allVisibleMap.has(coordinateKey(neighbor))) changed.add(coordinateKey(neighbor));
     }
-    const terrainAffectedPositions = [...changed].map((key) => allVisibleMap.get(key)?.block.position ?? this.previousVisibleBlockPositions.get(key)).filter((position): position is VoxelCoordinate => !!position);
+    const terrainAffectedPositions = [...changed].map((key) => allVisibleMap.get(key)?.block.position ?? this.structureSyncState.previousVisiblePosition(key)).filter((position): position is VoxelCoordinate => !!position);
     this.syncFluidVisuals(visible, worldContext, full ? undefined : terrainAffectedPositions);
     // Initial terrain occupancy is committed together with the first bulk
     // terrain batch. Incremental edits retain the existing conservative sync.
     if (!full) this.terrainRenderer.syncOccupancy(visible, terrainAffectedPositions);
-    this.interiorCulling.updateFull(visible, full, changed, this.previousVisibleBlockPositions);
+    this.interiorCulling.updateFull(visible, full, changed, this.structureSyncState.previousVisiblePositionsSnapshot());
     // Culling is a terminal ownership family even when it intentionally has
     // no RenderedBlockEntry. Adopt only after the current culling state exists.
     this.adoptCommittedBlockOwnership(visible);
@@ -1428,8 +1427,7 @@ export class ThreeViewportEngine {
     this.beginHydrationProgress(this.queuedBlockHydrationJobs() + this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) + this.terrainPipeline.pendingGroupCount, this.queuedDecorationHydrationJobs());
     if (this.queuedBlockHydrationJobs()) this.scheduleHydrationPump();
     this.reconcileInstanceOwnership();
-    this.previousVisibleBlockPositions.clear();
-    for (const entry of visible) this.previousVisibleBlockPositions.set(coordinateKey(entry.block.position), { ...entry.block.position });
+    this.structureSyncState.replaceVisiblePositions(visible.map((entry) => entry.block.position));
     this.traceInstanceOwnership('after-reconcile', undefined, 'reconcile');
   }
 
@@ -1551,8 +1549,8 @@ export class ThreeViewportEngine {
       if (change.after) missing.set(key, change.after.block.kind === 'missing' ? (this.missingBlocksTerminal ? 'permanent' : 'provisional') : 'resolved');
       if (change.after) this.yLayerProjection.cacheVisibleEntry(key, change.after);
       else this.yLayerProjection.removeVisibleEntry(key);
-      if (change.after) this.previousVisibleBlockPositions.set(key, { ...change.position });
-      else this.previousVisibleBlockPositions.delete(key);
+      if (change.after) this.structureSyncState.rememberVisiblePosition(change.position);
+      else this.structureSyncState.forgetVisiblePosition(key);
     }
     this.yLayerProjection.associateVisibleProjection(project, options);
     const changedProjectionKeys = new Set(changes.keys());
@@ -1812,8 +1810,8 @@ export class ThreeViewportEngine {
       const block = this.spatialIndex?.get(position);
       if (block && isBlockVisibleForViewport(block, project, canonicalRenderOptions(options))) this.yLayerProjection.cacheVisibleEntry(key, this.visibleEntry(block, options));
       else this.yLayerProjection.removeVisibleEntry(key);
-      if (block) this.previousVisibleBlockPositions.set(key, { ...block.position });
-      else this.previousVisibleBlockPositions.delete(key);
+      if (block) this.structureSyncState.rememberVisiblePosition(block.position);
+      else this.structureSyncState.forgetVisiblePosition(key);
     }
     this.interiorCulling.updateKeys(affectedPositions.keys(), (key) => this.yLayerProjection.visibleEntry(key), this.yLayerProjection.visibleEntriesByKey);
     this.hydrationPipeline.removePendingKeys(changedKeys);
