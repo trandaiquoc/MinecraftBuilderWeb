@@ -99,6 +99,7 @@ import { GroupHighlightPresenter } from '../presentation/group-highlight-present
 import { StructureBlockGuidePresenter } from '../presentation/structure-block-guide-presenter';
 import { DecorationSelectionPresenter } from '../presentation/decoration-selection-presenter';
 import { YLayerProjectionCoordinator, type VisibleBlockProjectionEntry } from './y-layer-projection-coordinator';
+import { YLayerPresentationOwner, type YLayerPresentationFallbackReason, type YLayerPresentationReadiness } from './y-layer-presentation-owner';
 import { YLayerVisualPreloader, yieldYLayerPreloadToBrowser, type YLayerVisualPreloadEvidence } from './y-layer-visual-preloader';
 import { ViewportStructureSyncState } from './viewport-structure-sync-state';
 import { planStructureReconciliation } from './structure-reconciliation-plan';
@@ -303,6 +304,7 @@ export class ThreeViewportEngine {
   private project?: ProjectDocument;
   private get indexedProject(): ProjectDocument | undefined { return this.blockIndexOwner.currentProject; }
   private layerIndex?: LayerBlockIndex;
+  private readonly yLayerPresentation = new YLayerPresentationOwner();
   private readonly yLayerProjection: YLayerProjectionCoordinator;
   private readonly yLayerVisualPreloader: YLayerVisualPreloader<PreparedYLayerVisualResource>;
   private layerResidencyPrewarm?: {
@@ -568,7 +570,7 @@ export class ThreeViewportEngine {
       onWorkFailure: (error) => this.recoverFailedLayerProjection(error),
       record: (metric, delta = 1) => this.instrumentation.record(metric as keyof RendererCounters, delta),
       recordMax: (metric, value) => this.instrumentation.recordMax(metric, value),
-    });
+    }, requestViewportFrame, cancelViewportFrame, this.yLayerPresentation);
     this.terrainAtlasMode = options.terrainAtlasMode ?? 'on';
     this.fluidCoordinator = new FluidRenderCoordinator(new FluidChunkRenderer(this.blocksGroup), {
       onTerminal: (generation, keys) => {
@@ -1366,6 +1368,8 @@ export class ThreeViewportEngine {
 
   update(project: ProjectDocument | undefined, active: ActiveBlock | undefined, options: ViewportRenderOptions = {}, mutationHint?: ProjectMutationHint): void {
     const previousProject = this.project;
+    const previousActive = this.activeBlock;
+    const hadDirectPresentation = this.yLayerProjection.hasDirectPresentation;
     if (project?.blocks !== previousProject?.blocks) this.yLayerVisualPreloader.cancel();
     const structureState = this.structureSyncState.snapshot();
     const projectChanged = project?.id !== previousProject?.id;
@@ -1419,9 +1423,49 @@ export class ThreeViewportEngine {
     }
     const inPlaceBlockMutation = this.structureSyncState.hasInPlaceBlockMutation(project);
     this.ensureSpatialIndex(project, incrementalMutation || layerProjectionOnly ? false : inPlaceBlockMutation, incrementalMutation || layerProjectionOnly);
-    this.syncSpecialVisualDescriptors();
+    const retainsDirectScopeForMutation = hadDirectPresentation && !!project && !!previousProject
+      && project.id === previousProject.id && project.groups === previousProject.groups
+      && project.blocks !== previousProject.blocks && this.canRetainDirectPresentationForMutation(project, mutationHint);
+    const mayKeepDirectPresentation = !!project && !!previousProject && !this.suspended && !mutationHint
+      && project.id === previousProject.id && project.blocks === previousProject.blocks
+      && project.groups === previousProject.groups && !isolatePresentationChanged
+      && (layerProjectionOnly || hadDirectPresentation);
+    let directPresentation = retainsDirectScopeForMutation;
+    let directFallbackReason: YLayerPresentationFallbackReason | undefined;
+    if (mayKeepDirectPresentation && project) {
+      const decision = this.yLayerPresentation.evaluate(project, options, this.yLayerPresentationReadiness());
+      directFallbackReason = decision.reason;
+      directPresentation = decision.supported;
+      if (decision.supported) {
+        if (hadDirectPresentation) this.yLayerProjection.associateVisibleProjection(project, options);
+        else this.yLayerProjection.setDirectPresentation(
+          project,
+          options,
+          this.providerGeneration,
+          (position) => this.blockIndexOwner.get(position),
+          (block, currentOptions) => this.yLayerProjection.createVisibleEntry(block, currentOptions, this.visualProvider?.occlusionClass?.(block) ?? 'unknown'),
+        );
+        if (layerProjectionOnly) {
+          this.instrumentation.record('yLayerPresentationTransitions');
+          this.runtimeTrace?.record('y-layer-presentation', { mode: 'resident-batches', layerY: options.layerY, visibility: options.visibility, residentBlocks: this.blockRepresentations.size, instanceMembers: this.instanceOwnershipIndex.size });
+        }
+      } else if (hadDirectPresentation) this.yLayerProjection.clearDirectPresentation();
+    } else if (hadDirectPresentation && !retainsDirectScopeForMutation) {
+      this.yLayerProjection.clearDirectPresentation();
+      directFallbackReason = this.providerGeneration !== this.yLayerPresentation.providerGeneration
+        ? 'pending-render-work'
+        : project?.groups !== previousProject?.groups ? 'hidden-groups' : 'incomplete-residency';
+    }
+    const projectionFallbackFromDirect = hadDirectPresentation && !directPresentation && !retainsDirectScopeForMutation;
+    const usesProjectionFallback = layerProjectionOnly && !directPresentation;
+    if (projectionFallbackFromDirect || usesProjectionFallback && !hadDirectPresentation) {
+      this.instrumentation.record('yLayerPresentationFallbacks');
+      this.runtimeTrace?.record('y-layer-presentation-fallback', { reason: directFallbackReason ?? 'incomplete-residency', layerY: options.layerY, visibility: options.visibility, residentBlocks: this.blockRepresentations.size, projectBlocks: project?.blocks.length ?? 0 });
+    }
+    if (!(directPresentation && !mutationHint && active?.id === previousActive?.id)) this.syncSpecialVisualDescriptors();
     const syncKey = nextSyncKey;
-    const blockInputChanged = !referenceOpacityOnly && !layerProjectionOnly && !projectIdentityOnly && (project !== structureState.project || syncKey !== structureState.syncKey);
+    const blockInputChanged = !referenceOpacityOnly && !layerProjectionOnly && !projectIdentityOnly && (project !== structureState.project || syncKey !== structureState.syncKey)
+      || projectionFallbackFromDirect;
     const decorationKey = project ? `${project.id}|${renderFilterKey(options)}|${this.decorationVisuals.revision}` : 'empty';
     const decorationInputChanged = project?.id !== this.syncedDecorationProject?.id
       || project?.decorations !== this.syncedDecorationProject?.decorations
@@ -1435,8 +1479,11 @@ export class ThreeViewportEngine {
       && !!options.visibility
       && options.visibility !== 'current-only'
       && !!(options.layerIndex ?? this.layerIndex);
-    if (layerProjectionOnly && project && !projectionTargetInFlight && projectionDelta.changedLayers.length) this.yLayerProjection.request(project, options, options.layerIndex ?? this.layerIndex);
-    else if (layerProjectionOnly && project && !projectionTargetInFlight) {
+    if (directPresentation && project) {
+      this.yLayerProjection.setCommitted(project, options);
+      this.structureSyncState.commit(project, syncKey);
+    } else if (!projectionFallbackFromDirect && layerProjectionOnly && project && !projectionTargetInFlight && projectionDelta.changedLayers.length) this.yLayerProjection.request(project, options, options.layerIndex ?? this.layerIndex);
+    else if (!projectionFallbackFromDirect && layerProjectionOnly && project && !projectionTargetInFlight) {
       this.yLayerProjection.setCommitted(project, options);
       this.yLayerProjection.associateVisibleProjection(project, options);
       this.structureSyncState.commit(project, syncKey);
@@ -1444,7 +1491,10 @@ export class ThreeViewportEngine {
     if (blockInputChanged || inPlaceBlockMutation) {
       const projectIdentityChanged = project !== structureState.project;
       const incrementalProjectChange = projectIdentityChanged && !full && this.blockRepresentations.size === 0 && (this.queuedBlockHydrationJobs() > 0 || this.hydrationPipeline.pendingCount > 0 || this.placeholderSignatures.size > 0);
-      if (incrementalMutation && project && mutationHint) {
+      if (projectionFallbackFromDirect && project) {
+        this.cancelHydration('structure-sync-key-changed', { source: 'y-layer-direct-presentation-fallback', reason: directFallbackReason });
+        this.reconcileStructure(project, options, true);
+      } else if (incrementalMutation && project && mutationHint) {
         if (metadataMutation) this.applyMetadataMutation(previousProject!, previousOptions, project, options, mutationHint);
         else this.applyIncrementalMutation(project, options, mutationHint);
       } else {
@@ -1555,7 +1605,7 @@ export class ThreeViewportEngine {
       minecraftVersion: '1.21.1',
       projectId: project?.id,
       projectBlocks: project?.blocks.length ?? 0,
-      visibleLogicalBlocks: this.yLayerProjection.visibleEntries.length,
+      visibleLogicalBlocks: this.expectedVisibleBlockCount(),
       decorations: project?.decorations?.length ?? 0,
       atlasMode: this.terrainAtlasMode,
       controlConfiguration: { ...this.controlConfiguration },
@@ -1584,7 +1634,7 @@ export class ThreeViewportEngine {
     return {
       camera: { position: toTraceVector(this.camera.position), target: toTraceVector(target), offset: toTraceVector(offset), distance: offset.length(), direction: toTraceVector(direction), quaternion: [this.camera.quaternion.x, this.camera.quaternion.y, this.camera.quaternion.z, this.camera.quaternion.w], up: toTraceVector(this.camera.up), fov: this.camera.fov, aspect: this.camera.aspect },
       dpr: { staticPixelRatio: this.staticPixelRatio, interactivePixelRatio: this.staticPixelRatio, appliedPixelRatio: this.renderer?.getPixelRatio() ?? this.staticPixelRatio, interactiveResolutionActive: false, canvasCss: { width: this.container?.getBoundingClientRect().width ?? 0, height: this.container?.getBoundingClientRect().height ?? 0 }, backingWidth: this.renderer?.domElement.width ?? 0, backingHeight: this.renderer?.domElement.height ?? 0, cameraAspect: this.camera.aspect },
-      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.hydrationPipeline.pendingCount, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.visibleBlockRepresentationCount(), residentBlockCount: this.blockRepresentations.size, expectedVisibleBlockCount: this.yLayerProjection.visibleEntries.length, terrainHydrationPending: this.terrainPipeline.pendingGroupCount, hydrationScheduled: this.hydrationPipeline.isScheduled(), hydrationTimerActive: this.hydrationPipeline.isTimerActive(), currentBatchBudget: this.hydrationPipeline.batchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
+      hydration: { ...hydration, queued: this.queuedBlockHydrationJobs() + this.queuedDecorationHydrationJobs(), running: this.hydrationRunning, regularQueued: workCounts.regularQueued, providerRefreshQueued: workCounts.providerRefreshQueued, regularRunning: workCounts.regularRunning, providerRefreshRunning: workCounts.providerRefreshRunning, currentGenerationRunning, staleRunning: Math.max(0, this.hydrationRunning - currentGenerationRunning), pendingSignatureCount: this.hydrationPipeline.pendingCount, placeholderSignatureCount: this.placeholderSignatures.size, placeholderVisualCount: this.placeholderIndices.size, renderedBlockCount: this.yLayerProjection.hasDirectPresentation ? this.expectedVisibleBlockCount() : this.visibleBlockRepresentationCount(), residentBlockCount: this.blockRepresentations.size, expectedVisibleBlockCount: this.expectedVisibleBlockCount(), terrainHydrationPending: this.terrainPipeline.pendingGroupCount, hydrationScheduled: this.hydrationPipeline.isScheduled(), hydrationTimerActive: this.hydrationPipeline.isTimerActive(), currentBatchBudget: this.hydrationPipeline.batchBudget, isCameraInteracting: this.isCameraInteracting(), interactiveMode: false },
       counters,
       render: { ...this.lastRendererMetrics, renderCpuMs: this.renderCpuMs, frameDurationMs: this.frameDurationMs, cameraRenderPending: this.cameraRenderPending, renderSchedulerPending: this.renderScheduler.scheduled, object3dCount: this.scene.children.length, visibleMeshCount: this.blocksGroup.children.length + this.decorationsGroup.children.length, instanceBatchCount: this.instanceBatches.size, surfaceBatchCount: this.surfaceFaceBatches.size, terrainMeshCount: terrain['terrainChunkMeshes'], standaloneMeshCount: 0, renderRegionCount: this.instanceBatches.size + this.surfaceFaceBatches.size },
       generations: { providerGeneration: this.providerGeneration, hydrationGeneration: this.hydrationPipeline.generation, specialVisualRevision: this.specialVisualRevision },
@@ -1971,6 +2021,47 @@ export class ThreeViewportEngine {
     this.surfaceRenderer.setLayerPresentation(layers, options.layerY, options.referenceOpacity ?? .28);
   }
 
+  private yLayerPresentationReadiness(): YLayerPresentationReadiness {
+    const batches = this.instanceRenderer.batches.values();
+    let layeredBatches = true;
+    for (const batch of batches) {
+      if (batch.layer < 0) {
+        layeredBatches = false;
+        break;
+      }
+    }
+    const fluidRecords = this.fluidCoordinator.logicalRecordCount;
+    return {
+      residentBlocks: this.blockRepresentations.size,
+      instanceMembers: this.instanceOwnershipIndex.size,
+      layeredBatches,
+      surfaceRepresentations: this.surfaceFaceOwnership.size,
+      terrainRepresentations: this.terrainRenderer.logicalBlockCount,
+      fluidRepresentations: fluidRecords,
+      placeholders: this.placeholderIndices.size,
+      pendingWork: this.queuedBlockHydrationJobs() > 0
+        || this.hydrationPipeline.pendingCount > 0
+        || this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation) > 0
+        || this.terrainPipeline.pendingGroupCount > 0
+        || this.yLayerProjection.state.activity !== 'idle'
+        || this.providerRefreshPipeline.isPlanning
+        || !!this.providerRefreshPipeline.progress
+        || (this.yLayerProjection.hasDirectPresentation && this.yLayerPresentation.providerGeneration !== this.providerGeneration),
+      interiorCulledBlocks: this.interiorCulling.size,
+    };
+  }
+
+  private canRetainDirectPresentationForMutation(project: ProjectDocument, mutationHint: ProjectMutationHint | undefined): boolean {
+    if (!mutationHint || mutationHint.kind !== 'block-delta') return false;
+    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+    return mutationHint.changes.every(({ after }) => {
+      if (!after) return true;
+      if (after.kind !== 'resolved') return false;
+      const reusableKey = this.visualProvider?.reusableVisualKey?.(after, worldContext);
+      return !!reusableKey && this.instanceRenderer.hasTemplate(reusableKey);
+    }) && this.blockIndexOwner.currentProject === project;
+  }
+
   private applyProjectionFluidRepresentationDelta(changes: ReadonlyMap<string, ProjectionFluidChange>, worldContext: FluidWorldLookup): ReadonlySet<string> {
     const resolver = this.visualProvider?.fluidRenderResolver;
     if (!resolver || !this.visualProvider?.fluidTexture) return new Set<string>();
@@ -2270,6 +2361,12 @@ export class ThreeViewportEngine {
 
   private visibleSelection(project: ProjectDocument | undefined, options: ViewportRenderOptions): { readonly selected?: VoxelCoordinate; readonly positions?: readonly VoxelCoordinate[]; readonly kind?: string; readonly count?: number; readonly bounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly box?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate } } {
     if (!project) return { selected: options.selected, positions: options.selectedPositions, kind: options.selectionKind, count: options.selectionCount, bounds: options.selectionBounds, box: options.selectionBox };
+    if (this.yLayerProjection.hasDirectPresentation) {
+      const isVisible = (position: VoxelCoordinate): boolean => this.yLayerProjection.hasVisibleEntry(coordinateKey(position));
+      const positions = (options.selectedPositions ?? []).filter(isVisible);
+      const selected = options.selected && isVisible(options.selected) ? options.selected : undefined;
+      return { selected, positions, kind: options.selectionKind, count: positions.length || (selected ? 1 : 0) };
+    }
     const cachedProjection = this.canUseCachedVisibleProjection(project, options);
     const visible = cachedProjection ? this.yLayerProjection.visibleEntries : this.visibleBlocks(project, options);
     const visibleKeys = cachedProjection ? this.yLayerProjection.visibleEntriesByKey : new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
@@ -2286,6 +2383,12 @@ export class ThreeViewportEngine {
 
   private canUseCachedVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): boolean {
     return this.yLayerProjection.canUseCachedVisibleProjection(project, options);
+  }
+
+  private expectedVisibleBlockCount(): number {
+    const directCount = this.yLayerProjection.directVisibleEntryCount();
+    if (directCount !== undefined) return directCount;
+    return this.project ? this.visibleBlocks(this.project, this.renderOptions, false).length : 0;
   }
 
   private setHydrationBlockScope(entries: readonly VisibleBlockEntry[]): void {
@@ -2906,6 +3009,11 @@ export class ThreeViewportEngine {
     this.recordMissingAccountingInvariant('finalization-audit');
     const progress = this.finalizationProgress();
     if (!this.project || this.yLayerProjection.visibleProject !== this.project) return progress;
+    const directExpected = this.yLayerProjection.directVisibleEntryCount();
+    if (directExpected !== undefined) {
+      const finalReadyBlocks = Math.min(directExpected, this.blockRepresentations.size);
+      return { ...progress, finalization: { expectedBlocks: directExpected, finalReadyBlocks, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: Math.max(0, directExpected - finalReadyBlocks) } };
+    }
     let finalReadyBlocks = 0;
     let provisionalMissingBlocks = 0;
     let permanentMissingBlocks = 0;
@@ -2923,6 +3031,10 @@ export class ThreeViewportEngine {
   /** Watchdog repair is limited to adopting already committed ownership. */
   reconcileFinalizationAccounting(): void {
     if (!this.project || this.yLayerProjection.visibleProject !== this.project) return;
+    if (this.yLayerProjection.hasDirectPresentation) {
+      this.hydrationPipeline.publishProgress(this.hydrationPipeline.progressSnapshot());
+      return;
+    }
     this.adoptCommittedBlockOwnership(this.yLayerProjection.visibleEntries);
     this.hydrationPipeline.publishProgress(this.hydrationPipeline.progressSnapshot());
   }
@@ -2943,12 +3055,13 @@ export class ThreeViewportEngine {
   hydrationDiagnostics(): ViewportHydrationDiagnostics {
     const currentGenerationRunning = this.hydrationPipeline.runningGenerationCount(this.hydrationPipeline.generation);
     const workCounts = this.hydrationPipeline.workCounts();
-    const visibleEntries = this.project ? this.visibleBlocks(this.project, this.renderOptions) : [];
-    const expectedVisibleBlockCount = visibleEntries.length;
+    const directVisibleBlockCount = this.yLayerProjection.directVisibleEntryCount();
+    const visibleEntries = this.project && directVisibleBlockCount === undefined ? this.visibleBlocks(this.project, this.renderOptions) : [];
+    const expectedVisibleBlockCount = directVisibleBlockCount ?? visibleEntries.length;
     const queuedKeys = new Set(this.hydrationPipeline.regularJobs().filter((job) => job.token === this.hydrationPipeline.generation).map((job) => job.key));
     const orphanedHydrationSample: string[] = [];
     let orphanedHydrationCount = 0;
-    if (this.visualProvider && this.project) {
+    if (this.visualProvider && this.project && directVisibleBlockCount === undefined) {
       for (const entry of visibleEntries) {
         const key = coordinateKey(entry.block.position);
         if (this.interiorCulling.has(key)) continue;
@@ -2975,7 +3088,7 @@ export class ThreeViewportEngine {
       pendingSignatureCount: this.hydrationPipeline.pendingCount,
       placeholderSignatureCount: this.placeholderSignatures.size,
       placeholderVisualCount: this.placeholderIndices.size,
-      renderedBlockCount: this.visibleBlockRepresentationCount(),
+      renderedBlockCount: directVisibleBlockCount ?? this.visibleBlockRepresentationCount(),
       residentBlockCount: this.blockRepresentations.size,
       expectedVisibleBlockCount,
       runningOwnershipCount: this.hydrationPipeline.runningCount,

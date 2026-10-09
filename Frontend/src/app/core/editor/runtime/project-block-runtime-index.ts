@@ -169,6 +169,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   has(position: VoxelCoordinate): boolean { return this.blocksByKey.has(coordinateKey(position)); }
   indexOf(position: VoxelCoordinate): number | undefined { return this.indicesComplete ? this.indicesByKey.get(coordinateKey(position)) : undefined; }
   blocksAtY(y: number): readonly PlacedBlock[] { return [...(this.blocksByY.get(y)?.values() ?? [])]; }
+  blockCountAtY(y: number): number { return this.blocksByY.get(y)?.size ?? 0; }
   occupiedLayers(): readonly number[] { return [...this.blocksByY.keys()].sort((left, right) => left - right); }
   allBlocks(): readonly PlacedBlock[] { return this.project?.blocks ?? []; }
   usageEntries(): readonly ProjectBlockUsageEntry[] {

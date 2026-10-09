@@ -128,6 +128,9 @@ export interface RendererCounters {
   readonly yLayerProjectionYields: number;
   readonly yLayerProjectionCancellations: number;
   readonly yLayerProjectionMaxSliceMs: number;
+  readonly yLayerPresentationTransitions: number;
+  readonly yLayerPresentationFallbacks: number;
+  readonly yLayerProjectionVoxelVisits: number;
   readonly yLayerBatchVisibilityUpdates: number;
   readonly yLayerBatchRoleUpdates: number;
   readonly renderBatchRoleUpdates: number;
@@ -274,6 +277,9 @@ const EMPTY_COUNTERS: RendererCounters = {
   yLayerProjectionYields: 0,
   yLayerProjectionCancellations: 0,
   yLayerProjectionMaxSliceMs: 0,
+  yLayerPresentationTransitions: 0,
+  yLayerPresentationFallbacks: 0,
+  yLayerProjectionVoxelVisits: 0,
   yLayerBatchVisibilityUpdates: 0,
   yLayerBatchRoleUpdates: 0,
   renderBatchRoleUpdates: 0,

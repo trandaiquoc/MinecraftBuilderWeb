@@ -6,6 +6,28 @@
 > boundaries.
 
 > Purpose: track decisions and implementation behavior that have changed, clarified, or become more specific than the current requirements document, so the requirements can be revised later.
+
+## Resident Y-layer presentation checkpoint
+
+Visibility-only transitions now have a separate direct presentation owner for
+fully resident, Y-partitioned static instance batches when no culling or other
+renderer-family dependency can change. That path updates batch visibility and
+normal/reference roles without constructing per-voxel projection deltas or
+rewriting instance matrices; selected/raycasted entries resolve lazily from the
+canonical spatial index. The direct owner contains no GPU resources and clears
+on project/provider scope changes.
+
+The path is intentionally fail-closed. Active interior culling, exposed-face
+rendering, hidden groups, isolation, incomplete residency, pending work, and
+surface/terrain/fluid/special representations use the existing cooperative
+projection/reconciliation path. Adjacency alone does not disable direct
+presentation when the current presentation has no culled representations. On
+the prepared 110,592-block static benchmark, Whole/All Below/current transitions
+now measured 1.1-2.3 ms versus the historical 450-740 ms, with zero projection
+voxel visits, matrix writes, or provider creations. This is Vitest/headless
+evidence only: it does not establish browser frame latency, GPU readiness, or
+direct support for other renderer families. The benchmark reports direct
+transitions, fallbacks, and projection voxel visits separately.
 >
 > Basis: current project discussions, manual UI testing, and Codex implementation reports up through Prompt 09.3 planning. This file is a change log, not a replacement for the requirements document.
 

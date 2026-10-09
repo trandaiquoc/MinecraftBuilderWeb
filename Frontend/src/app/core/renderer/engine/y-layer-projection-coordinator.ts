@@ -8,8 +8,9 @@ import { coordinateKey } from '../../domain/coordinates';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import { blockRenderSignature, canonicalRenderOptions, renderFilterKey } from './viewport-render-signatures';
 import { yieldToBrowser } from '../../assets/cooperative-yield';
+import { YLayerPresentationOwner, type VisibleBlockProjectionEntry } from './y-layer-presentation-owner';
 
-type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits' | 'yLayerProjectionSlices' | 'yLayerProjectionYields' | 'yLayerProjectionCancellations' | 'blockSignatureComputations' | 'yLayerProjectionChangedLayers' | 'yLayerProjectionChangedBlocks' | 'yLayerProjectionAddedVisible' | 'yLayerProjectionRemovedVisible' | 'yLayerProjectionRoleChanged';
+type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits' | 'yLayerProjectionSlices' | 'yLayerProjectionYields' | 'yLayerProjectionCancellations' | 'blockSignatureComputations' | 'yLayerProjectionChangedLayers' | 'yLayerProjectionChangedBlocks' | 'yLayerProjectionAddedVisible' | 'yLayerProjectionRemovedVisible' | 'yLayerProjectionRoleChanged' | 'yLayerProjectionVoxelVisits';
 export const Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT = 384;
 export const Y_LAYER_PROJECTION_INITIAL_SLICE_BLOCK_LIMIT = 128;
 export const Y_LAYER_PROJECTION_SLICE_BUDGET_MS = 6;
@@ -39,12 +40,7 @@ export interface ProjectionVisibleDeltaPlan {
   readonly removedVisible: number;
   readonly roleChanged: number;
 }
-export type VisibleBlockProjectionEntry = {
-  readonly block: ProjectDocument['blocks'][number];
-  readonly role: 'normal' | 'reference' | 'missing';
-  readonly signature: string;
-  readonly occlusionClass: OcclusionClass;
-};
+export type { VisibleBlockProjectionEntry } from './y-layer-presentation-owner';
 type FrameRequest = (callback: FrameRequestCallback) => number;
 type FrameCancel = (frame: number) => void;
 
@@ -88,13 +84,16 @@ export class YLayerProjectionCoordinator {
     private readonly ports: YLayerProjectionPorts,
     private readonly requestFrame: FrameRequest = requestViewportFrame,
     private readonly cancelFrame: FrameCancel = cancelViewportFrame,
+    private readonly presentation: YLayerPresentationOwner = new YLayerPresentationOwner(),
   ) {}
 
   get revision(): number { return this.revisionValue; }
   get state(): ViewportProjectionState { return { activity: this.activity, revision: this.activityRevision }; }
-  get visibleEntries(): readonly VisibleBlockProjectionEntry[] { return this.visibleEntriesValue; }
-  get visibleEntriesByKey(): ReadonlyMap<string, VisibleBlockProjectionEntry> { return this.visibleMap; }
-  get visibleProject(): ProjectDocument | undefined { return this.visibleProjectValue; }
+  get visibleEntries(): readonly VisibleBlockProjectionEntry[] { return this.presentation.isActive ? this.presentation.materializedEntries : this.visibleEntriesValue; }
+  get visibleEntriesByKey(): ReadonlyMap<string, VisibleBlockProjectionEntry> { return this.presentation.isActive ? this.presentation.materializedMap : this.visibleMap; }
+  get visibleProject(): ProjectDocument | undefined { return this.presentation.project ?? this.visibleProjectValue; }
+  get hasDirectPresentation(): boolean { return this.presentation.isActive; }
+  directVisibleEntryCount(): number | undefined { return this.presentation.visibleBlockCount(); }
 
   committedOptionsFor(project: ProjectDocument | undefined): ViewportRenderOptions | undefined {
     return project && this.committed?.project === project ? this.committed.options : undefined;
@@ -108,17 +107,45 @@ export class YLayerProjectionCoordinator {
   }
 
   hasVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): boolean {
+    if (this.presentation.matches(project, options)) return true;
     return this.visibleProjectValue === project && this.visibleKey === renderFilterKey(options);
   }
 
   canUseCachedVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): boolean {
+    if (this.presentation.matches(project, options)) return true;
     if (this.hasVisibleProjection(project, options)) return true;
     return this.pending?.project === project && this.committed?.project.id === project.id
       && this.committed.project.blocks === project.blocks;
   }
 
-  visibleEntry(key: string): VisibleBlockProjectionEntry | undefined { return this.visibleMap.get(key); }
-  hasVisibleEntry(key: string): boolean { return this.visibleMap.has(key); }
+  visibleEntry(key: string): VisibleBlockProjectionEntry | undefined { return this.presentation.isActive ? this.presentation.visibleEntry(key) : this.visibleMap.get(key); }
+  hasVisibleEntry(key: string): boolean { return this.presentation.isActive ? !!this.presentation.visibleEntry(key) : this.visibleMap.has(key); }
+
+  setDirectPresentation(
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+    providerGeneration: number,
+    resolveBlock: (position: VoxelCoordinate) => PlacedBlock | undefined,
+    createEntry: (block: PlacedBlock, options: ViewportRenderOptions) => VisibleBlockProjectionEntry,
+  ): void {
+    this.presentation.activate(project, options, providerGeneration, resolveBlock, createEntry);
+    this.visibleEntriesValue = [];
+    this.visibleMap.clear();
+    this.visibleIndices.clear();
+    this.associateVisibleProjection(project, options);
+    this.setCommitted(project, options);
+  }
+
+  clearDirectPresentation(): boolean {
+    if (!this.presentation.isActive) return false;
+    this.presentation.clear();
+    this.visibleEntriesValue = [];
+    this.visibleMap.clear();
+    this.visibleIndices.clear();
+    this.visibleProjectValue = undefined;
+    this.visibleKey = '';
+    return true;
+  }
 
   createVisibleEntry(block: PlacedBlock, options: ViewportRenderOptions, occlusionClass: OcclusionClass): VisibleBlockProjectionEntry {
     const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
@@ -138,6 +165,7 @@ export class YLayerProjectionCoordinator {
     const changes = new Map<string, ProjectionVisibleChange>();
     const visibilityOptions = { ...canonicalRenderOptions(options), layerIndex };
     for (const layer of layers) for (const block of blocksForLayer(layer)) {
+      this.ports.record('yLayerProjectionVoxelVisits');
       const key = coordinateKey(block.position);
       if (changes.has(key)) continue;
       const before = this.visibleMap.get(key);
@@ -170,6 +198,7 @@ export class YLayerProjectionCoordinator {
   }
 
   replaceVisible(project: ProjectDocument, options: ViewportRenderOptions, entries: readonly VisibleBlockProjectionEntry[]): void {
+    this.clearDirectPresentation();
     this.prewarmedProjection = undefined;
     this.visibleEntriesValue = [...entries];
     this.visibleMap = new Map(entries.map((entry) => [coordinateKey(entry.block.position), entry] as const));
@@ -195,11 +224,13 @@ export class YLayerProjectionCoordinator {
   }
 
   associateVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): void {
+    if (this.presentation.isActive && !this.presentation.update(project, options, this.presentation.providerGeneration ?? 0)) this.clearDirectPresentation();
     this.visibleProjectValue = project;
     this.visibleKey = renderFilterKey(options);
   }
 
   cacheVisibleEntry(key: string, entry: VisibleBlockProjectionEntry): void {
+    if (this.presentation.isActive) return;
     const index = this.visibleIndices.get(key);
     this.visibleMap.set(key, entry);
     if (index === undefined) {
@@ -209,6 +240,7 @@ export class YLayerProjectionCoordinator {
   }
 
   removeVisibleEntry(key: string): void {
+    if (this.presentation.isActive) return;
     this.visibleMap.delete(key);
     const index = this.visibleIndices.get(key);
     if (index === undefined) return;
@@ -257,6 +289,7 @@ export class YLayerProjectionCoordinator {
 
   clear(): void {
     this.cancel();
+    this.presentation.clear();
     this.committed = undefined;
     this.keyRevisions.clear();
     this.visibleEntriesValue = [];

@@ -291,7 +291,7 @@ describe('explicit renderer benchmark', () => {
     const project = rendererBenchmarkProject('mega');
     const byY = new Map<number, ReturnType<typeof benchmarkBlock>[]>();
     for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
-    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], blockCountAtY: (y: number) => byY.get(y)?.length ?? 0, occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
     const diagnostics = new RendererDiagnostics();
     const engine = new ThreeViewportEngine(diagnostics);
     engine.setLayerIndex(layerIndex);
@@ -317,7 +317,7 @@ describe('explicit renderer benchmark', () => {
     const project = { ...baseProject, blocks: baseProject.blocks.map((block) => ({ ...block, id: 'minecraft:stone', namespace: 'minecraft', state: {} })) };
     const byY = new Map<number, ReturnType<typeof benchmarkBlock>[]>();
     for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
-    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], blockCountAtY: (y: number) => byY.get(y)?.length ?? 0, occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
     const diagnostics = new RendererDiagnostics();
     const engine = new ThreeViewportEngine(diagnostics);
     const provider = rendererBenchmarkVisualProvider();
@@ -366,12 +366,13 @@ describe('explicit renderer benchmark', () => {
       engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 24, layerVisibility: 'all-below' } }, undefined, options(24, 'all-below'));
       await waitForProjection(engine);
     });
-    const belowCount = (engine as unknown as { yLayerProjection: { visibleEntries: readonly unknown[] } }).yLayerProjection.visibleEntries.length;
+    const projectionOwner = (engine as unknown as { yLayerProjection: { visibleEntries: readonly unknown[]; directVisibleEntryCount: () => number | undefined } }).yLayerProjection;
+    const belowCount = projectionOwner.directVisibleEntryCount() ?? projectionOwner.visibleEntries.length;
     const whole = await time('expand-all-below-to-whole', async () => {
       engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 24, layerVisibility: 'whole-structure' } }, undefined, options(24, 'whole-structure'));
       await waitForProjection(engine);
     });
-    const wholeCount = (engine as unknown as { yLayerProjection: { visibleEntries: readonly unknown[] } }).yLayerProjection.visibleEntries.length;
+    const wholeCount = projectionOwner.directVisibleEntryCount() ?? projectionOwner.visibleEntries.length;
     const contract = await time('contract-whole-to-current-only', async () => {
       engine.update(project, undefined, options(24, 'current-only'));
       await waitForProjection(engine);
@@ -382,8 +383,11 @@ describe('explicit renderer benchmark', () => {
     expect(afterVisibility.fullSceneRebuilds - beforeExpand.fullSceneRebuilds).toBe(0);
     expect(engine.rendererCounters().providerObjectCreations).toBe(createsAfterWarmSwitch);
     expect(afterVisibility.instanceMatrixWrites - beforeExpand.instanceMatrixWrites).toBe(0);
+    expect(afterVisibility.yLayerPresentationTransitions - beforeExpand.yLayerPresentationTransitions).toBe(3);
+    expect(afterVisibility.yLayerPresentationFallbacks - beforeExpand.yLayerPresentationFallbacks).toBe(0);
+    expect(afterVisibility.yLayerProjectionVoxelVisits - beforeExpand.yLayerProjectionVoxelVisits).toBe(0);
     const processMemory = (globalThis as { process?: { memoryUsage?: () => { heapUsed: number; rss: number } } }).process?.memoryUsage?.();
-    console.info(`[y-layer preload benchmark] summary=${JSON.stringify({ blocks: project.blocks.length, preload, representationPreload, initialMs: initial, coldSwitchMs: coldSwitch, warmSwitchMs: warmSwitch, allBelowMs: allBelow, wholeExpansionMs: whole, contractionMs: contract, providerObjectCreationsBeforeWarmSwitch: createsBeforeWarmSwitch, providerObjectCreationsAfterWarmSwitch: createsAfterWarmSwitch, providerObjectCreationsAfterVisibility: engine.rendererCounters().providerObjectCreations, matrixWritesTotal: afterVisibility.instanceMatrixWrites, matrixWritesDuringVisibility: afterVisibility.instanceMatrixWrites - beforeExpand.instanceMatrixWrites, layerBatchVisibilityUpdates: afterVisibility.yLayerBatchVisibilityUpdates - beforeExpand.yLayerBatchVisibilityUpdates, layerBatchRoleUpdates: afterVisibility.yLayerBatchRoleUpdates - beforeExpand.yLayerBatchRoleUpdates, projectionCounters: { slices: afterVisibility.yLayerProjectionSlices - beforeExpand.yLayerProjectionSlices, changedBlocks: afterVisibility.yLayerProjectionChangedBlocks - beforeExpand.yLayerProjectionChangedBlocks, yields: afterVisibility.yLayerProjectionYields - beforeExpand.yLayerProjectionYields }, processMemory, gpuPresentation: 'not measurable in Vitest without WebGL/browser' })}`);
+    console.info(`[y-layer preload benchmark] summary=${JSON.stringify({ blocks: project.blocks.length, preload, representationPreload, initialMs: initial, coldSwitchMs: coldSwitch, warmSwitchMs: warmSwitch, allBelowMs: allBelow, wholeExpansionMs: whole, contractionMs: contract, providerObjectCreationsBeforeWarmSwitch: createsBeforeWarmSwitch, providerObjectCreationsAfterWarmSwitch: createsAfterWarmSwitch, providerObjectCreationsAfterVisibility: engine.rendererCounters().providerObjectCreations, matrixWritesTotal: afterVisibility.instanceMatrixWrites, matrixWritesDuringVisibility: afterVisibility.instanceMatrixWrites - beforeExpand.instanceMatrixWrites, layerBatchVisibilityUpdates: afterVisibility.yLayerBatchVisibilityUpdates - beforeExpand.yLayerBatchVisibilityUpdates, layerBatchRoleUpdates: afterVisibility.yLayerBatchRoleUpdates - beforeExpand.yLayerBatchRoleUpdates, presentationCounters: { directTransitions: afterVisibility.yLayerPresentationTransitions - beforeExpand.yLayerPresentationTransitions, fallbacks: afterVisibility.yLayerPresentationFallbacks - beforeExpand.yLayerPresentationFallbacks, voxelVisits: afterVisibility.yLayerProjectionVoxelVisits - beforeExpand.yLayerProjectionVoxelVisits }, projectionCounters: { slices: afterVisibility.yLayerProjectionSlices - beforeExpand.yLayerProjectionSlices, changedBlocks: afterVisibility.yLayerProjectionChangedBlocks - beforeExpand.yLayerProjectionChangedBlocks, yields: afterVisibility.yLayerProjectionYields - beforeExpand.yLayerProjectionYields }, processMemory, gpuPresentation: 'not measurable in Vitest without WebGL/browser' })}`);
     expect(initial).toBeGreaterThanOrEqual(0);
     engine.dispose();
     provider.dispose();

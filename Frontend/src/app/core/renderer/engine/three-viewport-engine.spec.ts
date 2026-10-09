@@ -14,6 +14,8 @@ import { blockMutationHint, metadataMutationHint } from '../../editor/mutations/
 import { vanillaFluidRenderResolver } from '../fluids/fluid-state';
 import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
 import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
+import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type { YLayerPresentationReadiness } from './y-layer-presentation-owner';
 
 describe('camera movement input contract', () => {
   it('routes terminal terrain disposal through the engine exactly once', () => {
@@ -2433,6 +2435,76 @@ describe('selection visualization scalability', () => {
     expect(contracted.blockVisualCreations).toBe(prepared.blockVisualCreations);
     const retained = engine as unknown as { blockRepresentations: Map<string, { presentationVisible?: boolean }> };
     expect([...retained.blockRepresentations.values()].filter((entry) => entry.presentationVisible === false)).toHaveLength(0);
+    engine.dispose();
+  });
+
+  it('uses resident layer presentation without voxel projection and keeps raycast/selection visibility live', async () => {
+    const base = rendererBenchmarkProject('small');
+    let blocks: PlacedBlock[] = Array.from({ length: 600 }, (_, index) => ({
+      kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft',
+      position: { x: Math.floor(index / 2) * 2, y: index % 2, z: 0 }, state: {},
+    }));
+    const project: ProjectDocument = { ...base, size: { x: 602, y: 2, z: 1 }, blocks, groups: [], decorations: [] };
+    const byY = new Map([[0, blocks.filter((block) => block.position.y === 0)], [1, blocks.filter((block) => block.position.y === 1)]]);
+    const layerIndex = {
+      blocksAtY: (y: number) => byY.get(y) ?? [],
+      blockCountAtY: (y: number) => byY.get(y)?.length ?? 0,
+      occupiedLayers: () => [0, 2],
+      allBlocks: () => blocks,
+    };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(axisCubeProvider());
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex });
+    await settleHydration(100, engine);
+    const before = engine.rendererCounters();
+
+    engine.update(project, undefined, { layerY: 0, visibility: 'current-only', layerIndex, selectedPositions: [blocks[0].position, blocks[1].position] });
+    const directState = engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean }; yLayerPresentationReadiness: () => YLayerPresentationReadiness; yLayerPresentation: { evaluate: (project: ProjectDocument, options: ViewportRenderOptions, readiness: YLayerPresentationReadiness) => unknown } };
+    const readiness = directState.yLayerPresentationReadiness();
+    expect(directState.yLayerProjection.hasDirectPresentation, JSON.stringify({ readiness, decision: directState.yLayerPresentation.evaluate(project, { layerY: 0, visibility: 'current-only', layerIndex }, readiness) })).toBe(true);
+    expect(engine.visibleSceneDiagnostics()).toMatchObject({ expectedVisibleVoxelCount: 300, renderedVoxelCount: 300 });
+    expect(engine.rendererCounters()).toMatchObject({
+      yLayerPresentationTransitions: before.yLayerPresentationTransitions + 1,
+      yLayerProjectionVoxelVisits: before.yLayerProjectionVoxelVisits,
+      yLayerProjectionRequests: before.yLayerProjectionRequests,
+      instanceMatrixWrites: before.instanceMatrixWrites,
+      regularHydrationStarted: before.regularHydrationStarted,
+    });
+    const projection = (engine as unknown as { yLayerProjection: { hasVisibleEntry: (key: string) => boolean } }).yLayerProjection;
+    expect(projection.hasVisibleEntry(coordinateKey(blocks[0].position))).toBe(true);
+    expect(projection.hasVisibleEntry(coordinateKey(blocks[1].position))).toBe(false);
+
+    const third: PlacedBlock = { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1200, y: 0, z: 0 }, state: {} };
+    const beforeMutation = engine.rendererCounters();
+    blocks = [...blocks, third];
+    byY.set(0, [...(byY.get(0) ?? []), third]);
+    const mutatedProject = { ...project, blocks };
+    engine.update(mutatedProject, undefined, { layerY: 0, visibility: 'current-only', layerIndex }, blockMutationHint([{ position: third.position, after: third }]));
+    await settleHydration(100, engine);
+    const afterMutation = engine.rendererCounters();
+    expect(afterMutation.incrementalBlockReconciles).toBeGreaterThan(beforeMutation.incrementalBlockReconciles);
+    expect(afterMutation.regularHydrationStarted).toBeGreaterThan(beforeMutation.regularHydrationStarted);
+    expect(afterMutation.yLayerPresentationTransitions).toBe(beforeMutation.yLayerPresentationTransitions);
+
+    const allBelow = { layerY: 1, visibility: 'all-below' as const, layerIndex };
+    engine.update(mutatedProject, undefined, allBelow);
+    engine.update(mutatedProject, undefined, { ...allBelow, visibility: 'whole-structure' });
+    engine.update(mutatedProject, undefined, { ...allBelow, layerY: 0, visibility: 'current-only' });
+    const after = engine.rendererCounters();
+    expect(after.yLayerPresentationTransitions - before.yLayerPresentationTransitions).toBe(4);
+    expect(after.yLayerProjectionVoxelVisits).toBe(before.yLayerProjectionVoxelVisits);
+    expect(after.instanceMatrixWrites).toBe(afterMutation.instanceMatrixWrites);
+    expect(after.regularHydrationStarted).toBe(afterMutation.regularHydrationStarted);
+
+    const missing: PlacedBlock = { kind: 'missing', id: 'mod:unresolved', namespace: 'mod', position: { x: 602, y: 0, z: 0 }, state: {} };
+    blocks = [...blocks, missing];
+    byY.set(0, [...(byY.get(0) ?? []), missing]);
+    const unsupportedMutation = { ...mutatedProject, blocks };
+    engine.update(unsupportedMutation, undefined, { layerY: 0, visibility: 'current-only', layerIndex }, blockMutationHint([{ position: missing.position, after: missing }]));
+    await settleHydration(100, engine);
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(false);
+    expect(engine.rendererCounters().yLayerPresentationFallbacks).toBeGreaterThan(before.yLayerPresentationFallbacks);
     engine.dispose();
   });
 

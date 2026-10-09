@@ -88,6 +88,8 @@ export class FluidChunkRenderer {
     this.group.name = 'fluidChunks'; this.group.userData['fluidChunks'] = true;
   }
 
+  get logicalRecordCount(): number { return this.records.size; }
+
   setProvider(provider: FluidChunkVisualProvider | undefined): void {
     if (this.provider && provider && providerContractKey(this.provider) === providerContractKey(provider)) {
       this.provider = provider;

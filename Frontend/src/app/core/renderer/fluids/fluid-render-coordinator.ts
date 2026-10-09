@@ -155,6 +155,7 @@ export class FluidRenderCoordinator {
   hasVoxel(key: string): boolean { return this.renderer.hasVoxel(key); }
   recordsForKeys(keys: ReadonlySet<string>): readonly FluidChunkRecord[] { return this.renderer.recordsForKeys(keys); }
   providerSnapshot(): FluidChunkVisualProvider | undefined { return this.renderer.providerSnapshot(); }
+  get logicalRecordCount(): number { return this.renderer.logicalRecordCount; }
   referencedProviders(): ReadonlySet<RetainableProvider> { return this.retiredProviderLeases; }
 
   diagnostics(): FluidLifecycleDiagnostics {

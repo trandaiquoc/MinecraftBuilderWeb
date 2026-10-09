@@ -2,6 +2,7 @@ import { PlacedBlock, ProjectSize, VoxelCoordinate } from '../../domain/project.
 
 export interface LayerBlockIndex {
   readonly blocksAtY: (y: number) => readonly PlacedBlock[];
+  readonly blockCountAtY?: (y: number) => number;
   readonly occupiedLayers: () => readonly number[];
   readonly allBlocks: () => readonly PlacedBlock[];
 }
