@@ -1,5 +1,3 @@
-import type { ViewportTraceSample } from './viewport-runtime-trace';
-
 export interface TraceDurationSummary {
   readonly observedCount: number;
   readonly storedSampleCount: number;
@@ -69,6 +67,19 @@ export class TraceNumericAccumulator {
   }
 }
 
+interface TraceStatisticsSample {
+  readonly counters?: object;
+  readonly hydration?: Readonly<Record<string, unknown>>;
+  readonly build?: Readonly<Record<string, unknown>>;
+  readonly render?: Readonly<Record<string, unknown>>;
+  readonly camera?: {
+    readonly distance: number;
+    readonly offset: { readonly x: number; readonly y: number; readonly z: number };
+    readonly direction: { readonly x: number; readonly y: number; readonly z: number };
+    readonly quaternion: readonly [number, number, number, number];
+  };
+}
+
 /** Owns mutable per-run metric aggregation; recording cadence and buffers stay with the recorder. */
 export class ViewportTraceStatistics {
   readonly durationAggregates = new Map<string, TraceNumericAccumulator>();
@@ -109,7 +120,7 @@ export class ViewportTraceStatistics {
     return regressed;
   }
 
-  recordSample(sample: ViewportTraceSample, previous: ViewportTraceSample | undefined, hydrationProgressObserved: boolean): void {
+  recordSample(sample: TraceStatisticsSample, previous: TraceStatisticsSample | undefined, hydrationProgressObserved: boolean): void {
     const counters = { ...((sample.counters ?? {}) as Readonly<Record<string, unknown>>) };
     this.firstCounters ??= counters; this.lastCounters = counters;
     const hydrationCompleted = numeric(sample.hydration?.['completed']);

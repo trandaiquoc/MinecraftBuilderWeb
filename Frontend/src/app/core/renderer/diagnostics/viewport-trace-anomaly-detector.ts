@@ -1,14 +1,24 @@
-import type { ViewportTraceSample, ViewportTraceAnomaly } from './viewport-runtime-trace';
+export interface TraceAnomalySample {
+  readonly hydration?: Readonly<Record<string, unknown>>;
+  readonly generations?: Readonly<Record<string, unknown>>;
+  readonly counters?: object;
+  readonly render?: Readonly<Record<string, unknown>>;
+  readonly camera?: {
+    readonly offset: { readonly x: number; readonly y: number; readonly z: number };
+    readonly direction: { readonly x: number; readonly y: number; readonly z: number };
+  };
+}
+export interface DetectedViewportTraceAnomaly { readonly type: string; readonly t: number; readonly evidence: Readonly<Record<string, unknown>>; }
 
 export function detectViewportTraceAnomalies(
-  before: ViewportTraceSample | undefined,
-  sample: ViewportTraceSample,
+  before: TraceAnomalySample | undefined,
+  sample: TraceAnomalySample,
   t: number,
   cameraOnly: boolean,
   movementActive: boolean,
-): readonly ViewportTraceAnomaly[] {
+): readonly DetectedViewportTraceAnomaly[] {
   if (!before) return [];
-  const anomalies: ViewportTraceAnomaly[] = [];
+  const anomalies: DetectedViewportTraceAnomaly[] = [];
   const hydrationBefore = numeric(before.hydration?.['completed']);
   const hydrationAfter = numeric(sample.hydration?.['completed']);
   if (hydrationBefore !== undefined && hydrationAfter !== undefined && hydrationAfter < hydrationBefore) anomalies.push({ type: 'progress-regression', t, evidence: { before: hydrationBefore, after: hydrationAfter } });
