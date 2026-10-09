@@ -8,11 +8,13 @@ export class ViewportBlockIndexOwner implements ReadonlyBlockLookup {
   private blocksReference?: readonly PlacedBlock[];
   private specialVisualIds = new Set<string>();
   private observedLookups = 0;
+  private visualRevisionValue = 0;
   constructor(private readonly record: (metric: string, delta?: number) => void) {}
 
   get hasIndex(): boolean { return this.index !== undefined; }
   get currentProject(): ProjectDocument | undefined { return this.project; }
   get lookupCount(): number { return this.index?.lookups ?? 0; }
+  get visualRevision(): number { return this.visualRevisionValue; }
 
   get(position: VoxelCoordinate): PlacedBlock | undefined { return this.index?.get(position); }
   has(position: VoxelCoordinate): boolean { return this.index?.has(position) ?? false; }
@@ -30,18 +32,21 @@ export class ViewportBlockIndexOwner implements ReadonlyBlockLookup {
     this.index = new ProjectBlockSpatialIndex(project.blocks);
     this.project = project;
     this.blocksReference = project.blocks;
+    this.visualRevisionValue += 1;
     this.observedLookups = 0;
     this.specialVisualIds = new Set(project.blocks.map((block) => block.id));
     this.record('spatialIndexBuilds');
   }
 
   adoptProject(project: ProjectDocument): void {
+    if (this.project?.id !== project.id || this.blocksReference !== project.blocks) this.visualRevisionValue += 1;
     this.project = project;
     this.blocksReference = project.blocks;
   }
 
   replace(before: VoxelCoordinate | undefined, after: PlacedBlock | undefined): void {
     this.index?.replace(before, after);
+    this.visualRevisionValue += 1;
     if (after) this.specialVisualIds.add(after.id);
   }
 
@@ -64,5 +69,6 @@ export class ViewportBlockIndexOwner implements ReadonlyBlockLookup {
     this.blocksReference = undefined;
     this.specialVisualIds.clear();
     this.observedLookups = 0;
+    this.visualRevisionValue += 1;
   }
 }

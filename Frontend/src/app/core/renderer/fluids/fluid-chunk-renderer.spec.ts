@@ -43,4 +43,32 @@ describe('FluidChunkRenderer', () => {
     expect(renderer.diagnostics().fluidIncrementalRebuilds).toBe(1);
     renderer.dispose(); texture.dispose();
   });
+
+  it('retains and reuses exact fluid chunk geometry for repeated Y projections', async () => {
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
+    renderer.setProvider({ contractKey: 'fluid-test-v1', resolver: vanillaFluidRenderResolver, texture: async () => texture });
+    const lower = block('minecraft:water', { x: 0, y: 10, z: 0 });
+    const upper = block('minecraft:water', { x: 0, y: 11, z: 0 });
+    const lowerRecord = { block: lower, state: vanillaFluidRenderResolver.resolve(lower)! };
+    const upperRecord = { block: upper, state: vanillaFluidRenderResolver.resolve(upper)! };
+    const world: FluidWorldLookup = { visualRevisionKey: 7, ...worldFor([lower, upper]) };
+    await renderer.sync([lowerRecord], world);
+    const originalMesh = renderer.objectsForVoxel('0,10,0')[0] as THREE.Mesh;
+    const rebuildsBefore = renderer.diagnostics().fluidChunkRebuilds;
+
+    await renderer.syncDelta([{ position: lower.position, before: lowerRecord }, { position: upper.position, after: upperRecord }], [lower.position, upper.position], world);
+    expect(renderer.objectsForVoxel('0,11,0')[0]).not.toBe(originalMesh);
+    await renderer.syncDelta([{ position: upper.position, before: upperRecord }, { position: lower.position, after: lowerRecord }], [upper.position, lower.position], world);
+
+    expect(renderer.objectsForVoxel('0,10,0')[0]).toBe(originalMesh);
+    expect(renderer.diagnostics().fluidChunkRebuilds - rebuildsBefore).toBe(1);
+    expect(renderer.diagnostics().fluidResidentVariantHits).toBe(1);
+    expect(renderer.diagnostics().fluidResidentVariantBytes).toBeGreaterThan(0);
+
+    renderer.dispose();
+    texture.dispose();
+  });
 });

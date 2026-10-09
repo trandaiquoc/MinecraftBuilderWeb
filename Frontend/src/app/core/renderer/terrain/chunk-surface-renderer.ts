@@ -74,6 +74,10 @@ export interface TerrainRendererEvidence {
   readonly terrainChunks: number;
   readonly terrainChunkMeshes: number;
   readonly terrainChunkRebuilds: number;
+  readonly terrainResidentVariantHits: number;
+  readonly terrainResidentVariantEvictions: number;
+  readonly terrainResidentVariantCount: number;
+  readonly terrainResidentVariantBytes: number;
   readonly terrainBlocksCompiled: number;
   readonly terrainFacesEmitted: number;
   readonly terrainFacesCulled: number;
@@ -115,14 +119,24 @@ interface TerrainChunkObject {
   readonly key: string;
   readonly chunk: TerrainChunkCoordinate;
   readonly meshes: THREE.Mesh[];
+  readonly signature: string;
+  readonly emittedKeys: readonly string[];
+  readonly fullyOccludedKeys: readonly string[];
+  readonly failedKeys: readonly string[];
+  readonly estimatedBytes: number;
 }
 
 interface TerrainChunkWorkState {
   readonly revision: number;
   readonly jobId: number;
+  readonly signature: string;
   replacementRequested: boolean;
   completed: boolean;
 }
+
+interface CachedTerrainVariant extends TerrainChunkObject {}
+
+export const TERRAIN_RESIDENT_VARIANT_BUDGET_BYTES = 96 * 1024 * 1024;
 
 /** Owns compiled opaque terrain meshes while leaving project/editor data elsewhere. */
 export class ChunkSurfaceRenderer {
@@ -132,6 +146,8 @@ export class ChunkSurfaceRenderer {
   private readonly records = new Map<string, TerrainSurfaceRecord>();
   private readonly recordsByChunk = new Map<string, Map<string, TerrainSurfaceRecord>>();
   private readonly chunks = new Map<string, TerrainChunkObject>();
+  private readonly residentVariants = new Map<string, CachedTerrainVariant>();
+  private readonly templateIdentity = new WeakMap<readonly SurfaceFaceTemplate[], number>();
   private readonly occupancy = new TerrainOccupancy();
   private readonly dirtyChunks = new Set<string>();
   private readonly ownership = new Map<string, TerrainOwnershipEvidence>();
@@ -163,6 +179,10 @@ export class ChunkSurfaceRenderer {
   private terrainCommitCandidateChecks = 0;
   private terrainCommitRepresentedLookupChecks = 0;
   private referenceOpacity = .28;
+  private residentVariantBytes = 0;
+  private residentVariantHits = 0;
+  private residentVariantEvictions = 0;
+  private nextTemplateIdentity = 1;
   readonly terrainAtlas?: TerrainTextureAtlas;
 
   constructor(private readonly options: ChunkSurfaceRendererOptions) {
@@ -173,6 +193,7 @@ export class ChunkSurfaceRenderer {
 
   get chunkCount(): number { return this.chunks.size; }
   get chunkMeshCount(): number { return [...this.chunks.values()].reduce((count, chunk) => count + chunk.meshes.length, 0); }
+  get residentVariantCount(): number { return this.residentVariants.size; }
   get logicalBlockCount(): number { return this.records.size; }
   has(key: string): boolean { return this.records.has(key); }
   ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.ownership.get(key); }
@@ -223,6 +244,7 @@ export class ChunkSurfaceRenderer {
       this.cancelPendingRepresentationCommits();
       for (const chunk of this.chunks.values()) this.disposeChunk(chunk);
       this.chunks.clear();
+      this.clearResidentVariants();
       this.records.clear();
       this.recordsByChunk.clear();
       this.ownership.clear();
@@ -380,6 +402,10 @@ export class ChunkSurfaceRenderer {
       terrainChunks: this.chunks.size,
       terrainChunkMeshes: this.chunkMeshCount,
       terrainChunkRebuilds: this.rebuildCount,
+      terrainResidentVariantHits: this.residentVariantHits,
+      terrainResidentVariantEvictions: this.residentVariantEvictions,
+      terrainResidentVariantCount: this.residentVariants.size,
+      terrainResidentVariantBytes: this.residentVariantBytes,
       terrainBlocksCompiled: this.blocksCompiled,
       terrainFacesEmitted: this.facesEmitted,
       terrainFacesCulled: this.facesCulled,
@@ -408,6 +434,10 @@ export class ChunkSurfaceRenderer {
       terrainChunks: this.chunks.size,
       terrainChunkMeshes: this.chunkMeshCount,
       terrainChunkRebuilds: this.rebuildCount,
+      terrainResidentVariantHits: this.residentVariantHits,
+      terrainResidentVariantEvictions: this.residentVariantEvictions,
+      terrainResidentVariantCount: this.residentVariants.size,
+      terrainResidentVariantBytes: this.residentVariantBytes,
       terrainBlocksCompiled: this.blocksCompiled,
       terrainFacesEmitted: this.facesEmitted,
       terrainFacesCulled: this.facesCulled,
@@ -439,6 +469,7 @@ export class ChunkSurfaceRenderer {
     this.flushTimer = undefined;
     for (const chunk of this.chunks.values()) this.disposeChunk(chunk);
     this.chunks.clear();
+    this.clearResidentVariants();
     this.records.clear();
     this.recordsByChunk.clear();
     this.ownership.clear();
@@ -506,6 +537,7 @@ export class ChunkSurfaceRenderer {
     const chunk = parseChunkKey(key);
     if (!chunk) return;
     const entries = [...(this.recordsByChunk.get(key)?.values() ?? [])];
+    const signature = this.variantSignature(key, chunk, entries);
     if (!entries.length) this.pendingHydrationCandidatesByChunk.delete(key);
     const attemptHydrationCandidates = entries.length ? this.retainHydrationCandidates(key, hydrationCandidateKeys) : [];
     this.maxRecordsPerChunk = Math.max(this.maxRecordsPerChunk, entries.length);
@@ -517,10 +549,26 @@ export class ChunkSurfaceRenderer {
     const currentProviderGeneration = this.options.providerGeneration?.() ?? 0;
     if (!entries.length) {
       const previous = this.chunks.get(key);
-      if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
+      if (previous) { this.retainResidentVariant(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
       this.chunkWork.delete(key);
       this.options.onAsyncApply?.([], { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [key], representedKeys: [], failedKeys: [], hydrationCandidateKeys: [], disposition: 'chunk-removed' });
+      return;
+    }
+    const cached = this.takeResidentVariant(key, signature);
+    if (cached) {
+      const previous = this.chunks.get(key);
+      this.installResidentVariant(key, cached, previous, revision);
+      this.options.record('terrainResidentVariantHits');
+      this.residentVariantHits += 1;
+      const represented = [...cached.emittedKeys, ...cached.fullyOccludedKeys];
+      const failed = [...cached.failedKeys];
+      if (failed.length) for (const failedKey of failed) this.settlementFailedKeys.add(failedKey);
+      this.completePendingHydrationCandidates(key, attemptHydrationCandidates, represented);
+      this.settlePendingRepresentationCommits(key, represented, failed, 'failed');
+      const result: TerrainApplyResult = { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: represented, failedKeys: failed, hydrationCandidateKeys: [...new Set(attemptHydrationCandidates)], disposition: failed.length ? 'partial-unrepresented' : 'accepted' };
+      this.options.onAsyncApply?.(entries, result);
+      this.notifySettlementIfReady();
       return;
     }
     const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], number>();
@@ -547,7 +595,7 @@ export class ChunkSurfaceRenderer {
       occupancy: this.occupancyHalo(chunk),
       priority,
     };
-    this.chunkWork.set(key, { revision, jobId: job.jobId, replacementRequested: false, completed: false });
+    this.chunkWork.set(key, { revision, jobId: job.jobId, signature, replacementRequested: false, completed: false });
     void this.workerPool.submit(job).then((result) => {
       this.options.onTiming?.('terrain.worker', result.cpuMs);
       this.commitScheduler.enqueue(() => {
@@ -663,7 +711,7 @@ export class ChunkSurfaceRenderer {
       return;
     }
     const sceneSwapStarted = performance.now();
-    const ownership = this.installCompiledChunk(key, compiled, previous, result.revision);
+    const ownership = this.installCompiledChunk(key, compiled, previous, result.revision, work.signature);
     this.recordCommitStage('terrain.commit.sceneSwap', sceneSwapStarted, metrics);
     metrics.ownershipRemoved = ownership.removed;
     metrics.ownershipInserted = ownership.inserted;
@@ -699,7 +747,7 @@ export class ChunkSurfaceRenderer {
     this.notifySettlementIfReady();
   }
 
-  private installCompiledChunk(key: string, compiled: CompiledTerrainChunk, previous: TerrainChunkObject | undefined, revision: number): { readonly removed: number; readonly inserted: number } {
+  private installCompiledChunk(key: string, compiled: CompiledTerrainChunk, previous: TerrainChunkObject | undefined, revision: number, signature: string): { readonly removed: number; readonly inserted: number } {
     this.rebuildCount += 1;
     this.blocksCompiled += compiled.blocksCompiled;
     this.facesEmitted += compiled.facesEmitted;
@@ -721,8 +769,8 @@ export class ChunkSurfaceRenderer {
       mesh.frustumCulled = true; mesh.userData['terrainChunk'] = key; mesh.userData['terrainBucket'] = bucket.key; mesh.userData['terrainRole'] = role; mesh.userData['terrainFaces'] = bucket.faceCount; mesh.userData['realModel'] = true;
       this.options.blocksGroup.add(mesh); meshes.push(mesh);
     }
-    if (previous) this.disposeChunk(previous);
-    if (meshes.length) this.chunks.set(key, { key, chunk: compiled.chunk, meshes }); else this.chunks.delete(key);
+    if (previous) this.retainResidentVariant(previous);
+    if (meshes.length) this.chunks.set(key, createTerrainChunkObject(key, compiled.chunk, meshes, signature, compiled.emittedKeys, compiled.fullyOccludedKeys, compiled.unrepresentedExposedKeys)); else this.chunks.delete(key);
     const ownershipStarted = performance.now();
     const removed = this.clearChunkOwnership(key);
     const emitted = new Set(compiled.emittedKeys), occluded = new Set(compiled.fullyOccludedKeys);
@@ -750,9 +798,17 @@ export class ChunkSurfaceRenderer {
     const revision = previousRevision + 1;
     this.chunkRevisions.set(key, revision);
     if (!entries.length) {
-      if (previous) { this.disposeChunk(previous); this.chunks.delete(key); }
+      if (previous) { this.retainResidentVariant(previous); this.chunks.delete(key); }
       this.clearChunkOwnership(key);
       return finish({ representedKeys: [], failedKeys: [] });
+    }
+    const signature = this.variantSignature(key, chunk, entries);
+    const cached = this.takeResidentVariant(key, signature);
+    if (cached) {
+      this.installResidentVariant(key, cached, previous, revision);
+      this.residentVariantHits += 1;
+      this.options.record('terrainResidentVariantHits');
+      return finish({ representedKeys: [...cached.emittedKeys, ...cached.fullyOccludedKeys], failedKeys: [...cached.failedKeys] });
     }
     const meshStarted = timing ? performance.now() : 0;
     const compiled = meshTerrainChunk(chunk, entries.map((entry) => ({ ...entry, position: entry.block.position, role: entry.role ?? 'normal', compiledTemplates: entry.compiledTemplates ?? this.compiledTemplateCache.get(entry.templates) })), this.occupancy, this.terrainAtlas);
@@ -792,13 +848,9 @@ export class ChunkSurfaceRenderer {
       this.options.blocksGroup.add(mesh);
       meshes.push(mesh);
     }
-    if (meshes.length) {
-      if (previous) this.disposeChunk(previous);
-      this.chunks.set(key, { key, chunk, meshes });
-    } else if (previous) {
-      this.disposeChunk(previous);
-      this.chunks.delete(key);
-    }
+    if (previous) this.retainResidentVariant(previous);
+    if (meshes.length) this.chunks.set(key, createTerrainChunkObject(key, chunk, meshes, signature, compiled.emittedKeys, compiled.fullyOccludedKeys, compiled.unrepresentedExposedKeys));
+    else this.chunks.delete(key);
     const ownershipStarted = performance.now();
     this.clearChunkOwnership(key);
     const emittedKeys = new Set(compiled.emittedKeys);
@@ -824,6 +876,88 @@ export class ChunkSurfaceRenderer {
     for (const key of keys) this.ownership.delete(key);
     this.ownershipKeysByChunk.delete(chunkKey);
     return keys.size;
+  }
+
+  private variantSignature(key: string, chunk: TerrainChunkCoordinate, entries: readonly TerrainSurfaceRecord[]): string {
+    const signature: string[] = [`${key}|provider:${this.options.providerGeneration?.() ?? 0}|`];
+    const ordered = [...entries].sort((left, right) => left.key.localeCompare(right.key));
+    for (const entry of ordered) {
+      let templateId = this.templateIdentity.get(entry.templates);
+      if (templateId === undefined) { templateId = this.nextTemplateIdentity++; this.templateIdentity.set(entry.templates, templateId); }
+      signature.push(`${entry.key}:${entry.block.id}:${JSON.stringify(Object.entries(entry.block.state).sort(([a], [b]) => a.localeCompare(b)))}:${entry.role ?? 'normal'}:${templateId};`);
+    }
+    signature.push('|occupancy:');
+    const originX = chunk.x * 16 - 1;
+    const originY = chunk.y * 16 - 1;
+    const originZ = chunk.z * 16 - 1;
+    for (let y = 0; y < 18; y += 1) for (let z = 0; z < 18; z += 1) for (let x = 0; x < 18; x += 1) {
+      signature.push(this.occupancy.hasOpaque({ x: originX + x, y: originY + y, z: originZ + z }) ? '1' : '0');
+    }
+    return signature.join('');
+  }
+
+  private takeResidentVariant(chunkKey: string, signature: string): CachedTerrainVariant | undefined {
+    const variantKey = `${chunkKey}|${signature}`;
+    const variant = this.residentVariants.get(variantKey);
+    if (!variant) return undefined;
+    this.residentVariants.delete(variantKey);
+    this.residentVariantBytes -= variant.estimatedBytes;
+    return variant;
+  }
+
+  private retainResidentVariant(chunk: TerrainChunkObject): void {
+    for (const mesh of chunk.meshes) this.options.blocksGroup.remove(mesh);
+    if (!chunk.meshes.length || chunk.estimatedBytes > TERRAIN_RESIDENT_VARIANT_BUDGET_BYTES) {
+      this.disposeChunk(chunk);
+      return;
+    }
+    const variantKey = `${chunk.key}|${chunk.signature}`;
+    const existing = this.residentVariants.get(variantKey);
+    if (existing) {
+      this.residentVariants.delete(variantKey);
+      this.residentVariantBytes -= existing.estimatedBytes;
+      this.disposeChunk(existing);
+    }
+    this.residentVariants.set(variantKey, chunk);
+    this.residentVariantBytes += chunk.estimatedBytes;
+    while (this.residentVariantBytes > TERRAIN_RESIDENT_VARIANT_BUDGET_BYTES && this.residentVariants.size) {
+      const oldestKey = this.residentVariants.keys().next().value;
+      if (oldestKey === undefined) break;
+      const oldest = this.residentVariants.get(oldestKey)!;
+      this.residentVariants.delete(oldestKey);
+      this.residentVariantBytes -= oldest.estimatedBytes;
+      this.disposeChunk(oldest);
+      this.residentVariantEvictions += 1;
+      this.options.record('terrainResidentVariantEvictions');
+    }
+  }
+
+  private installResidentVariant(key: string, cached: CachedTerrainVariant, previous: TerrainChunkObject | undefined, revision: number): void {
+    if (previous) this.retainResidentVariant(previous);
+    for (const mesh of cached.meshes) {
+      mesh.userData['terrainChunk'] = key;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        if (material.userData['terrainRole'] !== 'reference') continue;
+        material.opacity = this.referenceOpacity;
+        material.needsUpdate = true;
+      }
+      this.options.blocksGroup.add(mesh);
+    }
+    this.chunks.set(key, cached);
+    this.clearChunkOwnership(key);
+    const emitted = new Set(cached.emittedKeys);
+    const occluded = new Set(cached.fullyOccludedKeys);
+    const keys = new Set([...cached.emittedKeys, ...cached.fullyOccludedKeys]);
+    for (const item of keys) this.ownership.set(item, { key: item, chunkKey: key, revision, facesEmitted: emitted.has(item) ? 1 : 0, fullyOccluded: occluded.has(item) });
+    this.ownershipKeysByChunk.set(key, keys);
+    for (const item of cached.failedKeys) { this.ownership.delete(item); keys.delete(item); }
+  }
+
+  private clearResidentVariants(): void {
+    for (const variant of this.residentVariants.values()) this.disposeChunk(variant);
+    this.residentVariants.clear();
+    this.residentVariantBytes = 0;
   }
 
   private settlePendingRepresentationCommits(chunkKey: string, representedKeys: readonly string[], failedKeys: readonly string[], failureStatus: 'failed' | 'cancelled'): void {
@@ -961,6 +1095,26 @@ export class ChunkSurfaceRenderer {
 }
 
 function terrainChunkKeyForPosition(position: VoxelCoordinate): string { return terrainChunkKey(worldToTerrainChunk(position)); }
+function createTerrainChunkObject(
+  key: string,
+  chunk: TerrainChunkCoordinate,
+  meshes: THREE.Mesh[],
+  signature: string,
+  emittedKeys: readonly string[],
+  fullyOccludedKeys: readonly string[],
+  failedKeys: readonly string[],
+): TerrainChunkObject {
+  const geometryBytes = meshes.reduce((total, mesh) => total + geometryByteLength(mesh.geometry), 0);
+  const estimatedBytes = geometryBytes + signature.length * 2;
+  return { key, chunk, meshes, signature, emittedKeys: [...emittedKeys], fullyOccludedKeys: [...fullyOccludedKeys], failedKeys: [...failedKeys], estimatedBytes };
+}
+
+function geometryByteLength(geometry: THREE.BufferGeometry): number {
+  let bytes = geometry.index?.array.byteLength ?? 0;
+  for (const attribute of Object.values(geometry.attributes)) bytes += attribute.array.byteLength;
+  return bytes;
+}
+
 function emptyTerrainApplyResult(changedKeys: readonly string[] = []): TerrainApplyResult {
   return { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [] };
 }

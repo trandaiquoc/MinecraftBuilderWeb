@@ -198,9 +198,87 @@ describe('chunk surface renderer ownership', () => {
     renderer.flushNow();
     expect(group.children.find((child) => child.userData['terrainChunk'] === '0,0,0')).toBe(firstMesh);
     expect(group.children.find((child) => child.userData['terrainChunk'] === '1,0,0')).not.toBe(secondMesh);
-    expect(secondGeometryDispose).toHaveBeenCalledTimes(1);
+    expect(secondGeometryDispose).not.toHaveBeenCalled();
+    expect(renderer.residentVariantCount).toBeGreaterThan(0);
     expect(renderer.evidence().terrainChunkRebuilds - beforeRebuilds).toBe(1);
     renderer.clear(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('reattaches exact Y-projection terrain meshes without remeshing or reallocating geometry', () => {
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const lower = blockAt({ x: 0, y: 10, z: 0 });
+    const upper = blockAt({ x: 0, y: 11, z: 0 });
+    const lowerKey = voxelKey(lower.position);
+    const upperKey = voxelKey(upper.position);
+    const record = (block: PlacedBlock) => ({ key: voxelKey(block.position), block, templates });
+    const visible = (block: PlacedBlock) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const });
+    renderer.bulkUpsert([record(lower)], [visible(lower)], [lower.position], { initial: true });
+    const originalMesh = group.children[0] as THREE.Mesh;
+    const originalGeometry = originalMesh.geometry;
+    const rebuilds = renderer.evidence().terrainChunkRebuilds;
+
+    renderer.applyBlockChanges([
+      { key: lowerKey, position: lower.position, before: record(lower), afterOpaque: false },
+      { key: upperKey, position: upper.position, after: record(upper), afterOpaque: true },
+    ]);
+    const upperMesh = group.children[0] as THREE.Mesh;
+    expect(upperMesh).not.toBe(originalMesh);
+    expect(renderer.isRepresented(upperKey)).toBe(true);
+
+    renderer.applyBlockChanges([
+      { key: upperKey, position: upper.position, before: record(upper), afterOpaque: false },
+      { key: lowerKey, position: lower.position, after: record(lower), afterOpaque: true },
+    ]);
+
+    expect(group.children[0]).toBe(originalMesh);
+    expect((group.children[0] as THREE.Mesh).geometry).toBe(originalGeometry);
+    expect(renderer.evidence().terrainChunkRebuilds - rebuilds).toBe(1);
+    expect(renderer.evidence().terrainResidentVariantHits).toBe(1);
+    expect(renderer.evidence().terrainResidentVariantBytes).toBeGreaterThan(0);
+    expect(renderer.isRepresented(lowerKey)).toBe(true);
+    expect(renderer.isRepresented(upperKey)).toBe(false);
+
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
+  it('reuses resident projection variants through the worker commit path', async () => {
+    const worker = new ImmediateTerrainWorker();
+    const group = new THREE.Group();
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined, workerFactory: () => worker, workerCount: 1 });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const lower = blockAt({ x: 0, y: 10, z: 0 });
+    const upper = blockAt({ x: 0, y: 11, z: 0 });
+    const lowerKey = voxelKey(lower.position);
+    const upperKey = voxelKey(upper.position);
+    const record = (block: PlacedBlock) => ({ key: voxelKey(block.position), block, templates });
+    const visible = (block: PlacedBlock) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const });
+    renderer.bulkUpsert([record(lower)], [visible(lower)], [lower.position], { initial: true });
+    await renderer.whenSettled();
+    const originalMesh = group.children[0];
+    const posted = worker.posted;
+
+    renderer.applyBlockChanges([
+      { key: lowerKey, position: lower.position, before: record(lower), afterOpaque: false },
+      { key: upperKey, position: upper.position, after: record(upper), afterOpaque: true },
+    ]);
+    await renderer.whenSettled();
+    renderer.applyBlockChanges([
+      { key: upperKey, position: upper.position, before: record(upper), afterOpaque: false },
+      { key: lowerKey, position: lower.position, after: record(lower), afterOpaque: true },
+    ]);
+    await renderer.whenSettled();
+
+    expect(worker.posted - posted).toBe(1);
+    expect(group.children[0]).toBe(originalMesh);
+    expect(renderer.evidence().terrainResidentVariantHits).toBe(1);
+    expect(renderer.ownershipFor(lowerKey)).toBeDefined();
+    expect(renderer.ownershipFor(upperKey)).toBeUndefined();
+
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 
   it('applies a terrain add/remove delta without replacing the full occupancy set', () => {

@@ -2536,12 +2536,20 @@ provider reusable-key contract.
 
 ## Y-Layer block representation residency follow-up
 
-Projection contraction now hides reusable instance, exposed-surface, and
+Projection contraction hides reusable instance, exposed-surface, and
 standalone object representations while retaining their canonical entries.
 Expansion restores the same physical memberships, and runtime hydration
 evidence separates visible `renderedBlockCount` from `residentBlockCount`.
 Retention is permitted only while the canonical voxel still exists with the
 same render signature; deletion or changed content follows normal disposal.
-Terrain and fluid chunk representations are not retained by this path and can
-still incur chunk work when projection visibility changes. No claim is made
-that all-layer representations or GPU presentation are preloaded.
+
+Terrain and fluid chunk renderers additionally retain exact prior projection
+variants in bounded GPU-resident caches (96 MiB terrain, 48 MiB fluids). Terrain
+keys include the full chunk occupancy halo, block states, roles, template
+identity, and provider generation; fluid keys include the fluid records, role,
+provider contract, and canonical world visual revision. A hit reattaches the
+same meshes/geometries and restores ownership without remeshing. Mutations,
+provider changes, or resource-budget eviction prevent stale/unbounded reuse.
+This improves repeated projection transitions after a variant has been shown,
+but does not claim that every layer/visibility variant or GPU presentation is
+preloaded at startup. First visits remain cold and require compilation.

@@ -20,6 +20,8 @@ export interface ResolvedFluidRenderState extends StaticFluidState {
   readonly depthWrite: boolean;
 }
 export interface FluidWorldLookup {
+  /** Changes whenever any world input relevant to fluid meshing is mutated. */
+  readonly visualRevisionKey?: string | number;
   readonly getBlock: (position: VoxelCoordinate) => PlacedBlock | undefined;
   readonly getDefinition?: (blockId: string) => BlockDefinition | undefined;
   readonly getOcclusionClass?: (block: PlacedBlock) => OcclusionClass;

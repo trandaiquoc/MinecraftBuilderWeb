@@ -682,7 +682,7 @@ export class ThreeViewportEngine {
       },
       fallback: {
         renderOptions: () => this.renderOptions,
-        worldContext: () => ({ getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) }),
+        worldContext: () => ({ visualRevisionKey: this.blockIndexOwner.visualRevision, getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) }),
         enqueue: (job) => this.hydrationPipeline.enqueueRegular(job),
         surfaceVisibleEntries: () => this.yLayerProjection.visibleEntriesByKey,
       },
@@ -706,7 +706,7 @@ export class ThreeViewportEngine {
       create: async (block, key) => {
         const provider = this.visualProvider;
         if (!provider) return undefined;
-        const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+        const worldContext = { visualRevisionKey: this.blockIndexOwner.visualRevision, getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
         const blocks = this.project?.blocks;
         const providerGeneration = this.providerGeneration;
         if (this.preloadUsesTerrainTemplates()) {
@@ -1041,6 +1041,7 @@ export class ThreeViewportEngine {
 
   private fluidWorldContext(): FluidWorldLookup {
     return {
+      visualRevisionKey: this.blockIndexOwner.visualRevision,
       getBlock: (position) => this.blockIndexOwner.get(position),
       getDefinition: (blockId) => this.definitionResolver?.(blockId),
       getOcclusionClass: (block) => this.visualProvider?.occlusionClass?.(block) ?? 'unknown',
@@ -1154,7 +1155,7 @@ export class ThreeViewportEngine {
       this.suspendedNeedsRefresh = true;
       return;
     }
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+    const worldContext = { visualRevisionKey: this.blockIndexOwner.visualRevision, getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     const visible = this.yLayerProjection.hasVisibleProjection(this.project, this.renderOptions)
       ? this.yLayerProjection.visibleEntriesByKey
       : new Map(this.visibleBlocks(this.project, this.renderOptions).map((entry) => [coordinateKey(entry.block.position), entry] as const));
@@ -1475,7 +1476,7 @@ export class ThreeViewportEngine {
       return;
     }
     this.compactHydrationQueues();
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+    const worldContext = { visualRevisionKey: this.blockIndexOwner.visualRevision, getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     const prewarmed = visibleOverride ? undefined : this.yLayerProjection.takePrewarmedVisible(project, options, this.providerGeneration);
     if (prewarmed && 'fallbackReason' in prewarmed) this.runtimeTrace?.record('y-layer-prewarm-fallback', { reason: prewarmed.fallbackReason, projectId: project.id });
     const visible = visibleOverride ?? (prewarmed && 'entries' in prewarmed ? prewarmed.entries : this.visibleBlocks(project, options));
@@ -1697,7 +1698,7 @@ export class ThreeViewportEngine {
       this.placeholderSignatures.delete(key);
     }
 
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+    const worldContext = { visualRevisionKey: this.blockIndexOwner.visualRevision, getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     const fluidKeys = this.applyProjectionFluidRepresentationDelta(changes, worldContext);
     this.interiorCulling.updateDelta(changes, (key) => this.yLayerProjection.visibleEntry(key), this.yLayerProjection.visibleEntriesByKey);
     const terrainChanges: TerrainBlockChange[] = [];
@@ -1943,7 +1944,7 @@ export class ThreeViewportEngine {
       this.hydrationPipeline.clearPendingSignature(key);
       this.placeholderSignatures.delete(key);
     }
-    const worldContext = { getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
+    const worldContext = { visualRevisionKey: this.blockIndexOwner.visualRevision, getBlock: (position: VoxelCoordinate) => this.blockIndexOwner.get(position) };
     this.runtimeTrace?.record('fluid-delta-start', { changed: hint.changes.length, affected: affectedPositions.size });
     const fluidKeys = applyLocalFluidDelta(hint, [...affectedPositions.values()], {
       resolver: this.visualProvider?.fluidRenderResolver,
