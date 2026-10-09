@@ -31,10 +31,18 @@ export function planYLayerProjectionDelta(previousY: number | undefined, previou
     }
   };
   const changedLayers = previousMode !== nextMode
-    ? [...new Set([
-        ...visibleLayerSet(previousY, blocks ?? [], previousMode, index),
-        ...visibleLayerSet(nextY, blocks ?? [], nextMode, index),
-      ])].sort((left, right) => left - right)
+    ? (() => {
+        const previousLayers = visibleLayerSet(previousY, blocks ?? [], previousMode, index);
+        const nextLayers = visibleLayerSet(nextY, blocks ?? [], nextMode, index);
+        const changed = new Set<number>();
+        for (const layer of previousLayers) if (!nextLayers.has(layer)) changed.add(layer);
+        for (const layer of nextLayers) if (!previousLayers.has(layer)) changed.add(layer);
+        if (previousY !== nextY) {
+          if (previousLayers.has(previousY) || nextLayers.has(previousY)) changed.add(previousY);
+          if (previousLayers.has(nextY) || nextLayers.has(nextY)) changed.add(nextY);
+        }
+        return [...changed].sort((left, right) => left - right);
+      })()
     : previousMode === 'all-below'
       ? occupiedBetween(previousY, nextY)
       : [...new Set([...affected(previousY, previousMode, nextY), ...affected(nextY, nextMode, previousY)])].sort((left, right) => left - right);

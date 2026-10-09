@@ -76,4 +76,21 @@ describe('HydrationWorkCoordinator', () => {
     coordinator.complete(running);
     expect(coordinator.counts().totalRunning).toBe(0);
   });
+
+  it('removes every queued entry for changed keys without disturbing unrelated order or counts', () => {
+    const coordinator = new HydrationWorkCoordinator<Job>();
+    coordinator.enqueueRegular(regular('keep-1'));
+    coordinator.enqueueRegular(regular('changed'));
+    coordinator.enqueueRegular(regular('keep-2'));
+    coordinator.enqueueRegular(regular('changed'));
+    coordinator.enqueueProviderRefresh(refresh('refresh-changed'));
+    coordinator.enqueueProviderRefresh(refresh('refresh-keep'));
+
+    coordinator.removePendingKeys(new Set(['changed', 'refresh-changed']));
+
+    expect(coordinator.counts()).toMatchObject({ regularQueued: 2, providerRefreshQueued: 1, totalRunning: 0 });
+    expect([coordinator.takeNext(1)?.key, coordinator.takeNext(1)?.key, coordinator.takeNext(1)?.key])
+      .toEqual(['keep-1', 'keep-2', 'refresh-keep']);
+    expect(coordinator.queuedTotal()).toBe(0);
+  });
 });

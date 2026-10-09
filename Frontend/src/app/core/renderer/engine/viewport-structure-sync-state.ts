@@ -63,8 +63,14 @@ export class ViewportStructureSyncState {
 
   requiresSuspendedRefresh(project: ProjectDocument | undefined, filtersChanged: boolean, decorationKeyChanged: boolean): boolean {
     const committed = this.current.project;
-    return project !== committed
+    return !project || !committed
+      || project.id !== committed.id
       || project?.blocks !== this.current.blocksReference
+      || project.blocks.length !== this.current.blockCount
+      || project.groups !== committed.groups
+      || project.decorations !== committed.decorations
+      || project.metadata !== committed.metadata
+      || project.structureMode !== committed.structureMode
       || project?.size.x !== committed?.size.x
       || project?.size.y !== committed?.size.y
       || project?.size.z !== committed?.size.z

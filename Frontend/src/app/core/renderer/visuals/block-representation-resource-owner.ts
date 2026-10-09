@@ -15,7 +15,6 @@ export interface BlockRepresentationResourceOwnerPorts {
     readonly removeOrphaned: (key: string, source: 'rollback' | 'reconcile', entry?: RenderedBlockEntry) => void;
     readonly reconcile: (entries: ReadonlyMap<string, RenderedBlockEntry>) => void;
   };
-  readonly scanInstanceMembershipsForDiagnostics: () => boolean;
   readonly placeholders: { readonly remove: (key: string) => void; readonly clear: () => void };
   readonly fallbackGeometry: THREE.BoxGeometry;
   readonly fallbackMaterials: Readonly<Record<PlaceholderRole, THREE.Material>>;
@@ -42,7 +41,7 @@ export class BlockRepresentationResourceOwner {
     if (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key)) this.ports.terrain.remove(key);
     const hasSurfaceVisual = entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key);
     if (hasSurfaceVisual) this.ports.surface.remove(key, entry);
-    if (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key) || this.ports.scanInstanceMembershipsForDiagnostics() && this.ports.instance.memberships(key, true).length) {
+    if (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key)) {
       this.ports.trace('before-remove', key, 'reconcile', entry);
       this.ports.instance.remove(key, entry, 'reconcile');
       this.ports.store.setInstanceMembership(entry.key, {});
@@ -67,7 +66,7 @@ export class BlockRepresentationResourceOwner {
   releasePreviousAfterReplacement(key: string, entry: RenderedBlockEntry, replacement: 'terrain' | 'surface' | 'instance' | 'object'): void {
     if (replacement !== 'terrain' && (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key))) this.ports.terrain.remove(key);
     if (replacement !== 'surface' && (entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key))) this.ports.surface.remove(key, entry);
-    if (replacement !== 'instance' && (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key) || this.ports.scanInstanceMembershipsForDiagnostics() && this.ports.instance.memberships(key, true).length)) {
+    if (replacement !== 'instance' && (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key))) {
       this.ports.instance.remove(key, entry, 'reconcile');
     }
     if (!entry.instanceBatchKey && !entry.surfaceFaceMemberships && entry.object && entry.object.parent === this.ports.blocksGroup) {

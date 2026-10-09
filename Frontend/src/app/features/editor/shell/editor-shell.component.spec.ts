@@ -11,6 +11,7 @@ import { HistoryService } from '../../../core/editor/history/history.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { EditorModeService } from '../../../core/editor/state/editor-mode.service';
 import { ActivatedRoute } from '@angular/router';
+import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 
 const project: ProjectDocument = {
   schemaVersion: 3,
@@ -279,6 +280,22 @@ describe('editor shell retained viewport lifecycle', () => {
       .compileComponents();
   });
   afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('starts with the persisted Y-layer viewport active', async () => {
+    TestBed.inject(UiPreferencesService).update({ editorMode: 'y-layer' });
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const mode = TestBed.inject(EditorModeService);
+    const three = fixture.debugElement.query(By.css('test-viewport')).componentInstance as TestViewportStub;
+    const yLayer = fixture.debugElement.query(By.css('test-y-layer')).componentInstance as TestYLayerStub;
+    expect(mode.mode()).toBe('y-layer');
+    expect(three.viewportActive()).toBe(false);
+    expect(yLayer.viewportActive()).toBe(true);
+    fixture.destroy();
+  });
 
   it('retains both viewport sessions across twenty mode switches and tears them down once', async () => {
     const fixture = TestBed.createComponent(EditorShellComponent);

@@ -51,8 +51,9 @@ describe('Y-layer projection', () => {
       occupiedLayers: () => [1, 3, 5, 10],
       allBlocks: () => blocks,
     };
-    expect(planYLayerProjectionDelta(1, 'current-only', 1, 'whole-structure', index).changedLayers).toEqual([1, 3, 5, 10]);
-    expect(planYLayerProjectionDelta(1, 'whole-structure', 1, 'current-next', index).changedLayers).toEqual([1, 2, 3, 5, 10]);
+    expect(planYLayerProjectionDelta(1, 'current-only', 1, 'whole-structure', index).changedLayers).toEqual([3, 5, 10]);
+    expect(planYLayerProjectionDelta(1, 'whole-structure', 1, 'current-next', index).changedLayers).toEqual([2, 3, 5, 10]);
     expect(planYLayerProjectionDelta(10, 'all-below', 5, 'current-only', index).changedLayers).toEqual([1, 3, 5, 10]);
+    expect(planYLayerProjectionDelta(5, 'whole-structure', 5, 'all-below', index).changedLayers).toEqual([10]);
   });
 });

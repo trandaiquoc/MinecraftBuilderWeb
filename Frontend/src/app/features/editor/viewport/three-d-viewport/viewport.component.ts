@@ -31,6 +31,8 @@ import { ProjectMutationHintService } from '../../../../core/editor/mutations/pr
 import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/terrain-atlas-browser-runner';
 import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 import { ViewportStatusService, hoverCoordinateForHit } from '../../../../core/editor/viewport/viewport-status.service';
+import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import type { ProjectDocument } from '../../../../core/domain/project.types';
 import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
 
@@ -58,6 +60,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly input = inject(KeyboardBindingService);
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly viewportStatus = inject(ViewportStatusService);
+  private readonly hydrationStatus = inject(ViewportHydrationStatusService);
   protected readonly placementFeedback = signal<ReturnType<typeof placementFeedbackForHit> | undefined>(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
@@ -82,7 +85,32 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (!this.viewReady() || !this.viewportActive() || this.viewportMounted) return;
     this.mountViewport();
   });
-  private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), { exposedFaceRendering: true, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview(), selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() }, activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
+  private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); this.engine.update(project, this.active.active(), this.renderOptions(project), activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
+  private readonly prewarmInactiveViewport = effect((onCleanup) => {
+    if (!this.viewReady() || this.viewportActive()) return;
+    const project = this.workspace.project();
+    const finalization = this.hydrationStatus.finalization();
+    if (!project || !finalization || (!finalization.ready && !finalization.warning)
+      || finalization.progress?.blocksTotal !== project.blocks.length) return;
+
+    let cancelled = false;
+    let idleWindow: (Window & { cancelIdleCallback?: (handle: number) => void }) | undefined;
+    let idleHandle: number | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const prewarm = (): void => {
+      if (cancelled || this.viewportActive() || this.workspace.project() !== project) return;
+      this.engine.prepareInactiveViewport(project, this.active.active(), this.renderOptions(project));
+    };
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleWindow = window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (handle: number) => void };
+      idleHandle = idleWindow.requestIdleCallback(prewarm, { timeout: 1500 });
+    } else timeout = setTimeout(prewarm, 0);
+    onCleanup(() => {
+      cancelled = true;
+      if (timeout !== undefined) clearTimeout(timeout);
+      if (idleHandle !== undefined) idleWindow?.cancelIdleCallback?.(idleHandle);
+    });
+  });
   private readonly toolSync = effect(() => {
     const tool = this.tool.active();
     if (!shouldClearGhostForToolChange(this.previousTool, tool)) return;
@@ -95,6 +123,26 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project));
     this.host().nativeElement.addEventListener('pointermove', this.onNativePointerMove, { passive: true });
     this.viewReady.set(true);
+  }
+
+  private renderOptions(project: ProjectDocument | undefined) {
+    const renderSelection = this.selection.renderState(project);
+    return {
+      exposedFaceRendering: true,
+      selected: this.selection.single(),
+      selectedPositions: renderSelection.positions,
+      selectionKind: renderSelection.kind,
+      selectionCount: renderSelection.count,
+      selectionBounds: renderSelection.bounds,
+      selectionBox: this.selection.box(),
+      isolatedGroupId: this.groups.isolatedGroupId(),
+      isolatedGroupPositions: this.groups.isolatedGroupPositions(),
+      activeGroupId: this.groups.activeGroupId(),
+      activeGroupPositions: this.groups.activeGroupPositions(),
+      groupMovePreview: this.groups.movePreview(),
+      selectedDecorationId: this.decorations.selectedId(),
+      activeDecoration: this.decorations.active(),
+    };
   }
 
   private mountViewport(): void {
@@ -130,7 +178,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prewarmInactiveViewport.destroy(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

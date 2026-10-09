@@ -45,6 +45,29 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('adopts a suspended editor-settings snapshot without reconciling unchanged representations on resume', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 32), decorations: [] };
+    engine.update(project, undefined, { exposedFaceRendering: true });
+    const before = engine.rendererCounters();
+
+    engine.suspend();
+    const settingsOnly = { ...project, editorSettings: { ...project.editorSettings, currentY: 1, layerVisibility: 'whole-structure' as const } };
+    engine.update(settingsOnly, undefined, { exposedFaceRendering: true });
+    const syncState = (engine as unknown as { structureSyncState: { snapshot: () => { project?: ProjectDocument } } }).structureSyncState;
+    expect(syncState.snapshot().project).toBe(settingsOnly);
+
+    engine.resume();
+    engine.update(settingsOnly, undefined, { exposedFaceRendering: true });
+
+    const after = engine.rendererCounters();
+    expect(after.structuralReconciles).toBe(before.structuralReconciles);
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.hydrationGenerations).toBe(before.hydrationGenerations);
+    engine.dispose();
+  });
+
   it('remembers brightness before initialization and updates the mapping without rebuilding visuals', () => {
     const engine = new ThreeViewportEngine();
     engine.setBlockBrightness(0);
@@ -2118,6 +2141,7 @@ describe('selection visualization scalability', () => {
     engine.setLayerIndex(layerIndex);
     const options = { layerY: 0, visibility: 'whole-structure' as const, exposedFaceRendering: true };
     engine.update(project, undefined, options);
+    await waitForProjectionIdle(engine);
     const before = engine.rendererCounters();
     const next = { ...project, editorSettings: { ...project.editorSettings, currentY: 1 } };
     engine.update(next, undefined, { ...options, layerY: 1 });
@@ -2162,24 +2186,126 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
-  it('reuses a CPU-prewarmed Y-layer projection when the retained viewport resumes', () => {
+  it.each(['all-below', 'whole-structure'] as const)('boots a large saved %s Y-layer through the current layer before cooperative expansion', async (visibility) => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('stress');
     const byY = new Map<number, PlacedBlock[]>();
     for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    engine.setLayerIndex(layerIndex);
+    const options = { layerY: 4, visibility, layerIndex };
+    const visibleCount = () => (engine as unknown as { yLayerProjection: { visibleEntries: readonly unknown[] } }).yLayerProjection.visibleEntries.length;
+
+    engine.update(project, undefined, options);
+    const afterBootstrap = engine.rendererCounters();
+    expect(visibleCount()).toBe(byY.get(4)?.length);
+    expect(engine.projectionActivity().activity).toBe('applying');
+
+    engine.update(project, undefined, options);
+    expect(engine.rendererCounters().structuralReconciles).toBe(afterBootstrap.structuralReconciles);
+    await waitForProjectionIdle(engine);
+
+    expect(visibleCount()).toBe(project.blocks.length);
+    expect(engine.projectionActivity().activity).toBe('idle');
+    expect(engine.rendererCounters().fullSceneRebuilds).toBe(afterBootstrap.fullSceneRebuilds);
+    expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(project.blocks.length);
+    engine.dispose();
+  });
+
+  it('reprojects only layers removed when switching Whole Structure to All Below', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('stress');
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()].sort((left, right) => left - right), allBlocks: () => project.blocks };
+    engine.setLayerIndex(layerIndex);
+    const whole = { layerY: 2, visibility: 'whole-structure' as const, layerIndex };
+    engine.update(project, undefined, whole);
+    await waitForProjectionIdle(engine);
+    const before = engine.rendererCounters();
+
+    engine.update(project, undefined, { ...whole, visibility: 'all-below' as const });
+    await waitForProjectionIdle(engine);
+
+    const after = engine.rendererCounters();
+    expect(after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks).toBe(7_712);
+    expect(after.yLayerProjectionSlices - before.yLayerProjectionSlices).toBeGreaterThan(1);
+    expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(12_288);
+    engine.dispose();
+  });
+
+  it('does not structurally reconcile a repeated editor update while its Y projection is pending', async () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const blocks = base.blocks.filter((block) => block.position.y === 0);
+    const project = { ...base, blocks, decorations: [] };
+    const layerIndex = {
+      blocksAtY: (y: number) => y === 0 ? blocks : [],
+      occupiedLayers: () => [0],
+      allBlocks: () => blocks,
+    };
+    engine.setLayerIndex(layerIndex);
+    engine.update(project, undefined, { layerY: 0, visibility: 'current-only', layerIndex });
+    const before = engine.rendererCounters();
+    const settingsUpdate = { ...project, editorSettings: { ...project.editorSettings, currentY: 1, layerVisibility: 'whole-structure' as const } };
+    const wholeOptions = { layerY: 1, visibility: 'whole-structure' as const, layerIndex };
+
+    engine.update(settingsUpdate, undefined, wholeOptions);
+    expect(engine.projectionActivity().activity).toBe('applying');
+    engine.update(settingsUpdate, undefined, wholeOptions);
+    for (let attempt = 0; attempt < 500 && engine.projectionActivity().activity !== 'idle'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+
+    const after = engine.rendererCounters();
+    expect(after.structuralReconciles).toBe(before.structuralReconciles);
+    expect(after.fullSceneRebuilds).toBe(before.fullSceneRebuilds);
+    expect(after.yLayerProjectionCommits).toBe(before.yLayerProjectionCommits + 1);
+    expect(engine.projectionActivity().activity).toBe('idle');
+    engine.dispose();
+  });
+
+  it('prepares the inactive viewport scene and resumes without rebuilding or rehydrating it', async () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.filter((block) => block.position.y === 0), decorations: [] };
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
     const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()], allBlocks: () => project.blocks };
     const options = { layerY: 0, visibility: 'current-only' as const, layerIndex };
+    const provider = {
+      create: vi.fn(async () => {
+        const object = new THREE.Group();
+        object.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x6688aa })));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider;
     engine.suspend();
     engine.setLayerIndex(layerIndex);
     engine.update(project, undefined, options);
+    engine.setVisualProvider(provider);
 
-    expect(engine.prewarmYLayerProjection(project, options)).toBe(4_096);
+    expect(engine.prepareInactiveViewport(project, undefined, options)).toBeGreaterThan(0);
+    await settleHydration(100, engine);
+    expect(engine.hydrationProgress().status).toBe('complete');
+    expect(provider.create).toHaveBeenCalled();
+    expect(engine.performanceEvidence().renderedBlocks).toBe(project.blocks.length);
+    const generationsAfterSettle = engine.rendererCounters().hydrationGenerations;
+    const preparedCounters = engine.rendererCounters();
+
+    const settingsOnly = { ...project, editorSettings: { ...project.editorSettings, currentY: 1 } };
+    engine.update(settingsOnly, undefined, options);
+    expect(engine.performanceEvidence().renderedBlocks).toBe(project.blocks.length);
+    expect(engine.rendererCounters().hydrationGenerations).toBe(generationsAfterSettle);
+
     engine.resume();
-    engine.update(project, undefined, options);
+    engine.update(settingsOnly, undefined, options);
 
-    expect(engine.rendererCounters().fullVisibleScans).toBe(0);
+    expect(engine.rendererCounters().fullVisibleScans).toBe(preparedCounters.fullVisibleScans);
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(1);
-    expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(4_096);
+    expect(engine.rendererCounters().hydrationGenerations).toBe(generationsAfterSettle);
+    expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(project.blocks.length);
     engine.dispose();
   });
 
@@ -2219,7 +2345,7 @@ describe('selection visualization scalability', () => {
     engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 1 } }, undefined, { ...options, layerY: 1 });
     engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 2 } }, undefined, { ...options, layerY: 2 });
     engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 3 } }, undefined, { ...options, layerY: 3 });
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await waitForProjectionIdle(engine);
 
     const after = engine.rendererCounters();
     expect(after.yLayerProjectionRequests).toBe(before.yLayerProjectionRequests + 3);
@@ -2239,8 +2365,7 @@ describe('selection visualization scalability', () => {
     engine.update(project, undefined, options);
     engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 1 } }, undefined, { ...options, layerY: 1 });
     expect(engine.projectionActivity().activity).toBe('applying');
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await waitForProjectionIdle(engine);
 
     expect(states).toContain('applying');
     expect(states).toContain('settling');
@@ -2357,6 +2482,12 @@ async function settleHydration(rounds = 20, engine?: ThreeViewportEngine): Promi
     await new Promise((resolve) => setTimeout(resolve, 0));
     await Promise.resolve();
     if (engine?.hydrationProgress().status === 'complete') return;
+  }
+}
+
+async function waitForProjectionIdle(engine: ThreeViewportEngine, attempts = 2_000): Promise<void> {
+  for (let attempt = 0; attempt < attempts && engine.projectionActivity().activity !== 'idle'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }
 

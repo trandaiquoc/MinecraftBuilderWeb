@@ -64,6 +64,7 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
     const assets = TestBed.inject(ContentAssetRuntimeService);
     const hydration = TestBed.inject(ViewportHydrationStatusService);
     const owner = hydration.claim();
+    hydration.activate(owner);
     assets.status.set('ready');
     assets.contentRestore.set({ phase: 'ready', current: 0, total: 0, failed: 0 });
     hydration.publish(owner, { generation: 1, status: 'hydrating', completed: 15080, total: 20000, blocksCompleted: 15080, blocksTotal: 20000, decorationsCompleted: 0, decorationsTotal: 0, percent: 75.4 });
@@ -83,6 +84,7 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
     const assets = TestBed.inject(ContentAssetRuntimeService);
     const hydration = TestBed.inject(ViewportHydrationStatusService);
     const owner = hydration.claim();
+    hydration.activate(owner);
     assets.status.set('ready');
     assets.contentRestore.set({ phase: 'ready', current: 1, total: 1, failed: 0 });
     hydration.publish(owner, { generation: 2, lane: 'content', status: 'hydrating', completed: 24, total: 40, blocksCompleted: 24, blocksTotal: 40, decorationsCompleted: 0, decorationsTotal: 0, percent: 60 });

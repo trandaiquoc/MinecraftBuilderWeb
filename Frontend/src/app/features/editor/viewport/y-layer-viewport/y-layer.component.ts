@@ -12,7 +12,7 @@ import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
-import type { ViewportPerformanceEvidence, ViewportProjectionState } from '../../../../core/renderer/engine/three-viewport-engine';
+import type { ViewportPerformanceEvidence, ViewportProjectionState, ViewportRenderOptions } from '../../../../core/renderer/engine/three-viewport-engine';
 import { blockHitWinsOverDecoration, pickAndSelectBlockFromViewportHit } from '../../../../core/editor/viewport/pick-block';
 import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -96,11 +96,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const prewarm = (): void => {
       if (cancelled || this.viewportActive() || this.workspace.project() !== project) return;
       this.layerIndex.ensure(project);
-      this.engine.prewarmYLayerProjection(project, {
-        layerY: this.session.committedCurrentY(project),
-        visibility: project.editorSettings.layerVisibility,
-        layerIndex: this.layerIndex,
-      });
+      this.engine.prepareInactiveViewport(project, this.active.active(), this.renderOptions(project));
     };
 
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
@@ -118,7 +114,13 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private gestureAction?: MouseAction;
   private pickConsumed = false;
   private boxCornerStart?: VoxelCoordinate;
-  private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); const renderSelection = this.selection.renderState(project); this.engine.update(project, this.active.active(), project ? { layerY: this.committedY(), visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active(), selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() } : { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), groupMovePreview: this.groups.movePreview() }, activeViewport ? this.mutationHints.consume(project, 'y-layer-viewport') : undefined); });
+  private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); const project = this.workspace.project(); this.tool.active(); this.decorations.selectedId(); this.decorations.active(); this.engine.update(project, this.active.active(), this.renderOptions(project), activeViewport ? this.mutationHints.consume(project, 'y-layer-viewport') : undefined); });
+
+  private renderOptions(project: import('../../../../core/domain/project.types').ProjectDocument | undefined): ViewportRenderOptions {
+    const renderSelection = this.selection.renderState(project);
+    const shared = { selected: this.selection.single(), selectedPositions: renderSelection.positions, selectionKind: renderSelection.kind, selectionCount: renderSelection.count, selectionBounds: renderSelection.bounds, selectionBox: this.selection.box(), isolatedGroupId: this.groups.isolatedGroupId(), isolatedGroupPositions: this.groups.isolatedGroupPositions(), activeGroupId: this.groups.activeGroupId(), activeGroupPositions: this.groups.activeGroupPositions(), groupMovePreview: this.groups.movePreview() };
+    return project ? { ...shared, layerY: this.committedY(), visibility: this.visibility(), referenceOpacity: project.editorSettings.referenceLayerOpacity, selectedDecorationId: this.decorations.selectedId(), activeDecoration: this.decorations.active() } : shared;
+  }
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); this.viewReady.set(true); }
   ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prewarmInactiveProjection.destroy(); this.engine.dispose(); }

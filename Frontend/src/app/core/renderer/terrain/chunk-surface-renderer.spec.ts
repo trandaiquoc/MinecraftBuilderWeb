@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { ChunkSurfaceRenderer } from './chunk-surface-renderer';
+import type { TerrainApplyResult } from './chunk-surface-renderer';
 import type { TerrainWorkerLike } from './terrain-mesh-worker-pool';
 import { meshTerrainCore } from './terrain-mesh-core';
 import type { TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './terrain-mesh-protocol';
@@ -10,13 +11,45 @@ import type { TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './terr
 class ImmediateTerrainWorker implements TerrainWorkerLike {
   onmessage: ((event: MessageEvent<TerrainMeshWorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
+  posted = 0;
   postMessage(request: TerrainMeshWorkerRequest): void {
+    this.posted += 1;
     queueMicrotask(() => this.onmessage?.({ data: { type: 'result', result: meshTerrainCore(request.job) } } as MessageEvent<TerrainMeshWorkerResponse>));
   }
   terminate(): void { this.onmessage = null; }
 }
 
 describe('chunk surface renderer ownership', () => {
+  it('defers cooperative projection terrain work and flushes a dirty chunk once at completion', async () => {
+    const group = new THREE.Group();
+    const worker = new ImmediateTerrainWorker();
+    const applied: TerrainApplyResult[] = [];
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined, workerFactory: () => worker, workerCount: 1, onAsyncApply: (_records, result) => applied.push(result) });
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const templates = cubeTemplates(material);
+    const blocks = [blockAt({ x: 0, y: 0, z: 0 }), blockAt({ x: 1, y: 0, z: 0 })];
+    const records = blocks.map((block) => ({ key: voxelKey(block.position), block, templates }));
+    renderer.bulkUpsert(records, blocks.map((block) => ({ block, role: 'normal' as const, occlusionClass: 'opaque-full-cube' as const })), blocks.map((block) => block.position), { initial: true });
+    await renderer.whenSettled();
+    applied.length = 0;
+    const before = worker.posted;
+    const changes = blocks.map((block) => {
+      const after = { ...block, state: { powered: 'true' } };
+      const key = voxelKey(block.position);
+      return { key, position: block.position, before: { key, block, templates }, after: { key, block: after, templates }, afterOpaque: true };
+    });
+
+    renderer.applyBlockChanges(changes, false, changes.map((change) => change.key), true);
+    expect(worker.posted).toBe(before);
+    expect(renderer.evidence().terrainPendingHydrationCandidates).toBe(2);
+    renderer.flushPending();
+    expect(worker.posted).toBe(before + 1);
+    await renderer.whenSettled();
+    expect(applied.at(-1)?.hydrationCandidateKeys).toEqual(changes.map((change) => change.key));
+
+    renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
+  });
+
   it('terminates stale generation work instead of leaving settlement pending', async () => {
     let generation = 1;
     const renderer = new ChunkSurfaceRenderer({

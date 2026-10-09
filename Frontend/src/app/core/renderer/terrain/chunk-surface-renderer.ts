@@ -245,7 +245,7 @@ export class ChunkSurfaceRenderer {
   }
 
   /** Applies a bounded local voxel delta without replacing records or occupancy. */
-  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true, hydrationCandidateKeys: readonly string[] = changes.map((change) => change.key)): TerrainApplyResult {
+  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true, hydrationCandidateKeys: readonly string[] = changes.map((change) => change.key), deferFlush = false): TerrainApplyResult {
     if (this.disposed) return emptyTerrainApplyResult(changes.map((change) => change.key));
     if (!changes.length) return emptyTerrainApplyResult();
     this.beginSettlement();
@@ -259,8 +259,19 @@ export class ChunkSurfaceRenderer {
     this.options.record('incrementalChunkInvalidations', dirty.size);
     for (const key of dirty) this.dirtyChunks.add(key);
     if (flush) return this.flushNow(changes.map((change) => change.key), 1, hydrationCandidateKeys);
-    this.scheduleFlush();
+    if (deferFlush && hydrationCandidateKeys.length) {
+      for (const [chunkKey, candidates] of this.indexHydrationCandidates(hydrationCandidateKeys)) {
+        this.retainHydrationCandidates(chunkKey, candidates);
+      }
+    }
+    if (!deferFlush) this.scheduleFlush();
     return emptyTerrainApplyResult(changes.map((change) => change.key));
+  }
+
+  /** Dispatches accumulated dirty chunks once a cooperative projection is complete. */
+  flushPending(): TerrainApplyResult {
+    if (this.disposed || !this.dirtyChunks.size) return emptyTerrainApplyResult();
+    return this.flushNow();
   }
 
   templatesFor(key: string): readonly SurfaceFaceTemplate[] | undefined {

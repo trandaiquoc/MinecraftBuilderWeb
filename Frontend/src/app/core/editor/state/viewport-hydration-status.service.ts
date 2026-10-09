@@ -36,16 +36,7 @@ export class ViewportHydrationStatusService {
   }
 
   claim(): number {
-    const owner = this.nextOwner++;
-    this.activeOwner = owner;
-    this.clearVisibleState();
-    this.finalizationCoordinator.reset();
-    this.finalization.set(undefined);
-    this.lastProgress = undefined;
-    this.sourceRestoreTerminal = true;
-    this.sourceRestorePending = false;
-    this.sourceRestoreFailed = false;
-    return owner;
+    return this.nextOwner++;
   }
 
   /** Makes a retained viewport the sole owner of the visible hydration status. */

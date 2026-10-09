@@ -155,8 +155,17 @@ export class InstanceBatchRenderer {
     const indexed = this.ownershipStore.get(key);
     const knownBatchKey = entry?.instanceBatchKey ?? indexed?.batchKey;
     const knownIndex = entry?.instanceIndex ?? indexed?.index;
+    // A missing canonical/index entry is not evidence that this key exists in
+    // some batch. Fresh hydration calls this before insertion; scanning every
+    // batch there turns N-block hydration into O(N * batches).
+    if (!knownBatchKey) {
+      this.ownershipStore.delete(key);
+      this.options.setEntryObject?.(key, undefined, undefined, entry?.object);
+      if (source === 'rollback') this.options.trace?.('after-remove-entry', key, source);
+      return;
+    }
     const knownRemoved = knownBatchKey !== undefined && knownIndex !== undefined ? this.removeMembership(knownBatchKey, knownIndex, key) : false;
-    let memberships = !knownBatchKey || !knownRemoved ? this.memberships(key, true) : [];
+    let memberships = !knownRemoved ? this.memberships(key, true) : [];
     while (memberships.length) {
       for (const membership of memberships.slice().sort((left, right) => right.index - left.index)) this.removeMembership(membership.batchKey, membership.index, key);
       const next = this.memberships(key, true);

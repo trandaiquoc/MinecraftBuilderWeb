@@ -52,6 +52,7 @@ export class ViewportSessionOwner {
       effect(() => {
         if (this.viewportActive()) {
           this.hydrationStatus.activate(this.hydrationOwner);
+          this.engine.publishCurrentHydrationProgress();
           this.engine.resume();
         } else {
           this.engine.suspend();

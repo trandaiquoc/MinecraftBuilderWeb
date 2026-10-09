@@ -11,6 +11,8 @@ import { yieldToBrowser } from '../../assets/cooperative-yield';
 
 type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits' | 'yLayerProjectionSlices' | 'yLayerProjectionYields' | 'yLayerProjectionCancellations' | 'blockSignatureComputations' | 'yLayerProjectionChangedLayers' | 'yLayerProjectionChangedBlocks' | 'yLayerProjectionAddedVisible' | 'yLayerProjectionRemovedVisible' | 'yLayerProjectionRoleChanged';
 export const Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT = 384;
+export const Y_LAYER_PROJECTION_INITIAL_SLICE_BLOCK_LIMIT = 128;
+export const Y_LAYER_PROJECTION_SLICE_BUDGET_MS = 6;
 type ProjectionSnapshot = { readonly project: ProjectDocument; readonly options: ViewportRenderOptions };
 type PrewarmedProjection = {
   readonly project: ProjectDocument;
@@ -62,6 +64,7 @@ export interface YLayerProjectionPorts {
 export class YLayerProjectionCoordinator {
   private committed?: ProjectionSnapshot;
   private pending?: ProjectionSnapshot;
+  private applying?: ProjectionSnapshot;
   private frame?: number;
   private revisionValue = 0;
   private workToken = 0;
@@ -79,8 +82,7 @@ export class YLayerProjectionCoordinator {
   private visibleProjectValue?: ProjectDocument;
   private visibleKey = '';
   private prewarmedProjection?: PrewarmedProjection;
-  private static readonly cooperativeBlockThreshold = Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT;
-  private static readonly sliceBlockLimit = Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT;
+  private static readonly cooperativeBlockThreshold = Y_LAYER_PROJECTION_INITIAL_SLICE_BLOCK_LIMIT;
 
   constructor(
     private readonly ports: YLayerProjectionPorts,
@@ -96,6 +98,13 @@ export class YLayerProjectionCoordinator {
 
   committedOptionsFor(project: ProjectDocument | undefined): ViewportRenderOptions | undefined {
     return project && this.committed?.project === project ? this.committed.options : undefined;
+  }
+
+  isProjectionTargetInFlight(project: ProjectDocument, options: ViewportRenderOptions): boolean {
+    return [this.pending, this.applying].some((snapshot) => snapshot?.project === project
+      && snapshot.options.layerY === options.layerY
+      && snapshot.options.visibility === options.visibility
+      && snapshot.options.exposedFaceRendering === options.exposedFaceRendering);
   }
 
   hasVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): boolean {
@@ -234,6 +243,7 @@ export class YLayerProjectionCoordinator {
 
   cancel(): void {
     this.workToken += 1;
+    this.applying = undefined;
     this.inFlightLayers.clear();
     this.pendingKeys.clear();
     if (this.settlementTimer !== undefined) clearTimeout(this.settlementTimer);
@@ -276,27 +286,32 @@ export class YLayerProjectionCoordinator {
     this.pending = undefined;
     const index = this.pendingLayerIndex;
     this.pendingLayerIndex = undefined;
+    const token = ++this.workToken;
     if (!pending || this.ports.isDisposed() || this.ports.isSuspended()) {
+      this.applying = undefined;
       this.setActivity('idle', this.activityRevision);
       return;
     }
     const base = this.committed;
     if (!base || base.project.id !== pending.project.id || base.project.blocks !== pending.project.blocks) {
+      this.applying = undefined;
       this.setActivity('idle', this.activityRevision);
       return;
     }
     const delta = planYLayerProjectionDelta(base.options.layerY, base.options.visibility, pending.options.layerY, pending.options.visibility, index ?? pending.options.layerIndex);
     const layers = [...new Set([...delta.changedLayers, ...this.inFlightLayers])].sort((left, right) => left - right);
     if (!layers.length) {
+      this.applying = undefined;
       this.setActivity('idle', this.activityRevision);
       return;
     }
     this.revisionValue += 1;
     this.activityRevision = this.revisionValue;
     this.pendingKeys.clear();
-    const token = ++this.workToken;
+    this.applying = pending;
     void this.applyLayerWork(pending.project, pending.options, layers, index ?? pending.options.layerIndex, token).then((completed) => {
       if (!completed || !this.isWorkCurrent(token) || this.ports.isDisposed()) return;
+      this.applying = undefined;
       this.committed = pending;
       this.ports.onCommit(pending.project, pending.options);
       this.ports.record('yLayerProjectionCommits');
@@ -304,6 +319,7 @@ export class YLayerProjectionCoordinator {
       this.scheduleSettlement(this.revisionValue);
     }).catch((error: unknown) => {
       if (this.ports.isDisposed()) return;
+      if (this.isWorkCurrent(token)) this.applying = undefined;
       this.ports.onWorkFailure(error);
       if (this.isWorkCurrent(token) && !this.pending && this.frame === undefined) this.setActivity('idle', this.activityRevision);
     });
@@ -311,8 +327,13 @@ export class YLayerProjectionCoordinator {
 
   private async applyLayerWork(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], layerIndex: LayerBlockIndex | undefined, token: number): Promise<boolean> {
     const blocksForLayer = createLayerLookup(project, layerIndex);
-    const layerBlocks = changedLayers.map((layer) => [layer, blocksForLayer(layer)] as const);
-    const totalBlocks = layerBlocks.reduce((count, [, blocks]) => count + blocks.length, 0);
+    const countedLayers = new Map<number, readonly PlacedBlock[]>();
+    const totalBlocks = changedLayers.length > 8 ? YLayerProjectionCoordinator.cooperativeBlockThreshold + 1
+      : changedLayers.reduce((count, layer) => {
+        const blocks = blocksForLayer(layer);
+        countedLayers.set(layer, blocks);
+        return count + blocks.length;
+      }, 0);
     const cooperative = changedLayers.length > 8 || totalBlocks > YLayerProjectionCoordinator.cooperativeBlockThreshold;
     if (!cooperative) {
       if (!this.isWorkCurrent(token)) return false;
@@ -324,32 +345,41 @@ export class YLayerProjectionCoordinator {
       }
     }
 
-    const batches: ProjectionLayerDelta[] = [];
-    for (const [layer, blocks] of layerBlocks) {
-      if (!blocks.length) {
-        batches.push({ layers: [layer], blockOverrides: new Map([[layer, []]]), flushTerrain: false, publishProgress: false });
-        continue;
-      }
-      for (let start = 0; start < blocks.length; start += YLayerProjectionCoordinator.sliceBlockLimit) {
-        batches.push({ layers: [layer], blockOverrides: new Map([[layer, blocks.slice(start, start + YLayerProjectionCoordinator.sliceBlockLimit)]]), flushTerrain: false, publishProgress: false });
-      }
-    }
-
     try {
-      for (let index = 0; index < batches.length; index += 1) {
-        if (!this.isWorkCurrent(token)) {
-          this.ports.record('yLayerProjectionCancellations');
-          return false;
+      let sliceLimit = Y_LAYER_PROJECTION_INITIAL_SLICE_BLOCK_LIMIT;
+      let hasMore = false;
+      for (let layerIndex = 0; layerIndex < changedLayers.length; layerIndex += 1) {
+        const layer = changedLayers[layerIndex];
+        const blocks = countedLayers.get(layer) ?? blocksForLayer(layer);
+        if (!blocks.length) {
+          if (!this.isWorkCurrent(token)) return this.recordCancelledWork();
+          this.inFlightLayers.add(layer);
+          this.ports.applyDelta(project, options, { layers: [layer], blockOverrides: new Map([[layer, []]]), flushTerrain: false, publishProgress: false });
+          this.ports.record('yLayerProjectionSlices');
+          hasMore = layerIndex + 1 < changedLayers.length;
+          if (hasMore) {
+            this.ports.record('yLayerProjectionYields');
+            await yieldToBrowser();
+          }
+          continue;
         }
-        const batch = batches[index];
-        for (const layer of batch.layers) this.inFlightLayers.add(layer);
-        const started = performance.now();
-        this.ports.applyDelta(project, options, batch);
-        this.ports.recordMax('yLayerProjectionMaxSliceMs', performance.now() - started);
-        this.ports.record('yLayerProjectionSlices');
-        if (index + 1 < batches.length) {
-          this.ports.record('yLayerProjectionYields');
-          await yieldToBrowser();
+        for (let start = 0; start < blocks.length;) {
+          if (!this.isWorkCurrent(token)) return this.recordCancelledWork();
+          const slice = blocks.slice(start, start + sliceLimit);
+          this.inFlightLayers.add(layer);
+          const started = performance.now();
+          this.ports.applyDelta(project, options, { layers: [layer], blockOverrides: new Map([[layer, slice]]), flushTerrain: false, publishProgress: false });
+          const elapsed = performance.now() - started;
+          this.ports.recordMax('yLayerProjectionMaxSliceMs', elapsed);
+          this.ports.record('yLayerProjectionSlices');
+          start += slice.length;
+          hasMore = start < blocks.length || layerIndex + 1 < changedLayers.length;
+          if (hasMore) {
+            const targetLimit = Math.round(sliceLimit * Y_LAYER_PROJECTION_SLICE_BUDGET_MS / Math.max(elapsed, 1));
+            sliceLimit = Math.max(32, Math.min(Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT, targetLimit));
+            this.ports.record('yLayerProjectionYields');
+            await yieldToBrowser();
+          }
         }
       }
       if (!this.isWorkCurrent(token)) return false;
@@ -358,6 +388,11 @@ export class YLayerProjectionCoordinator {
     } finally {
       if (this.isWorkCurrent(token)) this.inFlightLayers.clear();
     }
+  }
+
+  private recordCancelledWork(): false {
+    this.ports.record('yLayerProjectionCancellations');
+    return false;
   }
 
   private scheduleSettlement(revision: number): void {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { ThreeViewportEngine } from '../engine/three-viewport-engine';
-import { Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT } from '../engine/y-layer-projection-coordinator';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import { benchmarkBlock, rendererBenchmarkProject, rendererBenchmarkVisualProvider } from './renderer-benchmark-fixtures';
 import * as THREE from 'three';
@@ -300,13 +299,13 @@ describe('explicit renderer benchmark', () => {
     await settleHydration(20, engine);
     const before = diagnostics.snapshot();
     engine.update({ ...project, editorSettings: { ...project.editorSettings, currentY: 47 } }, undefined, { layerY: 47, visibility: 'all-below', layerIndex });
-    const expectedSlices = project.size.y * Math.ceil((project.size.x * project.size.z) / Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT);
-    for (let index = 0; index < 3000 && diagnostics.snapshot().yLayerProjectionSlices < expectedSlices; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let index = 0; index < 12_000 && engine.projectionActivity().activity !== 'idle'; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
     const after = diagnostics.snapshot();
     expect(after.yLayerProjectionSlices).toBeGreaterThan(1);
-    expect(after.yLayerProjectionSlices).toBe(expectedSlices);
+    expect(after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks).toBe(project.blocks.length);
     expect(after.yLayerProjectionYields).toBeGreaterThan(0);
     expect(after.yLayerProjectionCancellations).toBe(0);
+    expect(engine.projectionActivity().activity).toBe('idle');
     console.info(`[y-layer benchmark] blocks=${project.blocks.length} changed=${after.yLayerProjectionChangedBlocks - before.yLayerProjectionChangedBlocks} slices=${after.yLayerProjectionSlices} yields=${after.yLayerProjectionYields} maxSliceMs=${after.yLayerProjectionMaxSliceMs.toFixed(2)} maxCommitMs=${after.yLayerProjectionMaxCommitMs.toFixed(2)} fullVisibleScans=${after.fullVisibleScans - before.fullVisibleScans} occupancyFull=${after.occupancyFullRebuilds - before.occupancyFullRebuilds} occupancyDelta=${after.occupancyDeltaUpdates - before.occupancyDeltaUpdates}`);
     engine.dispose();
   });

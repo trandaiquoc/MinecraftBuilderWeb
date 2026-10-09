@@ -14,6 +14,11 @@ export interface HydrationWorkCounts {
   readonly totalRunning: number;
 }
 
+interface QueuedWork<T> {
+  readonly job: T;
+  pending: boolean;
+}
+
 export interface HydrationWorkCoordinatorOptions {
   readonly concurrency: number;
   readonly regularReservedCapacity: number;
@@ -33,10 +38,13 @@ const DEFAULT_OPTIONS: HydrationWorkCoordinatorOptions = {
  * is reused immediately when either queue is empty.
  */
 export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
-  private regularQueue: T[] = [];
-  private providerRefreshQueue: T[] = [];
+  private regularQueue: QueuedWork<T>[] = [];
+  private providerRefreshQueue: QueuedWork<T>[] = [];
   private regularHead = 0;
   private providerRefreshHead = 0;
+  private regularQueuedCount = 0;
+  private providerRefreshQueuedCount = 0;
+  private readonly queuedByKey = new Map<string, Set<QueuedWork<T>>>();
   private readonly providerRefreshKeys = new Set<string>();
   private readonly runningProviderRefreshKeys = new Set<string>();
   private regularRunning = 0;
@@ -50,43 +58,45 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
-  enqueueRegular(job: T): void { this.regularQueue.push({ ...job, providerRefresh: false }); }
+  enqueueRegular(job: T): void { this.addQueued(this.regularQueue, { ...job, providerRefresh: false }, 'regular'); }
 
   enqueueProviderRefresh(job: T): boolean {
     if (this.providerRefreshKeys.has(job.key)) return false;
     this.providerRefreshKeys.add(job.key);
-    this.providerRefreshQueue.push({ ...job, providerRefresh: true });
+    this.addQueued(this.providerRefreshQueue, { ...job, providerRefresh: true }, 'provider-refresh');
     return true;
   }
 
   /** Removes pending work while leaving in-flight provider ownership intact. */
   retainPending(predicate: (job: T) => boolean): void {
-    this.regularQueue = this.regularQueue.slice(this.regularHead).filter(predicate);
-    this.providerRefreshQueue = this.providerRefreshQueue.slice(this.providerRefreshHead).filter(predicate);
-    this.regularHead = 0;
-    this.providerRefreshHead = 0;
-    for (const key of [...this.providerRefreshKeys]) {
-      const pending = this.providerRefreshQueue.some((job) => job.key === key);
-      if (!pending && !this.runningProviderRefreshKeys.has(key)) this.providerRefreshKeys.delete(key);
+    for (let index = this.regularHead; index < this.regularQueue.length; index += 1) {
+      const queued = this.regularQueue[index];
+      if (queued.pending && !predicate(queued.job)) this.removeQueued(queued, 'regular');
+    }
+    for (let index = this.providerRefreshHead; index < this.providerRefreshQueue.length; index += 1) {
+      const queued = this.providerRefreshQueue[index];
+      if (queued.pending && !predicate(queued.job)) this.removeQueued(queued, 'provider-refresh');
+    }
+    this.compact();
+  }
+
+  removePendingKeys(keys: ReadonlySet<string>): void {
+    for (const key of keys) {
+      const entries = this.queuedByKey.get(key);
+      if (!entries) continue;
+      for (const queued of entries) this.removeQueued(queued, queued.job.providerRefresh ? 'provider-refresh' : 'regular');
     }
   }
 
-  removePendingKeys(keys: ReadonlySet<string>): void { this.retainPending((job) => !keys.has(job.key)); }
-
   /** Clears queued work; running jobs still complete and release their slots. */
   clearPending(): void {
-    this.regularQueue = [];
-    this.providerRefreshQueue = [];
-    this.regularHead = 0;
-    this.providerRefreshHead = 0;
-    for (const key of [...this.providerRefreshKeys]) if (!this.runningProviderRefreshKeys.has(key)) this.providerRefreshKeys.delete(key);
+    this.clearQueue(this.regularQueue, 'regular');
+    this.clearQueue(this.providerRefreshQueue, 'provider-refresh');
   }
 
   /** Drops only provider-refresh work; regular hydration remains untouched. */
   clearPendingProviderRefresh(): void {
-    this.providerRefreshQueue = [];
-    this.providerRefreshHead = 0;
-    for (const key of [...this.providerRefreshKeys]) if (!this.runningProviderRefreshKeys.has(key)) this.providerRefreshKeys.delete(key);
+    this.clearQueue(this.providerRefreshQueue, 'provider-refresh');
   }
 
   compact(): void {
@@ -99,25 +109,28 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     if (this.providerRefreshHead >= this.providerRefreshQueue.length) { this.providerRefreshQueue = []; this.providerRefreshHead = 0; }
   }
 
-  regularJobs(): readonly T[] { return this.regularQueue.slice(this.regularHead); }
+  regularJobs(): readonly T[] { return this.regularQueue.slice(this.regularHead).filter((queued) => queued.pending).map((queued) => queued.job); }
 
   replaceRegular(jobs: readonly T[]): void {
-    this.regularQueue = jobs.map((job) => ({ ...job, providerRefresh: false }));
+    this.clearQueue(this.regularQueue, 'regular');
     this.regularHead = 0;
+    for (const job of jobs) this.addQueued(this.regularQueue, { ...job, providerRefresh: false }, 'regular');
   }
 
   /** Takes one valid job and reserves its typed running slot. */
   takeNext(token: number): T | undefined {
     while (this.hasPending()) {
       const kind = this.nextKind();
-      const job = kind === 'regular' ? this.regularQueue[this.regularHead++] : this.providerRefreshQueue[this.providerRefreshHead++];
-      if (!job) continue;
+      const queued = kind === 'regular' ? this.regularQueue[this.regularHead++] : this.providerRefreshQueue[this.providerRefreshHead++];
+      if (!queued?.pending) continue;
+      const job = queued.job;
+      this.removeQueued(queued, kind);
       if (job.token !== token) {
         if (job.providerRefresh) this.providerRefreshKeys.delete(job.key);
         continue;
       }
       if (kind === 'regular') this.regularRunning += 1;
-      else { this.providerRefreshRunning += 1; this.runningProviderRefreshKeys.add(job.key); }
+      else { this.providerRefreshRunning += 1; this.providerRefreshKeys.add(job.key); this.runningProviderRefreshKeys.add(job.key); }
       return job;
     }
     return undefined;
@@ -131,8 +144,8 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     } else this.regularRunning = Math.max(0, this.regularRunning - 1);
   }
 
-  queuedRegular(): number { return this.regularQueue.length - this.regularHead; }
-  queuedProviderRefresh(): number { return this.providerRefreshQueue.length - this.providerRefreshHead; }
+  queuedRegular(): number { return this.regularQueuedCount; }
+  queuedProviderRefresh(): number { return this.providerRefreshQueuedCount; }
   queuedTotal(): number { return this.queuedRegular() + this.queuedProviderRefresh(); }
   runningTotal(): number { return this.regularRunning + this.providerRefreshRunning; }
   canStart(): boolean { return this.runningTotal() < this.options.concurrency; }
@@ -148,6 +161,35 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
   }
 
   private hasPending(): boolean { return this.queuedTotal() > 0; }
+
+  private addQueued(queue: QueuedWork<T>[], job: T, kind: HydrationWorkKind): void {
+    const queued = { job, pending: true };
+    queue.push(queued);
+    const entries = this.queuedByKey.get(job.key) ?? new Set<QueuedWork<T>>();
+    entries.add(queued);
+    this.queuedByKey.set(job.key, entries);
+    if (kind === 'regular') this.regularQueuedCount += 1;
+    else this.providerRefreshQueuedCount += 1;
+  }
+
+  private removeQueued(queued: QueuedWork<T>, kind: HydrationWorkKind): void {
+    if (!queued.pending) return;
+    queued.pending = false;
+    if (kind === 'regular') this.regularQueuedCount -= 1;
+    else this.providerRefreshQueuedCount -= 1;
+    const key = queued.job.key;
+    const entries = this.queuedByKey.get(key);
+    entries?.delete(queued);
+    if (!entries?.size) this.queuedByKey.delete(key);
+    if (kind === 'provider-refresh' && !this.runningProviderRefreshKeys.has(key)) this.providerRefreshKeys.delete(key);
+  }
+
+  private clearQueue(queue: QueuedWork<T>[], kind: HydrationWorkKind): void {
+    for (const queued of queue) this.removeQueued(queued, kind);
+    queue.length = 0;
+    if (kind === 'regular') { this.regularHead = 0; this.regularQueuedCount = 0; }
+    else { this.providerRefreshHead = 0; this.providerRefreshQueuedCount = 0; }
+  }
 
   private nextKind(): HydrationWorkKind {
     const regularPending = this.queuedRegular() > 0;

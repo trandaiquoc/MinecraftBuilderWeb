@@ -4,6 +4,60 @@ import { InstanceBatchRenderer } from './instance-batch-renderer';
 import { RenderRegionPolicy } from './render-region-policy';
 
 describe('InstanceBatchRenderer', () => {
+  it('does not scan every batch when asked to clear an unindexed key', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new InstanceBatchRenderer({
+      blocksGroup: group,
+      capacity: 16,
+      chunkKey: () => '0,0,0',
+      stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)),
+      record: () => undefined,
+      getEntry: () => undefined,
+      disposeMergedTemplateGeometry: () => undefined,
+    });
+    renderer.addFromTemplates([{ geometry, material, matrix: new THREE.Matrix4() }], { x: 0, y: 0, z: 0 }, 'existing');
+    const scan = vi.spyOn(renderer, 'memberships');
+
+    renderer.removeOrphaned('new-block', 'reconcile');
+
+    expect(scan).not.toHaveBeenCalled();
+    expect(renderer.ownershipIndex.has('existing')).toBe(true);
+    expect(renderer.batches.values().next().value?.keys).toEqual(['existing']);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
+  it('repairs a stale known membership by scanning only after indexed removal fails', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const entries = new Map<string, { instanceBatchKey?: string; instanceIndex?: number; object?: THREE.Object3D }>();
+    const renderer = new InstanceBatchRenderer({
+      blocksGroup: group,
+      capacity: 16,
+      chunkKey: () => '0,0,0',
+      stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)),
+      record: () => undefined,
+      getEntry: (key) => entries.get(key),
+      setEntryObject: (key, batchKey, index, object) => entries.set(key, { instanceBatchKey: batchKey, instanceIndex: index, object }),
+      disposeMergedTemplateGeometry: () => undefined,
+    });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+    renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'stale');
+    const old = entries.get('stale')!;
+    entries.set('stale', { ...old, instanceBatchKey: 'retired-batch', instanceIndex: 0 });
+    const scan = vi.spyOn(renderer, 'memberships');
+
+    renderer.removeOrphaned('stale', 'reconcile', entries.get('stale'));
+
+    expect(scan).toHaveBeenCalledWith('stale', true);
+    expect(renderer.ownershipIndex.has('stale')).toBe(false);
+    expect(renderer.batches.size).toBe(0);
+    expect(group.children).toHaveLength(0);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
   it('corrects ownership after swap-back removal', () => {
     const group = new THREE.Group();
     const geometry = new THREE.BoxGeometry(1, 1, 1);

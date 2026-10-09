@@ -46,14 +46,19 @@ describe('ViewportStructureSyncState', () => {
     expect(state.snapshot()).toEqual({ syncKey: '' });
   });
 
-  it('reports suspended refresh needs for structure, filter, or decoration changes', () => {
+  it('avoids suspended refresh for editor-only project snapshots but refreshes render inputs', () => {
     const state = new ViewportStructureSyncState();
     const current = project();
     state.commit(current, 'key');
     expect(state.requiresSuspendedRefresh(current, false, false)).toBe(false);
+    expect(state.requiresSuspendedRefresh({ ...current, editorSettings: { ...current.editorSettings, currentY: 2 } }, false, false)).toBe(false);
     expect(state.requiresSuspendedRefresh(current, true, false)).toBe(true);
     expect(state.requiresSuspendedRefresh(current, false, true)).toBe(true);
-    expect(state.requiresSuspendedRefresh(project(), false, false)).toBe(true);
+    expect(state.requiresSuspendedRefresh({ ...current, metadata: { ...current.metadata, name: 'Renamed' } }, false, false)).toBe(true);
+    expect(state.requiresSuspendedRefresh({ ...current, blocks: [...current.blocks] }, false, false)).toBe(true);
+    expect(state.requiresSuspendedRefresh({ ...current, groups: [...current.groups] }, false, false)).toBe(true);
+    expect(state.requiresSuspendedRefresh({ ...current, decorations: [] }, false, false)).toBe(true);
+    expect(state.requiresSuspendedRefresh({ ...current, id: 'project-b' }, false, false)).toBe(true);
   });
 
   it('owns the previous visible projection positions without cloning the map for culling consumers', () => {
