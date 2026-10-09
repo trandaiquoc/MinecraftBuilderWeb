@@ -120,8 +120,8 @@
             @if (assets.message()) {
               <p class="manager-error" role="alert">{{ assets.message() }}</p>
             }
-            @if (modError()) {
-              <p class="manager-error" role="alert">{{ modError() }}</p>
+            @if (vanillaError()) {
+              <p class="manager-error" role="alert">{{ vanillaError() }}</p>
             }
             <div class="manager-actions">
               <button
@@ -226,30 +226,30 @@
               {{ i18n.t('assetManagerFabricSupported') }} &middot;
               {{ i18n.t('assetManagerUnsupportedLoaders') }}
             </p>
-            @if (preflightError()) {
-              <p class="manager-error" role="alert">{{ preflightError() }}</p>
-              @if (operationStatus() === 'timed-out' && canRetryPreflight()) {
+            @if (modImport.preflightError()) {
+              <p class="manager-error" role="alert">{{ modImport.preflightError() }}</p>
+              @if (modImport.operationStatus() === 'timed-out' && canRetryPreflight()) {
                 <button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="retryPreflight()">{{ i18n.t('assetManagerRetry') }}</button>
               }
             }
-            @if (modError()) {
-              <p class="manager-error" role="alert">{{ modError() }}</p>
+            @if (modImport.modError()) {
+              <p class="manager-error" role="alert">{{ modImport.modError() }}</p>
             }
-            @if (operationKind()) {
+            @if (modImport.operationKind()) {
               <section class="active-task-panel" aria-live="polite" aria-busy="true">
                 <div class="active-task-heading">
                   <span class="active-task-label"><span class="active-task-indicator" aria-hidden="true"></span>{{ i18n.t('assetManagerCurrentTask') }}: {{ operationTaskLabel() }}</span>
-                  <button type="button" class="operation-cancel" [disabled]="operationStatus() === 'cancelling'" [attr.aria-label]="i18n.t('assetManagerCancelCurrentTask')" [attr.title]="i18n.t('assetManagerCancelCurrentTask')" (click)="cancelActiveOperation()"><svg lucideX aria-hidden="true"></svg></button>
+                  <button type="button" class="operation-cancel" [disabled]="modImport.operationStatus() === 'cancelling'" [attr.aria-label]="i18n.t('assetManagerCancelCurrentTask')" [attr.title]="i18n.t('assetManagerCancelCurrentTask')" (click)="cancelActiveOperation()"><svg lucideX aria-hidden="true"></svg></button>
                 </div>
-                <app-ui-progress [value]="preflightProgress() ? progressPercent(preflightProgress()!) : undefined" [indeterminate]="!preflightProgress() || progressPercent(preflightProgress()!) === undefined" [compact]="true" tone="danger" [label]="i18n.t('assetManagerCurrentTask')" />
+                <app-ui-progress [value]="modImport.preflightProgress() ? progressPercent(modImport.preflightProgress()!) : undefined" [indeterminate]="!modImport.preflightProgress() || progressPercent(modImport.preflightProgress()!) === undefined" [compact]="true" tone="danger" [label]="i18n.t('assetManagerCurrentTask')" />
                 <small>{{ operationDetail() }}</small>
               </section>
             }
-            @if (preflight(); as prepared) {
+            @if (modImport.preflight(); as prepared) {
               <section class="preflight-card" aria-live="polite">
                 <div class="preflight-header">
                   <div class="mod-icon">
-                    @if (preflightIconUrl(); as icon) {
+                    @if (modImport.preflightIconUrl(); as icon) {
                       <img
                         [src]="icon"
                         [alt]="
@@ -395,16 +395,16 @@
                     <span>{{ preflightGuidance() }}</span>
                   </p>
                 }
-                @if (preflightProgress(); as progress) {
-                  <div class="import-progress compact" aria-live="polite" [attr.aria-busy]="operationKind() ? 'true' : null">
+                @if (modImport.preflightProgress(); as progress) {
+                  <div class="import-progress compact" aria-live="polite" [attr.aria-busy]="modImport.operationKind() ? 'true' : null">
                     <app-ui-progress
                       [value]="progressPercent(progress)"
                       [indeterminate]="progressPercent(progress) === undefined"
-                      [complete]="!operationKind() || progressPercent(progress) === 100"
+                      [complete]="!modImport.operationKind() || progressPercent(progress) === 100"
                       [compact]="true"
-                      [label]="operationKind() ? i18n.t('assetManagerImporting') : i18n.t('assetManagerPreflightComplete')"
+                      [label]="modImport.operationKind() ? i18n.t('assetManagerImporting') : i18n.t('assetManagerPreflightComplete')"
                     /><small
-                      >{{ operationKind() ? phaseLabel(progress.phase) + ' · ' + progressDetail(progress) : i18n.t('assetManagerPreflightComplete') }}</small
+                      >{{ modImport.operationKind() ? phaseLabel(progress.phase) + ' · ' + progressDetail(progress) : i18n.t('assetManagerPreflightComplete') }}</small
                     >
                   </div>
                 }

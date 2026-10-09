@@ -17,6 +17,13 @@ export const importStages: readonly { readonly id: ImportStage; readonly phases:
   { id: 'import', phases: ['saving-cache', 'finalizing-cache', 'activating'], label: 'assetManagerImportStage' },
 ];
 
+export const phaseLabels = {
+  'opening-archive': 'assetPhase_opening_archive', 'reading-metadata': 'assetPhase_reading_metadata', 'checking-compatibility': 'assetPhase_checking_compatibility',
+  'indexing-resources': 'assetPhase_indexing_resources', 'extracting-resources': 'assetPhase_extracting_resources', 'discovering-blocks': 'assetPhase_discovering_blocks',
+  'discovering-items': 'assetPhase_discovering_items', 'discovering-decorations': 'assetPhase_discovering_decorations', 'evaluating-behavior': 'assetPhase_evaluating_behavior',
+  'checking-conflicts': 'assetPhase_checking_conflicts', 'saving-cache': 'assetPhase_saving_cache', 'finalizing-cache': 'assetPhase_finalizing_cache', activating: 'assetPhase_activating',
+} as const satisfies Record<ModImportProgress['phase'], TranslationKey>;
+
 export function filterAssetActivity(entries: readonly AssetActivityEntry[], tab: 'vanilla' | 'mods'): readonly AssetActivityEntry[] {
   return entries.filter((entry) => tab === 'mods' ? entry.category === 'mod' : entry.category === 'vanilla' || entry.category === 'cache');
 }
