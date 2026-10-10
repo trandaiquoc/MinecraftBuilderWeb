@@ -99,10 +99,10 @@ export class ViewportSessionOwner {
         const terminal = restore.phase === 'ready' || restore.phase === 'partial' || restore.phase === 'error';
         this.engine.setMissingBlocksTerminal(terminal);
         this.hydrationStatus.setSourceRestoreState(this.hydrationOwner, { terminal, pending: !terminal, failed: restore.phase === 'error' });
-        this.hydrationStatus.setFinalizationAuditHooks(this.hydrationOwner, () => {
-          const progress = this.engine.finalizationAuditProgress();
+        this.hydrationStatus.setFinalizationAuditHooks(this.hydrationOwner, (includeOwnership) => {
+          const progress = this.engine.finalizationAuditProgress(includeOwnership);
           const finalization = progress.finalization;
-          return { input: { progress, sourceRestoreTerminal: terminal, sourceRestorePending: !terminal, sourceRestoreFailed: restore.phase === 'error', providerRefreshPlanning: progress.providerRefreshPlanning, providerRefreshQueued: progress.providerRefreshQueued, providerRefreshRunning: progress.providerRefreshRunning, terrainPending: progress.terrainPending }, ownershipComplete: !!finalization && finalization.finalReadyBlocks + finalization.permanentMissingBlocks >= finalization.expectedBlocks };
+          return { input: { progress, sourceRestoreTerminal: terminal, sourceRestorePending: !terminal, sourceRestoreFailed: restore.phase === 'error', providerRefreshPlanning: progress.providerRefreshPlanning, providerRefreshQueued: progress.providerRefreshQueued, providerRefreshRunning: progress.providerRefreshRunning, terrainPending: progress.terrainPending, work: progress.work, renderingFailureCount: progress.renderingFailureCount }, ...(includeOwnership ? { ownershipComplete: !!finalization && finalization.finalReadyBlocks + finalization.permanentMissingBlocks >= finalization.expectedBlocks } : {}) };
         }, () => this.engine.reconcileFinalizationAccounting());
       }),
       effect(() => {

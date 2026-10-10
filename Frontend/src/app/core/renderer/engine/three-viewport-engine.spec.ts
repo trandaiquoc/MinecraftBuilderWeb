@@ -18,6 +18,51 @@ import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import type { YLayerPresentationReadiness } from './y-layer-presentation-owner';
 
 describe('camera movement input contract', () => {
+  it('finalization accepts physical representation ownership, not stale store metadata', () => {
+    const engine = new ThreeViewportEngine();
+    const block = rendererBenchmarkProject('small').blocks[0];
+    const key = coordinateKey(block.position);
+    const audit = (engine as unknown as { hasCommittedBlockOwnership: (key: string, entry: never) => boolean }).hasCommittedBlockOwnership.bind(engine);
+    const base = { key, block, signature: 'fixture', role: 'normal' as const, revision: 0 };
+
+    expect(audit(key, { ...base, terrainChunkKey: 'stale-chunk' } as never)).toBe(false);
+    expect(audit(key, { ...base, instanceBatchKey: 'stale-batch', instanceIndex: 0 } as never)).toBe(false);
+    expect(audit(key, { ...base, surfaceFaceMemberships: [{ batchKey: 'stale-surface', index: 0 }] } as never)).toBe(false);
+
+    const object = new THREE.Object3D();
+    (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup.add(object);
+    expect(audit(key, { ...base, object } as never)).toBe(true);
+    engine.dispose();
+  });
+
+  it('does not infer direct Y-layer readiness from resident store size', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 2), decorations: [] };
+    const internals = engine as unknown as {
+      project: ProjectDocument;
+      renderOptions: ViewportRenderOptions;
+      blockRepresentations: { createOrReplace: (entry: never) => void };
+      yLayerProjection: unknown;
+      finalizationAuditProgress: () => { finalization?: { expectedBlocks: number; finalReadyBlocks: number; pendingBlocks: number } };
+    };
+    internals.project = project;
+    internals.renderOptions = {};
+    internals.yLayerProjection = {
+      hasDirectPresentation: true,
+      visibleProject: project,
+      state: { activity: 'idle', revision: 0 },
+      dispose: () => undefined,
+      visibleEntries: [],
+      directVisibleEntryCount: () => project.blocks.length,
+      createVisibleEntry: (block: PlacedBlock) => ({ block, role: 'normal', signature: 'visible', occlusionClass: 'unknown' }),
+    };
+    for (const block of project.blocks) internals.blockRepresentations.createOrReplace({ key: coordinateKey(block.position), block, signature: 'stale', role: 'normal', revision: 0, instanceBatchKey: 'stale-batch', instanceIndex: 0 } as never);
+
+    expect(internals.finalizationAuditProgress().finalization).toMatchObject({ expectedBlocks: 2, finalReadyBlocks: 0, pendingBlocks: 2 });
+    engine.dispose();
+  });
+
   it('routes terminal terrain disposal through the engine exactly once', () => {
     const engine = new ThreeViewportEngine();
     const terrain = (engine as unknown as { terrainRenderer: { dispose: () => void } }).terrainRenderer;
@@ -2662,13 +2707,14 @@ describe('selection visualization scalability', () => {
     const whole = { layerY: 0, visibility: 'whole-structure' as const };
     engine.update(project, undefined, whole);
     await settleHydration(100, engine);
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
     const before = engine.rendererCounters();
 
     engine.update(project, undefined, whole);
     const afterResume = engine.rendererCounters();
     expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
     expect(afterResume).toMatchObject({
-      yLayerPresentationTransitions: before.yLayerPresentationTransitions + 1,
+      yLayerPresentationTransitions: before.yLayerPresentationTransitions,
       yLayerProjectionVoxelVisits: before.yLayerProjectionVoxelVisits,
       yLayerProjectionRequests: before.yLayerProjectionRequests,
       instanceMatrixWrites: before.instanceMatrixWrites,

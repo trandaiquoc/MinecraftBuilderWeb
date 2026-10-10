@@ -1,3 +1,5 @@
+import { effect, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { VIEWPORT_HYDRATION_STATUS_DELAY_MS, ViewportHydrationStatusService } from './viewport-hydration-status.service';
 import type { ViewportHydrationProgress } from '../../renderer/engine/three-viewport-engine';
@@ -154,5 +156,26 @@ describe('ViewportHydrationStatusService', () => {
     expect(service.status()?.progress.lane).toBe('content');
     service.publish(owner, progress({ lane: 'content', status: 'complete', completed: 20, total: 20, blocksCompleted: 20, blocksTotal: 20, percent: 100, finalization: { expectedBlocks: 120, finalReadyBlocks: 120, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
     expect(service.finalization()).toMatchObject({ phase: 'ready', loading: false, ready: true });
+  });
+
+  it('does not create a reactive loop when external settlement observes finalization', () => {
+    const service = new ViewportHydrationStatusService();
+    const owner = service.claim();
+    service.activate(owner);
+    service.publish(owner, progress({ status: 'complete', completed: 20, total: 20, blocksCompleted: 20, blocksTotal: 20, percent: 100, finalization: { expectedBlocks: 20, finalReadyBlocks: 20, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+    const externalRevision = signal(0);
+    let effectRuns = 0;
+
+    TestBed.runInInjectionContext(() => effect(() => {
+      externalRevision();
+      effectRuns += 1;
+      service.settleIfTerminal();
+    }));
+    TestBed.flushEffects();
+    externalRevision.set(1);
+    TestBed.flushEffects();
+
+    expect(effectRuns).toBe(2);
+    expect(service.finalization()).toMatchObject({ phase: 'ready', loading: false });
   });
 });

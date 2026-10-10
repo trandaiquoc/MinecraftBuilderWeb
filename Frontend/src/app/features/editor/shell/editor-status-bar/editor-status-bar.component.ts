@@ -10,14 +10,15 @@ import { ProjectAutosaveService } from '../../../../core/persistence/autosave/pr
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { deriveAssetBootstrapStatus, ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { ViewportHydrationStatusService, ViewportHydrationStatusSnapshot } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
 import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
 import { MissingProjectContentSummaryService } from '../../../../core/editor/state/missing-project-content-summary';
 import { MissingAssetsDialogComponent } from './missing-assets-dialog.component';
 import { EditorSessionService } from '../../../../core/editor/state/editor-session.service';
 import { ViewportStatusService } from '../../../../core/editor/viewport/viewport-status.service';
+import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.component';
 
-@Component({ selector: 'app-editor-status-bar', imports: [MissingAssetsDialogComponent], templateUrl: './editor-status-bar.component.html', styleUrl: './editor-status-bar.component.scss' })
+@Component({ selector: 'app-editor-status-bar', imports: [MissingAssetsDialogComponent, UiProgressComponent], templateUrl: './editor-status-bar.component.html', styleUrl: './editor-status-bar.component.scss' })
 export class EditorStatusBarComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly mode = inject(EditorModeService);
@@ -92,31 +93,25 @@ export class EditorStatusBarComponent {
     return status.kind === 'unavailable' ? 'invalid' : status.kind === 'partial' ? 'warning' : status.kind === 'ready' ? 'valid' : 'unknown';
   }
   protected assetLoading(status: ReturnType<typeof deriveAssetBootstrapStatus>): boolean { const finalization = this.finalizationState(); return status.kind === 'loading-cache' || status.kind === 'downloading' || status.kind === 'preparing' || status.kind === 'restoring-mods' || !!finalization?.loading || this.missingReconciliation.activity() === 'running'; }
-  protected assetProgressPercent(status: ReturnType<typeof deriveAssetBootstrapStatus>): number | null {
-    const finalization = this.finalizationState();
-    if (this.missingReconciliation.activity() === 'running') return null;
-    if (finalization?.loading) {
-      if (finalization.indeterminate || !finalization.finalization?.expectedBlocks) return null;
-      const progress = finalization.progress;
-      if (!progress?.finalization) return Math.max(0, Math.min(100, Math.round(progress?.percent ?? 0)));
-      return Math.max(0, Math.min(100, Math.round(finalization.finalization.finalReadyBlocks / finalization.finalization.expectedBlocks * 100)));
-    }
-    const contentHydration = this.hydration.status();
-    if (contentHydration?.activity === 'content') return Math.max(0, Math.min(100, Math.round(contentHydration.progress.percent)));
-    if (status.kind === 'downloading' && status.percent !== undefined) return Math.max(0, Math.min(100, Math.round(status.percent)));
-    if (status.kind === 'restoring-mods' && status.total && status.current !== undefined) return Math.max(0, Math.min(100, Math.round(status.current / status.total * 100)));
-    return null;
-  }
   protected assetStatusLabel(): string {
     const status = this.assetStatus();
     const finalization = this.finalizationState();
-    if (finalization?.loading || this.missingReconciliation.activity() === 'running') return this.i18n.t('updatingBlockAssets');
+    if (finalization?.loading || this.missingReconciliation.activity() === 'running') {
+      if (this.hydration.status()?.activity === 'content' || finalization?.progress?.lane === 'content') return this.i18n.t('updatingBlockAssets');
+      if (this.hydration.status()?.activity === 'import') return this.i18n.t('importingStructure');
+      return this.i18n.t('buildingStructure');
+    }
+    if (finalization?.issue) return this.i18n.t('blockRenderingIncomplete');
     if (this.missingWarningVisible()) return this.i18n.t('missingAssetsWarning').replace('{count}', this.formatCount(this.missingSummary().totalMissingBlocks));
     if (this.hydration.status()?.activity === 'content') return this.i18n.t('updatingBlockAssets');
+    if (finalization?.warning) {
+      if (status.kind === 'unavailable') return this.i18n.t('assetsUnavailableForBrowser');
+      return this.i18n.t('assetsReadyWithWarnings');
+    }
     if (status.kind === 'loading-cache') return this.i18n.t('checkingAssetCache');
-    if (status.kind === 'downloading') return `${this.i18n.t('downloadingAsset')}${status.percent === undefined ? '' : ` ${status.percent}%`}`;
+    if (status.kind === 'downloading') return this.i18n.t('downloadingAsset');
     if (status.kind === 'preparing') return this.i18n.t('preparingAssets');
-    if (status.kind === 'restoring-mods') { const label = this.i18n.t('restoringModsProgress').replace('{current}', String(status.current ?? 0)).replace('{total}', String(status.total ?? 0)); return status.sourceName ? `${label} · ${status.sourceName}` : label; }
+    if (status.kind === 'restoring-mods') { const label = this.i18n.t('restoringMods'); return status.sourceName ? `${label} · ${status.sourceName}` : label; }
     if (status.kind === 'partial') return this.i18n.t('assetsReadyWarnings').replace('{count}', String(status.warnings ?? 0));
     if (status.kind === 'unavailable') return this.i18n.t('assetsUnavailableForBrowser');
     return this.i18n.t('assetsReady');
@@ -126,25 +121,6 @@ export class EditorStatusBarComponent {
     return this.missingSummary().totalMissingBlocks > 0 && this.missingReconciliation.activity() === 'idle' && !finalization?.loading && this.hydration.status()?.activity !== 'content';
   }
   protected openMissingAssets(): void { if (this.missingWarningVisible()) this.missingDialogOpen.set(true); }
-  protected finalizationCount(): string | undefined {
-    const finalization = this.finalizationState();
-    if (!finalization?.loading || finalization.indeterminate || !finalization.finalization) return undefined;
-    const value = finalization.finalization;
-    return `${this.formatCount(value.finalReadyBlocks)} / ${this.formatCount(value.expectedBlocks)} ${this.i18n.t('viewportHydrationBlocks')}`;
-  }
-  protected hydrationStatus(): ViewportHydrationStatusSnapshot | undefined { return this.finalizationState()?.loading ? undefined : this.hydration.status(); }
-  protected hydrationStatusLabel(snapshot: ViewportHydrationStatusSnapshot): string {
-    const label = snapshot.activity === 'content' ? this.i18n.t('updatingBlockAssets') : this.i18n.t(snapshot.activity === 'import' ? 'importingStructure' : 'buildingStructure');
-    return `${label} · ${this.formatPercent(snapshot.progress.percent)}%`;
-  }
-  protected hydrationCount(snapshot: ViewportHydrationStatusSnapshot): string {
-    const progress = snapshot.progress;
-    if (progress.decorationsTotal > 0) {
-      return `${this.formatCount(progress.blocksCompleted)} / ${this.formatCount(progress.blocksTotal)} ${this.i18n.t('viewportHydrationBlocks')} · ${this.formatCount(progress.decorationsCompleted)} / ${this.formatCount(progress.decorationsTotal)} ${this.i18n.t('viewportHydrationItems')}`;
-    }
-    return `${this.formatCount(progress.blocksCompleted)} / ${this.formatCount(progress.blocksTotal)} ${this.i18n.t('viewportHydrationBlocks')}`;
-  }
-  private formatPercent(value: number): string { return value.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 1 }); }
   private formatCount(value: number): string { return value.toLocaleString(this.i18n.locale()); }
 }
 

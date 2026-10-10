@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { FluidChunkRenderer } from './fluid-chunk-renderer';
@@ -77,6 +77,45 @@ describe('FluidRenderCoordinator', () => {
     coordinator.setProvider(provider('build-failure', async () => undefined, failingResolver));
     await coordinator.sync(recordsFor(blocks), worldFor(blocks), 1);
     expect(coordinator.diagnostics()).toMatchObject({ fluidCommittedVoxels: 0, fluidFallbackVoxels: 1, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0, fluidChunkMeshes: 1 });
+    coordinator.dispose();
+  });
+
+  it('ends rejected fluid work as a rendering failure instead of retaining pending ownership', async () => {
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const failure = new Error('synthetic fluid renderer rejection');
+    const onFailure = vi.fn();
+    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined, onFailure });
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
+    coordinator.setProvider(provider('rejected', async () => texture));
+    vi.spyOn(renderer, 'sync').mockRejectedValue(failure);
+
+    await coordinator.sync(recordsFor([block(0), block(1)]), worldFor([block(0), block(1)]), 8);
+
+    expect(coordinator.pendingCount).toBe(0);
+    expect(coordinator.failedCount).toBe(2);
+    expect(onFailure).toHaveBeenCalledWith(8, ['0,0,0', '1,0,0'], failure);
+    expect(coordinator.diagnostics()).toMatchObject({ fluidPendingVoxels: 0, fluidFailedVoxels: 2 });
+    coordinator.dispose();
+    texture.dispose();
+  });
+
+  it('ends a completed sync with missing voxel ownership as a failure, not pending work', async () => {
+    const renderer = new FluidChunkRenderer(new THREE.Group());
+    const onFailure = vi.fn();
+    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined, onFailure });
+    coordinator.setProvider(provider('partial-commit', async () => undefined));
+    vi.spyOn(renderer, 'sync').mockResolvedValue({ status: 'committed', committedKeys: ['0,0,0'], fallbackKeys: [] });
+    const blocks = [block(0), block(1)];
+
+    await coordinator.sync(recordsFor(blocks), worldFor(blocks), 9);
+
+    expect(coordinator.pendingCount).toBe(0);
+    expect(coordinator.failedCount).toBe(1);
+    expect(onFailure).toHaveBeenCalledOnce();
+    expect(onFailure.mock.calls[0]?.slice(0, 2)).toEqual([9, ['1,0,0']]);
+    expect(onFailure.mock.calls[0]?.[2]).toMatchObject({ message: 'Fluid renderer completed without committing every detected voxel.' });
     coordinator.dispose();
   });
 

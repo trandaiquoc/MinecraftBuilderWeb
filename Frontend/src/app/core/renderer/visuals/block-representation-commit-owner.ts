@@ -54,6 +54,8 @@ export interface BlockRepresentationCommitOwnerPorts {
   readonly invalidateDiagnostics: () => void;
   readonly recordProviderCacheStats: () => void;
   readonly scheduleRender: () => void;
+  readonly onFailure?: (key: string) => void;
+  readonly onSuccess?: (key: string) => void;
 }
 
 /**
@@ -95,7 +97,7 @@ export class BlockRepresentationCommitOwner {
           const current = this.ports.store.get(job.key);
           if (current) this.ports.resources.ensureFallback(current);
           this.ports.store.setTerrainRepresentation(job.key, undefined);
-          this.finish(job);
+          this.finish(job, false);
           resolvePending?.();
         },
       });
@@ -159,7 +161,7 @@ export class BlockRepresentationCommitOwner {
           try {
             if (!ownsTransaction()) return;
             this.updateFallback(fallback, visual);
-            this.finish(job);
+            this.finish(job, false);
           } finally { resolve(); }
         },
       });
@@ -249,7 +251,7 @@ export class BlockRepresentationCommitOwner {
           this.ports.store.setTerrainRepresentation(job.key, undefined);
           fallback.userData['diagnostics'] = [{ code: 'PROVIDER_REFRESH_FAILED', message: status === 'cancelled' ? 'Terrain replacement was cancelled' : 'Terrain replacement failed' }];
           this.ports.invalidateDiagnostics();
-          this.finish(job);
+          this.finish(job, false);
         } finally { resolvePending?.(); }
       };
       const status = this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal', { onCommitted: commit, onFailed: fail });
@@ -262,7 +264,7 @@ export class BlockRepresentationCommitOwner {
     }
     if (!visual.object) {
       this.recordRefreshFailure(job, 'Visual provider returned no replacement representation');
-      this.finish(job);
+      this.finish(job, false);
       return;
     }
     const object = this.prepareObject(visual.object, job, visual);
@@ -286,7 +288,7 @@ export class BlockRepresentationCommitOwner {
     this.ports.resources.rollbackPartial(job.key);
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }];
-    this.finish(job);
+    this.finish(job, false);
   }
 
   /** Converts an unexpected cached-terrain rejection into the same fallback state as other provider failures. */
@@ -297,7 +299,7 @@ export class BlockRepresentationCommitOwner {
     this.ports.store.setTerrainRepresentation(job.key, undefined);
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : String(error) }];
-    this.finish(job);
+    this.finish(job, false);
   }
 
   recordRefreshFailure(job: BlockHydrationJob, error: unknown): void {
@@ -306,6 +308,7 @@ export class BlockRepresentationCommitOwner {
     const diagnostics = [{ code: 'PROVIDER_REFRESH_FAILED', message: error instanceof Error ? error.message : String(error) }];
     if (current.fallback) current.fallback.userData['diagnostics'] = diagnostics;
     if (current.object) current.object.userData['diagnostics'] = diagnostics;
+    this.ports.onFailure?.(job.key);
     this.ports.invalidateDiagnostics();
   }
 
@@ -333,8 +336,9 @@ export class BlockRepresentationCommitOwner {
     else this.ports.targets.object.blocksGroup.remove(object);
   }
 
-  private finish(job?: BlockHydrationJob): void {
+  private finish(job?: BlockHydrationJob, succeeded = true): void {
     if (job?.layerPrewarm) return;
+    if (job) (succeeded ? this.ports.onSuccess : this.ports.onFailure)?.(job.key);
     this.ports.recordProviderCacheStats();
     this.ports.invalidateDiagnostics();
     this.ports.scheduleRender();

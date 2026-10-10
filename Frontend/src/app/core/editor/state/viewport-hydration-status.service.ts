@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, untracked } from '@angular/core';
 import type { ViewportHydrationProgress } from '../../renderer/engine/three-viewport-engine';
 import { ViewportFinalizationCoordinator, ViewportFinalizationState, ViewportFinalizationAudit } from './viewport-finalization-coordinator';
 
@@ -62,7 +62,7 @@ export class ViewportHydrationStatusService {
     this.refreshFinalization();
   }
 
-  setFinalizationAuditHooks(owner: number, audit: (() => ViewportFinalizationAudit | undefined) | undefined, reconcile: (() => void) | undefined): void {
+  setFinalizationAuditHooks(owner: number, audit: ((includeOwnership: boolean) => ViewportFinalizationAudit | undefined) | undefined, reconcile: (() => void) | undefined): void {
     if (owner !== this.activeOwner) return;
     // Keep the renderer-specific audit seam in the viewport component; the
     // status service only owns policy and watchdog timing.
@@ -72,8 +72,10 @@ export class ViewportHydrationStatusService {
   /** Re-evaluates the latest authoritative producer state without forcing readiness. */
   settleIfTerminal(): void {
     if (this.activeOwner === undefined || !this.lastProgress) return;
-    this.refreshFinalization();
-    if (!this.finalization()?.loading && this.lastProgress.status !== 'hydrating') this.clearVisibleState();
+    untracked(() => {
+      this.refreshFinalization();
+      if (!this.finalization()?.loading && this.lastProgress?.status !== 'hydrating') this.clearVisibleState();
+    });
   }
 
   publish(owner: number, progress: ViewportHydrationProgress): void {
@@ -137,6 +139,8 @@ export class ViewportHydrationStatusService {
       providerRefreshQueued: this.lastProgress?.providerRefreshQueued,
       providerRefreshRunning: this.lastProgress?.providerRefreshRunning,
       terrainPending: this.lastProgress?.terrainPending,
+      work: this.lastProgress?.work,
+      renderingFailureCount: this.lastProgress?.renderingFailureCount,
     });
     this.finalization.set(state);
   }

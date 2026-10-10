@@ -151,11 +151,9 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
         const authoritative = !job.providerRefresh && this.ownsJob(job.key, job.token, ownership.revision, ownership.signature);
         if (authoritative) this.finishJobOwnership(job.key);
         this.completeJob(job);
+        this.finishWork(job.token);
         try { port.onJobComplete(job, authoritative); }
-        finally {
-          this.finishWork(job.token);
-          this.scheduleNext(port);
-        }
+        finally { this.scheduleNext(port); }
       };
       try { port.execute(job, complete); } catch (error: unknown) {
         try { port.onExecutionFailure(job, error); }

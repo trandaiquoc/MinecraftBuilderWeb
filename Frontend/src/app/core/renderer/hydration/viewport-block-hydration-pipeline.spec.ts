@@ -115,4 +115,23 @@ describe('ViewportBlockHydrationPipeline', () => {
     expect(() => value.process(port)).not.toThrow();
     expect(value.runningTotal).toBe(0);
   });
+
+  it('releases running accounting before publishing terminal job completion', () => {
+    const value = pipeline();
+    value.enqueueRegular({ key: 'final-block', token: 0, projectionRevision: 0, signature: 'stone' });
+    let runningAtCompletion = -1;
+    const port: HydrationExecutionPort<Job> = {
+      isStopped: () => false, isInteractive: () => false, now: () => 1, budgetMs: () => 10,
+      interactiveJobLimit: () => 8, jobLimit: () => 8,
+      ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
+      execute: (_job, finish) => finish(), onBatchStart: vi.fn(), onJobStarted: vi.fn(),
+      onExecutionFailure: vi.fn(), onJobComplete: () => { runningAtCompletion = value.runningGenerationCount(0); },
+      processAdditionalWork: vi.fn(), hasAdditionalWork: () => false,
+    };
+
+    value.process(port);
+
+    expect(runningAtCompletion).toBe(0);
+    expect(value.runningGenerationCount(0)).toBe(0);
+  });
 });

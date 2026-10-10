@@ -16,22 +16,16 @@
       <button type="button" class="asset-status asset-status--action" [attr.data-status]="assetDataStatus(asset)" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true" [attr.aria-label]="assetStatusLabel()" (click)="openMissingAssets()">
         <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
       </button>
+      } @else if (assetLoading(asset)) {
+      <span class="asset-status" data-status="unknown" aria-busy="true" aria-live="polite" aria-atomic="true">
+        <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
+        <app-ui-progress class="block-loading-progress" [indeterminate]="true" [compact]="true" [label]="assetStatusLabel()" />
+      </span>
       } @else {
       <span class="asset-status" [attr.data-status]="assetDataStatus(asset)" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true">
         <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
-        @if (finalizationCount(); as count) { <span class="asset-status-count">{{ count }}</span> }
-        @if (assetLoading(asset)) {
-          <span class="asset-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="assetProgressPercent(asset)" [attr.aria-label]="assetStatusLabel()"><span class="asset-progress-fill" [class.indeterminate]="assetProgressPercent(asset) === null" [style.width.%]="assetProgressPercent(asset)"></span></span>
-        }
       </span>
       }
-    }
-    @if (hydrationStatus(); as hydration) {
-      <span class="hydration-status" data-status="hydrating" aria-live="polite" aria-atomic="true">
-        <span class="hydration-status-copy">{{ hydrationStatusLabel(hydration) }}</span>
-        <span class="hydration-status-count">{{ hydrationCount(hydration) }}</span>
-        <span class="hydration-progress-track" role="progressbar" [attr.aria-valuemin]="0" [attr.aria-valuemax]="100" [attr.aria-valuenow]="hydration.progress.percent" [attr.aria-label]="hydrationStatusLabel(hydration)"><span class="hydration-progress-fill" [style.width.%]="hydration.progress.percent"></span></span>
-      </span>
     }
   </div>
 </footer>

@@ -2626,3 +2626,22 @@ calls at Whole Structure and Chrome JS heap peaked near 264 MB used / 319 MB
 allocated during this run. SwiftShader context counters do not provide GPU byte
 residency, and this does not verify production hardware performance or the
 terrain/fluid/special renderer families.
+
+## Block-loading finalization and status follow-up
+
+Block-loading finalization distinguishes pending accounting from runnable
+queues. Its idle watchdog reconciles committed block ownership against the
+instance, surface, terrain, fluid, standalone-object, and fallback owners, then
+requeues only visible unresolved entries under the current hydration and
+projection revisions. Direct Y-layer readiness is also checked against these
+physical memberships instead of inferring readiness from representation-store
+size. The full ownership scan is watchdog-only; it does not run on viewport
+frames or ordinary visibility transitions.
+
+Fluid sync rejections and successful syncs that omit requested voxel ownership
+now end as rendering failures instead of retaining an orphan pending count.
+The editor status bar presents one indeterminate loading bar for active asset,
+structure, and block-asset work, without exposing numeric progress. Terminal
+missing/render failures remain warnings and do not become a false ready state.
+This change does not claim GPU presentation readiness or remove the documented
+renderer-family/Y-layer limitations above.
