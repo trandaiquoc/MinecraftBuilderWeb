@@ -132,7 +132,9 @@ The existing semantic helpers are not treated as a general NBT codec:
 - Decorated pot data uses Minecraft's `back,left,right,front` sherd order, but
   unknown sherds currently normalize to brick. A future exporter must reject or
   diagnose an unverified raw value.
-- Conduit mapping intentionally emits only its block-entity ID.
+- A legacy standalone Conduit helper emitted only its block-entity ID, but it
+  had no production consumer. The current exporter rejects Conduit semantic
+  payloads because the project document does not persist a supported payload.
 - Container and decoration metadata can contain `Record<string, unknown>` or
   entity-like data. JSON numbers are not inferred as NBT byte/short/int/long or
   float/double. Unsupported raw data must produce an explicit diagnostic.
