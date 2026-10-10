@@ -57,16 +57,25 @@ export class TerrainChunkResultCommitOwner {
     };
   }
 
-  tryInstallResidentVariant(key: string, signature: string, revision: number, hydrationCandidates: readonly string[]): boolean {
+  tryInstallResidentVariant(key: string, records: readonly TerrainSurfaceRecord[], signature: string, revision: number, changedKeys: readonly string[], hydrationCandidates: readonly string[]): boolean {
     const cached = this.residency.takeResidentVariant(key, signature);
     if (!cached) return false;
     this.residency.installResidentVariant(key, cached, revision);
     this.options.record('terrainResidentVariantHits');
-    const represented = [...cached.emittedKeys, ...cached.fullyOccludedKeys];
-    const failed = [...cached.failedKeys];
+    const represented = unique([...cached.emittedKeys, ...cached.fullyOccludedKeys]);
+    const failed = unique(cached.failedKeys);
     this.completeHydrationCandidates(key, hydrationCandidates, [...represented, ...failed]);
     this.settlement.settleRepresentationCommits(key, represented, failed, 'failed');
     this.settlement.reportFailures(failed);
+    const result: TerrainApplyResult = {
+      changedKeys: unique(changedKeys),
+      rebuiltChunks: [],
+      representedKeys: represented,
+      failedKeys: failed,
+      hydrationCandidateKeys: unique(hydrationCandidates),
+      disposition: failed.length ? 'partial-unrepresented' : 'accepted',
+    };
+    this.options.onAsyncApply?.(records, result);
     this.options.onComplete();
     return true;
   }
@@ -168,10 +177,10 @@ export class TerrainChunkResultCommitOwner {
     this.options.onComplete();
   }
 
-  rebuildSynchronously(key: string, hydrationCandidateKeys: readonly string[], revision: number, providerGeneration: number): { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[] } | undefined {
+  rebuildSynchronously(key: string, hydrationCandidateKeys: readonly string[], revision: number, providerGeneration: number): { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[]; readonly rebuilt: boolean } | undefined {
     const timing = !!this.options.onTiming && (this.options.isTimingEnabled?.() ?? true);
     const started = timing ? performance.now() : 0;
-    const finish = (result: { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[] } | undefined) => {
+    const finish = (result: { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[]; readonly rebuilt: boolean } | undefined) => {
       if (timing) this.options.onTiming?.('terrain.rebuildChunk', performance.now() - started);
       return result;
     };
@@ -181,7 +190,7 @@ export class TerrainChunkResultCommitOwner {
     if (!entries.length) {
       this.residency.retainCurrent(key);
       this.residency.clearOwnership(key);
-      return finish({ representedKeys: [], failedKeys: [] });
+      return finish({ representedKeys: [], failedKeys: [], rebuilt: false });
     }
     const signature = terrainChunkVariantSignature(key, chunk, entries, providerGeneration, this.templateResources, this.logicalStore.occupancyLookup);
     const cached = this.residency.takeResidentVariant(key, signature);
@@ -190,7 +199,7 @@ export class TerrainChunkResultCommitOwner {
       this.options.record('terrainResidentVariantHits');
       const representedKeys = [...cached.emittedKeys, ...cached.fullyOccludedKeys];
       this.completeHydrationCandidates(key, hydrationCandidateKeys, [...representedKeys, ...cached.failedKeys]);
-      return finish({ representedKeys, failedKeys: [...cached.failedKeys] });
+      return finish({ representedKeys, failedKeys: [...cached.failedKeys], rebuilt: false });
     }
     const result = meshTerrainChunk(
       chunk,
@@ -206,10 +215,10 @@ export class TerrainChunkResultCommitOwner {
     );
     const represented = [...result.emittedKeys, ...result.fullyOccludedKeys];
     const failed = [...result.unrepresentedExposedKeys];
-    if (!represented.length && entries.length) return finish({ representedKeys: [], failedKeys: entries.map((entry) => entry.key) });
+    if (!represented.length && entries.length) return finish({ representedKeys: [], failedKeys: entries.map((entry) => entry.key), rebuilt: false });
     if (!(this.options.shouldCommitChunk?.(key, result) ?? true)) {
       this.options.record('terrainSyncCommitPolicyRejected');
-      return finish({ representedKeys: [], failedKeys: entries.map((entry) => entry.key) });
+      return finish({ representedKeys: [], failedKeys: entries.map((entry) => entry.key), rebuilt: false });
     }
     const installed = this.residency.installCompiled(key, result, revision, signature);
     this.diagnostics.recordStage('terrain.commit.ownership', installed.ownershipDurationMs);
@@ -217,7 +226,7 @@ export class TerrainChunkResultCommitOwner {
     this.options.record('terrainSyncChunkRebuilds');
     for (const failedKey of failed) this.options.record('terrainUnrepresentedBlocks');
     this.completeHydrationCandidates(key, hydrationCandidateKeys, [...represented, ...failed]);
-    return finish({ representedKeys: represented, failedKeys: failed });
+    return finish({ representedKeys: represented, failedKeys: failed, rebuilt: true });
   }
 
   clear(): void {

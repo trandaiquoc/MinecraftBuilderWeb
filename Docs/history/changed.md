@@ -2680,3 +2680,10 @@ residency lifecycle, stale provider work, and representation commit ownership.
 These tests establish CPU-side ownership and resource lifecycle contracts; they
 do not establish browser GPU residency, hardware-GPU frame timing, or complete
 mixed-family 110K performance acceptance.
+
+Worker resident-variant restores publish the same accepted/partial terminal
+notification as worker-built terrain, so canonical membership, fallback
+placeholders, and hydration completion stay synchronized without remeshing.
+Synchronous restores return their terminal result to the caller and do not
+also emit the asynchronous notification. Cache-hit results report no rebuilt
+chunks because retained geometry is reattached rather than compiled.

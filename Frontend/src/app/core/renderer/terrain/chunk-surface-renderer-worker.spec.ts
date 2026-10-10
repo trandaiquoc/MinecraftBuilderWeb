@@ -277,8 +277,9 @@ describe('chunk surface renderer worker commit path', () => {
   it('discards a stale revision when a newer chunk job is already authoritative', async () => {
     const group = new THREE.Group();
     const workers: DeferredWorker[] = [];
+    const applied: Array<{ readonly changedKeys: readonly string[]; readonly disposition?: string }> = [];
     const counters = new Map<string, number>();
-    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => { const worker = new DeferredWorker(); workers.push(worker); return worker; }, workerCount: 2, record: (name, delta = 1) => counters.set(name, (counters.get(name) ?? 0) + delta) });
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, workerFactory: () => { const worker = new DeferredWorker(); workers.push(worker); return worker; }, workerCount: 2, onAsyncApply: (_records, result) => applied.push({ changedKeys: result.changedKeys, disposition: result.disposition }), record: (name, delta = 1) => counters.set(name, (counters.get(name) ?? 0) + delta) });
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const templates = cubeTemplates(material);
     const first = interiorBlockAt(0);
@@ -293,10 +294,12 @@ describe('chunk surface renderer worker commit path', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(counters.get('terrainAsyncRescheduledChunks') ?? 0).toBe(0);
     expect(renderer.evidence().terrainWorker.terrainWorkerStaleResults).toBe(1);
+    expect(applied.filter((result) => result.disposition !== 'chunk-removed')).toEqual([]);
     workers[1].resolve();
     await Promise.resolve();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(group.children).toHaveLength(1);
+    expect(applied.filter((result) => result.disposition !== 'chunk-removed')).toEqual([{ changedKeys: [key(changed)], disposition: 'accepted' }]);
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });
 

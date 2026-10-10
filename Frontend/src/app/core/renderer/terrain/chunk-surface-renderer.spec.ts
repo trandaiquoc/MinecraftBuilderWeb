@@ -206,7 +206,8 @@ describe('chunk surface renderer ownership', () => {
 
   it('reattaches exact Y-projection terrain meshes without remeshing or reallocating geometry', () => {
     const group = new THREE.Group();
-    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined });
+    const asyncApplies: TerrainApplyResult[] = [];
+    const renderer = new ChunkSurfaceRenderer({ blocksGroup: group, record: () => undefined, onAsyncApply: (_records, result) => asyncApplies.push(result) });
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const templates = cubeTemplates(material);
     const lower = blockAt({ x: 0, y: 10, z: 0 });
@@ -228,7 +229,7 @@ describe('chunk surface renderer ownership', () => {
     expect(upperMesh).not.toBe(originalMesh);
     expect(renderer.isRepresented(upperKey)).toBe(true);
 
-    renderer.applyBlockChanges([
+    const restored = renderer.applyBlockChanges([
       { key: upperKey, position: upper.position, before: record(upper), afterOpaque: false },
       { key: lowerKey, position: lower.position, after: record(lower), afterOpaque: true },
     ]);
@@ -240,6 +241,9 @@ describe('chunk surface renderer ownership', () => {
     expect(renderer.evidence().terrainResidentVariantBytes).toBeGreaterThan(0);
     expect(renderer.isRepresented(lowerKey)).toBe(true);
     expect(renderer.isRepresented(upperKey)).toBe(false);
+    expect(restored.representedKeys).toContain(lowerKey);
+    expect(restored.rebuiltChunks).toEqual([]);
+    expect(asyncApplies).toEqual([]);
 
     renderer.dispose(); material.dispose(); for (const template of templates) template.geometry.dispose();
   });

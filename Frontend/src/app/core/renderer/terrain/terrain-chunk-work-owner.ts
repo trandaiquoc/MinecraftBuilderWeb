@@ -96,7 +96,7 @@ export class TerrainChunkWorkOwner {
       this.maxRecords = Math.max(this.maxRecords, records.length);
       this.maxHydrationCandidates = Math.max(this.maxHydrationCandidates, hydrationCandidatesByChunk.get(key)?.length ?? 0);
       if (!result) continue;
-      rebuiltChunks.push(key);
+      if (result.rebuilt) rebuiltChunks.push(key);
       for (const item of result.representedKeys) representedKeys.add(item);
       for (const item of result.failedKeys) failedKeys.add(item);
     }
@@ -159,7 +159,7 @@ export class TerrainChunkWorkOwner {
       return;
     }
     this.chunkWork.set(key, { revision, jobId: 0, signature, replacementRequested: false, completed: true });
-    if (this.resultCommitter.tryInstallResidentVariant(key, signature, revision, attemptHydrationCandidates)) return;
+    if (this.resultCommitter.tryInstallResidentVariant(key, entries, signature, revision, changedKeys, attemptHydrationCandidates)) return;
     const templateIndexes = new WeakMap<readonly import('./chunk-surface-mesher').PrecompiledTerrainFace[], number>();
     const templates: TerrainMeshTemplateData[] = [];
     const jobEntries = entries.map((entry) => {
