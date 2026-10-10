@@ -67,7 +67,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private readonly session = new ViewportSessionOwner(this.engine, () => this.viewportActive(), '3D');
-  private readonly preparationScheduler = new ViewportPreparationScheduler();
+  private readonly preparationScheduler = inject(ViewportPreparationScheduler);
   private readonly viewReady = signal(false);
   private viewportMounted = false;
   private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample(), checkpoint: () => this.engine.runtimeTraceHeavySample() });
@@ -96,7 +96,10 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const provider = this.assets.visualProvider();
     const providerGeneration = this.assets.generation();
     const visualRevision = this.library.catalogRevision();
-    if (!project || !provider) { this.preparationScheduler.cancel(); return; }
+    if (!project || !provider) {
+      this.preparationScheduler.update('3d-inactive', undefined, false, 1, () => undefined);
+      return;
+    }
     const scope: ViewportPreparationScope = {
       projectId: project.id,
       project,
@@ -107,7 +110,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       visualRevision,
     };
     const activeViewportUsable = !!finalization && !finalization.loading && (finalization.ready || finalization.warning);
-    this.preparationScheduler.schedule(scope, this.assets.contentReady() && activeViewportUsable && !isActiveViewport, () => {
+    this.preparationScheduler.update('3d-inactive', scope, this.assets.contentReady() && activeViewportUsable && !isActiveViewport, 1, () => {
       const current = this.workspace.project();
       if (this.viewportActive()) return false;
       if (!current || current !== scope.project || current.id !== scope.projectId || current.blocks !== scope.blocks
@@ -185,7 +188,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.dispose(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.unregister('3d-inactive'); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

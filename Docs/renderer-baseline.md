@@ -66,8 +66,10 @@ does not alter texture, alpha/depth, or raycast semantics.
 work. `visibleEntries` remains empty while direct presentation is active. The
 runtime trace heartbeat reads the last committed projection count rather than
 rebuilding all visible signatures; explicit ownership diagnostics may still
-perform a full scan when requested. Prewarming is owned by the Y-layer engine;
-the 3D engine no longer starts a redundant Y-template scan.
+perform a full scan when requested. `YLayerRepresentationPrewarmOwner` owns the
+all-layer representation preparation lifecycle. `ViewportPreparationScheduler`
+is one root-scoped active-first queue for both retained viewport components; it
+invalidates work by project, provider, and visual revision scope.
 
 The 110,592-block Vitest fixture after the resident-presentation changes
 measured a 12.8 ms first switch after preload, 1.8 ms All Below expansion,
@@ -136,20 +138,31 @@ batches and from 4,096 to 256 for placeholders; 3D batch capacity is unchanged.
 The bounded standalone residency limit is 16,384, enough for the observed
 13,824 unbatchable grass fallbacks in the fixture while remaining bounded.
 
-Current Vitest benchmark (`npm run benchmark:renderer`, 110,592 blocks / 48
-layers, fixture canonicalized to `minecraft:stone` for deterministic static
-template coverage, without decorations/fluids/mod visuals) measured active
-current-layer hydration at 99.8 ms, all-layer template
-and representation preparation at 1,895.4 ms, first layer switch after
-preparation at 1.1 ms, repeated switch pair at 29.0 ms, All Below expansion at
-2.6 ms, Whole expansion at 1.4 ms, and contraction at 1.3 ms. All 110,592 CPU
-representations were resident; visibility transitions performed zero provider
-object creations, zero instance-matrix writes, and zero projection voxel visits
-(384 batch visibility updates). Process RSS was about 625 MB and JS heap about
-432 MB. Vitest has no WebGL context, so these figures do not demonstrate GPU
+Vitest benchmark (`npm run benchmark:renderer`, 110,592 blocks / 48 layers,
+fixture canonicalized to `minecraft:stone` for deterministic static template
+coverage, without decorations/fluids/mod visuals) measured active current-layer
+hydration at 103.8 ms, all-layer template and representation preparation at
+1,604.1 ms, first switch before preload at 192.3 ms, first switch after preload
+at 14.2 ms, repeated switching at 30.5 ms, All Below expansion at 1.8 ms, Whole
+expansion at 1.1 ms, and contraction at 1.2 ms. All 110,592 CPU representations
+were resident; visibility transitions performed zero provider object
+creations, zero instance-matrix writes, and zero projection voxel visits (384
+batch visibility updates). Process RSS was about 482 MB and JS heap about 284
+MB. Vitest has no WebGL context, so these figures do not demonstrate GPU
 readiness or browser responsiveness.
 
-In the current Chrome 154 headless SwiftShader session on the persisted
+The same benchmark recorded at the pre-extraction HEAD measured 99.8 ms active
+current-layer hydration, 1,895.4 ms all-layer preparation, 12.8 ms first switch
+after preparation, 29.0 ms repeated switching, 2.6 ms All Below expansion,
+1.4 ms Whole expansion, and 1.3 ms contraction. The post-extraction run reduced
+all-layer preparation by about 15% and All Below expansion by about 31%; first
+post-preload and repeated switches were respectively 1.4 ms and 1.5 ms slower,
+while Whole expansion and contraction were effectively unchanged. RSS and heap
+fell by about 143 MB and 148 MB respectively, but single Vitest process-memory
+samples are noisy and do not establish peak browser/GPU memory. This is an
+indicative same-fixture CPU comparison, not a multi-run Chrome/WebGL baseline.
+
+In a previously captured Chrome 154 headless SwiftShader session on the persisted
 110,592-block project, with Y-layer active, the engine reached 110,592/110,592
 CPU representations and terminal hydration. Its inactive 3D engine also
 reached 110,592/110,592 representations and terminal hydration without a
@@ -170,3 +183,32 @@ not a controlled baseline/after comparison. The code-level and Vitest CPU
 improvements are verified; active/inactive GPU readiness, startup p50/p95,
 hardware-GPU behavior, mixed 110K renderer-family coverage, and multi-second
 headless stalls remain open. Overall startup/preload acceptance is PARTIAL.
+
+## Viewport orchestration ownership
+
+`ThreeViewportEngine` remains the public viewport facade and composition root.
+`ViewportStructureUpdatePlanner` classifies project, mutation, presentation,
+and layer-transition inputs without applying renderer changes.
+`ViewportStructureReconciliationOwner` owns full canonical block-to-render
+reconciliation, while `ViewportLocalMutationOwner` owns bounded mutation and
+metadata-delta application. `ViewportHydrationSettlementOwner` is the source of
+truth for adopting and checking physical terminal block ownership across
+terrain, surface, instance, fluid, object, culling, and placeholder families.
+
+`YLayerProjectionCommitOwner` applies committed projection deltas and finalizes
+their hydration/render effects. `YLayerRepresentationPrewarmOwner` owns the
+prewarm generation, scoped queues, retained template work, and cancellation;
+`YLayerPresentationLifecycleOwner` owns direct-presentation eligibility and
+batch role/visibility updates. `ViewportHydrationLifecycleOwner` owns progress,
+scheduling gates, cancellation, and terminal accounting;
+`ViewportHydrationFinalizationOwner` owns watchdog ownership audits and repair
+of unresolved visible representations. The provider refresh policy lives in
+`ViewportProviderRefreshOwner`, layered over the existing generation pipeline.
+These owners use the same representation and GPU resource owners described
+above; they do not introduce parallel ledgers or disposal.
+
+Viewport preparation is one active-first scheduled lifecycle across 3D and
+Y-layer components. A task that reports an incomplete/stale attempt is deferred
+until a subsequent component state update instead of being retried in a tight
+idle-callback loop. Readiness still means CPU-side preparation/representation
+settlement, not WebGL upload or a stable presented frame.

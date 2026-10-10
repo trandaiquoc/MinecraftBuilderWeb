@@ -22,7 +22,8 @@ describe('camera movement input contract', () => {
     const engine = new ThreeViewportEngine();
     const block = rendererBenchmarkProject('small').blocks[0];
     const key = coordinateKey(block.position);
-    const audit = (engine as unknown as { hasCommittedBlockOwnership: (key: string, entry: never) => boolean }).hasCommittedBlockOwnership.bind(engine);
+    const settlement = (engine as unknown as { hydrationSettlement: { hasCommittedBlockOwnership: (key: string, entry: never) => boolean } }).hydrationSettlement;
+    const audit = settlement.hasCommittedBlockOwnership.bind(settlement);
     const base = { key, block, signature: 'fixture', role: 'normal' as const, revision: 0 };
 
     expect(audit(key, { ...base, terrainChunkKey: 'stale-chunk' } as never)).toBe(false);
@@ -43,23 +44,49 @@ describe('camera movement input contract', () => {
       project: ProjectDocument;
       renderOptions: ViewportRenderOptions;
       blockRepresentations: { createOrReplace: (entry: never) => void };
-      yLayerProjection: unknown;
+      yLayerProjection: {
+        createVisibleEntry: (block: PlacedBlock, options: ViewportRenderOptions, occlusionClass: 'unknown') => { readonly block: PlacedBlock; readonly role: string; readonly signature: string; readonly occlusionClass: 'unknown' };
+        replaceVisible: (project: ProjectDocument, options: ViewportRenderOptions, entries: readonly { readonly block: PlacedBlock; readonly role: string; readonly signature: string; readonly occlusionClass: 'unknown' }[]) => void;
+      };
       finalizationAuditProgress: () => { finalization?: { expectedBlocks: number; finalReadyBlocks: number; pendingBlocks: number } };
     };
     internals.project = project;
     internals.renderOptions = {};
-    internals.yLayerProjection = {
-      hasDirectPresentation: true,
-      visibleProject: project,
-      state: { activity: 'idle', revision: 0 },
-      dispose: () => undefined,
-      visibleEntries: [],
-      directVisibleEntryCount: () => project.blocks.length,
-      createVisibleEntry: (block: PlacedBlock) => ({ block, role: 'normal', signature: 'visible', occlusionClass: 'unknown' }),
-    };
+    internals.yLayerProjection.replaceVisible(project, {}, project.blocks.map((block) => internals.yLayerProjection.createVisibleEntry(block, {}, 'unknown')));
     for (const block of project.blocks) internals.blockRepresentations.createOrReplace({ key: coordinateKey(block.position), block, signature: 'stale', role: 'normal', revision: 0, instanceBatchKey: 'stale-batch', instanceIndex: 0 } as never);
 
     expect(internals.finalizationAuditProgress().finalization).toMatchObject({ expectedBlocks: 2, finalReadyBlocks: 0, pendingBlocks: 2 });
+    engine.dispose();
+  });
+
+  it('repairs a visible representation gap through the hydration finalization owner', async () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 1), decorations: [] };
+    const provider = { create: vi.fn(async () => ({ object: new THREE.Group(), resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } })), thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
+    const engine = new ThreeViewportEngine();
+    engine.setVisualProvider(provider);
+    engine.update(project, undefined);
+    await settleHydration(100, engine);
+
+    const block = project.blocks[0];
+    const key = coordinateKey(block.position);
+    const internals = engine as unknown as {
+      blockRepresentations: { get(key: string): { readonly signature: string } | undefined };
+      removeBlockEntry(key: string, entry: { readonly signature: string }): void;
+      placeholderRenderer: { indices: ReadonlyMap<string, unknown> };
+    };
+    const committed = internals.blockRepresentations.get(key);
+    expect(committed).toBeDefined();
+    internals.removeBlockEntry(key, committed!);
+
+    engine.reconcileFinalizationAccounting();
+
+    expect(internals.placeholderRenderer.indices.has(key)).toBe(true);
+    expect(engine.hydrationDiagnostics().queued).toBeGreaterThan(0);
+    await settleHydration(100, engine);
+    expect(provider.create).toHaveBeenCalledTimes(2);
+    expect(internals.placeholderRenderer.indices.has(key)).toBe(false);
+    expect(engine.finalizationAuditProgress().finalization).toMatchObject({ expectedBlocks: 1, finalReadyBlocks: 1, pendingBlocks: 0 });
     engine.dispose();
   });
 
@@ -580,8 +607,8 @@ describe('camera movement input contract', () => {
   });
 
   it('keeps DPR, backing dimensions, and projection stable across camera input', () => {
-    const previousDevicePixelRatio = window.devicePixelRatio;
-    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1.25 });
+    const previousWindow = globalThis.window;
+    vi.stubGlobal('window', { devicePixelRatio: 1.25 });
     const engine = new ThreeViewportEngine();
     let pixelRatio = 1;
     const domElement = {
@@ -658,7 +685,7 @@ describe('camera movement input contract', () => {
     expect({ width: domElement.width, height: domElement.height }).toEqual(backingSize);
     expect(engine.rendererCounters()).toMatchObject({ interactiveResolutionEntries: 0, staticResolutionRestores: 0 });
     engine.dispose();
-    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: previousDevicePixelRatio });
+    vi.stubGlobal('window', previousWindow);
   });
 
   it('contains a synchronous cached-visual failure and continues hydration', async () => {
@@ -2760,9 +2787,9 @@ describe('selection visualization scalability', () => {
     engine.update(project, undefined, { layerY: 0, visibility: 'current-only', layerIndex, selectedPositions: [blocks[0].position, blocks[1].position] });
     expect(engine.rendererCounters().yLayerPresentationReadinessScans).toBe(readinessScanCount);
     expect(engine.rendererCounters().yLayerPresentationReadinessCacheHits).toBeGreaterThan(afterResume.yLayerPresentationReadinessCacheHits);
-    const directState = engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean }; yLayerPresentationReadiness: () => YLayerPresentationReadiness; yLayerPresentation: { evaluate: (project: ProjectDocument, options: ViewportRenderOptions, readiness: YLayerPresentationReadiness) => unknown } };
-    const readiness = directState.yLayerPresentationReadiness();
-    expect(directState.yLayerProjection.hasDirectPresentation, JSON.stringify({ readiness, decision: directState.yLayerPresentation.evaluate(project, { layerY: 0, visibility: 'current-only', layerIndex }, readiness) })).toBe(true);
+    const directState = engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean }; yLayerPresentationLifecycle: { evaluate: (project: ProjectDocument, options: ViewportRenderOptions) => unknown } };
+    const decision = directState.yLayerPresentationLifecycle.evaluate(project, { layerY: 0, visibility: 'current-only', layerIndex });
+    expect(directState.yLayerProjection.hasDirectPresentation, JSON.stringify(decision)).toBe(true);
     expect(engine.visibleSceneDiagnostics()).toMatchObject({ expectedVisibleVoxelCount: 300, renderedVoxelCount: 300 });
     expect(engine.rendererCounters()).toMatchObject({
       yLayerPresentationTransitions: afterResume.yLayerPresentationTransitions + 1,
@@ -2890,15 +2917,16 @@ describe('selection visualization scalability', () => {
   it('falls back to a full projection reconcile after an incremental projection slice fails', async () => {
     const engine = new ThreeViewportEngine();
     const project = rendererBenchmarkProject('medium');
-    const original = (engine as unknown as { applyLayerProjectionDelta: (...args: unknown[]) => void }).applyLayerProjectionDelta;
+    const projectionCommit = (engine as unknown as { yLayerProjectionCommit: { apply: (...args: unknown[]) => void } }).yLayerProjectionCommit;
+    const original = projectionCommit.apply.bind(projectionCommit);
     let failOnce = true;
-    (engine as unknown as { applyLayerProjectionDelta: (...args: unknown[]) => void }).applyLayerProjectionDelta = (...args) => {
+    vi.spyOn(projectionCommit, 'apply').mockImplementation((...args) => {
       if (failOnce) {
         failOnce = false;
         throw new Error('projection slice failure');
       }
-      original.apply(engine, args);
-    };
+      original(...args);
+    });
     engine.update(project, undefined, { layerY: 0, visibility: 'current-only' });
     const before = engine.rendererCounters();
 
