@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
+import { groupIdsOf } from '../../editor/groups/group-membership';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import type { RendererCounters } from '../engine/renderer-diagnostics';
 import { classifyStaticModel, type StaticModelClassificationKind } from './static-model-classifier';
@@ -124,7 +125,7 @@ export class StaticModelBatchRenderer {
     const cached = reusableKey ? this.templateCache.get(reusableKey) : undefined;
     if (cached) {
       this.templateCacheHits += 1;
-      const result = this.delegate.addFromTemplates(cached.templates, block.position, key, source, cached, renderRole);
+      const result = this.delegate.addFromTemplates(cached.templates, block.position, key, source, cached, renderRole, groupIdsOf(block));
       this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: 'reusable-template-cache', templatePartCount: cached.templates.length });
       return result;
     }
@@ -141,22 +142,22 @@ export class StaticModelBatchRenderer {
       this.templateCache.set(reusableKey, classification.compiled);
       this.options.instrumentation.record('reusableTemplateCreations');
     }
-    const result = this.delegate.addFromTemplates(classification.compiled.templates, block.position, key, source, classification.compiled, renderRole);
+    const result = this.delegate.addFromTemplates(classification.compiled.templates, block.position, key, source, classification.compiled, renderRole, groupIdsOf(block));
     this.decisions.set(key, { classification: 'batchable', kind: classification.kind, reason: 'classified-static-model', templatePartCount: classification.compiled.templates.length });
     return result;
   }
 
   addFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates, renderRole: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
     const resolvedCompiled = compiled ?? compileInstanceTemplates(templates, this.options.instrumentation);
-    const result = this.delegate.addFromTemplates(templates, block.position, key, source, resolvedCompiled, renderRole);
+    const result = this.delegate.addFromTemplates(templates, block.position, key, source, resolvedCompiled, renderRole, groupIdsOf(block));
     this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: compiled ? 'reusable-template-cache' : 'precompiled-static-model', templatePartCount: resolvedCompiled.templates.length });
     return result;
   }
 
   setMemberRole(key: string, role: 'normal' | 'reference'): boolean { return this.delegate.setMemberRole(key, role); }
 
-  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number): void {
-    this.delegate.setLayerPresentation(visibleLayers, currentY, referenceOpacity);
+  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number, hiddenGroupIds: ReadonlySet<string> = new Set(), isolatedGroupId?: string): void {
+    this.delegate.setLayerPresentation(visibleLayers, currentY, referenceOpacity, hiddenGroupIds, isolatedGroupId);
   }
 
   clearLayerPresentation(): void { this.delegate.clearLayerPresentation(); }

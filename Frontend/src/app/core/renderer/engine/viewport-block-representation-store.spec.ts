@@ -3,6 +3,19 @@ import type { PlacedBlock } from '../../domain/project.types';
 import { ViewportBlockRepresentationStore } from './viewport-block-representation-store';
 
 describe('ViewportBlockRepresentationStore', () => {
+  it('advances its revision for representation ownership changes', () => {
+    const store = new ViewportBlockRepresentationStore();
+    const entry = { key: '1,2,3', block: { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 2, z: 3 }, state: {} } satisfies PlacedBlock, signature: 'stone', role: 'normal' as const, revision: 0 };
+
+    expect(store.revision).toBe(0);
+    store.createOrReplace(entry);
+    const createdRevision = store.revision;
+    store.setPresentationVisible(entry.key, false);
+    expect(store.revision).toBeGreaterThan(createdRevision);
+    expect(store.remove(entry.key)).toBe(true);
+    expect(store.revision).toBeGreaterThan(createdRevision + 1);
+  });
+
   it('owns canonical entry mutation and updates/removes it by voxel key', () => {
     const store = new ViewportBlockRepresentationStore();
     const entry = { key: '1,2,3', block: { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 2, z: 3 }, state: {} } satisfies PlacedBlock, signature: 'stone', role: 'normal' as const, revision: 0 };

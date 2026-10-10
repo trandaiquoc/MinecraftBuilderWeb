@@ -22,6 +22,33 @@ export interface MissingProjectContentSummary {
 
 export const EMPTY_MISSING_PROJECT_CONTENT_SUMMARY: MissingProjectContentSummary = Object.freeze({ totalMissingBlocks: 0, groups: [] });
 
+export class MissingProjectContentSummaryCache {
+  private previous?: {
+    readonly projectId: string;
+    readonly blocks: ProjectDocument['blocks'];
+    readonly sources: readonly ContentSourceDescriptor[];
+    readonly importedMods: readonly ImportedModSummary[];
+    readonly assetGeneration: number;
+    readonly summary: MissingProjectContentSummary;
+  };
+
+  get(
+    project: ProjectDocument | undefined,
+    sources: readonly ContentSourceDescriptor[],
+    importedMods: readonly ImportedModSummary[],
+    assetGeneration: number,
+  ): MissingProjectContentSummary {
+    if (!project) return EMPTY_MISSING_PROJECT_CONTENT_SUMMARY;
+    const previous = this.previous;
+    if (previous?.projectId === project.id && previous.blocks === project.blocks
+      && previous.sources === sources && previous.importedMods === importedMods
+      && previous.assetGeneration === assetGeneration) return previous.summary;
+    const summary = summarizeMissingProjectContent(project, sources, importedMods);
+    this.previous = { projectId: project.id, blocks: project.blocks, sources, importedMods, assetGeneration, summary };
+    return summary;
+  }
+}
+
 export function summarizeMissingProjectContent(
   project: ProjectDocument | undefined,
   sources: readonly ContentSourceDescriptor[] = [],
@@ -57,11 +84,12 @@ export function summarizeMissingProjectContent(
 export class MissingProjectContentSummaryService {
   private readonly workspace = inject(WorkspaceStateService);
   private readonly assets = inject(ContentAssetRuntimeService);
+  private readonly cache = new MissingProjectContentSummaryCache();
 
   readonly summary = computed(() => {
     const project = this.workspace.project();
     const importedMods = this.assets.importedMods();
-    this.assets.generation();
-    return summarizeMissingProjectContent(project, this.assets.sources.sources(), importedMods);
+    const assetGeneration = this.assets.generation();
+    return this.cache.get(project, this.assets.sources.sources(), importedMods, assetGeneration);
   });
 }

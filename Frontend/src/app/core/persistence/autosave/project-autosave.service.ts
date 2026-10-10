@@ -4,6 +4,19 @@ import { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { IndexedDbProjectStore } from '../project-store/indexeddb-project-store';
 import { ProjectPersistenceService, ProjectSaveStatus } from '../project-persistence.service';
+import { ProjectMutationHintService } from '../../editor/mutations/project-mutation-hint.service';
+
+export function isEditorSettingsOnlyChange(previous: ProjectDocument, next: ProjectDocument): boolean {
+  return previous.id === next.id
+    && previous.schemaVersion === next.schemaVersion
+    && previous.metadata === next.metadata
+    && previous.size === next.size
+    && previous.structureMode === next.structureMode
+    && previous.blocks === next.blocks
+    && previous.groups === next.groups
+    && previous.decorations === next.decorations
+    && previous.editorSettings !== next.editorSettings;
+}
 
 export type EditorSaveStatus = 'saved' | 'pending' | 'saving' | 'error';
 
@@ -16,6 +29,7 @@ export function applyBeforeUnloadGuard(event: BeforeUnloadEvent, unsafeDirty: bo
 @Injectable({ providedIn: 'root' })
 export class ProjectAutosaveService implements OnDestroy {
   private readonly workspace = inject(WorkspaceStateService);
+  private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly persistence = new ProjectPersistenceService(new IndexedDbProjectStore(), 300, (status, error) => this.receiveStatus(status, error), (error) => this.receiveCleanupError(error));
   private readonly document = inject(DOCUMENT);
   private observed?: ProjectDocument;
@@ -36,7 +50,8 @@ export class ProjectAutosaveService implements OnDestroy {
     if (!previous || previous.id !== project.id) { this.persistence.resetTracking(); this.status.set('saved'); this.error.set(undefined); this.cleanupWarning.set(undefined); this.syncRevisionState(); return; }
     if (previous === project) return;
     this.dirty.set(true); this.status.set('pending'); this.error.set(undefined);
-    this.persistence.markChanged(project);
+    if (isEditorSettingsOnlyChange(previous, project) && !this.mutationHints.matchesTransition(previous, project)) this.persistence.markEditorSettingsChanged(project);
+    else this.persistence.markChanged(project);
     this.syncRevisionState();
   });
 

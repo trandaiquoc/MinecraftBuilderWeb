@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { VoxelCoordinate } from '../../domain/project.types';
+import { groupIdsOf } from '../../editor/groups/group-membership';
 import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { instanceMaterialCompatibilityKey } from './instance-template-cache';
 import type { RenderRegionPolicy } from './render-region-policy';
@@ -28,6 +29,7 @@ export interface SurfaceFaceBatch {
   readonly regionKey: string;
   readonly segment: number;
   readonly layer: number;
+  readonly groupIds: readonly string[];
   readonly capacity: number;
   readonly template: SurfaceFaceTemplate;
   readonly mesh: THREE.InstancedMesh;
@@ -60,7 +62,12 @@ export class SurfaceFaceBatchRenderer {
   private readonly hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
   private readonly swapMatrix = new THREE.Matrix4();
   private visibleLayers?: ReadonlySet<number>;
-  private layerPresentation?: { readonly currentY: number; readonly referenceOpacity: number };
+  private layerPresentation?: {
+    readonly currentY: number;
+    readonly referenceOpacity: number;
+    readonly hiddenGroupIds: ReadonlySet<string>;
+    readonly isolatedGroupId?: string;
+  };
 
   constructor(private readonly options: SurfaceFaceBatchRendererOptions) {}
 
@@ -88,7 +95,7 @@ export class SurfaceFaceBatchRenderer {
     return true;
   }
 
-  add(block: { readonly position: VoxelCoordinate }, key: string, templates: readonly SurfaceFaceTemplate[], exposed: ReadonlySet<SurfaceFaceDirection>, role: 'normal' | 'reference' = 'normal', referenceOpacity = .28): readonly SurfaceFaceMembership[] | undefined {
+  add(block: { readonly position: VoxelCoordinate; readonly groupIds?: readonly string[]; readonly groupId?: string }, key: string, templates: readonly SurfaceFaceTemplate[], exposed: ReadonlySet<SurfaceFaceDirection>, role: 'normal' | 'reference' = 'normal', referenceOpacity = .28): readonly SurfaceFaceMembership[] | undefined {
     if (templates.length !== 6) return undefined;
     const memberships: SurfaceFaceMembership[] = [];
     for (const template of templates) {
@@ -96,7 +103,9 @@ export class SurfaceFaceBatchRenderer {
       const region = this.options.regionPolicy?.key(block.position) ?? this.options.chunkKey(block.position);
       const layer = this.layerPresentation ? Math.trunc(block.position.y) : -1;
       const roleKey = this.layerPresentation ? '' : `|role:${role}`;
-      const baseKey = `${region}|layer:${layer}|surface${roleKey}|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
+      const groupIds = this.layerPresentation ? [...new Set(groupIdsOf(block))].sort() : [];
+      const groupKey = groupIds.join('\u001f');
+      const baseKey = `${region}|layer:${layer}|surface${roleKey}|groups:${groupKey}|${instanceMaterialCompatibilityKey(template.material)}|${surfaceFaceGeometrySignature(template.geometry)}`;
       let segment = 0;
       let batchKey = `${baseKey}|segment:${segment}`;
       let batch = this.batchStore.get(batchKey);
@@ -123,7 +132,7 @@ export class SurfaceFaceBatchRenderer {
         mesh.boundingBox = this.options.regionPolicy?.bounds(region, this.options.unitEnvelope()) ?? this.options.stableBounds(region, this.options.unitEnvelope());
         mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
         this.options.record('instancedBoundsComputations');
-        batch = { key: batchKey, regionKey: region, segment, layer, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [], renderRole: role };
+        batch = { key: batchKey, regionKey: region, segment, layer, groupIds, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [], renderRole: role };
         this.batchStore.set(batchKey, batch);
       }
       if (this.layerPresentation) this.setBatchRole(batch, layer === this.layerPresentation.currentY ? 'normal' : 'reference', this.layerPresentation.referenceOpacity);
@@ -178,17 +187,25 @@ export class SurfaceFaceBatchRenderer {
   }
 
   /** Applies Y-layer visibility and role at batch granularity. */
-  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number): void {
+  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number, hiddenGroupIds: ReadonlySet<string> = new Set(), isolatedGroupId?: string): void {
     this.visibleLayers = visibleLayers;
-    this.layerPresentation = { currentY, referenceOpacity };
+    this.layerPresentation = { currentY, referenceOpacity, hiddenGroupIds, isolatedGroupId };
     for (const batch of this.batchStore.values()) {
-      const visible = visibleLayers.has(batch.layer);
+      const visible = this.isBatchVisible(batch);
       if (batch.mesh.visible !== visible) {
         batch.mesh.visible = visible;
         this.options.record('yLayerBatchVisibilityUpdates');
       }
       this.setBatchRole(batch, batch.layer === currentY ? 'normal' : 'reference', referenceOpacity);
     }
+  }
+
+  private isBatchVisible(batch: SurfaceFaceBatch): boolean {
+    if (!this.visibleLayers?.has(batch.layer)) return false;
+    const presentation = this.layerPresentation;
+    if (!presentation) return true;
+    if (batch.groupIds.some((id) => presentation.hiddenGroupIds.has(id))) return false;
+    return !presentation.isolatedGroupId || batch.groupIds.includes(presentation.isolatedGroupId);
   }
 
   clearLayerPresentation(): void {

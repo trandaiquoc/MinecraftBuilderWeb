@@ -36,6 +36,8 @@ export interface BlockRepresentationRenderTargets {
   };
   readonly object: {
     readonly blocksGroup: THREE.Group;
+    readonly parentFor?: (block: CommitBlock) => THREE.Group;
+    readonly release?: (object: THREE.Object3D | undefined) => void;
     readonly applyBrightness: (object: THREE.Object3D) => void;
     readonly applyReferenceOpacity: (object: THREE.Object3D, opacity: number) => void;
     readonly familyFromReusableKey: (key: string | undefined) => string | undefined;
@@ -149,7 +151,7 @@ export class BlockRepresentationCommitOwner {
           try {
             if (!ownsTransaction()) return;
             this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
-            this.ports.targets.object.blocksGroup.remove(fallback);
+            this.releaseObject(fallback);
             this.finish(job);
           } finally { resolve(); }
         },
@@ -166,7 +168,7 @@ export class BlockRepresentationCommitOwner {
       const status = this.ports.targets.terrain.add(job.block, job.key, visual.terrainTemplates, job.role === 'reference' ? 'reference' : 'normal', settle(() => resolvePending()));
       if (status === 'committed') {
         this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
-        this.ports.targets.object.blocksGroup.remove(fallback);
+        this.releaseObject(fallback);
         this.finish(job);
         return;
       }
@@ -203,7 +205,7 @@ export class BlockRepresentationCommitOwner {
     const instance = !terrainCompiled && surfaceMemberships === undefined && staticAllowed
       ? this.ports.targets.instances.add(object, job.block, job.key, reusableKey, 'provider-async', job.role === 'reference' ? 'reference' : 'normal')
       : undefined;
-    this.ports.targets.object.blocksGroup.remove(fallback);
+    this.releaseObject(fallback);
     if (terrainCompiled) {
       this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
       disposeObject(object);
@@ -216,7 +218,7 @@ export class BlockRepresentationCommitOwner {
       disposeObject(object);
     } else {
       if (job.role === 'reference') this.ports.targets.object.applyReferenceOpacity(object, job.options.referenceOpacity ?? .28);
-      this.ports.targets.object.blocksGroup.add(object);
+      (this.ports.targets.object.parentFor?.(job.block) ?? this.ports.targets.object.blocksGroup).add(object);
       this.ports.store.setObject(job.key, object);
       this.ports.store.setStaticModel(job.key, { decision: this.ports.targets.instances.decisionFor(job.key) });
     }
@@ -273,7 +275,7 @@ export class BlockRepresentationCommitOwner {
       disposeObject(object);
     } else {
       if (job.role === 'reference') this.ports.targets.object.applyReferenceOpacity(object, job.options.referenceOpacity ?? .28);
-      this.ports.targets.object.blocksGroup.add(object);
+      (this.ports.targets.object.parentFor?.(job.block) ?? this.ports.targets.object.blocksGroup).add(object);
       this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'object');
       this.ports.store.createOrReplace({ ...base, object });
     }
@@ -324,6 +326,11 @@ export class BlockRepresentationCommitOwner {
     fallback.userData['diagnostics'] = [...visual.resolved.diagnostics, ...visual.diagnostics];
     fallback.userData['resolvedSupport'] = visual.resolved.support;
     fallback.userData['renderMode'] = visual.mode;
+  }
+
+  private releaseObject(object: THREE.Object3D): void {
+    if (this.ports.targets.object.release) this.ports.targets.object.release(object);
+    else this.ports.targets.object.blocksGroup.remove(object);
   }
 
   private finish(job?: BlockHydrationJob): void {

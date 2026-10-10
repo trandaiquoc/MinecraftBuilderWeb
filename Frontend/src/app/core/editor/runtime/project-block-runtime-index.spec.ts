@@ -107,4 +107,26 @@ describe('ProjectBlockRuntimeIndex', () => {
     expect(index.usageRevision()).toBe(usageRevision);
     expect(index.rebuildCount).toBe(rebuilds);
   });
+
+  it('counts visible layer blocks by group-membership signature and updates metadata incrementally', () => {
+    const mixed = { ...typedBlock(0, 'minecraft:stone'), groupIds: ['roof', 'entrance'] };
+    const roofOnly = { ...typedBlock(1, 'minecraft:stone'), groupIds: ['roof'] };
+    const ungrouped = typedBlock(2, 'minecraft:stone');
+    const upper = { ...typedBlock(3, 'minecraft:stone'), position: { x: 3, y: 1, z: 0 }, groupIds: ['entrance'] };
+    const before = project([mixed, roofOnly, ungrouped, upper]);
+    const index = new ProjectBlockRuntimeIndex();
+    index.ensure(before);
+
+    expect(index.blockCountAtYForPresentation(0, new Set(['roof']))).toBe(1);
+    expect(index.blockCountAtYForPresentation(0, new Set(), 'entrance')).toBe(1);
+    expect(index.blockCountAtYForPresentation(0, new Set(['roof']), 'entrance')).toBe(0);
+
+    const changed = { ...mixed, groupIds: ['entrance'] };
+    const after = { ...before, blocks: [changed, roofOnly, ungrouped, upper] };
+    expect(index.adoptTransition(before, after, metadataMutationHint([{ position: mixed.position, before: mixed, after: changed }], [], 'group-membership'))).toBe(true);
+
+    expect(index.blockCountAtYForPresentation(0, new Set(['roof']))).toBe(2);
+    expect(index.blockCountAtYForPresentation(0, new Set(), 'entrance')).toBe(1);
+    expect(index.blockCountAtYForPresentation(1, new Set(['roof']))).toBe(1);
+  });
 });

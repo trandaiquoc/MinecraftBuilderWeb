@@ -1,23 +1,25 @@
 import { migrateProject } from '../../domain/migrations';
-import { DEFAULT_MINECRAFT_VERSION, ProjectDocument } from '../../domain/project.types';
+import { DEFAULT_MINECRAFT_VERSION, EditorSettings, ProjectDocument } from '../../domain/project.types';
 import { normalizeStructureModeForSize } from '../../domain/structure-size-policy';
 import { ProjectPersistenceMetadata, ProjectRecord, ProjectStore, ProjectSummary } from './project-store.port';
 
 const DATABASE_NAME = 'minecraft-builder';
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 6;
 const PROJECTS_STORE = 'projects';
 const PROJECT_SUMMARIES_STORE = 'project-summaries';
 const RECOVERY_STORE = 'recovery-snapshots';
+const EDITOR_SETTINGS_STORE = 'project-editor-settings';
 
-interface StoredProject { readonly id: string; readonly name: string; readonly minecraftVersion?: string; readonly updatedAt: string; readonly document: ProjectDocument; readonly persistenceToken?: string; readonly persistedAt?: string; }
+type StoredProjectDocument = Omit<ProjectDocument, 'editorSettings'> & { readonly editorSettings?: EditorSettings };
+interface StoredProject { readonly id: string; readonly name: string; readonly minecraftVersion?: string; readonly updatedAt: string; readonly document: StoredProjectDocument; readonly persistenceToken?: string; readonly persistedAt?: string; }
+interface StoredEditorSettings { readonly id: string; readonly settings: EditorSettings; }
 
-export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' | 'name' | 'minecraftVersion' | 'updatedAt'> & Partial<Pick<ProjectSummary, 'size' | 'structureMode'>> & { readonly document?: ProjectDocument }): ProjectSummary {
-  const migrated = record.document ? migrateProject(record.document) : undefined;
-  const size = migrated?.size ?? record.size;
-  const storedMode = migrated?.structureMode ?? record.structureMode;
+export function projectSummaryFromStoredRecord(record: Pick<StoredProject, 'id' | 'name' | 'minecraftVersion' | 'updatedAt'> & Partial<Pick<ProjectSummary, 'size' | 'structureMode'>> & { readonly document?: StoredProjectDocument }): ProjectSummary {
+  const size = record.document?.size ?? record.size;
+  const storedMode = record.document?.structureMode ?? record.structureMode;
   const structureMode = size && storedMode ? normalizeStructureModeForSize(size, storedMode) : undefined;
   if (!size || !structureMode) throw new Error('Stored project summary is missing size or structure mode');
-  return { id: record.id, name: record.name, minecraftVersion: record.minecraftVersion ?? migrated?.metadata.minecraftVersion ?? DEFAULT_MINECRAFT_VERSION, size, structureMode, updatedAt: record.updatedAt };
+  return { id: record.id, name: record.name, minecraftVersion: record.minecraftVersion ?? record.document?.metadata.minecraftVersion ?? DEFAULT_MINECRAFT_VERSION, size, structureMode, updatedAt: record.updatedAt };
 }
 
 export class IndexedDbProjectStore implements ProjectStore {
@@ -32,12 +34,17 @@ export class IndexedDbProjectStore implements ProjectStore {
   async open(id: string): Promise<ProjectDocument | undefined> { return this.read(PROJECTS_STORE, id); }
   async openRecord(id: string): Promise<ProjectRecord | undefined> { return this.readRecord(PROJECTS_STORE, id); }
   async save(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void> { await this.writeProject(project, false, metadata); }
+  async saveEditorSettings(projectId: string, settings: EditorSettings): Promise<void> {
+    const database = await this.database;
+    await runRequest(database, EDITOR_SETTINGS_STORE, 'readwrite', (store) => store.put({ id: projectId, settings } satisfies StoredEditorSettings));
+  }
   async delete(id: string): Promise<void> {
     const database = await this.database;
-    await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, RECOVERY_STORE], 'readwrite', (transaction) => {
+    await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, RECOVERY_STORE, EDITOR_SETTINGS_STORE], 'readwrite', (transaction) => {
       transaction.objectStore(PROJECTS_STORE).delete(id);
       transaction.objectStore(PROJECT_SUMMARIES_STORE).delete(id);
       transaction.objectStore(RECOVERY_STORE).delete(id);
+      transaction.objectStore(EDITOR_SETTINGS_STORE).delete(id);
     });
   }
   async list(): Promise<readonly ProjectSummary[]> {
@@ -47,7 +54,11 @@ export class IndexedDbProjectStore implements ProjectStore {
   }
   async saveRecoverySnapshot(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void> {
     const database = await this.database;
-    await runRequest(database, RECOVERY_STORE, 'readwrite', (store) => store.put(toStoredProject(project, metadata)));
+    const normalized = migrateProject(project);
+    await runTransaction(database, [RECOVERY_STORE, EDITOR_SETTINGS_STORE], 'readwrite', (transaction) => {
+      transaction.objectStore(RECOVERY_STORE).put(toStoredProject(normalized, metadata));
+      transaction.objectStore(EDITOR_SETTINGS_STORE).put(toStoredEditorSettings(normalized));
+    });
   }
   async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { return this.read(RECOVERY_STORE, id); }
   async openRecoveryRecord(id: string): Promise<ProjectRecord | undefined> { return this.readRecord(RECOVERY_STORE, id, false); }
@@ -59,28 +70,33 @@ export class IndexedDbProjectStore implements ProjectStore {
     const database = await this.database;
     const normalized = migrateProject(project);
     const document = toStoredProject(normalized, metadata);
-    await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE], 'readwrite', (transaction) => {
+    await runTransaction(database, [PROJECTS_STORE, PROJECT_SUMMARIES_STORE, EDITOR_SETTINGS_STORE], 'readwrite', (transaction) => {
       const projects = transaction.objectStore(PROJECTS_STORE);
       if (requireAbsent) projects.add(document); else projects.put(document);
       transaction.objectStore(PROJECT_SUMMARIES_STORE).put(toSummary(normalized));
+      transaction.objectStore(EDITOR_SETTINGS_STORE).put(toStoredEditorSettings(normalized));
     });
   }
   private async read(storeName: string, id: string): Promise<ProjectDocument | undefined> {
-    const database = await this.database;
-    const record = await runRequest<StoredProject | undefined>(database, storeName, 'readonly', (store) => store.get(id));
-    return record ? migrateProject(record.document) : undefined;
+    return (await this.readRecord(storeName, id))?.project;
   }
   private async readRecord(storeName: string, id: string, migrate = true): Promise<ProjectRecord | undefined> {
     const database = await this.database;
-    const record = await runRequest<StoredProject | undefined>(database, storeName, 'readonly', (store) => store.get(id));
-    return record ? { project: migrate ? migrateProject(record.document) : record.document, metadata: { persistenceToken: record.persistenceToken, persistedAt: record.persistedAt } } : undefined;
+    const [record, editorSettings] = await Promise.all([
+      runRequest<StoredProject | undefined>(database, storeName, 'readonly', (store) => store.get(id)),
+      runRequest<StoredEditorSettings | undefined>(database, EDITOR_SETTINGS_STORE, 'readonly', (store) => store.get(id)),
+    ]);
+    if (!record) return undefined;
+    return { project: projectFromStoredRecord(record, editorSettings?.settings, migrate), metadata: { persistenceToken: record.persistenceToken, persistedAt: record.persistedAt } };
   }
 }
 
 function toStoredProject(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): StoredProject {
   const normalized = migrateProject(project);
-  return { id: normalized.id, name: normalized.metadata.name, minecraftVersion: normalized.metadata.minecraftVersion, updatedAt: normalized.metadata.updatedAt, document: normalized, ...metadata };
+  const { editorSettings: _editorSettings, ...document } = normalized;
+  return { id: normalized.id, name: normalized.metadata.name, minecraftVersion: normalized.metadata.minecraftVersion, updatedAt: normalized.metadata.updatedAt, document, ...metadata };
 }
+function toStoredEditorSettings(project: ProjectDocument): StoredEditorSettings { return { id: project.id, settings: project.editorSettings }; }
 function toSummary(project: ProjectDocument): ProjectSummary {
   const normalized = migrateProject(project);
   return projectSummaryFromStoredRecord({ id: normalized.id, name: normalized.metadata.name, minecraftVersion: normalized.metadata.minecraftVersion, updatedAt: normalized.metadata.updatedAt, size: normalized.size, structureMode: normalized.structureMode });
@@ -97,13 +113,16 @@ function openDatabase(name: string): Promise<IDBDatabase> {
       const summaries = database.objectStoreNames.contains(PROJECT_SUMMARIES_STORE) ? request.transaction?.objectStore(PROJECT_SUMMARIES_STORE) : database.createObjectStore(PROJECT_SUMMARIES_STORE, { keyPath: 'id' });
       const projects = request.transaction?.objectStore(PROJECTS_STORE);
       const recovery = database.objectStoreNames.contains(RECOVERY_STORE) ? request.transaction?.objectStore(RECOVERY_STORE) : database.createObjectStore(RECOVERY_STORE, { keyPath: 'id' });
+      const editorSettings = database.objectStoreNames.contains(EDITOR_SETTINGS_STORE) ? request.transaction?.objectStore(EDITOR_SETTINGS_STORE) : database.createObjectStore(EDITOR_SETTINGS_STORE, { keyPath: 'id' });
       if (projects && summaries) {
         projects.openCursor().onsuccess = (event) => {
           const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
           if (!cursor) return;
           const record = cursor.value as StoredProject;
           const normalized = normalizeStoredProject(record);
-          cursor.update(normalized);
+          const legacySettings = normalized.document.editorSettings;
+          cursor.update(stripLegacyEditorSettings(normalized));
+          if (legacySettings) editorSettings?.put({ id: record.id, settings: legacySettings } satisfies StoredEditorSettings);
           summaries.put(projectSummaryFromStoredRecord(normalized));
           cursor.continue();
         };
@@ -112,7 +131,7 @@ function openDatabase(name: string): Promise<IDBDatabase> {
         recovery.openCursor().onsuccess = (event) => {
           const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
           if (!cursor) return;
-          cursor.update(normalizeStoredProject(cursor.value as StoredProject));
+          cursor.update(stripLegacyEditorSettings(normalizeStoredProject(cursor.value as StoredProject)));
           cursor.continue();
         };
       }
@@ -122,9 +141,28 @@ function openDatabase(name: string): Promise<IDBDatabase> {
 }
 
 function normalizeStoredProject(record: StoredProject): StoredProject {
-  const document = migrateProject(record.document);
+  const legacySettings = record.document.editorSettings;
+  const migrated = migrateProject({ ...record.document, editorSettings: legacySettings ?? DEFAULT_EDITOR_SETTINGS } as ProjectDocument);
+  const document = legacySettings ? migrated : stripEditorSettings(migrated);
   return { ...record, name: document.metadata.name, minecraftVersion: document.metadata.minecraftVersion, updatedAt: document.metadata.updatedAt, document };
 }
+
+function projectFromStoredRecord(record: StoredProject, editorSettings: EditorSettings | undefined, shouldMigrate: boolean): ProjectDocument {
+  const settings = editorSettings ?? record.document.editorSettings ?? DEFAULT_EDITOR_SETTINGS;
+  const project = { ...record.document, editorSettings: settings } as ProjectDocument;
+  return shouldMigrate ? migrateProject(project) : project;
+}
+
+function stripLegacyEditorSettings(record: StoredProject): StoredProject {
+  return { ...record, document: stripEditorSettings(record.document as ProjectDocument) };
+}
+
+function stripEditorSettings(project: ProjectDocument): StoredProjectDocument {
+  const { editorSettings: _editorSettings, ...document } = project;
+  return document;
+}
+
+const DEFAULT_EDITOR_SETTINGS: EditorSettings = { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 };
 
 function runRequest<T>(database: IDBDatabase, storeName: string, mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {

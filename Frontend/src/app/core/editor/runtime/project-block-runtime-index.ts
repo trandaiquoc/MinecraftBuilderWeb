@@ -3,6 +3,7 @@ import { coordinateKey } from '../../domain/coordinates';
 import type { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import type { ProjectMutationHint } from '../mutations/project-mutation-hint';
+import { groupIdsOf } from '../groups/group-membership';
 
 export interface ProjectBlockUsageEntry {
   readonly id: string;
@@ -27,6 +28,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private blocksByKey = new Map<string, PlacedBlock>();
   private indicesByKey = new Map<string, number>();
   private blocksByY = new Map<number, Map<string, PlacedBlock>>();
+  private groupMembershipCountsByY = new Map<number, Map<string, { readonly groupIds: readonly string[]; count: number }>>();
   private blocksById = new Map<string, Map<string, PlacedBlock>>();
   private readonly rebuildReasons = new Map<string, number>();
   private readonly usageRevisionState = signal(0);
@@ -51,6 +53,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       this.blocksByKey.clear();
       this.indicesByKey.clear();
       this.blocksByY.clear();
+      this.groupMembershipCountsByY.clear();
       this.blocksById.clear();
       this.indicesComplete = true;
       this.generation += 1;
@@ -95,7 +98,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       const index = this.indicesByKey.get(beforeKey);
       this.blocksByKey.delete(beforeKey);
       this.indicesByKey.delete(beforeKey);
-      this.removeFromLayer(beforeKey, change.before?.position ?? change.position);
+      if (change.before) this.removeFromLayer(beforeKey, change.before);
       if (change.before) this.removeFromUsage(change.before);
       if (change.after && index !== undefined) {
         const afterKey = coordinateKey(change.after.position);
@@ -154,6 +157,8 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       const key = coordinateKey(before.position);
       this.blocksByKey.set(key, after);
       this.blocksByY.get(before.position.y)?.set(key, after);
+      this.removeGroupMembershipCount(before);
+      this.addGroupMembershipCount(after);
       this.blocksById.get(before.id)?.set(key, after);
     }
     this.project = to;
@@ -170,6 +175,17 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   indexOf(position: VoxelCoordinate): number | undefined { return this.indicesComplete ? this.indicesByKey.get(coordinateKey(position)) : undefined; }
   blocksAtY(y: number): readonly PlacedBlock[] { return [...(this.blocksByY.get(y)?.values() ?? [])]; }
   blockCountAtY(y: number): number { return this.blocksByY.get(y)?.size ?? 0; }
+  blockCountAtYForPresentation(y: number, hiddenGroupIds: ReadonlySet<string>, isolatedGroupId?: string): number {
+    const memberships = this.groupMembershipCountsByY.get(y);
+    if (!memberships) return 0;
+    let count = 0;
+    for (const membership of memberships.values()) {
+      if (isolatedGroupId !== undefined && !membership.groupIds.includes(isolatedGroupId)) continue;
+      if (membership.groupIds.some((groupId) => hiddenGroupIds.has(groupId))) continue;
+      count += membership.count;
+    }
+    return count;
+  }
   occupiedLayers(): readonly number[] { return [...this.blocksByY.keys()].sort((left, right) => left - right); }
   allBlocks(): readonly PlacedBlock[] { return this.project?.blocks ?? []; }
   usageEntries(): readonly ProjectBlockUsageEntry[] {
@@ -216,6 +232,7 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     this.blocksByKey = new Map();
     this.indicesByKey = new Map();
     this.blocksByY = new Map();
+    this.groupMembershipCountsByY = new Map();
     this.blocksById = new Map();
     for (const [index, block] of project.blocks.entries()) {
       const key = coordinateKey(block.position);
@@ -237,13 +254,36 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     const layer = this.blocksByY.get(block.position.y) ?? new Map<string, PlacedBlock>();
     layer.set(key, block);
     this.blocksByY.set(block.position.y, layer);
+    this.addGroupMembershipCount(block);
   }
 
-  private removeFromLayer(key: string, position: VoxelCoordinate): void {
-    const layer = this.blocksByY.get(position.y);
+  private removeFromLayer(key: string, block: PlacedBlock): void {
+    const layer = this.blocksByY.get(block.position.y);
     if (!layer) return;
     layer.delete(key);
-    if (!layer.size) this.blocksByY.delete(position.y);
+    this.removeGroupMembershipCount(block);
+    if (!layer.size) this.blocksByY.delete(block.position.y);
+  }
+
+  private addGroupMembershipCount(block: PlacedBlock): void {
+    const groupIds = [...new Set(groupIdsOf(block))].sort();
+    const signature = JSON.stringify(groupIds);
+    const memberships = this.groupMembershipCountsByY.get(block.position.y) ?? new Map<string, { readonly groupIds: readonly string[]; count: number }>();
+    const existing = memberships.get(signature);
+    if (existing) existing.count += 1;
+    else memberships.set(signature, { groupIds, count: 1 });
+    this.groupMembershipCountsByY.set(block.position.y, memberships);
+  }
+
+  private removeGroupMembershipCount(block: PlacedBlock): void {
+    const groupIds = [...new Set(groupIdsOf(block))].sort();
+    const signature = JSON.stringify(groupIds);
+    const memberships = this.groupMembershipCountsByY.get(block.position.y);
+    const existing = memberships?.get(signature);
+    if (!memberships || !existing) return;
+    existing.count -= 1;
+    if (existing.count <= 0) memberships.delete(signature);
+    if (!memberships.size) this.groupMembershipCountsByY.delete(block.position.y);
   }
 
   private addToUsage(key: string, block: PlacedBlock): void {

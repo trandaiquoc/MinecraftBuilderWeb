@@ -9,9 +9,15 @@ export interface AutosaveOptions {
   readonly onError?: (error: unknown, revision: number) => void;
 }
 
+interface AutosaveSnapshot {
+  readonly project: ProjectDocument;
+  readonly revision: number;
+  readonly editorSettingsOnly: boolean;
+}
+
 export class AutosaveController {
   private timer: ReturnType<typeof setTimeout> | undefined;
-  private latest?: { readonly project: ProjectDocument; readonly revision: number };
+  private latest?: AutosaveSnapshot;
   private savedRevision = 0;
   private attemptedRevision = 0;
   private drainPromise?: Promise<void>;
@@ -22,7 +28,20 @@ export class AutosaveController {
 
   schedule(project: ProjectDocument, revision: number): void {
     if (this.disposed) return;
-    this.latest = { project, revision };
+    this.latest = { project, revision, editorSettingsOnly: false };
+    this.scheduleDrain();
+  }
+
+  scheduleEditorSettings(project: ProjectDocument, revision: number): void {
+    if (this.disposed) return;
+    const pendingFullSave = this.latest !== undefined
+      && this.latest.revision > this.savedRevision
+      && !this.latest.editorSettingsOnly;
+    this.latest = { project, revision, editorSettingsOnly: !pendingFullSave };
+    this.scheduleDrain();
+  }
+
+  private scheduleDrain(): void {
     this.cancel();
     if (this.suspended || this.drainPromise) return;
     this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
@@ -90,8 +109,12 @@ export class AutosaveController {
       const metadata: ProjectPersistenceMetadata = { persistenceToken: createPersistenceToken(), persistedAt: new Date().toISOString() };
       this.options.onSaving?.(snapshot.revision);
       try {
-        await this.store.saveRecoverySnapshot(snapshot.project, metadata);
-        await this.store.save(snapshot.project, metadata);
+        if (snapshot.editorSettingsOnly && this.store.saveEditorSettings) {
+          await this.store.saveEditorSettings(snapshot.project.id, snapshot.project.editorSettings);
+        } else {
+          await this.store.saveRecoverySnapshot(snapshot.project, metadata);
+          await this.store.save(snapshot.project, metadata);
+        }
         this.savedRevision = snapshot.revision;
         this.options.onSaved?.(snapshot.revision);
         try { await this.store.deleteRecoverySnapshot(snapshot.project.id); }

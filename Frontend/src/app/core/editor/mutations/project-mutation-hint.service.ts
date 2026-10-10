@@ -25,5 +25,9 @@ export class ProjectMutationHintService {
     return pending.hint;
   }
 
+  matchesTransition(from: ProjectDocument, to: ProjectDocument): boolean {
+    return this.pending?.from === from && this.pending.to === to;
+  }
+
   clear(): void { this.pending = undefined; }
 }

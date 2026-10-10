@@ -1,6 +1,6 @@
 import { migrateProject } from '../domain/migrations';
 import { ProjectDocument, ProjectMetadata } from '../domain/project.types';
-import { validateProject } from '../domain/validation';
+import { validateEditorSettings, validateProject } from '../domain/validation';
 import { DirtyState } from './autosave/dirty-state';
 import { AutosaveController } from './autosave/autosave-controller';
 import { parseProjectPackage, serializeProjectPackage } from './project-package/project-package';
@@ -98,6 +98,13 @@ export class ProjectPersistenceService {
     // Keep the caller's version on autosave; opening/importing performs migration,
     // while autosave must not unexpectedly rewrite an older in-memory snapshot.
     this.autosave.schedule(project, revision);
+  }
+
+  markEditorSettingsChanged(project: ProjectDocument): void {
+    const issues = validateEditorSettings(project.editorSettings, project.size);
+    if (issues.length) throw new Error(`Invalid editor settings: ${issues.map((issue) => issue.message).join('; ')}`);
+    const revision = this.dirtyState.markDirty();
+    this.autosave.scheduleEditorSettings(project, revision);
   }
 
   flushAutosave(): Promise<void> { return this.autosave.flush(); }

@@ -7,7 +7,7 @@ import { DecorationService } from '../../../../core/decorations/decoration.servi
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { blockGroupNames } from '../../../../core/editor/groups/group-membership';
-import { coordinateKey } from '../../../../core/domain/coordinates';
+import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { DecorationInspectorComponent } from '../decoration-inspector/decoration-inspector.component';
 import { SignInspectorComponent } from '../sign-inspector/sign-inspector.component';
 import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui/themed-select/themed-select.component';
@@ -17,6 +17,7 @@ import { verifiedInventoryContainerSchema } from '../../../../core/block-entitie
 import { isBlockLocked } from '../../../../core/editor/groups/group-membership';
 import { InventoryStorageInspectorComponent } from '../inventory-storage-inspector/inventory-storage-inspector.component';
 import { DecoratedPotInspectorComponent } from '../decorated-pot-inspector/decorated-pot-inspector.component';
+import type { ProjectDocument } from '../../../../core/domain/project.types';
 import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';
 
 @Component({ selector: 'app-selection-inspector', imports: [DecorationInspectorComponent, SignInspectorComponent, ThemedSelectComponent, ItemDisplayInspectorComponent, InventoryStorageInspectorComponent, DecoratedPotInspectorComponent], templateUrl: './selection-inspector.component.html', styleUrl: './selection-inspector.component.scss' })
@@ -27,9 +28,16 @@ export class SelectionInspectorComponent {
   protected readonly decorations = inject(DecorationService);
   private readonly library = inject(BlockLibraryService);
   private readonly editor = inject(StructureEditorService);
+  private readonly blockIndex = inject(ProjectBlockRuntimeIndex);
   protected readonly stateFeedback = signal('');
   protected readonly selectedDecoration = this.decorations.selected;
-  protected readonly selectedBlock = computed(() => { const project = this.workspace.project(); const selected = this.selection.single(); return project && selected ? project.blocks.find((block) => coordinateKey(block.position) === coordinateKey(selected)) : undefined; });
+  private boxCountCache?: { readonly blocks: ProjectDocument['blocks']; readonly box: string; readonly count: number };
+  protected readonly selectedBlock = computed(() => {
+    const project = this.workspace.project(); const selected = this.selection.single();
+    if (!project || !selected) return undefined;
+    this.blockIndex.ensure(project);
+    return this.blockIndex.get(selected);
+  });
   protected readonly stateEntries = computed(() => Object.entries(this.selectedBlock()?.state ?? {}));
   protected readonly selectedDefinition = computed(() => { const block = this.selectedBlock(); return block ? this.library.get(block.id) : undefined; });
   protected readonly stateProperties = computed<readonly ContentPropertyDescriptor[]>(() => {
@@ -52,7 +60,15 @@ export class SelectionInspectorComponent {
   protected readonly selectedDecoratedPot = computed(() => { const block = this.selectedBlock(); return !!block && (block.id === 'minecraft:decorated_pot' || blockCapability(this.selectedDefinition(), 'block-entity')?.entityKind === 'decorated-pot'); });
   protected readonly selectedBlockLocked = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return !!project && !!block && isBlockLocked(block, project.groups); });
   protected readonly selectedGroupNames = computed(() => { const project = this.workspace.project(); const block = this.selectedBlock(); return project && block ? blockGroupNames(block, project) : []; });
-  protected readonly selectedBlockCount = computed(() => { const project = this.workspace.project(); const box = this.selection.box(); return project && box ? project.blocks.filter((block) => block.position.x >= box.min.x && block.position.x <= box.max.x && block.position.y >= box.min.y && block.position.y <= box.max.y && block.position.z >= box.min.z && block.position.z <= box.max.z).length : 0; });
+  protected readonly selectedBlockCount = computed(() => {
+    const project = this.workspace.project(); const box = this.selection.box();
+    if (!project || !box) return 0;
+    const boxKey = `${box.min.x},${box.min.y},${box.min.z}|${box.max.x},${box.max.y},${box.max.z}`;
+    if (this.boxCountCache?.blocks === project.blocks && this.boxCountCache.box === boxKey) return this.boxCountCache.count;
+    const count = project.blocks.filter((block) => block.position.x >= box.min.x && block.position.x <= box.max.x && block.position.y >= box.min.y && block.position.y <= box.max.y && block.position.z >= box.min.z && block.position.z <= box.max.z).length;
+    this.boxCountCache = { blocks: project.blocks, box: boxKey, count };
+    return count;
+  });
   constructor() {
     effect(() => {
       this.selectedBlock();

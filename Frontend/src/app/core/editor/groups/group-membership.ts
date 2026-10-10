@@ -1,6 +1,8 @@
 import { PlacedBlock, ProjectDocument, ProjectGroup } from '../../domain/project.types';
 
-export function groupIdsOf(block: PlacedBlock): readonly string[] {
+export type GroupMembership = Pick<PlacedBlock, 'groupIds' | 'groupId'>;
+
+export function groupIdsOf(block: GroupMembership): readonly string[] {
   return block.groupIds ?? (block.groupId ? [block.groupId] : []);
 }
 

@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { coordinateKey } from '../../../../core/domain/coordinates';
 import { isSignDefinition, isSignId, signData, signLineWidth } from '../../../../core/block-entities/sign/sign-block-entity';
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
+import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -14,13 +14,13 @@ import { ThemedSelectComponent, ThemedSelectOption } from '../../../../shared/ui
 
 @Component({ selector: 'app-sign-inspector', imports: [ThemedSelectComponent], templateUrl: './sign-inspector.component.html', styleUrl: './sign-inspector.component.scss' })
 export class SignInspectorComponent {
-  private readonly workspace = inject(WorkspaceStateService); private readonly selection = inject(SelectionService); private readonly editor = inject(StructureEditorService); private readonly library = inject(BlockLibraryService);
+  private readonly workspace = inject(WorkspaceStateService); private readonly selection = inject(SelectionService); private readonly editor = inject(StructureEditorService); private readonly library = inject(BlockLibraryService); private readonly blockIndex = inject(ProjectBlockRuntimeIndex);
   protected readonly i18n = inject(I18nService);
   private readonly signTextSide = inject(SignTextSideService);
   protected readonly side = this.signTextSide.side;
   protected readonly draft = signal<SignSide['lines'] | undefined>(undefined);
   protected readonly colors = vanillaSignColors();
-  protected readonly selected = computed(() => { const project = this.workspace.project(); const position = this.selection.single(); const block = project && position ? project.blocks.find((entry) => coordinateKey(entry.position) === coordinateKey(position)) : undefined; return block && (isSignDefinition(this.library.get(block.id)) || isSignId(block.id)) ? block : undefined; });
+  protected readonly selected = computed(() => { const project = this.workspace.project(); const position = this.selection.single(); if (!project || !position) return undefined; this.blockIndex.ensure(project); const block = this.blockIndex.get(position); return block && (isSignDefinition(this.library.get(block.id)) || isSignId(block.id)) ? block : undefined; });
   protected readonly data = computed(() => signData(this.selected()?.blockEntityData));
   protected readonly definition = computed(() => { const block = this.selected(); return block ? this.library.get(block.id) : undefined; });
   protected readonly placementStates = computed(() => (this.definition()?.stateDefinitions ?? []).filter((state) => state.name === 'rotation' || state.name === 'facing'));

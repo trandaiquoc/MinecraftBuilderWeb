@@ -50,6 +50,23 @@ describe('GroupService', () => {
     expect(history.canUndo()).toBe(historyBefore);
   });
 
+  it('reuses active-group positions for editor-settings-only project updates', () => {
+    const { groups, workspace } = setup({
+      ...project,
+      groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }],
+      blocks: [{ ...project.blocks[0], groupIds: ['roof'] }],
+    });
+    groups.activeGroupId.set('roof');
+    const positions = groups.activeGroupPositions();
+
+    workspace.project.update((current) => current ? {
+      ...current,
+      editorSettings: { ...current.editorSettings, currentY: 2 },
+    } : current);
+
+    expect(groups.activeGroupPositions()).toBe(positions);
+  });
+
   it('switches groups and resets the previous move preview', () => {
     const { groups } = setup();
     groups.create('Roof'); const roof = groups.activeGroupId()!;

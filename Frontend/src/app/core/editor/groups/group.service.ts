@@ -32,6 +32,12 @@ import { GroupMoveTransaction } from './group-move-transaction';
 @Injectable({ providedIn: 'root' })
 export class GroupService {
   private readonly moveTransaction: GroupMoveTransaction;
+  private positionCache?: {
+    readonly projectId: string;
+    readonly blocks: ProjectDocument['blocks'];
+    readonly groups: ProjectDocument['groups'];
+    readonly positionsByGroup: Map<string, readonly VoxelCoordinate[]>;
+  };
   constructor(
     private readonly workspace: WorkspaceStateService = inject(WorkspaceStateService),
     private readonly selection: SelectionService = inject(SelectionService),
@@ -343,7 +349,24 @@ export class GroupService {
   }
   private groupPositions(groupId: string | undefined): readonly VoxelCoordinate[] {
     const project = this.workspace.project();
-    if (!project || !groupId) return [];
-    return this.movingBlocks(this.normalize(project), groupId).map((block) => block.position);
+    if (!project) {
+      this.positionCache = undefined;
+      return [];
+    }
+    const existing = this.positionCache;
+    if (existing && (existing.projectId !== project.id || existing.blocks !== project.blocks || existing.groups !== project.groups)) {
+      this.positionCache = undefined;
+    }
+    if (!groupId) return [];
+    let cache = this.positionCache;
+    if (!cache || cache.projectId !== project.id || cache.blocks !== project.blocks || cache.groups !== project.groups) {
+      cache = { projectId: project.id, blocks: project.blocks, groups: project.groups, positionsByGroup: new Map() };
+      this.positionCache = cache;
+    }
+    const cached = cache.positionsByGroup.get(groupId);
+    if (cached) return cached;
+    const positions = this.movingBlocks(this.normalize(project), groupId).map((block) => block.position);
+    cache.positionsByGroup.set(groupId, positions);
+    return positions;
   }
 }

@@ -47,6 +47,23 @@ describe('camera movement input contract', () => {
     engine.dispose();
   });
 
+  it('keeps runtime trace sampling on the committed projection instead of rebuilding visible signatures', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    engine.update(project, undefined);
+    const before = engine.rendererCounters();
+    const representationCount = vi.spyOn(engine as unknown as { visibleBlockRepresentationCount: () => number }, 'visibleBlockRepresentationCount');
+
+    for (let sample = 0; sample < 20; sample += 1) engine.runtimeTraceSample();
+    engine.runtimeTraceMetadata();
+
+    const after = engine.rendererCounters();
+    expect(after.fullVisibleScans).toBe(before.fullVisibleScans);
+    expect(after.blockSignatureComputations).toBe(before.blockSignatureComputations);
+    expect(representationCount).not.toHaveBeenCalled();
+    engine.dispose();
+  });
+
   it('adopts a suspended editor-settings snapshot without reconciling unchanged representations on resume', () => {
     const engine = new ThreeViewportEngine();
     const base = rendererBenchmarkProject('small');
@@ -2319,7 +2336,7 @@ describe('selection visualization scalability', () => {
     const blocks = [lower, upper];
     const project: ProjectDocument = { ...base, size: { x: 2, y: 2, z: 2 }, blocks, groups: [{ id: 'hidden', name: 'Hidden', visible: false, locked: false }], decorations: [] };
     const byY = new Map([[0, [lower]], [1, [upper]]]);
-    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], blockCountAtY: (y: number) => byY.get(y)?.length ?? 0, occupiedLayers: () => [0, 1], allBlocks: () => blocks };
     const baseProvider = axisCubeProvider();
     const provider = {
       ...baseProvider,
@@ -2329,7 +2346,7 @@ describe('selection visualization scalability', () => {
     const engine = new ThreeViewportEngine();
     engine.setLayerIndex(layerIndex);
     engine.setVisualProvider(provider);
-    const currentLayer = { layerY: 0, visibility: 'current-only' as const, layerIndex, exposedFaceRendering };
+    const currentLayer = { layerY: 0, visibility: 'current-only' as const, exposedFaceRendering };
     engine.update(project, undefined, currentLayer);
     await settleHydration(100, engine);
 
@@ -2344,6 +2361,11 @@ describe('selection visualization scalability', () => {
       const prewarmedJobs = engine.rendererCounters().yLayerRepresentationJobsQueued;
       engine.prepareYLayerVisualResources(project);
       expect(engine.rendererCounters().yLayerRepresentationJobsQueued).toBe(prewarmedJobs);
+      const projection = engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean; clearDirectPresentation: () => void } };
+      engine.suspend();
+      projection.yLayerProjection.clearDirectPresentation();
+      engine.resume();
+      expect(projection.yLayerProjection.hasDirectPresentation).toBe(true);
     } else {
       expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'partial', rendererPath: 'unsupported-active-path' });
     }
@@ -2369,7 +2391,7 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
-  it('does not report static Y-layer residency while the viewport has no Y-layer presentation', async () => {
+  it('does not start Y-layer preloading in the 3D engine', async () => {
     const project = rendererBenchmarkProject('small');
     const engine = new ThreeViewportEngine();
     engine.setVisualProvider(axisCubeProvider());
@@ -2377,8 +2399,8 @@ describe('selection visualization scalability', () => {
 
     engine.prepareYLayerVisualResources(project);
 
-    expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'partial', representationsSkipped: project.blocks.length, rendererPath: 'unsupported-active-path' });
-    await waitForYLayerPreload(engine);
+    expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'idle', blocksVisited: 0, rendererPath: 'not-started' });
+    expect(engine.yLayerVisualPreloadEvidence()).toMatchObject({ state: 'idle', blocksVisited: 0 });
     engine.update(project, undefined, { layerY: 0, visibility: 'current-only' });
     engine.prepareYLayerVisualResources(project);
     await waitForYLayerPreload(engine);
@@ -2397,7 +2419,7 @@ describe('selection visualization scalability', () => {
     ];
     const project: ProjectDocument = { ...base, blocks, decorations: [], groups: [] };
     const byY = new Map([[0, [blocks[0]] as PlacedBlock[]], [1, [blocks[1]] as PlacedBlock[]]]);
-    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], blockCountAtY: (y: number) => byY.get(y)?.length ?? 0, occupiedLayers: () => [0, 1], allBlocks: () => blocks };
     const baseProvider = axisCubeProvider();
     const provider = {
       ...baseProvider,
@@ -2438,6 +2460,188 @@ describe('selection visualization scalability', () => {
     engine.dispose();
   });
 
+  it('keeps Y-layer residency stable when editor-only project replacements change the current layer', async () => {
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} },
+      { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 1, z: 0 }, state: {} },
+    ];
+    const project: ProjectDocument = { ...base, blocks, decorations: [], groups: [] };
+    const byY = new Map([[0, [blocks[0]] as PlacedBlock[]], [1, [blocks[1]] as PlacedBlock[]]]);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], blockCountAtY: (y: number) => byY.get(y)?.length ?? 0, occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(axisCubeProvider());
+    const whole = { layerY: 0, visibility: 'whole-structure' as const };
+    engine.update(project, undefined, whole);
+    await settleHydration(100, engine);
+    engine.prepareYLayerVisualResources(project);
+    await waitForYLayerPreload(engine);
+    await waitForYLayerRepresentationPrewarm(engine);
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
+
+    const before = engine.rendererCounters();
+    const nextLayerProject = { ...project, editorSettings: { ...project.editorSettings, currentY: 1 } };
+    engine.update(nextLayerProject, undefined, { ...whole, layerY: 1 });
+    engine.prepareYLayerVisualResources(nextLayerProject);
+    expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'ready', blocksVisited: blocks.length, representationsResident: blocks.length, jobsPending: 0 });
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
+
+    const afterLayerChange = engine.rendererCounters();
+    expect(afterLayerChange).toMatchObject({
+      yLayerPresentationTransitions: before.yLayerPresentationTransitions + 1,
+      yLayerPresentationFallbacks: before.yLayerPresentationFallbacks,
+      yLayerProjectionVoxelVisits: before.yLayerProjectionVoxelVisits,
+      instanceMatrixWrites: before.instanceMatrixWrites,
+      regularHydrationStarted: before.regularHydrationStarted,
+      yLayerRepresentationJobsQueued: before.yLayerRepresentationJobsQueued,
+    });
+
+    const contractedProject = { ...nextLayerProject, editorSettings: { ...nextLayerProject.editorSettings, currentY: 1 } };
+    engine.update(contractedProject, undefined, { layerY: 1, visibility: 'current-only' });
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
+    expect(engine.rendererCounters()).toMatchObject({
+      yLayerProjectionVoxelVisits: before.yLayerProjectionVoxelVisits,
+      instanceMatrixWrites: before.instanceMatrixWrites,
+      regularHydrationStarted: before.regularHydrationStarted,
+      yLayerRepresentationJobsQueued: before.yLayerRepresentationJobsQueued,
+    });
+    engine.dispose();
+  });
+
+  it('prewarms non-static provider visuals into layer buckets and keeps group-only visibility resident', async () => {
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [
+      { kind: 'resolved', id: 'example:panel', namespace: 'example', position: { x: 0, y: 0, z: 0 }, state: {} },
+      { kind: 'resolved', id: 'example:panel', namespace: 'example', position: { x: 1, y: 1, z: 0 }, state: {}, groupIds: ['roof'] },
+    ];
+    const project: ProjectDocument = {
+      ...base,
+      size: { x: 2, y: 2, z: 1 },
+      blocks,
+      groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }],
+      decorations: [],
+    };
+    const byY = new Map([[0, [blocks[0]] as PlacedBlock[]], [1, [blocks[1]] as PlacedBlock[]]]);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], blockCountAtY: (y: number) => byY.get(y)?.length ?? 0, occupiedLayers: () => [0, 1], allBlocks: () => blocks };
+    const provider = {
+      create: vi.fn(async () => {
+        const object = new THREE.Group();
+        object.add(new THREE.Mesh(new THREE.BoxGeometry(.75, .75, .75), new THREE.MeshBasicMaterial({ color: 0x6688aa })));
+        return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      }),
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider & { create: ReturnType<typeof vi.fn> };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(provider);
+    const options = { layerY: 0, visibility: 'whole-structure' as const, layerIndex };
+    engine.update(project, undefined, options);
+    await settleHydration(100, engine);
+    engine.prepareYLayerVisualResources(project);
+    await waitForYLayerPreload(engine);
+    await waitForYLayerRepresentationPrewarm(engine);
+
+    expect(engine.yLayerRepresentationPrewarmEvidence()).toMatchObject({ state: 'ready', representationsResident: 2, rendererPath: 'layered-resident' });
+    const beforeSwitch = engine.rendererCounters();
+    const providerCreations = provider.create.mock.calls.length;
+    engine.update(project, undefined, { ...options, layerY: 1, visibility: 'current-only', selectedPositions: [blocks[0].position] });
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
+    expect(engine.rendererCounters()).toMatchObject({
+      yLayerProjectionVoxelVisits: beforeSwitch.yLayerProjectionVoxelVisits,
+      regularHydrationStarted: beforeSwitch.regularHydrationStarted,
+    });
+
+    const hiddenProject: ProjectDocument = { ...project, groups: [{ ...project.groups[0], visible: false }] };
+    engine.update(hiddenProject, undefined, { ...options, layerY: 1, visibility: 'current-only', selectionBounds: { min: blocks[0].position, max: blocks[1].position } });
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
+    expect(engine.rendererCounters()).toMatchObject({
+      structuralReconciles: beforeSwitch.structuralReconciles,
+      fullSceneRebuilds: beforeSwitch.fullSceneRebuilds,
+      yLayerProjectionVoxelVisits: beforeSwitch.yLayerProjectionVoxelVisits,
+      regularHydrationStarted: beforeSwitch.regularHydrationStarted,
+    });
+    expect(provider.create).toHaveBeenCalledTimes(providerCreations);
+    const blockIndex = (engine as unknown as { blockIndexOwner: { get: (position: VoxelCoordinate) => PlacedBlock | undefined } }).blockIndexOwner;
+    expect(blockIndex.get(blocks[1].position)?.groupIds).toEqual(['roof']);
+    engine.dispose();
+  });
+
+  it('keeps multi-layer fluid chunks resident across Y visibility, role, and group transitions', async () => {
+    const texture = new THREE.DataTexture(new Uint8Array([70, 130, 210, 255]), 1, 1);
+    texture.needsUpdate = true;
+    const provider = {
+      create: vi.fn(async () => { throw new Error('Fluid blocks must not use standalone visual creation.'); }),
+      fluidRenderContractKey: 'resident-fluid-v1',
+      fluidRenderResolver: vanillaFluidRenderResolver,
+      fluidTexture: async () => texture,
+      thumbnailUrl: () => undefined,
+    } as unknown as BlockVisualProvider & { create: ReturnType<typeof vi.fn> };
+    const base = rendererBenchmarkProject('small');
+    const blocks: PlacedBlock[] = [
+      { kind: 'resolved', id: 'minecraft:water', namespace: 'minecraft', position: { x: 0, y: 10, z: 0 }, state: { level: '0' } },
+      { kind: 'resolved', id: 'minecraft:water', namespace: 'minecraft', position: { x: 0, y: 11, z: 0 }, state: { level: '0' }, groupIds: ['upper'] },
+    ];
+    const byY = new Map([[10, [blocks[0]]], [11, [blocks[1]]]]);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], blockCountAtY: (y: number) => byY.get(y)?.length ?? 0, occupiedLayers: () => [10, 11], allBlocks: () => blocks };
+    const project: ProjectDocument = {
+      ...base,
+      size: { x: 1, y: 2, z: 1 },
+      blocks,
+      groups: [{ id: 'upper', name: 'Upper', visible: true, locked: false }],
+      decorations: [],
+    };
+    const engine = new ThreeViewportEngine();
+    engine.setLayerIndex(layerIndex);
+    engine.setVisualProvider(provider);
+    const whole = { layerY: 10, visibility: 'whole-structure' as const, layerIndex };
+    engine.update(project, undefined, whole);
+    await settleHydration(200, engine);
+    engine.prepareYLayerVisualResources(project);
+    await waitForYLayerPreload(engine);
+    await waitForYLayerRepresentationPrewarm(engine);
+
+    const state = engine as unknown as {
+      yLayerProjection: { hasDirectPresentation: boolean };
+      fluidCoordinator: { diagnostics: () => { fluidChunkRebuilds: number }; renderer: { group: THREE.Group } };
+    };
+    const fluidMeshes = () => state.fluidCoordinator.renderer.group.children.filter((object) => object.userData['fluidChunk']) as THREE.Mesh[];
+    const lowerMesh = fluidMeshes().find((mesh) => mesh.userData['fluidLayer'] === 10)!;
+    const upperMesh = fluidMeshes().find((mesh) => mesh.userData['fluidLayer'] === 11)!;
+    expect(lowerMesh).toBeDefined();
+    expect(upperMesh).toBeDefined();
+    expect(state.fluidCoordinator.diagnostics().fluidChunkRebuilds).toBeGreaterThan(0);
+
+    const beforeSwitch = engine.rendererCounters();
+    const fluidRebuilds = state.fluidCoordinator.diagnostics().fluidChunkRebuilds;
+    engine.update(project, undefined, { ...whole, visibility: 'current-only' });
+    expect(state.yLayerProjection.hasDirectPresentation).toBe(true);
+    expect(lowerMesh.visible).toBe(true);
+    expect(upperMesh.visible).toBe(false);
+    engine.update(project, undefined, { ...whole, layerY: 11, visibility: 'all-below' });
+    expect(lowerMesh.visible).toBe(true);
+    expect(upperMesh.visible).toBe(true);
+    expect((lowerMesh.material as THREE.Material).opacity).toBe(.28);
+    expect((upperMesh.material as THREE.Material).opacity).toBe(1);
+    engine.update(project, undefined, { ...whole, visibility: 'whole-structure' });
+    expect(fluidMeshes().find((mesh) => mesh.userData['fluidLayer'] === 10)).toBe(lowerMesh);
+    expect(fluidMeshes().find((mesh) => mesh.userData['fluidLayer'] === 11)).toBe(upperMesh);
+    expect(state.fluidCoordinator.diagnostics().fluidChunkRebuilds).toBe(fluidRebuilds);
+    expect(engine.rendererCounters()).toMatchObject({
+      yLayerProjectionVoxelVisits: beforeSwitch.yLayerProjectionVoxelVisits,
+      regularHydrationStarted: beforeSwitch.regularHydrationStarted,
+    });
+
+    const hiddenProject = { ...project, groups: [{ id: 'upper', name: 'Upper', visible: false, locked: false }] };
+    engine.update(hiddenProject, undefined, { ...whole, visibility: 'whole-structure' });
+    expect(state.yLayerProjection.hasDirectPresentation).toBe(true);
+    expect(upperMesh.visible).toBe(false);
+    expect(state.fluidCoordinator.diagnostics().fluidChunkRebuilds).toBe(fluidRebuilds);
+    expect(provider.create).not.toHaveBeenCalled();
+    engine.dispose();
+    texture.dispose();
+  });
+
   it('uses resident layer presentation without voxel projection and keeps raycast/selection visibility live', async () => {
     const base = rendererBenchmarkProject('small');
     let blocks: PlacedBlock[] = Array.from({ length: 600 }, (_, index) => ({
@@ -2455,17 +2659,32 @@ describe('selection visualization scalability', () => {
     const engine = new ThreeViewportEngine();
     engine.setLayerIndex(layerIndex);
     engine.setVisualProvider(axisCubeProvider());
-    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex });
+    const whole = { layerY: 0, visibility: 'whole-structure' as const };
+    engine.update(project, undefined, whole);
     await settleHydration(100, engine);
     const before = engine.rendererCounters();
 
+    engine.update(project, undefined, whole);
+    const afterResume = engine.rendererCounters();
+    expect((engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean } }).yLayerProjection.hasDirectPresentation).toBe(true);
+    expect(afterResume).toMatchObject({
+      yLayerPresentationTransitions: before.yLayerPresentationTransitions + 1,
+      yLayerProjectionVoxelVisits: before.yLayerProjectionVoxelVisits,
+      yLayerProjectionRequests: before.yLayerProjectionRequests,
+      instanceMatrixWrites: before.instanceMatrixWrites,
+      regularHydrationStarted: before.regularHydrationStarted,
+    });
+
+    const readinessScanCount = afterResume.yLayerPresentationReadinessScans;
     engine.update(project, undefined, { layerY: 0, visibility: 'current-only', layerIndex, selectedPositions: [blocks[0].position, blocks[1].position] });
+    expect(engine.rendererCounters().yLayerPresentationReadinessScans).toBe(readinessScanCount);
+    expect(engine.rendererCounters().yLayerPresentationReadinessCacheHits).toBeGreaterThan(afterResume.yLayerPresentationReadinessCacheHits);
     const directState = engine as unknown as { yLayerProjection: { hasDirectPresentation: boolean }; yLayerPresentationReadiness: () => YLayerPresentationReadiness; yLayerPresentation: { evaluate: (project: ProjectDocument, options: ViewportRenderOptions, readiness: YLayerPresentationReadiness) => unknown } };
     const readiness = directState.yLayerPresentationReadiness();
     expect(directState.yLayerProjection.hasDirectPresentation, JSON.stringify({ readiness, decision: directState.yLayerPresentation.evaluate(project, { layerY: 0, visibility: 'current-only', layerIndex }, readiness) })).toBe(true);
     expect(engine.visibleSceneDiagnostics()).toMatchObject({ expectedVisibleVoxelCount: 300, renderedVoxelCount: 300 });
     expect(engine.rendererCounters()).toMatchObject({
-      yLayerPresentationTransitions: before.yLayerPresentationTransitions + 1,
+      yLayerPresentationTransitions: afterResume.yLayerPresentationTransitions + 1,
       yLayerProjectionVoxelVisits: before.yLayerProjectionVoxelVisits,
       yLayerProjectionRequests: before.yLayerProjectionRequests,
       instanceMatrixWrites: before.instanceMatrixWrites,
@@ -2492,7 +2711,7 @@ describe('selection visualization scalability', () => {
     engine.update(mutatedProject, undefined, { ...allBelow, visibility: 'whole-structure' });
     engine.update(mutatedProject, undefined, { ...allBelow, layerY: 0, visibility: 'current-only' });
     const after = engine.rendererCounters();
-    expect(after.yLayerPresentationTransitions - before.yLayerPresentationTransitions).toBe(4);
+    expect(after.yLayerPresentationTransitions - afterResume.yLayerPresentationTransitions).toBe(4);
     expect(after.yLayerProjectionVoxelVisits).toBe(before.yLayerProjectionVoxelVisits);
     expect(after.instanceMatrixWrites).toBe(afterMutation.instanceMatrixWrites);
     expect(after.regularHydrationStarted).toBe(afterMutation.regularHydrationStarted);

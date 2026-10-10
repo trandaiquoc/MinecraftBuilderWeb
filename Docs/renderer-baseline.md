@@ -28,43 +28,86 @@ The benchmark also reports provider resource counts before and after disposal; d
 
 ## Resident Y-layer presentation boundary
 
-The renderer now has a separate `YLayerPresentationOwner` for the narrow,
-verified case where the complete project is already represented by resident
-Y-partitioned static instance batches and visibility cannot change culling or
-other renderer-family ownership. It owns only the current layer visibility
-scope and on-demand selection/raycast entries; it owns no Three.js resources.
-For eligible visibility-only transitions, `ThreeViewportEngine` updates batch
-visibility/normal-reference roles and does not create a per-voxel projection
-delta, materialize a visible-entry map, hydrate blocks, or write instance
-matrices. Layer counts and occupied-layer indexes provide diagnostics without
-scanning the canonical block array.
+`YLayerPresentationOwner` owns the active Y visibility scope and resolves
+selection/raycast entries lazily; it does not own Three.js resources. Once all
+canonical blocks have resident, layer-partitioned representations, eligible
+visibility-only transitions update batch/layer visibility and normal/reference
+roles without creating a per-voxel projection delta, hydrating blocks, or
+writing instance matrices. Current ownership supports static instances,
+surface batches, standalone objects, placeholders, and fluid layer/group
+buckets. Group visibility and isolation are presentation state. Canonical
+mutations still use mutation reconciliation and invalidate affected visual
+ownership.
 
-Eligibility is deliberately fail-closed. Exposed-face rendering, hidden groups,
-isolation, selection-volume filtering, incomplete residency, placeholders,
-pending render work, active interior culling, and terrain/fluid/surface or other
-non-instance representations remain on the cooperative projection and
-reconciliation path. Adjacency alone is not a reason to reject direct
-presentation when the current presentation has no culled representations.
-Switching from a whole-structure presentation that already removed fully
-enclosed block representations remains a fallback until those representations
-have been made resident again. Direct presentation does not run the optional
-whole-voxel interior-block elimination pass; opaque resident geometry remains
-present and neighboring opaque faces occlude one another. This can increase
-overdraw, but does not remove visible surfaces or alter transparent content.
+Readiness is deliberately split. `YLayerVisualPreloadEvidence` reports reusable
+template preparation; `YLayerRepresentationPrewarmEvidence` reports retained
+CPU-side representation ownership; both continue to report GPU presentation as
+`viewport-dependent`. The inactive viewport does not create a renderer until
+it is mounted. After both modes have been visited, both mounted viewport
+engines retain their own WebGL renderer and GPU resources; GPU memory is not
+currently bounded or measured across the pair. CPU residency is not proof of
+GPU upload or a stable presented frame. A partial prewarm report is not itself
+readiness. The direct-path
+decision checks live representation ownership and pending work; it falls back
+whenever those live counts do not cover the canonical blocks. The
+standalone-object cap can therefore leave prewarm partial until ordinary
+hydration supplies the remaining representations.
+
+Terrain chunk/exposed-face rendering and active interior-culling ownership are
+not currently resident-layer presentations. They retain the correctness-first
+projection/reconciliation path until their chunk boundary dependencies can be
+updated without destroying unchanged geometry. Visibility transitions that
+encounter these representations are not counted as direct. Adjacent opaque
+geometry continues to use the established renderer/culling path; this boundary
+does not alter texture, alpha/depth, or raycast semantics.
 
 `yLayerPresentationTransitions`, `yLayerPresentationFallbacks`, and
 `yLayerProjectionVoxelVisits` distinguish direct transitions from fallback
-work. `visibleEntries` intentionally remains empty while direct presentation is
-active; callers that need one selected/raycasted entry resolve it lazily against
-the canonical spatial index. Canonical mutations continue through mutation
-reconciliation and hydration; provider/project identity changes clear the
-presentation scope. The 110,592-block Vitest fixture now completes resident
-All Below/Whole/current transitions in 1.1-2.3 ms after preparation, with zero
-projection voxel visits, zero matrix writes, and zero new provider creations;
-its earlier 450-740 ms transitions visited 221,184 projection voxels. These are
-headless timings, not browser frame or GPU readiness evidence. Real Chrome/WebGL
-presentation, long tasks, input-to-stable-frame, and GPU memory remain
-unverified.
+work. `visibleEntries` remains empty while direct presentation is active. The
+runtime trace heartbeat reads the last committed projection count rather than
+rebuilding all visible signatures; explicit ownership diagnostics may still
+perform a full scan when requested. Prewarming is owned by the Y-layer engine;
+the 3D engine no longer starts a redundant Y-template scan.
+
+The 110,592-block Vitest fixture after the resident-presentation changes
+measured a 12.8 ms first switch after preload, 1.8 ms All Below expansion,
+1.6 ms Whole expansion, and 1.7 ms contraction. It reported 110,592 resident
+representations, zero skipped representations, zero visibility-time matrix
+writes, hydration jobs, and projection voxel visits, and 384 batch visibility
+updates. This is CPU-side structural evidence, not a GPU/frame-time result.
+
+### Local Chrome evidence (2026-10-10)
+
+The browser fixture contained 110,592 blocks across 48 layers: stone, stairs,
+slabs, glass, water, lanterns, and unresolved external blocks, plus one group.
+It did not cover decorations or every special/mod renderer family. Saved-Y
+startup reached a ready, direct-presentation state with all 110,592
+representations resident at about 38 seconds after navigation. In a saved-3D
+startup, the active viewport was hydration-complete and the inactive Y engine
+had completed CPU residency at about 77 seconds; the first-frame timestamp was
+not captured separately. Both are startup/preload costs, not warm switching
+latencies.
+
+After readiness, 12 state-changing Y visibility/layer transitions and one
+3D-to-Y return produced zero additional hydration starts, projection voxel
+visits, instance-matrix writes, full-reconcile fallbacks, or terrain chunk
+rebuilds. The measured first rendered frame was p50 14 ms, p95 79.7 ms, max
+79.7 ms. A separate consecutive-frame sample contained gaps up to 3.5 seconds
+under headless Chrome SwiftShader; the profiler attributed only about 0.6 s of
+JavaScript samples to a 4.3 s window, and the clean long-task observer saw
+63 ms and 72 ms tasks. This gap is not attributed to voxel projection, but it
+fails the no-multi-second-stall acceptance and needs hardware-browser
+confirmation. The WebGL renderer was `ANGLE ... SwiftShader`; hardware GPU
+behavior is not verified. The browser heap was about 0.83-0.85 GB after warm
+Y residency and reached about 1.16 GB at the observed saved-3D startup point;
+GPU allocation bytes were not available from this browser run.
+
+These browser observations are not a before/after comparison on the same
+Chrome fixture. No trustworthy Chrome baseline capture was available for this
+worktree, so only the structural Vitest comparison and current-browser evidence
+are reported. Warm batch presentation is validated; complete GPU readiness,
+startup cost, full renderer-family coverage, and smooth stable-frame behavior
+remain open acceptance items.
 
 Terrain chunk compilation also exposes an internal A/B terrain atlas mode. The
 strict `off` path remains the baseline reference; `on` uses append-only atlas

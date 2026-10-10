@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { RetainableProvider } from '../provider/provider-refresh-coordinator';
-import { FluidChunkChange, FluidChunkDiagnostics, FluidChunkRecord, FluidChunkRenderer, FluidChunkSyncResult, FluidChunkVisualProvider } from './fluid-chunk-renderer';
+import { FluidChunkChange, FluidChunkDiagnostics, FluidChunkRecord, FluidChunkRenderer, FluidChunkSyncResult, FluidChunkVisualProvider, FluidLayerPresentation } from './fluid-chunk-renderer';
 import { FluidRenderResolver, FluidWorldLookup } from './fluid-state';
 
 export interface ProjectionFluidEntry {
@@ -156,6 +156,8 @@ export class FluidRenderCoordinator {
   recordsForKeys(keys: ReadonlySet<string>): readonly FluidChunkRecord[] { return this.renderer.recordsForKeys(keys); }
   providerSnapshot(): FluidChunkVisualProvider | undefined { return this.renderer.providerSnapshot(); }
   get logicalRecordCount(): number { return this.renderer.logicalRecordCount; }
+  get layeredPresentationReady(): boolean { return this.renderer.layeredPresentationReady; }
+  setLayerPresentation(presentation: FluidLayerPresentation | undefined): void { this.renderer.setLayerPresentation(presentation); }
   referencedProviders(): ReadonlySet<RetainableProvider> { return this.retiredProviderLeases; }
 
   diagnostics(): FluidLifecycleDiagnostics {

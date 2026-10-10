@@ -89,6 +89,41 @@ describe('local persistence helpers', () => {
     autosave.dispose(); vi.useRealTimers();
   });
 
+  it('persists editor-settings-only revisions without cloning or snapshotting the structure', async () => {
+    const store = new MemoryProjectStore();
+    const structure = withBlocks(block('minecraft:stone', 1, 1, 1), block('minecraft:dirt', 2, 1, 1));
+    await store.create(structure);
+    const persistence = new ProjectPersistenceService(store, 0);
+    const changed = { ...structure, editorSettings: { ...structure.editorSettings, currentY: 3, layerVisibility: 'whole-structure' as const } };
+
+    persistence.markEditorSettingsChanged(changed);
+    await persistence.flushAutosave();
+
+    expect(store.editorSettingsSaves).toBe(1);
+    expect(store.fullProjectSaves).toBe(0);
+    expect(await store.openRecoverySnapshot(structure.id)).toBeUndefined();
+    expect(await store.open(structure.id)).toEqual(changed);
+    expect(persistence.dirtyState.isDirty).toBe(false);
+  });
+
+  it('keeps a pending structural save when a later editor-settings update is queued', async () => {
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    const autosave = new AutosaveController(store, { delayMs: 0 });
+    const structural = withBlocks(block('minecraft:stone', 1, 1, 1));
+    const settings = { ...structural, editorSettings: { ...structural.editorSettings, currentY: 4 } };
+
+    autosave.schedule(structural, 1);
+    autosave.scheduleEditorSettings(settings, 2);
+    await autosave.flush();
+
+    expect(store.fullProjectSaves).toBe(1);
+    expect(store.editorSettingsSaves).toBe(0);
+    expect((await store.open(project.id))?.blocks).toEqual(structural.blocks);
+    expect((await store.open(project.id))?.editorSettings.currentY).toBe(4);
+    autosave.dispose();
+  });
+
   it('writes recovery, then main, then cleanup in that exact order', async () => {
     const store = new MemoryProjectStore(); await store.create(project);
     const events: string[] = [];
@@ -260,14 +295,18 @@ function withBlocks(...blocks: ProjectDocument['blocks']): ProjectDocument { ret
 
 class MemoryProjectStore implements ProjectStore {
   protected readonly projects = new Map<string, ProjectDocument>(); private readonly recovery = new Map<string, ProjectDocument>();
-  async create(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
+  private readonly editorSettings = new Map<string, ProjectDocument['editorSettings']>();
+  editorSettingsSaves = 0;
+  fullProjectSaves = 0;
+  async create(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); this.editorSettings.set(value.id, structuredClone(value.editorSettings)); }
   async exists(id: string): Promise<boolean> { return this.projects.has(id); }
-  async open(id: string): Promise<ProjectDocument | undefined> { const value = this.projects.get(id); return value && structuredClone(value); }
-  async save(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); }
-  async delete(id: string): Promise<void> { this.projects.delete(id); this.recovery.delete(id); }
+  async open(id: string): Promise<ProjectDocument | undefined> { const value = this.projects.get(id); return value && { ...structuredClone(value), editorSettings: structuredClone(this.editorSettings.get(id) ?? value.editorSettings) }; }
+  async save(value: ProjectDocument): Promise<void> { this.fullProjectSaves += 1; this.projects.set(value.id, structuredClone(value)); this.editorSettings.set(value.id, structuredClone(value.editorSettings)); }
+  async saveEditorSettings(id: string, settings: ProjectDocument['editorSettings']): Promise<void> { this.editorSettingsSaves += 1; this.editorSettings.set(id, structuredClone(settings)); }
+  async delete(id: string): Promise<void> { this.projects.delete(id); this.editorSettings.delete(id); this.recovery.delete(id); }
   async list(): Promise<readonly ProjectSummary[]> { return [...this.projects.values()].map((value) => ({ id: value.id, name: value.metadata.name, minecraftVersion: value.metadata.minecraftVersion, size: value.size, structureMode: value.structureMode, updatedAt: value.metadata.updatedAt })); }
   async saveRecoverySnapshot(value: ProjectDocument): Promise<void> { this.recovery.set(value.id, structuredClone(value)); }
-  async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { return this.recovery.get(id); }
+  async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { const value = this.recovery.get(id); return value && { ...structuredClone(value), editorSettings: structuredClone(this.editorSettings.get(id) ?? value.editorSettings) }; }
   async deleteRecoverySnapshot(id: string): Promise<void> { this.recovery.delete(id); }
 }
 

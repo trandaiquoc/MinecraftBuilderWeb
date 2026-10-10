@@ -71,4 +71,45 @@ describe('FluidChunkRenderer', () => {
     renderer.dispose();
     texture.dispose();
   });
+
+  it('changes resident layer/group visibility and reference role without rebuilding fluid geometry', async () => {
+    const root = new THREE.Group();
+    const renderer = new FluidChunkRenderer(root);
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
+    renderer.setProvider({ contractKey: 'layer-fluid-v1', resolver: vanillaFluidRenderResolver, texture: async () => texture });
+    const lower = { ...block('minecraft:water', { x: 0, y: 10, z: 0 }), groupIds: ['lower-group'] };
+    const upper = { ...block('minecraft:water', { x: 0, y: 11, z: 0 }), groupIds: ['upper-group'] };
+    const records = [lower, upper].map((value) => ({ block: value, state: vanillaFluidRenderResolver.resolve(value)! }));
+    renderer.setLayerPresentation({ visibleLayers: new Set([10, 11]), currentY: 10, hiddenGroupIds: new Set(), referenceOpacity: .28 });
+    await renderer.sync(records, { visualRevisionKey: 1, ...worldFor([lower, upper]) });
+
+    const lowerMesh = renderer.objectsForVoxel('0,10,0').find((object) => object.userData['fluidLayer'] === 10) as THREE.Mesh;
+    const upperMesh = renderer.objectsForVoxel('0,11,0').find((object) => object.userData['fluidLayer'] === 11) as THREE.Mesh;
+    expect(lowerMesh).toBeDefined();
+    expect(upperMesh).toBeDefined();
+    expect(lowerMesh.visible).toBe(true);
+    expect(upperMesh.visible).toBe(true);
+    expect((upperMesh.material as THREE.Material).opacity).toBe(.28);
+    const rebuilds = renderer.diagnostics().fluidChunkRebuilds;
+
+    renderer.setLayerPresentation({ visibleLayers: new Set([10, 11]), currentY: 11, hiddenGroupIds: new Set(['lower-group']), referenceOpacity: .28 });
+    expect(renderer.objectsForVoxel('0,10,0').find((object) => object.userData['fluidLayer'] === 10)).toBe(lowerMesh);
+    expect(renderer.objectsForVoxel('0,11,0').find((object) => object.userData['fluidLayer'] === 11)).toBe(upperMesh);
+    expect(lowerMesh.visible).toBe(false);
+    expect(upperMesh.visible).toBe(true);
+    expect((lowerMesh.material as THREE.Material).opacity).toBe(.28);
+    expect((upperMesh.material as THREE.Material).opacity).toBe(1);
+    expect(renderer.diagnostics().fluidChunkRebuilds).toBe(rebuilds);
+    expect(renderer.layeredPresentationReady).toBe(true);
+
+    renderer.setLayerPresentation({ visibleLayers: new Set([11]), currentY: 11, hiddenGroupIds: new Set(), isolatedGroupId: 'upper-group', referenceOpacity: .28 });
+    expect(lowerMesh.visible).toBe(false);
+    expect(upperMesh.visible).toBe(true);
+    expect(renderer.diagnostics().fluidChunkRebuilds).toBe(rebuilds);
+
+    renderer.dispose();
+    texture.dispose();
+    expect(root.children).toHaveLength(0);
+  });
 });

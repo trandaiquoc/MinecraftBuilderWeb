@@ -1,4 +1,4 @@
-import { ProjectDocument, ProjectSize, StructureMode } from '../../domain/project.types';
+import { EditorSettings, ProjectDocument, ProjectSize, StructureMode } from '../../domain/project.types';
 
 export interface ProjectSummary {
   readonly id: string;
@@ -25,6 +25,7 @@ export interface ProjectStore {
   open(id: string): Promise<ProjectDocument | undefined>;
   openRecord?(id: string): Promise<ProjectRecord | undefined>;
   save(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void>;
+  saveEditorSettings?(projectId: string, settings: EditorSettings): Promise<void>;
   delete(id: string): Promise<void>;
   list(): Promise<readonly ProjectSummary[]>;
   saveRecoverySnapshot(project: ProjectDocument, metadata?: ProjectPersistenceMetadata): Promise<void>;

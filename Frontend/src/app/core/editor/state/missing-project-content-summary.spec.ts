@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeMissingProjectContent } from './missing-project-content-summary';
+import { MissingProjectContentSummaryCache, summarizeMissingProjectContent } from './missing-project-content-summary';
 import type { ProjectDocument } from '../../domain/project.types';
+import type { ImportedModSummary } from '../../assets/content-asset-runtime.service';
 
 const project = (blocks: ProjectDocument['blocks']): ProjectDocument => ({
   schemaVersion: 3,
@@ -30,5 +31,18 @@ describe('summarizeMissingProjectContent', () => {
   it('reacts to the current project shape rather than retaining old counts', () => {
     expect(summarizeMissingProjectContent(project([{ kind: 'missing', id: 'cobblemon:a', namespace: 'cobblemon', position: { x: 0, y: 0, z: 0 }, state: {} }])).totalMissingBlocks).toBe(1);
     expect(summarizeMissingProjectContent(project([{ kind: 'resolved', id: 'cobblemon:a', namespace: 'cobblemon', position: { x: 0, y: 0, z: 0 }, state: {} }])).totalMissingBlocks).toBe(0);
+  });
+
+  it('reuses the summary when only editor settings change', () => {
+    const cache = new MissingProjectContentSummaryCache();
+    const blocks = [{ kind: 'missing' as const, id: 'cobblemon:a', namespace: 'cobblemon', position: { x: 0, y: 0, z: 0 }, state: {} }];
+    const initial = project(blocks);
+    const sources = [{ id: 'source-cobblemon', kind: 'external' as const, displayName: 'Cobblemon', minecraftVersion: '1.21.1', namespaces: ['cobblemon'] }];
+    const importedMods: ImportedModSummary[] = [];
+    const summary = cache.get(initial, sources, importedMods, 1);
+
+    const settingsOnly = { ...initial, editorSettings: { ...initial.editorSettings, currentY: 3 } };
+    expect(cache.get(settingsOnly, sources, importedMods, 1)).toBe(summary);
+    expect(cache.get({ ...settingsOnly, blocks: [...blocks] }, sources, importedMods, 1)).not.toBe(summary);
   });
 });

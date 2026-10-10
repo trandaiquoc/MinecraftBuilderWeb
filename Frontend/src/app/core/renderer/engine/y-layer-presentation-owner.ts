@@ -1,5 +1,6 @@
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { coordinateKey } from '../../domain/coordinates';
+import { groupIdsOf } from '../../editor/groups/group-membership';
 import { visibleLayerSet, type LayerBlockIndex } from '../../editor/viewport/y-layer';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import { renderFilterKey } from './viewport-render-signatures';
@@ -27,10 +28,12 @@ export type YLayerPresentationFallbackReason =
 export interface YLayerPresentationReadiness {
   readonly residentBlocks: number;
   readonly instanceMembers: number;
+  readonly objectRepresentations: number;
   readonly layeredBatches: boolean;
   readonly surfaceRepresentations: number;
   readonly terrainRepresentations: number;
   readonly fluidRepresentations: number;
+  readonly layeredFluids: boolean;
   readonly placeholders: number;
   readonly pendingWork: boolean;
   readonly interiorCulledBlocks: number;
@@ -51,6 +54,8 @@ export class YLayerPresentationOwner {
     options: ViewportRenderOptions;
     providerGeneration: number;
     visibleLayers: ReadonlySet<number>;
+    hiddenGroupIds: ReadonlySet<string>;
+    isolatedGroupId?: string;
     resolveBlock: (position: VoxelCoordinate) => PlacedBlock | undefined;
     createEntry: (block: PlacedBlock, options: ViewportRenderOptions) => VisibleBlockProjectionEntry;
   };
@@ -59,16 +64,13 @@ export class YLayerPresentationOwner {
   evaluate(project: ProjectDocument, options: ViewportRenderOptions, readiness: YLayerPresentationReadiness): YLayerPresentationDecision {
     if (options.layerY === undefined || options.visibility === undefined) return unsupported('not-y-layer');
     if (options.exposedFaceRendering) return unsupported('exposed-face-rendering');
-    if (project.groups.some((group) => group.visible === false)) return unsupported('hidden-groups');
-    if (options.isolatedGroupId || options.isolatedGroupPositions?.length) return unsupported('isolated-group');
-    if (options.selectionBounds || options.selectionBox) return unsupported('selection-volume');
+    if (options.isolatedGroupPositions?.length && !options.isolatedGroupId) return unsupported('isolated-group');
     if (readiness.interiorCulledBlocks) return unsupported('interior-culling');
-    if (readiness.pendingWork || readiness.placeholders) return unsupported('pending-render-work');
+    if (readiness.pendingWork) return unsupported('pending-render-work');
     if (readiness.residentBlocks !== project.blocks.length) return unsupported('incomplete-residency');
-    if (readiness.instanceMembers !== project.blocks.length
-      || readiness.surfaceRepresentations
+    if (readiness.instanceMembers + readiness.surfaceRepresentations + readiness.objectRepresentations + readiness.placeholders + readiness.fluidRepresentations !== project.blocks.length
       || readiness.terrainRepresentations
-      || readiness.fluidRepresentations) return unsupported('non-instance-representation');
+      || readiness.fluidRepresentations && !readiness.layeredFluids) return unsupported('non-layered-batch');
     if (!readiness.layeredBatches) return unsupported('non-layered-batch');
     if (!options.layerIndex?.blockCountAtY) return unsupported('incomplete-residency');
     return { supported: true };
@@ -81,12 +83,21 @@ export class YLayerPresentationOwner {
     resolveBlock: (position: VoxelCoordinate) => PlacedBlock | undefined,
     createEntry: (block: PlacedBlock, options: ViewportRenderOptions) => VisibleBlockProjectionEntry,
   ): void {
-    this.active = { project, options, providerGeneration, visibleLayers: visibleLayerSet(options.layerY!, project.blocks, options.visibility!, options.layerIndex), resolveBlock, createEntry };
+    this.active = {
+      project,
+      options,
+      providerGeneration,
+      visibleLayers: visibleLayerSet(options.layerY!, project.blocks, options.visibility!, options.layerIndex),
+      hiddenGroupIds: new Set(project.groups.filter((group) => group.visible === false).map((group) => group.id)),
+      isolatedGroupId: options.isolatedGroupId,
+      resolveBlock,
+      createEntry,
+    };
     this.entryCache.clear();
   }
 
   update(project: ProjectDocument, options: ViewportRenderOptions, providerGeneration: number): boolean {
-    if (!this.active || project.id !== this.active.project.id || project.groups !== this.active.project.groups
+    if (!this.active || project.id !== this.active.project.id
       || providerGeneration !== this.active.providerGeneration) return false;
     const canonicalBlocksChanged = project.blocks !== this.active.project.blocks;
     const projectionChanged = renderFilterKey(options) !== renderFilterKey(this.active.options);
@@ -97,6 +108,8 @@ export class YLayerPresentationOwner {
       visibleLayers: projectionChanged
         ? visibleLayerSet(options.layerY!, project.blocks, options.visibility!, options.layerIndex)
         : this.active.visibleLayers,
+      hiddenGroupIds: new Set(project.groups.filter((group) => group.visible === false).map((group) => group.id)),
+      isolatedGroupId: options.isolatedGroupId,
     };
     if (projectionChanged || canonicalBlocksChanged) this.entryCache.clear();
     return true;
@@ -120,7 +133,10 @@ export class YLayerPresentationOwner {
     const position = parseCoordinateKey(key);
     if (!position) return undefined;
     const block = active.resolveBlock(position);
-    if (!block || !active.visibleLayers.has(block.position.y)) {
+    const groups = block ? groupIdsOf(block) : [];
+    if (!block || !active.visibleLayers.has(block.position.y)
+      || groups.some((id) => active.hiddenGroupIds.has(id))
+      || active.isolatedGroupId !== undefined && !groups.includes(active.isolatedGroupId)) {
       this.entryCache.delete(key);
       return undefined;
     }
@@ -138,10 +154,16 @@ export class YLayerPresentationOwner {
     const options = active.options;
     const index = options?.layerIndex;
     if (options.layerY === undefined || !options.visibility || !index?.blockCountAtY) return undefined;
-    if (options.visibility === 'whole-structure') return active.project.blocks.length;
+    const hasGroupFilter = active.hiddenGroupIds.size > 0 || active.isolatedGroupId !== undefined;
+    if (!hasGroupFilter && options.visibility === 'whole-structure') return active.project.blocks.length;
+    if (hasGroupFilter && !index.blockCountAtYForPresentation) return undefined;
     const layers = visibleLayerSet(options.layerY, [], options.visibility, index);
     let count = 0;
-    for (const layer of layers) count += index.blockCountAtY(layer);
+    for (const layer of layers) {
+      count += hasGroupFilter
+        ? index.blockCountAtYForPresentation!(layer, active.hiddenGroupIds, active.isolatedGroupId)
+        : index.blockCountAtY(layer);
+    }
     return count;
   }
 

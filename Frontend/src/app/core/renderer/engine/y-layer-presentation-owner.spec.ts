@@ -26,10 +26,12 @@ function readiness(count: number, overrides: Partial<YLayerPresentationReadiness
   return {
     residentBlocks: count,
     instanceMembers: count,
+    objectRepresentations: 0,
     layeredBatches: true,
     surfaceRepresentations: 0,
     terrainRepresentations: 0,
     fluidRepresentations: 0,
+    layeredFluids: true,
     placeholders: 0,
     pendingWork: false,
     interiorCulledBlocks: 0,
@@ -80,13 +82,54 @@ describe('YLayerPresentationOwner', () => {
     expect(owner.visibleEntry('10,5,0')?.role).toBe('normal');
   });
 
-  it('fails closed for active culling and renderer families without a direct presentation contract', () => {
+  it('uses indexed group-filtered layer counts for direct presentation diagnostics', () => {
+    const blocks = [
+      { ...block(1), groupIds: ['hidden', 'entrance'] },
+      { ...block(1), position: { x: 3, y: 1, z: 0 }, groupIds: ['entrance'] },
+      { ...block(1), position: { x: 4, y: 1, z: 0 } },
+    ];
+    const project = makeProject(blocks, [{ id: 'hidden', name: 'Hidden', visible: false, locked: false }]);
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const value of blocks) (byY.get(value.position.y) ?? (byY.set(value.position.y, []), byY.get(value.position.y)!)).push(value);
+    const index: LayerBlockIndex = {
+      blocksAtY: (y) => byY.get(y) ?? [],
+      blockCountAtY: (y) => byY.get(y)?.length ?? 0,
+      blockCountAtYForPresentation: (y, hiddenGroupIds, isolatedGroupId) => (byY.get(y) ?? []).filter((value) => {
+        const ids = value.groupIds ?? [];
+        return !ids.some((id) => hiddenGroupIds.has(id)) && (isolatedGroupId === undefined || ids.includes(isolatedGroupId));
+      }).length,
+      occupiedLayers: () => [...byY.keys()],
+      allBlocks: () => blocks,
+    };
+    const owner = new YLayerPresentationOwner();
+    const initialOptions = { ...options(1, index), visibility: 'whole-structure' as const };
+    owner.activate(project, initialOptions, 0, (position) => blocks.find((value) => coordinateKey(value.position) === coordinateKey(position)), (value, visualOptions) => ({
+      block: value,
+      role: value.position.y === visualOptions.layerY ? 'normal' : 'reference',
+      signature: 'entry',
+      occlusionClass: 'unknown',
+    }));
+
+    expect(owner.visibleBlockCount()).toBe(2);
+    expect(owner.update(project, { ...initialOptions, isolatedGroupId: 'entrance' }, 0)).toBe(true);
+    expect(owner.visibleBlockCount()).toBe(1);
+  });
+
+  it('keeps culling and non-layered renderer families fail-closed while supporting group and selection presentation', () => {
     const blocks = [block(1), block(2)];
     const project = makeProject(blocks);
     const owner = new YLayerPresentationOwner();
     expect(owner.evaluate(project, options(1, layerIndex(blocks)), readiness(2, { interiorCulledBlocks: 1 })).reason).toBe('interior-culling');
     expect(owner.evaluate(project, { ...options(1, layerIndex(blocks)), exposedFaceRendering: true }, readiness(2)).reason).toBe('exposed-face-rendering');
-    expect(owner.evaluate(project, options(1, layerIndex(blocks)), readiness(2, { fluidRepresentations: 1 })).reason).toBe('non-instance-representation');
-    expect(owner.evaluate(makeProject(blocks, [{ id: 'hidden', name: 'Hidden', visible: false, locked: false }]), options(1, layerIndex(blocks)), readiness(2)).reason).toBe('hidden-groups');
+    expect(owner.evaluate(project, options(1, layerIndex(blocks)), readiness(2, { instanceMembers: 1, fluidRepresentations: 1, layeredFluids: false })).reason).toBe('non-layered-batch');
+    expect(owner.evaluate(project, options(1, layerIndex(blocks)), readiness(2, { instanceMembers: 1, fluidRepresentations: 1, layeredFluids: true }))).toEqual({ supported: true });
+    const hiddenProject = makeProject(blocks.map((value) => ({ ...value, groupIds: ['hidden'] })), [{ id: 'hidden', name: 'Hidden', visible: false, locked: false }]);
+    expect(owner.evaluate(hiddenProject, { ...options(1, layerIndex(blocks)), selectionBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 8, y: 8, z: 8 } } }, readiness(2))).toEqual({ supported: true });
+    owner.activate(hiddenProject, options(1, layerIndex(blocks)), 0, (position) => hiddenProject.blocks.find((value) => coordinateKey(value.position) === coordinateKey(position)), (value, visualOptions) => ({
+      block: value, role: value.position.y === visualOptions.layerY ? 'normal' : 'reference', signature: 'entry', occlusionClass: 'unknown',
+    }));
+    expect(owner.visibleEntry('2,1,0')).toBeUndefined();
+    expect(owner.update(project, { ...options(1, layerIndex(blocks)), isolatedGroupId: 'not-present' }, 0)).toBe(true);
+    expect(owner.visibleEntry('2,1,0')).toBeUndefined();
   });
 });

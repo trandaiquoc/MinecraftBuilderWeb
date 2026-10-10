@@ -6,6 +6,10 @@ import { disposeObject } from '../presentation/renderer-resource-disposal';
 export interface BlockRepresentationResourceOwnerPorts {
   readonly store: ViewportBlockRepresentationStore;
   readonly blocksGroup: THREE.Group;
+  readonly objectPresentation?: {
+    readonly parentFor: (block: RenderedBlockEntry['block']) => THREE.Group;
+    readonly release: (object: THREE.Object3D | undefined) => void;
+  };
   readonly terrain: { readonly has: (key: string) => boolean; readonly remove: (key: string) => void; readonly clear: () => void; readonly dispose: () => void };
   readonly surface: { readonly ownership: ReadonlyMap<string, unknown>; readonly setVisible: (key: string, visible: boolean) => boolean; readonly remove: (key: string, entry?: RenderedBlockEntry) => void; readonly clear: (entries: Iterable<RenderedBlockEntry>) => void };
   readonly instance: {
@@ -48,10 +52,10 @@ export class BlockRepresentationResourceOwner {
       this.ports.store.setInstanceMembership(entry.key, {});
       this.ports.trace('after-remove', key, 'reconcile');
     } else if (!hasSurfaceVisual) {
-      if (entry.object?.parent === this.ports.blocksGroup) this.ports.blocksGroup.remove(entry.object);
+      this.releaseObject(entry.object);
       if (entry.object && entry.object !== entry.fallback) disposeObject(entry.object);
       if (entry.fallback && entry.fallback !== entry.object) {
-        if (entry.fallback.parent === this.ports.blocksGroup) this.ports.blocksGroup.remove(entry.fallback);
+        this.releaseObject(entry.fallback);
         disposeObject(entry.fallback);
       }
     }
@@ -82,12 +86,12 @@ export class BlockRepresentationResourceOwner {
     if (replacement !== 'instance' && (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key))) {
       this.ports.instance.remove(key, entry, 'reconcile');
     }
-    if (!entry.instanceBatchKey && !entry.surfaceFaceMemberships && entry.object && entry.object.parent === this.ports.blocksGroup) {
-      this.ports.blocksGroup.remove(entry.object);
+    if (!entry.instanceBatchKey && !entry.surfaceFaceMemberships && entry.object) {
+      this.releaseObject(entry.object);
       disposeObject(entry.object);
     }
     if (entry.fallback && entry.fallback !== entry.object) {
-      if (entry.fallback.parent === this.ports.blocksGroup) this.ports.blocksGroup.remove(entry.fallback);
+      this.releaseObject(entry.fallback);
       disposeObject(entry.fallback);
     }
     this.ports.invalidateDiagnostics();
@@ -137,8 +141,13 @@ export class BlockRepresentationResourceOwner {
     fallback.userData['voxel'] = entry.block.position;
     fallback.userData['renderRole'] = entry.role;
     this.ports.store.setFallback(entry.key, fallback);
-    this.ports.blocksGroup.add(fallback);
+    (this.ports.objectPresentation?.parentFor(entry.block) ?? this.ports.blocksGroup).add(fallback);
     this.ports.record('fallbackMeshCreations');
     return fallback;
+  }
+
+  private releaseObject(object: THREE.Object3D | undefined): void {
+    if (this.ports.objectPresentation) this.ports.objectPresentation.release(object);
+    else if (object?.parent === this.ports.blocksGroup) this.ports.blocksGroup.remove(object);
   }
 }

@@ -1,4 +1,5 @@
 import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
+import { groupIdsOf } from '../../editor/groups/group-membership';
 import { fluidCornerHeightsResolved, fluidVelocityResolved, FluidRenderResolver, FluidWorldLookup, ResolvedFluidRenderState } from './fluid-state';
 import { shouldCullFluidFace } from './fluid-face-occlusion';
 import { fluidSideUv } from './fluid-surface-sampler';
@@ -14,6 +15,8 @@ export interface FluidMeshBucket {
   readonly opacity?: number;
   readonly doubleSided: boolean;
   readonly depthWrite: boolean;
+  readonly layer: number;
+  readonly groupIds: readonly string[];
   readonly positions: number[];
   readonly normals: number[];
   readonly uvs: number[];
@@ -23,6 +26,10 @@ export interface FluidMeshBucket {
   facesCulled: number;
   facesEmitted: number;
 }
+
+export interface FluidMeshBuildOptions {
+  readonly layeredPresentation?: boolean;
+}
 export interface FluidMeshBuildResult {
   readonly buckets: readonly FluidMeshBucket[];
   readonly fluidLogicalVoxels: number;
@@ -31,7 +38,7 @@ export interface FluidMeshBuildResult {
   readonly fluidFacesEmitted: number;
 }
 
-export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: FluidWorldLookup, resolver: FluidRenderResolver): FluidMeshBuildResult {
+export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: FluidWorldLookup, resolver: FluidRenderResolver, options: FluidMeshBuildOptions = {}): FluidMeshBuildResult {
   const buckets = new Map<string, FluidMeshBucket>();
   let potential = 0; let culled = 0; let emitted = 0;
   for (const record of records) {
@@ -40,10 +47,12 @@ export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: F
     const flowAngle = Math.hypot(velocity.x, velocity.z) > 1e-6 ? Math.atan2(velocity.z, velocity.x) - Math.PI / 2 : 0;
     const flowing = Math.hypot(velocity.x, velocity.z) > 1e-6;
     const texture = flowing ? state.flowTexture : state.stillTexture;
-    const bucketKey = fluidMaterialIdentityKey(fluidMaterialDescriptor(state, texture));
+    const groupIds = options.layeredPresentation ? [...groupIdsOf(block)].sort() : [];
+    const layer = options.layeredPresentation ? block.position.y : -1;
+    const bucketKey = `${fluidMaterialIdentityKey(fluidMaterialDescriptor(state, texture))}|layer:${layer}|groups:${JSON.stringify(groupIds)}`;
     let bucket = buckets.get(bucketKey);
     if (!bucket) {
-      bucket = { materialKey: state.materialKey, fluidTypeId: state.fluidTypeId, renderLayer: state.renderLayer, texture, tint: state.tint, opacity: state.opacity, doubleSided: state.doubleSided, depthWrite: state.depthWrite, positions: [], normals: [], uvs: [], indices: [], voxelKeys: [], facesPotential: 0, facesCulled: 0, facesEmitted: 0 };
+      bucket = { materialKey: state.materialKey, fluidTypeId: state.fluidTypeId, renderLayer: state.renderLayer, texture, tint: state.tint, opacity: state.opacity, doubleSided: state.doubleSided, depthWrite: state.depthWrite, layer, groupIds, positions: [], normals: [], uvs: [], indices: [], voxelKeys: [], facesPotential: 0, facesCulled: 0, facesEmitted: 0 };
       buckets.set(bucketKey, bucket);
     }
     const corners = fluidCornerHeightsResolved(block.position, state, world, resolver);
@@ -74,39 +83,55 @@ export function buildFluidMeshData(records: readonly FluidMeshRecord[], world: F
 }
 
 /** Keeps a failed fluid build visible and terminal without content-specific IDs. */
-export function buildFluidFallbackMeshData(records: readonly FluidMeshRecord[]): FluidMeshBuildResult {
-  const bucket: FluidMeshBucket = {
-    materialKey: 'fluid-fallback',
-    fluidTypeId: 'fallback',
-    renderLayer: records[0]?.state.renderLayer ?? 'translucent',
-    texture: '',
-    tint: records[0]?.state.tint,
-    opacity: .62,
-    doubleSided: true,
-    depthWrite: false,
-    positions: [], normals: [], uvs: [], indices: [], voxelKeys: [],
-    facesPotential: records.length * 6,
-    facesCulled: 0,
-    facesEmitted: records.length * 6,
-  };
-  const face = (vertices: readonly (readonly [number, number, number])[], normal: readonly [number, number, number], key: string): void => {
+export function buildFluidFallbackMeshData(records: readonly FluidMeshRecord[], options: FluidMeshBuildOptions = {}): FluidMeshBuildResult {
+  const buckets = new Map<string, FluidMeshBucket>();
+  let facesPotential = 0;
+  let facesEmitted = 0;
+  const face = (bucket: FluidMeshBucket, vertices: readonly (readonly [number, number, number])[], normal: readonly [number, number, number], key: string): void => {
     const start = bucket.positions.length / 3;
     for (const [x, y, z] of vertices) { bucket.positions.push(x, y, z); bucket.normals.push(...normal); }
     bucket.uvs.push(0, 1, 1, 1, 1, 0, 0, 0);
     bucket.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
     bucket.voxelKeys.push(key);
+    bucket.facesEmitted += 1;
+    facesEmitted += 1;
   };
   for (const record of records) {
     const { x, y, z } = record.block.position;
     const key = `${x},${y},${z}`;
-    face([[x, y + 1, z], [x + 1, y + 1, z], [x + 1, y + 1, z + 1], [x, y + 1, z + 1]], [0, 1, 0], key);
-    face([[x, y, z + 1], [x + 1, y, z + 1], [x + 1, y, z], [x, y, z]], [0, -1, 0], key);
-    face([[x, y, z], [x + 1, y, z], [x + 1, y + 1, z], [x, y + 1, z]], [0, 0, -1], key);
-    face([[x + 1, y, z + 1], [x, y, z + 1], [x, y + 1, z + 1], [x + 1, y + 1, z + 1]], [0, 0, 1], key);
-    face([[x, y, z + 1], [x, y, z], [x, y + 1, z], [x, y + 1, z + 1]], [-1, 0, 0], key);
-    face([[x + 1, y, z], [x + 1, y, z + 1], [x + 1, y + 1, z + 1], [x + 1, y + 1, z]], [1, 0, 0], key);
+    const groupIds = options.layeredPresentation ? [...groupIdsOf(record.block)].sort() : [];
+    const layer = options.layeredPresentation ? y : -1;
+    const bucketKey = `${layer}|${JSON.stringify(groupIds)}|${record.state.renderLayer}|${record.state.tint ?? ''}`;
+    let bucket = buckets.get(bucketKey);
+    if (!bucket) {
+      bucket = {
+        materialKey: `fluid-fallback:${bucketKey}`,
+        fluidTypeId: 'fallback',
+        renderLayer: record.state.renderLayer,
+        texture: '',
+        tint: record.state.tint,
+        opacity: .62,
+        doubleSided: true,
+        depthWrite: false,
+        layer,
+        groupIds,
+        positions: [], normals: [], uvs: [], indices: [], voxelKeys: [],
+        facesPotential: 0,
+        facesCulled: 0,
+        facesEmitted: 0,
+      };
+      buckets.set(bucketKey, bucket);
+    }
+    bucket.facesPotential += 6;
+    facesPotential += 6;
+    face(bucket, [[x, y + 1, z], [x + 1, y + 1, z], [x + 1, y + 1, z + 1], [x, y + 1, z + 1]], [0, 1, 0], key);
+    face(bucket, [[x, y, z + 1], [x + 1, y, z + 1], [x + 1, y, z], [x, y, z]], [0, -1, 0], key);
+    face(bucket, [[x, y, z], [x + 1, y, z], [x + 1, y + 1, z], [x, y + 1, z]], [0, 0, -1], key);
+    face(bucket, [[x + 1, y, z + 1], [x, y, z + 1], [x, y + 1, z + 1], [x + 1, y + 1, z + 1]], [0, 0, 1], key);
+    face(bucket, [[x, y, z + 1], [x, y, z], [x, y + 1, z], [x, y + 1, z + 1]], [-1, 0, 0], key);
+    face(bucket, [[x + 1, y, z], [x + 1, y, z + 1], [x + 1, y + 1, z + 1], [x + 1, y + 1, z]], [1, 0, 0], key);
   }
-  return { buckets: [bucket], fluidLogicalVoxels: records.length, fluidFacesPotential: bucket.facesPotential, fluidFacesCulled: 0, fluidFacesEmitted: bucket.facesEmitted };
+  return { buckets: [...buckets.values()], fluidLogicalVoxels: records.length, fluidFacesPotential: facesPotential, fluidFacesCulled: 0, fluidFacesEmitted: facesEmitted };
 }
 
 function rotateUv(values: readonly (readonly [number, number])[], angle: number): readonly (readonly [number, number])[] {

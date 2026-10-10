@@ -1,5 +1,5 @@
 import { isPositiveInteger, isWithinBounds } from './coordinates';
-import { BlockId, PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from './project.types';
+import { BlockId, EditorSettings, PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from './project.types';
 import { isValidNamespacedResourceLocation } from '../content/resource-location';
 
 export type DomainValidationCode =
@@ -71,6 +71,17 @@ export function validatePlacedBlock(block: PlacedBlock, size: ProjectSize): read
   ];
 }
 
+export function validateEditorSettings(settings: EditorSettings, size: ProjectSize): readonly DomainValidationIssue[] {
+  const issues: DomainValidationIssue[] = [];
+  if (!Number.isInteger(settings.currentY) || !isWithinBounds({ x: 0, y: settings.currentY, z: 0 }, size)) {
+    issues.push({ code: 'invalid-current-y', message: 'current Y must be inside project bounds', path: 'editorSettings.currentY' });
+  }
+  if (settings.referenceLayerOpacity < 0 || settings.referenceLayerOpacity > 1) {
+    issues.push({ code: 'invalid-opacity', message: 'reference layer opacity must be between 0 and 1', path: 'editorSettings.referenceLayerOpacity' });
+  }
+  return issues;
+}
+
 export function validateProject(project: ProjectDocument): DomainValidationResult {
   const issues: DomainValidationIssue[] = [];
   for (const issue of validateProjectSize(project.size)) issues.push(issue);
@@ -80,12 +91,7 @@ export function validateProject(project: ProjectDocument): DomainValidationResul
   if (!MINECRAFT_VERSION_PATTERN.test(project.metadata.minecraftVersion)) {
     issues.push({ code: 'invalid-minecraft-version', message: 'Minecraft version must use a release version format', path: 'metadata.minecraftVersion' });
   }
-  if (!Number.isInteger(project.editorSettings.currentY) || !isWithinBounds({ x: 0, y: project.editorSettings.currentY, z: 0 }, project.size)) {
-    issues.push({ code: 'invalid-current-y', message: 'current Y must be inside project bounds', path: 'editorSettings.currentY' });
-  }
-  if (project.editorSettings.referenceLayerOpacity < 0 || project.editorSettings.referenceLayerOpacity > 1) {
-    issues.push({ code: 'invalid-opacity', message: 'reference layer opacity must be between 0 and 1', path: 'editorSettings.referenceLayerOpacity' });
-  }
+  issues.push(...validateEditorSettings(project.editorSettings, project.size));
   for (let index = 0; index < project.blocks.length; index += 1) {
     const block = project.blocks[index];
     for (const issue of validatePlacedBlock(block, project.size)) issues.push({ code: issue.code, message: issue.message, path: `blocks.${index}.${issue.path ?? ''}` });

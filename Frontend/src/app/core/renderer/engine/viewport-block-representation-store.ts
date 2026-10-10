@@ -34,7 +34,9 @@ export interface RenderedBlockEntry {
 export class ViewportBlockRepresentationStore implements ReadonlyMap<string, RenderedBlockEntry> {
   private readonly entriesByKey = new Map<string, RenderedBlockEntry>();
   private readonly providerReferenceCounts = new Map<BlockVisualProvider, number>();
+  private revisionValue = 0;
 
+  get revision(): number { return this.revisionValue; }
   get(key: string): RenderedBlockEntry | undefined { return this.entriesByKey.get(key); }
   has(key: string): boolean { return this.entriesByKey.has(key); }
   createOrReplace(entry: RenderedBlockEntry): void {
@@ -44,6 +46,7 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
       this.retainProvider(entry.provider);
     }
     this.entriesByKey.set(entry.key, freezeEntry(entry));
+    this.revisionValue += 1;
   }
   setBlock(key: string, block: ProjectDocument['blocks'][number]): boolean { return this.replace(key, (entry) => ({ ...entry, block })); }
   setPresentationVisible(key: string, presentationVisible: boolean): boolean { return this.replace(key, (entry) => ({ ...entry, presentationVisible })); }
@@ -85,9 +88,10 @@ export class ViewportBlockRepresentationStore implements ReadonlyMap<string, Ren
     if (!entry) return false;
     this.entriesByKey.delete(key);
     this.releaseProvider(entry.provider);
+    this.revisionValue += 1;
     return true;
   }
-  clear(): void { this.entriesByKey.clear(); this.providerReferenceCounts.clear(); }
+  clear(): void { this.entriesByKey.clear(); this.providerReferenceCounts.clear(); this.revisionValue += 1; }
   providerReferenceCount(provider: BlockVisualProvider): number { return this.providerReferenceCounts.get(provider) ?? 0; }
   hasProviderReference(provider: BlockVisualProvider): boolean { return this.providerReferenceCount(provider) > 0; }
   get size(): number { return this.entriesByKey.size; }

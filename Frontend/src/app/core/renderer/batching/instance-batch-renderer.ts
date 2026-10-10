@@ -14,6 +14,7 @@ export interface InstanceBatch {
   readonly regionKey: string;
   readonly segment: number;
   readonly layer: number;
+  readonly groupIds: readonly string[];
   readonly capacity: number;
   readonly templates: readonly InstancePartTemplate[];
   readonly parts: readonly THREE.InstancedMesh[];
@@ -43,7 +44,11 @@ export class InstanceBatchRenderer {
   private readonly translation = new THREE.Matrix4();
   private readonly transformed = new THREE.Matrix4();
   private visibleLayers?: ReadonlySet<number>;
-  private layerPresentation?: { readonly currentY: number };
+  private layerPresentation?: {
+    readonly currentY: number;
+    readonly hiddenGroupIds: ReadonlySet<string>;
+    readonly isolatedGroupId?: string;
+  };
 
   constructor(private readonly options: InstanceBatchRendererOptions) {}
 
@@ -57,13 +62,16 @@ export class InstanceBatchRenderer {
     source: 'provider-async' | 'cached-template' = 'provider-async',
     compiled?: CompiledInstanceTemplates,
     renderRole: 'normal' | 'reference' = 'normal',
+    groupIds: readonly string[] = [],
   ): { readonly batchKey: string; readonly index: number } | undefined {
     const resolved = compiled ?? compileInstanceTemplates(templates);
     if (this.options.capacity <= 0 || !resolved.templates.length) return undefined;
     const region = this.options.regionPolicy?.key(position) ?? this.options.chunkKey(position);
     const layer = this.layerPresentation ? Math.trunc(position.y) : -1;
     const roleKey = this.layerPresentation ? '' : `|role:${renderRole}`;
-    const baseKey = `${region}|layer:${layer}|${resolved.signature}${roleKey}`;
+    const normalizedGroupIds = this.layerPresentation ? [...new Set(groupIds)].sort() : [];
+    const groupKey = normalizedGroupIds.join('\u001f');
+    const baseKey = `${region}|layer:${layer}|${resolved.signature}${roleKey}|groups:${groupKey}`;
     const existingEntry = this.options.getEntry(key);
     const existingMembership = existingEntry?.instanceBatchKey
       ? this.batchStore.get(existingEntry.instanceBatchKey)
@@ -97,9 +105,9 @@ export class InstanceBatchRenderer {
         return mesh;
       });
       this.options.record('instancedBoundsComputations', parts.length);
-      batch = { key: batchKey, regionKey: region, segment, layer, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
+      batch = { key: batchKey, regionKey: region, segment, layer, groupIds: normalizedGroupIds, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
       this.batchStore.set(batchKey, batch);
-      if (this.visibleLayers) for (const part of parts) part.visible = this.visibleLayers.has(layer);
+      if (this.visibleLayers) for (const part of parts) part.visible = this.isBatchVisible(batch);
       if (this.layerPresentation) this.setBatchRole(batch, layer === this.layerPresentation.currentY ? 'normal' : 'reference');
       this.options.record('instancedBatchCreations');
       this.options.record('instancedMeshCount', parts.length);
@@ -162,20 +170,26 @@ export class InstanceBatchRenderer {
     if (this.layerPresentation) return true;
     if (batch.renderRole === role) return true;
     const wasHidden = this.hiddenKeys.has(key);
-    const moved = this.addFromTemplates(batch.templates, batch.positions[membership.index], key, 'cached-template', undefined, role);
+    const moved = this.addFromTemplates(batch.templates, batch.positions[membership.index], key, 'cached-template', undefined, role, batch.groupIds);
     if (!moved) return false;
     if (wasHidden) this.setMemberVisible(key, false);
     return true;
   }
 
   /** Applies Y-layer presentation without rewriting per-voxel instance matrices. */
-  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number): void {
+  setLayerPresentation(
+    visibleLayers: ReadonlySet<number>,
+    currentY: number,
+    referenceOpacity: number,
+    hiddenGroupIds: ReadonlySet<string> = new Set(),
+    isolatedGroupId?: string,
+  ): void {
     this.visibleLayers = visibleLayers;
     this.referenceOpacity = Math.max(0, Math.min(1, referenceOpacity));
-    this.layerPresentation = { currentY };
+    this.layerPresentation = { currentY, hiddenGroupIds, isolatedGroupId };
     for (const batch of this.batchStore.values()) {
       for (const part of batch.parts) {
-        const visible = visibleLayers.has(batch.layer);
+        const visible = this.isBatchVisible(batch);
         if (part.visible !== visible) {
           part.visible = visible;
           this.options.record('yLayerBatchVisibilityUpdates');
@@ -192,6 +206,14 @@ export class InstanceBatchRenderer {
       for (const part of batch.parts) part.visible = true;
       this.setBatchRole(batch, 'normal');
     }
+  }
+
+  private isBatchVisible(batch: InstanceBatch): boolean {
+    if (!this.visibleLayers?.has(batch.layer)) return false;
+    const presentation = this.layerPresentation;
+    if (!presentation) return true;
+    if (batch.groupIds.some((id) => presentation.hiddenGroupIds.has(id))) return false;
+    return !presentation.isolatedGroupId || batch.groupIds.includes(presentation.isolatedGroupId);
   }
 
   private setLayerRole(layer: number, role: 'normal' | 'reference'): void {

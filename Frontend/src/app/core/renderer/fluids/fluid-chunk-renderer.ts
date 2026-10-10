@@ -41,6 +41,17 @@ export interface FluidChunkDiagnostics {
   readonly fluidFallbackMeshes: number;
   readonly fluidByType: Readonly<Record<string, number>>;
   readonly fluidMeshesByRenderLayer: Readonly<Record<string, number>>;
+  readonly fluidPresentationUpdates: number;
+  readonly fluidMeshVisibilityUpdates: number;
+  readonly fluidMeshRoleUpdates: number;
+}
+
+export interface FluidLayerPresentation {
+  readonly visibleLayers: ReadonlySet<number>;
+  readonly currentY: number;
+  readonly hiddenGroupIds: ReadonlySet<string>;
+  readonly isolatedGroupId?: string;
+  readonly referenceOpacity: number;
 }
 
 interface FluidChunk {
@@ -83,12 +94,27 @@ export class FluidChunkRenderer {
   private residentVariantBytes = 0;
   private residentVariantHits = 0;
   private residentVariantEvictions = 0;
+  private layerPresentation?: FluidLayerPresentation;
+  private presentationUpdates = 0;
+  private meshVisibilityUpdates = 0;
+  private meshRoleUpdates = 0;
 
   constructor(private readonly blocksGroup: THREE.Group, private readonly chunkSize = 16) {
     this.group.name = 'fluidChunks'; this.group.userData['fluidChunks'] = true;
   }
 
   get logicalRecordCount(): number { return this.records.size; }
+
+  get layeredPresentationReady(): boolean {
+    return !!this.layerPresentation && [...this.chunks.values()].every((chunk) => chunk.meshes.every((mesh) => Number.isInteger(mesh.userData['fluidLayer']) && (mesh.userData['fluidLayer'] as number) >= 0 && Array.isArray(mesh.userData['fluidGroupIds'])));
+  }
+
+  setLayerPresentation(presentation: FluidLayerPresentation | undefined): void {
+    if (sameLayerPresentation(this.layerPresentation, presentation)) return;
+    this.layerPresentation = presentation;
+    this.presentationUpdates += 1;
+    for (const chunk of this.chunks.values()) for (const mesh of chunk.meshes) this.applyLayerPresentation(mesh);
+  }
 
   setProvider(provider: FluidChunkVisualProvider | undefined): void {
     if (this.provider && provider && providerContractKey(this.provider) === providerContractKey(provider)) {
@@ -221,7 +247,7 @@ export class FluidChunkRenderer {
     for (const chunk of this.chunks.values()) { facesPotential += chunk.facesPotential; facesCulled += chunk.facesCulled; facesEmitted += chunk.facesEmitted; }
     for (const chunk of this.chunks.values()) for (const mesh of chunk.meshes) meshesByLayer.set(String(mesh.userData['fluidRenderLayer']), (meshesByLayer.get(String(mesh.userData['fluidRenderLayer'])) ?? 0) + 1);
     const fallbackKeys = new Set([...this.chunks.values()].flatMap((chunk) => [...chunk.fallbackKeys]));
-    return { fluidLogicalVoxels: this.records.size, fluidChunks: this.chunks.size, fluidChunkMeshes: [...this.chunks.values()].reduce((sum, chunk) => sum + chunk.meshes.length, 0), fluidMaterialBuckets: this.materialCache.size, fluidStandaloneMeshes: 0, fluidFacesPotential: facesPotential, fluidFacesCulled: facesCulled, fluidFacesEmitted: facesEmitted, fluidChunkRebuilds: this.chunkRebuilds, fluidResidentVariantHits: this.residentVariantHits, fluidResidentVariantEvictions: this.residentVariantEvictions, fluidResidentVariantCount: this.residentVariants.size, fluidResidentVariantBytes: this.residentVariantBytes, fluidFullRebuilds: this.fullRebuilds, fluidIncrementalRebuilds: this.incrementalRebuilds, fluidDirtyChunksLastEdit: this.dirtyChunksLastEdit, fluidDescriptorResolutions: this.descriptorResolutions, fluidDescriptorCacheHits: this.descriptorCacheHits, fluidDescriptorCacheMisses: this.descriptorCacheMisses, fluidFallbackVoxels: fallbackKeys.size, fluidFallbackMeshes: [...this.chunks.values()].filter((chunk) => chunk.fallbackKeys.size > 0).length, fluidByType: Object.fromEntries(logicalByType), fluidMeshesByRenderLayer: Object.fromEntries(meshesByLayer) };
+    return { fluidLogicalVoxels: this.records.size, fluidChunks: this.chunks.size, fluidChunkMeshes: [...this.chunks.values()].reduce((sum, chunk) => sum + chunk.meshes.length, 0), fluidMaterialBuckets: this.materialCache.size, fluidStandaloneMeshes: 0, fluidFacesPotential: facesPotential, fluidFacesCulled: facesCulled, fluidFacesEmitted: facesEmitted, fluidChunkRebuilds: this.chunkRebuilds, fluidResidentVariantHits: this.residentVariantHits, fluidResidentVariantEvictions: this.residentVariantEvictions, fluidResidentVariantCount: this.residentVariants.size, fluidResidentVariantBytes: this.residentVariantBytes, fluidFullRebuilds: this.fullRebuilds, fluidIncrementalRebuilds: this.incrementalRebuilds, fluidDirtyChunksLastEdit: this.dirtyChunksLastEdit, fluidDescriptorResolutions: this.descriptorResolutions, fluidDescriptorCacheHits: this.descriptorCacheHits, fluidDescriptorCacheMisses: this.descriptorCacheMisses, fluidFallbackVoxels: fallbackKeys.size, fluidFallbackMeshes: [...this.chunks.values()].filter((chunk) => chunk.fallbackKeys.size > 0).length, fluidByType: Object.fromEntries(logicalByType), fluidMeshesByRenderLayer: Object.fromEntries(meshesByLayer), fluidPresentationUpdates: this.presentationUpdates, fluidMeshVisibilityUpdates: this.meshVisibilityUpdates, fluidMeshRoleUpdates: this.meshRoleUpdates };
   }
 
   /** O(1) counters for the high-frequency viewport trace sample. */
@@ -243,6 +269,9 @@ export class FluidChunkRenderer {
       fluidDescriptorResolutions: this.descriptorResolutions,
       fluidDescriptorCacheHits: this.descriptorCacheHits,
       fluidDescriptorCacheMisses: this.descriptorCacheMisses,
+      fluidPresentationUpdates: this.presentationUpdates,
+      fluidMeshVisibilityUpdates: this.meshVisibilityUpdates,
+      fluidMeshRoleUpdates: this.meshRoleUpdates,
     };
   }
 
@@ -251,6 +280,7 @@ export class FluidChunkRenderer {
     this.clearResidentVariants();
     this.epoch += 1;
     this.records.clear(); this.recordsByChunk.clear(); this.dirtyChunksLastEdit = 0;
+    this.layerPresentation = undefined;
     if (!this.records.size && this.group.parent === this.blocksGroup) this.blocksGroup.remove(this.group);
   }
 
@@ -270,27 +300,27 @@ export class FluidChunkRenderer {
       if (previous) this.retainChunkVariant(previous);
       return 'committed';
     }
-    const signature = world.visualRevisionKey === undefined ? undefined : fluidChunkSignature(key, records, world.visualRevisionKey, providerContractKey(provider));
+    const signature = world.visualRevisionKey === undefined ? undefined : fluidChunkSignature(key, records, world.visualRevisionKey, providerContractKey(provider), !!this.layerPresentation);
     if (signature && previous?.signature === signature) return 'committed';
     const cached = signature ? this.takeResidentVariant(key, signature) : undefined;
     if (cached) {
       if (previous) this.retainChunkVariant(previous);
       this.chunks.set(key, cached);
-      for (const mesh of cached.meshes) this.group.add(mesh);
+      for (const mesh of cached.meshes) { this.applyLayerPresentation(mesh); this.group.add(mesh); }
       this.residentVariantHits += 1;
       return 'committed';
     }
     const meshRecords: FluidMeshRecord[] = [];
     for (const record of records) {
       this.descriptorResolutions += 1;
-      meshRecords.push({ block: record.block, state: record.role === 'reference' ? { ...record.state, opacity: .28 } : record.state });
+      meshRecords.push({ block: record.block, state: record.state });
     }
     let data;
     let buildFallback = false;
     try {
-      data = buildFluidMeshData(meshRecords, world, provider.resolver);
+      data = buildFluidMeshData(meshRecords, world, provider.resolver, { layeredPresentation: !!this.layerPresentation });
     } catch {
-      data = buildFluidFallbackMeshData(meshRecords);
+      data = buildFluidFallbackMeshData(meshRecords, { layeredPresentation: !!this.layerPresentation });
       buildFallback = true;
     }
     const replacementMeshes: THREE.Mesh[] = [];
@@ -314,7 +344,16 @@ export class FluidChunkRenderer {
         this.descriptorCacheHits += 1;
         if (material.userData['fluidFallback']) for (const record of records) fallbackKeys.add(coordinateKey(record.block.position));
       }
-      const mesh = new THREE.Mesh(geometry, material); mesh.userData['fluidChunk'] = true; mesh.userData['fluidRenderLayer'] = bucket.renderLayer; mesh.userData['fluidMaterialKey'] = materialKey; mesh.frustumCulled = true; replacementMeshes.push(mesh);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData['fluidChunk'] = true;
+      mesh.userData['fluidRenderLayer'] = bucket.renderLayer;
+      mesh.userData['fluidMaterialKey'] = materialKey;
+      mesh.userData['fluidBaseMaterial'] = material;
+      mesh.userData['fluidLayer'] = bucket.layer;
+      mesh.userData['fluidGroupIds'] = bucket.groupIds;
+      mesh.frustumCulled = true;
+      this.applyLayerPresentation(mesh);
+      replacementMeshes.push(mesh);
     }
     if (epoch !== this.epoch || this.provider !== provider) { for (const mesh of replacementMeshes) mesh.geometry.dispose(); this.disposeUncommittedMaterials(replacementMaterials, replacementMaterialKeys); return 'stale'; }
     const signatures = new Map(records.map((record) => [coordinateKey(record.block.position), fluidRecordSignature(record)] as const));
@@ -356,7 +395,61 @@ export class FluidChunkRenderer {
   }
 
   private disposeChunk(chunk: FluidChunk): void {
-    for (const mesh of chunk.meshes) { this.group.remove(mesh); mesh.geometry.dispose(); }
+    for (const mesh of chunk.meshes) {
+      this.group.remove(mesh);
+      mesh.geometry.dispose();
+      const roleMaterial = mesh.userData['fluidRoleMaterial'];
+      if (roleMaterial instanceof THREE.Material) roleMaterial.dispose();
+    }
+  }
+
+  private applyLayerPresentation(mesh: THREE.Mesh): void {
+    const presentation = this.layerPresentation;
+    if (!presentation || !Number.isInteger(mesh.userData['fluidLayer']) || (mesh.userData['fluidLayer'] as number) < 0) {
+      this.setMeshVisibility(mesh, true);
+      this.setMeshRole(mesh, 'normal', 1);
+      return;
+    }
+    const layer = mesh.userData['fluidLayer'] as number;
+    const groupIds = mesh.userData['fluidGroupIds'] as readonly string[];
+    const visible = presentation.visibleLayers.has(layer)
+      && !groupIds.some((id) => presentation.hiddenGroupIds.has(id))
+      && (presentation.isolatedGroupId === undefined || groupIds.includes(presentation.isolatedGroupId));
+    this.setMeshVisibility(mesh, visible);
+    this.setMeshRole(mesh, layer === presentation.currentY ? 'normal' : 'reference', presentation.referenceOpacity);
+  }
+
+  private setMeshVisibility(mesh: THREE.Mesh, visible: boolean): void {
+    if (mesh.visible === visible) return;
+    mesh.visible = visible;
+    this.meshVisibilityUpdates += 1;
+  }
+
+  private setMeshRole(mesh: THREE.Mesh, role: 'normal' | 'reference', opacity: number): void {
+    const base = mesh.userData['fluidBaseMaterial'];
+    if (!(base instanceof THREE.Material)) return;
+    let presentationMaterial = mesh.userData['fluidRoleMaterial'] as THREE.Material | undefined;
+    if (role === 'normal') {
+      if (!presentationMaterial || mesh.material === base) return;
+      mesh.material = base;
+      this.meshRoleUpdates += 1;
+      return;
+    }
+    if (!presentationMaterial) {
+      presentationMaterial = base.clone();
+      mesh.userData['fluidRoleMaterial'] = presentationMaterial;
+    }
+    if (mesh.material !== presentationMaterial) {
+      mesh.material = presentationMaterial;
+      this.meshRoleUpdates += 1;
+    }
+    if (!presentationMaterial.transparent || presentationMaterial.opacity !== opacity || presentationMaterial.depthWrite !== base.depthWrite) {
+      presentationMaterial.transparent = true;
+      presentationMaterial.opacity = opacity;
+      presentationMaterial.depthWrite = base.depthWrite;
+      presentationMaterial.needsUpdate = true;
+      this.meshRoleUpdates += 1;
+    }
   }
 
   private takeResidentVariant(chunkKey: string, signature: string): FluidChunk | undefined {
@@ -405,8 +498,8 @@ export class FluidChunkRenderer {
 
   private disposeUnusedMaterials(): void {
     const used = new Set<THREE.Material>();
-    for (const chunk of this.chunks.values()) for (const mesh of chunk.meshes) used.add(mesh.material as THREE.Material);
-    for (const chunk of this.residentVariants.values()) for (const mesh of chunk.meshes) used.add(mesh.material as THREE.Material);
+    for (const chunk of this.chunks.values()) for (const mesh of chunk.meshes) used.add(mesh.userData['fluidBaseMaterial'] as THREE.Material);
+    for (const chunk of this.residentVariants.values()) for (const mesh of chunk.meshes) used.add(mesh.userData['fluidBaseMaterial'] as THREE.Material);
     for (const [key, material] of this.materialCache) if (!used.has(material)) { material.dispose(); this.materialCache.delete(key); }
   }
 
@@ -420,11 +513,11 @@ export class FluidChunkRenderer {
 }
 
 function parseKey(key: string): VoxelCoordinate { const [x, y, z] = key.split(',').map(Number); return { x, y, z }; }
-function fluidRecordSignature(record: FluidChunkRecord): string { return `${record.block.id}|${JSON.stringify(Object.entries(record.block.state).sort(([left], [right]) => left.localeCompare(right)))}|${record.role ?? 'normal'}|${JSON.stringify(record.state)}`; }
+function fluidRecordSignature(record: FluidChunkRecord): string { return `${record.block.id}|${JSON.stringify(Object.entries(record.block.state).sort(([left], [right]) => left.localeCompare(right)))}|${JSON.stringify(record.block.groupIds ?? (record.block.groupId ? [record.block.groupId] : []))}|${JSON.stringify(record.state)}`; }
 function providerContractKey(provider: FluidChunkVisualProvider): string { return provider.contractKey ?? 'fluid-provider-default'; }
 
-function fluidChunkSignature(chunkKey: string, records: readonly FluidChunkRecord[], worldRevisionKey: string | number, providerKey: string): string {
-  return `${chunkKey}|world:${worldRevisionKey}|provider:${providerKey}|${[...records].sort((left, right) => coordinateKey(left.block.position).localeCompare(coordinateKey(right.block.position))).map((record) => `${coordinateKey(record.block.position)}:${fluidRecordSignature(record)}`).join(';')}`;
+function fluidChunkSignature(chunkKey: string, records: readonly FluidChunkRecord[], worldRevisionKey: string | number, providerKey: string, layeredPresentation: boolean): string {
+  return `${chunkKey}|world:${worldRevisionKey}|provider:${providerKey}|layered:${layeredPresentation}|${[...records].sort((left, right) => coordinateKey(left.block.position).localeCompare(coordinateKey(right.block.position))).map((record) => `${coordinateKey(record.block.position)}:${fluidRecordSignature(record)}`).join(';')}`;
 }
 
 function fluidChunkBytes(meshes: readonly THREE.Mesh[], signature: string): number {
@@ -434,4 +527,14 @@ function fluidChunkBytes(meshes: readonly THREE.Mesh[], signature: string): numb
     return total + bytes;
   }, 0);
   return geometryBytes + signature.length * 2;
+}
+
+function sameLayerPresentation(left: FluidLayerPresentation | undefined, right: FluidLayerPresentation | undefined): boolean {
+  if (left === right) return true;
+  if (!left || !right || left.currentY !== right.currentY || left.isolatedGroupId !== right.isolatedGroupId || left.referenceOpacity !== right.referenceOpacity) return false;
+  return sameSet(left.visibleLayers, right.visibleLayers) && sameSet(left.hiddenGroupIds, right.hiddenGroupIds);
+}
+
+function sameSet<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
+  return left.size === right.size && [...left].every((value) => right.has(value));
 }

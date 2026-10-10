@@ -95,6 +95,14 @@ export class YLayerProjectionCoordinator {
   get hasDirectPresentation(): boolean { return this.presentation.isActive; }
   directVisibleEntryCount(): number | undefined { return this.presentation.visibleBlockCount(); }
 
+  cachedVisibleBlockCount(project: ProjectDocument, options: ViewportRenderOptions): number | undefined {
+    const directCount = this.presentation.visibleBlockCount();
+    if (directCount !== undefined) return directCount;
+    return this.visibleProjectValue === project && this.visibleKey === renderFilterKey(options)
+      ? this.visibleEntriesValue.length
+      : undefined;
+  }
+
   committedOptionsFor(project: ProjectDocument | undefined): ViewportRenderOptions | undefined {
     return project && this.committed?.project === project ? this.committed.options : undefined;
   }
