@@ -18,6 +18,7 @@ import {
 } from '../../block-behavior/logical-objects/logical-object';
 import { BlockRuleEngine } from '../../block-behavior/rules/block-rule-engine';
 import {
+  addDecorationGroup,
   decorationHasGroup,
   isDecorationLocked,
   removeDecorationGroup,
@@ -212,16 +213,14 @@ export class GroupService {
     return id ? this.assignSelection(id) : false;
   }
   assignSelection(id: string): boolean {
-    return this.mutateSelected('Add selection to group', id, (block) => addGroup(block, id));
+    return this.mutateSelected('add', id);
   }
   removeSelectionFromActive(): boolean {
     const id = this.activeGroupId();
     return id ? this.removeFromGroup(id) : false;
   }
   removeFromGroup(id: string): boolean {
-    return this.mutateSelected('Remove selection from group', id, (block) =>
-      removeGroup(block, id),
-    );
+    return this.mutateSelected('remove', id);
   }
   isolateActive(): void {
     const id = this.activeGroupId();
@@ -267,11 +266,12 @@ export class GroupService {
       : expandLogicalObjectClosure(project.blocks, selected, (id) => this.library.get(id));
   }
 
-  private mutateSelected(
-    label: string,
-    groupId: string,
-    map: (block: PlacedBlock) => PlacedBlock,
-  ): boolean {
+  private mutateSelected(action: 'add' | 'remove', groupId: string): boolean {
+    const label = action === 'add' ? 'Add selection to group' : 'Remove selection from group';
+    const updateBlock =
+      action === 'add'
+        ? (block: PlacedBlock) => addGroup(block, groupId)
+        : (block: PlacedBlock) => removeGroup(block, groupId);
     let touchedPositions: readonly VoxelCoordinate[] = [];
     let touchedDecorationIds: readonly string[] = [];
     return this.history.executeWithMutation(
@@ -300,18 +300,12 @@ export class GroupService {
         return {
           ...normalized,
           blocks: normalized.blocks.map((block) =>
-            keys.has(coordinateKey(block.position)) ? map(block) : block,
+            keys.has(coordinateKey(block.position)) ? updateBlock(block) : block,
           ),
           decorations: normalized.decorations?.map((decoration) =>
             decoration.instanceId === selectedDecorationId
-              ? label.startsWith('Add')
-                ? {
-                    ...decoration,
-                    groupIds: [
-                      ...(decoration.groupIds ?? []),
-                      ...(decoration.groupIds?.includes(groupId) ? [] : [groupId]),
-                    ],
-                  }
+              ? action === 'add'
+                ? addDecorationGroup(decoration, groupId)
                 : removeDecorationGroup(decoration, groupId)
               : decoration,
           ),
@@ -354,18 +348,35 @@ export class GroupService {
       return [];
     }
     const existing = this.positionCache;
-    if (existing && (existing.projectId !== project.id || existing.blocks !== project.blocks || existing.groups !== project.groups)) {
+    if (
+      existing &&
+      (existing.projectId !== project.id ||
+        existing.blocks !== project.blocks ||
+        existing.groups !== project.groups)
+    ) {
       this.positionCache = undefined;
     }
     if (!groupId) return [];
     let cache = this.positionCache;
-    if (!cache || cache.projectId !== project.id || cache.blocks !== project.blocks || cache.groups !== project.groups) {
-      cache = { projectId: project.id, blocks: project.blocks, groups: project.groups, positionsByGroup: new Map() };
+    if (
+      !cache ||
+      cache.projectId !== project.id ||
+      cache.blocks !== project.blocks ||
+      cache.groups !== project.groups
+    ) {
+      cache = {
+        projectId: project.id,
+        blocks: project.blocks,
+        groups: project.groups,
+        positionsByGroup: new Map(),
+      };
       this.positionCache = cache;
     }
     const cached = cache.positionsByGroup.get(groupId);
     if (cached) return cached;
-    const positions = this.movingBlocks(this.normalize(project), groupId).map((block) => block.position);
+    const positions = this.movingBlocks(this.normalize(project), groupId).map(
+      (block) => block.position,
+    );
     cache.positionsByGroup.set(groupId, positions);
     return positions;
   }

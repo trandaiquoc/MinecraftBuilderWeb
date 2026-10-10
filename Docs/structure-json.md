@@ -32,3 +32,10 @@ is never authorized by a saved restriction. Verified attachment/support rules
 are checked read-only through the existing block behavior engine. Positive
 origin offsets, clearly floating structures, and conservative sapling grounding
 cases are warnings only and do not block import.
+
+The editor import workspace delegates its import workflow to a workspace-scoped
+`StructureJsonImportWorkflow`. That owner manages async validation/planning,
+mode-plan caching, stale-project cancellation, bounds choices, and the single
+History commit. The Angular component owns file-input interaction and
+diagnostic presentation; this internal split does not change the Structure JSON
+contract or Replace/Merge/New Group behavior.
