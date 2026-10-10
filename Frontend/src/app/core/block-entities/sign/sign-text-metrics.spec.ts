@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { HANGING_SIGN_TEXT_METRICS, NORMAL_SIGN_TEXT_METRICS, signTextMetrics } from './sign-text-metrics';
+import {
+  HANGING_SIGN_TEXT_METRICS,
+  NORMAL_SIGN_TEXT_METRICS,
+  signTextMetrics,
+} from './sign-text-metrics';
 
 describe('sign text metrics', () => {
   it('uses the verified normal and hanging sign width/line-height configuration', () => {

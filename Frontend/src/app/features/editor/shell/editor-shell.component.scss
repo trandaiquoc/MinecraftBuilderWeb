@@ -152,10 +152,17 @@
   color: var(--text-muted);
   font-size: 0.7rem;
 }
-.settings-popover strong:first-of-type { margin-top: 0; }
+.settings-popover strong:first-of-type {
+  margin-top: 0;
+}
 @media (max-width: 520px) {
-  .menu-popover { width: min(max-content, calc(100vw - 1rem)); }
-  .menu-popover button { white-space: normal; overflow-wrap: anywhere; }
+  .menu-popover {
+    width: min(max-content, calc(100vw - 1rem));
+  }
+  .menu-popover button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 .camera-actions {
   position: relative;
@@ -257,8 +264,13 @@
   display: flex;
   flex-direction: column;
 }
-.right-sidebar-tabs { margin-bottom: .7rem; }
-.right-sidebar-usage { min-height: 0; flex: 1 1 auto; }
+.right-sidebar-tabs {
+  margin-bottom: 0.7rem;
+}
+.right-sidebar-usage {
+  min-height: 0;
+  flex: 1 1 auto;
+}
 .panel h2 {
   margin: 0 0 1rem;
   font-size: 0.9rem;

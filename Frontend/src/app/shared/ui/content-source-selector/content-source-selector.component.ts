@@ -1,4 +1,13 @@
-import { Component, ElementRef, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { LucideChevronLeft, LucideChevronRight, LucidePlus } from '@lucide/angular';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../tooltip/ui-tooltip.directive';
@@ -15,19 +24,40 @@ export interface HorizontalScrollState {
   readonly canScrollRight: boolean;
 }
 
-export function horizontalScrollState(scrollLeft: number, clientWidth: number, scrollWidth: number): HorizontalScrollState {
+export function horizontalScrollState(
+  scrollLeft: number,
+  clientWidth: number,
+  scrollWidth: number,
+): HorizontalScrollState {
   const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
-  const position = Math.min(maxScrollLeft, Math.max(0, Number.isFinite(scrollLeft) ? scrollLeft : 0));
+  const position = Math.min(
+    maxScrollLeft,
+    Math.max(0, Number.isFinite(scrollLeft) ? scrollLeft : 0),
+  );
   return { canScrollLeft: position > 1, canScrollRight: position < maxScrollLeft - 1 };
 }
 
-export function horizontalScrollTarget(scrollLeft: number, clientWidth: number, scrollWidth: number, direction: 'left' | 'right'): number {
+export function horizontalScrollTarget(
+  scrollLeft: number,
+  clientWidth: number,
+  scrollWidth: number,
+  direction: 'left' | 'right',
+): number {
   const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
-  const distance = Math.max(96, Math.floor(Math.max(0, clientWidth) * .8));
-  return Math.min(maxScrollLeft, Math.max(0, scrollLeft + (direction === 'right' ? distance : -distance)));
+  const distance = Math.max(96, Math.floor(Math.max(0, clientWidth) * 0.8));
+  return Math.min(
+    maxScrollLeft,
+    Math.max(0, scrollLeft + (direction === 'right' ? distance : -distance)),
+  );
 }
 
-export function shouldConsumeHorizontalWheel(deltaX: number, deltaY: number, scrollLeft: number, clientWidth: number, scrollWidth: number): boolean {
+export function shouldConsumeHorizontalWheel(
+  deltaX: number,
+  deltaY: number,
+  scrollLeft: number,
+  clientWidth: number,
+  scrollWidth: number,
+): boolean {
   const delta = Math.abs(deltaX) > 0 ? deltaX : deltaY;
   if (!delta) return false;
   const state = horizontalScrollState(scrollLeft, clientWidth, scrollWidth);
@@ -77,13 +107,28 @@ export class ContentSourceSelectorComponent {
   protected scrollSources(direction: 'left' | 'right'): void {
     const host = this.sourceOptions()?.nativeElement;
     if (!host) return;
-    host.scrollLeft = horizontalScrollTarget(host.scrollLeft, host.clientWidth, host.scrollWidth, direction);
+    host.scrollLeft = horizontalScrollTarget(
+      host.scrollLeft,
+      host.clientWidth,
+      host.scrollWidth,
+      direction,
+    );
     this.updateScrollState();
   }
 
   protected onSourceWheel(event: WheelEvent): void {
     const host = this.sourceOptions()?.nativeElement;
-    if (!host || !shouldConsumeHorizontalWheel(event.deltaX, event.deltaY, host.scrollLeft, host.clientWidth, host.scrollWidth)) return;
+    if (
+      !host ||
+      !shouldConsumeHorizontalWheel(
+        event.deltaX,
+        event.deltaY,
+        host.scrollLeft,
+        host.clientWidth,
+        host.scrollWidth,
+      )
+    )
+      return;
     const delta = Math.abs(event.deltaX) > 0 ? event.deltaX : event.deltaY;
     const maxScrollLeft = Math.max(0, host.scrollWidth - host.clientWidth);
     host.scrollLeft = Math.min(maxScrollLeft, Math.max(0, host.scrollLeft + delta));
@@ -101,7 +146,9 @@ export class ContentSourceSelectorComponent {
     const selectedId = this.selectedId();
     const host = this.sourceOptions()?.nativeElement;
     if (!selectedId || !host) return;
-    const selected = Array.from(host.querySelectorAll<HTMLElement>('.source-option')).find((button) => button.dataset['sourceId'] === selectedId);
+    const selected = Array.from(host.querySelectorAll<HTMLElement>('.source-option')).find(
+      (button) => button.dataset['sourceId'] === selectedId,
+    );
     selected?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
   }
 }

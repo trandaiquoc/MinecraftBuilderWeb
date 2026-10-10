@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { AssetActivityEntry } from '../../../../core/assets/asset-activity.service';
-import { compactContentCount, diagnosticPresentation, filterAssetActivity, importPhaseState, importStageForPhase, importStageState, progressPercentForProgress } from './asset-manager-mod-presentation';
+import {
+  compactContentCount,
+  diagnosticPresentation,
+  filterAssetActivity,
+  importPhaseState,
+  importStageForPhase,
+  importStageState,
+  progressPercentForProgress,
+} from './asset-manager-mod-presentation';
 
-const entry = (category: AssetActivityEntry['category'], id: number): AssetActivityEntry => ({ id, timestamp: id, category, level: 'info', operation: `op-${id}`, message: `message-${id}` });
+const entry = (category: AssetActivityEntry['category'], id: number): AssetActivityEntry => ({
+  id,
+  timestamp: id,
+  category,
+  level: 'info',
+  operation: `op-${id}`,
+  message: `message-${id}`,
+});
 
 describe('Asset Manager presentation logic', () => {
   it('keeps the activity rail filtered by the selected source family', () => {
@@ -33,37 +48,84 @@ describe('Asset Manager presentation logic', () => {
   });
 
   it('keeps info-only diagnostics in a collapsed technical presentation', () => {
-    expect(diagnosticPresentation({ diagnostics: [{ code: 'nested-jar-skipped', severity: 'info', category: 'info', message: 'informational' }] })).toBe('technical');
+    expect(
+      diagnosticPresentation({
+        diagnostics: [
+          {
+            code: 'nested-jar-skipped',
+            severity: 'info',
+            category: 'info',
+            message: 'informational',
+          },
+        ],
+      }),
+    ).toBe('technical');
     expect(diagnosticPresentation({ diagnostics: [] })).toBe('none');
   });
 
   it('keeps warnings and blocking diagnostics prominent', () => {
-    expect(diagnosticPresentation({ diagnostics: [{ code: 'warning', severity: 'warning', category: 'warning', message: 'warning' }] })).toBe('prominent');
-    expect(diagnosticPresentation({ diagnostics: [{ code: 'blocked', severity: 'error', category: 'blocking', message: 'blocked' }] })).toBe('prominent');
+    expect(
+      diagnosticPresentation({
+        diagnostics: [
+          { code: 'warning', severity: 'warning', category: 'warning', message: 'warning' },
+        ],
+      }),
+    ).toBe('prominent');
+    expect(
+      diagnosticPresentation({
+        diagnostics: [
+          { code: 'blocked', severity: 'error', category: 'blocking', message: 'blocked' },
+        ],
+      }),
+    ).toBe('prominent');
   });
 
   it('keeps validation active while conflict checking is still running', () => {
-    const context = { operationKind: 'preflight' as const, operationStatus: 'running' as const, prepared: false, canActivate: false, progressPhase: 'checking-conflicts' as const };
+    const context = {
+      operationKind: 'preflight' as const,
+      operationStatus: 'running' as const,
+      prepared: false,
+      canActivate: false,
+      progressPhase: 'checking-conflicts' as const,
+    };
     expect(importStageState('validation', context)).toBe('active');
     expect(importStageState('import', context)).toBe('pending');
     expect(importPhaseState('checking-conflicts', context)).toBe('active');
   });
 
   it('marks validation complete and waits for confirmation after successful preflight', () => {
-    const context = { operationKind: undefined, operationStatus: 'ready' as const, prepared: true, canActivate: true, progressPhase: 'checking-conflicts' as const };
+    const context = {
+      operationKind: undefined,
+      operationStatus: 'ready' as const,
+      prepared: true,
+      canActivate: true,
+      progressPhase: 'checking-conflicts' as const,
+    };
     expect(importStageState('validation', context)).toBe('complete');
     expect(importStageState('import', context)).toBe('awaiting-user');
     expect(importPhaseState('checking-conflicts', context)).toBe('complete');
   });
 
   it('keeps blocked preflight truthful instead of showing ready to import', () => {
-    const context = { operationKind: undefined, operationStatus: 'failed' as const, prepared: true, canActivate: false, progressPhase: 'checking-conflicts' as const };
+    const context = {
+      operationKind: undefined,
+      operationStatus: 'failed' as const,
+      prepared: true,
+      canActivate: false,
+      progressPhase: 'checking-conflicts' as const,
+    };
     expect(importStageState('validation', context)).toBe('blocked');
     expect(importStageState('import', context)).toBe('blocked');
   });
 
   it('shows import as active during commit', () => {
-    const context = { operationKind: 'commit' as const, operationStatus: 'running' as const, prepared: true, canActivate: true, progressPhase: 'saving-cache' as const };
+    const context = {
+      operationKind: 'commit' as const,
+      operationStatus: 'running' as const,
+      prepared: true,
+      canActivate: true,
+      progressPhase: 'saving-cache' as const,
+    };
     expect(importStageState('validation', context)).toBe('complete');
     expect(importStageState('import', context)).toBe('active');
     expect(importPhaseState('saving-cache', context)).toBe('active');

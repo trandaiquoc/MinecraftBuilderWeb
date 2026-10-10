@@ -4,8 +4,16 @@ import { groupIdsOf } from '../../editor/groups/group-membership';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import type { RendererCounters } from '../engine/renderer-diagnostics';
 import { classifyStaticModel, type StaticModelClassificationKind } from './static-model-classifier';
-import { compileInstanceTemplates, type CompiledInstanceTemplates, type InstancePartTemplate } from './instance-template-cache';
-import { InstanceBatchRenderer, type InstanceBatch, type InstanceBatchEntry } from './instance-batch-renderer';
+import {
+  compileInstanceTemplates,
+  type CompiledInstanceTemplates,
+  type InstancePartTemplate,
+} from './instance-template-cache';
+import {
+  InstanceBatchRenderer,
+  type InstanceBatch,
+  type InstanceBatchEntry,
+} from './instance-batch-renderer';
 import type { RenderRegionPolicy } from './render-region-policy';
 
 export interface StaticModelBatchRendererOptions {
@@ -17,8 +25,18 @@ export interface StaticModelBatchRendererOptions {
   readonly regionPolicy: RenderRegionPolicy;
   readonly instrumentation: RendererDiagnostics;
   readonly getEntry: (key: string) => InstanceBatchEntry | undefined;
-  readonly setEntryObject: (key: string, batchKey: string | undefined, index: number | undefined, object: THREE.Object3D | undefined) => void;
-  readonly trace?: (phase: 'before-insert' | 'after-insert' | 'before-remove' | 'after-remove' | 'after-remove-entry', key: string, source: 'cached-template' | 'provider-async' | 'rollback' | 'reconcile') => void;
+  readonly setEntryObject: (
+    key: string,
+    batchKey: string | undefined,
+    index: number | undefined,
+    object: THREE.Object3D | undefined,
+  ) => void;
+  readonly trace?: (
+    phase:
+      'before-insert' | 'after-insert' | 'before-remove' | 'after-remove' | 'after-remove-entry',
+    key: string,
+    source: 'cached-template' | 'provider-async' | 'rollback' | 'reconcile',
+  ) => void;
 }
 
 export interface StaticModelBatchMetrics {
@@ -66,46 +84,86 @@ export class StaticModelBatchRenderer {
       chunkKey: options.chunkKey,
       stableBounds: options.stableBounds,
       regionPolicy: options.regionPolicy,
-      record: (name, delta = 1) => options.instrumentation.record(name as keyof RendererCounters, delta),
+      record: (name, delta = 1) =>
+        options.instrumentation.record(name as keyof RendererCounters, delta),
       getEntry: options.getEntry,
       setEntryObject: options.setEntryObject,
       trace: options.trace,
       disposeMergedTemplateGeometry: (template, batches) => {
-        const retainedByTemplateCache = [...this.templateCache.values()].some((compiled) => compiled.templates.includes(template));
-        const retainedByBatch = [...batches.values()].some((batch) => batch.templates.includes(template));
-        if (!retainedByTemplateCache && !retainedByBatch && template.ownsGeometry && template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
+        const retainedByTemplateCache = [...this.templateCache.values()].some((compiled) =>
+          compiled.templates.includes(template),
+        );
+        const retainedByBatch = [...batches.values()].some((batch) =>
+          batch.templates.includes(template),
+        );
+        if (
+          !retainedByTemplateCache &&
+          !retainedByBatch &&
+          template.ownsGeometry &&
+          template.geometry.userData['mergedInstanceTemplateGeometry']
+        )
+          template.geometry.dispose();
       },
     });
   }
 
-  get batches(): ReadonlyMap<string, InstanceBatch> { return this.delegate.batches; }
-  get ownershipIndex(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.delegate.ownershipIndex; }
+  get batches(): ReadonlyMap<string, InstanceBatch> {
+    return this.delegate.batches;
+  }
+  get ownershipIndex(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> {
+    return this.delegate.ownershipIndex;
+  }
 
   shouldAttempt(allowInstancing: boolean, reusableKey: string | undefined): boolean {
-    return allowInstancing || this.batches.size > 0 || reusableKey !== undefined && this.templateCache.has(reusableKey);
+    return (
+      allowInstancing ||
+      this.batches.size > 0 ||
+      (reusableKey !== undefined && this.templateCache.has(reusableKey))
+    );
   }
 
   recordReusableKey(key: string | undefined, family = 'unknown'): void {
     this.reusableKeyRequested += 1;
-    if (key !== undefined) { this.reusableKeyReturned += 1; return; }
+    if (key !== undefined) {
+      this.reusableKeyReturned += 1;
+      return;
+    }
     this.reusableKeyMissing += 1;
-    this.reusableKeyMissingByFamily.set(family, (this.reusableKeyMissingByFamily.get(family) ?? 0) + 1);
+    this.reusableKeyMissingByFamily.set(
+      family,
+      (this.reusableKeyMissingByFamily.get(family) ?? 0) + 1,
+    );
   }
 
   templateFor(key: string): CompiledInstanceTemplates | undefined {
     const template = this.templateCache.get(key);
-    if (template) { this.templateCacheHits += 1; this.providerObjectsAvoidedByStaticCache += 1; }
+    if (template) {
+      this.templateCacheHits += 1;
+      this.providerObjectsAvoidedByStaticCache += 1;
+    }
     return template;
   }
 
-  hasTemplate(key: string): boolean { return this.templateCache.has(key); }
+  hasTemplate(key: string): boolean {
+    return this.templateCache.has(key);
+  }
 
-  setMemberVisible(key: string, visible: boolean): boolean { return this.delegate.setMemberVisible(key, visible); }
+  setMemberVisible(key: string, visible: boolean): boolean {
+    return this.delegate.setMemberVisible(key, visible);
+  }
 
-  prepareReusableTemplate(object: THREE.Object3D): { readonly compiled: CompiledInstanceTemplates; readonly estimatedBytes: number } | undefined {
+  prepareReusableTemplate(
+    object: THREE.Object3D,
+  ): { readonly compiled: CompiledInstanceTemplates; readonly estimatedBytes: number } | undefined {
     const classification = classifyStaticModel(object, this.options.instrumentation);
-    if (!classification.compiled) { this.reject(classification.kind); return undefined; }
-    return { compiled: classification.compiled, estimatedBytes: compiledTemplateBytes(classification.compiled) };
+    if (!classification.compiled) {
+      this.reject(classification.kind);
+      return undefined;
+    }
+    return {
+      compiled: classification.compiled,
+      estimatedBytes: compiledTemplateBytes(classification.compiled),
+    };
   }
 
   cachePreparedTemplate(key: string, compiled: CompiledInstanceTemplates): boolean {
@@ -123,19 +181,43 @@ export class StaticModelBatchRenderer {
     disposeCompiledTemplate(compiled);
   }
 
-  tryAdd(object: THREE.Object3D, block: ProjectDocument['blocks'][number], key: string, reusableKey: string | undefined, source: 'provider-async' | 'cached-template' = 'provider-async', renderRole: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
+  tryAdd(
+    object: THREE.Object3D,
+    block: ProjectDocument['blocks'][number],
+    key: string,
+    reusableKey: string | undefined,
+    source: 'provider-async' | 'cached-template' = 'provider-async',
+    renderRole: 'normal' | 'reference' = 'normal',
+  ): { readonly batchKey: string; readonly index: number } | undefined {
     const cached = reusableKey ? this.templateCache.get(reusableKey) : undefined;
     if (cached) {
       this.templateCacheHits += 1;
-      const result = this.delegate.addFromTemplates(cached.templates, block.position, key, source, cached, renderRole, groupIdsOf(block));
-      this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: 'reusable-template-cache', templatePartCount: cached.templates.length });
+      const result = this.delegate.addFromTemplates(
+        cached.templates,
+        block.position,
+        key,
+        source,
+        cached,
+        renderRole,
+        groupIdsOf(block),
+      );
+      this.decisions.set(key, {
+        classification: 'batchable',
+        kind: 'batchable-opaque',
+        reason: 'reusable-template-cache',
+        templatePartCount: cached.templates.length,
+      });
       return result;
     }
     this.candidates += 1;
     const classification = classifyStaticModel(object, this.options.instrumentation);
     if (!classification.compiled) {
       this.reject(classification.kind);
-      this.decisions.set(key, { classification: 'rejected', kind: classification.kind, reason: classification.reason ?? classification.kind });
+      this.decisions.set(key, {
+        classification: 'rejected',
+        kind: classification.kind,
+        reason: classification.reason ?? classification.kind,
+      });
       return undefined;
     }
     this.batchable += 1;
@@ -144,45 +226,137 @@ export class StaticModelBatchRenderer {
       this.templateCache.set(reusableKey, classification.compiled);
       this.options.instrumentation.record('reusableTemplateCreations');
     }
-    const result = this.delegate.addFromTemplates(classification.compiled.templates, block.position, key, source, classification.compiled, renderRole, groupIdsOf(block));
-    this.decisions.set(key, { classification: 'batchable', kind: classification.kind, reason: 'classified-static-model', templatePartCount: classification.compiled.templates.length });
+    const result = this.delegate.addFromTemplates(
+      classification.compiled.templates,
+      block.position,
+      key,
+      source,
+      classification.compiled,
+      renderRole,
+      groupIdsOf(block),
+    );
+    this.decisions.set(key, {
+      classification: 'batchable',
+      kind: classification.kind,
+      reason: 'classified-static-model',
+      templatePartCount: classification.compiled.templates.length,
+    });
     return result;
   }
 
-  addFromTemplates(templates: readonly InstancePartTemplate[], block: ProjectDocument['blocks'][number], key: string, source: 'provider-async' | 'cached-template' = 'provider-async', compiled?: CompiledInstanceTemplates, renderRole: 'normal' | 'reference' = 'normal'): { readonly batchKey: string; readonly index: number } | undefined {
-    const resolvedCompiled = compiled ?? compileInstanceTemplates(templates, this.options.instrumentation);
-    const result = this.delegate.addFromTemplates(templates, block.position, key, source, resolvedCompiled, renderRole, groupIdsOf(block));
-    this.decisions.set(key, { classification: 'batchable', kind: 'batchable-opaque', reason: compiled ? 'reusable-template-cache' : 'precompiled-static-model', templatePartCount: resolvedCompiled.templates.length });
+  addFromTemplates(
+    templates: readonly InstancePartTemplate[],
+    block: ProjectDocument['blocks'][number],
+    key: string,
+    source: 'provider-async' | 'cached-template' = 'provider-async',
+    compiled?: CompiledInstanceTemplates,
+    renderRole: 'normal' | 'reference' = 'normal',
+  ): { readonly batchKey: string; readonly index: number } | undefined {
+    const resolvedCompiled =
+      compiled ?? compileInstanceTemplates(templates, this.options.instrumentation);
+    const result = this.delegate.addFromTemplates(
+      templates,
+      block.position,
+      key,
+      source,
+      resolvedCompiled,
+      renderRole,
+      groupIdsOf(block),
+    );
+    this.decisions.set(key, {
+      classification: 'batchable',
+      kind: 'batchable-opaque',
+      reason: compiled ? 'reusable-template-cache' : 'precompiled-static-model',
+      templatePartCount: resolvedCompiled.templates.length,
+    });
     return result;
   }
 
-  setMemberRole(key: string, role: 'normal' | 'reference'): boolean { return this.delegate.setMemberRole(key, role); }
-
-  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, referenceOpacity: number, hiddenGroupIds: ReadonlySet<string> = new Set(), isolatedGroupId?: string): void {
-    this.delegate.setLayerPresentation(visibleLayers, currentY, referenceOpacity, hiddenGroupIds, isolatedGroupId);
+  setMemberRole(key: string, role: 'normal' | 'reference'): boolean {
+    return this.delegate.setMemberRole(key, role);
   }
 
-  clearLayerPresentation(): void { this.delegate.clearLayerPresentation(); }
+  setLayerPresentation(
+    visibleLayers: ReadonlySet<number>,
+    currentY: number,
+    referenceOpacity: number,
+    hiddenGroupIds: ReadonlySet<string> = new Set(),
+    isolatedGroupId?: string,
+  ): void {
+    this.delegate.setLayerPresentation(
+      visibleLayers,
+      currentY,
+      referenceOpacity,
+      hiddenGroupIds,
+      isolatedGroupId,
+    );
+  }
 
-  remove(key: string, entry: InstanceBatchEntry | undefined, source: 'rollback' | 'reconcile' = 'reconcile'): void { this.delegate.remove(key, entry, source); this.decisions.delete(key); }
-  memberships(key: string, scanAll = false): readonly { readonly batchKey: string; readonly index: number }[] { return this.delegate.memberships(key, scanAll); }
-  removeOrphaned(key: string, source: 'rollback' | 'reconcile', entry?: InstanceBatchEntry): void { this.delegate.removeOrphaned(key, source, entry); }
-  removeMembership(batchKey: string, index: number, key: string): boolean { return this.delegate.removeMembership(batchKey, index, key); }
-  reconcile(entries: ReadonlyMap<string, InstanceBatchEntry>): void { this.delegate.reconcile(entries); }
-  templates(): readonly CompiledInstanceTemplates[] { return [...this.templateCache.values()]; }
-  templateCacheView(): ReadonlyMap<string, CompiledInstanceTemplates> { return this.templateCache; }
+  clearLayerPresentation(): void {
+    this.delegate.clearLayerPresentation();
+  }
+
+  remove(
+    key: string,
+    entry: InstanceBatchEntry | undefined,
+    source: 'rollback' | 'reconcile' = 'reconcile',
+  ): void {
+    this.delegate.remove(key, entry, source);
+    this.decisions.delete(key);
+  }
+  memberships(
+    key: string,
+    scanAll = false,
+  ): readonly { readonly batchKey: string; readonly index: number }[] {
+    return this.delegate.memberships(key, scanAll);
+  }
+  removeOrphaned(key: string, source: 'rollback' | 'reconcile', entry?: InstanceBatchEntry): void {
+    this.delegate.removeOrphaned(key, source, entry);
+  }
+  removeMembership(batchKey: string, index: number, key: string): boolean {
+    return this.delegate.removeMembership(batchKey, index, key);
+  }
+  reconcile(entries: ReadonlyMap<string, InstanceBatchEntry>): void {
+    this.delegate.reconcile(entries);
+  }
+  templates(): readonly CompiledInstanceTemplates[] {
+    return [...this.templateCache.values()];
+  }
+  templateCacheView(): ReadonlyMap<string, CompiledInstanceTemplates> {
+    return this.templateCache;
+  }
   metrics(): StaticModelBatchMetrics {
     let batchedMembers = 0;
     for (const batch of this.batches.values()) batchedMembers += batch.keys.length;
     const rejected: Record<string, number> = {};
     for (const [reason, count] of this.rejectionCounts) rejected[reason] = count;
     const reusableKeyMissingByFamily: Record<string, number> = {};
-    for (const [family, count] of this.reusableKeyMissingByFamily) reusableKeyMissingByFamily[family] = count;
-    return { candidates: this.candidates, batchable: this.batchable, batchedMembers, templateCacheHits: this.templateCacheHits, templateCacheMisses: this.templateCacheMisses, providerObjectsAvoidedByStaticCache: this.providerObjectsAvoidedByStaticCache, rejected, reusableKeyRequested: this.reusableKeyRequested, reusableKeyReturned: this.reusableKeyReturned, reusableKeyMissing: this.reusableKeyMissing, reusableKeyMissingByFamily };
+    for (const [family, count] of this.reusableKeyMissingByFamily)
+      reusableKeyMissingByFamily[family] = count;
+    return {
+      candidates: this.candidates,
+      batchable: this.batchable,
+      batchedMembers,
+      templateCacheHits: this.templateCacheHits,
+      templateCacheMisses: this.templateCacheMisses,
+      providerObjectsAvoidedByStaticCache: this.providerObjectsAvoidedByStaticCache,
+      rejected,
+      reusableKeyRequested: this.reusableKeyRequested,
+      reusableKeyReturned: this.reusableKeyReturned,
+      reusableKeyMissing: this.reusableKeyMissing,
+      reusableKeyMissingByFamily,
+    };
   }
 
-  decisionFor(key: string): StaticModelDecision | undefined { return this.decisions.get(key); }
-  templatePartCounts(): readonly { readonly key: string; readonly partCount: number }[] { return [...this.templateCache.entries()].map(([key, compiled]) => ({ key, partCount: compiled.templates.length })); }
+  decisionFor(key: string): StaticModelDecision | undefined {
+    return this.decisions.get(key);
+  }
+  templatePartCounts(): readonly { readonly key: string; readonly partCount: number }[] {
+    return [...this.templateCache.entries()].map(([key, compiled]) => ({
+      key,
+      partCount: compiled.templates.length,
+    }));
+  }
 
   clearTemplates(): void {
     const compiled = [...this.templateCache.values()];
@@ -191,21 +365,39 @@ export class StaticModelBatchRenderer {
   }
 
   resetMetrics(): void {
-    this.candidates = 0; this.batchable = 0; this.templateCacheHits = 0; this.templateCacheMisses = 0; this.providerObjectsAvoidedByStaticCache = 0;
-    this.reusableKeyRequested = 0; this.reusableKeyReturned = 0; this.reusableKeyMissing = 0; this.reusableKeyMissingByFamily.clear(); this.rejectionCounts.clear(); this.decisions.clear();
+    this.candidates = 0;
+    this.batchable = 0;
+    this.templateCacheHits = 0;
+    this.templateCacheMisses = 0;
+    this.providerObjectsAvoidedByStaticCache = 0;
+    this.reusableKeyRequested = 0;
+    this.reusableKeyReturned = 0;
+    this.reusableKeyMissing = 0;
+    this.reusableKeyMissingByFamily.clear();
+    this.rejectionCounts.clear();
+    this.decisions.clear();
   }
 
-  clear(): void { this.delegate.clear(); this.clearTemplates(); this.resetMetrics(); }
+  clear(): void {
+    this.delegate.clear();
+    this.clearTemplates();
+    this.resetMetrics();
+  }
 
-  setReferenceOpacity(opacity: number): void { this.delegate.setReferenceOpacity(opacity); }
+  setReferenceOpacity(opacity: number): void {
+    this.delegate.setReferenceOpacity(opacity);
+  }
 
-  private reject(kind: StaticModelClassificationKind): void { this.rejectionCounts.set(kind, (this.rejectionCounts.get(kind) ?? 0) + 1); }
+  private reject(kind: StaticModelClassificationKind): void {
+    this.rejectionCounts.set(kind, (this.rejectionCounts.get(kind) ?? 0) + 1);
+  }
 }
 
 function compiledTemplateBytes(compiled: CompiledInstanceTemplates): number {
   let bytes = 0;
   for (const template of compiled.templates) {
-    for (const attribute of Object.values(template.geometry.attributes)) bytes += attribute.array.byteLength;
+    for (const attribute of Object.values(template.geometry.attributes))
+      bytes += attribute.array.byteLength;
     if (template.geometry.index) bytes += template.geometry.index.array.byteLength;
   }
   return bytes;
@@ -214,6 +406,7 @@ function compiledTemplateBytes(compiled: CompiledInstanceTemplates): number {
 function disposeCompiledTemplate(compiled: CompiledInstanceTemplates): void {
   for (const template of compiled.templates) {
     template.material.dispose();
-    if (template.ownsGeometry || template.geometry.userData['mergedInstanceTemplateGeometry']) template.geometry.dispose();
+    if (template.ownsGeometry || template.geometry.userData['mergedInstanceTemplateGeometry'])
+      template.geometry.dispose();
   }
 }

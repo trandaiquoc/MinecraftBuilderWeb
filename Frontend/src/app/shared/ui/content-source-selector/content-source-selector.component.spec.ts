@@ -9,16 +9,23 @@ import {
 
 describe('ContentSourceSelectorComponent navigation', () => {
   it('renders source buttons and emits source/manage actions', async () => {
-    await TestBed.configureTestingModule({ imports: [ContentSourceSelectorComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [ContentSourceSelectorComponent],
+    }).compileComponents();
     const fixture = TestBed.createComponent(ContentSourceSelectorComponent);
     const component = fixture.componentInstance;
-    fixture.componentRef.setInput('sources', [{ id: 'all', label: 'All' }, { id: 'vanilla', label: 'Vanilla' }]);
+    fixture.componentRef.setInput('sources', [
+      { id: 'all', label: 'All' },
+      { id: 'vanilla', label: 'Vanilla' },
+    ]);
     fixture.detectChanges();
 
     const selected: string[] = [];
     let managed = false;
     component.selectionChange.subscribe((id) => selected.push(id));
-    component.manageRequested.subscribe(() => { managed = true; });
+    component.manageRequested.subscribe(() => {
+      managed = true;
+    });
     const sourceButtons = fixture.nativeElement.querySelectorAll('.source-option');
     expect(sourceButtons).toHaveLength(2);
     sourceButtons[1].click();
@@ -28,17 +35,31 @@ describe('ContentSourceSelectorComponent navigation', () => {
   });
 
   it('calculates overflow state and bounded navigation targets', () => {
-    expect(horizontalScrollState(0, 100, 100)).toEqual({ canScrollLeft: false, canScrollRight: false });
-    expect(horizontalScrollState(0, 100, 300)).toEqual({ canScrollLeft: false, canScrollRight: true });
-    expect(horizontalScrollState(100, 100, 300)).toEqual({ canScrollLeft: true, canScrollRight: true });
-    expect(horizontalScrollState(200, 100, 300)).toEqual({ canScrollLeft: true, canScrollRight: false });
+    expect(horizontalScrollState(0, 100, 100)).toEqual({
+      canScrollLeft: false,
+      canScrollRight: false,
+    });
+    expect(horizontalScrollState(0, 100, 300)).toEqual({
+      canScrollLeft: false,
+      canScrollRight: true,
+    });
+    expect(horizontalScrollState(100, 100, 300)).toEqual({
+      canScrollLeft: true,
+      canScrollRight: true,
+    });
+    expect(horizontalScrollState(200, 100, 300)).toEqual({
+      canScrollLeft: true,
+      canScrollRight: false,
+    });
     expect(horizontalScrollTarget(0, 100, 300, 'right')).toBe(96);
     expect(horizontalScrollTarget(200, 100, 300, 'right')).toBe(200);
     expect(horizontalScrollTarget(0, 100, 300, 'left')).toBe(0);
   });
 
   it('keeps both arrow controls visible in the DOM while toggling disabled state', async () => {
-    await TestBed.configureTestingModule({ imports: [ContentSourceSelectorComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [ContentSourceSelectorComponent],
+    }).compileComponents();
     const fixture = TestBed.createComponent(ContentSourceSelectorComponent);
     const component = fixture.componentInstance;
     fixture.componentRef.setInput('sources', [{ id: 'all', label: 'All' }]);
@@ -48,7 +69,10 @@ describe('ContentSourceSelectorComponent navigation', () => {
     expect(arrows[0].disabled).toBe(true);
     expect(arrows[1].disabled).toBe(true);
     const strip = fixture.nativeElement.querySelector('.source-options') as HTMLElement;
-    Object.defineProperties(strip, { clientWidth: { configurable: true, value: 100 }, scrollWidth: { configurable: true, value: 300 } });
+    Object.defineProperties(strip, {
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 300 },
+    });
     component['updateScrollState']();
     fixture.detectChanges();
     expect(arrows[0].disabled).toBe(true);
@@ -56,10 +80,15 @@ describe('ContentSourceSelectorComponent navigation', () => {
   });
 
   it('reveals the selected source without changing selection semantics', async () => {
-    await TestBed.configureTestingModule({ imports: [ContentSourceSelectorComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [ContentSourceSelectorComponent],
+    }).compileComponents();
     const fixture = TestBed.createComponent(ContentSourceSelectorComponent);
     const component = fixture.componentInstance;
-    fixture.componentRef.setInput('sources', [{ id: 'all', label: 'All' }, { id: 'mod', label: 'Mod' }]);
+    fixture.componentRef.setInput('sources', [
+      { id: 'all', label: 'All' },
+      { id: 'mod', label: 'Mod' },
+    ]);
     fixture.componentRef.setInput('selectedId', 'mod');
     fixture.detectChanges();
     const selected = fixture.nativeElement.querySelector('[data-source-id="mod"]') as HTMLElement;

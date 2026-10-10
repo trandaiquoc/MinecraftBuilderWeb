@@ -12,7 +12,10 @@ describe('voxel face directions', () => {
       up: [{ x: 4, y: 6, z: 6 }, [0, 1, 0]],
       down: [{ x: 4, y: 4, z: 6 }, [0, -1, 0]],
     } as const;
-    for (const [face, [neighbor, normal]] of Object.entries(expected) as [keyof typeof expected, typeof expected[keyof typeof expected]][]) {
+    for (const [face, [neighbor, normal]] of Object.entries(expected) as [
+      keyof typeof expected,
+      (typeof expected)[keyof typeof expected],
+    ][]) {
       expect(surfaceNeighbor(origin, face)).toEqual(neighbor);
       expect(surfaceFaceNormal(face).toArray()).toEqual(normal);
     }

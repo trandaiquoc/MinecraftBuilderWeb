@@ -1,6 +1,7 @@
 import type { VanillaResourceFormatProfile } from '../vanilla-resource-format';
 
-export type CompatibilityClassification = 'compatible-reused' | 'changed-needs-delta' | 'new-generic-supported' | 'unsupported';
+export type CompatibilityClassification =
+  'compatible-reused' | 'changed-needs-delta' | 'new-generic-supported' | 'unsupported';
 
 export interface CompatibilityEntry {
   readonly minecraftVersion: string;

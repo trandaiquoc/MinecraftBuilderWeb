@@ -15,7 +15,9 @@ interface PrewarmFixtureOptions {
   readonly hasTerrainTemplate?: boolean | (() => boolean);
   readonly reusableKey?: (block: PlacedBlock) => string | undefined;
   readonly visibleEntry?: (block: PlacedBlock) => never;
-  readonly createVisual?: (block: PlacedBlock) => Promise<{ readonly object: THREE.Object3D } | undefined>;
+  readonly createVisual?: (
+    block: PlacedBlock,
+  ) => Promise<{ readonly object: THREE.Object3D } | undefined>;
   readonly resolveTerrainTemplates?: () => Promise<readonly never[] | undefined>;
 }
 
@@ -33,7 +35,10 @@ function createFixture(options: PrewarmFixtureOptions = {}) {
   const terminal = vi.fn();
   const queuedJobs: BlockHydrationJob[] = [];
   const runningJobs: BlockHydrationJob[] = [];
-  const pendingSignatures = new Map<string, { signature: string; ownerToken?: HydrationWorkOwnerToken }>();
+  const pendingSignatures = new Map<
+    string,
+    { signature: string; ownerToken?: HydrationWorkOwnerToken }
+  >();
   const hydration = {
     regularJobs: vi.fn(() => queuedJobs),
     removePendingKeys: vi.fn((keys: ReadonlySet<string>) => {
@@ -51,21 +56,24 @@ function createFixture(options: PrewarmFixtureOptions = {}) {
       return removed;
     }),
     clearPendingSignature: vi.fn((key: string) => pendingSignatures.delete(key)),
-    clearPendingSignatureIfOwned: vi.fn((key: string, signature: string, ownerToken: HydrationWorkOwnerToken) => {
-      const pending = pendingSignatures.get(key);
-      if (pending?.signature !== signature || !sameOwnerToken(pending.ownerToken, ownerToken)) return false;
-      return pendingSignatures.delete(key);
-    }),
+    clearPendingSignatureIfOwned: vi.fn(
+      (key: string, signature: string, ownerToken: HydrationWorkOwnerToken) => {
+        const pending = pendingSignatures.get(key);
+        if (pending?.signature !== signature || !sameOwnerToken(pending.ownerToken, ownerToken))
+          return false;
+        return pendingSignatures.delete(key);
+      },
+    ),
     hasPendingSignature: vi.fn((key: string) => pendingSignatures.has(key)),
-    setPendingSignature: vi.fn((key: string, signature: string, ownerToken?: HydrationWorkOwnerToken) => {
-      pendingSignatures.set(key, { signature, ownerToken });
-    }),
+    setPendingSignature: vi.fn(
+      (key: string, signature: string, ownerToken?: HydrationWorkOwnerToken) => {
+        pendingSignatures.set(key, { signature, ownerToken });
+      },
+    ),
     enqueueRegular: vi.fn((job: BlockHydrationJob) => queuedJobs.push(job)),
   };
   const createVisual = vi.fn(async (block: PlacedBlock) =>
-    options.createVisual
-      ? options.createVisual(block)
-      : { object: new THREE.Group() },
+    options.createVisual ? options.createVisual(block) : { object: new THREE.Group() },
   );
   const resources = {
     blockIndex: { visualRevision: 1, get: vi.fn() },
@@ -80,9 +88,10 @@ function createFixture(options: PrewarmFixtureOptions = {}) {
       disposePreparedTemplate: vi.fn(),
     },
     terrain: {
-      hasTemplates: () => typeof options.hasTerrainTemplate === 'function'
-        ? options.hasTerrainTemplate()
-        : options.hasTerrainTemplate ?? false,
+      hasTemplates: () =>
+        typeof options.hasTerrainTemplate === 'function'
+          ? options.hasTerrainTemplate()
+          : (options.hasTerrainTemplate ?? false),
     },
     terrainWorkflow: {
       resolveTemplatesFor: vi.fn(() => options.resolveTerrainTemplates?.() ?? Promise.resolve([])),
@@ -90,12 +99,14 @@ function createFixture(options: PrewarmFixtureOptions = {}) {
     representationHydration: { acquireProviderReference: () => vi.fn() },
   };
   const callbacks = {
-    createVisual: (currentProvider: BlockVisualProvider, block: PlacedBlock) => createVisual(block) as never,
+    createVisual: (currentProvider: BlockVisualProvider, block: PlacedBlock) =>
+      createVisual(block) as never,
     reusableKey: (_provider: BlockVisualProvider, block: PlacedBlock) =>
       options.reusableKey ? options.reusableKey(block) : block.id,
-    visibleEntry: (block: PlacedBlock) => options.visibleEntry
-      ? options.visibleEntry(block)
-      : ({ signature: 'signature', role: 'normal' }) as never,
+    visibleEntry: (block: PlacedBlock) =>
+      options.visibleEntry
+        ? options.visibleEntry(block)
+        : ({ signature: 'signature', role: 'normal' } as never),
     scheduleHydration: vi.fn(),
     activatePresentation: vi.fn(),
     record: vi.fn(),
@@ -132,14 +143,26 @@ function createFixture(options: PrewarmFixtureOptions = {}) {
     queuedJobs,
     runningJobs,
     pendingSignatures,
-    setProject: (value: ProjectDocument | undefined) => { currentProject = value; },
-    setProviderGeneration: (value: number) => { currentProviderGeneration = value; },
-    setHydrationGeneration: (value: number) => { currentHydrationGeneration = value; },
+    setProject: (value: ProjectDocument | undefined) => {
+      currentProject = value;
+    },
+    setProviderGeneration: (value: number) => {
+      currentProviderGeneration = value;
+    },
+    setHydrationGeneration: (value: number) => {
+      currentHydrationGeneration = value;
+    },
   };
 }
 
-async function waitForScheduledHydration(callbacks: ReturnType<typeof createFixture>['callbacks']): Promise<void> {
-  for (let attempt = 0; attempt < 100 && !callbacks.scheduleHydration.mock.calls.length; attempt += 1)
+async function waitForScheduledHydration(
+  callbacks: ReturnType<typeof createFixture>['callbacks'],
+): Promise<void> {
+  for (
+    let attempt = 0;
+    attempt < 100 && !callbacks.scheduleHydration.mock.calls.length;
+    attempt += 1
+  )
     await new Promise((resolve) => setTimeout(resolve, 1));
 }
 
@@ -162,7 +185,11 @@ function sameOwnerToken(
   left: HydrationWorkOwnerToken | undefined,
   right: HydrationWorkOwnerToken,
 ): boolean {
-  return left?.owner === right.owner && left.attempt === right.attempt && left.generation === right.generation;
+  return (
+    left?.owner === right.owner &&
+    left.attempt === right.attempt &&
+    left.generation === right.generation
+  );
 }
 
 describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
@@ -173,16 +200,22 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     await waitForTerminal(fixture.terminal);
 
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      projectId: fixture.project.id,
-      blocks: fixture.project.blocks,
-      provider: fixture.provider,
-      phase: 'representations',
-      outcome: 'ready',
-    }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: fixture.project.id,
+        blocks: fixture.project.blocks,
+        provider: fixture.provider,
+        phase: 'representations',
+        outcome: 'ready',
+      }),
+    );
     expect(fixture.createVisual).not.toHaveBeenCalled();
     expect(fixture.callbacks.scheduleHydration).toHaveBeenCalledWith(false);
-    expect(fixture.owner.representationEvidence).toMatchObject({ state: 'ready', blocksTotal: 0, representationsResident: 0 });
+    expect(fixture.owner.representationEvidence).toMatchObject({
+      state: 'ready',
+      blocksTotal: 0,
+      representationsResident: 0,
+    });
     fixture.owner.dispose();
   });
 
@@ -197,12 +230,17 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     await waitForTerminal(fixture.terminal);
 
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      phase: 'visual-templates',
-      outcome: 'ready',
-    }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'visual-templates',
+        outcome: 'ready',
+      }),
+    );
     expect(fixture.createVisual).not.toHaveBeenCalled();
-    expect(fixture.owner.visualEvidence).toMatchObject({ state: 'templates-ready', reusableVariantsReused: 1 });
+    expect(fixture.owner.visualEvidence).toMatchObject({
+      state: 'templates-ready',
+      reusableVariantsReused: 1,
+    });
     fixture.owner.dispose();
   });
 
@@ -217,11 +255,16 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     await waitForTerminal(fixture.terminal);
 
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      phase: 'visual-templates',
-      outcome: 'partial',
-    }));
-    expect(fixture.owner.visualEvidence).toMatchObject({ state: 'partial', reusableVariantsSkipped: 1 });
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'visual-templates',
+        outcome: 'partial',
+      }),
+    );
+    expect(fixture.owner.visualEvidence).toMatchObject({
+      state: 'partial',
+      reusableVariantsSkipped: 1,
+    });
     fixture.owner.dispose();
   });
 
@@ -229,18 +272,25 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     const fixture = createFixture({
       blocks: [placedBlock()],
       exposedFaceRendering: true,
-      reusableKey: () => { throw new Error('template resolver failed'); },
+      reusableKey: () => {
+        throw new Error('template resolver failed');
+      },
     });
 
     fixture.owner.prepare(fixture.project);
     await waitForTerminal(fixture.terminal);
 
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      phase: 'visual-templates',
-      outcome: 'failed',
-    }));
-    expect(fixture.owner.visualEvidence).toMatchObject({ state: 'failed', templateState: 'failed' });
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'visual-templates',
+        outcome: 'failed',
+      }),
+    );
+    expect(fixture.owner.visualEvidence).toMatchObject({
+      state: 'failed',
+      templateState: 'failed',
+    });
     expect(fixture.owner.representationEvidence.state).toBe('failed');
     fixture.owner.dispose();
   });
@@ -248,17 +298,21 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
   it('reports representation-stage failure as one terminal outcome', async () => {
     const fixture = createFixture({
       blocks: [placedBlock()],
-      visibleEntry: () => { throw new Error('projection entry unavailable'); },
+      visibleEntry: () => {
+        throw new Error('projection entry unavailable');
+      },
     });
 
     fixture.owner.prepare(fixture.project);
     await waitForTerminal(fixture.terminal);
 
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      phase: 'representations',
-      outcome: 'failed',
-    }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'representations',
+        outcome: 'failed',
+      }),
+    );
     expect(fixture.owner.representationEvidence).toMatchObject({ state: 'failed', jobsPending: 0 });
     fixture.owner.dispose();
   });
@@ -297,10 +351,12 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     expect(fixture.pendingSignatures.has(coordinateKey(placedBlock().position))).toBe(false);
     expect(fixture.pendingSignatures.get(unrelatedJob.key)?.signature).toBe('unrelated-signature');
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      phase: 'representations',
-      outcome: 'failed',
-    }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'representations',
+        outcome: 'failed',
+      }),
+    );
     fixture.owner.dispose();
   });
 
@@ -330,8 +386,13 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     await waitForTerminal(fixture.terminal);
 
     expect(fixture.queuedJobs).toHaveLength(1);
-    expect(fixture.queuedJobs[0]).toMatchObject({ layerPrewarm: false, signature: 'replacement-signature' });
-    expect(fixture.pendingSignatures.get(fixture.queuedJobs[0].key)?.signature).toBe('replacement-signature');
+    expect(fixture.queuedJobs[0]).toMatchObject({
+      layerPrewarm: false,
+      signature: 'replacement-signature',
+    });
+    expect(fixture.pendingSignatures.get(fixture.queuedJobs[0].key)?.signature).toBe(
+      'replacement-signature',
+    );
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
     fixture.owner.dispose();
   });
@@ -386,17 +447,24 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
   });
 
   it('cleans remaining queued work when representation completion processing throws', async () => {
-    const fixture = createFixture({ blocks: [placedBlock(0), { ...placedBlock(0), position: { x: 1, y: 0, z: 0 } }] });
+    const fixture = createFixture({
+      blocks: [placedBlock(0), { ...placedBlock(0), position: { x: 1, y: 0, z: 0 } }],
+    });
     fixture.owner.prepare(fixture.project);
     await waitForScheduledHydration(fixture.callbacks);
 
     const running = fixture.queuedJobs.shift()!;
-    fixture.hydration.clearPendingSignatureIfOwned(running.key, running.signature, running.ownerToken!);
+    fixture.hydration.clearPendingSignatureIfOwned(
+      running.key,
+      running.signature,
+      running.ownerToken!,
+    );
     fixture.runningJobs.push(running);
     fixture.resources.blockIndex.get.mockReturnValue(running.block);
     fixture.resources.representations.get.mockReturnValue({ signature: running.signature });
     fixture.callbacks.record.mockImplementation((metric) => {
-      if (metric === 'yLayerRepresentationJobsCompleted') throw new Error('completion observer failed');
+      if (metric === 'yLayerRepresentationJobsCompleted')
+        throw new Error('completion observer failed');
     });
 
     fixture.owner.onHydrationCompleted(running, true);
@@ -410,10 +478,14 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
   });
 
   it('cleans queued work and scope even when a cancellation terminal callback throws', async () => {
-    const fixture = createFixture({ blocks: [placedBlock(0), { ...placedBlock(0), position: { x: 1, y: 0, z: 0 } }] });
+    const fixture = createFixture({
+      blocks: [placedBlock(0), { ...placedBlock(0), position: { x: 1, y: 0, z: 0 } }],
+    });
     fixture.owner.prepare(fixture.project);
     await waitForScheduledHydration(fixture.callbacks);
-    fixture.terminal.mockImplementationOnce(() => { throw new Error('terminal observer failed'); });
+    fixture.terminal.mockImplementationOnce(() => {
+      throw new Error('terminal observer failed');
+    });
 
     expect(() => fixture.owner.cancel()).toThrow('terminal observer failed');
     expect(fixture.queuedJobs).toHaveLength(0);
@@ -422,7 +494,11 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
 
     fixture.terminal.mockImplementation(() => undefined);
     fixture.owner.prepare(fixture.project);
-    for (let attempt = 0; attempt < 100 && !fixture.queuedJobs.some((job) => job.layerPrewarm); attempt += 1)
+    for (
+      let attempt = 0;
+      attempt < 100 && !fixture.queuedJobs.some((job) => job.layerPrewarm);
+      attempt += 1
+    )
       await new Promise((resolve) => setTimeout(resolve, 1));
     expect(fixture.queuedJobs.some((job) => job.layerPrewarm)).toBe(true);
     expect(fixture.callbacks.scheduleHydration.mock.calls.length).toBeGreaterThan(1);
@@ -431,12 +507,18 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
   });
 
   it('ignores a running completion after generation cancellation without retaining queued work', async () => {
-    const fixture = createFixture({ blocks: [placedBlock(0), { ...placedBlock(0), position: { x: 1, y: 0, z: 0 } }] });
+    const fixture = createFixture({
+      blocks: [placedBlock(0), { ...placedBlock(0), position: { x: 1, y: 0, z: 0 } }],
+    });
     fixture.owner.prepare(fixture.project);
     await waitForScheduledHydration(fixture.callbacks);
 
     const staleRunning = fixture.queuedJobs.shift()!;
-    fixture.hydration.clearPendingSignatureIfOwned(staleRunning.key, staleRunning.signature, staleRunning.ownerToken!);
+    fixture.hydration.clearPendingSignatureIfOwned(
+      staleRunning.key,
+      staleRunning.signature,
+      staleRunning.ownerToken!,
+    );
     fixture.runningJobs.push(staleRunning);
     fixture.owner.cancel();
     fixture.setHydrationGeneration(2);
@@ -445,7 +527,9 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     expect(fixture.queuedJobs).toHaveLength(0);
     expect(fixture.pendingSignatures.size).toBe(0);
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'cancelled' }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'cancelled' }),
+    );
     expect(fixture.owner.representationEvidence.state).toBe('cancelled');
     fixture.owner.dispose();
   });
@@ -453,10 +537,18 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
   it('disposes queued prewarm work without affecting unrelated queued jobs', async () => {
     const fixture = createFixture({ blocks: [placedBlock()] });
     const unrelatedJob: BlockHydrationJob = {
-      key: 'unrelated-key', token: 1, projectionRevision: 0, block: placedBlock(),
-      signature: 'unrelated-signature', role: 'normal',
-      worldContext: { getBlock: () => undefined }, options: {}, allowInstancing: false,
-      surfaceFastPathEligible: false, surfaceVisibleEntries: new Map(), layerPrewarm: false,
+      key: 'unrelated-key',
+      token: 1,
+      projectionRevision: 0,
+      block: placedBlock(),
+      signature: 'unrelated-signature',
+      role: 'normal',
+      worldContext: { getBlock: () => undefined },
+      options: {},
+      allowInstancing: false,
+      surfaceFastPathEligible: false,
+      surfaceVisibleEntries: new Map(),
+      layerPrewarm: false,
     };
     fixture.hydration.setPendingSignature(unrelatedJob.key, unrelatedJob.signature);
     fixture.hydration.enqueueRegular(unrelatedJob);
@@ -490,7 +582,10 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     let resolveVisual!: (visual: { readonly object: THREE.Object3D }) => void;
     const fixture = createFixture({
       blocks: [placedBlock()],
-      createVisual: () => new Promise((resolve) => { resolveVisual = resolve; }),
+      createVisual: () =>
+        new Promise((resolve) => {
+          resolveVisual = resolve;
+        }),
     });
 
     fixture.owner.prepare(fixture.project);
@@ -500,7 +595,9 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
 
     fixture.owner.cancel();
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'cancelled' }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'cancelled' }),
+    );
     resolveVisual({ object: new THREE.Group() });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -513,7 +610,10 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     let resolveVisual!: (visual: { readonly object: THREE.Object3D }) => void;
     const fixture = createFixture({
       blocks: [placedBlock()],
-      createVisual: () => new Promise((resolve) => { resolveVisual = resolve; }),
+      createVisual: () =>
+        new Promise((resolve) => {
+          resolveVisual = resolve;
+        }),
     });
     const nextProject: ProjectDocument = { ...fixture.project, id: 'next-project', blocks: [] };
 
@@ -526,11 +626,13 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     await waitForTerminal(fixture.terminal);
 
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      projectId: nextProject.id,
-      blocks: nextProject.blocks,
-      outcome: 'ready',
-    }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: nextProject.id,
+        blocks: nextProject.blocks,
+        outcome: 'ready',
+      }),
+    );
     fixture.owner.dispose();
   });
 
@@ -541,7 +643,10 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
       blocks: [placedBlock()],
       exposedFaceRendering: true,
       hasTerrainTemplate: () => cacheReady,
-      resolveTerrainTemplates: () => new Promise((resolve) => { resolveOldTemplates = resolve; }),
+      resolveTerrainTemplates: () =>
+        new Promise((resolve) => {
+          resolveOldTemplates = resolve;
+        }),
     });
 
     fixture.owner.prepare(fixture.project);
@@ -557,10 +662,12 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(fixture.terminal).toHaveBeenCalledTimes(1);
-    expect(fixture.terminal).toHaveBeenCalledWith(expect.objectContaining({
-      providerGeneration: 2,
-      outcome: 'ready',
-    }));
+    expect(fixture.terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerGeneration: 2,
+        outcome: 'ready',
+      }),
+    );
     expect(fixture.owner.visualEvidence.state).toBe('templates-ready');
     fixture.owner.dispose();
   });
@@ -569,7 +676,10 @@ describe('YLayerRepresentationPrewarmOwner terminal lifecycle', () => {
     let resolveVisual!: (visual: { readonly object: THREE.Object3D }) => void;
     const fixture = createFixture({
       blocks: [placedBlock()],
-      createVisual: () => new Promise((resolve) => { resolveVisual = resolve; }),
+      createVisual: () =>
+        new Promise((resolve) => {
+          resolveVisual = resolve;
+        }),
     });
 
     fixture.owner.prepare(fixture.project);

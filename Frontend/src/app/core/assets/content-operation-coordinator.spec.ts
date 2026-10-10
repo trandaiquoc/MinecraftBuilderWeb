@@ -7,12 +7,17 @@ describe('ContentOperationCoordinator', () => {
     let backgroundAborted = false;
     let releaseBackground!: () => void;
     const background = coordinator.run('background', async (signal) => {
-      await new Promise<void>((resolve) => { releaseBackground = resolve; });
+      await new Promise<void>((resolve) => {
+        releaseBackground = resolve;
+      });
       backgroundAborted = signal.aborted;
     });
     await Promise.resolve();
     let foregroundStarted = false;
-    const foreground = coordinator.run('foreground', async () => { foregroundStarted = true; return 'done'; });
+    const foreground = coordinator.run('foreground', async () => {
+      foregroundStarted = true;
+      return 'done';
+    });
     await Promise.resolve();
     expect(foregroundStarted).toBe(false);
     releaseBackground();
@@ -32,7 +37,9 @@ describe('ContentOperationCoordinator', () => {
     let releaseForeground!: () => void;
     let foregroundAborted = false;
     const foreground = coordinator.run('foreground', async (signal) => {
-      await new Promise<void>((resolve) => { releaseForeground = resolve; });
+      await new Promise<void>((resolve) => {
+        releaseForeground = resolve;
+      });
       foregroundAborted = signal.aborted;
       return 'foreground';
     });

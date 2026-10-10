@@ -1,7 +1,9 @@
 import { AfterViewInit, Directive, ElementRef, Input, OnDestroy, output } from '@angular/core';
 import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnail-task-queue';
 
-export interface VisibilityEvent { readonly priority: ThumbnailTaskPriority; }
+export interface VisibilityEvent {
+  readonly priority: ThumbnailTaskPriority;
+}
 
 interface SharedObserverState {
   readonly observer: IntersectionObserver;
@@ -19,7 +21,8 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
 
   @Input()
   set thumbnailVisibilityEpoch(_value: number) {
-    if (this.initialized && this.currentPriority) this.thumbnailVisible.emit({ priority: this.currentPriority });
+    if (this.initialized && this.currentPriority)
+      this.thumbnailVisible.emit({ priority: this.currentPriority });
   }
 
   constructor(private readonly host: ElementRef<HTMLElement>) {}
@@ -28,7 +31,8 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
     const element = this.host.nativeElement;
     this.root = element.closest('.results') ?? undefined;
     if (typeof IntersectionObserver === 'undefined') {
-      this.currentPriority = 'visible'; this.initialized = true;
+      this.currentPriority = 'visible';
+      this.initialized = true;
       queueMicrotask(() => this.thumbnailVisible.emit({ priority: 'visible' }));
       return;
     }
@@ -36,7 +40,12 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
     let shared = ThumbnailVisibilityDirective.sharedObservers.get(root);
     if (!shared) {
       const directives = new Map<Element, ThumbnailVisibilityDirective>();
-      const observer = new IntersectionObserver((entries) => { for (const entry of entries) directives.get(entry.target)?.handleEntry(entry); }, { root, rootMargin: '160px 0px' });
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) directives.get(entry.target)?.handleEntry(entry);
+        },
+        { root, rootMargin: '160px 0px' },
+      );
       shared = { observer, directives };
       ThumbnailVisibilityDirective.sharedObservers.set(root, shared);
     }
@@ -47,10 +56,18 @@ export class ThumbnailVisibilityDirective implements AfterViewInit, OnDestroy {
   }
 
   private handleEntry(entry: IntersectionObserverEntry): void {
-    if (!entry.isIntersecting) { this.currentPriority = undefined; return; }
+    if (!entry.isIntersecting) {
+      this.currentPriority = undefined;
+      return;
+    }
     const rootRect = this.root?.getBoundingClientRect();
     const rect = entry.boundingClientRect;
-    const visible = !rootRect || (rect.bottom > rootRect.top && rect.top < rootRect.bottom && rect.right > rootRect.left && rect.left < rootRect.right);
+    const visible =
+      !rootRect ||
+      (rect.bottom > rootRect.top &&
+        rect.top < rootRect.bottom &&
+        rect.right > rootRect.left &&
+        rect.left < rootRect.right);
     this.currentPriority = visible ? 'visible' : 'prefetch';
     this.thumbnailVisible.emit({ priority: this.currentPriority });
   }

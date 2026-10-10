@@ -9,7 +9,7 @@ describe('collectSceneRenderCost', () => {
     const decorations = new THREE.Group();
     const geometry = new THREE.BoxGeometry();
     const opaque = new THREE.MeshBasicMaterial();
-    const transparent = new THREE.MeshBasicMaterial({ transparent: true, opacity: .5 });
+    const transparent = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5 });
     const standalone = new THREE.Mesh(geometry, transparent);
     blocks.add(standalone);
     scene.add(blocks, decorations);
@@ -31,6 +31,8 @@ describe('collectSceneRenderCost', () => {
     expect(cost.standaloneBlockObjects).toBe(1);
     expect(cost.standaloneTransparentMeshes).toBe(1);
     expect(cost.opaqueMeshCount).toBe(1);
-    geometry.dispose(); opaque.dispose(); transparent.dispose();
+    geometry.dispose();
+    opaque.dispose();
+    transparent.dispose();
   });
 });

@@ -1,9 +1,19 @@
 import * as THREE from 'three';
 import { coordinateKey } from '../../domain/coordinates';
 import type { VoxelCoordinate } from '../../domain/project.types';
-import { buildFluidFallbackMeshData, buildFluidMeshData, fluidChunkKey, type FluidMeshRecord } from './fluid-mesh-core';
+import {
+  buildFluidFallbackMeshData,
+  buildFluidMeshData,
+  fluidChunkKey,
+  type FluidMeshRecord,
+} from './fluid-mesh-core';
 import type { FluidWorldLookup } from './fluid-state';
-import type { FluidChunkChange, FluidChunkRecord, FluidChunkSyncResult, FluidChunkVisualProvider } from './fluid-render-contracts';
+import type {
+  FluidChunkChange,
+  FluidChunkRecord,
+  FluidChunkSyncResult,
+  FluidChunkVisualProvider,
+} from './fluid-render-contracts';
 import { FluidChunkRecordStore } from './fluid-chunk-record-store';
 import { FluidChunkResidencyOwner, type FluidResidentChunk } from './fluid-chunk-residency-owner';
 import { fluidRecordSignature } from './fluid-record-signature';
@@ -46,14 +56,24 @@ export class FluidChunkBuildOwner {
     this.residency.setProviderContractKey(provider ? nextKey : undefined);
   }
 
-  providerSnapshot(): FluidChunkVisualProvider | undefined { return this.provider; }
+  providerSnapshot(): FluidChunkVisualProvider | undefined {
+    return this.provider;
+  }
 
-  sync(records: readonly FluidChunkRecord[], world: FluidWorldLookup, changedPositions?: readonly VoxelCoordinate[]): Promise<FluidChunkSyncResult> {
+  sync(
+    records: readonly FluidChunkRecord[],
+    world: FluidWorldLookup,
+    changedPositions?: readonly VoxelCoordinate[],
+  ): Promise<FluidChunkSyncResult> {
     const epoch = this.epoch;
     return this.enqueue(() => this.syncNow(records, world, changedPositions, epoch));
   }
 
-  syncDelta(changes: readonly FluidChunkChange[], changedPositions: readonly VoxelCoordinate[], world: FluidWorldLookup): Promise<FluidChunkSyncResult> {
+  syncDelta(
+    changes: readonly FluidChunkChange[],
+    changedPositions: readonly VoxelCoordinate[],
+    world: FluidWorldLookup,
+  ): Promise<FluidChunkSyncResult> {
     const epoch = this.epoch;
     return this.enqueue(() => this.syncDeltaNow(changes, changedPositions, world, epoch));
   }
@@ -68,7 +88,9 @@ export class FluidChunkBuildOwner {
     };
   }
 
-  cancelPending(): void { this.epoch += 1; }
+  cancelPending(): void {
+    this.epoch += 1;
+  }
 
   dispose(): void {
     if (this.disposed) return;
@@ -80,28 +102,47 @@ export class FluidChunkBuildOwner {
 
   private enqueue(operation: () => Promise<FluidChunkSyncResult>): Promise<FluidChunkSyncResult> {
     const task = this.syncQueue.then(operation);
-    this.syncQueue = task.then(() => undefined, () => undefined);
+    this.syncQueue = task.then(
+      () => undefined,
+      () => undefined,
+    );
     return task;
   }
 
-  private async syncNow(records: readonly FluidChunkRecord[], world: FluidWorldLookup, changedPositions: readonly VoxelCoordinate[] | undefined, epoch: number): Promise<FluidChunkSyncResult> {
+  private async syncNow(
+    records: readonly FluidChunkRecord[],
+    world: FluidWorldLookup,
+    changedPositions: readonly VoxelCoordinate[] | undefined,
+    epoch: number,
+  ): Promise<FluidChunkSyncResult> {
     if (this.disposed || epoch !== this.epoch) return staleResult();
     const provider = this.provider;
     if (!provider) return unavailableResult();
-    const reconciliation = this.records.reconcile(records, changedPositions, this.chunkSize, this.residency.currentChunkKeys(), this.providerRebuildRequired);
+    const reconciliation = this.records.reconcile(
+      records,
+      changedPositions,
+      this.chunkSize,
+      this.residency.currentChunkKeys(),
+      this.providerRebuildRequired,
+    );
     const dirty = reconciliation.dirtyChunks;
     if (reconciliation.full) this.fullRebuildCount += 1;
     else this.incrementalRebuildCount += 1;
     this.dirtyChunksLastEdit = dirty.size;
     for (const key of dirty) {
       if (!this.isCurrent(epoch, provider)) return staleResult();
-      if (await this.rebuildChunk(key, world, epoch, provider) === 'stale') return staleResult();
+      if ((await this.rebuildChunk(key, world, epoch, provider)) === 'stale') return staleResult();
     }
     this.providerRebuildRequired = false;
     return this.resultForRecords(records);
   }
 
-  private async syncDeltaNow(changes: readonly FluidChunkChange[], changedPositions: readonly VoxelCoordinate[], world: FluidWorldLookup, epoch: number): Promise<FluidChunkSyncResult> {
+  private async syncDeltaNow(
+    changes: readonly FluidChunkChange[],
+    changedPositions: readonly VoxelCoordinate[],
+    world: FluidWorldLookup,
+    epoch: number,
+  ): Promise<FluidChunkSyncResult> {
     if (this.disposed || epoch !== this.epoch) return staleResult();
     if (!this.provider) return unavailableResult();
     const delta = this.records.applyDelta(changes, changedPositions, this.chunkSize);
@@ -109,7 +150,8 @@ export class FluidChunkBuildOwner {
     this.dirtyChunksLastEdit = delta.dirtyChunks.size;
     for (const key of delta.dirtyChunks) {
       if (this.disposed || epoch !== this.epoch) return staleResult();
-      if (await this.rebuildChunk(key, world, epoch, this.provider) === 'stale') return staleResult();
+      if ((await this.rebuildChunk(key, world, epoch, this.provider)) === 'stale')
+        return staleResult();
     }
     return this.resultForKeys(delta.changedKeys);
   }
@@ -125,15 +167,26 @@ export class FluidChunkBuildOwner {
     for (const key of keys) {
       const record = this.records.get(key);
       if (!record) continue;
-      const chunk = this.residency.currentChunk(fluidChunkKey(record.block.position, this.chunkSize));
-      if (chunk?.providerContractKey !== providerKey || chunk.signatures.get(key) !== fluidRecordSignature(record)) continue;
+      const chunk = this.residency.currentChunk(
+        fluidChunkKey(record.block.position, this.chunkSize),
+      );
+      if (
+        chunk?.providerContractKey !== providerKey ||
+        chunk.signatures.get(key) !== fluidRecordSignature(record)
+      )
+        continue;
       committedKeys.push(key);
       if (chunk.fallbackKeys.has(key)) fallbackKeys.push(key);
     }
     return { status: 'committed', committedKeys, fallbackKeys };
   }
 
-  private async rebuildChunk(key: string, world: FluidWorldLookup, epoch: number, provider: FluidChunkVisualProvider): Promise<'committed' | 'stale'> {
+  private async rebuildChunk(
+    key: string,
+    world: FluidWorldLookup,
+    epoch: number,
+    provider: FluidChunkVisualProvider,
+  ): Promise<'committed' | 'stale'> {
     if (!this.isCurrent(epoch, provider)) return 'stale';
     const chunkRecords = this.records.recordsInChunk(key);
     const previous = this.residency.currentChunk(key);
@@ -142,9 +195,16 @@ export class FluidChunkBuildOwner {
       return 'committed';
     }
     const contractKey = providerContractKey(provider);
-    const signature = world.visualRevisionKey === undefined
-      ? undefined
-      : fluidChunkSignature(key, chunkRecords, world.visualRevisionKey, contractKey, this.residency.isLayered);
+    const signature =
+      world.visualRevisionKey === undefined
+        ? undefined
+        : fluidChunkSignature(
+            key,
+            chunkRecords,
+            world.visualRevisionKey,
+            contractKey,
+            this.residency.isLayered,
+          );
     if (signature && previous?.signature === signature) return 'committed';
     const cached = signature ? this.residency.takeResidentVariant(key, signature) : undefined;
     if (cached) {
@@ -160,19 +220,30 @@ export class FluidChunkBuildOwner {
     let data;
     let fallbackBuild = false;
     try {
-      data = buildFluidMeshData(meshRecords, world, provider.resolver, { layeredPresentation: this.residency.isLayered });
+      data = buildFluidMeshData(meshRecords, world, provider.resolver, {
+        layeredPresentation: this.residency.isLayered,
+      });
     } catch {
-      data = buildFluidFallbackMeshData(meshRecords, { layeredPresentation: this.residency.isLayered });
+      data = buildFluidFallbackMeshData(meshRecords, {
+        layeredPresentation: this.residency.isLayered,
+      });
       fallbackBuild = true;
     }
-    const built = await this.residency.createBuildResources(data, provider, () => this.isCurrent(epoch, provider));
+    const built = await this.residency.createBuildResources(data, provider, () =>
+      this.isCurrent(epoch, provider),
+    );
     if (!built || !this.isCurrent(epoch, provider)) {
       if (built) this.residency.discardBuildResources(built);
       return 'stale';
     }
     const fallbackKeys = new Set(built.fallbackKeys);
-    if (fallbackBuild) for (const record of chunkRecords) fallbackKeys.add(coordinateKey(record.block.position));
-    const signatures = new Map(chunkRecords.map((record) => [coordinateKey(record.block.position), fluidRecordSignature(record)] as const));
+    if (fallbackBuild)
+      for (const record of chunkRecords) fallbackKeys.add(coordinateKey(record.block.position));
+    const signatures = new Map(
+      chunkRecords.map(
+        (record) => [coordinateKey(record.block.position), fluidRecordSignature(record)] as const,
+      ),
+    );
     const chunkSignature = signature ?? `${key}|uncacheable:${this.chunkRebuildCount}:${epoch}`;
     const chunk: FluidResidentChunk = {
       key,
@@ -197,13 +268,25 @@ export class FluidChunkBuildOwner {
   }
 
   private isCurrent(epoch: number, provider: FluidChunkVisualProvider): boolean {
-    return !this.disposed && epoch === this.epoch && providerContractKey(this.provider) === providerContractKey(provider);
+    return (
+      !this.disposed &&
+      epoch === this.epoch &&
+      providerContractKey(this.provider) === providerContractKey(provider)
+    );
   }
 }
 
-function fluidChunkSignature(chunkKey: string, records: readonly FluidChunkRecord[], worldRevisionKey: string | number, providerKey: string, layeredPresentation: boolean): string {
+function fluidChunkSignature(
+  chunkKey: string,
+  records: readonly FluidChunkRecord[],
+  worldRevisionKey: string | number,
+  providerKey: string,
+  layeredPresentation: boolean,
+): string {
   const recordsKey = [...records]
-    .sort((left, right) => coordinateKey(left.block.position).localeCompare(coordinateKey(right.block.position)))
+    .sort((left, right) =>
+      coordinateKey(left.block.position).localeCompare(coordinateKey(right.block.position)),
+    )
     .map(fluidRecordSignature)
     .join(';');
   return `${chunkKey}|world:${worldRevisionKey}|provider:${providerKey}|layered:${layeredPresentation}|${recordsKey}`;
@@ -212,7 +295,8 @@ function fluidChunkSignature(chunkKey: string, records: readonly FluidChunkRecor
 function fluidChunkBytes(meshes: readonly THREE.Mesh[], signature: string): number {
   const geometryBytes = meshes.reduce((total, mesh) => {
     let bytes = mesh.geometry.index?.array.byteLength ?? 0;
-    for (const attribute of Object.values(mesh.geometry.attributes)) bytes += attribute.array.byteLength;
+    for (const attribute of Object.values(mesh.geometry.attributes))
+      bytes += attribute.array.byteLength;
     return total + bytes;
   }, 0);
   return geometryBytes + signature.length * 2;
@@ -222,5 +306,9 @@ function providerContractKey(provider: FluidChunkVisualProvider | undefined): st
   return provider?.contractKey ?? (provider ? 'fluid-provider-default' : '');
 }
 
-function staleResult(): FluidChunkSyncResult { return { status: 'stale', committedKeys: [], fallbackKeys: [] }; }
-function unavailableResult(): FluidChunkSyncResult { return { status: 'unavailable', committedKeys: [], fallbackKeys: [] }; }
+function staleResult(): FluidChunkSyncResult {
+  return { status: 'stale', committedKeys: [], fallbackKeys: [] };
+}
+function unavailableResult(): FluidChunkSyncResult {
+  return { status: 'unavailable', committedKeys: [], fallbackKeys: [] };
+}

@@ -17,7 +17,9 @@ export class EditorLeaveCoordinator {
     if (this.inFlight) return this.inFlight;
     const decision = this.evaluate();
     let wrapped!: Promise<boolean>;
-    wrapped = decision.finally(() => { if (this.inFlight === wrapped) this.inFlight = undefined; });
+    wrapped = decision.finally(() => {
+      if (this.inFlight === wrapped) this.inFlight = undefined;
+    });
     this.inFlight = wrapped;
     return wrapped;
   }
@@ -25,8 +27,11 @@ export class EditorLeaveCoordinator {
   private async evaluate(): Promise<boolean> {
     let flushFailed = false;
     if (this.autosave.isUnsafeDirty) {
-      try { await this.autosave.flush(); }
-      catch { flushFailed = true; }
+      try {
+        await this.autosave.flush();
+      } catch {
+        flushFailed = true;
+      }
     }
     if (flushFailed || this.autosave.isUnsafeDirty) {
       const leave = await this.dialogs.confirm({
@@ -53,4 +58,5 @@ export class EditorLeaveCoordinator {
   }
 }
 
-export const editorCanDeactivate: CanDeactivateFn<unknown> = () => inject(EditorLeaveCoordinator).canLeave();
+export const editorCanDeactivate: CanDeactivateFn<unknown> = () =>
+  inject(EditorLeaveCoordinator).canLeave();

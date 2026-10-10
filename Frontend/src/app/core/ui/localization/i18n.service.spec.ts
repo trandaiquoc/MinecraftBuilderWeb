@@ -1,7 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { I18nService } from './i18n.service';
-import { supplementalTranslations, translationCatalogs, translationKeySets } from './translation-catalogs';
+import {
+  supplementalTranslations,
+  translationCatalogs,
+  translationKeySets,
+} from './translation-catalogs';
 
 afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
 
@@ -15,12 +19,17 @@ describe('translation dictionaries', () => {
     for (const [catalogName, catalog] of Object.entries(translationCatalogs)) {
       const en = catalog.en as Readonly<Record<string, string>>;
       const vi = catalog.vi as Readonly<Record<string, string>>;
-      expect(Object.keys(en).sort(), `${catalogName} EN/VI key parity`).toEqual(Object.keys(vi).sort());
+      expect(Object.keys(en).sort(), `${catalogName} EN/VI key parity`).toEqual(
+        Object.keys(vi).sort(),
+      );
       for (const key of Object.keys(en)) {
         expect(owners.has(key), `${key} has a single catalog owner`).toBe(false);
         owners.set(key, catalogName);
-        const placeholders = (value: string) => [...value.matchAll(/\{([^{}]+)\}/g)].map((match) => match[1]).sort();
-        expect(placeholders(vi[key]), `${catalogName}.${key} interpolation parity`).toEqual(placeholders(en[key]));
+        const placeholders = (value: string) =>
+          [...value.matchAll(/\{([^{}]+)\}/g)].map((match) => match[1]).sort();
+        expect(placeholders(vi[key]), `${catalogName}.${key} interpolation parity`).toEqual(
+          placeholders(en[key]),
+        );
       }
     }
   });
@@ -28,10 +37,14 @@ describe('translation dictionaries', () => {
   it('keeps supplemental Vietnamese UI text readable and localized', () => {
     const values = Object.values(supplementalTranslations.vi);
     const mojibake = /Ãƒ|Ã„|Ã†|Ã‚|Ã¡Âº|Ã¡Â»/;
-    expect(Object.keys(supplementalTranslations.en).sort()).toEqual(Object.keys(supplementalTranslations.vi).sort());
+    expect(Object.keys(supplementalTranslations.en).sort()).toEqual(
+      Object.keys(supplementalTranslations.vi).sort(),
+    );
     expect(values.some((value) => mojibake.test(value))).toBe(false);
     expect(supplementalTranslations.vi.assetManagerTabVanilla).toBe('Phiên bản Minecraft');
-    expect(supplementalTranslations.vi.assetManagerShowTechnicalProgress).toBe('Hiện tiến trình kỹ thuật');
+    expect(supplementalTranslations.vi.assetManagerShowTechnicalProgress).toBe(
+      'Hiện tiến trình kỹ thuật',
+    );
   });
 
   it('keeps Structure JSON diagnostic labels and reasons localized in both locales', () => {
@@ -40,7 +53,9 @@ describe('translation dictionaries', () => {
     expect(supplementalTranslations.vi.structureJsonPosition).toBe('Vị trí');
     expect(supplementalTranslations.vi.structureJsonProperty).toBe('Thuộc tính');
     expect(supplementalTranslations.vi.structureJsonReasonOutOfBounds).toContain('Tọa độ');
-    expect(supplementalTranslations.vi.structureJsonReasonUnsupportedStateValue).toContain('Giá trị');
+    expect(supplementalTranslations.vi.structureJsonReasonUnsupportedStateValue).toContain(
+      'Giá trị',
+    );
   });
 
   it('provides localized viewport hydration labels', () => {
@@ -67,13 +82,25 @@ describe('translation dictionaries', () => {
     const service = TestBed.inject(I18nService);
     service.setLocale('en');
     expect(service.t('structureJsonCurrentFormat')).toBe('MinecraftBuilder Structure JSON');
-    expect(service.t('structureJsonLimitations')).toBe('Structure JSON includes blocks, decorations, and verified semantic block entities. Unsupported opaque data may require Project Backup for full fidelity.');
-    expect(service.t('structureJsonImportStale')).toBe('The project changed while this import was waiting. Validate again before applying.');
-    expect(service.t('structureJsonImportDescription')).toBe('Paste or load the current Structure JSON format to inspect it before any project changes.');
-    expect(service.t('structureJsonValidationShape')).toBe('The document does not match the current Structure JSON shape.');
+    expect(service.t('structureJsonLimitations')).toBe(
+      'Structure JSON includes blocks, decorations, and verified semantic block entities. Unsupported opaque data may require Project Backup for full fidelity.',
+    );
+    expect(service.t('structureJsonImportStale')).toBe(
+      'The project changed while this import was waiting. Validate again before applying.',
+    );
+    expect(service.t('structureJsonImportDescription')).toBe(
+      'Paste or load the current Structure JSON format to inspect it before any project changes.',
+    );
+    expect(service.t('structureJsonValidationShape')).toBe(
+      'The document does not match the current Structure JSON shape.',
+    );
     service.setLocale('vi');
-    expect(service.t('structureJsonLimitations')).toBe('Structure JSON bao gom block, do trang tri va block entity semantic da xac minh. Du lieu raw khong duoc ho tro co the can Ban sao luu du an de giu nguyen.');
-    expect(service.t('structureJsonImportDescription')).toBe('Dán hoặc tải Structure JSON hiện tại để kiểm tra trước khi thay đổi dự án.');
+    expect(service.t('structureJsonLimitations')).toBe(
+      'Structure JSON bao gom block, do trang tri va block entity semantic da xac minh. Du lieu raw khong duoc ho tro co the can Ban sao luu du an de giu nguyen.',
+    );
+    expect(service.t('structureJsonImportDescription')).toBe(
+      'Dán hoặc tải Structure JSON hiện tại để kiểm tra trước khi thay đổi dự án.',
+    );
     service.setLocale('en');
   });
 

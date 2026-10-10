@@ -13,7 +13,12 @@ export interface TerrainAtlasFramebufferEvidence {
   readonly alphaMax: number;
   readonly checksum: number;
   readonly glError?: number;
-  readonly bounds?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
+  readonly bounds?: {
+    readonly minX: number;
+    readonly minY: number;
+    readonly maxX: number;
+    readonly maxY: number;
+  };
 }
 
 export interface TerrainAtlasGpuProbeVariantDraw {
@@ -46,8 +51,18 @@ export interface TerrainAtlasGpuProbeResult {
  * back numeric evidence. This is diagnostic infrastructure only; it is never
  * called by normal terrain rendering or used as a runtime fallback.
  */
-export function runTerrainAtlasGpuProbe(renderer: THREE.WebGLRenderer, source: TerrainAtlasGpuProbeDraw, atlas: TerrainAtlasGpuProbeDraw, size = 32): TerrainAtlasGpuProbeResult {
-  const result = runTerrainAtlasGpuProbeVariants(renderer, source, [{ name: 'atlas', ...atlas }], size);
+export function runTerrainAtlasGpuProbe(
+  renderer: THREE.WebGLRenderer,
+  source: TerrainAtlasGpuProbeDraw,
+  atlas: TerrainAtlasGpuProbeDraw,
+  size = 32,
+): TerrainAtlasGpuProbeResult {
+  const result = runTerrainAtlasGpuProbeVariants(
+    renderer,
+    source,
+    [{ name: 'atlas', ...atlas }],
+    size,
+  );
   const atlasEvidence = result.variants['atlas'];
   return {
     source: result.source,
@@ -67,7 +82,10 @@ export function runTerrainAtlasGpuProbeVariants(
   size = 32,
   beforeVariant?: TerrainAtlasGpuProbeBeforeVariant,
 ): TerrainAtlasGpuProbeVariantsResult {
-  const target = new THREE.WebGLRenderTarget(size, size, { depthBuffer: true, stencilBuffer: false });
+  const target = new THREE.WebGLRenderTarget(size, size, {
+    depthBuffer: true,
+    stencilBuffer: false,
+  });
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
   const previousTarget = renderer.getRenderTarget();
@@ -89,15 +107,28 @@ export function runTerrainAtlasGpuProbeVariants(
       draw.material = variant.material;
       const capture = renderAndRead(renderer, scene, camera, target, size);
       evidence[variant.name] = capture.evidence;
-      parityByVariant[variant.name] = sourceCapture.glError === 0 && capture.glError === 0 && framebuffersEqual(sourceCapture.pixels, capture.pixels);
+      parityByVariant[variant.name] =
+        sourceCapture.glError === 0 &&
+        capture.glError === 0 &&
+        framebuffersEqual(sourceCapture.pixels, capture.pixels);
     }
-    return { source: sourceCapture.evidence, variants: evidence, parityByVariant, sourceGlError: sourceCapture.glError };
+    return {
+      source: sourceCapture.evidence,
+      variants: evidence,
+      parityByVariant,
+      sourceGlError: sourceCapture.glError,
+    };
   } catch (error) {
     return {
       variants: {},
       parityByVariant: {},
       sourceGlError: safeGlError(renderer),
-      failureStage: error instanceof Error && error.message.includes('read') ? 'readback' : variants.length ? 'variant-render' : 'source-render',
+      failureStage:
+        error instanceof Error && error.message.includes('read')
+          ? 'readback'
+          : variants.length
+            ? 'variant-render'
+            : 'source-render',
     };
   } finally {
     try {
@@ -117,13 +148,24 @@ export function runTerrainAtlasGpuProbeVariants(
 
 function framebuffersEqual(source: Uint8Array, atlas: Uint8Array): boolean {
   if (source.length !== atlas.length) return false;
-  for (let index = 0; index < source.length; index += 1) if (source[index] !== atlas[index]) return false;
+  for (let index = 0; index < source.length; index += 1)
+    if (source[index] !== atlas[index]) return false;
   return true;
 }
 
-interface Capture { readonly evidence: TerrainAtlasFramebufferEvidence; readonly pixels: Uint8Array; readonly glError: number; }
+interface Capture {
+  readonly evidence: TerrainAtlasFramebufferEvidence;
+  readonly pixels: Uint8Array;
+  readonly glError: number;
+}
 
-function renderAndRead(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, target: THREE.WebGLRenderTarget, size: number): Capture {
+function renderAndRead(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  target: THREE.WebGLRenderTarget,
+  size: number,
+): Capture {
   renderer.setRenderTarget(target);
   renderer.setViewport(0, 0, size, size);
   renderer.setScissorTest(false);
@@ -135,10 +177,18 @@ function renderAndRead(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera
   renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
   const after = safeGlError(renderer);
   const glError = before || after;
-  return { evidence: { ...summarizeTerrainFramebuffer(pixels, size, size), glError }, pixels, glError };
+  return {
+    evidence: { ...summarizeTerrainFramebuffer(pixels, size, size), glError },
+    pixels,
+    glError,
+  };
 }
 
-export function summarizeTerrainFramebuffer(pixels: Uint8Array, width: number, height: number): TerrainAtlasFramebufferEvidence {
+export function summarizeTerrainFramebuffer(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+): TerrainAtlasFramebufferEvidence {
   let nonTransparentPixels = 0;
   let alphaMin = 255;
   let alphaMax = 0;
@@ -148,21 +198,37 @@ export function summarizeTerrainFramebuffer(pixels: Uint8Array, width: number, h
   let maxY = -1;
   let checksum = 0x811c9dc5;
   for (let index = 0; index < pixels.length; index += 1) {
-    checksum ^= pixels[index]; checksum = Math.imul(checksum, 0x01000193) >>> 0;
+    checksum ^= pixels[index];
+    checksum = Math.imul(checksum, 0x01000193) >>> 0;
     if (index % 4 !== 3) continue;
     const alpha = pixels[index];
     if (alpha === 0) continue;
-    alphaMin = Math.min(alphaMin, alpha); alphaMax = Math.max(alphaMax, alpha);
+    alphaMin = Math.min(alphaMin, alpha);
+    alphaMax = Math.max(alphaMax, alpha);
     const pixel = Math.floor(index / 4);
     const x = pixel % width;
     const y = Math.floor(pixel / width);
     nonTransparentPixels += 1;
-    minX = Math.min(minX, x); minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
   }
-  return { width, height, nonTransparentPixels, alphaMin: nonTransparentPixels ? alphaMin : 0, alphaMax, checksum, ...(maxX < 0 ? {} : { bounds: { minX, minY, maxX, maxY } }) };
+  return {
+    width,
+    height,
+    nonTransparentPixels,
+    alphaMin: nonTransparentPixels ? alphaMin : 0,
+    alphaMax,
+    checksum,
+    ...(maxX < 0 ? {} : { bounds: { minX, minY, maxX, maxY } }),
+  };
 }
 
 function safeGlError(renderer: THREE.WebGLRenderer): number {
-  try { return renderer.getContext().getError(); } catch { return -1; }
+  try {
+    return renderer.getContext().getError();
+  } catch {
+    return -1;
+  }
 }

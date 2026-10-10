@@ -4,7 +4,9 @@ import { HydrationProgressTracker } from './hydration-progress-tracker';
 describe('HydrationProgressTracker', () => {
   it('tracks block and decoration scopes without double counting', () => {
     const updates: number[] = [];
-    const tracker = new HydrationProgressTracker(undefined, (progress) => updates.push(progress.completed));
+    const tracker = new HydrationProgressTracker(undefined, (progress) =>
+      updates.push(progress.completed),
+    );
     tracker.setBlockScope(['a', 'b']);
     tracker.setDecorationScope(['d']);
     tracker.begin(4);
@@ -24,7 +26,17 @@ describe('HydrationProgressTracker', () => {
     tracker.setBlockScope(['a', 'b']);
     tracker.begin(2);
     tracker.complete(2, 'block', 'a');
-    tracker.publish({ generation: 2, status: 'hydrating', completed: 0, total: 2, blocksCompleted: 0, blocksTotal: 2, decorationsCompleted: 0, decorationsTotal: 0, percent: 0 });
+    tracker.publish({
+      generation: 2,
+      status: 'hydrating',
+      completed: 0,
+      total: 2,
+      blocksCompleted: 0,
+      blocksTotal: 2,
+      decorationsCompleted: 0,
+      decorationsTotal: 0,
+      percent: 0,
+    });
     expect(tracker.snapshot().completed).toBe(1);
     tracker.complete(1, 'block', 'b');
     expect(tracker.snapshot().completed).toBe(1);
@@ -36,7 +48,12 @@ describe('HydrationProgressTracker', () => {
     tracker.setBlockScope(['a']);
     tracker.complete(0, 'block', 'a');
     tracker.reset(1);
-    expect(tracker.snapshot()).toMatchObject({ generation: 1, status: 'idle', completed: 0, total: 0 });
+    expect(tracker.snapshot()).toMatchObject({
+      generation: 1,
+      status: 'idle',
+      completed: 0,
+      total: 0,
+    });
     tracker.begin(1);
     expect(tracker.snapshot()).toMatchObject({ status: 'hydrating', total: 1 });
   });
@@ -47,12 +64,19 @@ describe('HydrationProgressTracker', () => {
     tracker.begin(8);
     tracker.complete(8, 'block', 'solid');
     tracker.completeBatch(8, 'block', ['fluid-a', 'fluid-b']);
-    expect(tracker.snapshot()).toMatchObject({ status: 'complete', completed: 3, total: 3, percent: 100 });
+    expect(tracker.snapshot()).toMatchObject({
+      status: 'complete',
+      completed: 3,
+      total: 3,
+      percent: 100,
+    });
   });
 
   it('does not republish unchanged chunk members for a one-key local edit', () => {
     const updates: number[] = [];
-    const tracker = new HydrationProgressTracker(undefined, (progress) => updates.push(progress.completed));
+    const tracker = new HydrationProgressTracker(undefined, (progress) =>
+      updates.push(progress.completed),
+    );
     tracker.setBlockScope(['changed', 'unchanged-a', 'unchanged-b']);
     tracker.begin(1);
     tracker.completeBatch(1, 'block', ['changed', 'unchanged-a', 'unchanged-b']);
@@ -77,12 +101,19 @@ describe('HydrationProgressTracker', () => {
 
   it('publishes one snapshot for a batched projection scope delta', () => {
     const updates: number[] = [];
-    const tracker = new HydrationProgressTracker(undefined, (progress) => updates.push(progress.total));
+    const tracker = new HydrationProgressTracker(undefined, (progress) =>
+      updates.push(progress.total),
+    );
     tracker.setBlockScope(['old', 'kept']);
     tracker.begin(1);
     updates.length = 0;
 
-    tracker.applyBlockScopeDelta({ add: ['new'], remove: ['old'], invalidate: ['kept'], missing: new Map([['new', 'provisional']]) });
+    tracker.applyBlockScopeDelta({
+      add: ['new'],
+      remove: ['old'],
+      invalidate: ['kept'],
+      missing: new Map([['new', 'provisional']]),
+    });
 
     expect(updates).toEqual([2]);
     expect(tracker.hasBlockKey('old')).toBe(false);
@@ -101,7 +132,12 @@ describe('HydrationProgressTracker', () => {
 
     tracker.complete(7, 'block', 'visible-old');
 
-    expect(tracker.snapshot()).toMatchObject({ total: 2, completed: 0, blocksCompleted: 0, status: 'hydrating' });
+    expect(tracker.snapshot()).toMatchObject({
+      total: 2,
+      completed: 0,
+      blocksCompleted: 0,
+      status: 'hydrating',
+    });
     expect(tracker.isBlockComplete('visible-old')).toBe(false);
     expect(tracker.hasBlockKey('visible-new')).toBe(true);
   });
@@ -112,7 +148,12 @@ describe('HydrationProgressTracker', () => {
     tracker.reset(2);
     tracker.begin(2);
     tracker.adoptBlockKeys(2, ['committed']);
-    expect(tracker.snapshot()).toMatchObject({ generation: 2, total: 2, completed: 1, status: 'hydrating' });
+    expect(tracker.snapshot()).toMatchObject({
+      generation: 2,
+      total: 2,
+      completed: 1,
+      status: 'hydrating',
+    });
     tracker.adoptBlockKeys(2, ['pending']);
     expect(tracker.snapshot()).toMatchObject({ completed: 2, status: 'complete' });
   });
@@ -133,7 +174,18 @@ describe('HydrationProgressTracker', () => {
     tracker.setMissingBlockState('missing', 'permanent');
     tracker.begin(4);
     tracker.complete(4, 'block', 'known');
-    expect(tracker.snapshot()).toMatchObject({ status: 'hydrating', completed: 1, blocksCompleted: 1, finalization: { expectedBlocks: 3, finalReadyBlocks: 1, provisionalMissingBlocks: 1, permanentMissingBlocks: 1, pendingBlocks: 0 } });
+    expect(tracker.snapshot()).toMatchObject({
+      status: 'hydrating',
+      completed: 1,
+      blocksCompleted: 1,
+      finalization: {
+        expectedBlocks: 3,
+        finalReadyBlocks: 1,
+        provisionalMissingBlocks: 1,
+        permanentMissingBlocks: 1,
+        pendingBlocks: 0,
+      },
+    });
   });
 
   it('clears provisional and permanent Missing state when a block becomes resolved', () => {
@@ -145,7 +197,10 @@ describe('HydrationProgressTracker', () => {
     tracker.syncMissingBlockState('permanent', 'resolved');
     tracker.refresh();
     expect(tracker.missingStateKeys()).toEqual([]);
-    expect(tracker.snapshot().finalization).toMatchObject({ provisionalMissingBlocks: 0, permanentMissingBlocks: 0 });
+    expect(tracker.snapshot().finalization).toMatchObject({
+      provisionalMissingBlocks: 0,
+      permanentMissingBlocks: 0,
+    });
   });
 
   it('classifies every incremental state transition deterministically', () => {

@@ -1,5 +1,10 @@
 import { canonicalStructureModeForSize } from '../../domain/structure-size-policy';
-import type { ProjectDocument, ProjectSize, StructureMode, VoxelCoordinate } from '../../domain/project.types';
+import type {
+  ProjectDocument,
+  ProjectSize,
+  StructureMode,
+  VoxelCoordinate,
+} from '../../domain/project.types';
 import { isWithinBounds } from '../../domain/coordinates';
 import type { StructureJson } from './structure-json';
 
@@ -12,7 +17,10 @@ export interface StructureJsonBoundsPreflight {
   readonly decorationsOutsideBounds: number;
 }
 
-export function resizeProjectForStructureJsonImport(project: ProjectDocument, bounds: StructureJsonBoundsPreflight): ProjectDocument | undefined {
+export function resizeProjectForStructureJsonImport(
+  project: ProjectDocument,
+  bounds: StructureJsonBoundsPreflight,
+): ProjectDocument | undefined {
   if (bounds.hasNegativeCoordinates) return undefined;
   const size: ProjectSize = {
     x: Math.max(project.size.x, bounds.requiredSize.x),
@@ -28,7 +36,10 @@ function importStructureModeForSize(size: ProjectSize): StructureMode | undefine
   return canonicalStructureModeForSize(size);
 }
 
-export function inspectStructureJsonBounds(source: StructureJson, currentSize: ProjectSize): StructureJsonBoundsPreflight {
+export function inspectStructureJsonBounds(
+  source: StructureJson,
+  currentSize: ProjectSize,
+): StructureJsonBoundsPreflight {
   const inferredSize = inferRequiredStructureJsonSize(source);
   const coordinates: VoxelCoordinate[] = [
     ...source.blocks.map(({ x, y, z }) => ({ x, y, z })),
@@ -39,12 +50,19 @@ export function inspectStructureJsonBounds(source: StructureJson, currentSize: P
     hasNegativeCoordinates ||= coordinate.x < 0 || coordinate.y < 0 || coordinate.z < 0;
   }
   const requiredSize = inferredSize ?? { x: 1, y: 1, z: 1 };
-  const blocksOutsideBounds = source.blocks.filter((block) => !isWithinBounds(block, currentSize)).length;
-  const decorationsOutsideBounds = source.decorations.filter((decoration) => !isWithinBounds(decoration.anchor, currentSize)).length;
+  const blocksOutsideBounds = source.blocks.filter(
+    (block) => !isWithinBounds(block, currentSize),
+  ).length;
+  const decorationsOutsideBounds = source.decorations.filter(
+    (decoration) => !isWithinBounds(decoration.anchor, currentSize),
+  ).length;
   return {
     requiredSize,
     hasCoordinateContent: inferredSize !== undefined,
-    exceedsCurrent: requiredSize.x > currentSize.x || requiredSize.y > currentSize.y || requiredSize.z > currentSize.z,
+    exceedsCurrent:
+      requiredSize.x > currentSize.x ||
+      requiredSize.y > currentSize.y ||
+      requiredSize.z > currentSize.z,
     hasNegativeCoordinates,
     blocksOutsideBounds,
     decorationsOutsideBounds,

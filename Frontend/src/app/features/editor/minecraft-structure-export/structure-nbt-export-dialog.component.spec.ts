@@ -11,20 +11,39 @@ import type { ProjectDocument } from '../../../core/domain/project.types';
 const project: ProjectDocument = {
   schemaVersion: 3,
   id: 'export-project',
-  metadata: { name: 'Cresselia Sanctuary', minecraftVersion: '1.21.1', createdAt: '', updatedAt: '' },
+  metadata: {
+    name: 'Cresselia Sanctuary',
+    minecraftVersion: '1.21.1',
+    createdAt: '',
+    updatedAt: '',
+  },
   size: { x: 4, y: 4, z: 4 },
   structureMode: 'vanilla-structure-block',
   blocks: [],
   groups: [],
-  editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 },
+  editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
 };
 
 describe('StructureNbtExportDialogComponent', () => {
   it('renders live semantic resource and filename values in separate summary cards', () => {
     const workspace = { project: signal(project) };
     const exporter = {
-      defaults: () => ({ namespace: 'minecraftbuilder', structurePath: 'cresselia-crescent-moonfall-sanctuary', archiveName: 'sanctuary', archiveFilename: 'sanctuary.zip', description: '' }),
-      preflight: (mode: 'datapack' | 'standalone', form: { namespace: string; structurePath: string; archiveName: string; description: string }) => preflightStructureExport(project, mode, form),
+      defaults: () => ({
+        namespace: 'minecraftbuilder',
+        structurePath: 'cresselia-crescent-moonfall-sanctuary',
+        archiveName: 'sanctuary',
+        archiveFilename: 'sanctuary.zip',
+        description: '',
+      }),
+      preflight: (
+        mode: 'datapack' | 'standalone',
+        form: {
+          namespace: string;
+          structurePath: string;
+          archiveName: string;
+          description: string;
+        },
+      ) => preflightStructureExport(project, mode, form),
       download: vi.fn(),
     };
     TestBed.configureTestingModule({
@@ -40,7 +59,9 @@ describe('StructureNbtExportDialogComponent', () => {
     const cards = fixture.nativeElement.querySelectorAll('.summary-card');
     expect(cards.length).toBe(2);
     expect(cards[0].querySelector('.tone-namespace')?.textContent).toContain('minecraftbuilder');
-    expect(cards[0].querySelector('.tone-structure-path')?.textContent).toContain('cresselia-crescent-moonfall-sanctuary');
+    expect(cards[0].querySelector('.tone-structure-path')?.textContent).toContain(
+      'cresselia-crescent-moonfall-sanctuary',
+    );
     expect(cards[0].querySelector('.tone-separator')?.textContent).toBe(':');
     expect(cards[1].querySelector('.tone-file')?.textContent).toContain('sanctuary');
     expect(cards[1].querySelector('.tone-extension')?.textContent).toBe('.zip');
@@ -49,8 +70,22 @@ describe('StructureNbtExportDialogComponent', () => {
   it('updates semantic values from the live export form', () => {
     const workspace = { project: signal(project) };
     const exporter = {
-      defaults: () => ({ namespace: 'minecraftbuilder', structurePath: 'sanctuary', archiveName: 'sanctuary', archiveFilename: 'sanctuary.zip', description: '' }),
-      preflight: (mode: 'datapack' | 'standalone', form: { namespace: string; structurePath: string; archiveName: string; description: string }) => preflightStructureExport(project, mode, form),
+      defaults: () => ({
+        namespace: 'minecraftbuilder',
+        structurePath: 'sanctuary',
+        archiveName: 'sanctuary',
+        archiveFilename: 'sanctuary.zip',
+        description: '',
+      }),
+      preflight: (
+        mode: 'datapack' | 'standalone',
+        form: {
+          namespace: string;
+          structurePath: string;
+          archiveName: string;
+          description: string;
+        },
+      ) => preflightStructureExport(project, mode, form),
       download: vi.fn(),
     };
     TestBed.configureTestingModule({
@@ -63,7 +98,12 @@ describe('StructureNbtExportDialogComponent', () => {
     });
     const fixture = TestBed.createComponent(StructureNbtExportDialogComponent);
     fixture.detectChanges();
-    const component = fixture.componentInstance as unknown as { setField: (field: 'namespace' | 'structurePath' | 'archiveName' | 'description', event: Event) => void };
+    const component = fixture.componentInstance as unknown as {
+      setField: (
+        field: 'namespace' | 'structurePath' | 'archiveName' | 'description',
+        event: Event,
+      ) => void;
+    };
     component.setField('namespace', { target: { value: 'custom' } } as unknown as Event);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.tone-namespace')?.textContent).toContain('custom');
@@ -72,8 +112,22 @@ describe('StructureNbtExportDialogComponent', () => {
   it('omits the package section in standalone mode and keeps a readable install flow', () => {
     const workspace = { project: signal(project) };
     const exporter = {
-      defaults: () => ({ namespace: 'minecraftbuilder', structurePath: 'sanctuary', archiveName: 'sanctuary', archiveFilename: 'sanctuary.zip', description: '' }),
-      preflight: (mode: 'datapack' | 'standalone', form: { namespace: string; structurePath: string; archiveName: string; description: string }) => preflightStructureExport(project, mode, form),
+      defaults: () => ({
+        namespace: 'minecraftbuilder',
+        structurePath: 'sanctuary',
+        archiveName: 'sanctuary',
+        archiveFilename: 'sanctuary.zip',
+        description: '',
+      }),
+      preflight: (
+        mode: 'datapack' | 'standalone',
+        form: {
+          namespace: string;
+          structurePath: string;
+          archiveName: string;
+          description: string;
+        },
+      ) => preflightStructureExport(project, mode, form),
       download: vi.fn(),
     };
     TestBed.configureTestingModule({
@@ -86,7 +140,9 @@ describe('StructureNbtExportDialogComponent', () => {
     });
     const fixture = TestBed.createComponent(StructureNbtExportDialogComponent);
     fixture.detectChanges();
-    const instance = fixture.componentInstance as unknown as { setMode: (mode: 'datapack' | 'standalone') => void };
+    const instance = fixture.componentInstance as unknown as {
+      setMode: (mode: 'datapack' | 'standalone') => void;
+    };
     instance.setMode('standalone');
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[data-tone="package"].export-section')).toBeNull();

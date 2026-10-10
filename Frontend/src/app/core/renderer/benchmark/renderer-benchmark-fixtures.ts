@@ -1,5 +1,10 @@
 import { PlacedDecoration } from '../../decorations/decoration.types';
-import { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import {
+  PlacedBlock,
+  ProjectDocument,
+  ProjectSize,
+  VoxelCoordinate,
+} from '../../domain/project.types';
 import * as THREE from 'three';
 import { VanillaAssetProvider } from '../../assets/vanilla/vanilla-asset-provider';
 import { VanillaBlockVisualProvider } from '../geometry/vanilla-block-visual-provider';
@@ -38,51 +43,195 @@ export function rendererBenchmarkProject(size: RendererBenchmarkSize): ProjectDo
   return {
     schemaVersion: 3,
     id: `renderer-benchmark-${size}`,
-    metadata: { name: `Renderer ${size}`, minecraftVersion: '1.21.1', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    metadata: {
+      name: `Renderer ${size}`,
+      minecraftVersion: '1.21.1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
     size: projectSize,
     structureMode: 'vanilla-structure-block',
     blocks,
     groups: [],
-    editorSettings: { currentY: 0, layerVisibility: 'whole-structure', referenceLayerOpacity: 0.28 },
+    editorSettings: {
+      currentY: 0,
+      layerVisibility: 'whole-structure',
+      referenceLayerOpacity: 0.28,
+    },
     decorations: benchmarkDecorations(size),
   };
 }
 
 export function benchmarkBlock(index: number, position: VoxelCoordinate): PlacedBlock {
   const pattern = index % 8;
-  if (pattern === 1 || pattern === 5) return { kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position, state: { facing: ['north', 'east', 'south', 'west'][index % 4], half: index % 2 ? 'top' : 'bottom', shape: pattern === 1 ? 'straight' : 'inner_left', waterlogged: 'false' } };
-  if (pattern === 2) return { kind: 'resolved', id: 'minecraft:oak_fence', namespace: 'minecraft', position, state: { north: 'false', east: 'false', south: 'false', west: 'false' } };
-  if (pattern === 3) return { kind: 'resolved', id: 'minecraft:glass', namespace: 'minecraft', position, state: {} };
-  if (pattern === 4) return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: { axis: 'x' } };
-  if (pattern === 6) return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: { axis: 'y' } };
-  if (pattern === 7) return { kind: 'resolved', id: 'minecraft:oak_stairs', namespace: 'minecraft', position, state: { facing: 'south', half: 'bottom', shape: 'outer_right', waterlogged: 'false' } };
+  if (pattern === 1 || pattern === 5)
+    return {
+      kind: 'resolved',
+      id: 'minecraft:oak_stairs',
+      namespace: 'minecraft',
+      position,
+      state: {
+        facing: ['north', 'east', 'south', 'west'][index % 4],
+        half: index % 2 ? 'top' : 'bottom',
+        shape: pattern === 1 ? 'straight' : 'inner_left',
+        waterlogged: 'false',
+      },
+    };
+  if (pattern === 2)
+    return {
+      kind: 'resolved',
+      id: 'minecraft:oak_fence',
+      namespace: 'minecraft',
+      position,
+      state: { north: 'false', east: 'false', south: 'false', west: 'false' },
+    };
+  if (pattern === 3)
+    return { kind: 'resolved', id: 'minecraft:glass', namespace: 'minecraft', position, state: {} };
+  if (pattern === 4)
+    return {
+      kind: 'resolved',
+      id: 'minecraft:stone',
+      namespace: 'minecraft',
+      position,
+      state: { axis: 'x' },
+    };
+  if (pattern === 6)
+    return {
+      kind: 'resolved',
+      id: 'minecraft:stone',
+      namespace: 'minecraft',
+      position,
+      state: { axis: 'y' },
+    };
+  if (pattern === 7)
+    return {
+      kind: 'resolved',
+      id: 'minecraft:oak_stairs',
+      namespace: 'minecraft',
+      position,
+      state: { facing: 'south', half: 'bottom', shape: 'outer_right', waterlogged: 'false' },
+    };
   return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: {} };
 }
 
 /** A tiny asset-backed provider makes the explicit benchmark exercise real cache reuse without bundling vanilla assets. */
 export function rendererBenchmarkVisualProvider(): VanillaBlockVisualProvider {
   const json = {
-    'assets/minecraft/blockstates/stone.json': { variants: { '': { model: 'minecraft:block/stone' } } },
-    'assets/minecraft/blockstates/oak_stairs.json': { variants: { '': { model: 'minecraft:block/oak_stairs' } } },
-    'assets/minecraft/blockstates/oak_fence.json': { multipart: [{ apply: { model: 'minecraft:block/oak_fence_post' } }, { apply: { model: 'minecraft:block/oak_fence_side' } }] },
-    'assets/minecraft/blockstates/glass.json': { variants: { '': { model: 'minecraft:block/glass' } } },
-    'assets/minecraft/models/block/stone.json': { parent: 'minecraft:block/cube_all', textures: { all: 'minecraft:block/stone' } },
-    'assets/minecraft/models/block/oak_stairs.json': { textures: { side: 'minecraft:block/oak_planks', top: 'minecraft:block/oak_planks' }, elements: [
-      { from: [0, 0, 0], to: [16, 8, 16], faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: '#side' }])) },
-      { from: [0, 8, 0], to: [8, 16, 16], rotation: { origin: [8, 8, 8], axis: 'y', angle: 0 }, faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: '#top' }])) },
-    ] },
-    'assets/minecraft/models/block/oak_fence_post.json': { textures: { all: 'minecraft:block/oak_planks' }, elements: [{ from: [6, 0, 6], to: [10, 16, 10], faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: '#all' }])) }] },
-    'assets/minecraft/models/block/oak_fence_side.json': { textures: { all: 'minecraft:block/oak_fence' }, elements: [{ from: [6, 6, 0], to: [10, 12, 8], faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: '#all' }])) }] },
-    'assets/minecraft/models/block/glass.json': { textures: { all: { sprite: 'minecraft:block/glass', force_translucent: true } }, parent: 'minecraft:block/cube_all' },
-    'assets/minecraft/models/block/cube_all.json': { parent: 'block/cube', textures: { down: '#all', up: '#all', north: '#all', south: '#all', west: '#all', east: '#all' } },
-    'assets/minecraft/models/block/cube.json': { elements: [{ from: [0, 0, 0], to: [16, 16, 16], faces: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [direction, { texture: `#${direction}` }])) }] },
+    'assets/minecraft/blockstates/stone.json': {
+      variants: { '': { model: 'minecraft:block/stone' } },
+    },
+    'assets/minecraft/blockstates/oak_stairs.json': {
+      variants: { '': { model: 'minecraft:block/oak_stairs' } },
+    },
+    'assets/minecraft/blockstates/oak_fence.json': {
+      multipart: [
+        { apply: { model: 'minecraft:block/oak_fence_post' } },
+        { apply: { model: 'minecraft:block/oak_fence_side' } },
+      ],
+    },
+    'assets/minecraft/blockstates/glass.json': {
+      variants: { '': { model: 'minecraft:block/glass' } },
+    },
+    'assets/minecraft/models/block/stone.json': {
+      parent: 'minecraft:block/cube_all',
+      textures: { all: 'minecraft:block/stone' },
+    },
+    'assets/minecraft/models/block/oak_stairs.json': {
+      textures: { side: 'minecraft:block/oak_planks', top: 'minecraft:block/oak_planks' },
+      elements: [
+        {
+          from: [0, 0, 0],
+          to: [16, 8, 16],
+          faces: Object.fromEntries(
+            ['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [
+              direction,
+              { texture: '#side' },
+            ]),
+          ),
+        },
+        {
+          from: [0, 8, 0],
+          to: [8, 16, 16],
+          rotation: { origin: [8, 8, 8], axis: 'y', angle: 0 },
+          faces: Object.fromEntries(
+            ['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [
+              direction,
+              { texture: '#top' },
+            ]),
+          ),
+        },
+      ],
+    },
+    'assets/minecraft/models/block/oak_fence_post.json': {
+      textures: { all: 'minecraft:block/oak_planks' },
+      elements: [
+        {
+          from: [6, 0, 6],
+          to: [10, 16, 10],
+          faces: Object.fromEntries(
+            ['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [
+              direction,
+              { texture: '#all' },
+            ]),
+          ),
+        },
+      ],
+    },
+    'assets/minecraft/models/block/oak_fence_side.json': {
+      textures: { all: 'minecraft:block/oak_fence' },
+      elements: [
+        {
+          from: [6, 6, 0],
+          to: [10, 12, 8],
+          faces: Object.fromEntries(
+            ['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [
+              direction,
+              { texture: '#all' },
+            ]),
+          ),
+        },
+      ],
+    },
+    'assets/minecraft/models/block/glass.json': {
+      textures: { all: { sprite: 'minecraft:block/glass', force_translucent: true } },
+      parent: 'minecraft:block/cube_all',
+    },
+    'assets/minecraft/models/block/cube_all.json': {
+      parent: 'block/cube',
+      textures: {
+        down: '#all',
+        up: '#all',
+        north: '#all',
+        south: '#all',
+        west: '#all',
+        east: '#all',
+      },
+    },
+    'assets/minecraft/models/block/cube.json': {
+      elements: [
+        {
+          from: [0, 0, 0],
+          to: [16, 16, 16],
+          faces: Object.fromEntries(
+            ['down', 'up', 'north', 'south', 'west', 'east'].map((direction) => [
+              direction,
+              { texture: `#${direction}` },
+            ]),
+          ),
+        },
+      ],
+    },
   };
-  const assets = new VanillaAssetProvider('benchmark-fixture', json, new Map([
-    ['assets/minecraft/textures/block/stone.png', new Uint8Array([1])],
-    ['assets/minecraft/textures/block/oak_planks.png', new Uint8Array([2])],
-    ['assets/minecraft/textures/block/oak_fence.png', new Uint8Array([3])],
-    ['assets/minecraft/textures/block/glass.png', new Uint8Array([4])],
-  ]));
+  const assets = new VanillaAssetProvider(
+    'benchmark-fixture',
+    json,
+    new Map([
+      ['assets/minecraft/textures/block/stone.png', new Uint8Array([1])],
+      ['assets/minecraft/textures/block/oak_planks.png', new Uint8Array([2])],
+      ['assets/minecraft/textures/block/oak_fence.png', new Uint8Array([3])],
+      ['assets/minecraft/textures/block/glass.png', new Uint8Array([4])],
+    ]),
+  );
   return new VanillaBlockVisualProvider(assets, async () => new THREE.Texture());
 }
 

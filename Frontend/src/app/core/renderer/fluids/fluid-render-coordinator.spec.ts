@@ -3,35 +3,71 @@ import * as THREE from 'three';
 import { PlacedBlock } from '../../domain/project.types';
 import { FluidChunkRenderer } from './fluid-chunk-renderer';
 import { FluidRenderCoordinator } from './fluid-render-coordinator';
-import { vanillaFluidRenderResolver, type FluidRenderResolver, type FluidWorldLookup } from './fluid-state';
+import {
+  vanillaFluidRenderResolver,
+  type FluidRenderResolver,
+  type FluidWorldLookup,
+} from './fluid-state';
 
-const block = (x: number, id = 'minecraft:water'): PlacedBlock => ({ kind: 'resolved', id, namespace: id.split(':')[0], position: { x, y: 0, z: 0 }, state: { level: '0' } });
+const block = (x: number, id = 'minecraft:water'): PlacedBlock => ({
+  kind: 'resolved',
+  id,
+  namespace: id.split(':')[0],
+  position: { x, y: 0, z: 0 },
+  state: { level: '0' },
+});
 const worldFor = (blocks: readonly PlacedBlock[]): FluidWorldLookup => {
-  const map = new Map(blocks.map((value) => [`${value.position.x},${value.position.y},${value.position.z}`, value]));
+  const map = new Map(
+    blocks.map((value) => [`${value.position.x},${value.position.y},${value.position.z}`, value]),
+  );
   return { getBlock: (position) => map.get(`${position.x},${position.y},${position.z}`) };
 };
-const provider = (contractKey: string, texture: () => Promise<THREE.Texture | undefined>, resolver = vanillaFluidRenderResolver) => ({ contractKey, resolver, texture });
-const recordsFor = (blocks: readonly PlacedBlock[]) => blocks.map((value) => ({ block: value, state: vanillaFluidRenderResolver.resolve(value)! }));
+const provider = (
+  contractKey: string,
+  texture: () => Promise<THREE.Texture | undefined>,
+  resolver = vanillaFluidRenderResolver,
+) => ({ contractKey, resolver, texture });
+const recordsFor = (blocks: readonly PlacedBlock[]) =>
+  blocks.map((value) => ({ block: value, state: vanillaFluidRenderResolver.resolve(value)! }));
 
 describe('FluidRenderCoordinator', () => {
   it('commits all detected keys and exposes no orphan after the initial build', async () => {
-    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const terminal: string[][] = [];
-    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: (_generation, keys) => terminal.push([...keys]) });
-    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const terminal: string[][] = [];
+    const coordinator = new FluidRenderCoordinator(renderer, {
+      onTerminal: (_generation, keys) => terminal.push([...keys]),
+    });
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
     coordinator.setProvider(provider('A', async () => texture));
     const blocks = [block(0), block(1), block(16)];
     await coordinator.sync(recordsFor(blocks), worldFor(blocks), 4);
-    expect(coordinator.diagnostics()).toMatchObject({ fluidDetectedVoxels: 3, fluidCommittedVoxels: 3, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0, fluidStandaloneMeshes: 0 });
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidDetectedVoxels: 3,
+      fluidCommittedVoxels: 3,
+      fluidPendingVoxels: 0,
+      fluidOrphanedLogicalCount: 0,
+      fluidStandaloneMeshes: 0,
+    });
     expect(terminal).toHaveLength(1);
-    coordinator.dispose(); texture.dispose();
+    coordinator.dispose();
+    texture.dispose();
   });
 
   it('keeps committed chunks visible across equivalent and changed provider handoffs', async () => {
-    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
-    const firstTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); firstTexture.needsUpdate = true;
-    const secondTexture = new THREE.DataTexture(new Uint8Array([200, 200, 255, 255]), 1, 1); secondTexture.needsUpdate = true;
-    const blocks = [block(0), block(1)]; const records = recordsFor(blocks); const world = worldFor(blocks);
-    coordinator.setProvider(provider('A', async () => firstTexture)); await coordinator.sync(records, world, 1);
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
+    const firstTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    firstTexture.needsUpdate = true;
+    const secondTexture = new THREE.DataTexture(new Uint8Array([200, 200, 255, 255]), 1, 1);
+    secondTexture.needsUpdate = true;
+    const blocks = [block(0), block(1)];
+    const records = recordsFor(blocks);
+    const world = worldFor(blocks);
+    coordinator.setProvider(provider('A', async () => firstTexture));
+    await coordinator.sync(records, world, 1);
     const before = group.children.length;
     coordinator.setProvider(provider('A', async () => secondTexture));
     expect(group.children.length).toBe(before);
@@ -39,17 +75,37 @@ describe('FluidRenderCoordinator', () => {
     coordinator.setProvider(provider('B', async () => secondTexture));
     expect(group.children.length).toBeGreaterThan(0);
     await coordinator.sync(records, world, 3);
-    expect(coordinator.diagnostics()).toMatchObject({ fluidCommittedVoxels: 2, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0 });
-    coordinator.dispose(); firstTexture.dispose(); secondTexture.dispose();
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidCommittedVoxels: 2,
+      fluidPendingVoxels: 0,
+      fluidOrphanedLogicalCount: 0,
+    });
+    coordinator.dispose();
+    firstTexture.dispose();
+    secondTexture.dispose();
   });
 
   it('discards stale A to B work while allowing C to become authoritative', async () => {
-    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
-    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
-    let releaseB!: () => void; const bReady = new Promise<void>((resolve) => { releaseB = resolve; });
-    const blocks = [block(0)]; const records = recordsFor(blocks); const world = worldFor(blocks);
-    coordinator.setProvider(provider('A', async () => texture)); await coordinator.sync(records, world, 1);
-    coordinator.setProvider(provider('B', async () => { await bReady; return texture; }));
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
+    let releaseB!: () => void;
+    const bReady = new Promise<void>((resolve) => {
+      releaseB = resolve;
+    });
+    const blocks = [block(0)];
+    const records = recordsFor(blocks);
+    const world = worldFor(blocks);
+    coordinator.setProvider(provider('A', async () => texture));
+    await coordinator.sync(records, world, 1);
+    coordinator.setProvider(
+      provider('B', async () => {
+        await bReady;
+        return texture;
+      }),
+    );
     const stale = coordinator.sync(records, world, 2);
     await Promise.resolve();
     expect(group.children.length).toBeGreaterThan(0);
@@ -57,26 +113,51 @@ describe('FluidRenderCoordinator', () => {
     const current = coordinator.sync(records, world, 3);
     releaseB();
     await Promise.all([stale, current]);
-    expect(coordinator.diagnostics()).toMatchObject({ fluidCommittedVoxels: 1, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0 });
-    coordinator.dispose(); texture.dispose();
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidCommittedVoxels: 1,
+      fluidPendingVoxels: 0,
+      fluidOrphanedLogicalCount: 0,
+    });
+    coordinator.dispose();
+    texture.dispose();
   });
 
   it('commits a visible fallback material when a fluid texture is unavailable', async () => {
-    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
     const blocks = [block(0)];
     coordinator.setProvider(provider('missing-texture', async () => undefined));
     await coordinator.sync(recordsFor(blocks), worldFor(blocks), 1);
-    expect(coordinator.diagnostics()).toMatchObject({ fluidCommittedVoxels: 0, fluidFallbackVoxels: 1, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0, fluidChunkMeshes: 1 });
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidCommittedVoxels: 0,
+      fluidFallbackVoxels: 1,
+      fluidPendingVoxels: 0,
+      fluidOrphanedLogicalCount: 0,
+      fluidChunkMeshes: 1,
+    });
     coordinator.dispose();
   });
 
   it('commits a generic visible fallback when a fluid build fails', async () => {
-    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
-    const failingResolver: FluidRenderResolver = { resolve: () => { throw new Error('synthetic fluid build failure'); } };
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
+    const failingResolver: FluidRenderResolver = {
+      resolve: () => {
+        throw new Error('synthetic fluid build failure');
+      },
+    };
     const blocks = [block(0)];
     coordinator.setProvider(provider('build-failure', async () => undefined, failingResolver));
     await coordinator.sync(recordsFor(blocks), worldFor(blocks), 1);
-    expect(coordinator.diagnostics()).toMatchObject({ fluidCommittedVoxels: 0, fluidFallbackVoxels: 1, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0, fluidChunkMeshes: 1 });
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidCommittedVoxels: 0,
+      fluidFallbackVoxels: 1,
+      fluidPendingVoxels: 0,
+      fluidOrphanedLogicalCount: 0,
+      fluidChunkMeshes: 1,
+    });
     coordinator.dispose();
   });
 
@@ -85,7 +166,10 @@ describe('FluidRenderCoordinator', () => {
     const renderer = new FluidChunkRenderer(group);
     const failure = new Error('synthetic fluid renderer rejection');
     const onFailure = vi.fn();
-    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined, onFailure });
+    const coordinator = new FluidRenderCoordinator(renderer, {
+      onTerminal: () => undefined,
+      onFailure,
+    });
     const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
     texture.needsUpdate = true;
     coordinator.setProvider(provider('rejected', async () => texture));
@@ -96,7 +180,10 @@ describe('FluidRenderCoordinator', () => {
     expect(coordinator.pendingCount).toBe(0);
     expect(coordinator.failedCount).toBe(2);
     expect(onFailure).toHaveBeenCalledWith(8, ['0,0,0', '1,0,0'], failure);
-    expect(coordinator.diagnostics()).toMatchObject({ fluidPendingVoxels: 0, fluidFailedVoxels: 2 });
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidPendingVoxels: 0,
+      fluidFailedVoxels: 2,
+    });
     coordinator.dispose();
     texture.dispose();
   });
@@ -104,9 +191,16 @@ describe('FluidRenderCoordinator', () => {
   it('ends a completed sync with missing voxel ownership as a failure, not pending work', async () => {
     const renderer = new FluidChunkRenderer(new THREE.Group());
     const onFailure = vi.fn();
-    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined, onFailure });
+    const coordinator = new FluidRenderCoordinator(renderer, {
+      onTerminal: () => undefined,
+      onFailure,
+    });
     coordinator.setProvider(provider('partial-commit', async () => undefined));
-    vi.spyOn(renderer, 'sync').mockResolvedValue({ status: 'committed', committedKeys: ['0,0,0'], fallbackKeys: [] });
+    vi.spyOn(renderer, 'sync').mockResolvedValue({
+      status: 'committed',
+      committedKeys: ['0,0,0'],
+      fallbackKeys: [],
+    });
     const blocks = [block(0), block(1)];
 
     await coordinator.sync(recordsFor(blocks), worldFor(blocks), 9);
@@ -115,56 +209,120 @@ describe('FluidRenderCoordinator', () => {
     expect(coordinator.failedCount).toBe(1);
     expect(onFailure).toHaveBeenCalledOnce();
     expect(onFailure.mock.calls[0]?.slice(0, 2)).toEqual([9, ['1,0,0']]);
-    expect(onFailure.mock.calls[0]?.[2]).toMatchObject({ message: 'Fluid renderer completed without committing every detected voxel.' });
+    expect(onFailure.mock.calls[0]?.[2]).toMatchObject({
+      message: 'Fluid renderer completed without committing every detected voxel.',
+    });
     coordinator.dispose();
   });
 
   it('keeps detected fluids pending until the texture-backed chunk commits', async () => {
-    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const terminal: string[][] = [];
-    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: (_generation, keys) => terminal.push([...keys]) });
-    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const terminal: string[][] = [];
+    const coordinator = new FluidRenderCoordinator(renderer, {
+      onTerminal: (_generation, keys) => terminal.push([...keys]),
+    });
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
     let release!: (value: THREE.Texture) => void;
-    const textureReady = new Promise<THREE.Texture>((resolve) => { release = resolve; });
+    const textureReady = new Promise<THREE.Texture>((resolve) => {
+      release = resolve;
+    });
     const blocks = [block(0)];
     coordinator.setProvider(provider('delayed-texture', async () => textureReady));
     const sync = coordinator.sync(recordsFor(blocks), worldFor(blocks), 1);
     await Promise.resolve();
-    expect(coordinator.diagnostics()).toMatchObject({ fluidDetectedVoxels: 1, fluidPendingVoxels: 1, fluidCommittedVoxels: 0, fluidOrphanedLogicalCount: 0 });
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidDetectedVoxels: 1,
+      fluidPendingVoxels: 1,
+      fluidCommittedVoxels: 0,
+      fluidOrphanedLogicalCount: 0,
+    });
     expect(terminal).toHaveLength(0);
     release(texture);
     await sync;
-    expect(coordinator.diagnostics()).toMatchObject({ fluidPendingVoxels: 0, fluidCommittedVoxels: 1, fluidOrphanedLogicalCount: 0 });
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidPendingVoxels: 0,
+      fluidCommittedVoxels: 1,
+      fluidOrphanedLogicalCount: 0,
+    });
     expect(terminal).toHaveLength(1);
-    coordinator.dispose(); texture.dispose();
+    coordinator.dispose();
+    texture.dispose();
   });
 
   it('keeps unrelated committed fluid ownership committed across a local delta', async () => {
-    const group = new THREE.Group(); const renderer = new FluidChunkRenderer(group); const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
-    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); texture.needsUpdate = true;
-    const first = block(0); const other = block(32); const world = worldFor([first, other]);
+    const group = new THREE.Group();
+    const renderer = new FluidChunkRenderer(group);
+    const coordinator = new FluidRenderCoordinator(renderer, { onTerminal: () => undefined });
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
+    const first = block(0);
+    const other = block(32);
+    const world = worldFor([first, other]);
     coordinator.setProvider(provider('delta', async () => texture));
     await coordinator.sync(recordsFor([first, other]), world, 1);
     const changed = { ...first, state: { level: '4' } };
-    await coordinator.syncDelta([{ position: first.position, before: { block: first, state: vanillaFluidRenderResolver.resolve(first)! }, after: { block: changed, state: vanillaFluidRenderResolver.resolve(changed)! } }], [first.position], worldFor([changed, other]), 2);
-    expect(coordinator.diagnostics()).toMatchObject({ fluidDetectedVoxels: 2, fluidCommittedVoxels: 2, fluidPendingVoxels: 0, fluidOrphanedLogicalCount: 0 });
-    coordinator.dispose(); texture.dispose();
+    await coordinator.syncDelta(
+      [
+        {
+          position: first.position,
+          before: { block: first, state: vanillaFluidRenderResolver.resolve(first)! },
+          after: { block: changed, state: vanillaFluidRenderResolver.resolve(changed)! },
+        },
+      ],
+      [first.position],
+      worldFor([changed, other]),
+      2,
+    );
+    expect(coordinator.diagnostics()).toMatchObject({
+      fluidDetectedVoxels: 2,
+      fluidCommittedVoxels: 2,
+      fluidPendingVoxels: 0,
+      fluidOrphanedLogicalCount: 0,
+    });
+    coordinator.dispose();
+    texture.dispose();
   });
 
   it('prepares projection fluid records and claims only after-states resolved by the fluid owner', () => {
-    const coordinator = new FluidRenderCoordinator(new FluidChunkRenderer(new THREE.Group()), { onTerminal: () => undefined });
+    const coordinator = new FluidRenderCoordinator(new FluidChunkRenderer(new THREE.Group()), {
+      onTerminal: () => undefined,
+    });
     const before = block(0);
     const after = { ...before, state: { level: '4' } };
     const nonFluid = { ...block(2, 'minecraft:stone'), state: {} };
     const changes = new Map([
-      ['0,0,0', { before: { block: before, signature: 'water-before', role: 'normal' as const }, after: { block: after, signature: 'water-after', role: 'reference' as const }, position: before.position }],
-      ['2,0,0', { before: { block: nonFluid, signature: 'stone', role: 'normal' as const }, position: nonFluid.position }],
+      [
+        '0,0,0',
+        {
+          before: { block: before, signature: 'water-before', role: 'normal' as const },
+          after: { block: after, signature: 'water-after', role: 'reference' as const },
+          position: before.position,
+        },
+      ],
+      [
+        '2,0,0',
+        {
+          before: { block: nonFluid, signature: 'stone', role: 'normal' as const },
+          position: nonFluid.position,
+        },
+      ],
     ]);
 
-    const plan = coordinator.prepareProjectionDelta(changes, vanillaFluidRenderResolver, worldFor([after]));
+    const plan = coordinator.prepareProjectionDelta(
+      changes,
+      vanillaFluidRenderResolver,
+      worldFor([after]),
+    );
 
     expect(plan.visitedBlocks).toBe(2);
     expect(plan.changes).toHaveLength(1);
-    expect(plan.changes[0]).toMatchObject({ position: before.position, before: { block: before }, after: { block: after, role: 'reference' } });
+    expect(plan.changes[0]).toMatchObject({
+      position: before.position,
+      before: { block: before },
+      after: { block: after, role: 'reference' },
+    });
     expect(plan.afterKeys).toEqual(new Set(['0,0,0']));
     coordinator.dispose();
   });

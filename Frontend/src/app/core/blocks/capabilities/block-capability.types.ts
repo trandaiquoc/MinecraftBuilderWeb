@@ -1,4 +1,8 @@
-import type { BehaviorSupportLevel, BlockVisualClassification, VisualSupportLevel } from '../catalog/block-definition.types';
+import type {
+  BehaviorSupportLevel,
+  BlockVisualClassification,
+  VisualSupportLevel,
+} from '../catalog/block-definition.types';
 
 /** Confidence describes the evidence behind a capability, not rendering/behavior support. */
 export type BlockCapabilityEvidence = 'verified' | 'inferred';

@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { terrainChunkKey, type TerrainChunkCoordinate } from './chunk-coordinate';
-import { meshTerrainChunk, terrainPresentationBucketKey, type CompiledTerrainChunk } from './chunk-surface-mesher';
-import { TerrainCommitDiagnostics, type TerrainCommitDiagnosticsEvidence, type TerrainCommitMetrics } from './terrain-commit-diagnostics';
+import {
+  meshTerrainChunk,
+  terrainPresentationBucketKey,
+  type CompiledTerrainChunk,
+} from './chunk-surface-mesher';
+import {
+  TerrainCommitDiagnostics,
+  type TerrainCommitDiagnosticsEvidence,
+  type TerrainCommitMetrics,
+} from './terrain-commit-diagnostics';
 import { TerrainChunkLogicalStore } from './terrain-chunk-logical-store';
 import { TerrainChunkResidencyOwner } from './terrain-chunk-residency-owner';
 import { TerrainHydrationSettlementOwner } from './terrain-hydration-settlement-owner';
@@ -25,7 +33,10 @@ export interface TerrainChunkResultCommitOptions {
   readonly onTiming?: (stage: string, durationMs: number) => void;
   readonly isTimingEnabled?: () => boolean;
   readonly shouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
-  readonly onAsyncApply?: (records: readonly TerrainSurfaceRecord[], result: TerrainApplyResult) => void;
+  readonly onAsyncApply?: (
+    records: readonly TerrainSurfaceRecord[],
+    result: TerrainApplyResult,
+  ) => void;
   readonly onComplete: () => void;
 }
 
@@ -42,7 +53,10 @@ export class TerrainChunkResultCommitOwner {
   private representedLookupChecks = 0;
 
   constructor(
-    private readonly logicalStore: Pick<TerrainChunkLogicalStore, 'recordsInChunk' | 'occupancyLookup'>,
+    private readonly logicalStore: Pick<
+      TerrainChunkLogicalStore,
+      'recordsInChunk' | 'occupancyLookup'
+    >,
     private readonly residency: TerrainChunkResidencyOwner,
     private readonly templateResources: TerrainTemplateResourceOwner,
     private readonly settlement: TerrainHydrationSettlementOwner,
@@ -57,7 +71,14 @@ export class TerrainChunkResultCommitOwner {
     };
   }
 
-  tryInstallResidentVariant(key: string, records: readonly TerrainSurfaceRecord[], signature: string, revision: number, changedKeys: readonly string[], hydrationCandidates: readonly string[]): boolean {
+  tryInstallResidentVariant(
+    key: string,
+    records: readonly TerrainSurfaceRecord[],
+    signature: string,
+    revision: number,
+    changedKeys: readonly string[],
+    hydrationCandidates: readonly string[],
+  ): boolean {
     const cached = this.residency.takeResidentVariant(key, signature);
     if (!cached) return false;
     this.residency.installResidentVariant(key, cached, revision);
@@ -99,11 +120,14 @@ export class TerrainChunkResultCommitOwner {
     const shouldCommit = this.options.shouldCommitChunk?.(context.key, compiled) ?? true;
     if (!shouldCommit || (context.records.length > 0 && represented.length === 0)) {
       this.disposeUninstalledBuckets(buckets, context.records);
-      const failedKeys = !shouldCommit || (context.records.length > 0 && represented.length === 0)
-        ? context.records.map((record) => record.key)
-        : failed;
+      const failedKeys =
+        !shouldCommit || (context.records.length > 0 && represented.length === 0)
+          ? context.records.map((record) => record.key)
+          : failed;
       this.settlement.reportFailures(failedKeys);
-      this.options.record(!shouldCommit ? 'terrainAsyncCommitPolicyRejected' : 'terrainAsyncAllUnrepresentedResults');
+      this.options.record(
+        !shouldCommit ? 'terrainAsyncCommitPolicyRejected' : 'terrainAsyncAllUnrepresentedResults',
+      );
       this.settlement.clearHydrationCandidates(context.key);
       const apply: TerrainApplyResult = {
         changedKeys: unique(context.changedKeys),
@@ -120,7 +144,12 @@ export class TerrainChunkResultCommitOwner {
     }
 
     const sceneSwapStarted = performance.now();
-    const ownership = this.residency.installCompiled(context.key, compiled, context.revision, context.signature);
+    const ownership = this.residency.installCompiled(
+      context.key,
+      compiled,
+      context.revision,
+      context.signature,
+    );
     this.recordStage('terrain.commit.sceneSwap', sceneSwapStarted);
     metrics.ownershipRemoved = ownership.removed;
     metrics.ownershipInserted = ownership.inserted;
@@ -131,7 +160,10 @@ export class TerrainChunkResultCommitOwner {
     if (failed.length) this.options.record('terrainAsyncPartialFailureResults');
     else this.options.record('terrainAsyncAcceptedResults');
     metrics.representedKeys = represented.length;
-    this.completeHydrationCandidates(context.key, context.hydrationCandidateKeys, [...represented, ...failed]);
+    this.completeHydrationCandidates(context.key, context.hydrationCandidateKeys, [
+      ...represented,
+      ...failed,
+    ]);
     const apply: TerrainApplyResult = {
       changedKeys: unique(context.changedKeys),
       rebuiltChunks: [context.key],
@@ -161,7 +193,11 @@ export class TerrainChunkResultCommitOwner {
     this.options.onComplete();
   }
 
-  failWorkerChunk(key: string, records: readonly TerrainSurfaceRecord[], changedKeys: readonly string[]): void {
+  failWorkerChunk(
+    key: string,
+    records: readonly TerrainSurfaceRecord[],
+    changedKeys: readonly string[],
+  ): void {
     const failedKeys = records.map((record) => record.key);
     this.settlement.clearHydrationCandidates(key);
     this.settlement.reportFailures(failedKeys);
@@ -177,10 +213,29 @@ export class TerrainChunkResultCommitOwner {
     this.options.onComplete();
   }
 
-  rebuildSynchronously(key: string, hydrationCandidateKeys: readonly string[], revision: number, providerGeneration: number): { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[]; readonly rebuilt: boolean } | undefined {
+  rebuildSynchronously(
+    key: string,
+    hydrationCandidateKeys: readonly string[],
+    revision: number,
+    providerGeneration: number,
+  ):
+    | {
+        readonly representedKeys: readonly string[];
+        readonly failedKeys: readonly string[];
+        readonly rebuilt: boolean;
+      }
+    | undefined {
     const timing = !!this.options.onTiming && (this.options.isTimingEnabled?.() ?? true);
     const started = timing ? performance.now() : 0;
-    const finish = (result: { readonly representedKeys: readonly string[]; readonly failedKeys: readonly string[]; readonly rebuilt: boolean } | undefined) => {
+    const finish = (
+      result:
+        | {
+            readonly representedKeys: readonly string[];
+            readonly failedKeys: readonly string[];
+            readonly rebuilt: boolean;
+          }
+        | undefined,
+    ) => {
       if (timing) this.options.onTiming?.('terrain.rebuildChunk', performance.now() - started);
       return result;
     };
@@ -192,13 +247,23 @@ export class TerrainChunkResultCommitOwner {
       this.residency.clearOwnership(key);
       return finish({ representedKeys: [], failedKeys: [], rebuilt: false });
     }
-    const signature = terrainChunkVariantSignature(key, chunk, entries, providerGeneration, this.templateResources, this.logicalStore.occupancyLookup);
+    const signature = terrainChunkVariantSignature(
+      key,
+      chunk,
+      entries,
+      providerGeneration,
+      this.templateResources,
+      this.logicalStore.occupancyLookup,
+    );
     const cached = this.residency.takeResidentVariant(key, signature);
     if (cached) {
       this.residency.installResidentVariant(key, cached, revision);
       this.options.record('terrainResidentVariantHits');
       const representedKeys = [...cached.emittedKeys, ...cached.fullyOccludedKeys];
-      this.completeHydrationCandidates(key, hydrationCandidateKeys, [...representedKeys, ...cached.failedKeys]);
+      this.completeHydrationCandidates(key, hydrationCandidateKeys, [
+        ...representedKeys,
+        ...cached.failedKeys,
+      ]);
       return finish({ representedKeys, failedKeys: [...cached.failedKeys], rebuilt: false });
     }
     const result = meshTerrainChunk(
@@ -215,10 +280,19 @@ export class TerrainChunkResultCommitOwner {
     );
     const represented = [...result.emittedKeys, ...result.fullyOccludedKeys];
     const failed = [...result.unrepresentedExposedKeys];
-    if (!represented.length && entries.length) return finish({ representedKeys: [], failedKeys: entries.map((entry) => entry.key), rebuilt: false });
+    if (!represented.length && entries.length)
+      return finish({
+        representedKeys: [],
+        failedKeys: entries.map((entry) => entry.key),
+        rebuilt: false,
+      });
     if (!(this.options.shouldCommitChunk?.(key, result) ?? true)) {
       this.options.record('terrainSyncCommitPolicyRejected');
-      return finish({ representedKeys: [], failedKeys: entries.map((entry) => entry.key), rebuilt: false });
+      return finish({
+        representedKeys: [],
+        failedKeys: entries.map((entry) => entry.key),
+        rebuilt: false,
+      });
     }
     const installed = this.residency.installCompiled(key, result, revision, signature);
     this.diagnostics.recordStage('terrain.commit.ownership', installed.ownershipDurationMs);
@@ -234,13 +308,18 @@ export class TerrainChunkResultCommitOwner {
     this.representedLookupChecks = 0;
   }
 
-  private materializeBuckets(records: readonly TerrainSurfaceRecord[], result: TerrainMeshResult, metrics: TerrainCommitMetrics): CompiledTerrainChunk['buckets'] {
+  private materializeBuckets(
+    records: readonly TerrainSurfaceRecord[],
+    result: TerrainMeshResult,
+    metrics: TerrainCommitMetrics,
+  ): CompiledTerrainChunk['buckets'] {
     const lookupStarted = performance.now();
     const materials = new Map<string, THREE.Material>();
-    for (const record of records) for (const face of this.templateResources.compiledTemplates(record)) {
-      const bucketKey = terrainPresentationBucketKey(face.bucketKey, record.role ?? 'normal');
-      if (!materials.has(bucketKey)) materials.set(bucketKey, face.material);
-    }
+    for (const record of records)
+      for (const face of this.templateResources.compiledTemplates(record)) {
+        const bucketKey = terrainPresentationBucketKey(face.bucketKey, record.role ?? 'normal');
+        if (!materials.has(bucketKey)) materials.set(bucketKey, face.material);
+      }
     this.recordStage('terrain.commit.materialLookup', lookupStarted);
     const geometryStarted = performance.now();
     const buckets = result.buckets.map((bucket) => ({
@@ -253,23 +332,41 @@ export class TerrainChunkResultCommitOwner {
     return buckets;
   }
 
-  private disposeUninstalledBuckets(buckets: CompiledTerrainChunk['buckets'], records: readonly TerrainSurfaceRecord[]): void {
+  private disposeUninstalledBuckets(
+    buckets: CompiledTerrainChunk['buckets'],
+    records: readonly TerrainSurfaceRecord[],
+  ): void {
     const ownedMaterials = this.temporaryMaterials(buckets, records);
     for (const bucket of buckets) bucket.geometry.dispose();
     for (const material of ownedMaterials) material.dispose();
   }
 
-  private disposeTemporaryMaterials(buckets: CompiledTerrainChunk['buckets'], records: readonly TerrainSurfaceRecord[]): void {
+  private disposeTemporaryMaterials(
+    buckets: CompiledTerrainChunk['buckets'],
+    records: readonly TerrainSurfaceRecord[],
+  ): void {
     for (const material of this.temporaryMaterials(buckets, records)) material.dispose();
   }
 
-  private temporaryMaterials(buckets: CompiledTerrainChunk['buckets'], records: readonly TerrainSurfaceRecord[]): Set<THREE.Material> {
+  private temporaryMaterials(
+    buckets: CompiledTerrainChunk['buckets'],
+    records: readonly TerrainSurfaceRecord[],
+  ): Set<THREE.Material> {
     const borrowed = new Set<THREE.Material>();
-    for (const record of records) for (const face of this.templateResources.compiledTemplates(record)) borrowed.add(face.material);
-    return new Set(buckets.map((bucket) => bucket.material).filter((material) => !borrowed.has(material)));
+    for (const record of records)
+      for (const face of this.templateResources.compiledTemplates(record))
+        borrowed.add(face.material);
+    return new Set(
+      buckets.map((bucket) => bucket.material).filter((material) => !borrowed.has(material)),
+    );
   }
 
-  private publishAsyncResult(records: readonly TerrainSurfaceRecord[], result: TerrainApplyResult, metrics: TerrainCommitMetrics, commitStarted: number): void {
+  private publishAsyncResult(
+    records: readonly TerrainSurfaceRecord[],
+    result: TerrainApplyResult,
+    metrics: TerrainCommitMetrics,
+    commitStarted: number,
+  ): void {
     const applyStarted = performance.now();
     this.options.onAsyncApply?.(records, result);
     this.recordStage('terrain.commit.asyncApply', applyStarted);
@@ -297,7 +394,11 @@ export class TerrainChunkResultCommitOwner {
     this.options.onTiming?.(stage, duration);
   }
 
-  private completeHydrationCandidates(chunkKey: string, candidates: readonly string[], represented: readonly string[]): void {
+  private completeHydrationCandidates(
+    chunkKey: string,
+    candidates: readonly string[],
+    represented: readonly string[],
+  ): void {
     const pendingBefore = this.settlement.pendingCandidateCount;
     this.settlement.completeHydrationCandidates(chunkKey, candidates, represented);
     const completed = pendingBefore - this.settlement.pendingCandidateCount;
@@ -306,7 +407,10 @@ export class TerrainChunkResultCommitOwner {
   }
 }
 
-function createCommitMetrics(context: TerrainChunkCommitContext, result: TerrainMeshResult): TerrainCommitMetrics {
+function createCommitMetrics(
+  context: TerrainChunkCommitContext,
+  result: TerrainMeshResult,
+): TerrainCommitMetrics {
   return {
     chunkKey: context.key,
     priority: context.priority,
@@ -337,7 +441,11 @@ function geometryFromResult(bucket: TerrainMeshResult['buckets'][number]): THREE
 
 function parseChunkKey(key: string): TerrainChunkCoordinate | undefined {
   const values = key.split(',').map(Number);
-  return values.length === 3 && values.every(Number.isInteger) ? { x: values[0], y: values[1], z: values[2] } : undefined;
+  return values.length === 3 && values.every(Number.isInteger)
+    ? { x: values[0], y: values[1], z: values[2] }
+    : undefined;
 }
 
-function unique(keys: readonly string[]): string[] { return [...new Set(keys)]; }
+function unique(keys: readonly string[]): string[] {
+  return [...new Set(keys)];
+}

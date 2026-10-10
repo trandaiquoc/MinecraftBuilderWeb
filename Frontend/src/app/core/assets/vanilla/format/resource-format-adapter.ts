@@ -1,5 +1,12 @@
-import { detectVanillaResourceFormat, VanillaResourceFormatProfile } from '../vanilla-resource-format';
-import { itemEvidenceFromResources, itemIdentityIndexFromResources, TargetItemEvidence } from './item-evidence';
+import {
+  detectVanillaResourceFormat,
+  VanillaResourceFormatProfile,
+} from '../vanilla-resource-format';
+import {
+  itemEvidenceFromResources,
+  itemIdentityIndexFromResources,
+  TargetItemEvidence,
+} from './item-evidence';
 
 export interface VanillaResourceFormatAdapter {
   readonly id: 'modern-json' | 'legacy' | 'unsupported';
@@ -24,7 +31,14 @@ class ModernJsonResourceAdapter implements VanillaResourceFormatAdapter {
   readonly itemEvidence = (json: Readonly<Record<string, unknown>>) => {
     const modern = itemDefinitionResourcePaths(json);
     const identity = itemIdentityIndexFromResources(json);
-    return modern.length ? itemEvidenceFromResources(json, modern, 'modern-item-definition', identity) : itemEvidenceFromResources(json, legacyItemModelResourcePaths(json), 'legacy-item-model', identity);
+    return modern.length
+      ? itemEvidenceFromResources(json, modern, 'modern-item-definition', identity)
+      : itemEvidenceFromResources(
+          json,
+          legacyItemModelResourcePaths(json),
+          'legacy-item-model',
+          identity,
+        );
   };
   readonly languagePath = languageResourcePath;
   constructor(readonly profile: VanillaResourceFormatProfile) {}
@@ -36,7 +50,13 @@ class LegacyResourcePackAdapter implements VanillaResourceFormatAdapter {
   readonly canExposeLanguage = true;
   readonly blockstatePaths = blockstateResourcePaths;
   readonly itemDefinitionPaths = legacyItemModelResourcePaths;
-  readonly itemEvidence = (json: Readonly<Record<string, unknown>>) => itemEvidenceFromResources(json, this.itemDefinitionPaths(json), 'legacy-item-model', itemIdentityIndexFromResources(json));
+  readonly itemEvidence = (json: Readonly<Record<string, unknown>>) =>
+    itemEvidenceFromResources(
+      json,
+      this.itemDefinitionPaths(json),
+      'legacy-item-model',
+      itemIdentityIndexFromResources(json),
+    );
   readonly languagePath = languageResourcePath;
   constructor(readonly profile: VanillaResourceFormatProfile) {}
 }
@@ -46,22 +66,33 @@ class UnsupportedResourceAdapter implements VanillaResourceFormatAdapter {
   readonly canNormalizeModels = false;
   readonly canExposeLanguage = false;
   readonly blockstatePaths = (_json: Readonly<Record<string, unknown>>): readonly string[] => [];
-  readonly itemDefinitionPaths = (_json: Readonly<Record<string, unknown>>): readonly string[] => [];
-  readonly itemEvidence = (_json: Readonly<Record<string, unknown>>): readonly TargetItemEvidence[] => [];
-  readonly languagePath = (_json: Readonly<Record<string, unknown>>): string | undefined => undefined;
+  readonly itemDefinitionPaths = (
+    _json: Readonly<Record<string, unknown>>,
+  ): readonly string[] => [];
+  readonly itemEvidence = (
+    _json: Readonly<Record<string, unknown>>,
+  ): readonly TargetItemEvidence[] => [];
+  readonly languagePath = (_json: Readonly<Record<string, unknown>>): string | undefined =>
+    undefined;
   constructor(readonly profile: VanillaResourceFormatProfile) {}
 }
 
 function blockstateResourcePaths(json: Readonly<Record<string, unknown>>): readonly string[] {
-  return Object.keys(json).filter((path) => /\/blockstates\/[^/]+\.json$/.test(path)).sort();
+  return Object.keys(json)
+    .filter((path) => /\/blockstates\/[^/]+\.json$/.test(path))
+    .sort();
 }
 
 function itemDefinitionResourcePaths(json: Readonly<Record<string, unknown>>): readonly string[] {
-  return Object.keys(json).filter((path) => /^assets\/[^/]+\/items\/.+\.json$/.test(path)).sort();
+  return Object.keys(json)
+    .filter((path) => /^assets\/[^/]+\/items\/.+\.json$/.test(path))
+    .sort();
 }
 
 function legacyItemModelResourcePaths(json: Readonly<Record<string, unknown>>): readonly string[] {
-  return Object.keys(json).filter((path) => /^assets\/[^/]+\/models\/item\/.+\.json$/.test(path)).sort();
+  return Object.keys(json)
+    .filter((path) => /^assets\/[^/]+\/models\/item\/.+\.json$/.test(path))
+    .sort();
 }
 
 function languageResourcePath(json: Readonly<Record<string, unknown>>): string | undefined {
@@ -69,7 +100,11 @@ function languageResourcePath(json: Readonly<Record<string, unknown>>): string |
 }
 
 /** Selects by observed resource evidence; version is only used as verification evidence. */
-export function selectVanillaResourceFormatAdapter(json: Readonly<Record<string, unknown>>, binary: ReadonlyMap<string, Uint8Array>, verified = false): VanillaResourceFormatAdapter {
+export function selectVanillaResourceFormatAdapter(
+  json: Readonly<Record<string, unknown>>,
+  binary: ReadonlyMap<string, Uint8Array>,
+  verified = false,
+): VanillaResourceFormatAdapter {
   const profile = detectVanillaResourceFormat(json, binary, verified);
   if (profile.id === 'modern-json') return new ModernJsonResourceAdapter(profile);
   if (profile.id === 'legacy') return new LegacyResourcePackAdapter(profile);

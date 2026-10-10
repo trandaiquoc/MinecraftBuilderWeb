@@ -18,17 +18,27 @@ export class ViewportStructureSyncState {
   private current: ViewportStructureSyncSnapshot = { syncKey: '' };
   private readonly previousVisiblePositions = new Map<string, VoxelCoordinate>();
 
-  snapshot(): ViewportStructureSyncSnapshot { return this.current; }
+  snapshot(): ViewportStructureSyncSnapshot {
+    return this.current;
+  }
 
   /**
    * Positions from the last committed visible projection. Reconciliation and
    * culling share this identity-preserving map so the engine does not own a
    * second copy of structure-diff state.
    */
-  previousVisiblePosition(key: string): VoxelCoordinate | undefined { return this.previousVisiblePositions.get(key); }
-  previousVisiblePositionsSnapshot(): ReadonlyMap<string, VoxelCoordinate> { return this.previousVisiblePositions; }
-  rememberVisiblePosition(position: VoxelCoordinate): void { this.previousVisiblePositions.set(coordinateKey(position), { ...position }); }
-  forgetVisiblePosition(key: string): void { this.previousVisiblePositions.delete(key); }
+  previousVisiblePosition(key: string): VoxelCoordinate | undefined {
+    return this.previousVisiblePositions.get(key);
+  }
+  previousVisiblePositionsSnapshot(): ReadonlyMap<string, VoxelCoordinate> {
+    return this.previousVisiblePositions;
+  }
+  rememberVisiblePosition(position: VoxelCoordinate): void {
+    this.previousVisiblePositions.set(coordinateKey(position), { ...position });
+  }
+  forgetVisiblePosition(key: string): void {
+    this.previousVisiblePositions.delete(key);
+  }
   replaceVisiblePositions(positions: readonly VoxelCoordinate[]): void {
     this.previousVisiblePositions.clear();
     for (const position of positions) this.rememberVisiblePosition(position);
@@ -40,11 +50,18 @@ export class ViewportStructureSyncState {
   }
 
   keyFor(project: ProjectDocument | undefined, filterKey: string): string {
-    return project ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${filterKey}` : 'empty';
+    return project
+      ? `${project.id}|${project.size.x},${project.size.y},${project.size.z}|${filterKey}`
+      : 'empty';
   }
 
   commit(project: ProjectDocument | undefined, syncKey: string): void {
-    this.current = { syncKey, project, blockCount: project?.blocks.length, blocksReference: project?.blocks };
+    this.current = {
+      syncKey,
+      project,
+      blockCount: project?.blocks.length,
+      blocksReference: project?.blocks,
+    };
   }
 
   invalidateKey(): void {
@@ -57,24 +74,35 @@ export class ViewportStructureSyncState {
   }
 
   hasInPlaceBlockMutation(project: ProjectDocument | undefined): boolean {
-    return project !== undefined && project === this.current.project
-      && (project.blocks !== this.current.blocksReference || project.blocks.length !== this.current.blockCount);
+    return (
+      project !== undefined &&
+      project === this.current.project &&
+      (project.blocks !== this.current.blocksReference ||
+        project.blocks.length !== this.current.blockCount)
+    );
   }
 
-  requiresSuspendedRefresh(project: ProjectDocument | undefined, filtersChanged: boolean, decorationKeyChanged: boolean): boolean {
+  requiresSuspendedRefresh(
+    project: ProjectDocument | undefined,
+    filtersChanged: boolean,
+    decorationKeyChanged: boolean,
+  ): boolean {
     const committed = this.current.project;
-    return !project || !committed
-      || project.id !== committed.id
-      || project?.blocks !== this.current.blocksReference
-      || project.blocks.length !== this.current.blockCount
-      || project.groups !== committed.groups
-      || project.decorations !== committed.decorations
-      || project.metadata !== committed.metadata
-      || project.structureMode !== committed.structureMode
-      || project?.size.x !== committed?.size.x
-      || project?.size.y !== committed?.size.y
-      || project?.size.z !== committed?.size.z
-      || filtersChanged
-      || decorationKeyChanged;
+    return (
+      !project ||
+      !committed ||
+      project.id !== committed.id ||
+      project?.blocks !== this.current.blocksReference ||
+      project.blocks.length !== this.current.blockCount ||
+      project.groups !== committed.groups ||
+      project.decorations !== committed.decorations ||
+      project.metadata !== committed.metadata ||
+      project.structureMode !== committed.structureMode ||
+      project?.size.x !== committed?.size.x ||
+      project?.size.y !== committed?.size.y ||
+      project?.size.z !== committed?.size.z ||
+      filtersChanged ||
+      decorationKeyChanged
+    );
   }
 }

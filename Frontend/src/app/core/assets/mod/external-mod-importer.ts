@@ -8,12 +8,26 @@ import { yieldToBrowser } from '../cooperative-yield';
 import { validateJarUpload } from './jar-upload-validation';
 import { createPhaseWatchdog, throwIfAborted } from './mod-import-cancellation';
 
-const RETAINED_RESOURCE_PATH = /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;
+const RETAINED_RESOURCE_PATH =
+  /^(?:assets|data)\/[^/]+\/(?:blockstates|models|items|textures|lang|atlases|tags\/block|tags\/item|tags\/painting_variant|painting_variant)\/.+\.(?:json|png|png\.mcmeta)$|^(?:[^/]+\/)*[^/]+\.class$/;
 const MAX_RETAINED_BYTES = 256 * 1024 * 1024;
 const BATCH_SIZE = 32;
 
 export interface ModImportProgress {
-  readonly phase: 'opening-archive' | 'reading-metadata' | 'checking-compatibility' | 'indexing-resources' | 'extracting-resources' | 'discovering-blocks' | 'discovering-items' | 'discovering-decorations' | 'evaluating-behavior' | 'checking-conflicts' | 'saving-cache' | 'finalizing-cache' | 'activating';
+  readonly phase:
+    | 'opening-archive'
+    | 'reading-metadata'
+    | 'checking-compatibility'
+    | 'indexing-resources'
+    | 'extracting-resources'
+    | 'discovering-blocks'
+    | 'discovering-items'
+    | 'discovering-decorations'
+    | 'evaluating-behavior'
+    | 'checking-conflicts'
+    | 'saving-cache'
+    | 'finalizing-cache'
+    | 'activating';
   readonly processed?: number;
   readonly total?: number;
   readonly blocksDetected?: number;
@@ -43,115 +57,339 @@ export interface PreparedModImport {
   dispose(): void;
 }
 
-export async function inspectModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<PreparedModImport> {
+export async function inspectModJar(
+  file: File,
+  minecraftVersion = '1.21.1',
+  onProgress?: (progress: ModImportProgress) => void,
+  signal?: AbortSignal,
+): Promise<PreparedModImport> {
   validateJarUpload(file);
   throwIfAborted(signal);
   onProgress?.({ phase: 'opening-archive', processed: 0, total: file.size });
   const opening = createPhaseWatchdog('opening-archive', signal);
   let archive: ZipArchive;
-  try { archive = await ZipArchive.open(file, (processed, total) => onProgress?.({ phase: 'opening-archive', processed, total }), opening.signal); }
-  finally { opening.stop(); }
+  try {
+    archive = await ZipArchive.open(
+      file,
+      (processed, total) => onProgress?.({ phase: 'opening-archive', processed, total }),
+      opening.signal,
+    );
+  } finally {
+    opening.stop();
+  }
   throwIfAborted(signal);
   const diagnostics: ModImportDiagnostic[] = [];
   const suspicious = archive.entries.filter((entry) => !safeArchivePath(entry.name));
-  for (const entry of suspicious) diagnostics.push({ severity: 'warning', category: 'warning', code: 'unsafe-archive-path', message: 'Skipped an archive path that is not safe to retain.', path: entry.name });
-  const paths = archive.entries.filter((entry) => safeArchivePath(entry.name)).map((entry) => entry.name);
+  for (const entry of suspicious)
+    diagnostics.push({
+      severity: 'warning',
+      category: 'warning',
+      code: 'unsafe-archive-path',
+      message: 'Skipped an archive path that is not safe to retain.',
+      path: entry.name,
+    });
+  const paths = archive.entries
+    .filter((entry) => safeArchivePath(entry.name))
+    .map((entry) => entry.name);
   const loader = detectLoader(paths);
-  const metadataPath = loader === 'fabric' ? 'fabric.mod.json' : loader === 'quilt' ? 'quilt.mod.json' : undefined;
+  const metadataPath =
+    loader === 'fabric' ? 'fabric.mod.json' : loader === 'quilt' ? 'quilt.mod.json' : undefined;
   onProgress?.({ phase: 'reading-metadata', processed: 0, total: paths.length });
   let metadata: unknown;
   if (metadataPath) {
     const metadataWatchdog = createPhaseWatchdog('reading-metadata', signal);
     const metadataEntry = archive.entries.find((entry) => entry.name === metadataPath);
     if (!metadataEntry) throw new Error(`${metadataPath} is missing`);
-    try { metadata = JSON.parse(new TextDecoder().decode(await metadataEntry.read(metadataWatchdog.signal))); }
-    catch (error) { throwIfAborted(metadataWatchdog.signal); throw new Error(`${metadataPath} is malformed`); }
-    finally { metadataWatchdog.stop(); }
+    try {
+      metadata = JSON.parse(
+        new TextDecoder().decode(await metadataEntry.read(metadataWatchdog.signal)),
+      );
+    } catch (error) {
+      throwIfAborted(metadataWatchdog.signal);
+      throw new Error(`${metadataPath} is malformed`);
+    } finally {
+      metadataWatchdog.stop();
+    }
   }
-  const nestedJarCount = archive.entries.filter((entry) => entry.name.toLowerCase().endsWith('.jar')).length;
-  if (nestedJarCount) diagnostics.push({ severity: 'info', category: 'info', code: 'nested-jar-skipped', message: `Skipped ${nestedJarCount} nested JAR file(s); no embedded code is executed.`, parameters: { count: nestedJarCount } });
+  const nestedJarCount = archive.entries.filter((entry) =>
+    entry.name.toLowerCase().endsWith('.jar'),
+  ).length;
+  if (nestedJarCount)
+    diagnostics.push({
+      severity: 'info',
+      category: 'info',
+      code: 'nested-jar-skipped',
+      message: `Skipped ${nestedJarCount} nested JAR file(s); no embedded code is executed.`,
+      parameters: { count: nestedJarCount },
+    });
   if (loader !== 'fabric') {
     const code = loader === 'unknown' ? 'unsupported-loader' : 'unsupported-loader';
-    diagnostics.push({ severity: 'error', category: 'blocking', code, message: loader === 'unknown' ? 'Could not detect a supported mod loader.' : `${capitalize(loader)} metadata was detected but this loader is not supported yet.` });
-    return prepared({ loader, loaderSupported: false, minecraftVersion, json: new Map(), resources: new Map(), diagnostics, nestedJarCount, canActivate: false, report: { metadataFormat: loader, loader, loaderSupported: false, namespaces: [], retainedResourceCount: 0, candidateBlockCount: 0, blocks: { detected: 0, imported: 0, partial: 0, unsupported: 0 }, items: { detected: 0, indexed: 0, unsupportedVisuals: 0 }, decorations: { detected: 0, imported: 0, partial: 0, unsupported: 0 }, conflicts: diagnostics.filter(isModConflictDiagnostic), warnings: diagnostics.filter((diagnostic) => diagnostic.severity === 'warning'), diagnostics, runtimeDependencies: {}, nestedJarCount } });
+    diagnostics.push({
+      severity: 'error',
+      category: 'blocking',
+      code,
+      message:
+        loader === 'unknown'
+          ? 'Could not detect a supported mod loader.'
+          : `${capitalize(loader)} metadata was detected but this loader is not supported yet.`,
+    });
+    return prepared({
+      loader,
+      loaderSupported: false,
+      minecraftVersion,
+      json: new Map(),
+      resources: new Map(),
+      diagnostics,
+      nestedJarCount,
+      canActivate: false,
+      report: {
+        metadataFormat: loader,
+        loader,
+        loaderSupported: false,
+        namespaces: [],
+        retainedResourceCount: 0,
+        candidateBlockCount: 0,
+        blocks: { detected: 0, imported: 0, partial: 0, unsupported: 0 },
+        items: { detected: 0, indexed: 0, unsupportedVisuals: 0 },
+        decorations: { detected: 0, imported: 0, partial: 0, unsupported: 0 },
+        conflicts: diagnostics.filter(isModConflictDiagnostic),
+        warnings: diagnostics.filter((diagnostic) => diagnostic.severity === 'warning'),
+        diagnostics,
+        runtimeDependencies: {},
+        nestedJarCount,
+      },
+    });
   }
-  const entries = archive.entries.filter((entry) => safeArchivePath(entry.name) && RETAINED_RESOURCE_PATH.test(entry.name));
+  const entries = archive.entries.filter(
+    (entry) => safeArchivePath(entry.name) && RETAINED_RESOURCE_PATH.test(entry.name),
+  );
   const totalSize = entries.reduce((total, entry) => total + entry.uncompressedSize, 0);
-  if (totalSize > MAX_RETAINED_BYTES) throw new Error('The mod resource payload is too large to retain locally');
+  if (totalSize > MAX_RETAINED_BYTES)
+    throw new Error('The mod resource payload is too large to retain locally');
   onProgress?.({ phase: 'indexing-resources', processed: 0, total: entries.length });
-  const json = new Map<string, unknown>(); const binary = new Map<string, Uint8Array>();
+  const json = new Map<string, unknown>();
+  const binary = new Map<string, Uint8Array>();
   const extraction = createPhaseWatchdog('extracting-resources', signal);
-  try { for (let offset = 0; offset < entries.length; offset += BATCH_SIZE) {
-    throwIfAborted(extraction.signal);
-    const batch = entries.slice(offset, offset + BATCH_SIZE);
-    const decoded = await Promise.all(batch.map(async (entry) => ({ entry, bytes: await entry.read(extraction.signal) })));
-    throwIfAborted(extraction.signal);
-    for (const { entry, bytes } of decoded) {
-      if (entry.name.endsWith('.json') || entry.name.endsWith('.png.mcmeta')) {
-        try { json.set(entry.name, JSON.parse(new TextDecoder().decode(bytes))); }
-        catch { diagnostics.push({ severity: 'warning', category: 'warning', code: 'malformed-json', message: 'Skipped malformed optional JSON resource.', path: entry.name }); }
-      } else binary.set(entry.name, bytes);
+  try {
+    for (let offset = 0; offset < entries.length; offset += BATCH_SIZE) {
+      throwIfAborted(extraction.signal);
+      const batch = entries.slice(offset, offset + BATCH_SIZE);
+      const decoded = await Promise.all(
+        batch.map(async (entry) => ({ entry, bytes: await entry.read(extraction.signal) })),
+      );
+      throwIfAborted(extraction.signal);
+      for (const { entry, bytes } of decoded) {
+        if (entry.name.endsWith('.json') || entry.name.endsWith('.png.mcmeta')) {
+          try {
+            json.set(entry.name, JSON.parse(new TextDecoder().decode(bytes)));
+          } catch {
+            diagnostics.push({
+              severity: 'warning',
+              category: 'warning',
+              code: 'malformed-json',
+              message: 'Skipped malformed optional JSON resource.',
+              path: entry.name,
+            });
+          }
+        } else binary.set(entry.name, bytes);
+      }
+      onProgress?.({
+        phase: 'extracting-resources',
+        processed: Math.min(offset + batch.length, entries.length),
+        total: entries.length,
+      });
+      extraction.progress();
+      await yieldToBrowser(signal);
+      throwIfAborted(extraction.signal);
     }
-    onProgress?.({ phase: 'extracting-resources', processed: Math.min(offset + batch.length, entries.length), total: entries.length });
-    extraction.progress();
-    await yieldToBrowser(signal);
-    throwIfAborted(extraction.signal);
-  } } finally { extraction.stop(); }
+  } finally {
+    extraction.stop();
+  }
   const fingerprintWatchdog = createPhaseWatchdog('checking-compatibility', signal);
   let fingerprint: string | undefined;
-  try { fingerprint = await archive.fingerprint(fingerprintWatchdog.signal); }
-  finally { fingerprintWatchdog.stop(); }
+  try {
+    fingerprint = await archive.fingerprint(fingerprintWatchdog.signal);
+  } finally {
+    fingerprintWatchdog.stop();
+  }
   throwIfAborted(signal);
   onProgress?.({ phase: 'checking-compatibility' });
   let provider: ExternalModProvider;
-  try { provider = ExternalModProvider.create({ metadata, json, resources: binary, diagnostics, minecraftVersion, fingerprint }); }
-  catch (error) {
+  try {
+    provider = ExternalModProvider.create({
+      metadata,
+      json,
+      resources: binary,
+      diagnostics,
+      minecraftVersion,
+      fingerprint,
+    });
+  } catch (error) {
     const message = error instanceof Error ? error.message : 'Mod metadata is malformed';
-    const invalid = [...diagnostics, { severity: 'error' as const, category: 'blocking' as const, code: 'malformed-json', message }];
-    return prepared({ loader, loaderSupported: true, minecraftVersion, metadata, json, resources: binary, diagnostics: invalid, nestedJarCount, fingerprint, canActivate: false });
+    const invalid = [
+      ...diagnostics,
+      {
+        severity: 'error' as const,
+        category: 'blocking' as const,
+        code: 'malformed-json',
+        message,
+      },
+    ];
+    return prepared({
+      loader,
+      loaderSupported: true,
+      minecraftVersion,
+      metadata,
+      json,
+      resources: binary,
+      diagnostics: invalid,
+      nestedJarCount,
+      fingerprint,
+      canActivate: false,
+    });
   }
   const compatible = provider.compatibility.status === 'compatible';
   const allDiagnostics = provider.report.diagnostics;
   const catalogWatchdog = createPhaseWatchdog('discovering-blocks', signal);
-  try { await provider.prepareCatalog((progress) => { catalogWatchdog.progress(); onProgress?.({ phase: 'discovering-blocks', processed: progress.processed, total: progress.total, blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported }); }, catalogWatchdog.signal); }
-  finally { catalogWatchdog.stop(); }
-  onProgress?.({ phase: 'discovering-blocks', processed: provider.report.blocks.detected, total: provider.report.blocks.detected, blocksDetected: provider.report.blocks.detected, blocksImported: provider.report.blocks.imported });
-  onProgress?.({ phase: 'discovering-items', itemsDetected: provider.report.items.detected, itemsIndexed: provider.report.items.indexed });
-  onProgress?.({ phase: 'discovering-decorations', decorationsDetected: provider.report.decorations.detected, decorationsImported: provider.report.decorations.imported });
-  onProgress?.({ phase: 'evaluating-behavior', warnings: allDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length });
+  try {
+    await provider.prepareCatalog((progress) => {
+      catalogWatchdog.progress();
+      onProgress?.({
+        phase: 'discovering-blocks',
+        processed: progress.processed,
+        total: progress.total,
+        blocksDetected: provider.report.blocks.detected,
+        blocksImported: provider.report.blocks.imported,
+      });
+    }, catalogWatchdog.signal);
+  } finally {
+    catalogWatchdog.stop();
+  }
+  onProgress?.({
+    phase: 'discovering-blocks',
+    processed: provider.report.blocks.detected,
+    total: provider.report.blocks.detected,
+    blocksDetected: provider.report.blocks.detected,
+    blocksImported: provider.report.blocks.imported,
+  });
+  onProgress?.({
+    phase: 'discovering-items',
+    itemsDetected: provider.report.items.detected,
+    itemsIndexed: provider.report.items.indexed,
+  });
+  onProgress?.({
+    phase: 'discovering-decorations',
+    decorationsDetected: provider.report.decorations.detected,
+    decorationsImported: provider.report.decorations.imported,
+  });
+  onProgress?.({
+    phase: 'evaluating-behavior',
+    warnings: allDiagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
+  });
   onProgress?.({ phase: 'checking-conflicts' });
-  return prepared({ loader, loaderSupported: true, minecraftVersion, metadata, normalizedMetadata: provider.normalizedMetadata, json, resources: binary, diagnostics: allDiagnostics, nestedJarCount, fingerprint, report: provider.report, canActivate: compatible && !allDiagnostics.some((diagnostic) => diagnostic.severity === 'error'), provider });
+  return prepared({
+    loader,
+    loaderSupported: true,
+    minecraftVersion,
+    metadata,
+    normalizedMetadata: provider.normalizedMetadata,
+    json,
+    resources: binary,
+    diagnostics: allDiagnostics,
+    nestedJarCount,
+    fingerprint,
+    report: provider.report,
+    canActivate:
+      compatible && !allDiagnostics.some((diagnostic) => diagnostic.severity === 'error'),
+    provider,
+  });
 }
 
-export function commitModImport(prepared: PreparedModImport, onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): ExternalModProvider {
+export function commitModImport(
+  prepared: PreparedModImport,
+  onProgress?: (progress: ModImportProgress) => void,
+  signal?: AbortSignal,
+): ExternalModProvider {
   throwIfAborted(signal);
   onProgress?.({ phase: 'checking-conflicts' });
   if (!prepared.loaderSupported) throw new UnsupportedModLoaderError(prepared.loader);
   if (!prepared.metadata) throw new Error('Mod metadata is missing');
-  if (!prepared.canActivate) throw new Error(prepared.report?.compatibility?.reason === 'missing-minecraft-dependency' ? 'Minecraft compatibility is unknown because depends.minecraft is missing.' : 'Mod preflight did not pass; resolve blocking diagnostics before activation.');
-  const provider = prepared.consume() ?? ExternalModProvider.create({ metadata: prepared.metadata, json: prepared.json, resources: prepared.resources, diagnostics: prepared.diagnostics, minecraftVersion: prepared.minecraftVersion, fingerprint: prepared.fingerprint });
+  if (!prepared.canActivate)
+    throw new Error(
+      prepared.report?.compatibility?.reason === 'missing-minecraft-dependency'
+        ? 'Minecraft compatibility is unknown because depends.minecraft is missing.'
+        : 'Mod preflight did not pass; resolve blocking diagnostics before activation.',
+    );
+  const provider =
+    prepared.consume() ??
+    ExternalModProvider.create({
+      metadata: prepared.metadata,
+      json: prepared.json,
+      resources: prepared.resources,
+      diagnostics: prepared.diagnostics,
+      minecraftVersion: prepared.minecraftVersion,
+      fingerprint: prepared.fingerprint,
+    });
   return provider;
 }
 
 /** Compatibility wrapper retained for the current import button. */
-export async function importFabricModJar(file: File, minecraftVersion = '1.21.1', onProgress?: (progress: ModImportProgress) => void, signal?: AbortSignal): Promise<ExternalModProvider> {
+export async function importFabricModJar(
+  file: File,
+  minecraftVersion = '1.21.1',
+  onProgress?: (progress: ModImportProgress) => void,
+  signal?: AbortSignal,
+): Promise<ExternalModProvider> {
   const prepared = await inspectModJar(file, minecraftVersion, onProgress, signal);
-  try { return commitModImport(prepared, onProgress, signal); } finally { prepared.dispose(); }
+  try {
+    return commitModImport(prepared, onProgress, signal);
+  } finally {
+    prepared.dispose();
+  }
 }
 
 export class UnsupportedModLoaderError extends Error {
-  constructor(readonly loader: SupportedModLoader) { super(loader === 'unknown' ? 'Could not detect a supported mod loader. Only Fabric resource import is supported.' : `Detected ${capitalize(loader)} mod. ${capitalize(loader)} JAR import is not supported yet.`); }
+  constructor(readonly loader: SupportedModLoader) {
+    super(
+      loader === 'unknown'
+        ? 'Could not detect a supported mod loader. Only Fabric resource import is supported.'
+        : `Detected ${capitalize(loader)} mod. ${capitalize(loader)} JAR import is not supported yet.`,
+    );
+  }
 }
 
-export function detectModLoader(paths: readonly string[]): SupportedModLoader { return detectLoader(paths); }
-function prepared(value: Omit<PreparedModImport, 'dispose' | 'consume'> & Partial<Pick<PreparedModImport, 'dispose' | 'consume'>>): PreparedModImport {
+export function detectModLoader(paths: readonly string[]): SupportedModLoader {
+  return detectLoader(paths);
+}
+function prepared(
+  value: Omit<PreparedModImport, 'dispose' | 'consume'> &
+    Partial<Pick<PreparedModImport, 'dispose' | 'consume'>>,
+): PreparedModImport {
   let ownedProvider = value.provider;
   const fallbackDispose = value.dispose ?? (() => undefined);
   return {
     ...value,
-    consume: () => { const result = ownedProvider; ownedProvider = undefined; return result; },
-    dispose: () => { if (ownedProvider) { ownedProvider.dispose(); ownedProvider = undefined; } else if (!value.provider) fallbackDispose(); },
+    consume: () => {
+      const result = ownedProvider;
+      ownedProvider = undefined;
+      return result;
+    },
+    dispose: () => {
+      if (ownedProvider) {
+        ownedProvider.dispose();
+        ownedProvider = undefined;
+      } else if (!value.provider) fallbackDispose();
+    },
   };
 }
-function safeArchivePath(path: string): boolean { return !!path && !path.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(path) && !path.split('/').some((part) => part === '..' || part === '.'); }
-function capitalize(value: string): string { return value.length ? value[0].toUpperCase() + value.slice(1) : value; }
+function safeArchivePath(path: string): boolean {
+  return (
+    !!path &&
+    !path.startsWith('/') &&
+    !/^[A-Za-z]:[\\/]/.test(path) &&
+    !path.split('/').some((part) => part === '..' || part === '.')
+  );
+}
+function capitalize(value: string): string {
+  return value.length ? value[0].toUpperCase() + value.slice(1) : value;
+}

@@ -14,7 +14,11 @@ describe('viewport camera geometry', () => {
   it('uses the camera plane for WASD and world vertical for Space/Shift', () => {
     expect(cameraMovementDirection(new Set(['KeyW']), camera).z).toBeLessThan(0);
     expect(cameraMovementDirection(new Set(['Space']), camera)).toMatchObject({ x: 0, y: 1, z: 0 });
-    expect(cameraMovementDirection(new Set(['ShiftLeft']), camera)).toMatchObject({ x: 0, y: -1, z: 0 });
+    expect(cameraMovementDirection(new Set(['ShiftLeft']), camera)).toMatchObject({
+      x: 0,
+      y: -1,
+      z: 0,
+    });
     const combined = cameraMovementDirection(new Set(['KeyW', 'Space']), camera);
     expect(combined.y).toBe(1);
     expect(combined.z).toBeLessThan(0);
@@ -42,7 +46,8 @@ describe('viewport camera geometry', () => {
   it('does not mutate the project while resolving camera movement', () => {
     const project = rendererBenchmarkProject('small');
     const before = JSON.stringify(project);
-    for (const key of ['KeyW', 'KeyA', 'KeyS', 'KeyD']) cameraMovementDelta(new Set([key]), camera, 9, 9, 1);
+    for (const key of ['KeyW', 'KeyA', 'KeyS', 'KeyD'])
+      cameraMovementDelta(new Set([key]), camera, 9, 9, 1);
     expect(JSON.stringify(project)).toBe(before);
   });
 });

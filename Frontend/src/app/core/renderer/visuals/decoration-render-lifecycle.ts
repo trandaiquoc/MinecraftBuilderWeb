@@ -5,7 +5,11 @@ import type { YLayerVisibility } from '../../editor/viewport/y-layer';
 import type { ProjectMetadataDecorationChange } from '../../editor/mutations/project-mutation-hint';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 import type { ItemStackData } from '../../items/item-stack.types';
-import { applyDecorationItemPreview, createDecorationVisual, DecorationTextureCache } from './decoration-visuals';
+import {
+  applyDecorationItemPreview,
+  createDecorationVisual,
+  DecorationTextureCache,
+} from './decoration-visuals';
 import type { ResolvedItemVisual } from './item-visual-resolver';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
 import { decorationRenderSignature } from './decoration-render-signature';
@@ -45,7 +49,8 @@ export interface DecorationRenderLifecyclePorts {
   readonly record: (metric: DecorationRenderMetric) => void;
 }
 
-export type DecorationRenderMetric = 'decorationAdds' | 'decorationUpdates' | 'decorationRemovals' | 'decorationVisualCreations';
+export type DecorationRenderMetric =
+  'decorationAdds' | 'decorationUpdates' | 'decorationRemovals' | 'decorationVisualCreations';
 
 /** Owns placed-decoration render entries and their independent preview queue. */
 export class DecorationRenderLifecycle {
@@ -57,28 +62,60 @@ export class DecorationRenderLifecycle {
 
   constructor(private readonly ports: DecorationRenderLifecyclePorts) {}
 
-  get revision(): number { return this.currentRevision; }
-  get size(): number { return this.rendered.size; }
-  get pendingCount(): number { return this.pendingSignatures.size; }
-  get queuedCount(): number { return this.queue.length - this.queueHead; }
+  get revision(): number {
+    return this.currentRevision;
+  }
+  get size(): number {
+    return this.rendered.size;
+  }
+  get pendingCount(): number {
+    return this.pendingSignatures.size;
+  }
+  get queuedCount(): number {
+    return this.queue.length - this.queueHead;
+  }
 
-  get(id: string): Readonly<DecorationRenderEntry> | undefined { return this.rendered.get(id); }
-  values(): IterableIterator<Readonly<DecorationRenderEntry>> { return this.rendered.values(); }
-  keys(): IterableIterator<string> { return this.rendered.keys(); }
-  hasPending(id: string): boolean { return this.pendingSignatures.has(id); }
-  pendingKeys(): IterableIterator<string> { return this.pendingSignatures.keys(); }
+  get(id: string): Readonly<DecorationRenderEntry> | undefined {
+    return this.rendered.get(id);
+  }
+  values(): IterableIterator<Readonly<DecorationRenderEntry>> {
+    return this.rendered.values();
+  }
+  keys(): IterableIterator<string> {
+    return this.rendered.keys();
+  }
+  hasPending(id: string): boolean {
+    return this.pendingSignatures.has(id);
+  }
+  pendingKeys(): IterableIterator<string> {
+    return this.pendingSignatures.keys();
+  }
 
-  advanceRevision(): void { this.currentRevision += 1; }
+  advanceRevision(): void {
+    this.currentRevision += 1;
+  }
 
-  reconcile(project: ProjectDocument | undefined, filter: DecorationRenderFilter, generation: number, full = false): readonly PlacedDecoration[] {
+  reconcile(
+    project: ProjectDocument | undefined,
+    filter: DecorationRenderFilter,
+    generation: number,
+    full = false,
+  ): readonly PlacedDecoration[] {
     if (!project) {
       this.clear();
       return [];
     }
 
-    const visible = (project.decorations ?? []).filter((decoration) => isVisibleInViewport(decoration, project.groups, filter));
+    const visible = (project.decorations ?? []).filter((decoration) =>
+      isVisibleInViewport(decoration, project.groups, filter),
+    );
     const byId = new Map(visible.map((decoration) => [decoration.instanceId, decoration] as const));
-    this.queue = this.queue.slice(this.queueHead).filter((job) => decorationRenderSignature(byId.get(job.id)) === decorationRenderSignature(job.decoration));
+    this.queue = this.queue
+      .slice(this.queueHead)
+      .filter(
+        (job) =>
+          decorationRenderSignature(byId.get(job.id)) === decorationRenderSignature(job.decoration),
+      );
     this.queueHead = 0;
 
     for (const [id, entry] of this.rendered) {
@@ -88,13 +125,15 @@ export class DecorationRenderLifecycle {
         this.ports.record('decorationRemovals');
       }
     }
-    for (const id of this.pendingSignatures.keys()) if (!byId.has(id)) this.pendingSignatures.delete(id);
+    for (const id of this.pendingSignatures.keys())
+      if (!byId.has(id)) this.pendingSignatures.delete(id);
 
     for (const [id, decoration] of byId) {
       const signature = this.signature(decoration);
       const current = this.rendered.get(id);
       const pending = this.pendingSignatures.get(id);
-      if ((!full && current?.signature === signature) || (!current && pending === signature)) continue;
+      if ((!full && current?.signature === signature) || (!current && pending === signature))
+        continue;
       if (current) {
         this.remove(id, current);
         this.ports.record('decorationUpdates');
@@ -115,10 +154,15 @@ export class DecorationRenderLifecycle {
     generation: number,
   ): void {
     for (const change of changes) {
-      const beforeVisible = isVisibleInViewport(change.before, previousProject.groups, previousFilter);
+      const beforeVisible = isVisibleInViewport(
+        change.before,
+        previousProject.groups,
+        previousFilter,
+      );
       const afterVisible = isVisibleInViewport(change.after, project.groups, filter);
       const current = this.rendered.get(change.id);
-      if (beforeVisible && afterVisible && current && change.after) this.rendered.set(change.id, { ...current, decoration: change.after });
+      if (beforeVisible && afterVisible && current && change.after)
+        this.rendered.set(change.id, { ...current, decoration: change.after });
       else if (beforeVisible && !afterVisible && current) {
         this.remove(change.id, current);
         this.pendingSignatures.delete(change.id);
@@ -155,7 +199,12 @@ export class DecorationRenderLifecycle {
         child.userData['decoration'] = job.decoration;
       });
       this.ports.group.add(visual);
-      const entry: DecorationRenderEntry = { id: job.id, decoration: job.decoration, signature: job.signature, object: visual };
+      const entry: DecorationRenderEntry = {
+        id: job.id,
+        decoration: job.decoration,
+        signature: job.signature,
+        object: visual,
+      };
       this.rendered.set(job.id, entry);
       this.hydrateItemPreview(entry);
       this.ports.complete(job.token, job.id);
@@ -208,22 +257,38 @@ export class DecorationRenderLifecycle {
     const provider = this.ports.itemPreview();
     const item = entry.decoration.item;
     if (!provider || !item) return;
-    const sprite = entry.object.children.find((child) => child.userData['decorationItemId'] === item.id);
+    const sprite = entry.object.children.find(
+      (child) => child.userData['decorationItemId'] === item.id,
+    );
     if (!sprite) return;
     const generation = this.ports.providerGeneration();
-    void provider(item).then((url) => {
-      if (!url || generation !== this.ports.providerGeneration() || this.rendered.get(entry.id) !== entry) return;
-      if (sprite.userData['itemVisualPreview'] === url) return;
-      if (applyDecorationItemPreview(sprite, url, this.ports.textureCache())) this.ports.scheduleRender();
-    }).catch(() => undefined);
+    void provider(item)
+      .then((url) => {
+        if (
+          !url ||
+          generation !== this.ports.providerGeneration() ||
+          this.rendered.get(entry.id) !== entry
+        )
+          return;
+        if (sprite.userData['itemVisualPreview'] === url) return;
+        if (applyDecorationItemPreview(sprite, url, this.ports.textureCache()))
+          this.ports.scheduleRender();
+      })
+      .catch(() => undefined);
   }
 }
 
-function isVisibleInViewport(decoration: PlacedDecoration | undefined, groups: ProjectDocument['groups'], filter: DecorationRenderFilter): decoration is PlacedDecoration {
-  return !!decoration
-    && isDecorationVisible(decoration, groups)
-    && (filter.layerY === undefined
-      || decoration.anchor.y === filter.layerY
-      || filter.visibility === 'whole-structure'
-      || filter.visibility === 'all-below' && decoration.anchor.y <= filter.layerY);
+function isVisibleInViewport(
+  decoration: PlacedDecoration | undefined,
+  groups: ProjectDocument['groups'],
+  filter: DecorationRenderFilter,
+): decoration is PlacedDecoration {
+  return (
+    !!decoration &&
+    isDecorationVisible(decoration, groups) &&
+    (filter.layerY === undefined ||
+      decoration.anchor.y === filter.layerY ||
+      filter.visibility === 'whole-structure' ||
+      (filter.visibility === 'all-below' && decoration.anchor.y <= filter.layerY))
+  );
 }

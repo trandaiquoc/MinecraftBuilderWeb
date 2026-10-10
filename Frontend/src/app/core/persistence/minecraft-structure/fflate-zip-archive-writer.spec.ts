@@ -8,9 +8,16 @@ function centralDirectoryMethods(bytes: Uint8Array): readonly number[] {
   const signature = 0x02014b50;
   const methods: number[] = [];
   for (let cursor = 0; cursor + 46 <= view.byteLength;) {
-    if (view.getUint32(cursor, true) !== signature) { cursor += 1; continue; }
+    if (view.getUint32(cursor, true) !== signature) {
+      cursor += 1;
+      continue;
+    }
     methods.push(view.getUint16(cursor + 10, true));
-    cursor += 46 + view.getUint16(cursor + 28, true) + view.getUint16(cursor + 30, true) + view.getUint16(cursor + 32, true);
+    cursor +=
+      46 +
+      view.getUint16(cursor + 28, true) +
+      view.getUint16(cursor + 30, true) +
+      view.getUint16(cursor + 32, true);
   }
   return methods;
 }
@@ -21,23 +28,46 @@ describe('FflateZipArchiveWriter', () => {
     const meta = new TextEncoder().encode('{"description":"Nhà"}');
     const bytes = await new FflateZipArchiveWriter().write([
       { path: 'pack.mcmeta', bytes: meta, compression: 'deflate' },
-      { path: 'data/minecraftbuilder/structure/houses/castle.nbt', bytes: nbt, compression: 'store' },
+      {
+        path: 'data/minecraftbuilder/structure/houses/castle.nbt',
+        bytes: nbt,
+        compression: 'store',
+      },
     ]);
-    expect(Object.keys(unzipSync(bytes))).toEqual(['pack.mcmeta', 'data/minecraftbuilder/structure/houses/castle.nbt']);
-    expect([...unzipSync(bytes)['data/minecraftbuilder/structure/houses/castle.nbt']]).toEqual([...nbt]);
+    expect(Object.keys(unzipSync(bytes))).toEqual([
+      'pack.mcmeta',
+      'data/minecraftbuilder/structure/houses/castle.nbt',
+    ]);
+    expect([...unzipSync(bytes)['data/minecraftbuilder/structure/houses/castle.nbt']]).toEqual([
+      ...nbt,
+    ]);
     expect(centralDirectoryMethods(bytes)).toEqual([8, 0]);
   });
 
   it('rejects unsafe and duplicate entry paths before producing bytes', async () => {
-    for (const path of ['/absolute', '\\absolute', '../escape', 'folder/../escape', 'folder/./escape', 'folder//escape', 'C:/escape', 'folder:file', 'folder/escape\u0000']) {
+    for (const path of [
+      '/absolute',
+      '\\absolute',
+      '../escape',
+      'folder/../escape',
+      'folder/./escape',
+      'folder//escape',
+      'C:/escape',
+      'folder:file',
+      'folder/escape\u0000',
+    ]) {
       expect(validateZipArchiveEntryPath(path)).not.toEqual([]);
     }
-    await expect(new FflateZipArchiveWriter().write([
-      { path: 'pack.mcmeta', bytes: new Uint8Array(), compression: 'store' },
-      { path: 'pack.mcmeta', bytes: new Uint8Array(), compression: 'store' },
-    ])).rejects.toThrow('duplicated');
-    await expect(new FflateZipArchiveWriter().write([
-      { path: '../escape', bytes: new Uint8Array(), compression: 'store' },
-    ])).rejects.toThrow('parent segments');
+    await expect(
+      new FflateZipArchiveWriter().write([
+        { path: 'pack.mcmeta', bytes: new Uint8Array(), compression: 'store' },
+        { path: 'pack.mcmeta', bytes: new Uint8Array(), compression: 'store' },
+      ]),
+    ).rejects.toThrow('duplicated');
+    await expect(
+      new FflateZipArchiveWriter().write([
+        { path: '../escape', bytes: new Uint8Array(), compression: 'store' },
+      ]),
+    ).rejects.toThrow('parent segments');
   });
 });

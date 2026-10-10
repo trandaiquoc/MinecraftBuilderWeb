@@ -25,8 +25,15 @@ export class LayeredObjectPresentationOwner {
 
   constructor(
     private readonly root: THREE.Group,
-    private readonly applyRole: (object: THREE.Object3D, role: 'normal' | 'reference', opacity: number) => void,
-    private readonly record: (metric: 'yLayerObjectVisibilityUpdates' | 'yLayerObjectRoleUpdates', delta?: number) => void = () => undefined,
+    private readonly applyRole: (
+      object: THREE.Object3D,
+      role: 'normal' | 'reference',
+      opacity: number,
+    ) => void,
+    private readonly record: (
+      metric: 'yLayerObjectVisibilityUpdates' | 'yLayerObjectRoleUpdates',
+      delta?: number,
+    ) => void = () => undefined,
   ) {}
 
   parentFor(block: PlacedBlock): THREE.Group {
@@ -89,10 +96,11 @@ export class LayeredObjectPresentationOwner {
     parent.remove(object!);
     if (parent.children.length) return;
     this.root.remove(parent);
-    for (const [key, bucket] of this.buckets) if (bucket.root === parent) {
-      this.buckets.delete(key);
-      break;
-    }
+    for (const [key, bucket] of this.buckets)
+      if (bucket.root === parent) {
+        this.buckets.delete(key);
+        break;
+      }
   }
 
   clear(): void {
@@ -107,11 +115,18 @@ export class LayeredObjectPresentationOwner {
     this.buckets.clear();
   }
 
-  get bucketCount(): number { return this.buckets.size; }
+  get bucketCount(): number {
+    return this.buckets.size;
+  }
 
-  private isVisible(layer: number, groupIds: readonly string[], state: LayeredObjectPresentationState): boolean {
+  private isVisible(
+    layer: number,
+    groupIds: readonly string[],
+    state: LayeredObjectPresentationState,
+  ): boolean {
     if (!state.visibleLayers.has(layer)) return false;
-    if (groupIds.some((id) => state.groups.find((group) => group.id === id)?.visible === false)) return false;
+    if (groupIds.some((id) => state.groups.find((group) => group.id === id)?.visible === false))
+      return false;
     return !state.isolatedGroupId || groupIds.includes(state.isolatedGroupId);
   }
 }

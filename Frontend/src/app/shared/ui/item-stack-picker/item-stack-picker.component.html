@@ -1,4 +1,12 @@
-@if (sourceOptions().length) { <app-content-source-selector [sources]="sourceOptions()" [selectedId]="sourceFilter()" [label]="sourceLabel" [manageLabel]="''" (selectionChange)="selectSource($event)" /> }
+@if (sourceOptions().length) {
+  <app-content-source-selector
+    [sources]="sourceOptions()"
+    [selectedId]="sourceFilter()"
+    [label]="sourceLabel"
+    [manageLabel]="''"
+    (selectionChange)="selectSource($event)"
+  />
+}
 <app-searchable-dropdown
   [options]="options()"
   [selectedId]="selectedStack?.id ?? ''"
@@ -8,4 +16,5 @@
   [closeLabel]="closeLabel"
   [noResults]="noResults"
   [disabled]="disabled"
-  (selectionChange)="choose($event)" />
+  (selectionChange)="choose($event)"
+/>

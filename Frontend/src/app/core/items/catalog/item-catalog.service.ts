@@ -17,9 +17,18 @@ export class ItemCatalogService {
     });
   }
 
-  all(): readonly ItemCatalogEntry[] { this.generation(); return this.catalog.all(); }
-  search(query: string): readonly ItemCatalogEntry[] { this.generation(); return this.catalog.search(query); }
-  get(id: string): ItemCatalogEntry | undefined { this.generation(); return this.catalog.get(id); }
+  all(): readonly ItemCatalogEntry[] {
+    this.generation();
+    return this.catalog.all();
+  }
+  search(query: string): readonly ItemCatalogEntry[] {
+    this.generation();
+    return this.catalog.search(query);
+  }
+  get(id: string): ItemCatalogEntry | undefined {
+    this.generation();
+    return this.catalog.get(id);
+  }
 
   /** Useful for pure tests and future content-source adapters. */
   replaceSource(sourceId: string, entries: readonly ItemCatalogEntry[]): void {
@@ -35,13 +44,23 @@ export class ItemCatalogService {
   private rebuildFromActiveSources(): void {
     this.catalog.clear();
     for (const source of this.assets.sources.itemEvidenceSources()) {
-      this.catalog.replaceSource(source.sourceId, source.items.map((item) => toCatalogEntry(item, source.sourceId, source.sourceName, source.provider)));
+      this.catalog.replaceSource(
+        source.sourceId,
+        source.items.map((item) =>
+          toCatalogEntry(item, source.sourceId, source.sourceName, source.provider),
+        ),
+      );
     }
     this.generation.update((value) => value + 1);
   }
 }
 
-function toCatalogEntry(item: CatalogItemEvidence, sourceId: string, sourceName: string, provider: ContentSourceProvider | undefined): ItemCatalogEntry {
+function toCatalogEntry(
+  item: CatalogItemEvidence,
+  sourceId: string,
+  sourceName: string,
+  provider: ContentSourceProvider | undefined,
+): ItemCatalogEntry {
   const namespace = itemNamespace(item.itemId);
   const path = item.itemId.slice(namespace ? namespace.length + 1 : 0);
   const language = provider ? readLanguage(provider, namespace) : {};
@@ -62,7 +81,12 @@ function toCatalogEntry(item: CatalogItemEvidence, sourceId: string, sourceName:
   };
 }
 
-function readLanguage(provider: ContentSourceProvider, namespace: string): Readonly<Record<string, unknown>> {
+function readLanguage(
+  provider: ContentSourceProvider,
+  namespace: string,
+): Readonly<Record<string, unknown>> {
   const value = provider.readJson(`assets/${namespace}/lang/en_us.json`);
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Readonly<Record<string, unknown>> : {};
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : {};
 }

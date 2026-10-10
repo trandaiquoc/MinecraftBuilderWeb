@@ -18,9 +18,15 @@ export function viewportLightingForBrightness(value: number): ViewportLighting {
   return interpolate(CURRENT_DEFAULT, MAXIMUM, (level - 3) / 7);
 }
 
-function interpolate(from: ViewportLighting, to: ViewportLighting, amount: number): ViewportLighting {
+function interpolate(
+  from: ViewportLighting,
+  to: ViewportLighting,
+  amount: number,
+): ViewportLighting {
   return {
-    hemisphereIntensity: from.hemisphereIntensity + (to.hemisphereIntensity - from.hemisphereIntensity) * amount,
-    directionalIntensity: from.directionalIntensity + (to.directionalIntensity - from.directionalIntensity) * amount,
+    hemisphereIntensity:
+      from.hemisphereIntensity + (to.hemisphereIntensity - from.hemisphereIntensity) * amount,
+    directionalIntensity:
+      from.directionalIntensity + (to.directionalIntensity - from.directionalIntensity) * amount,
   };
 }

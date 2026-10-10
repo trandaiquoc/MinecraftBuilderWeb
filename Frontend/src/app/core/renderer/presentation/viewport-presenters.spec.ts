@@ -33,15 +33,31 @@ describe('viewport presentation presenters', () => {
     const project = rendererBenchmarkProject('small');
     const block = project.blocks[0];
     const presenter = new GroupHighlightPresenter(scene, viewportThemePalette('dark'), {
-      visibleBlock: (key) => key === `${block.position.x},${block.position.y},${block.position.z}` ? { block } : undefined,
-      blockAt: (position) => position.x === block.position.x && position.y === block.position.y && position.z === block.position.z ? block : undefined,
+      visibleBlock: (key) =>
+        key === `${block.position.x},${block.position.y},${block.position.z}`
+          ? { block }
+          : undefined,
+      blockAt: (position) =>
+        position.x === block.position.x &&
+        position.y === block.position.y &&
+        position.z === block.position.z
+          ? block
+          : undefined,
       isolated: () => true,
       isolationActive: () => false,
       decorationIsolated: () => true,
     });
     presenter.mount();
     presenter.createUsageOverlay();
-    presenter.updateActiveGroup({ ...project, groups: [{ id: 'g', name: 'G', locked: false, visible: true } as never], blocks: [{ ...block, groupIds: ['g'] }] }, 'g', [block.position]);
+    presenter.updateActiveGroup(
+      {
+        ...project,
+        groups: [{ id: 'g', name: 'G', locked: false, visible: true } as never],
+        blocks: [{ ...block, groupIds: ['g'] }],
+      },
+      'g',
+      [block.position],
+    );
     expect(presenter.group.children).toHaveLength(1);
     presenter.updateUsage(block.id, [block.position]);
     expect(presenter.usageOverlay?.count).toBe(1);
@@ -50,14 +66,33 @@ describe('viewport presentation presenters', () => {
 
   it('clears move previews and block ghosts without mutating project state', () => {
     const palette = viewportThemePalette('dark');
-    const move = new MovePreviewPresenter(palette, { getBlock: () => undefined, textureCache: () => undefined });
+    const move = new MovePreviewPresenter(palette, {
+      getBlock: () => undefined,
+      textureCache: () => undefined,
+    });
     const project = rendererBenchmarkProject('small');
-    move.update(project, { offset: { x: 1, y: 0, z: 0 }, valid: true, positions: [], decorationIds: [] } as never);
+    move.update(project, {
+      offset: { x: 1, y: 0, z: 0 },
+      valid: true,
+      positions: [],
+      decorationIds: [],
+    } as never);
     expect(move.group.children).toHaveLength(0);
     move.dispose();
     const scene = new THREE.Scene();
-    const ghost = new BlockGhostPresenter(scene, palette, { provider: () => undefined, providerGeneration: () => 0, blockLookup: () => undefined, record: vi.fn(), scheduleRender: vi.fn() });
-    ghost.update({ x: 1, y: 2, z: 3 }, project, { id: 'minecraft:stone', state: {} } as never, 'valid');
+    const ghost = new BlockGhostPresenter(scene, palette, {
+      provider: () => undefined,
+      providerGeneration: () => 0,
+      blockLookup: () => undefined,
+      record: vi.fn(),
+      scheduleRender: vi.fn(),
+    });
+    ghost.update(
+      { x: 1, y: 2, z: 3 },
+      project,
+      { id: 'minecraft:stone', state: {} } as never,
+      'valid',
+    );
     expect(ghost.ghost.visible).toBe(true);
     ghost.clear();
     expect(ghost.ghost.visible).toBe(false);
@@ -65,7 +100,10 @@ describe('viewport presentation presenters', () => {
   });
 
   it('resets decoration ghost identity even when the visual is already empty', () => {
-    const presenter = new DecorationGhostPresenter(viewportThemePalette('dark'), { textureCache: () => undefined, scheduleRender: vi.fn() });
+    const presenter = new DecorationGhostPresenter(viewportThemePalette('dark'), {
+      textureCache: () => undefined,
+      scheduleRender: vi.fn(),
+    });
     presenter.currentKey = 'stale';
     presenter.clear();
     expect(presenter.currentKey).toBe('');

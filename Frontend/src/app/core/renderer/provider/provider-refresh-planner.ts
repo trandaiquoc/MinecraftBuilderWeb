@@ -40,7 +40,13 @@ export class ProviderRefreshPlanner<TInput, TJob> {
   start<TPlanInput extends TInput>(
     inputs: readonly TPlanInput[],
     classify: (input: TPlanInput) => { readonly considered: boolean; readonly job?: TJob },
-    callbacks: { readonly onStart?: (total: number) => void; readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void; readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void; readonly onCancel?: () => void; readonly onError?: (error: unknown) => void },
+    callbacks: {
+      readonly onStart?: (total: number) => void;
+      readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void;
+      readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void;
+      readonly onCancel?: () => void;
+      readonly onError?: (error: unknown) => void;
+    },
     options: ProviderRefreshPlannerOptions = {},
   ): void {
     this.cancel();
@@ -50,8 +56,19 @@ export class ProviderRefreshPlanner<TInput, TJob> {
     const budget = new CooperativeWorkBudget(options.maxMilliseconds ?? 8, options.maxItems ?? 64);
     const yieldWork = options.yield ?? yieldToBrowser;
     callbacks.onStart?.(inputs.length);
-    void this.run(inputs, classify, callbacks, budget, yieldWork, controller.signal, generation).catch((error) => {
-      if (controller.signal.aborted || generation !== this.generation) { callbacks.onCancel?.(); return; }
+    void this.run(
+      inputs,
+      classify,
+      callbacks,
+      budget,
+      yieldWork,
+      controller.signal,
+      generation,
+    ).catch((error) => {
+      if (controller.signal.aborted || generation !== this.generation) {
+        callbacks.onCancel?.();
+        return;
+      }
       callbacks.onError?.(error);
     });
   }
@@ -59,7 +76,11 @@ export class ProviderRefreshPlanner<TInput, TJob> {
   private async run<TPlanInput extends TInput>(
     inputs: readonly TPlanInput[],
     classify: (input: TPlanInput) => { readonly considered: boolean; readonly job?: TJob },
-    callbacks: { readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void; readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void; readonly onCancel?: () => void },
+    callbacks: {
+      readonly onProgress?: (progress: ProviderRefreshPlannerProgress) => void;
+      readonly onComplete: (result: ProviderRefreshPlannerResult<TJob>) => void;
+      readonly onCancel?: () => void;
+    },
     budget: CooperativeWorkBudget,
     yieldWork: (signal?: AbortSignal) => Promise<void>,
     signal: AbortSignal,
@@ -72,7 +93,10 @@ export class ProviderRefreshPlanner<TInput, TJob> {
     const jobs: TJob[] = [];
     for (let index = 0; index < inputs.length; index += 1) {
       signal.throwIfAborted();
-      if (generation !== this.generation) { callbacks.onCancel?.(); return; }
+      if (generation !== this.generation) {
+        callbacks.onCancel?.();
+        return;
+      }
       const sliceStarted = performance.now();
       const result = classify(inputs[index]);
       if (result.considered) considered += 1;
@@ -81,7 +105,15 @@ export class ProviderRefreshPlanner<TInput, TJob> {
       if (sliceDuration > maxSliceMs) maxSliceMs = sliceDuration;
       const processed = index + 1;
       if (processed === inputs.length || budget.shouldYieldNow()) {
-        callbacks.onProgress?.({ phase: 'planning', processed, total: inputs.length, considered, queued: jobs.length, maxSliceMs, yields });
+        callbacks.onProgress?.({
+          phase: 'planning',
+          processed,
+          total: inputs.length,
+          considered,
+          queued: jobs.length,
+          maxSliceMs,
+          yields,
+        });
         if (processed < inputs.length) {
           yields += 1;
           budget.reset();
@@ -89,8 +121,19 @@ export class ProviderRefreshPlanner<TInput, TJob> {
         }
       }
     }
-    if (generation !== this.generation || signal.aborted) { callbacks.onCancel?.(); return; }
+    if (generation !== this.generation || signal.aborted) {
+      callbacks.onCancel?.();
+      return;
+    }
     this.controller = undefined;
-    callbacks.onComplete({ jobs, processed: inputs.length, considered, queued: jobs.length, maxSliceMs, yields, durationMs: performance.now() - startedAt });
+    callbacks.onComplete({
+      jobs,
+      processed: inputs.length,
+      considered,
+      queued: jobs.length,
+      maxSliceMs,
+      yields,
+      durationMs: performance.now() - startedAt,
+    });
   }
 }

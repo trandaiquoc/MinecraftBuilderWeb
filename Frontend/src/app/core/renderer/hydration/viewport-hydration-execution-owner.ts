@@ -18,7 +18,13 @@ export interface ViewportHydrationExecutionDependencies {
   readonly hydrationPipeline: ViewportBlockHydrationPipeline<BlockHydrationJob>;
   readonly blockRepresentationHydration: BlockRepresentationHydrationOwner;
   readonly providerRefreshPipeline: {
-    readonly completeJob: (generation: number | undefined, callbacks: { readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void; readonly onStateChange?: () => void }) => void;
+    readonly completeJob: (
+      generation: number | undefined,
+      callbacks: {
+        readonly onTrace?: (event: string, details: Readonly<Record<string, unknown>>) => void;
+        readonly onStateChange?: () => void;
+      },
+    ) => void;
   };
   readonly projection: YLayerProjectionCoordinator;
   readonly decorations: DecorationRenderLifecycle;
@@ -50,7 +56,8 @@ export class ViewportHydrationExecutionOwner {
       isStopped: d.isStopped,
       isInteractive: d.isInteractive,
       now: () => performance.now(),
-      budgetMs: (interactive) => interactive ? this.options.interactiveSyncBudgetMs : this.options.syncBudgetMs,
+      budgetMs: (interactive) =>
+        interactive ? this.options.interactiveSyncBudgetMs : this.options.syncBudgetMs,
       interactiveJobLimit: () => this.options.interactiveMaxJobsPerBatch,
       jobLimit: () => this.options.maxJobsPerBatch,
       ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
@@ -65,9 +72,11 @@ export class ViewportHydrationExecutionOwner {
         if (!job.providerRefresh) d.markHydrationFailure(job, error);
       },
       onJobComplete: (job, authoritative) => this.onJobComplete(job, authoritative),
-      processAdditionalWork: (generation, deadline) => this.processDecorationBatch(generation, deadline),
+      processAdditionalWork: (generation, deadline) =>
+        this.processDecorationBatch(generation, deadline),
       hasAdditionalWork: () => d.decorations.queuedCount > 0,
-      onBatchDuration: (durationMs) => d.runtimeTrace()?.recordDuration('processHydrationBatch', durationMs),
+      onBatchDuration: (durationMs) =>
+        d.runtimeTrace()?.recordDuration('processHydrationBatch', durationMs),
     };
   }
 
@@ -76,11 +85,21 @@ export class ViewportHydrationExecutionOwner {
     if (fairnessDeferrals) d.diagnostics.record('hydrationFairnessDeferrals', fairnessDeferrals);
     if (d.isInteractive()) d.diagnostics.record('hydrationJobsStartedWhileCamera');
     if (job.layerPrewarm) d.diagnostics.record('yLayerRepresentationJobsStarted');
-    else d.diagnostics.record(job.providerRefresh ? 'providerRefreshStarted' : 'regularHydrationStarted');
+    else
+      d.diagnostics.record(
+        job.providerRefresh ? 'providerRefreshStarted' : 'regularHydrationStarted',
+      );
     if (job.providerRefresh) {
       const counts = d.hydrationPipeline.workCounts();
       if (counts.regularQueued > 0) {
-        d.diagnostics.record('maxProviderRefreshRunningWhileRegularPending', Math.max(0, counts.providerRefreshRunning - d.diagnostics.snapshot().maxProviderRefreshRunningWhileRegularPending));
+        d.diagnostics.record(
+          'maxProviderRefreshRunningWhileRegularPending',
+          Math.max(
+            0,
+            counts.providerRefreshRunning -
+              d.diagnostics.snapshot().maxProviderRefreshRunningWhileRegularPending,
+          ),
+        );
       }
     }
   }
@@ -91,7 +110,9 @@ export class ViewportHydrationExecutionOwner {
       d.onLayerPrewarmComplete(job, authoritative);
       return;
     }
-    d.diagnostics.record(job.providerRefresh ? 'providerRefreshCompleted' : 'regularHydrationCompleted');
+    d.diagnostics.record(
+      job.providerRefresh ? 'providerRefreshCompleted' : 'regularHydrationCompleted',
+    );
     if (job.providerRefresh) {
       d.providerRefreshPipeline.completeJob(job.providerRefreshGeneration, {
         onTrace: (event, details) => d.runtimeTrace()?.record(event, details),
@@ -99,19 +120,24 @@ export class ViewportHydrationExecutionOwner {
       });
     }
     const currentVisible = d.projection.visibleEntry(job.key);
-    const current = authoritative
-      && job.projectionRevision === d.projection.revisionForKey(job.key)
-      && currentVisible?.signature === job.signature
-      && currentVisible.role === job.role;
+    const current =
+      authoritative &&
+      job.projectionRevision === d.projection.revisionForKey(job.key) &&
+      currentVisible?.signature === job.signature &&
+      currentVisible.role === job.role;
     if (!job.providerRefresh && !current) d.diagnostics.record('staleHydrationCompletionsIgnored');
-    else if (!job.providerRefresh && job.block.kind !== 'missing') d.completeHydrationPart(job.token, job.key);
+    else if (!job.providerRefresh && job.block.kind !== 'missing')
+      d.completeHydrationPart(job.token, job.key);
   }
 
   private processDecorationBatch(generation: number, deadline: number): void {
     const d = this.dependencies;
-    const maxJobs = d.isInteractive() ? this.options.interactiveMaxJobsPerBatch : this.options.maxJobsPerBatch;
+    const maxJobs = d.isInteractive()
+      ? this.options.interactiveMaxJobsPerBatch
+      : this.options.maxJobsPerBatch;
     const processed = d.decorations.processBatch(generation, deadline, maxJobs);
-    if (d.isInteractive() && processed) d.diagnostics.record('hydrationJobsStartedWhileCamera', processed);
+    if (d.isInteractive() && processed)
+      d.diagnostics.record('hydrationJobsStartedWhileCamera', processed);
   }
 }
 export type { HydrationExecutionPort } from './block-hydration-work-owner';

@@ -10,16 +10,37 @@ import type { TerrainMeshWorkerPoolEvidence, TerrainWorkerLike } from './terrain
 import type { TerrainCommitSchedulerEvidence } from './terrain-commit-scheduler';
 import type { TerrainCommitDiagnosticsEvidence } from './terrain-commit-diagnostics';
 import { TerrainChunkLogicalStore } from './terrain-chunk-logical-store';
-import type { TerrainApplyDisposition, TerrainApplyResult, TerrainBlockChange, TerrainSurfaceRecord } from './terrain-render-contracts';
-import { TerrainChunkResidencyOwner, type TerrainOwnershipEvidence } from './terrain-chunk-residency-owner';
+import type {
+  TerrainApplyDisposition,
+  TerrainApplyResult,
+  TerrainBlockChange,
+  TerrainSurfaceRecord,
+} from './terrain-render-contracts';
+import {
+  TerrainChunkResidencyOwner,
+  type TerrainOwnershipEvidence,
+} from './terrain-chunk-residency-owner';
 import { TerrainHydrationSettlementOwner } from './terrain-hydration-settlement-owner';
-import type { TerrainRepresentationCommitCallbacks, TerrainRepresentationCommitStatus, TerrainSettlement } from './terrain-render-contracts';
+import type {
+  TerrainRepresentationCommitCallbacks,
+  TerrainRepresentationCommitStatus,
+  TerrainSettlement,
+} from './terrain-render-contracts';
 import { TerrainChunkWorkOwner } from './terrain-chunk-work-owner';
 import { TerrainChunkResultCommitOwner } from './terrain-chunk-result-commit-owner';
 import { TerrainTemplateResourceOwner } from './terrain-template-resource-owner';
 
-export type { TerrainApplyDisposition, TerrainApplyResult, TerrainBlockChange, TerrainSurfaceRecord } from './terrain-render-contracts';
-export type { TerrainRepresentationCommitCallbacks, TerrainRepresentationCommitStatus, TerrainSettlement } from './terrain-render-contracts';
+export type {
+  TerrainApplyDisposition,
+  TerrainApplyResult,
+  TerrainBlockChange,
+  TerrainSurfaceRecord,
+} from './terrain-render-contracts';
+export type {
+  TerrainRepresentationCommitCallbacks,
+  TerrainRepresentationCommitStatus,
+  TerrainSettlement,
+} from './terrain-render-contracts';
 
 export type { TerrainOwnershipEvidence } from './terrain-chunk-residency-owner';
 
@@ -65,7 +86,10 @@ export interface ChunkSurfaceRendererOptions {
   readonly terrainGeneration?: () => number;
   readonly providerGeneration?: () => number;
   readonly isCameraInteracting?: () => boolean;
-  readonly onAsyncApply?: (records: readonly TerrainSurfaceRecord[], result: TerrainApplyResult) => void;
+  readonly onAsyncApply?: (
+    records: readonly TerrainSurfaceRecord[],
+    result: TerrainApplyResult,
+  ) => void;
 }
 
 export { TERRAIN_RESIDENT_VARIANT_BUDGET_BYTES } from './terrain-chunk-residency-owner';
@@ -83,37 +107,69 @@ export class ChunkSurfaceRenderer {
   private readonly work: TerrainChunkWorkOwner;
 
   constructor(private readonly options: ChunkSurfaceRendererOptions) {
-    this.templateResources = new TerrainTemplateResourceOwner(options.terrainAtlasMode, options.record);
+    this.templateResources = new TerrainTemplateResourceOwner(
+      options.terrainAtlasMode,
+      options.record,
+    );
     this.logicalStore = new TerrainChunkLogicalStore({ record: options.record });
-    this.residency = new TerrainChunkResidencyOwner({ blocksGroup: options.blocksGroup, record: options.record });
-    this.resultCommitter = new TerrainChunkResultCommitOwner(this.logicalStore, this.residency, this.templateResources, this.settlement, {
+    this.residency = new TerrainChunkResidencyOwner({
+      blocksGroup: options.blocksGroup,
       record: options.record,
-      onTiming: options.onTiming,
-      isTimingEnabled: options.isTimingEnabled,
-      shouldCommitChunk: options.shouldCommitChunk,
-      onAsyncApply: options.onAsyncApply,
-      onComplete: () => this.notifySettlementIfReady(),
     });
-    this.work = new TerrainChunkWorkOwner(this.logicalStore, this.templateResources, this.settlement, this.resultCommitter, {
-      record: options.record,
-      onTiming: options.onTiming,
-      workerCount: options.workerCount,
-      workerFactory: options.workerFactory,
-      terrainGeneration: options.terrainGeneration,
-      providerGeneration: options.providerGeneration,
-      isCameraInteracting: options.isCameraInteracting,
-      scheduleDirtyWork: () => this.scheduleFlush(),
-      onComplete: () => this.notifySettlementIfReady(),
-    });
+    this.resultCommitter = new TerrainChunkResultCommitOwner(
+      this.logicalStore,
+      this.residency,
+      this.templateResources,
+      this.settlement,
+      {
+        record: options.record,
+        onTiming: options.onTiming,
+        isTimingEnabled: options.isTimingEnabled,
+        shouldCommitChunk: options.shouldCommitChunk,
+        onAsyncApply: options.onAsyncApply,
+        onComplete: () => this.notifySettlementIfReady(),
+      },
+    );
+    this.work = new TerrainChunkWorkOwner(
+      this.logicalStore,
+      this.templateResources,
+      this.settlement,
+      this.resultCommitter,
+      {
+        record: options.record,
+        onTiming: options.onTiming,
+        workerCount: options.workerCount,
+        workerFactory: options.workerFactory,
+        terrainGeneration: options.terrainGeneration,
+        providerGeneration: options.providerGeneration,
+        isCameraInteracting: options.isCameraInteracting,
+        scheduleDirtyWork: () => this.scheduleFlush(),
+        onComplete: () => this.notifySettlementIfReady(),
+      },
+    );
   }
 
-  get chunkCount(): number { return this.residency.chunkCount; }
-  get chunkMeshCount(): number { return this.residency.meshCount; }
-  get residentVariantCount(): number { return this.residency.residentVariantCount; }
-  get logicalBlockCount(): number { return this.logicalStore.size; }
-  has(key: string): boolean { return this.logicalStore.has(key); }
-  ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.residency.ownershipFor(key); }
-  isRepresented(key: string): boolean { return this.residency.isRepresented(key); }
+  get chunkCount(): number {
+    return this.residency.chunkCount;
+  }
+  get chunkMeshCount(): number {
+    return this.residency.meshCount;
+  }
+  get residentVariantCount(): number {
+    return this.residency.residentVariantCount;
+  }
+  get logicalBlockCount(): number {
+    return this.logicalStore.size;
+  }
+  has(key: string): boolean {
+    return this.logicalStore.has(key);
+  }
+  ownershipFor(key: string): TerrainOwnershipEvidence | undefined {
+    return this.residency.ownershipFor(key);
+  }
+  isRepresented(key: string): boolean {
+    return this.residency.isRepresented(key);
+  }
 
   setRecordRole(key: string, role: 'normal' | 'reference'): boolean {
     const record = this.logicalStore.record(key);
@@ -136,7 +192,11 @@ export class ChunkSurfaceRenderer {
     return this.logicalStore.recordsForKeys(keys);
   }
 
-  syncOccupancy(entries: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[], initial = false): void {
+  syncOccupancy(
+    entries: readonly TerrainClassificationEntry[],
+    affectedPositions: readonly VoxelCoordinate[],
+    initial = false,
+  ): void {
     if (this.disposed) return;
     this.logicalStore.replaceOccupancy(entries, affectedPositions, initial);
     this.scheduleFlush();
@@ -148,7 +208,12 @@ export class ChunkSurfaceRenderer {
   }
 
   /** Registers one generation/batch and compiles its dirty chunks exactly once. */
-  bulkUpsert(records: readonly TerrainSurfaceRecord[], occupancyEntries?: readonly TerrainClassificationEntry[], affectedPositions: readonly VoxelCoordinate[] = [], options: { readonly initial?: boolean; readonly flush?: boolean } = {}): TerrainApplyResult {
+  bulkUpsert(
+    records: readonly TerrainSurfaceRecord[],
+    occupancyEntries?: readonly TerrainClassificationEntry[],
+    affectedPositions: readonly VoxelCoordinate[] = [],
+    options: { readonly initial?: boolean; readonly flush?: boolean } = {},
+  ): TerrainApplyResult {
     if (this.disposed) return emptyTerrainApplyResult(records.map((record) => record.key));
     this.settlement.beginBatch();
     this.bulkBatches += 1;
@@ -162,19 +227,34 @@ export class ChunkSurfaceRenderer {
       this.logicalStore.takeDirtyChunks();
     }
     this.logicalStore.upsertMany(records, occupancyEntries, affectedPositions, options.initial);
-    if (options.flush === false) { this.scheduleFlush(); return emptyTerrainApplyResult(records.map((record) => record.key)); }
+    if (options.flush === false) {
+      this.scheduleFlush();
+      return emptyTerrainApplyResult(records.map((record) => record.key));
+    }
     return this.flushNow(records.map((record) => record.key));
   }
 
   /** Applies a bounded local voxel delta without replacing records or occupancy. */
-  applyBlockChanges(changes: readonly TerrainBlockChange[], flush = true, hydrationCandidateKeys: readonly string[] = changes.map((change) => change.key), deferFlush = false): TerrainApplyResult {
+  applyBlockChanges(
+    changes: readonly TerrainBlockChange[],
+    flush = true,
+    hydrationCandidateKeys: readonly string[] = changes.map((change) => change.key),
+    deferFlush = false,
+  ): TerrainApplyResult {
     if (this.disposed) return emptyTerrainApplyResult(changes.map((change) => change.key));
     if (!changes.length) return emptyTerrainApplyResult();
     this.beginSettlement();
     this.logicalStore.applyChanges(changes);
-    if (flush) return this.flushNow(changes.map((change) => change.key), 1, hydrationCandidateKeys);
+    if (flush)
+      return this.flushNow(
+        changes.map((change) => change.key),
+        1,
+        hydrationCandidateKeys,
+      );
     if (deferFlush && hydrationCandidateKeys.length) {
-      for (const [chunkKey, candidates] of this.logicalStore.indexHydrationCandidates(hydrationCandidateKeys)) {
+      for (const [chunkKey, candidates] of this.logicalStore.indexHydrationCandidates(
+        hydrationCandidateKeys,
+      )) {
         this.retainHydrationCandidates(chunkKey, candidates);
       }
     }
@@ -192,7 +272,9 @@ export class ChunkSurfaceRenderer {
     return this.templateResources.templatesFor(key);
   }
 
-  hasTemplates(key: string): boolean { return this.templateResources.hasTemplates(key); }
+  hasTemplates(key: string): boolean {
+    return this.templateResources.hasTemplates(key);
+  }
 
   upsert(record: TerrainSurfaceRecord, flush = false): boolean {
     if (this.disposed) return false;
@@ -205,12 +287,18 @@ export class ChunkSurfaceRenderer {
     return true;
   }
 
-  upsertAndCommit(record: TerrainSurfaceRecord, callbacks?: TerrainRepresentationCommitCallbacks): TerrainRepresentationCommitStatus {
+  upsertAndCommit(
+    record: TerrainSurfaceRecord,
+    callbacks?: TerrainRepresentationCommitCallbacks,
+  ): TerrainRepresentationCommitStatus {
     if (this.disposed) return 'failed';
     if (record.templates.length !== 6) return 'failed';
     const committed = this.upsert(record, true);
     if (committed) return 'committed';
-    const terminalCallbacks = callbacks ?? { onCommitted: () => undefined, onFailed: () => undefined };
+    const terminalCallbacks = callbacks ?? {
+      onCommitted: () => undefined,
+      onFailed: () => undefined,
+    };
     const chunkKey = terrainChunkKeyForPosition(record.block.position);
     const work = this.work.workFor(chunkKey);
     if (!work || work.completed) return 'failed';
@@ -228,15 +316,29 @@ export class ChunkSurfaceRenderer {
     this.scheduleFlush();
   }
 
-  flushNow(changedKeys: readonly string[] = [], priority = 0, hydrationCandidateKeys: readonly string[] = changedKeys): TerrainApplyResult {
+  flushNow(
+    changedKeys: readonly string[] = [],
+    priority = 0,
+    hydrationCandidateKeys: readonly string[] = changedKeys,
+  ): TerrainApplyResult {
     if (this.disposed) return emptyTerrainApplyResult(changedKeys);
     const timing = !!this.options.onTiming && (this.options.isTimingEnabled?.() ?? true);
     const started = timing ? performance.now() : 0;
-    if (this.flushTimer !== undefined) { clearTimeout(this.flushTimer); this.flushTimer = undefined; }
+    if (this.flushTimer !== undefined) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = undefined;
+    }
     const dirty = this.logicalStore.takeDirtyChunks();
     const localChangedKeys = this.logicalStore.indexKeysByOwningChunk(changedKeys);
     const localCandidates = this.logicalStore.indexHydrationCandidates(hydrationCandidateKeys);
-    const result = this.work.flush(dirty, changedKeys, hydrationCandidateKeys, priority, localChangedKeys, localCandidates);
+    const result = this.work.flush(
+      dirty,
+      changedKeys,
+      hydrationCandidateKeys,
+      priority,
+      localChangedKeys,
+      localCandidates,
+    );
     if (timing) this.options.onTiming?.('terrain.flushNow', performance.now() - started);
     this.notifySettlementIfReady();
     return result;
@@ -279,7 +381,18 @@ export class ChunkSurfaceRenderer {
       terrainWorker: work.worker,
       terrainCommit: work.commit,
       terrainCommitDiagnostics: work.diagnostics,
-      terrainAtlas: { ...(this.templateResources.atlas?.evidence() ?? { terrainAtlasPages: 0, terrainAtlasSprites: 0, terrainAtlasCacheHits: 0, terrainAtlasInsertions: 0, terrainAtlasMaterials: 0, terrainAtlasCompatibleFaces: 0, terrainAtlasFallbackFaces: 0 }), terrainAtlasChunkBuckets: this.chunkMeshCount },
+      terrainAtlas: {
+        ...(this.templateResources.atlas?.evidence() ?? {
+          terrainAtlasPages: 0,
+          terrainAtlasSprites: 0,
+          terrainAtlasCacheHits: 0,
+          terrainAtlasInsertions: 0,
+          terrainAtlasMaterials: 0,
+          terrainAtlasCompatibleFaces: 0,
+          terrainAtlasFallbackFaces: 0,
+        }),
+        terrainAtlasChunkBuckets: this.chunkMeshCount,
+      },
     };
   }
 
@@ -350,7 +463,10 @@ export class ChunkSurfaceRenderer {
 
   private scheduleFlush(): void {
     if (this.flushTimer !== undefined) return;
-    this.flushTimer = setTimeout(() => { this.flushTimer = undefined; this.flushNow(); }, 0);
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = undefined;
+      this.flushNow();
+    }, 0);
   }
 
   private cancelPendingRepresentationCommit(key: string): void {
@@ -361,13 +477,23 @@ export class ChunkSurfaceRenderer {
     this.settlement.cancelRepresentationCommits();
   }
 
-  private retainHydrationCandidates(chunkKey: string, candidates: readonly string[]): readonly string[] {
+  private retainHydrationCandidates(
+    chunkKey: string,
+    candidates: readonly string[],
+  ): readonly string[] {
     return this.settlement.retainHydrationCandidates(chunkKey, candidates);
   }
 }
 
-function terrainChunkKeyForPosition(position: VoxelCoordinate): string { return terrainChunkKey(worldToTerrainChunk(position)); }
+function terrainChunkKeyForPosition(position: VoxelCoordinate): string {
+  return terrainChunkKey(worldToTerrainChunk(position));
+}
 
 function emptyTerrainApplyResult(changedKeys: readonly string[] = []): TerrainApplyResult {
-  return { changedKeys: [...new Set(changedKeys)], rebuiltChunks: [], representedKeys: [], failedKeys: [] };
+  return {
+    changedKeys: [...new Set(changedKeys)],
+    rebuiltChunks: [],
+    representedKeys: [],
+    failedKeys: [],
+  };
 }

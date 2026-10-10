@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { AssetBlockRecord, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
+import {
+  AssetBlockRecord,
+  BlockStateDefinition,
+} from '../../blocks/catalog/block-definition.types';
 import { evaluateCommonBehavior } from './common-behavior';
 
-function record(id: string, definitions: readonly BlockStateDefinition[], model = `${id.replace(':', '/')}`, extra: Partial<AssetBlockRecord> = {}): AssetBlockRecord {
+function record(
+  id: string,
+  definitions: readonly BlockStateDefinition[],
+  model = `${id.replace(':', '/')}`,
+  extra: Partial<AssetBlockRecord> = {},
+): AssetBlockRecord {
   return {
     id,
     sourceId: 'vanilla',
@@ -16,26 +24,41 @@ function record(id: string, definitions: readonly BlockStateDefinition[], model 
 
 describe('common resource behavior evaluation', () => {
   it('reuses a complete door contract and derives canonical defaults', () => {
-    const result = evaluateCommonBehavior(record('example:door', [
-      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
-      { name: 'half', values: ['lower', 'upper'] },
-      { name: 'hinge', values: ['left', 'right'] },
-      { name: 'open', values: ['true', 'false'] },
-      { name: 'powered', values: ['true', 'false'] },
-    ]));
+    const result = evaluateCommonBehavior(
+      record('example:door', [
+        { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+        { name: 'half', values: ['lower', 'upper'] },
+        { name: 'hinge', values: ['left', 'right'] },
+        { name: 'open', values: ['true', 'false'] },
+        { name: 'powered', values: ['true', 'false'] },
+      ]),
+    );
     expect(result.behavior).toMatchObject({ kind: 'double-height', halfProperty: 'half' });
-    expect(result.defaultState).toMatchObject({ facing: 'north', half: 'lower', hinge: 'left', open: 'false', powered: 'false' });
+    expect(result.defaultState).toMatchObject({
+      facing: 'north',
+      half: 'lower',
+      hinge: 'left',
+      open: 'false',
+      powered: 'false',
+    });
     expect(result.defaultStateSource).toBe('compatible-common');
   });
 
   it('classifies a neutral external block with the complete door schema without name or resource evidence', () => {
-    const result = evaluateCommonBehavior(record('example:neutral_panel', [
-      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
-      { name: 'half', values: ['lower', 'upper'] },
-      { name: 'hinge', values: ['left', 'right'] },
-      { name: 'open', values: ['true', 'false'] },
-      { name: 'custom_variant', values: ['a', 'b'] },
-    ], 'example:block/panel', { behaviorEvidenceRequired: true }));
+    const result = evaluateCommonBehavior(
+      record(
+        'example:neutral_panel',
+        [
+          { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+          { name: 'half', values: ['lower', 'upper'] },
+          { name: 'hinge', values: ['left', 'right'] },
+          { name: 'open', values: ['true', 'false'] },
+          { name: 'custom_variant', values: ['a', 'b'] },
+        ],
+        'example:block/panel',
+        { behaviorEvidenceRequired: true },
+      ),
+    );
     expect(result.behavior).toMatchObject({ kind: 'double-height', halfProperty: 'half' });
     expect(result.family).toBe('doors');
     expect(result.classification?.chosenCandidate).toBe('doors');
@@ -45,81 +68,130 @@ describe('common resource behavior evaluation', () => {
   });
 
   it('keeps incomplete or conflicting door-like schemas unknown for external content', () => {
-    const incomplete = evaluateCommonBehavior(record('example:doorish_panel', [
-      { name: 'half', values: ['lower', 'upper'] },
-    ], 'example:block/door_model', { behaviorEvidenceRequired: true }));
+    const incomplete = evaluateCommonBehavior(
+      record(
+        'example:doorish_panel',
+        [{ name: 'half', values: ['lower', 'upper'] }],
+        'example:block/door_model',
+        { behaviorEvidenceRequired: true },
+      ),
+    );
     expect(incomplete.behavior).toBeUndefined();
 
-    const conflicting = evaluateCommonBehavior(record('example:doorish_panel', [
-      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
-      { name: 'half', values: ['lower', 'upper'] },
-      { name: 'hinge', values: ['left', 'center'] },
-      { name: 'open', values: ['true', 'false'] },
-    ], 'example:block/door_model', { behaviorEvidenceRequired: true }));
+    const conflicting = evaluateCommonBehavior(
+      record(
+        'example:doorish_panel',
+        [
+          { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+          { name: 'half', values: ['lower', 'upper'] },
+          { name: 'hinge', values: ['left', 'center'] },
+          { name: 'open', values: ['true', 'false'] },
+        ],
+        'example:block/door_model',
+        { behaviorEvidenceRequired: true },
+      ),
+    );
     expect(conflicting.behavior).toBeUndefined();
   });
 
   it('reuses the common button contract without an ID whitelist', () => {
-    const result = evaluateCommonBehavior(record('example:stone_button', [
-      { name: 'face', values: ['floor', 'wall', 'ceiling'] },
-      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
-      { name: 'powered', values: ['true', 'false'] },
-    ]));
+    const result = evaluateCommonBehavior(
+      record('example:stone_button', [
+        { name: 'face', values: ['floor', 'wall', 'ceiling'] },
+        { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+        { name: 'powered', values: ['true', 'false'] },
+      ]),
+    );
     expect(result.behavior).toMatchObject({ kind: 'button' });
     expect(result.defaultState).toEqual({ face: 'floor', facing: 'north', powered: 'false' });
   });
 
   it('reports a changed contract instead of applying a partial door rule', () => {
-    const result = evaluateCommonBehavior(record('example:door', [
-      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
-      { name: 'half', values: ['lower', 'upper'] },
-      { name: 'open', values: ['true', 'false'] },
-    ]));
+    const result = evaluateCommonBehavior(
+      record('example:door', [
+        { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+        { name: 'half', values: ['lower', 'upper'] },
+        { name: 'open', values: ['true', 'false'] },
+      ]),
+    );
     expect(result.behavior).toBeUndefined();
     expect(result.compatible).toBe(false);
     expect(result.reason).toContain('missing');
   });
 
   it('does not infer a connection family without resource evidence', () => {
-    const result = evaluateCommonBehavior(record('example:unknown', [
-      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['true', 'false'] })),
-    ]));
+    const result = evaluateCommonBehavior(
+      record('example:unknown', [
+        ...(['north', 'east', 'south', 'west'] as const).map((name) => ({
+          name,
+          values: ['true', 'false'],
+        })),
+      ]),
+    );
     expect(result.behavior).toBeUndefined();
     expect(result.compatible).toBe(false);
   });
 
   it('does not use the trusted vanilla fallback for unverified external records', () => {
-    const result = evaluateCommonBehavior(record('examplemod:oak_fence', [
-      { name: 'north', values: ['true', 'false'] },
-    ], 'examplemod:block/oak_fence', { sourceId: 'examplemod' }));
+    const result = evaluateCommonBehavior(
+      record(
+        'examplemod:oak_fence',
+        [{ name: 'north', values: ['true', 'false'] }],
+        'examplemod:block/oak_fence',
+        { sourceId: 'examplemod' },
+      ),
+    );
     expect(result.behavior).toBeUndefined();
     expect(result.compatible).toBe(false);
   });
 
   it('completes a proven multipart connection subset with false defaults', () => {
-    const result = evaluateCommonBehavior(record('example:acacia_fence', [
-      { name: 'north', values: ['true', 'false'] },
-    ], 'example:block/acacia_fence'));
+    const result = evaluateCommonBehavior(
+      record(
+        'example:acacia_fence',
+        [{ name: 'north', values: ['true', 'false'] }],
+        'example:block/acacia_fence',
+      ),
+    );
     expect(result.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'fence' });
-    expect(result.stateDefinitions).toEqual(expect.arrayContaining([
-      { name: 'east', values: ['true', 'false'], derived: true },
-      { name: 'south', values: ['true', 'false'], derived: true },
-      { name: 'west', values: ['true', 'false'], derived: true },
-    ]));
-    expect(result.defaultState).toMatchObject({ north: 'false', east: 'false', south: 'false', west: 'false' });
+    expect(result.stateDefinitions).toEqual(
+      expect.arrayContaining([
+        { name: 'east', values: ['true', 'false'], derived: true },
+        { name: 'south', values: ['true', 'false'], derived: true },
+        { name: 'west', values: ['true', 'false'], derived: true },
+      ]),
+    );
+    expect(result.defaultState).toMatchObject({
+      north: 'false',
+      east: 'false',
+      south: 'false',
+      west: 'false',
+    });
   });
 
   it('recognizes a wall contract from wall model evidence', () => {
-    const result = evaluateCommonBehavior(record('example:custom', [
-      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['none', 'low', 'tall'] })),
-      { name: 'up', values: ['true', 'false'] },
-    ], 'example:block/custom_wall_post'));
+    const result = evaluateCommonBehavior(
+      record(
+        'example:custom',
+        [
+          ...(['north', 'east', 'south', 'west'] as const).map((name) => ({
+            name,
+            values: ['none', 'low', 'tall'],
+          })),
+          { name: 'up', values: ['true', 'false'] },
+        ],
+        'example:block/custom_wall_post',
+      ),
+    );
     expect(result.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'wall' });
   });
 
   it('recognizes an external wall only when the state and blockstate parts agree', () => {
     const definitions = [
-      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['none', 'low', 'tall'] })),
+      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({
+        name,
+        values: ['none', 'low', 'tall'],
+      })),
       { name: 'up', values: ['true', 'false'] },
     ];
     const blockstate = {
@@ -131,43 +203,111 @@ describe('common resource behavior evaluation', () => {
         { when: { up: 'true' }, apply: { model: 'example:block/post' } },
       ],
     };
-    const result = evaluateCommonBehavior(record('example:tumblestone', definitions, 'example:block/tumblestone', { behaviorEvidenceRequired: true }), { readJson: () => blockstate });
+    const result = evaluateCommonBehavior(
+      record('example:tumblestone', definitions, 'example:block/tumblestone', {
+        behaviorEvidenceRequired: true,
+      }),
+      { readJson: () => blockstate },
+    );
     expect(result.behavior).toMatchObject({ kind: 'horizontal-connect', family: 'wall' });
-    expect(result.defaultState).toMatchObject({ north: 'none', east: 'none', south: 'none', west: 'none', up: 'true' });
+    expect(result.defaultState).toMatchObject({
+      north: 'none',
+      east: 'none',
+      south: 'none',
+      west: 'none',
+      up: 'true',
+    });
   });
 
   it('does not infer an external wall from the schema without blockstate part evidence', () => {
     const definitions = [
-      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({ name, values: ['none', 'low', 'tall'] })),
+      ...(['north', 'east', 'south', 'west'] as const).map((name) => ({
+        name,
+        values: ['none', 'low', 'tall'],
+      })),
       { name: 'up', values: ['true', 'false'] },
     ];
-    const result = evaluateCommonBehavior(record('example:decorative_block', definitions, 'example:block/decorative', { behaviorEvidenceRequired: true }), { readJson: () => ({ variants: { '': { model: 'example:block/decorative' } } }) });
+    const result = evaluateCommonBehavior(
+      record('example:decorative_block', definitions, 'example:block/decorative', {
+        behaviorEvidenceRequired: true,
+      }),
+      { readJson: () => ({ variants: { '': { model: 'example:block/decorative' } } }) },
+    );
     expect(result.behavior).toBeUndefined();
   });
 
   it('does not let an external name-based recognizer bypass an Unknown classification', () => {
-    const result = evaluateCommonBehavior(record('example:fake_stairs', [
-      { name: 'facing', values: ['north', 'east', 'south', 'west'] },
-      { name: 'half', values: ['top', 'bottom'] },
-      { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] },
-    ], 'example:block/fake_stairs', { behaviorEvidenceRequired: true }));
+    const result = evaluateCommonBehavior(
+      record(
+        'example:fake_stairs',
+        [
+          { name: 'facing', values: ['north', 'east', 'south', 'west'] },
+          { name: 'half', values: ['top', 'bottom'] },
+          {
+            name: 'shape',
+            values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'],
+          },
+        ],
+        'example:block/fake_stairs',
+        { behaviorEvidenceRequired: true },
+      ),
+    );
     expect(result.behavior).toBeUndefined();
     expect(result.classification?.selectionReason).toBe('none');
   });
 
   it('classifies a six-face attached resource fingerprint without relying on its registry name', () => {
-    const blockstate = { variants: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/crystal' }])) };
-    const result = evaluateCommonBehavior(record('example:crystal_like', [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }], 'example:block/crystal_like', { behaviorEvidenceRequired: true }), {
-      readJson: (path) => path === 'assets/example/models/block/crystal_like.json' ? { parent: 'minecraft:block/cross' } : blockstate,
+    const blockstate = {
+      variants: Object.fromEntries(
+        ['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [
+          `facing=${facing}`,
+          { model: 'example:block/crystal' },
+        ]),
+      ),
+    };
+    const result = evaluateCommonBehavior(
+      record(
+        'example:crystal_like',
+        [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }],
+        'example:block/crystal_like',
+        { behaviorEvidenceRequired: true },
+      ),
+      {
+        readJson: (path) =>
+          path === 'assets/example/models/block/crystal_like.json'
+            ? { parent: 'minecraft:block/cross' }
+            : blockstate,
+      },
+    );
+    expect(result.behavior).toMatchObject({
+      kind: 'attached-six-face-placement',
+      facingProperty: 'facing',
     });
-    expect(result.behavior).toMatchObject({ kind: 'attached-six-face-placement', facingProperty: 'facing' });
   });
 
   it('does not classify a six-face lookalike when the resource shape is not face-attached', () => {
-    const blockstate = { variants: Object.fromEntries(['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [`facing=${facing}`, { model: 'example:block/cube' }])) };
-    const result = evaluateCommonBehavior(record('example:directional_cube', [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }], 'example:block/cube', { behaviorEvidenceRequired: true }), {
-      readJson: (path) => path === 'assets/example/models/block/cube.json' ? { parent: 'minecraft:block/cube_all' } : blockstate,
-    });
+    const blockstate = {
+      variants: Object.fromEntries(
+        ['down', 'up', 'north', 'south', 'west', 'east'].map((facing) => [
+          `facing=${facing}`,
+          { model: 'example:block/cube' },
+        ]),
+      ),
+    };
+    const result = evaluateCommonBehavior(
+      record(
+        'example:directional_cube',
+        [{ name: 'facing', values: ['down', 'up', 'north', 'south', 'west', 'east'] }],
+        'example:block/cube',
+        { behaviorEvidenceRequired: true },
+      ),
+      {
+        readJson: (path) =>
+          path === 'assets/example/models/block/cube.json'
+            ? { parent: 'minecraft:block/cube_all' }
+            : blockstate,
+      },
+    );
     expect(result.behavior).toBeUndefined();
   });
 
@@ -175,29 +315,51 @@ describe('common resource behavior evaluation', () => {
     const definitions = [
       { name: 'facing', values: ['north', 'east', 'south', 'west'] },
       { name: 'half', values: ['top', 'bottom'] },
-      { name: 'shape', values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'] },
+      {
+        name: 'shape',
+        values: ['straight', 'inner_left', 'inner_right', 'outer_left', 'outer_right'],
+      },
     ];
-    const result = evaluateCommonBehavior(record('example:cut_block', definitions, 'example:block/cut_block', { behaviorEvidenceRequired: true }), { readJson: () => ({ variants: { 'facing=north,half=bottom,shape=straight': { model: 'example:block/cut_block_straight' } } }) });
+    const result = evaluateCommonBehavior(
+      record('example:cut_block', definitions, 'example:block/cut_block', {
+        behaviorEvidenceRequired: true,
+      }),
+      {
+        readJson: () => ({
+          variants: {
+            'facing=north,half=bottom,shape=straight': {
+              model: 'example:block/cut_block_straight',
+            },
+          },
+        }),
+      },
+    );
     expect(result.behavior).toMatchObject({ kind: 'stairs' });
   });
 
   it('uses the candle state contract without an ID heuristic and rejects candle-cake state', () => {
-    const candle = evaluateCommonBehavior(record('example:custom_light', [
-      { name: 'candles', values: ['1', '2', '3', '4'] },
-      { name: 'lit', values: ['true', 'false'] },
-      { name: 'waterlogged', values: ['true', 'false'] },
-    ]));
+    const candle = evaluateCommonBehavior(
+      record('example:custom_light', [
+        { name: 'candles', values: ['1', '2', '3', '4'] },
+        { name: 'lit', values: ['true', 'false'] },
+        { name: 'waterlogged', values: ['true', 'false'] },
+      ]),
+    );
     expect(candle.behavior).toMatchObject({ kind: 'candle', maxCandles: 4 });
 
-    const cake = evaluateCommonBehavior(record('example:white_candle_cake', [
-      { name: 'lit', values: ['true', 'false'] },
-      { name: 'waterlogged', values: ['true', 'false'] },
-    ]));
+    const cake = evaluateCommonBehavior(
+      record('example:white_candle_cake', [
+        { name: 'lit', values: ['true', 'false'] },
+        { name: 'waterlogged', values: ['true', 'false'] },
+      ]),
+    );
     expect(cake.behavior).toBeUndefined();
   });
 
   it('labels arbitrary resource values as render fallbacks rather than semantic defaults', () => {
-    const result = evaluateCommonBehavior(record('example:custom', [{ name: 'mode', values: ['alpha', 'beta'] }]));
+    const result = evaluateCommonBehavior(
+      record('example:custom', [{ name: 'mode', values: ['alpha', 'beta'] }]),
+    );
     expect(result.defaultState).toEqual({ mode: 'alpha' });
     expect(result.defaultStateSource).toBe('resource-render-fallback');
     expect(result.compatible).toBe(false);

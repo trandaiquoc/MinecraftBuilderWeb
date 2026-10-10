@@ -1,5 +1,10 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { allPaintingVariants, PAINTING_VARIANTS, PaintingVariant, setActivePaintingVariants } from '../decoration.types';
+import {
+  allPaintingVariants,
+  PAINTING_VARIANTS,
+  PaintingVariant,
+  setActivePaintingVariants,
+} from '../decoration.types';
 
 @Injectable({ providedIn: 'root' })
 export class PaintingVariantCatalogService {
@@ -18,11 +23,19 @@ export class PaintingVariantCatalogService {
     this.publish([...existing, ...variants.map(normalizeVariant)]);
   }
 
-  replaceSources(entries: readonly { readonly sourceId: string; readonly variants: readonly PaintingVariant[] }[]): void {
+  replaceSources(
+    entries: readonly {
+      readonly sourceId: string;
+      readonly variants: readonly PaintingVariant[];
+    }[],
+  ): void {
     if (!entries.length) return;
     const sourceIds = new Set(entries.map((entry) => entry.sourceId));
     const existing = this.variants().filter((entry) => !sourceIds.has(entry.sourceId ?? 'vanilla'));
-    this.publish([...existing, ...entries.flatMap((entry) => entry.variants.map(normalizeVariant))]);
+    this.publish([
+      ...existing,
+      ...entries.flatMap((entry) => entry.variants.map(normalizeVariant)),
+    ]);
   }
 
   removeSource(sourceId: string): void {
@@ -34,7 +47,11 @@ export class PaintingVariantCatalogService {
   }
 
   placeable(sourceId = '__minecraftbuilder_all__'): readonly PaintingVariant[] {
-    return this.variants().filter((entry) => entry.placeable !== false && (sourceId === '__minecraftbuilder_all__' || (entry.sourceId ?? 'vanilla') === sourceId));
+    return this.variants().filter(
+      (entry) =>
+        entry.placeable !== false &&
+        (sourceId === '__minecraftbuilder_all__' || (entry.sourceId ?? 'vanilla') === sourceId),
+    );
   }
 
   get(id: string | undefined): PaintingVariant | undefined {
@@ -48,4 +65,12 @@ export class PaintingVariantCatalogService {
   }
 }
 
-function normalizeVariant(entry: PaintingVariant): PaintingVariant { return { ...entry, sourceId: entry.sourceId ?? 'vanilla', sourceName: entry.sourceName ?? (entry.sourceId === 'vanilla' || !entry.sourceId ? 'Vanilla' : entry.sourceId) }; }
+function normalizeVariant(entry: PaintingVariant): PaintingVariant {
+  return {
+    ...entry,
+    sourceId: entry.sourceId ?? 'vanilla',
+    sourceName:
+      entry.sourceName ??
+      (entry.sourceId === 'vanilla' || !entry.sourceId ? 'Vanilla' : entry.sourceId),
+  };
+}

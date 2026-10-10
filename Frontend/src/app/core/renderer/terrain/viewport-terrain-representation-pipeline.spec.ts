@@ -18,7 +18,11 @@ describe('ViewportTerrainRepresentationPipeline', () => {
   it('drops rejected promises from its pending ownership', async () => {
     const cache = new ViewportTerrainRepresentationPipeline<object>();
     const failure = new Error('template failed');
-    await expect(cache.resolve('bad', async () => { throw failure; })).rejects.toBe(failure);
+    await expect(
+      cache.resolve('bad', async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
     expect(cache.pendingCount).toBe(0);
   });
 
@@ -36,18 +40,41 @@ describe('ViewportTerrainRepresentationPipeline', () => {
     const pipeline = new ViewportTerrainRepresentationPipeline<object>();
     const template = {};
     const candidate = { key: '0,0,0', reusableKey: 'stone', signature: 'stone|normal' };
-    const apply = vi.fn(() => ({ representedKeys: [candidate.key], failedKeys: [], pending: false }));
+    const apply = vi.fn(() => ({
+      representedKeys: [candidate.key],
+      failedKeys: [],
+      pending: false,
+    }));
     const commit = vi.fn();
     const failed = vi.fn();
     pipeline.scheduleBatch(
       [candidate],
       {
-        affectedPositions: [], initial: true, local: false, lane: 'structural', generation: 0, providerGeneration: 0,
-        currentGeneration: () => 0, currentProviderGeneration: () => 0, isDisposed: () => false, projectionRevision: 1,
-        candidateProjectionRevisions: new Map([[candidate.key, 1]]), projectionRevisionFor: () => 1,
+        affectedPositions: [],
+        initial: true,
+        local: false,
+        lane: 'structural',
+        generation: 0,
+        providerGeneration: 0,
+        currentGeneration: () => 0,
+        currentProviderGeneration: () => 0,
+        isDisposed: () => false,
+        projectionRevision: 1,
+        candidateProjectionRevisions: new Map([[candidate.key, 1]]),
+        projectionRevisionFor: () => 1,
       },
-      { cachedTemplates: () => undefined, cacheTemplates: vi.fn(), resolveTemplates: async () => template, disposeTemplates: vi.fn() },
-      { currentSignature: () => candidate.signature, candidateSignature: (item) => item.signature, toRecord: (item, value) => ({ key: item.key, value }), apply },
+      {
+        cachedTemplates: () => undefined,
+        cacheTemplates: vi.fn(),
+        resolveTemplates: async () => template,
+        disposeTemplates: vi.fn(),
+      },
+      {
+        currentSignature: () => candidate.signature,
+        candidateSignature: (item) => item.signature,
+        toRecord: (item, value) => ({ key: item.key, value }),
+        apply,
+      },
       { onCommit: commit, onStale: vi.fn(), onFailed: failed },
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -65,12 +92,31 @@ describe('ViewportTerrainRepresentationPipeline', () => {
     pipeline.scheduleBatch(
       [candidate],
       {
-        affectedPositions: [], initial: true, local: false, lane: 'structural', generation: 1, providerGeneration: 0,
-        currentGeneration: () => 2, currentProviderGeneration: () => 0, isDisposed: () => false, projectionRevision: 1,
-        candidateProjectionRevisions: new Map([[candidate.key, 1]]), projectionRevisionFor: () => 1,
+        affectedPositions: [],
+        initial: true,
+        local: false,
+        lane: 'structural',
+        generation: 1,
+        providerGeneration: 0,
+        currentGeneration: () => 2,
+        currentProviderGeneration: () => 0,
+        isDisposed: () => false,
+        projectionRevision: 1,
+        candidateProjectionRevisions: new Map([[candidate.key, 1]]),
+        projectionRevisionFor: () => 1,
       },
-      { cachedTemplates: () => undefined, cacheTemplates: vi.fn(), resolveTemplates: async () => ({}), disposeTemplates: vi.fn() },
-      { currentSignature: () => candidate.signature, candidateSignature: (item) => item.signature, toRecord: (item, value) => ({ key: item.key, value }), apply: vi.fn(() => ({ representedKeys: [candidate.key], failedKeys: [], pending: false })) },
+      {
+        cachedTemplates: () => undefined,
+        cacheTemplates: vi.fn(),
+        resolveTemplates: async () => ({}),
+        disposeTemplates: vi.fn(),
+      },
+      {
+        currentSignature: () => candidate.signature,
+        candidateSignature: (item) => item.signature,
+        toRecord: (item, value) => ({ key: item.key, value }),
+        apply: vi.fn(() => ({ representedKeys: [candidate.key], failedKeys: [], pending: false })),
+      },
       { onCommit: vi.fn(), onStale: stale, onFailed: failed },
     );
     await new Promise((resolve) => setTimeout(resolve, 0));

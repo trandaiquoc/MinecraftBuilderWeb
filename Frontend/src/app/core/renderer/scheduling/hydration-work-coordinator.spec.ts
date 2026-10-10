@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { HydrationWorkCoordinator, type HydrationWorkOwnerToken } from './hydration-work-coordinator';
+import {
+  HydrationWorkCoordinator,
+  type HydrationWorkOwnerToken,
+} from './hydration-work-coordinator';
 
 interface Job {
   readonly key: string;
@@ -9,18 +12,36 @@ interface Job {
   readonly ownerToken?: HydrationWorkOwnerToken;
 }
 
-function regular(key: string): Job { return { key, token: 1 }; }
-function refresh(key: string): Job { return { key, token: 1, providerRefresh: true }; }
+function regular(key: string): Job {
+  return { key, token: 1 };
+}
+function refresh(key: string): Job {
+  return { key, token: 1, providerRefresh: true };
+}
 
 describe('HydrationWorkCoordinator', () => {
   it('prevents provider refresh from starving regular hydration', () => {
     const coordinator = new HydrationWorkCoordinator<Job>();
-    for (let index = 0; index < 100; index += 1) coordinator.enqueueRegular(regular(`regular-${index}`));
-    for (let index = 0; index < 1000; index += 1) coordinator.enqueueProviderRefresh(refresh(`refresh-${index}`));
+    for (let index = 0; index < 100; index += 1)
+      coordinator.enqueueRegular(regular(`regular-${index}`));
+    for (let index = 0; index < 1000; index += 1)
+      coordinator.enqueueProviderRefresh(refresh(`refresh-${index}`));
 
     const firstCycle = Array.from({ length: 6 }, () => coordinator.takeNext(1)!);
-    expect(firstCycle.map((job) => job.providerRefresh ? 'refresh' : 'regular')).toEqual(['regular', 'regular', 'refresh', 'regular', 'regular', 'refresh']);
-    expect(coordinator.counts()).toMatchObject({ regularRunning: 4, providerRefreshRunning: 2, regularQueued: 96, providerRefreshQueued: 998 });
+    expect(firstCycle.map((job) => (job.providerRefresh ? 'refresh' : 'regular'))).toEqual([
+      'regular',
+      'regular',
+      'refresh',
+      'regular',
+      'regular',
+      'refresh',
+    ]);
+    expect(coordinator.counts()).toMatchObject({
+      regularRunning: 4,
+      providerRefreshRunning: 2,
+      regularQueued: 96,
+      providerRefreshQueued: 998,
+    });
     firstCycle.forEach((job) => coordinator.complete(job));
 
     const completedRegular: string[] = [];
@@ -35,13 +56,15 @@ describe('HydrationWorkCoordinator', () => {
 
   it('reuses all capacity when one queue is empty', () => {
     const regularOnly = new HydrationWorkCoordinator<Job>();
-    for (let index = 0; index < 8; index += 1) regularOnly.enqueueRegular(regular(`regular-${index}`));
+    for (let index = 0; index < 8; index += 1)
+      regularOnly.enqueueRegular(regular(`regular-${index}`));
     const regularJobs = Array.from({ length: 6 }, () => regularOnly.takeNext(1)!);
     expect(regularJobs.every((job) => !job.providerRefresh)).toBe(true);
     regularJobs.forEach((job) => regularOnly.complete(job));
 
     const refreshOnly = new HydrationWorkCoordinator<Job>();
-    for (let index = 0; index < 8; index += 1) refreshOnly.enqueueProviderRefresh(refresh(`refresh-${index}`));
+    for (let index = 0; index < 8; index += 1)
+      refreshOnly.enqueueProviderRefresh(refresh(`refresh-${index}`));
     const refreshJobs = Array.from({ length: 6 }, () => refreshOnly.takeNext(1)!);
     expect(refreshJobs.every((job) => job.providerRefresh)).toBe(true);
     expect(refreshOnly.counts()).toMatchObject({ providerRefreshRunning: 6, regularRunning: 0 });
@@ -69,7 +92,9 @@ describe('HydrationWorkCoordinator', () => {
     const coordinator = new HydrationWorkCoordinator<Job>();
     coordinator.enqueueProviderRefresh({ key: 'same', token: 1, providerRefresh: true });
     expect(coordinator.takeNext(2)).toBeUndefined();
-    expect(coordinator.enqueueProviderRefresh({ key: 'same', token: 2, providerRefresh: true })).toBe(true);
+    expect(
+      coordinator.enqueueProviderRefresh({ key: 'same', token: 2, providerRefresh: true }),
+    ).toBe(true);
   });
 
   it('removes pending refresh work without releasing an in-flight provider slot', () => {
@@ -78,7 +103,10 @@ describe('HydrationWorkCoordinator', () => {
     coordinator.enqueueProviderRefresh(refresh('pending'));
     const running = coordinator.takeNext(1)!;
     coordinator.removePendingKeys(new Set(['pending']));
-    expect(coordinator.counts()).toMatchObject({ providerRefreshQueued: 0, providerRefreshRunning: 1 });
+    expect(coordinator.counts()).toMatchObject({
+      providerRefreshQueued: 0,
+      providerRefreshRunning: 1,
+    });
     coordinator.complete(running);
     expect(coordinator.counts().totalRunning).toBe(0);
   });
@@ -94,21 +122,38 @@ describe('HydrationWorkCoordinator', () => {
 
     coordinator.removePendingKeys(new Set(['changed', 'refresh-changed']));
 
-    expect(coordinator.counts()).toMatchObject({ regularQueued: 2, providerRefreshQueued: 1, totalRunning: 0 });
-    expect([coordinator.takeNext(1)?.key, coordinator.takeNext(1)?.key, coordinator.takeNext(1)?.key])
-      .toEqual(['keep-1', 'keep-2', 'refresh-keep']);
+    expect(coordinator.counts()).toMatchObject({
+      regularQueued: 2,
+      providerRefreshQueued: 1,
+      totalRunning: 0,
+    });
+    expect([
+      coordinator.takeNext(1)?.key,
+      coordinator.takeNext(1)?.key,
+      coordinator.takeNext(1)?.key,
+    ]).toEqual(['keep-1', 'keep-2', 'refresh-keep']);
     expect(coordinator.queuedTotal()).toBe(0);
   });
 
   it('removes only queued work owned by one prewarm attempt and leaves running work untouched', () => {
     const coordinator = new HydrationWorkCoordinator<Job>();
-    coordinator.enqueueRegular({ ...regular('same-key'), ownerToken: { owner: 'y-layer-prewarm', attempt: 1, generation: 4 } });
-    coordinator.enqueueRegular({ ...regular('same-key'), ownerToken: { owner: 'y-layer-prewarm', attempt: 2, generation: 4 } });
-    coordinator.enqueueRegular({ ...regular('same-key'), ownerToken: { owner: 'editor-hydration', attempt: 1, generation: 4 } });
+    coordinator.enqueueRegular({
+      ...regular('same-key'),
+      ownerToken: { owner: 'y-layer-prewarm', attempt: 1, generation: 4 },
+    });
+    coordinator.enqueueRegular({
+      ...regular('same-key'),
+      ownerToken: { owner: 'y-layer-prewarm', attempt: 2, generation: 4 },
+    });
+    coordinator.enqueueRegular({
+      ...regular('same-key'),
+      ownerToken: { owner: 'editor-hydration', attempt: 1, generation: 4 },
+    });
 
     const running = coordinator.takeNext(1)!;
-    const removed = coordinator.removePendingForKey('same-key', (job) =>
-      job.ownerToken?.owner === 'y-layer-prewarm' && job.ownerToken.attempt === 2,
+    const removed = coordinator.removePendingForKey(
+      'same-key',
+      (job) => job.ownerToken?.owner === 'y-layer-prewarm' && job.ownerToken.attempt === 2,
     );
 
     expect(running.ownerToken?.attempt).toBe(1);

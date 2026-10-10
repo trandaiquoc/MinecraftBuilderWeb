@@ -13,7 +13,10 @@ export function projectPointerToAxisPlane(
   coordinate: number,
 ): { readonly x: number; readonly y: number; readonly z: number } | undefined {
   const rect = surface.getBoundingClientRect();
-  const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+  const pointer = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1,
+  );
   raycaster.setFromCamera(pointer, camera);
   const origin = raycaster.ray.origin;
   const direction = raycaster.ray.direction;

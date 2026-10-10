@@ -9,13 +9,19 @@ describe('ThumbnailTaskQueue', () => {
     let active = 0;
     let maximum = 0;
     let completed = 0;
-    const jobs = Array.from({ length: 6 }, (_, index) => vi.fn(async () => {
-      active += 1; maximum = Math.max(maximum, active);
-      await wait();
-      active -= 1; completed += 1;
-      if (index === 1) throw new Error('expected fixture failure');
-    }));
-    jobs.forEach((job, index) => queue.enqueue(`item-${index}`, index === 5 ? 'visible' : 'prefetch', job));
+    const jobs = Array.from({ length: 6 }, (_, index) =>
+      vi.fn(async () => {
+        active += 1;
+        maximum = Math.max(maximum, active);
+        await wait();
+        active -= 1;
+        completed += 1;
+        if (index === 1) throw new Error('expected fixture failure');
+      }),
+    );
+    jobs.forEach((job, index) =>
+      queue.enqueue(`item-${index}`, index === 5 ? 'visible' : 'prefetch', job),
+    );
     queue.enqueue('item-0', 'visible', jobs[0]);
     for (let attempt = 0; attempt < 20 && completed < 6; attempt++) await wait();
     expect(maximum).toBe(2);
@@ -26,7 +32,9 @@ describe('ThumbnailTaskQueue', () => {
   it('drops stale queued work without interrupting active jobs', async () => {
     const queue = new ThumbnailTaskQueue(1);
     let release!: () => void;
-    const active = new Promise<void>((resolve) => { release = resolve; });
+    const active = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const stale = vi.fn(async () => undefined);
     const fresh = vi.fn(async () => undefined);
     queue.enqueue('active', 'prefetch', () => active);
@@ -42,14 +50,17 @@ describe('ThumbnailTaskQueue', () => {
   it('promotes a queued prefetch when its card becomes visible', async () => {
     const queue = new ThumbnailTaskQueue(1);
     let release!: () => void;
-    const active = new Promise<void>((resolve) => { release = resolve; });
+    const active = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const prefetch = vi.fn(async () => undefined);
     const visible = vi.fn(async () => undefined);
     queue.enqueue('active', 'visible', () => active);
     queue.enqueue('prefetch', 'prefetch', prefetch);
     queue.enqueue('prefetch', 'visible', visible);
     release();
-    for (let attempt = 0; attempt < 10 && !visible.mock.calls.length; attempt++) await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let attempt = 0; attempt < 10 && !visible.mock.calls.length; attempt++)
+      await new Promise((resolve) => setTimeout(resolve, 0));
     expect(visible).toHaveBeenCalledTimes(1);
     expect(prefetch).not.toHaveBeenCalled();
   });
@@ -57,11 +68,17 @@ describe('ThumbnailTaskQueue', () => {
   it('promotes a queued preview above visible work when an item is selected', async () => {
     const queue = new ThumbnailTaskQueue(1);
     let release!: () => void;
-    const active = new Promise<void>((resolve) => { release = resolve; });
+    const active = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const visible = vi.fn(async () => undefined);
     const order: string[] = [];
-    const selected = vi.fn(async () => { order.push('selected'); });
-    visible.mockImplementation(async () => { order.push('visible'); });
+    const selected = vi.fn(async () => {
+      order.push('selected');
+    });
+    visible.mockImplementation(async () => {
+      order.push('visible');
+    });
     queue.enqueue('active', 'visible', () => active);
     queue.enqueue('visible', 'visible', visible);
     queue.enqueue('selected', 'prefetch', selected);
@@ -76,7 +93,9 @@ describe('ThumbnailTaskQueue', () => {
   it('promotes a pending task without replacing its render callback', async () => {
     const queue = new ThumbnailTaskQueue(1);
     let release!: () => void;
-    const active = new Promise<void>((resolve) => { release = resolve; });
+    const active = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const render = vi.fn(async () => undefined);
     queue.enqueue('active', 'visible', () => active);
     queue.enqueue('item', 'prefetch', render);

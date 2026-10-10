@@ -13,8 +13,16 @@ const block = (id: string, state: Record<string, string> = {}): PlacedBlock => (
 });
 const signData = {
   kind: 'sign' as const,
-  front: { lines: ['Front', '', '', ''] as [string, string, string, string], color: 'black', glowing: false },
-  back: { lines: ['Back', '', '', ''] as [string, string, string, string], color: 'black', glowing: false },
+  front: {
+    lines: ['Front', '', '', ''] as [string, string, string, string],
+    color: 'black',
+    glowing: false,
+  },
+  back: {
+    lines: ['Back', '', '', ''] as [string, string, string, string],
+    color: 'black',
+    glowing: false,
+  },
   waxed: false,
 };
 
@@ -23,28 +31,41 @@ describe('SignVisualProvider', () => {
     const sign = block('minecraft:oak_wall_sign');
     for (const facing of ['north', 'east', 'south', 'west']) {
       const visual = provider.create({ ...sign, state: { facing } });
-      expect(visual.position.toArray()).toEqual([.5, .5, .5]);
-      expect(visual.children[0].position.toArray()).toEqual([0, -.3125, -.4375]);
+      expect(visual.position.toArray()).toEqual([0.5, 0.5, 0.5]);
+      expect(visual.children[0].position.toArray()).toEqual([0, -0.3125, -0.4375]);
     }
   });
 
   it('keeps the wall-sign back edge on the support plane for all facings', () => {
-    for (const [facing, axis] of [['north', 'z'], ['south', 'z'], ['east', 'x'], ['west', 'x']] as const) {
+    for (const [facing, axis] of [
+      ['north', 'z'],
+      ['south', 'z'],
+      ['east', 'x'],
+      ['west', 'x'],
+    ] as const) {
       const visual = provider.create({ ...block('minecraft:oak_wall_sign'), state: { facing } });
       visual.updateMatrixWorld(true);
       const bounds = new THREE.Box3().setFromObject(visual);
-      const edge = axis === 'z'
-        ? (facing === 'north' ? bounds.max.z : bounds.min.z)
-        : (facing === 'west' ? bounds.max.x : bounds.min.x);
-      expect(edge, facing).toBeGreaterThan(facing === 'north' || facing === 'west' ? .97 : .0);
+      const edge =
+        axis === 'z'
+          ? facing === 'north'
+            ? bounds.max.z
+            : bounds.min.z
+          : facing === 'west'
+            ? bounds.max.x
+            : bounds.min.x;
+      expect(edge, facing).toBeGreaterThan(facing === 'north' || facing === 'west' ? 0.97 : 0.0);
     }
   });
 
   it('uses a separate wall-hanging-sign hierarchy while retaining the shared facing transform for text', () => {
-    const visual = provider.create({ ...block('minecraft:oak_wall_hanging_sign'), state: { facing: 'east' } });
+    const visual = provider.create({
+      ...block('minecraft:oak_wall_hanging_sign'),
+      state: { facing: 'east' },
+    });
     expect(visual.children).toHaveLength(1);
-    expect(visual.position.y).toBeCloseTo(.9375);
-    expect(visual.children[0].position.y).toBeCloseTo(-.3125);
+    expect(visual.position.y).toBeCloseTo(0.9375);
+    expect(visual.children[0].position.y).toBeCloseTo(-0.3125);
     expect(visual.rotation.y).toBeCloseTo(-Math.PI * 1.5);
   });
 
@@ -63,8 +84,20 @@ describe('SignVisualProvider', () => {
   });
 
   it('keeps sign text layout independent from the model branch scale', () => {
-    expect(signTextLayout('standing')).toEqual({ y: .33333334, z: .046666667, scale: 2 / 3, lineHeight: 10, maxWidth: 90 });
-    expect(signTextLayout('hanging')).toEqual({ y: -.32, z: .073, scale: .9, lineHeight: 9, maxWidth: 60 });
+    expect(signTextLayout('standing')).toEqual({
+      y: 0.33333334,
+      z: 0.046666667,
+      scale: 2 / 3,
+      lineHeight: 10,
+      maxWidth: 90,
+    });
+    expect(signTextLayout('hanging')).toEqual({
+      y: -0.32,
+      z: 0.073,
+      scale: 0.9,
+      lineHeight: 9,
+      maxWidth: 60,
+    });
     const visual = provider.create(block('minecraft:oak_sign'));
     expect(visual.children[0]?.children[0]?.scale.toArray()).toEqual([2 / 3, -2 / 3, -2 / 3]);
     expect(visual.children[0]?.children[1]?.scale.toArray()).toEqual([1, 1, 1]);
@@ -72,10 +105,10 @@ describe('SignVisualProvider', () => {
 
   it('places text offsets in world space before text scale for all sign variants', () => {
     const cases = [
-      ['minecraft:oak_sign', { rotation: '0' }, .83333334],
-      ['minecraft:oak_wall_sign', { facing: 'south' }, .52083334],
-      ['minecraft:oak_hanging_sign', { rotation: '0' }, .305],
-      ['minecraft:oak_wall_hanging_sign', { facing: 'south' }, .305],
+      ['minecraft:oak_sign', { rotation: '0' }, 0.83333334],
+      ['minecraft:oak_wall_sign', { facing: 'south' }, 0.52083334],
+      ['minecraft:oak_hanging_sign', { rotation: '0' }, 0.305],
+      ['minecraft:oak_wall_hanging_sign', { facing: 'south' }, 0.305],
     ] as const;
     for (const [id, state, expectedY] of cases) {
       const visual = provider.create({ ...block(id, state), blockEntityData: signData });
@@ -89,24 +122,40 @@ describe('SignVisualProvider', () => {
       expect(frontWorld.y, id).toBeCloseTo(expectedY, 4);
       expect(backWorld.y, id).toBeCloseTo(expectedY, 4);
       if (id === 'minecraft:oak_sign') {
-        expect(frontWorld.z).toBeGreaterThan(.54);
-        expect(backWorld.z).toBeLessThan(.46);
+        expect(frontWorld.z).toBeGreaterThan(0.54);
+        expect(backWorld.z).toBeLessThan(0.46);
       }
       if (id === 'minecraft:oak_wall_sign') {
-        expect(frontWorld.z).toBeGreaterThan(.10);
-        expect(backWorld.z).toBeLessThan(.02);
+        expect(frontWorld.z).toBeGreaterThan(0.1);
+        expect(backWorld.z).toBeLessThan(0.02);
       }
       const variant = id.includes('hanging_sign') ? 'hanging' : 'standing';
       const offset = signTextLayout(variant);
-      expect((frontOffset as THREE.Group).userData['signTextOffset']).toEqual([0, offset.y, offset.z]);
-      expect((frontOffset.children[0] as THREE.Group).scale.x).toBeCloseTo(offset.scale * .015625, 8);
+      expect((frontOffset as THREE.Group).userData['signTextOffset']).toEqual([
+        0,
+        offset.y,
+        offset.z,
+      ]);
+      expect((frontOffset.children[0] as THREE.Group).scale.x).toBeCloseTo(
+        offset.scale * 0.015625,
+        8,
+      );
     }
   });
 
   it('uses hanging-sign chain visibility and the separate wall-hanging plank state', () => {
-    const hanging = provider.create({ ...block('minecraft:acacia_hanging_sign'), state: { rotation: '4', attached: 'false' } });
-    const attached = provider.create({ ...block('minecraft:acacia_hanging_sign'), state: { rotation: '4', attached: 'true' } });
-    const wall = provider.create({ ...block('minecraft:acacia_wall_hanging_sign'), state: { facing: 'east' } });
+    const hanging = provider.create({
+      ...block('minecraft:acacia_hanging_sign'),
+      state: { rotation: '4', attached: 'false' },
+    });
+    const attached = provider.create({
+      ...block('minecraft:acacia_hanging_sign'),
+      state: { rotation: '4', attached: 'true' },
+    });
+    const wall = provider.create({
+      ...block('minecraft:acacia_wall_hanging_sign'),
+      state: { facing: 'east' },
+    });
     expect(hanging.children[0].children[0].children[1].visible).toBe(false);
     expect(hanging.children[0].children[0].children[2].visible).toBe(true);
     expect(attached.children[0].children[0].children[2].visible).toBe(false);
@@ -114,6 +163,6 @@ describe('SignVisualProvider', () => {
     expect(wall.children[0].children[0].children[1].visible).toBe(true);
     expect(wall.children[0].children[0].children[2].visible).toBe(true);
     expect(wall.children[0].children[0].children[3].visible).toBe(false);
-    expect(wall.position.y).toBeCloseTo(.9375);
+    expect(wall.position.y).toBeCloseTo(0.9375);
   });
 });

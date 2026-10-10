@@ -8,20 +8,25 @@ interface Job extends HydrationWorkItem {
 }
 
 describe('ViewportProviderRefreshPipeline', () => {
-  const createHydrationPipeline = () => new ViewportBlockHydrationPipeline<Job>({
-    concurrency: 2,
-    regularReservedCapacity: 1,
-    providerRefreshCapacity: 1,
-  });
+  const createHydrationPipeline = () =>
+    new ViewportBlockHydrationPipeline<Job>({
+      concurrency: 2,
+      regularReservedCapacity: 1,
+      providerRefreshCapacity: 1,
+    });
 
   it('plans provider work with its generation and completes progress from shared hydration ownership', async () => {
     const hydration = createHydrationPipeline();
     const pipeline = new ViewportProviderRefreshPipeline<object, number, Job>(hydration);
     const schedule = vi.fn();
-    const generation = pipeline.plan([4, 8], (value, planGeneration) => ({
-      considered: true,
-      job: { key: String(value), token: 3, refreshGeneration: planGeneration },
-    }), { onScheduleHydration: schedule });
+    const generation = pipeline.plan(
+      [4, 8],
+      (value, planGeneration) => ({
+        considered: true,
+        job: { key: String(value), token: 3, refreshGeneration: planGeneration },
+      }),
+      { onScheduleHydration: schedule },
+    );
 
     expect(generation).toBe(1);
     expect(pipeline.isPlanning).toBe(false);
@@ -61,7 +66,9 @@ describe('ViewportProviderRefreshPipeline', () => {
   });
 
   it('coalesces deferred provider transitions from the first old provider to the latest provider', () => {
-    const pipeline = new ViewportProviderRefreshPipeline<object, never, Job>(createHydrationPipeline());
+    const pipeline = new ViewportProviderRefreshPipeline<object, never, Job>(
+      createHydrationPipeline(),
+    );
     const oldProvider = {};
     const intermediate = {};
     const latest = {};
@@ -72,8 +79,17 @@ describe('ViewportProviderRefreshPipeline', () => {
   });
 
   it('returns provider-refresh progress as a detached snapshot', () => {
-    const pipeline = new ViewportProviderRefreshPipeline<object, number, Job>(createHydrationPipeline());
-    pipeline.plan([1], (value, generation) => ({ considered: true, job: { key: String(value), token: 3, refreshGeneration: generation } }), {});
+    const pipeline = new ViewportProviderRefreshPipeline<object, number, Job>(
+      createHydrationPipeline(),
+    );
+    pipeline.plan(
+      [1],
+      (value, generation) => ({
+        considered: true,
+        job: { key: String(value), token: 3, refreshGeneration: generation },
+      }),
+      {},
+    );
     const progress = pipeline.progress as unknown as { completed: number };
     progress.completed = 99;
     expect(pipeline.progress?.completed).toBe(0);
@@ -81,21 +97,33 @@ describe('ViewportProviderRefreshPipeline', () => {
 
   it('classifies missing and reusable candidates inside the refresh workflow', () => {
     const hydration = createHydrationPipeline();
-    const pipeline = new ViewportProviderRefreshPipeline<object, { key: string; missing?: boolean; previousProvider: object; nextProvider: object }, Job>(hydration);
+    const pipeline = new ViewportProviderRefreshPipeline<
+      object,
+      { key: string; missing?: boolean; previousProvider: object; nextProvider: object },
+      Job
+    >(hydration);
     const oldProvider = {};
     const nextProvider = {};
     const schedule = vi.fn();
-    pipeline.refresh([
-      { key: 'missing', missing: true, previousProvider: oldProvider, nextProvider },
-      { key: 'same', previousProvider: oldProvider, nextProvider },
-      { key: 'changed', previousProvider: oldProvider, nextProvider },
-    ], {
-      isMissing: (candidate) => !!candidate.missing,
-      isFluid: () => false,
-      reusableKey: (candidate, provider) => candidate.key === 'same' ? 'same' : provider === oldProvider ? 'old' : 'new',
-      createJob: (candidate, generation) => ({ key: candidate.key, token: 0, refreshGeneration: generation }),
-      onScheduleHydration: schedule,
-    });
+    pipeline.refresh(
+      [
+        { key: 'missing', missing: true, previousProvider: oldProvider, nextProvider },
+        { key: 'same', previousProvider: oldProvider, nextProvider },
+        { key: 'changed', previousProvider: oldProvider, nextProvider },
+      ],
+      {
+        isMissing: (candidate) => !!candidate.missing,
+        isFluid: () => false,
+        reusableKey: (candidate, provider) =>
+          candidate.key === 'same' ? 'same' : provider === oldProvider ? 'old' : 'new',
+        createJob: (candidate, generation) => ({
+          key: candidate.key,
+          token: 0,
+          refreshGeneration: generation,
+        }),
+        onScheduleHydration: schedule,
+      },
+    );
     expect(hydration.queuedProviderRefreshWork()).toBe(1);
     expect(schedule).toHaveBeenCalledOnce();
   });

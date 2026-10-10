@@ -7,18 +7,34 @@ import { AssetThumbnailService } from './asset-thumbnail-service';
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value: T) => void } {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => { resolve = next; });
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
   return { promise, resolve };
 }
 
 const item = {
-  itemId: 'example:stone_item', displayBlockId: 'minecraft:stone', namespace: 'example', displayName: 'Stone Item',
-  defaultState: {}, concreteBlockIds: ['minecraft:stone'], placementKind: 'direct', previewRecipe: 'single',
-  support: 'full', visualSupport: 'full', capabilities: {}, previewBlocks: [],
+  itemId: 'example:stone_item',
+  displayBlockId: 'minecraft:stone',
+  namespace: 'example',
+  displayName: 'Stone Item',
+  defaultState: {},
+  concreteBlockIds: ['minecraft:stone'],
+  placementKind: 'direct',
+  previewRecipe: 'single',
+  support: 'full',
+  visualSupport: 'full',
+  capabilities: {},
+  previewBlocks: [],
 } as unknown as PlaceableItemDefinition;
 
 function createService() {
-  const runtime: { generation: number; provider?: VanillaAssetProvider; visualProvider?: VanillaBlockVisualProvider; restoringExternalMods: boolean } = {
+  const runtime: {
+    generation: number;
+    provider?: VanillaAssetProvider;
+    visualProvider?: VanillaBlockVisualProvider;
+    restoringExternalMods: boolean;
+  } = {
     generation: 0,
     provider: { gameVersion: '1.21.1' } as VanillaAssetProvider,
     restoringExternalMods: false,
@@ -35,7 +51,10 @@ describe('AssetThumbnailService', () => {
   it('keeps a flat preview visible while selected work upgrades it once', async () => {
     const { runtime, service } = createService();
     const render = vi.fn(async () => ({ url: 'blob:enhanced', quality: 'enhanced' as const }));
-    runtime.visualProvider = visual({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render });
+    runtime.visualProvider = visual({
+      thumbnailUrl: () => 'resource:flat',
+      perspectiveItemThumbnail: render,
+    });
 
     service.requestItem(item, 'visible');
     expect(service.urlForItem(item)).toBe('resource:flat');
@@ -51,8 +70,16 @@ describe('AssetThumbnailService', () => {
   it('does not duplicate a running render and reuses a confirmed enhanced result', async () => {
     const { runtime, service } = createService();
     let release!: (value: { readonly url: string; readonly quality: 'enhanced' }) => void;
-    const render = vi.fn(() => new Promise<{ readonly url: string; readonly quality: 'enhanced' }>((resolve) => { release = resolve; }));
-    runtime.visualProvider = visual({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render });
+    const render = vi.fn(
+      () =>
+        new Promise<{ readonly url: string; readonly quality: 'enhanced' }>((resolve) => {
+          release = resolve;
+        }),
+    );
+    runtime.visualProvider = visual({
+      thumbnailUrl: () => 'resource:flat',
+      perspectiveItemThumbnail: render,
+    });
 
     service.requestItem(item, 'visible');
     service.requestItem(item, 'selected');
@@ -66,12 +93,22 @@ describe('AssetThumbnailService', () => {
   it('allows a later visible retry after a transient failed enhancement', async () => {
     const { runtime, service } = createService();
     let attempts = 0;
-    const render = vi.fn(async () => { attempts += 1; if (attempts === 1) throw new Error('renderer unavailable'); return { url: 'blob:retry', quality: 'enhanced' as const }; });
-    runtime.visualProvider = visual({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render });
+    const render = vi.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('renderer unavailable');
+      return { url: 'blob:retry', quality: 'enhanced' as const };
+    });
+    runtime.visualProvider = visual({
+      thumbnailUrl: () => 'resource:flat',
+      perspectiveItemThumbnail: render,
+    });
 
     service.requestItem(item, 'visible');
     await settle();
-    expect(service.stateForItem(item)).toMatchObject({ quality: 'fallback', enhancement: 'failed' });
+    expect(service.stateForItem(item)).toMatchObject({
+      quality: 'fallback',
+      enhancement: 'failed',
+    });
     service.requestItem(item, 'visible');
     await settle();
     expect(render).toHaveBeenCalledTimes(2);
@@ -81,8 +118,15 @@ describe('AssetThumbnailService', () => {
 
   it('marks unsupported enhancement unavailable without retrying it', async () => {
     const { runtime, service } = createService();
-    const render = vi.fn(async () => ({ url: undefined, quality: 'fallback' as const, retryable: false }));
-    runtime.visualProvider = visual({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render });
+    const render = vi.fn(async () => ({
+      url: undefined,
+      quality: 'fallback' as const,
+      retryable: false,
+    }));
+    runtime.visualProvider = visual({
+      thumbnailUrl: () => 'resource:flat',
+      perspectiveItemThumbnail: render,
+    });
 
     service.requestItem(item, 'visible');
     await settle();
@@ -96,8 +140,14 @@ describe('AssetThumbnailService', () => {
     const { runtime, service } = createService();
     const old = deferred<{ readonly url: string; readonly quality: 'enhanced' }>();
     const current = deferred<{ readonly url: string; readonly quality: 'enhanced' }>();
-    const oldVisual = visual({ thumbnailUrl: () => 'resource:old', perspectiveItemThumbnail: () => old.promise });
-    const currentVisual = visual({ thumbnailUrl: () => 'resource:current', perspectiveItemThumbnail: () => current.promise });
+    const oldVisual = visual({
+      thumbnailUrl: () => 'resource:old',
+      perspectiveItemThumbnail: () => old.promise,
+    });
+    const currentVisual = visual({
+      thumbnailUrl: () => 'resource:current',
+      perspectiveItemThumbnail: () => current.promise,
+    });
     runtime.visualProvider = oldVisual;
     service.requestItem(item, 'visible');
     await settle();
@@ -118,7 +168,10 @@ describe('AssetThumbnailService', () => {
   it('defers work during batched mod restore until a new epoch', async () => {
     const { runtime, service } = createService();
     const render = vi.fn(async () => ({ url: 'blob:restored', quality: 'enhanced' as const }));
-    runtime.visualProvider = visual({ thumbnailUrl: () => 'resource:flat', perspectiveItemThumbnail: render });
+    runtime.visualProvider = visual({
+      thumbnailUrl: () => 'resource:flat',
+      perspectiveItemThumbnail: render,
+    });
     runtime.restoringExternalMods = true;
     service.requestItem(item, 'visible');
     expect(render).not.toHaveBeenCalled();

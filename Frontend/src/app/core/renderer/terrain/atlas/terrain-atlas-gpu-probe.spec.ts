@@ -3,10 +3,7 @@ import { summarizeTerrainFramebuffer } from './terrain-atlas-gpu-probe';
 
 describe('terrain atlas GPU probe evidence', () => {
   it('summarizes alpha visibility and framebuffer bounds numerically', () => {
-    const pixels = new Uint8Array([
-      255, 0, 0, 255, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 255, 0, 128,
-    ]);
+    const pixels = new Uint8Array([255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 128]);
     const result = summarizeTerrainFramebuffer(pixels, 2, 2);
     expect(result.nonTransparentPixels).toBe(2);
     expect(result.alphaMin).toBe(128);

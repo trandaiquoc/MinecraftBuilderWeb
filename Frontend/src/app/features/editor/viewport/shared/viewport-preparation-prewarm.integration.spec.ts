@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { rendererBenchmarkProject, rendererBenchmarkVisualProvider } from '../../../../core/renderer/benchmark/renderer-benchmark-fixtures';
+import {
+  rendererBenchmarkProject,
+  rendererBenchmarkVisualProvider,
+} from '../../../../core/renderer/benchmark/renderer-benchmark-fixtures';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
 import type { ViewportPreparationAttempt } from '../../../../core/renderer/engine/viewport-engine-contracts';
-import { ViewportPreparationScheduler, type ViewportPreparationScope } from './viewport-preparation-scheduler';
+import {
+  ViewportPreparationScheduler,
+  type ViewportPreparationScope,
+} from './viewport-preparation-scheduler';
 
 describe('Y-layer prewarm scheduler integration', () => {
   it('reevaluates accepted empty-project prewarm at its terminal event without hydration or projection transitions', async () => {

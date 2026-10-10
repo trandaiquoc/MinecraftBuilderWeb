@@ -1,14 +1,30 @@
-import type { BlockPlacementVariants, BlockSupportLevel, CatalogItemEvidence, VisualSupportLevel } from '../catalog/block-definition.types';
+import type {
+  BlockPlacementVariants,
+  BlockSupportLevel,
+  CatalogItemEvidence,
+  VisualSupportLevel,
+} from '../catalog/block-definition.types';
 import type { BlockState, PlacedBlock } from '../../domain/project.types';
 import type { BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import type { MinecraftContentKind } from '../../content/content-classifier';
 import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
 
 export type PlaceablePlacementKind =
-  | 'direct' | 'sign' | 'hanging-sign' | 'torch' | 'head' | 'banner' | 'coral-fan'
-  | 'bed' | 'door' | 'tall-plant' | 'multi-block' | 'fluid-bucket';
+  | 'direct'
+  | 'sign'
+  | 'hanging-sign'
+  | 'torch'
+  | 'head'
+  | 'banner'
+  | 'coral-fan'
+  | 'bed'
+  | 'door'
+  | 'tall-plant'
+  | 'multi-block'
+  | 'fluid-bucket';
 
-export type PreviewRecipe = 'single' | 'bed' | 'door' | 'tall-plant' | 'vertical-two-part' | 'horizontal-two-part';
+export type PreviewRecipe =
+  'single' | 'bed' | 'door' | 'tall-plant' | 'vertical-two-part' | 'horizontal-two-part';
 
 export interface PlaceableItemDefinition {
   readonly itemId: string;
@@ -35,7 +51,18 @@ export interface PlaceableItemDefinition {
   readonly previewBlocks: readonly PlacedBlock[];
 }
 
-export interface PlaceableItemEvidence extends Partial<Pick<CatalogItemEvidence, 'referencedModels' | 'referencedResources' | 'explicitBlockPlacement' | 'sourceFormat' | 'sourceId' | 'sourceName' | 'maxStackSize'>> {
+export interface PlaceableItemEvidence extends Partial<
+  Pick<
+    CatalogItemEvidence,
+    | 'referencedModels'
+    | 'referencedResources'
+    | 'explicitBlockPlacement'
+    | 'sourceFormat'
+    | 'sourceId'
+    | 'sourceName'
+    | 'maxStackSize'
+  >
+> {
   readonly itemId: string;
   readonly placeable?: boolean;
   readonly contentKind?: MinecraftContentKind;

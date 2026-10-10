@@ -9,8 +9,12 @@ import type { VanillaAssetProvider } from './vanilla-asset-provider';
 import { ThumbnailTaskQueue, type ThumbnailTaskPriority } from './thumbnail-task-queue';
 
 export type ThumbnailPreviewQuality = 'none' | 'fallback' | 'enhanced';
-export type ThumbnailEnhancementStatus = 'idle' | 'queued' | 'running' | 'complete' | 'failed' | 'unavailable';
-export interface ThumbnailPreviewState { readonly quality: ThumbnailPreviewQuality; readonly enhancement: ThumbnailEnhancementStatus; }
+export type ThumbnailEnhancementStatus =
+  'idle' | 'queued' | 'running' | 'complete' | 'failed' | 'unavailable';
+export interface ThumbnailPreviewState {
+  readonly quality: ThumbnailPreviewQuality;
+  readonly enhancement: ThumbnailEnhancementStatus;
+}
 
 interface ThumbnailRuntimeState {
   readonly generation: number;
@@ -51,7 +55,12 @@ export class AssetThumbnailService {
     const epoch = this.epochState();
     const previewState = item.previewState ?? item.defaultState;
     const previewItem = { ...item, previewBlocks: previewBlocksForItem(item, previewState) };
-    const key = thumbnailIdentityForItem(generation, provider?.gameVersion ?? 'unavailable', item, previewState);
+    const key = thumbnailIdentityForItem(
+      generation,
+      provider?.gameVersion ?? 'unavailable',
+      item,
+      previewState,
+    );
     const current = this.states.get(key);
     if (current?.quality === 'enhanced' || current?.enhancement === 'unavailable') return;
     if (this.queue.has(key)) {
@@ -66,28 +75,44 @@ export class AssetThumbnailService {
     }
     this.setState(key, { quality: fallback ? 'fallback' : 'none', enhancement: 'queued' });
     this.queue.enqueue(key, priority, async () => {
-      if (!this.isCurrentRequest(generation, epoch, provider, visual, item, previewState, key)) return;
-      this.setState(key, { quality: this.states.get(key)?.quality ?? 'none', enhancement: 'running' });
+      if (!this.isCurrentRequest(generation, epoch, provider, visual, item, previewState, key))
+        return;
+      this.setState(key, {
+        quality: this.states.get(key)?.quality ?? 'none',
+        enhancement: 'running',
+      });
       try {
         const result = await visual.perspectiveItemThumbnail!(previewItem);
-        if (!this.isCurrentRequest(generation, epoch, provider, visual, item, previewState, key)) return;
+        if (!this.isCurrentRequest(generation, epoch, provider, visual, item, previewState, key))
+          return;
         this.applyPerspectiveResult(key, result);
       } catch {
-        if (!this.isCurrentRequest(generation, epoch, provider, visual, item, previewState, key)) return;
-        this.setState(key, { quality: this.states.get(key)?.quality ?? 'none', enhancement: 'failed' });
+        if (!this.isCurrentRequest(generation, epoch, provider, visual, item, previewState, key))
+          return;
+        this.setState(key, {
+          quality: this.states.get(key)?.quality ?? 'none',
+          enhancement: 'failed',
+        });
       }
     });
   }
 
-  invalidateQueued(): void { this.queue.invalidate(); }
+  invalidateQueued(): void {
+    this.queue.invalidate();
+  }
 
-  prepareItem(item: PlaceableItemDefinition): void { this.requestItem(item, 'visible'); }
+  prepareItem(item: PlaceableItemDefinition): void {
+    this.requestItem(item, 'visible');
+  }
 
   prepareBlock(blockId: string, state: Readonly<Record<string, string>>): void {
     const runtime = this.runtime();
     if (runtime.restoringExternalMods) return;
     const item = this.library.getItem(blockId);
-    if (item) { this.prepareItem({ ...item, defaultState: { ...state }, previewState: { ...state } }); return; }
+    if (item) {
+      this.prepareItem({ ...item, defaultState: { ...state }, previewState: { ...state } });
+      return;
+    }
     const visual = runtime.visualProvider;
     if (!visual) return;
     const provider = runtime.provider;
@@ -97,19 +122,31 @@ export class AssetThumbnailService {
     if (this.urls.has(key) && !this.queue.has(key)) return;
     const fallback = visual.thumbnailUrl(blockId, state);
     if (fallback) this.setUrl(key, fallback);
-    if (visual.perspectiveThumbnail) void visual.perspectiveThumbnail(blockId, state).then((url) => {
-      if (!url || !this.isCurrentBlockRequest(generation, epoch, provider, visual)) return;
-      if (this.urls.get(key) === url) return;
-      this.setUrl(key, url);
-    }).catch(() => undefined);
+    if (visual.perspectiveThumbnail)
+      void visual
+        .perspectiveThumbnail(blockId, state)
+        .then((url) => {
+          if (!url || !this.isCurrentBlockRequest(generation, epoch, provider, visual)) return;
+          if (this.urls.get(key) === url) return;
+          this.setUrl(key, url);
+        })
+        .catch(() => undefined);
   }
 
   urlForBlock(blockId: string, state: Readonly<Record<string, string>> = {}): string | undefined {
     const item = this.library.getItem(blockId);
-    if (item) return this.urlForItem({ ...item, defaultState: { ...state }, previewState: { ...state } });
+    if (item)
+      return this.urlForItem({ ...item, defaultState: { ...state }, previewState: { ...state } });
     this.version();
     const runtime = this.runtime();
-    return this.urls.get(thumbnailKey(runtime.generation, runtime.provider?.gameVersion ?? 'unavailable', blockId, state));
+    return this.urls.get(
+      thumbnailKey(
+        runtime.generation,
+        runtime.provider?.gameVersion ?? 'unavailable',
+        blockId,
+        state,
+      ),
+    );
   }
 
   urlForItem(item: PlaceableItemDefinition): string | undefined {
@@ -139,18 +176,46 @@ export class AssetThumbnailService {
 
   private itemKey(item: PlaceableItemDefinition, state: Readonly<Record<string, string>>): string {
     const runtime = this.runtime();
-    return thumbnailIdentityForItem(runtime.generation, runtime.provider?.gameVersion ?? 'unavailable', item, state);
+    return thumbnailIdentityForItem(
+      runtime.generation,
+      runtime.provider?.gameVersion ?? 'unavailable',
+      item,
+      state,
+    );
   }
 
-  private isCurrentRequest(generation: number, epoch: number, provider: VanillaAssetProvider | undefined, visual: VanillaBlockVisualProvider, item: PlaceableItemDefinition, state: Readonly<Record<string, string>>, key: string): boolean {
+  private isCurrentRequest(
+    generation: number,
+    epoch: number,
+    provider: VanillaAssetProvider | undefined,
+    visual: VanillaBlockVisualProvider,
+    item: PlaceableItemDefinition,
+    state: Readonly<Record<string, string>>,
+    key: string,
+  ): boolean {
     const runtime = this.runtime();
-    return generation === runtime.generation && epoch === this.epochState()
-      && provider === runtime.provider && visual === runtime.visualProvider && key === this.itemKey(item, state);
+    return (
+      generation === runtime.generation &&
+      epoch === this.epochState() &&
+      provider === runtime.provider &&
+      visual === runtime.visualProvider &&
+      key === this.itemKey(item, state)
+    );
   }
 
-  private isCurrentBlockRequest(generation: number, epoch: number, provider: VanillaAssetProvider | undefined, visual: VanillaBlockVisualProvider): boolean {
+  private isCurrentBlockRequest(
+    generation: number,
+    epoch: number,
+    provider: VanillaAssetProvider | undefined,
+    visual: VanillaBlockVisualProvider,
+  ): boolean {
     const runtime = this.runtime();
-    return generation === runtime.generation && epoch === this.epochState() && provider === runtime.provider && visual === runtime.visualProvider;
+    return (
+      generation === runtime.generation &&
+      epoch === this.epochState() &&
+      provider === runtime.provider &&
+      visual === runtime.visualProvider
+    );
   }
 
   private setUrl(key: string, url: string): void {
@@ -175,17 +240,49 @@ export class AssetThumbnailService {
   private applyPerspectiveResult(key: string, result: PerspectiveThumbnailResult): void {
     const current = this.states.get(key);
     if (result.url && result.quality === 'enhanced') this.setPreview(key, result.url, 'enhanced');
-    else if (result.url && current?.quality !== 'enhanced') this.setPreview(key, result.url, 'fallback');
-    const quality = result.quality === 'enhanced' && result.url ? 'enhanced' : current?.quality ?? 'none';
-    this.setState(key, { quality, enhancement: result.quality === 'enhanced' && result.url ? 'complete' : result.retryable ? 'failed' : 'unavailable' });
+    else if (result.url && current?.quality !== 'enhanced')
+      this.setPreview(key, result.url, 'fallback');
+    const quality =
+      result.quality === 'enhanced' && result.url ? 'enhanced' : (current?.quality ?? 'none');
+    this.setState(key, {
+      quality,
+      enhancement:
+        result.quality === 'enhanced' && result.url
+          ? 'complete'
+          : result.retryable
+            ? 'failed'
+            : 'unavailable',
+    });
   }
 }
 
-export function thumbnailKey(generation: number, gameVersion: string, blockId: string, state: Readonly<Record<string, string>>, recipe = 'single', concreteBlockIds: readonly string[] = []): string {
-  const serializedState = Object.entries(state).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => `${name}=${value}`).join(',');
+export function thumbnailKey(
+  generation: number,
+  gameVersion: string,
+  blockId: string,
+  state: Readonly<Record<string, string>>,
+  recipe = 'single',
+  concreteBlockIds: readonly string[] = [],
+): string {
+  const serializedState = Object.entries(state)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, value]) => `${name}=${value}`)
+    .join(',');
   return `thumbnail-v6|${generation}|${gameVersion}|item-preview-v3|${recipe}|${blockId}|${concreteBlockIds.slice().sort().join(',')}|${serializedState}`;
 }
 
-export function thumbnailIdentityForItem(generation: number, gameVersion: string, item: Pick<PlaceableItemDefinition, 'itemId' | 'previewRecipe' | 'concreteBlockIds'>, previewState: Readonly<Record<string, string>>): string {
-  return thumbnailKey(generation, gameVersion, item.itemId, previewState, item.previewRecipe, item.concreteBlockIds);
+export function thumbnailIdentityForItem(
+  generation: number,
+  gameVersion: string,
+  item: Pick<PlaceableItemDefinition, 'itemId' | 'previewRecipe' | 'concreteBlockIds'>,
+  previewState: Readonly<Record<string, string>>,
+): string {
+  return thumbnailKey(
+    generation,
+    gameVersion,
+    item.itemId,
+    previewState,
+    item.previewRecipe,
+    item.concreteBlockIds,
+  );
 }

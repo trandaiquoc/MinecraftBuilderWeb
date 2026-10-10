@@ -3,55 +3,126 @@
   <div class="details-identity">
     <div class="details-mod-icon">
       @if (currentMod.iconUrl) {
-        <img [src]="currentMod.iconUrl" [alt]="i18n.t('assetManagerIconAlt').replace('{name}', currentMod.displayName)" />
+        <img
+          [src]="currentMod.iconUrl"
+          [alt]="i18n.t('assetManagerIconAlt').replace('{name}', currentMod.displayName)"
+        />
       } @else {
         <span>M</span>
       }
     </div>
     <div>
       <h3>{{ currentMod.displayName }}</h3>
-      <p class="details-secondary-copy">{{ currentMod.modId }} &middot; {{ currentMod.version }} &middot; {{ loaderLabel(currentMod.report.loader) }}</p>
+      <p class="details-secondary-copy">
+        {{ currentMod.modId }} &middot; {{ currentMod.version }} &middot;
+        {{ loaderLabel(currentMod.report.loader) }}
+      </p>
     </div>
   </div>
   <div class="detail-statuses">
-    <span class="status" [class.status-ok]="currentMod.report.compatibility?.status === 'compatible'" [class.status-blocked]="currentMod.report.compatibility?.status !== 'compatible'">
-      @if (currentMod.report.compatibility?.status === 'compatible') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else { <svg lucideCircleX aria-hidden="true"></svg> }
+    <span
+      class="status"
+      [class.status-ok]="currentMod.report.compatibility?.status === 'compatible'"
+      [class.status-blocked]="currentMod.report.compatibility?.status !== 'compatible'"
+    >
+      @if (currentMod.report.compatibility?.status === 'compatible') {
+        <svg lucideCheckCircle2 aria-hidden="true"></svg>
+      } @else {
+        <svg lucideCircleX aria-hidden="true"></svg>
+      }
       {{ compatibilityStatus(currentMod.report.compatibility?.status) }}
     </span>
     @if (isCertified()) {
-      <span class="certified-badge"><svg lucideCheckCircle2 aria-hidden="true"></svg> {{ i18n.t('assetManagerFullySupported') }}</span>
+      <span class="certified-badge"
+        ><svg lucideCheckCircle2 aria-hidden="true"></svg>
+        {{ i18n.t('assetManagerFullySupported') }}</span
+      >
     }
   </div>
   <section>
     <h3>{{ i18n.t('assetManagerOverview') }}</h3>
     <dl class="summary-grid">
-      <div><dt>{{ i18n.t('assetManagerDeclaredMinecraft') }}</dt><dd>{{ currentMod.report.normalizedMetadata?.minecraftRequirement || i18n.t('assetManagerCannotVerify') }}</dd></div>
-      <div><dt>{{ i18n.t('assetManagerCurrentMinecraft') }}</dt><dd>{{ assets.activeVersion() }}</dd></div>
-      <div><dt>{{ i18n.t('assetManagerNamespaces') }}</dt><dd>{{ currentMod.namespaces.join(', ') }}</dd></div>
-      <div><dt>{{ i18n.t('assetManagerResourceCount') }}</dt><dd>{{ currentMod.report.retainedResourceCount }}</dd></div>
+      <div>
+        <dt>{{ i18n.t('assetManagerDeclaredMinecraft') }}</dt>
+        <dd>
+          {{
+            currentMod.report.normalizedMetadata?.minecraftRequirement ||
+              i18n.t('assetManagerCannotVerify')
+          }}
+        </dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('assetManagerCurrentMinecraft') }}</dt>
+        <dd>{{ assets.activeVersion() }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('assetManagerNamespaces') }}</dt>
+        <dd>{{ currentMod.namespaces.join(', ') }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('assetManagerResourceCount') }}</dt>
+        <dd>{{ currentMod.report.retainedResourceCount }}</dd>
+      </div>
     </dl>
   </section>
   <section>
     <h3>{{ i18n.t('assetManagerContent') }}</h3>
     <div class="stat-tiles">
-      <div><span>{{ i18n.t('assetManagerBlocks') }}</span><strong>{{ compactCount(currentMod.report.blocks.imported, currentMod.report.blocks.detected) }}</strong></div>
-      <div><span>{{ i18n.t('assetManagerItems') }}</span><strong>{{ compactCount(currentMod.report.items.indexed, currentMod.report.items.detected) }}</strong><small>{{ itemVisualSummary() }}</small></div>
-      <div><span>{{ i18n.t('assetManagerDecorations') }}</span><strong>{{ compactCount(currentMod.report.decorations.imported, currentMod.report.decorations.detected) }}</strong></div>
-      <div><span>{{ i18n.t('assetManagerResources') }}</span><strong>{{ currentMod.report.retainedResourceCount }}</strong></div>
+      <div>
+        <span>{{ i18n.t('assetManagerBlocks') }}</span
+        ><strong>{{
+          compactCount(currentMod.report.blocks.imported, currentMod.report.blocks.detected)
+        }}</strong>
+      </div>
+      <div>
+        <span>{{ i18n.t('assetManagerItems') }}</span
+        ><strong>{{
+          compactCount(currentMod.report.items.indexed, currentMod.report.items.detected)
+        }}</strong
+        ><small>{{ itemVisualSummary() }}</small>
+      </div>
+      <div>
+        <span>{{ i18n.t('assetManagerDecorations') }}</span
+        ><strong>{{
+          compactCount(
+            currentMod.report.decorations.imported,
+            currentMod.report.decorations.detected
+          )
+        }}</strong>
+      </div>
+      <div>
+        <span>{{ i18n.t('assetManagerResources') }}</span
+        ><strong>{{ currentMod.report.retainedResourceCount }}</strong>
+      </div>
     </div>
   </section>
   @if (items().length || currentMod.report.items.indexed > 0) {
     <section class="details-items">
       <h3>{{ i18n.t('assetManagerItems') }}</h3>
-      <input type="search" [value]="itemSearch()" [placeholder]="i18n.t('searchItems')" [attr.aria-label]="i18n.t('searchItems')" (input)="setItemSearch($event)" />
+      <input
+        type="search"
+        [value]="itemSearch()"
+        [placeholder]="i18n.t('searchItems')"
+        [attr.aria-label]="i18n.t('searchItems')"
+        (input)="setItemSearch($event)"
+      />
       <div class="details-item-list">
         @for (item of items(); track item.id) {
           <div class="details-item-row">
-            <span class="details-item-thumb" [class.fallback]="!itemVisualPreviewUrls(item).length">@for (url of itemVisualPreviewUrls(item); track url) { <img [src]="url" alt="" /> }</span>
-            <span class="details-item-copy"><strong>{{ item.displayName }}</strong><code>{{ item.id }}</code></span>
+            <span class="details-item-thumb" [class.fallback]="!itemVisualPreviewUrls(item).length">
+              @for (url of itemVisualPreviewUrls(item); track url) {
+                <img [src]="url" alt="" />
+              }
+            </span>
+            <span class="details-item-copy"
+              ><strong>{{ item.displayName }}</strong
+              ><code>{{ item.id }}</code></span
+            >
             <small>{{ itemVisualStatus(item) }}</small>
           </div>
-        } @empty { <p class="manager-empty">{{ i18n.t('noItemMatches') }}</p> }
+        } @empty {
+          <p class="manager-empty">{{ i18n.t('noItemMatches') }}</p>
+        }
       </div>
     </section>
   }
@@ -64,8 +135,21 @@
             <h4>{{ i18n.modDiagnosticGroup($any(kind)) }}</h4>
             <ul>
               @for (diagnostic of currentMod.report.diagnostics; track $index) {
-                @if (diagnostic.category === kind || (kind === 'warning' && diagnostic.severity === 'warning') || (kind === 'blocking' && (diagnostic.severity === 'error' || diagnostic.category === 'blocking')) || (kind === 'info' && diagnostic.severity === 'info')) {
-                  <li><span>{{ i18n.modDiagnostic(diagnostic.code, diagnostic.message, diagnostic.parameters) }}</span>@if (diagnostic.path) { <code>{{ diagnostic.path }}</code> }</li>
+                @if (
+                  diagnostic.category === kind ||
+                  (kind === 'warning' && diagnostic.severity === 'warning') ||
+                  (kind === 'blocking' &&
+                    (diagnostic.severity === 'error' || diagnostic.category === 'blocking')) ||
+                  (kind === 'info' && diagnostic.severity === 'info')
+                ) {
+                  <li>
+                    <span>{{
+                      i18n.modDiagnostic(diagnostic.code, diagnostic.message, diagnostic.parameters)
+                    }}</span>
+                    @if (diagnostic.path) {
+                      <code>{{ diagnostic.path }}</code>
+                    }
+                  </li>
                 }
               }
             </ul>
@@ -74,12 +158,29 @@
       }
     } @else if (diagnosticCount('info') > 0) {
       <details class="technical-diagnostics">
-        <summary>{{ i18n.t('assetManagerTechnicalInformation').replace('{count}', '' + diagnosticCount('info')) }}</summary>
-        <div class="diagnostic-group"><ul>
-          @for (diagnostic of currentMod.report.diagnostics; track $index) {
-            @if (diagnostic.severity === 'info') { <li><span>{{ i18n.modDiagnostic(diagnostic.code, diagnostic.message, diagnostic.parameters) }}</span>@if (diagnostic.path) { <code>{{ diagnostic.path }}</code> }</li> }
-          }
-        </ul></div>
+        <summary>
+          {{
+            i18n
+              .t('assetManagerTechnicalInformation')
+              .replace('{count}', '' + diagnosticCount('info'))
+          }}
+        </summary>
+        <div class="diagnostic-group">
+          <ul>
+            @for (diagnostic of currentMod.report.diagnostics; track $index) {
+              @if (diagnostic.severity === 'info') {
+                <li>
+                  <span>{{
+                    i18n.modDiagnostic(diagnostic.code, diagnostic.message, diagnostic.parameters)
+                  }}</span>
+                  @if (diagnostic.path) {
+                    <code>{{ diagnostic.path }}</code>
+                  }
+                </li>
+              }
+            }
+          </ul>
+        </div>
       </details>
     }
   </section>

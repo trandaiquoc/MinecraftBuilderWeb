@@ -1,21 +1,33 @@
 import { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import { representativeBlockFixture } from '../../blocks/catalog/block-catalog.fixture';
-import { AssetBlockRecord, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
+import {
+  AssetBlockRecord,
+  BlockStateDefinition,
+} from '../../blocks/catalog/block-definition.types';
 import { AssetResourceProvider, BlockModelResolver } from '../../blocks/resolver';
-import { AUTHORITATIVE_DEFAULT_STATE_SOURCE, VanillaBlockRegistry } from '../../blocks/registry/vanilla-block-registry';
+import {
+  AUTHORITATIVE_DEFAULT_STATE_SOURCE,
+  VanillaBlockRegistry,
+} from '../../blocks/registry/vanilla-block-registry';
 import { VanillaBehaviorRegistry } from '../../block-behavior/vanilla/vanilla-behavior-registry';
 import { ZipArchive } from '../archive/zip-archive';
 import { ContentSourceProvider } from '../content-source/content-source.types';
 import { VanillaResourceFormatProfile } from './vanilla-resource-format';
 import { selectVanillaResourceFormatAdapter } from './format/resource-format-adapter';
-import { deriveResourceDefaultState, evaluateCommonBehavior } from '../../block-behavior/compatibility/common-behavior';
+import {
+  deriveResourceDefaultState,
+  evaluateCommonBehavior,
+} from '../../block-behavior/compatibility/common-behavior';
 import type { TargetItemEvidence } from './format/item-evidence';
 import { classifyContent, isDecorationEntityId } from '../../content/content-classifier';
 import { verifiedVanillaCapabilityProfile } from '../../blocks/capabilities/vanilla-capability-profiles';
 import { PaintingVariantCatalog } from '../../decorations/catalog/painting-catalog';
 import { textureResourcePath } from '../../content/resource-location';
 import { stateDefinitionsFromBlockstate } from '../../content/normalized-predicate';
-import { ContentIntrospectionEngine, SemanticManifestEvidenceProvider } from '../../content/content-introspection';
+import {
+  ContentIntrospectionEngine,
+  SemanticManifestEvidenceProvider,
+} from '../../content/content-introspection';
 import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-registry';
 import { yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../mod/mod-import-cancellation';
@@ -23,9 +35,11 @@ import { deriveVanillaInternalBlockIds } from './vanilla-internal-content';
 
 export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
-const RESOURCE_PATH = /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|items\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/[^/]+\.json)$/;
+const RESOURCE_PATH =
+  /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|items\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/[^/]+\.json)$/;
 const BLOCK_TAG_PATH = /^data\/[^/]+\/tags\/block\/.*\.json$/;
-const DECORATION_DATA_PATH = /^data\/[^/]+\/(?:painting_variant\/.*\.json|tags\/painting_variant\/.*\.json)$/;
+const DECORATION_DATA_PATH =
+  /^data\/[^/]+\/(?:painting_variant\/.*\.json|tags\/painting_variant\/.*\.json)$/;
 const MAX_CACHE_BYTES = 256 * 1024 * 1024;
 
 export interface SerializedVanillaAssets {
@@ -53,76 +67,158 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   readonly source;
   readonly semanticEvidenceProviders: readonly SemanticManifestEvidenceProvider[];
 
-  constructor(sourceName: string, json: Readonly<Record<string, unknown>>, binary: ReadonlyMap<string, Uint8Array>);
-  constructor(sourceName: string, minecraftVersion: string, json: Readonly<Record<string, unknown>>, binary: ReadonlyMap<string, Uint8Array>);
-  constructor(sourceName: string, versionOrJson: string | Readonly<Record<string, unknown>>, jsonOrBinary: Readonly<Record<string, unknown>> | ReadonlyMap<string, Uint8Array>, maybeBinary?: ReadonlyMap<string, Uint8Array>) {
+  constructor(
+    sourceName: string,
+    json: Readonly<Record<string, unknown>>,
+    binary: ReadonlyMap<string, Uint8Array>,
+  );
+  constructor(
+    sourceName: string,
+    minecraftVersion: string,
+    json: Readonly<Record<string, unknown>>,
+    binary: ReadonlyMap<string, Uint8Array>,
+  );
+  constructor(
+    sourceName: string,
+    versionOrJson: string | Readonly<Record<string, unknown>>,
+    jsonOrBinary: Readonly<Record<string, unknown>> | ReadonlyMap<string, Uint8Array>,
+    maybeBinary?: ReadonlyMap<string, Uint8Array>,
+  ) {
     this.sourceName = sourceName;
-    this.minecraftVersion = typeof versionOrJson === 'string' ? versionOrJson : VANILLA_ASSET_VERSION;
-    this.json = (typeof versionOrJson === 'string' ? jsonOrBinary : versionOrJson) as Readonly<Record<string, unknown>>;
-    this.binary = (typeof versionOrJson === 'string' ? maybeBinary : jsonOrBinary) as ReadonlyMap<string, Uint8Array>;
+    this.minecraftVersion =
+      typeof versionOrJson === 'string' ? versionOrJson : VANILLA_ASSET_VERSION;
+    this.json = (typeof versionOrJson === 'string' ? jsonOrBinary : versionOrJson) as Readonly<
+      Record<string, unknown>
+    >;
+    this.binary = (typeof versionOrJson === 'string' ? maybeBinary : jsonOrBinary) as ReadonlyMap<
+      string,
+      Uint8Array
+    >;
     this.gameVersion = this.minecraftVersion;
-    this.source = { id: 'vanilla', kind: 'vanilla' as const, displayName: 'Vanilla', minecraftVersion: this.minecraftVersion, sourceVersion: this.minecraftVersion, namespaces: ['minecraft'] as const, decorationSupport: true };
-    this.semanticEvidenceProviders = [new SemanticManifestEvidenceProvider(this, this.source.id, this.source.displayName)];
+    this.source = {
+      id: 'vanilla',
+      kind: 'vanilla' as const,
+      displayName: 'Vanilla',
+      minecraftVersion: this.minecraftVersion,
+      sourceVersion: this.minecraftVersion,
+      namespaces: ['minecraft'] as const,
+      decorationSupport: true,
+    };
+    this.semanticEvidenceProviders = [
+      new SemanticManifestEvidenceProvider(this, this.source.id, this.source.displayName),
+    ];
   }
   readonly sourceName: string;
   readonly minecraftVersion: string;
   private readonly json: Readonly<Record<string, unknown>>;
   private readonly binary: ReadonlyMap<string, Uint8Array>;
 
-  static async fromJar(file: Blob, minecraftVersion = VANILLA_ASSET_VERSION, sourceName = 'Imported Minecraft assets', signal?: AbortSignal): Promise<VanillaAssetProvider> {
+  static async fromJar(
+    file: Blob,
+    minecraftVersion = VANILLA_ASSET_VERSION,
+    sourceName = 'Imported Minecraft assets',
+    signal?: AbortSignal,
+  ): Promise<VanillaAssetProvider> {
     throwIfAborted(signal);
     const archive = await ZipArchive.open(file, undefined, signal);
-    const entries = archive.entries.filter((entry) => RESOURCE_PATH.test(entry.name) || BLOCK_TAG_PATH.test(entry.name) || DECORATION_DATA_PATH.test(entry.name));
+    const entries = archive.entries.filter(
+      (entry) =>
+        RESOURCE_PATH.test(entry.name) ||
+        BLOCK_TAG_PATH.test(entry.name) ||
+        DECORATION_DATA_PATH.test(entry.name),
+    );
     const totalSize = entries.reduce((sum, entry) => sum + entry.uncompressedSize, 0);
-    if (!entries.length) throw new Error('The selected archive contains no Minecraft asset resources');
-    if (totalSize > MAX_CACHE_BYTES) throw new Error('The selected Minecraft asset set is too large');
+    if (!entries.length)
+      throw new Error('The selected archive contains no Minecraft asset resources');
+    if (totalSize > MAX_CACHE_BYTES)
+      throw new Error('The selected Minecraft asset set is too large');
     const json: Record<string, unknown> = {};
     const binary = new Map<string, Uint8Array>();
     for (let offset = 0; offset < entries.length; offset += 32) {
       throwIfAborted(signal);
       const batch = entries.slice(offset, offset + 32);
-      const decoded = await Promise.all(batch.map(async (entry) => ({ entry, bytes: await entry.read(signal) })));
+      const decoded = await Promise.all(
+        batch.map(async (entry) => ({ entry, bytes: await entry.read(signal) })),
+      );
       for (const { entry, bytes } of decoded) {
         if (entry.name.endsWith('.json') || entry.name.endsWith('.png.mcmeta')) {
-          try { json[entry.name] = JSON.parse(new TextDecoder().decode(bytes)); }
-          catch { throw new Error(`Invalid JSON resource: ${entry.name}`); }
+          try {
+            json[entry.name] = JSON.parse(new TextDecoder().decode(bytes));
+          } catch {
+            throw new Error(`Invalid JSON resource: ${entry.name}`);
+          }
         } else binary.set(entry.name, bytes);
-      await yieldToBrowser(signal);
+        await yieldToBrowser(signal);
       }
     }
     return new VanillaAssetProvider(sourceName, minecraftVersion, json, binary);
   }
 
   static deserialize(bundle: SerializedVanillaAssets): VanillaAssetProvider {
-    if (bundle.schemaVersion !== VANILLA_ASSET_CACHE_SCHEMA_VERSION) throw new Error('Vanilla asset cache is outdated. Import the selected Minecraft JAR again.');
-    return new VanillaAssetProvider(bundle.sourceName, bundle.minecraftVersion, bundle.json, new Map(bundle.binary.map((entry) => [entry.path, new Uint8Array(entry.data)])));
+    if (bundle.schemaVersion !== VANILLA_ASSET_CACHE_SCHEMA_VERSION)
+      throw new Error('Vanilla asset cache is outdated. Import the selected Minecraft JAR again.');
+    return new VanillaAssetProvider(
+      bundle.sourceName,
+      bundle.minecraftVersion,
+      bundle.json,
+      new Map(bundle.binary.map((entry) => [entry.path, new Uint8Array(entry.data)])),
+    );
   }
 
   serialize(): SerializedVanillaAssets {
-    return { schemaVersion: VANILLA_ASSET_CACHE_SCHEMA_VERSION, minecraftVersion: this.minecraftVersion, sourceName: this.sourceName, json: this.json, binary: [...this.binary].map(([path, data]) => ({ path, data: data.slice().buffer })) };
+    return {
+      schemaVersion: VANILLA_ASSET_CACHE_SCHEMA_VERSION,
+      minecraftVersion: this.minecraftVersion,
+      sourceName: this.sourceName,
+      json: this.json,
+      binary: [...this.binary].map(([path, data]) => ({ path, data: data.slice().buffer })),
+    };
   }
 
-  readJson(path: string): unknown | undefined { return this.json[path]; }
-  readBinary(path: string): Uint8Array | undefined { return this.binary.get(path); }
-  paths(): readonly string[] { return [...Object.keys(this.json), ...this.binary.keys()]; }
+  readJson(path: string): unknown | undefined {
+    return this.json[path];
+  }
+  readBinary(path: string): Uint8Array | undefined {
+    return this.binary.get(path);
+  }
+  paths(): readonly string[] {
+    return [...Object.keys(this.json), ...this.binary.keys()];
+  }
 
   diagnostics(): VanillaAssetProviderDiagnostics {
-    const resourceFormat = selectVanillaResourceFormatAdapter(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION).profile;
+    const resourceFormat = selectVanillaResourceFormatAdapter(
+      this.json,
+      this.binary,
+      this.minecraftVersion === VANILLA_ASSET_VERSION,
+    ).profile;
     return {
       resourceCount: Object.keys(this.json).length + this.binary.size,
       stoneBlockstate: !!this.json['assets/minecraft/blockstates/stone.json'],
       stoneModel: !!this.json['assets/minecraft/models/block/stone.json'],
       stoneTexture: this.binary.has('assets/minecraft/textures/block/stone.png'),
-      language: Object.keys(this.json).some((path) => /^assets\/[^/]+\/lang\/[^/]+\.json$/.test(path)),
-      itemDefinitions: Object.keys(this.json).filter((path) => /^assets\/[^/]+\/(?:items|models\/item)\/.+\.json$/.test(path)).length,
+      language: Object.keys(this.json).some((path) =>
+        /^assets\/[^/]+\/lang\/[^/]+\.json$/.test(path),
+      ),
+      itemDefinitions: Object.keys(this.json).filter((path) =>
+        /^assets\/[^/]+\/(?:items|models\/item)\/.+\.json$/.test(path),
+      ).length,
       resourceFormat,
     };
   }
 
   assertUsable(): void {
     const state = this.diagnostics();
-    if (state.resourceFormat.support === 'unsupported-resource-format') throw new Error(`Official assets for Minecraft ${this.minecraftVersion} were downloaded, but their resource format is not supported yet.`);
-    if (this.minecraftVersion === VANILLA_ASSET_VERSION && (!state.language || !state.stoneBlockstate || !state.stoneModel || !state.stoneTexture)) throw new Error(`Cached vanilla assets for Minecraft ${this.minecraftVersion} are incomplete. Import the selected JAR again.`);
+    if (state.resourceFormat.support === 'unsupported-resource-format')
+      throw new Error(
+        `Official assets for Minecraft ${this.minecraftVersion} were downloaded, but their resource format is not supported yet.`,
+      );
+    if (
+      this.minecraftVersion === VANILLA_ASSET_VERSION &&
+      (!state.language || !state.stoneBlockstate || !state.stoneModel || !state.stoneTexture)
+    )
+      throw new Error(
+        `Cached vanilla assets for Minecraft ${this.minecraftVersion} are incomplete. Import the selected JAR again.`,
+      );
   }
 
   textureUrl(resource: string): string | undefined {
@@ -137,60 +233,135 @@ export class VanillaAssetProvider implements ContentSourceProvider {
     return url;
   }
 
-  dispose(): void { for (const url of this.objectUrls.values()) URL.revokeObjectURL(url); this.objectUrls.clear(); }
+  dispose(): void {
+    for (const url of this.objectUrls.values()) URL.revokeObjectURL(url);
+    this.objectUrls.clear();
+  }
 
   catalog(registry?: VanillaBlockRegistry, itemRegistry?: VanillaItemRegistry): BlockCatalogSource {
-    const format = selectVanillaResourceFormatAdapter(this.json, this.binary, this.minecraftVersion === VANILLA_ASSET_VERSION);
+    const format = selectVanillaResourceFormatAdapter(
+      this.json,
+      this.binary,
+      this.minecraftVersion === VANILLA_ASSET_VERSION,
+    );
     const discoveredItemEvidence = format.itemEvidence(this.json);
-    const itemEvidence = itemRegistry ? discoveredItemEvidence.filter((entry) => !!itemRegistry.get(entry.itemId)) : discoveredItemEvidence;
+    const itemEvidence = itemRegistry
+      ? discoveredItemEvidence.filter((entry) => !!itemRegistry.get(entry.itemId))
+      : discoveredItemEvidence;
     const itemByBlock = new Map(itemEvidence.map((entry) => [entry.itemId, entry]));
-    const language = record(this.json['assets/minecraft/lang/en_us.json'] ?? this.json[format.languagePath(this.json) ?? '']);
-    const verified = new Map<string, typeof representativeBlockFixture.blocks[number]>(this.minecraftVersion === VANILLA_ASSET_VERSION ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry]) : []);
+    const language = record(
+      this.json['assets/minecraft/lang/en_us.json'] ??
+        this.json[format.languagePath(this.json) ?? ''],
+    );
+    const verified = new Map<string, (typeof representativeBlockFixture.blocks)[number]>(
+      this.minecraftVersion === VANILLA_ASSET_VERSION
+        ? representativeBlockFixture.blocks.map((entry) => [entry.id, entry])
+        : [],
+    );
     const behaviorRegistry = new VanillaBehaviorRegistry(this);
     const resolver = new BlockModelResolver(this);
     const introspection = new ContentIntrospectionEngine(this, this.semanticEvidenceProviders);
-    const authoritativeInternalBlockIds = registry && itemRegistry && this.minecraftVersion === VANILLA_ASSET_VERSION
-      ? deriveVanillaInternalBlockIds(registry, itemRegistry)
-      : new Set<string>();
-    const resources = (registry ? registry.all().map((entry) => ({ id: entry.id, registry: entry })) : format.blockstatePaths(this.json).map((path) => {
-      const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!; return { id: `${match[1]}:${match[2]}`, registry: undefined };
-    })).filter(({ id }) => !isDecorationEntityId(id));
+    const authoritativeInternalBlockIds =
+      registry && itemRegistry && this.minecraftVersion === VANILLA_ASSET_VERSION
+        ? deriveVanillaInternalBlockIds(registry, itemRegistry)
+        : new Set<string>();
+    const resources = (
+      registry
+        ? registry.all().map((entry) => ({ id: entry.id, registry: entry }))
+        : format.blockstatePaths(this.json).map((path) => {
+            const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(path)!;
+            return { id: `${match[1]}:${match[2]}`, registry: undefined };
+          })
+    ).filter(({ id }) => !isDecorationEntityId(id));
     const blocks = resources.map(({ id, registry: registryEntry }): AssetBlockRecord => {
       const [namespace, name] = id.split(':', 2);
       const path = `assets/${namespace}/blockstates/${name}.json`;
       const known = verified.get(id);
       const blockstate = this.json[path];
       const models = configuredModelIds(blockstate);
-      const inferredDefinitions = registryEntry?.properties ?? known?.stateDefinitions ?? stateDefinitionsFromBlockstate(blockstate);
+      const inferredDefinitions =
+        registryEntry?.properties ??
+        known?.stateDefinitions ??
+        stateDefinitionsFromBlockstate(blockstate);
       const resourceDefault = resourceDefaultState(blockstate, inferredDefinitions);
-      const normalizedItemEvidence = itemByBlock.has(id) && !isDecorationEntityId(id) ? toBlockItemEvidence(itemByBlock.get(id)!, !!registryEntry, itemRegistry?.get(id)?.maxStackSize) : undefined;
+      const normalizedItemEvidence =
+        itemByBlock.has(id) && !isDecorationEntityId(id)
+          ? toBlockItemEvidence(
+              itemByBlock.get(id)!,
+              !!registryEntry,
+              itemRegistry?.get(id)?.maxStackSize,
+            )
+          : undefined;
       const generated: AssetBlockRecord = {
         id,
-        displayName: typeof language[`block.${namespace}.${name.replaceAll('/', '.')}`] === 'string' ? language[`block.${namespace}.${name.replaceAll('/', '.')}`] as string : humanize(name),
+        displayName:
+          typeof language[`block.${namespace}.${name.replaceAll('/', '.')}`] === 'string'
+            ? (language[`block.${namespace}.${name.replaceAll('/', '.')}`] as string)
+            : humanize(name),
         defaultState: registryEntry?.defaultState ?? known?.defaultState ?? resourceDefault.state,
         stateDefinitions: inferredDefinitions,
         resources: { blockstate: path, model: models[0], textures: [] },
         support: 'partial',
         visualSupport: 'partial',
-        behaviorSupport: 'unknown', defaultStateSource: registryEntry ? AUTHORITATIVE_DEFAULT_STATE_SOURCE : known ? 'verified-fixture' : resourceDefault.source,
+        behaviorSupport: 'unknown',
+        defaultStateSource: registryEntry
+          ? AUTHORITATIVE_DEFAULT_STATE_SOURCE
+          : known
+            ? 'verified-fixture'
+            : resourceDefault.source,
         capabilities: [
           ...(known?.capabilities ?? []),
           ...verifiedVanillaCapabilityProfile(id),
-          ...(normalizedItemEvidence?.placeable === true ? [{ kind: 'direct-placement' as const, evidence: 'verified' as const }] : []),
+          ...(normalizedItemEvidence?.placeable === true
+            ? [{ kind: 'direct-placement' as const, evidence: 'verified' as const }]
+            : []),
         ],
-        ...(authoritativeInternalBlockIds.has(id) ? { contentKind: 'internal-block' as const } : {}),
+        ...(authoritativeInternalBlockIds.has(id)
+          ? { contentKind: 'internal-block' as const }
+          : {}),
         itemEvidence: normalizedItemEvidence,
       };
       const registryEnriched = behaviorRegistry.enrich(generated);
-      const enriched = registryEnriched.behavior ? registryEnriched : applyCommonBehavior(registryEnriched, evaluateCommonBehavior(registryEnriched, this));
+      const enriched = registryEnriched.behavior
+        ? registryEnriched
+        : applyCommonBehavior(registryEnriched, evaluateCommonBehavior(registryEnriched, this));
       const resolved = resolver.resolve(id, enriched.defaultState, 'catalog');
-      const texturesAvailable = resolved.trace.textureResources.every((resource) => this.binary.has(textureResourcePath(resource)));
+      const texturesAvailable = resolved.trace.textureResources.every((resource) =>
+        this.binary.has(textureResourcePath(resource)),
+      );
       const fluid = id === 'minecraft:water' || id === 'minecraft:lava';
-      const visualSupport = fluid ? 'partial' : resolved.parts.length ? resolved.support === 'full' && texturesAvailable ? 'real' : 'partial' : known ? 'fallback' : 'partial';
-      const intentionallyInvisible = intentionallyInvisibleBlocks.has(id) || known?.capabilities?.some((capability) => capability.kind === 'intentionally-invisible') === true;
-      const specialRenderer = !intentionallyInvisible && (fluid || known?.capabilities?.some((capability) => capability.kind === 'special-renderer') === true || resolved.parts.length > 0 && resolved.trace.elementCount === 0);
-      const visualClassification = intentionallyInvisible ? 'intentionally-invisible' : specialRenderer ? 'special-renderer-required' : 'standard-json';
-      const finalRecord: AssetBlockRecord = { ...enriched, support: visualSupport === 'real' ? 'full' : visualSupport, visualSupport, visualClassification, visualClassificationEvidence: specialRenderer || intentionallyInvisible ? 'verified' : 'inferred' };
+      const visualSupport = fluid
+        ? 'partial'
+        : resolved.parts.length
+          ? resolved.support === 'full' && texturesAvailable
+            ? 'real'
+            : 'partial'
+          : known
+            ? 'fallback'
+            : 'partial';
+      const intentionallyInvisible =
+        intentionallyInvisibleBlocks.has(id) ||
+        known?.capabilities?.some((capability) => capability.kind === 'intentionally-invisible') ===
+          true;
+      const specialRenderer =
+        !intentionallyInvisible &&
+        (fluid ||
+          known?.capabilities?.some((capability) => capability.kind === 'special-renderer') ===
+            true ||
+          (resolved.parts.length > 0 && resolved.trace.elementCount === 0));
+      const visualClassification = intentionallyInvisible
+        ? 'intentionally-invisible'
+        : specialRenderer
+          ? 'special-renderer-required'
+          : 'standard-json';
+      const finalRecord: AssetBlockRecord = {
+        ...enriched,
+        support: visualSupport === 'real' ? 'full' : visualSupport,
+        visualSupport,
+        visualClassification,
+        visualClassificationEvidence:
+          specialRenderer || intentionallyInvisible ? 'verified' : 'inferred',
+      };
       return { ...finalRecord, contentDescriptor: introspection.inspectBlock(finalRecord) };
     });
     const paintingCatalog = new PaintingVariantCatalog();
@@ -199,8 +370,19 @@ export class VanillaAssetProvider implements ContentSourceProvider {
       minecraftVersion: this.minecraftVersion,
       sourceId: this.source.id,
       sourceName: this.source.displayName,
-      blocks: blocks.map((block) => ({ ...block, sourceId: this.source.id, sourceName: this.source.displayName })),
-      targetItems: itemEvidence.map((item) => ({ ...item, ...(itemRegistry?.get(item.itemId)?.maxStackSize === undefined ? {} : { maxStackSize: itemRegistry.get(item.itemId)!.maxStackSize }), sourceId: this.source.id, sourceName: this.source.displayName })),
+      blocks: blocks.map((block) => ({
+        ...block,
+        sourceId: this.source.id,
+        sourceName: this.source.displayName,
+      })),
+      targetItems: itemEvidence.map((item) => ({
+        ...item,
+        ...(itemRegistry?.get(item.itemId)?.maxStackSize === undefined
+          ? {}
+          : { maxStackSize: itemRegistry.get(item.itemId)!.maxStackSize }),
+        sourceId: this.source.id,
+        sourceName: this.source.displayName,
+      })),
       // The Vanilla provider has inspected the item domain even when the
       // target resource format contains no usable item definitions. Keep an
       // empty/unknown catalog conservative rather than exposing every block.
@@ -210,23 +392,48 @@ export class VanillaAssetProvider implements ContentSourceProvider {
   }
 }
 
-function toBlockItemEvidence(evidence: TargetItemEvidence, authoritative = false, maxStackSize?: number) {
-  const classification = classifyContent({ id: evidence.explicitBlockPlacement?.blockId ?? evidence.itemId, hasWorldBlock: true, hasItemEvidence: true, authoritative });
-  return { itemId: evidence.itemId, placeable: classification.placeable, contentKind: classification.kind, provenance: classification.provenance, sourceFormat: evidence.sourceFormat, referencedModels: evidence.referencedModels, referencedResources: evidence.referencedResources, ...(maxStackSize === undefined ? {} : { maxStackSize }) } as const;
+function toBlockItemEvidence(
+  evidence: TargetItemEvidence,
+  authoritative = false,
+  maxStackSize?: number,
+) {
+  const classification = classifyContent({
+    id: evidence.explicitBlockPlacement?.blockId ?? evidence.itemId,
+    hasWorldBlock: true,
+    hasItemEvidence: true,
+    authoritative,
+  });
+  return {
+    itemId: evidence.itemId,
+    placeable: classification.placeable,
+    contentKind: classification.kind,
+    provenance: classification.provenance,
+    sourceFormat: evidence.sourceFormat,
+    referencedModels: evidence.referencedModels,
+    referencedResources: evidence.referencedResources,
+    ...(maxStackSize === undefined ? {} : { maxStackSize }),
+  } as const;
 }
 
-function applyCommonBehavior(record: AssetBlockRecord, evaluation: ReturnType<typeof evaluateCommonBehavior>): AssetBlockRecord {
-  const resourceState = Object.keys(evaluation.defaultState).length ? {
-    defaultState: evaluation.defaultState,
-    stateDefinitions: evaluation.stateDefinitions,
-    defaultStateSource: evaluation.defaultStateSource,
-  } : {};
+function applyCommonBehavior(
+  record: AssetBlockRecord,
+  evaluation: ReturnType<typeof evaluateCommonBehavior>,
+): AssetBlockRecord {
+  const resourceState = Object.keys(evaluation.defaultState).length
+    ? {
+        defaultState: evaluation.defaultState,
+        stateDefinitions: evaluation.stateDefinitions,
+        defaultStateSource: evaluation.defaultStateSource,
+      }
+    : {};
   if (!evaluation.compatible) return { ...record, ...resourceState };
   return {
     ...record,
     defaultState: evaluation.defaultState,
     stateDefinitions: evaluation.stateDefinitions,
-    ...(evaluation.behavior ? { behavior: evaluation.behavior, behaviorSupport: 'partial' as const } : {}),
+    ...(evaluation.behavior
+      ? { behavior: evaluation.behavior, behaviorSupport: 'partial' as const }
+      : {}),
     defaultStateSource: evaluation.defaultStateSource,
   };
 }
@@ -236,39 +443,126 @@ export { textureResourcePath as texturePath } from '../../content/resource-locat
 function configuredModelIds(value: unknown): string[] {
   const result = new Set<string>();
   const visit = (item: unknown): void => {
-    if (Array.isArray(item)) { for (const entry of item) visit(entry); return; }
-    const object = record(item); if (typeof object['model'] === 'string') result.add(object['model'] as string);
-    for (const child of Object.values(object)) if (typeof child === 'object' && child !== null) visit(child);
+    if (Array.isArray(item)) {
+      for (const entry of item) visit(entry);
+      return;
+    }
+    const object = record(item);
+    if (typeof object['model'] === 'string') result.add(object['model'] as string);
+    for (const child of Object.values(object))
+      if (typeof child === 'object' && child !== null) visit(child);
   };
-  visit(value); return [...result];
+  visit(value);
+  return [...result];
 }
 
-function resourceDefaultState(value: unknown, definitions: readonly BlockStateDefinition[]): { readonly state: Readonly<Record<string, string>>; readonly source: 'resource-derived' | 'resource-render-fallback' | 'unknown' } {
+function resourceDefaultState(
+  value: unknown,
+  definitions: readonly BlockStateDefinition[],
+): {
+  readonly state: Readonly<Record<string, string>>;
+  readonly source: 'resource-derived' | 'resource-render-fallback' | 'unknown';
+} {
   const document = record(value);
   const variants = record(document['variants']);
   const fallback = deriveResourceDefaultState(definitions);
-  if (Object.prototype.hasOwnProperty.call(variants, '') && !Object.keys(fallback).length) return { state: {}, source: 'resource-derived' };
+  if (Object.prototype.hasOwnProperty.call(variants, '') && !Object.keys(fallback).length)
+    return { state: {}, source: 'resource-derived' };
   const multipart = document['multipart'];
-  if (Array.isArray(multipart) && multipart.length > 0 && multipart.every((part) => !Object.prototype.hasOwnProperty.call(record(part), 'when')) && !Object.keys(fallback).length) return { state: {}, source: 'resource-derived' };
-  const keys = Object.keys(variants).filter(Boolean).sort((left, right) => right.split(',').length - left.split(',').length || left.localeCompare(right));
+  if (
+    Array.isArray(multipart) &&
+    multipart.length > 0 &&
+    multipart.every((part) => !Object.prototype.hasOwnProperty.call(record(part), 'when')) &&
+    !Object.keys(fallback).length
+  )
+    return { state: {}, source: 'resource-derived' };
+  const keys = Object.keys(variants)
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        right.split(',').length - left.split(',').length || left.localeCompare(right),
+    );
   if (keys.length) {
     const candidate: Record<string, string> = {};
     for (const entry of keys[0].split(',')) {
       const [name, raw] = entry.split('=');
-      if (name && raw && definitions.some((definition) => definition.name === name && definition.values.includes(raw))) candidate[name] = raw;
+      if (
+        name &&
+        raw &&
+        definitions.some(
+          (definition) => definition.name === name && definition.values.includes(raw),
+        )
+      )
+        candidate[name] = raw;
     }
     const state = { ...fallback, ...candidate };
-    if (Object.keys(state).length) return { state, source: Object.keys(candidate).length ? 'resource-render-fallback' : usesArbitraryResourceState(definitions) ? 'resource-render-fallback' : 'resource-derived' };
+    if (Object.keys(state).length)
+      return {
+        state,
+        source: Object.keys(candidate).length
+          ? 'resource-render-fallback'
+          : usesArbitraryResourceState(definitions)
+            ? 'resource-render-fallback'
+            : 'resource-derived',
+      };
   }
   const state = deriveResourceDefaultState(definitions);
-  return Object.keys(state).length ? { state, source: usesArbitraryResourceState(definitions) ? 'resource-render-fallback' : 'resource-derived' } : { state: {}, source: 'unknown' };
+  return Object.keys(state).length
+    ? {
+        state,
+        source: usesArbitraryResourceState(definitions)
+          ? 'resource-render-fallback'
+          : 'resource-derived',
+      }
+    : { state: {}, source: 'unknown' };
 }
 
 function usesArbitraryResourceState(definitions: readonly BlockStateDefinition[]): boolean {
-  const semantic = new Set(['facing', 'half', 'part', 'type', 'shape', 'hinge', 'open', 'powered', 'waterlogged', 'lit', 'attached', 'hanging', 'axis', 'face', 'rotation', 'candles', 'level', 'honey_level', 'in_wall', 'up', 'age']);
-  return definitions.some((definition) => definition.values.length > 0 && !semantic.has(definition.name));
+  const semantic = new Set([
+    'facing',
+    'half',
+    'part',
+    'type',
+    'shape',
+    'hinge',
+    'open',
+    'powered',
+    'waterlogged',
+    'lit',
+    'attached',
+    'hanging',
+    'axis',
+    'face',
+    'rotation',
+    'candles',
+    'level',
+    'honey_level',
+    'in_wall',
+    'up',
+    'age',
+  ]);
+  return definitions.some(
+    (definition) => definition.values.length > 0 && !semantic.has(definition.name),
+  );
 }
 
-function record(value: unknown): Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function humanize(value: string): string { return value.split('/').at(-1)!.split('_').map((word) => word ? word[0].toUpperCase() + word.slice(1) : word).join(' '); }
-const intentionallyInvisibleBlocks = new Set(['minecraft:air', 'minecraft:cave_air', 'minecraft:void_air', 'minecraft:structure_void', 'minecraft:light']);
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+function humanize(value: string): string {
+  return value
+    .split('/')
+    .at(-1)!
+    .split('_')
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ');
+}
+const intentionallyInvisibleBlocks = new Set([
+  'minecraft:air',
+  'minecraft:cave_air',
+  'minecraft:void_air',
+  'minecraft:structure_void',
+  'minecraft:light',
+]);

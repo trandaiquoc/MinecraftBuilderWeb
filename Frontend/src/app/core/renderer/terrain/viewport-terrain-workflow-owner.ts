@@ -1,11 +1,22 @@
 import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import type { ViewportRenderOptions } from '../engine/viewport-engine-contracts';
-import type { BlockVisualProvider, BlockVisualResult } from '../visuals/block-visual-provider-contract';
+import type {
+  BlockVisualProvider,
+  BlockVisualResult,
+} from '../visuals/block-visual-provider-contract';
 import type { HydrationLane } from '../scheduling/hydration-progress-tracker';
 import type { ViewportBlockRepresentationStore } from '../engine/viewport-block-representation-store';
 import type { VisibleBlockProjectionEntry } from '../engine/y-layer-projection-coordinator';
-import type { BlockHydrationJob, HydrationWorldContext, HydratedBlockVisualResult } from '../visuals/block-representation-contracts';
-import type { ChunkSurfaceRenderer, TerrainApplyResult, TerrainSurfaceRecord } from './chunk-surface-renderer';
+import type {
+  BlockHydrationJob,
+  HydrationWorldContext,
+  HydratedBlockVisualResult,
+} from '../visuals/block-representation-contracts';
+import type {
+  ChunkSurfaceRenderer,
+  TerrainApplyResult,
+  TerrainSurfaceRecord,
+} from './chunk-surface-renderer';
 import { extractSurfaceFaceTemplates } from '../batching/surface-template-extractor';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
@@ -18,19 +29,31 @@ export interface TerrainHydrationCandidate {
   readonly key: string;
   readonly next: VisibleBlockProjectionEntry;
   readonly reusableKey: string;
-  readonly worldContext: { readonly getBlock: (position: VoxelCoordinate) => TerrainBlock | undefined };
+  readonly worldContext: {
+    readonly getBlock: (position: VoxelCoordinate) => TerrainBlock | undefined;
+  };
   readonly provider: BlockVisualProvider;
 }
 
 export interface TerrainWorkflowPorts {
   readonly representation: {
     readonly store: Pick<ViewportBlockRepresentationStore, 'get'>;
-    readonly commit: { readonly setTerrainMembership: (key: string, chunkKey: string | undefined, reusableVisualKey?: string) => boolean };
+    readonly commit: {
+      readonly setTerrainMembership: (
+        key: string,
+        chunkKey: string | undefined,
+        reusableVisualKey?: string,
+      ) => boolean;
+    };
     readonly visibleEntry: (key: string) => VisibleBlockProjectionEntry | undefined;
     readonly visibleSignature: (key: string) => string | undefined;
     readonly clearPending: (key: string) => void;
     readonly pending: (key: string) => boolean;
-    readonly ensurePlaceholder: (key: string, block: TerrainBlock, role: 'normal' | 'reference' | 'missing') => void;
+    readonly ensurePlaceholder: (
+      key: string,
+      block: TerrainBlock,
+      role: 'normal' | 'reference' | 'missing',
+    ) => void;
     readonly removePlaceholder: (key: string) => void;
     readonly complete: (generation: number, keys: readonly string[]) => void;
   };
@@ -57,7 +80,13 @@ export interface TerrainWorkflowPorts {
     readonly surfaceVisibleEntries: () => ReadonlyMap<string, VisibleBlockProjectionEntry>;
   };
   readonly visual: {
-    readonly create: (provider: BlockVisualProvider, block: TerrainBlock, world: TerrainHydrationCandidate['worldContext']) => Promise<BlockVisualResult & { readonly terrainTemplates?: readonly SurfaceFaceTemplate[] }>;
+    readonly create: (
+      provider: BlockVisualProvider,
+      block: TerrainBlock,
+      world: TerrainHydrationCandidate['worldContext'],
+    ) => Promise<
+      BlockVisualResult & { readonly terrainTemplates?: readonly SurfaceFaceTemplate[] }
+    >;
     readonly disposeTemplates: (templates: readonly SurfaceFaceTemplate[]) => void;
     readonly acquireProviderReference: (provider: BlockVisualProvider) => () => void;
   };
@@ -69,14 +98,30 @@ export interface TerrainWorkflowPorts {
 /** Controlled placeholder ownership; callers cannot obtain the backing Map. */
 export class TerrainPlaceholderSignatureStore {
   private readonly values = new Map<string, string>();
-  get size(): number { return this.values.size; }
-  has(key: string): boolean { return this.values.has(key); }
-  get(key: string): string | undefined { return this.values.get(key); }
-  set(key: string, signature: string): void { this.values.set(key, signature); }
-  delete(key: string): boolean { return this.values.delete(key); }
-  keys(): IterableIterator<string> { return this.values.keys(); }
-  clear(): void { this.values.clear(); }
-  snapshot(): ReadonlyMap<string, string> { return new Map(this.values); }
+  get size(): number {
+    return this.values.size;
+  }
+  has(key: string): boolean {
+    return this.values.has(key);
+  }
+  get(key: string): string | undefined {
+    return this.values.get(key);
+  }
+  set(key: string, signature: string): void {
+    this.values.set(key, signature);
+  }
+  delete(key: string): boolean {
+    return this.values.delete(key);
+  }
+  keys(): IterableIterator<string> {
+    return this.values.keys();
+  }
+  clear(): void {
+    this.values.clear();
+  }
+  snapshot(): ReadonlyMap<string, string> {
+    return new Map(this.values);
+  }
 }
 
 /**
@@ -84,22 +129,44 @@ export class TerrainPlaceholderSignatureStore {
  * this owner owns candidate disposition and the handoff back to hydration.
  */
 export class ViewportTerrainWorkflowOwner {
-  private readonly batches = new ViewportTerrainRepresentationPipeline<readonly SurfaceFaceTemplate[]>();
+  private readonly batches = new ViewportTerrainRepresentationPipeline<
+    readonly SurfaceFaceTemplate[]
+  >();
   readonly placeholderState = new TerrainPlaceholderSignatureStore();
   private disposed = false;
 
   constructor(private readonly ports: TerrainWorkflowPorts) {}
 
-  get pendingGroupCount(): number { return this.batches.pendingGroupCount; }
-  get pendingTemplateCount(): number { return this.batches.pendingCount; }
-  hasPlaceholder(key: string): boolean { return this.placeholderState.has(key); }
-  placeholderSignature(key: string): string | undefined { return this.placeholderState.get(key); }
-  placeholderKeys(): IterableIterator<string> { return this.placeholderState.keys(); }
-  placeholderSnapshot(): ReadonlyMap<string, string> { return this.placeholderState.snapshot(); }
-  placeholderCount(): number { return this.placeholderState.size; }
-  setPlaceholderSignature(key: string, signature: string): void { this.placeholderState.set(key, signature); }
-  clearPlaceholderSignature(key: string): void { this.placeholderState.delete(key); }
-  clearPlaceholderSignatures(): void { this.placeholderState.clear(); }
+  get pendingGroupCount(): number {
+    return this.batches.pendingGroupCount;
+  }
+  get pendingTemplateCount(): number {
+    return this.batches.pendingCount;
+  }
+  hasPlaceholder(key: string): boolean {
+    return this.placeholderState.has(key);
+  }
+  placeholderSignature(key: string): string | undefined {
+    return this.placeholderState.get(key);
+  }
+  placeholderKeys(): IterableIterator<string> {
+    return this.placeholderState.keys();
+  }
+  placeholderSnapshot(): ReadonlyMap<string, string> {
+    return this.placeholderState.snapshot();
+  }
+  placeholderCount(): number {
+    return this.placeholderState.size;
+  }
+  setPlaceholderSignature(key: string, signature: string): void {
+    this.placeholderState.set(key, signature);
+  }
+  clearPlaceholderSignature(key: string): void {
+    this.placeholderState.delete(key);
+  }
+  clearPlaceholderSignatures(): void {
+    this.placeholderState.clear();
+  }
 
   resolveTemplatesFor(
     key: string,
@@ -109,25 +176,36 @@ export class ViewportTerrainWorkflowOwner {
   ): Promise<readonly SurfaceFaceTemplate[] | undefined> {
     if (this.disposed) return Promise.reject(new Error('Terrain workflow is disposed'));
     return this.batches.resolve(key, () => {
-      const releaseProvider = provider ? this.ports.visual.acquireProviderReference(provider) : undefined;
-      return Promise.resolve().then(create).then((visual) => {
-        if (!visual.object) return visual.terrainTemplates;
-        const templates = visual.terrainTemplates ?? extractSurfaceFaceTemplates(visual.object);
-        disposeObject(visual.object);
-        return templates;
-      }).then((templates) => {
-        if (this.disposed || !canCommit()) {
-          if (templates) this.ports.visual.disposeTemplates(templates);
-          if (this.disposed) throw new Error('Terrain workflow was disposed during template resolution');
-          return undefined;
-        }
-        if (templates) this.ports.renderer.cacheTemplates(key, templates);
-        return templates;
-      }).finally(() => releaseProvider?.());
+      const releaseProvider = provider
+        ? this.ports.visual.acquireProviderReference(provider)
+        : undefined;
+      return Promise.resolve()
+        .then(create)
+        .then((visual) => {
+          if (!visual.object) return visual.terrainTemplates;
+          const templates = visual.terrainTemplates ?? extractSurfaceFaceTemplates(visual.object);
+          disposeObject(visual.object);
+          return templates;
+        })
+        .then((templates) => {
+          if (this.disposed || !canCommit()) {
+            if (templates) this.ports.visual.disposeTemplates(templates);
+            if (this.disposed)
+              throw new Error('Terrain workflow was disposed during template resolution');
+            return undefined;
+          }
+          if (templates) this.ports.renderer.cacheTemplates(key, templates);
+          return templates;
+        })
+        .finally(() => releaseProvider?.());
     });
   }
 
-  commit(records: Iterable<TerrainSurfaceRecord>, result: TerrainApplyResult, projectionRevision = this.ports.projection.revision()): void {
+  commit(
+    records: Iterable<TerrainSurfaceRecord>,
+    result: TerrainApplyResult,
+    projectionRevision = this.ports.projection.revision(),
+  ): void {
     if (this.disposed) return;
     if (projectionRevision !== this.ports.projection.revision()) return;
     const represented = new Set(result.representedKeys);
@@ -137,25 +215,43 @@ export class ViewportTerrainWorkflowOwner {
       if (!current || represented.has(key)) continue;
       this.ports.representation.commit.setTerrainMembership(key, undefined);
       this.ports.representation.ensurePlaceholder(key, current.block, current.role);
-      if (!this.ports.representation.pending(key)) this.placeholderState.set(key, current.signature);
+      if (!this.ports.representation.pending(key))
+        this.placeholderState.set(key, current.signature);
     }
     for (const record of records) {
       const current = this.ports.representation.store.get(record.key);
-      if (!current || current.signature !== this.ports.representation.visibleSignature(record.key)) continue;
+      if (!current || current.signature !== this.ports.representation.visibleSignature(record.key))
+        continue;
       if (!represented.has(record.key)) continue;
-      this.ports.representation.commit.setTerrainMembership(record.key, renderChunkKey(record.block.position));
+      this.ports.representation.commit.setTerrainMembership(
+        record.key,
+        renderChunkKey(record.block.position),
+      );
       this.ports.representation.clearPending(record.key);
       this.placeholderState.delete(record.key);
       this.ports.representation.removePlaceholder(record.key);
     }
-    const hydrationKeys = [...new Set(result.hydrationCandidateKeys ?? result.changedKeys)].filter((key) => represented.has(key));
+    const hydrationKeys = [...new Set(result.hydrationCandidateKeys ?? result.changedKeys)].filter(
+      (key) => represented.has(key),
+    );
     if (hydrationKeys.length) {
       this.ports.representation.complete(this.ports.hydration.generation(), hydrationKeys);
-      this.ports.trace('terrain-commit-hydration', { candidateKeys: (result.hydrationCandidateKeys ?? result.changedKeys).length, completedKeys: hydrationKeys.length, publishCount: 1 });
+      this.ports.trace('terrain-commit-hydration', {
+        candidateKeys: (result.hydrationCandidateKeys ?? result.changedKeys).length,
+        completedKeys: hydrationKeys.length,
+        publishCount: 1,
+      });
     }
   }
 
-  scheduleWorkflowBatch(candidates: readonly TerrainHydrationCandidate[], occupancyEntries: readonly VisibleBlockProjectionEntry[], affectedPositions: readonly VoxelCoordinate[], initial: boolean, local = false, lane: HydrationLane = local ? 'local' : 'structural'): void {
+  scheduleWorkflowBatch(
+    candidates: readonly TerrainHydrationCandidate[],
+    occupancyEntries: readonly VisibleBlockProjectionEntry[],
+    affectedPositions: readonly VoxelCoordinate[],
+    initial: boolean,
+    local = false,
+    lane: HydrationLane = local ? 'local' : 'structural',
+  ): void {
     if (this.disposed || !candidates.length) return;
     const projectionRevision = this.ports.projection.revision();
     const generation = this.ports.hydration.generation();
@@ -163,12 +259,22 @@ export class ViewportTerrainWorkflowOwner {
     this.batches.scheduleBatch(
       candidates,
       {
-        affectedPositions, initial, local, lane, generation, providerGeneration,
+        affectedPositions,
+        initial,
+        local,
+        lane,
+        generation,
+        providerGeneration,
         currentGeneration: () => this.ports.hydration.generation(),
         currentProviderGeneration: () => this.ports.hydration.providerGeneration(),
         isDisposed: () => this.disposed || this.ports.projection.disposed(),
         projectionRevision,
-        candidateProjectionRevisions: new Map(candidates.map((candidate) => [candidate.key, this.ports.projection.revisionFor(candidate.key)] as const)),
+        candidateProjectionRevisions: new Map(
+          candidates.map(
+            (candidate) =>
+              [candidate.key, this.ports.projection.revisionFor(candidate.key)] as const,
+          ),
+        ),
         projectionRevisionFor: (key) => this.ports.projection.revisionFor(key),
       },
       {
@@ -180,10 +286,29 @@ export class ViewportTerrainWorkflowOwner {
       {
         currentSignature: (key) => this.ports.representation.store.get(key)?.signature,
         candidateSignature: (candidate) => candidate.next.signature,
-        toRecord: (candidate, templates) => ({ key: candidate.key, block: candidate.next.block, templates, role: candidate.next.role === 'reference' ? 'reference' as const : 'normal' as const }),
-        apply: (records, context) => local
-          ? this.ports.renderer.applyBlockChanges(records.map((record) => ({ key: record.key, position: record.block.position, after: record, afterOpaque: record.role === 'normal' })), true)
-          : this.ports.renderer.bulkUpsert(records, initial ? occupancyEntries : undefined, context.affectedPositions, { initial }),
+        toRecord: (candidate, templates) => ({
+          key: candidate.key,
+          block: candidate.next.block,
+          templates,
+          role: candidate.next.role === 'reference' ? ('reference' as const) : ('normal' as const),
+        }),
+        apply: (records, context) =>
+          local
+            ? this.ports.renderer.applyBlockChanges(
+                records.map((record) => ({
+                  key: record.key,
+                  position: record.block.position,
+                  after: record,
+                  afterOpaque: record.role === 'normal',
+                })),
+                true,
+              )
+            : this.ports.renderer.bulkUpsert(
+                records,
+                initial ? occupancyEntries : undefined,
+                context.affectedPositions,
+                { initial },
+              ),
       },
       {
         onCommit: (records, result, revision) => this.commit(records, result, revision),
@@ -200,15 +325,22 @@ export class ViewportTerrainWorkflowOwner {
     if (this.pendingGroupCount) this.ports.hydration.beginProgress(lane);
   }
 
-  enqueueFailed(items: readonly TerrainHydrationCandidate[] | readonly string[], lane: HydrationLane = 'structural'): void {
+  enqueueFailed(
+    items: readonly TerrainHydrationCandidate[] | readonly string[],
+    lane: HydrationLane = 'structural',
+  ): void {
     if (this.disposed) return;
-    const keys = items.length && typeof items[0] !== 'string' ? items.map((item) => (item as TerrainHydrationCandidate).key) : items as readonly string[];
+    const keys =
+      items.length && typeof items[0] !== 'string'
+        ? items.map((item) => (item as TerrainHydrationCandidate).key)
+        : (items as readonly string[]);
     const candidates = new Set<string>();
     for (const key of keys) {
       const next = this.ports.representation.visibleEntry(key);
       const current = this.ports.representation.store.get(key);
       if (!next || !current || current.signature !== next.signature) continue;
-      if (this.ports.hydration.runningGenerationFor(key) === this.ports.hydration.generation()) continue;
+      if (this.ports.hydration.runningGenerationFor(key) === this.ports.hydration.generation())
+        continue;
       candidates.add(key);
     }
     if (!candidates.size) return;
@@ -240,12 +372,27 @@ export class ViewportTerrainWorkflowOwner {
     this.ports.trace('terrain-stale-discarded', { lane, candidateKeys: items.length });
   }
 
-  reset(): void { this.batches.resetGroups(); }
-  resetGroups(): void { this.reset(); }
+  reset(): void {
+    this.batches.resetGroups();
+  }
+  resetGroups(): void {
+    this.reset();
+  }
 
-  dispose(): void { this.disposed = true; this.batches.dispose(); this.placeholderState.clear(); }
+  dispose(): void {
+    this.disposed = true;
+    this.batches.dispose();
+    this.placeholderState.clear();
+  }
 
-  private resolveTemplates(candidate: TerrainHydrationCandidate): Promise<readonly SurfaceFaceTemplate[] | undefined> {
-    return this.resolveTemplatesFor(candidate.reusableKey, () => this.ports.visual.create(candidate.provider, candidate.next.block, candidate.worldContext), candidate.provider);
+  private resolveTemplates(
+    candidate: TerrainHydrationCandidate,
+  ): Promise<readonly SurfaceFaceTemplate[] | undefined> {
+    return this.resolveTemplatesFor(
+      candidate.reusableKey,
+      () =>
+        this.ports.visual.create(candidate.provider, candidate.next.block, candidate.worldContext),
+      candidate.provider,
+    );
   }
 }

@@ -6,7 +6,10 @@ import { ContentAssetRuntimeService } from '../../../../core/assets/content-asse
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
 import { normalizeItemSearch } from '../../../../core/items/catalog/item-catalog';
-import { ItemVisualService, ItemVisualState } from '../../../../core/items/catalog/item-visual.service';
+import {
+  ItemVisualService,
+  ItemVisualState,
+} from '../../../../core/items/catalog/item-visual.service';
 import { compactContentCount, diagnosticPresentation } from './asset-manager-mod-presentation';
 
 @Component({
@@ -32,7 +35,13 @@ export class AssetManagerModDetailsComponent {
   protected readonly items = computed(() => {
     const query = normalizeItemSearch(this.itemSearch());
     return this.sourceItems()
-      .filter((entry) => !query || normalizeItemSearch(`${entry.displayName} ${entry.id} ${entry.namespace} ${entry.sourceName}`).includes(query))
+      .filter(
+        (entry) =>
+          !query ||
+          normalizeItemSearch(
+            `${entry.displayName} ${entry.id} ${entry.namespace} ${entry.sourceName}`,
+          ).includes(query),
+      )
       .slice(0, 100);
   });
 
@@ -50,25 +59,77 @@ export class AssetManagerModDetailsComponent {
     });
   }
 
-  protected setItemSearch(event: Event): void { this.itemSearch.set((event.target as HTMLInputElement).value); }
-  protected itemVisualState(entry: { readonly id: string }): ItemVisualState { this.itemVisuals.revision(); return this.itemVisuals.state(entry.id); }
+  protected setItemSearch(event: Event): void {
+    this.itemSearch.set((event.target as HTMLInputElement).value);
+  }
+  protected itemVisualState(entry: { readonly id: string }): ItemVisualState {
+    this.itemVisuals.revision();
+    return this.itemVisuals.state(entry.id);
+  }
   protected itemVisualStatus(entry: { readonly id: string }): string {
     const status = this.itemVisualState(entry).status;
-    return status === 'available' ? this.i18n.t('itemVisualRenderable') : status === 'missing-resource' ? this.i18n.t('itemVisualMissing') : status === 'loading' || status === 'queued' ? this.i18n.t('itemVisualLoading') : status === 'unsupported' ? this.i18n.t('itemVisualUnsupported') : this.i18n.t('itemVisualWaiting');
+    return status === 'available'
+      ? this.i18n.t('itemVisualRenderable')
+      : status === 'missing-resource'
+        ? this.i18n.t('itemVisualMissing')
+        : status === 'loading' || status === 'queued'
+          ? this.i18n.t('itemVisualLoading')
+          : status === 'unsupported'
+            ? this.i18n.t('itemVisualUnsupported')
+            : this.i18n.t('itemVisualWaiting');
   }
-  protected itemVisualPreviewUrls(entry: { readonly id: string }): readonly string[] { return this.itemVisualState(entry).info?.previewUrls ?? []; }
-  protected itemVisualSummary(): string { return `${this.i18n.t('assetManagerIndexed')}: ${this.sourceItems().length}`; }
-  protected loaderLabel(loader: ImportedModSummary['report']['loader']): string { return loader === 'unknown' ? this.i18n.t('assetManagerUnknownLoader') : loader[0].toUpperCase() + loader.slice(1); }
-  protected compatibilityStatus(status: string | undefined): string { return status === 'compatible' ? this.i18n.t('assetManagerCompatible') : status === 'incompatible' ? this.i18n.t('assetManagerIncompatible') : this.i18n.t('assetManagerCannotVerify'); }
+  protected itemVisualPreviewUrls(entry: { readonly id: string }): readonly string[] {
+    return this.itemVisualState(entry).info?.previewUrls ?? [];
+  }
+  protected itemVisualSummary(): string {
+    return `${this.i18n.t('assetManagerIndexed')}: ${this.sourceItems().length}`;
+  }
+  protected loaderLabel(loader: ImportedModSummary['report']['loader']): string {
+    return loader === 'unknown'
+      ? this.i18n.t('assetManagerUnknownLoader')
+      : loader[0].toUpperCase() + loader.slice(1);
+  }
+  protected compatibilityStatus(status: string | undefined): string {
+    return status === 'compatible'
+      ? this.i18n.t('assetManagerCompatible')
+      : status === 'incompatible'
+        ? this.i18n.t('assetManagerIncompatible')
+        : this.i18n.t('assetManagerCannotVerify');
+  }
   protected isCertified(): boolean {
     const mod = this.mod();
     const metadata = mod.report.normalizedMetadata;
-    return !!metadata && !!this.supportCatalog.certificationFor({ metadata, minecraftVersion: this.assets.activeVersion(), fingerprint: mod.fingerprint });
+    return (
+      !!metadata &&
+      !!this.supportCatalog.certificationFor({
+        metadata,
+        minecraftVersion: this.assets.activeVersion(),
+        fingerprint: mod.fingerprint,
+      })
+    );
   }
-  protected compactCount(imported: number, detected: number): string { return compactContentCount(imported, detected, ''); }
-  protected hasDiagnostics(kind: 'blocking' | 'warning' | 'info'): boolean { return this.mod().report.diagnostics.some((diagnostic) => diagnostic.category === kind || (kind === 'warning' && diagnostic.severity === 'warning') || (kind === 'info' && diagnostic.severity === 'info')); }
+  protected compactCount(imported: number, detected: number): string {
+    return compactContentCount(imported, detected, '');
+  }
+  protected hasDiagnostics(kind: 'blocking' | 'warning' | 'info'): boolean {
+    return this.mod().report.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.category === kind ||
+        (kind === 'warning' && diagnostic.severity === 'warning') ||
+        (kind === 'info' && diagnostic.severity === 'info'),
+    );
+  }
   protected diagnosticCount(kind: 'blocking' | 'warning' | 'info'): number {
-    return this.mod().report.diagnostics.filter((diagnostic) => diagnostic.category === kind || (kind === 'warning' && diagnostic.severity === 'warning') || (kind === 'blocking' && (diagnostic.severity === 'error' || diagnostic.category === 'blocking')) || (kind === 'info' && diagnostic.severity === 'info')).length;
+    return this.mod().report.diagnostics.filter(
+      (diagnostic) =>
+        diagnostic.category === kind ||
+        (kind === 'warning' && diagnostic.severity === 'warning') ||
+        (kind === 'blocking' &&
+          (diagnostic.severity === 'error' || diagnostic.category === 'blocking')) ||
+        (kind === 'info' && diagnostic.severity === 'info'),
+    ).length;
   }
-  protected hasProminentDiagnostics(): boolean { return diagnosticPresentation(this.mod().report) === 'prominent'; }
+  protected hasProminentDiagnostics(): boolean {
+    return diagnosticPresentation(this.mod().report) === 'prominent';
+  }
 }

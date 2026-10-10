@@ -6,7 +6,13 @@ export class BlockUsageHighlightService {
   private readonly highlightedId = signal<string | undefined>(undefined);
   readonly highlightedBlockId = this.highlightedId.asReadonly();
 
-  set(id: string): void { this.highlightedId.set(id); }
-  toggle(id: string): void { this.highlightedId.update((current) => current === id ? undefined : id); }
-  clear(): void { this.highlightedId.set(undefined); }
+  set(id: string): void {
+    this.highlightedId.set(id);
+  }
+  toggle(id: string): void {
+    this.highlightedId.update((current) => (current === id ? undefined : id));
+  }
+  clear(): void {
+    this.highlightedId.set(undefined);
+  }
 }

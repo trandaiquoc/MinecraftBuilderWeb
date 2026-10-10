@@ -5,7 +5,10 @@ export interface ExternalTrustedBehaviorEvidence {
   readonly tags: ReadonlyMap<string, readonly string[]>;
 }
 
-export function buildExternalTrustedBehaviorEvidence(blockIds: ReadonlySet<string>, tags: TagIndex): ExternalTrustedBehaviorEvidence {
+export function buildExternalTrustedBehaviorEvidence(
+  blockIds: ReadonlySet<string>,
+  tags: TagIndex,
+): ExternalTrustedBehaviorEvidence {
   const families = new Map<string, Set<string>>();
   const tagIds = new Map<string, Set<string>>();
   for (const contribution of tags.contributions('block')) {

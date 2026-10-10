@@ -172,7 +172,6 @@ export interface ViewportTraceAnomaly {
   readonly stack?: string;
 }
 
-
 function eventPriority(type: string): ViewportTraceEventPriority {
   if (
     type === 'trace-start' ||

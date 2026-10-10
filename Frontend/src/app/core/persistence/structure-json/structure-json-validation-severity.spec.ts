@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { structureJsonBlockIssueSeverity, structureJsonDecorationIssueSeverity, structureJsonImportBlockerSeverity } from './structure-json-validation-severity';
+import {
+  structureJsonBlockIssueSeverity,
+  structureJsonDecorationIssueSeverity,
+  structureJsonImportBlockerSeverity,
+} from './structure-json-validation-severity';
 
 describe('Structure JSON validation severity', () => {
   it('maps blocking block diagnostics to error and non-blocking missing content to warning', () => {

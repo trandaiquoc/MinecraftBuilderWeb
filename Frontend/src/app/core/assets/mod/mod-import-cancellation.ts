@@ -1,6 +1,9 @@
 export class ModImportTimeoutError extends Error {
   override readonly name = 'ModImportTimeoutError';
-  constructor(readonly phase: string, readonly timeoutMs: number) {
+  constructor(
+    readonly phase: string,
+    readonly timeoutMs: number,
+  ) {
     super(`Mod import phase timed out: ${phase}`);
   }
 }
@@ -10,12 +13,17 @@ export function createAbortError(message = 'The operation was cancelled'): DOMEx
 }
 
 export function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
-    || error instanceof Error && error.name === 'AbortError';
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  );
 }
 
 /** Combines caller and session cancellation without depending on AbortSignal.any. */
-export function combineAbortSignals(...signals: readonly (AbortSignal | undefined)[]): { readonly signal: AbortSignal | undefined; readonly dispose: () => void } {
+export function combineAbortSignals(...signals: readonly (AbortSignal | undefined)[]): {
+  readonly signal: AbortSignal | undefined;
+  readonly dispose: () => void;
+} {
   const active = signals.filter((signal): signal is AbortSignal => !!signal);
   if (!active.length) return { signal: undefined, dispose: () => undefined };
   if (active.length === 1) return { signal: active[0], dispose: () => undefined };
@@ -25,10 +33,16 @@ export function combineAbortSignals(...signals: readonly (AbortSignal | undefine
     controller.abort(source.reason ?? createAbortError());
   };
   for (const signal of active) {
-    if (signal.aborted) { abort({ target: signal } as unknown as Event); break; }
+    if (signal.aborted) {
+      abort({ target: signal } as unknown as Event);
+      break;
+    }
     signal.addEventListener('abort', abort, { once: true });
   }
-  return { signal: controller.signal, dispose: () => active.forEach((signal) => signal.removeEventListener('abort', abort)) };
+  return {
+    signal: controller.signal,
+    dispose: () => active.forEach((signal) => signal.removeEventListener('abort', abort)),
+  };
 }
 
 export function throwIfAborted(signal?: AbortSignal): void {
@@ -60,12 +74,19 @@ export interface PhaseWatchdog {
   stop(): void;
 }
 
-export function createPhaseWatchdog(phase: string, parent: AbortSignal | undefined, timeoutMs = MOD_IMPORT_PHASE_TIMEOUTS[phase] ?? 60_000): PhaseWatchdog {
+export function createPhaseWatchdog(
+  phase: string,
+  parent: AbortSignal | undefined,
+  timeoutMs = MOD_IMPORT_PHASE_TIMEOUTS[phase] ?? 60_000,
+): PhaseWatchdog {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const reset = (): void => {
     if (timer !== undefined) clearTimeout(timer);
-    timer = setTimeout(() => controller.abort(new ModImportTimeoutError(phase, timeoutMs)), timeoutMs);
+    timer = setTimeout(
+      () => controller.abort(new ModImportTimeoutError(phase, timeoutMs)),
+      timeoutMs,
+    );
   };
   const forwardAbort = (): void => controller.abort(parent?.reason ?? createAbortError());
   if (parent?.aborted) forwardAbort();

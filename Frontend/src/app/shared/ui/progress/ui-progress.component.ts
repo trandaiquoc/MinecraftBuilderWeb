@@ -5,12 +5,25 @@ export type UiProgressTone = 'default' | 'danger' | 'success';
 @Component({
   selector: 'app-ui-progress',
   template: `
-    <div class="ui-progress" [class.is-indeterminate]="indeterminate()" [class.is-complete]="complete()" [class.is-compact]="compact()" [class.is-danger]="tone() === 'danger'" [class.is-success]="tone() === 'success'" role="progressbar"
+    <div
+      class="ui-progress"
+      [class.is-indeterminate]="indeterminate()"
+      [class.is-complete]="complete()"
+      [class.is-compact]="compact()"
+      [class.is-danger]="tone() === 'danger'"
+      [class.is-success]="tone() === 'success'"
+      role="progressbar"
       [attr.aria-label]="label() || null"
       [attr.aria-valuemin]="indeterminate() ? null : 0"
       [attr.aria-valuemax]="indeterminate() ? null : 100"
-      [attr.aria-valuenow]="indeterminate() ? null : normalizedValue()">
-      <div class="ui-progress__track"><span class="ui-progress__fill" [style.width.%]="indeterminate() ? null : normalizedValue()"></span></div>
+      [attr.aria-valuenow]="indeterminate() ? null : normalizedValue()"
+    >
+      <div class="ui-progress__track">
+        <span
+          class="ui-progress__fill"
+          [style.width.%]="indeterminate() ? null : normalizedValue()"
+        ></span>
+      </div>
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

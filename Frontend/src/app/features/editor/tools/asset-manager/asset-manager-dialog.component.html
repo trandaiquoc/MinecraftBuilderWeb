@@ -1,8 +1,10 @@
-<div cdkOverlayOrigin #modalOrigin="cdkOverlayOrigin" class="modal-overlay-origin" aria-hidden="true"></div>
 <div
-  class="tool-dialog-backdrop"
-  role="presentation"
->
+  cdkOverlayOrigin
+  #modalOrigin="cdkOverlayOrigin"
+  class="modal-overlay-origin"
+  aria-hidden="true"
+></div>
+<div class="tool-dialog-backdrop" role="presentation">
   <section
     class="tool-dialog"
     [cdkTrapFocus]="!selectedDetails() && !confirming() && !diagnosticDialog()"
@@ -229,7 +231,13 @@
             @if (modImport.preflightError()) {
               <p class="manager-error" role="alert">{{ modImport.preflightError() }}</p>
               @if (modImport.operationStatus() === 'timed-out' && canRetryPreflight()) {
-                <button type="button" class="ui-button ui-button--secondary ui-button--sm" (click)="retryPreflight()">{{ i18n.t('assetManagerRetry') }}</button>
+                <button
+                  type="button"
+                  class="ui-button ui-button--secondary ui-button--sm"
+                  (click)="retryPreflight()"
+                >
+                  {{ i18n.t('assetManagerRetry') }}
+                </button>
               }
             }
             @if (modImport.modError()) {
@@ -238,10 +246,35 @@
             @if (modImport.operationKind()) {
               <section class="active-task-panel" aria-live="polite" aria-busy="true">
                 <div class="active-task-heading">
-                  <span class="active-task-label"><span class="active-task-indicator" aria-hidden="true"></span>{{ i18n.t('assetManagerCurrentTask') }}: {{ operationTaskLabel() }}</span>
-                  <button type="button" class="operation-cancel" [disabled]="modImport.operationStatus() === 'cancelling'" [attr.aria-label]="i18n.t('assetManagerCancelCurrentTask')" [attr.title]="i18n.t('assetManagerCancelCurrentTask')" (click)="cancelActiveOperation()"><svg lucideX aria-hidden="true"></svg></button>
+                  <span class="active-task-label"
+                    ><span class="active-task-indicator" aria-hidden="true"></span
+                    >{{ i18n.t('assetManagerCurrentTask') }}: {{ operationTaskLabel() }}</span
+                  >
+                  <button
+                    type="button"
+                    class="operation-cancel"
+                    [disabled]="modImport.operationStatus() === 'cancelling'"
+                    [attr.aria-label]="i18n.t('assetManagerCancelCurrentTask')"
+                    [attr.title]="i18n.t('assetManagerCancelCurrentTask')"
+                    (click)="cancelActiveOperation()"
+                  >
+                    <svg lucideX aria-hidden="true"></svg>
+                  </button>
                 </div>
-                <app-ui-progress [value]="modImport.preflightProgress() ? progressPercent(modImport.preflightProgress()!) : undefined" [indeterminate]="!modImport.preflightProgress() || progressPercent(modImport.preflightProgress()!) === undefined" [compact]="true" tone="danger" [label]="i18n.t('assetManagerCurrentTask')" />
+                <app-ui-progress
+                  [value]="
+                    modImport.preflightProgress()
+                      ? progressPercent(modImport.preflightProgress()!)
+                      : undefined
+                  "
+                  [indeterminate]="
+                    !modImport.preflightProgress() ||
+                    progressPercent(modImport.preflightProgress()!) === undefined
+                  "
+                  [compact]="true"
+                  tone="danger"
+                  [label]="i18n.t('assetManagerCurrentTask')"
+                />
                 <small>{{ operationDetail() }}</small>
               </section>
             }
@@ -283,9 +316,24 @@
                   </div>
                 </div>
                 @if (prepared.report?.compatibility; as compatibility) {
-                  <div class="primary-status" [class.status-ok]="compatibility.status === 'compatible'" [class.status-blocked]="compatibility.status !== 'compatible'">
-                    <span class="primary-status-icon">@if (compatibility.status === 'compatible') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else { <svg lucideCircleX aria-hidden="true"></svg> }</span>
-                    <span class="primary-status-copy"><span>{{ compatibilityStatus(compatibility.status) }} {{ assets.activeVersion() }}</span><small>{{ compatibility.reason }}</small></span>
+                  <div
+                    class="primary-status"
+                    [class.status-ok]="compatibility.status === 'compatible'"
+                    [class.status-blocked]="compatibility.status !== 'compatible'"
+                  >
+                    <span class="primary-status-icon">
+                      @if (compatibility.status === 'compatible') {
+                        <svg lucideCheckCircle2 aria-hidden="true"></svg>
+                      } @else {
+                        <svg lucideCircleX aria-hidden="true"></svg>
+                      }
+                    </span>
+                    <span class="primary-status-copy"
+                      ><span
+                        >{{ compatibilityStatus(compatibility.status) }}
+                        {{ assets.activeVersion() }}</span
+                      ><small>{{ compatibility.reason }}</small></span
+                    >
                   </div>
                 }
                 @if (certification(prepared); as certificate) {
@@ -293,7 +341,8 @@
                     class="certified-badge"
                     [attr.title]="i18n.t('assetManagerTestedBadgeTitle')"
                   >
-                    <svg lucideCheckCircle2 aria-hidden="true"></svg> {{ i18n.t('assetManagerFullySupported') }}
+                    <svg lucideCheckCircle2 aria-hidden="true"></svg>
+                    {{ i18n.t('assetManagerFullySupported') }}
                   </div>
                 }
                 <div class="stat-tiles">
@@ -367,16 +416,24 @@
                 <ol class="stage-list">
                   @for (stage of stageOrder; track stage.id) {
                     <li [class]="'stage-' + stageState(stage.id)">
-                      @if (stageState(stage.id) === 'complete') { <svg lucideCheckCircle2 aria-hidden="true"></svg> }
-                      @else if (stageState(stage.id) === 'active') { <span class="stage-dot" aria-hidden="true"></span> }
-                      @else if (stageState(stage.id) === 'awaiting-user') { <svg lucideArrowRight aria-hidden="true"></svg> }
-                      @else if (stageState(stage.id) === 'blocked') { <svg lucideCircleX aria-hidden="true"></svg> }
-                      @else { <span class="stage-pending" aria-hidden="true"></span> }
+                      @if (stageState(stage.id) === 'complete') {
+                        <svg lucideCheckCircle2 aria-hidden="true"></svg>
+                      } @else if (stageState(stage.id) === 'active') {
+                        <span class="stage-dot" aria-hidden="true"></span>
+                      } @else if (stageState(stage.id) === 'awaiting-user') {
+                        <svg lucideArrowRight aria-hidden="true"></svg>
+                      } @else if (stageState(stage.id) === 'blocked') {
+                        <svg lucideCircleX aria-hidden="true"></svg>
+                      } @else {
+                        <span class="stage-pending" aria-hidden="true"></span>
+                      }
                       <span class="stage-copy">
                         @if (stageState(stage.id) === 'awaiting-user') {
                           <strong>{{ i18n.t('assetManagerReadyToImport') }}</strong>
                           <small>{{ stageLabel(stage.id) }}</small>
-                        } @else if (stageState(stage.id) === 'blocked' && stage.id === 'validation') {
+                        } @else if (
+                          stageState(stage.id) === 'blocked' && stage.id === 'validation'
+                        ) {
                           <strong>{{ i18n.t('assetManagerValidationFailed') }}</strong>
                           <small>{{ stageLabel(stage.id) }}</small>
                         } @else if (stageState(stage.id) === 'blocked') {
@@ -396,16 +453,26 @@
                   </p>
                 }
                 @if (modImport.preflightProgress(); as progress) {
-                  <div class="import-progress compact" aria-live="polite" [attr.aria-busy]="modImport.operationKind() ? 'true' : null">
+                  <div
+                    class="import-progress compact"
+                    aria-live="polite"
+                    [attr.aria-busy]="modImport.operationKind() ? 'true' : null"
+                  >
                     <app-ui-progress
                       [value]="progressPercent(progress)"
                       [indeterminate]="progressPercent(progress) === undefined"
                       [complete]="!modImport.operationKind() || progressPercent(progress) === 100"
                       [compact]="true"
-                      [label]="modImport.operationKind() ? i18n.t('assetManagerImporting') : i18n.t('assetManagerPreflightComplete')"
-                    /><small
-                      >{{ modImport.operationKind() ? phaseLabel(progress.phase) + ' · ' + progressDetail(progress) : i18n.t('assetManagerPreflightComplete') }}</small
-                    >
+                      [label]="
+                        modImport.operationKind()
+                          ? i18n.t('assetManagerImporting')
+                          : i18n.t('assetManagerPreflightComplete')
+                      "
+                    /><small>{{
+                      modImport.operationKind()
+                        ? phaseLabel(progress.phase) + ' · ' + progressDetail(progress)
+                        : i18n.t('assetManagerPreflightComplete')
+                    }}</small>
                   </div>
                 }
                 <button
@@ -430,7 +497,13 @@
                   <ol id="asset-technical-progress" class="phase-list">
                     @for (phase of phaseOrder; track phase) {
                       <li [class]="'phase-' + phaseState(phase)">
-                        @if (phaseState(phase) === 'complete') { <svg lucideCheckCircle2 aria-hidden="true"></svg> } @else if (phaseState(phase) === 'active') { <span class="stage-dot" aria-hidden="true"></span> } @else { <span class="stage-pending" aria-hidden="true"></span> }
+                        @if (phaseState(phase) === 'complete') {
+                          <svg lucideCheckCircle2 aria-hidden="true"></svg>
+                        } @else if (phaseState(phase) === 'active') {
+                          <span class="stage-dot" aria-hidden="true"></span>
+                        } @else {
+                          <span class="stage-pending" aria-hidden="true"></span>
+                        }
                         <span>{{ phaseLabel(phase) }}</span>
                       </li>
                     }
@@ -507,7 +580,8 @@
                           >
                           @if (importedCertification(mod); as certificate) {
                             <span class="certified-badge"
-                              ><svg lucideCheckCircle2 aria-hidden="true"></svg> {{ i18n.t('assetManagerFullySupported') }}</span
+                              ><svg lucideCheckCircle2 aria-hidden="true"></svg>
+                              {{ i18n.t('assetManagerFullySupported') }}</span
                             >
                           }
                         </p>
@@ -662,7 +736,11 @@
       </header>
       <app-asset-manager-mod-details [mod]="mod" />
       <footer class="details-footer">
-        <button type="button" class="secondary ui-button ui-button--secondary ui-button--sm back-button" (click)="closeDetails()">
+        <button
+          type="button"
+          class="secondary ui-button ui-button--secondary ui-button--sm back-button"
+          (click)="closeDetails()"
+        >
           <svg lucideArrowLeft aria-hidden="true"></svg
           ><span>{{ i18n.t('assetManagerBack') }}</span></button
         ><button

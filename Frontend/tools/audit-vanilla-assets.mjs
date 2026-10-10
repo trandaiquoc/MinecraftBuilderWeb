@@ -4,9 +4,13 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const [rootArgument, version = '26.3'] = process.argv.slice(2);
-if (!rootArgument) throw new Error('Usage: node tools/audit-vanilla-assets.mjs <extracted-client-root> [minecraft-version]');
+if (!rootArgument)
+  throw new Error(
+    'Usage: node tools/audit-vanilla-assets.mjs <extracted-client-root> [minecraft-version]',
+  );
 const root = resolve(rootArgument);
-if (!existsSync(join(root, 'assets'))) throw new Error(`Extracted client root has no assets directory: ${root}`);
+if (!existsSync(join(root, 'assets')))
+  throw new Error(`Extracted client root has no assets directory: ${root}`);
 
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(frontendRoot, '..');
@@ -17,13 +21,28 @@ mkdirSync(artifactRoot, { recursive: true });
 mkdirSync(tempRoot, { recursive: true });
 const literalRoot = JSON.stringify(root.replaceAll('\\', '/'));
 const literalVersion = JSON.stringify(version);
-const reportJsonPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-coverage-${version}.json`).replaceAll('\\', '/'));
-const reportMarkdownPath = JSON.stringify(resolve(artifactRoot, `vanilla-asset-coverage-${version}.md`).replaceAll('\\', '/'));
-const providerModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-provider'));
-const auditModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit'));
-const reportModule = moduleSpecifier(dirname(testPath), resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit-report'));
+const reportJsonPath = JSON.stringify(
+  resolve(artifactRoot, `vanilla-asset-coverage-${version}.json`).replaceAll('\\', '/'),
+);
+const reportMarkdownPath = JSON.stringify(
+  resolve(artifactRoot, `vanilla-asset-coverage-${version}.md`).replaceAll('\\', '/'),
+);
+const providerModule = moduleSpecifier(
+  dirname(testPath),
+  resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-provider'),
+);
+const auditModule = moduleSpecifier(
+  dirname(testPath),
+  resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit'),
+);
+const reportModule = moduleSpecifier(
+  dirname(testPath),
+  resolve(frontendRoot, 'src/app/core/assets/vanilla/vanilla-asset-audit-report'),
+);
 try {
-  writeFileSync(testPath, `
+  writeFileSync(
+    testPath,
+    `
 import { describe, it } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -39,10 +58,17 @@ describe('vanilla coverage command', () => it('writes the report', async () => {
   writeFileSync(${reportJsonPath}, JSON.stringify(report, null, 2) + '\\n');
   writeFileSync(${reportMarkdownPath}, coverageReportMarkdown(report) + '\\n');
 }, 120000));
-`, 'utf8');
+`,
+    'utf8',
+  );
   const npm = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  const result = spawnSync(npm, ['vitest', 'run', '--root', repoRoot, relative(repoRoot, testPath)], { stdio: 'inherit', cwd: frontendRoot, shell: process.platform === 'win32' });
-  if (result.status !== 0) throw new Error(`Vanilla audit command failed with exit code ${result.status ?? 1}`);
+  const result = spawnSync(
+    npm,
+    ['vitest', 'run', '--root', repoRoot, relative(repoRoot, testPath)],
+    { stdio: 'inherit', cwd: frontendRoot, shell: process.platform === 'win32' },
+  );
+  if (result.status !== 0)
+    throw new Error(`Vanilla audit command failed with exit code ${result.status ?? 1}`);
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
 }

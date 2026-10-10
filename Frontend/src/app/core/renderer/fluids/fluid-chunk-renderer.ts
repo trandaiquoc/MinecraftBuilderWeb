@@ -3,11 +3,23 @@ import { VoxelCoordinate } from '../../domain/project.types';
 import { fluidChunkKey } from './fluid-mesh-core';
 import type { FluidWorldLookup } from './fluid-state';
 import { FluidChunkRecordStore } from './fluid-chunk-record-store';
-import type { FluidChunkChange, FluidChunkRecord, FluidChunkSyncResult, FluidChunkVisualProvider, FluidLayerPresentation } from './fluid-render-contracts';
+import type {
+  FluidChunkChange,
+  FluidChunkRecord,
+  FluidChunkSyncResult,
+  FluidChunkVisualProvider,
+  FluidLayerPresentation,
+} from './fluid-render-contracts';
 import { FluidChunkResidencyOwner } from './fluid-chunk-residency-owner';
 import { FluidChunkBuildOwner } from './fluid-chunk-build-owner';
 
-export type { FluidChunkChange, FluidChunkRecord, FluidChunkSyncResult, FluidChunkVisualProvider, FluidLayerPresentation } from './fluid-render-contracts';
+export type {
+  FluidChunkChange,
+  FluidChunkRecord,
+  FluidChunkSyncResult,
+  FluidChunkVisualProvider,
+  FluidLayerPresentation,
+} from './fluid-render-contracts';
 
 export interface FluidChunkDiagnostics {
   readonly fluidLogicalVoxels: number;
@@ -47,14 +59,23 @@ export class FluidChunkRenderer {
   private readonly buildOwner: FluidChunkBuildOwner;
   private disposed = false;
 
-  constructor(private readonly blocksGroup: THREE.Group, chunkSize = 16) {
+  constructor(
+    private readonly blocksGroup: THREE.Group,
+    chunkSize = 16,
+  ) {
     this.residency = new FluidChunkResidencyOwner(blocksGroup);
     this.buildOwner = new FluidChunkBuildOwner(this.recordStore, this.residency, chunkSize);
   }
 
-  get group(): THREE.Group { return this.residency.group; }
-  get logicalRecordCount(): number { return this.recordStore.size; }
-  get layeredPresentationReady(): boolean { return this.residency.layeredPresentationReady; }
+  get group(): THREE.Group {
+    return this.residency.group;
+  }
+  get logicalRecordCount(): number {
+    return this.recordStore.size;
+  }
+  get layeredPresentationReady(): boolean {
+    return this.residency.layeredPresentationReady;
+  }
 
   setLayerPresentation(presentation: FluidLayerPresentation | undefined): void {
     if (!this.disposed) this.residency.setLayerPresentation(presentation);
@@ -66,10 +87,18 @@ export class FluidChunkRenderer {
     if (!provider) this.clear();
   }
 
-  recordsForKeys(keys: ReadonlySet<string>): readonly FluidChunkRecord[] { return this.recordStore.recordsForKeys(keys); }
-  providerSnapshot(): FluidChunkVisualProvider | undefined { return this.buildOwner.providerSnapshot(); }
+  recordsForKeys(keys: ReadonlySet<string>): readonly FluidChunkRecord[] {
+    return this.recordStore.recordsForKeys(keys);
+  }
+  providerSnapshot(): FluidChunkVisualProvider | undefined {
+    return this.buildOwner.providerSnapshot();
+  }
 
-  sync(records: readonly FluidChunkRecord[], world: FluidWorldLookup, changedPositions?: readonly VoxelCoordinate[]): Promise<FluidChunkSyncResult> {
+  sync(
+    records: readonly FluidChunkRecord[],
+    world: FluidWorldLookup,
+    changedPositions?: readonly VoxelCoordinate[],
+  ): Promise<FluidChunkSyncResult> {
     if (this.disposed) return staleResult();
     return this.buildOwner.sync(records, world, changedPositions).then((result) => {
       if (result.status === 'committed') this.residency.detachGroupIfEmpty();
@@ -77,7 +106,11 @@ export class FluidChunkRenderer {
     });
   }
 
-  syncDelta(changes: readonly FluidChunkChange[], changedPositions: readonly VoxelCoordinate[], world: FluidWorldLookup): Promise<FluidChunkSyncResult> {
+  syncDelta(
+    changes: readonly FluidChunkChange[],
+    changedPositions: readonly VoxelCoordinate[],
+    world: FluidWorldLookup,
+  ): Promise<FluidChunkSyncResult> {
     if (this.disposed) return staleResult();
     return this.buildOwner.syncDelta(changes, changedPositions, world).then((result) => {
       if (result.status === 'committed') this.residency.detachGroupIfEmpty();
@@ -89,14 +122,19 @@ export class FluidChunkRenderer {
     return this.residency.currentChunk(fluidChunkKey(parseKey(key)))?.meshes ?? [];
   }
 
-  hasVoxel(key: string): boolean { return this.recordStore.has(key); }
+  hasVoxel(key: string): boolean {
+    return this.recordStore.has(key);
+  }
 
   diagnostics(): FluidChunkDiagnostics {
     const resource = this.residency.evidence();
     const build = this.buildOwner.evidence();
     const logicalByType = new Map<string, number>();
     for (const record of this.recordStore.values()) {
-      logicalByType.set(record.state.fluidTypeId, (logicalByType.get(record.state.fluidTypeId) ?? 0) + 1);
+      logicalByType.set(
+        record.state.fluidTypeId,
+        (logicalByType.get(record.state.fluidTypeId) ?? 0) + 1,
+      );
     }
     const meshesByLayer = new Map<string, number>();
     let facesPotential = 0;
@@ -173,7 +211,6 @@ export class FluidChunkRenderer {
     this.recordStore.clear();
     this.residency.dispose();
   }
-
 }
 
 function parseKey(key: string): VoxelCoordinate {
@@ -181,4 +218,6 @@ function parseKey(key: string): VoxelCoordinate {
   return { x, y, z };
 }
 
-function staleResult(): Promise<FluidChunkSyncResult> { return Promise.resolve({ status: 'stale', committedKeys: [], fallbackKeys: [] }); }
+function staleResult(): Promise<FluidChunkSyncResult> {
+  return Promise.resolve({ status: 'stale', committedKeys: [], fallbackKeys: [] });
+}

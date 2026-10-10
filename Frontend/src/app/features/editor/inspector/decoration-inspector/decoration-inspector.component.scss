@@ -1,42 +1,183 @@
-.decoration-inspector { display: grid; gap: .65rem; min-width: 0; margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--border); font-family: var(--font-ui); }
-.decoration-inspector h3 { margin: 0; font: .9rem/1.2 var(--font-ui); }
-.field-label { display: grid; gap: .25rem; min-width: 0; font-size: .72rem; color: var(--text-muted); }
-.helper-text { margin: 0; color: var(--text-muted); font: .68rem/1.35 var(--font-ui); }
-.painting-summary { display: grid; grid-template-columns: 5rem minmax(0, 1fr); align-items: center; gap: .6rem; min-width: 0; }
-.painting-summary-image { display: grid; place-items: center; width: 5rem; height: 4rem; overflow: hidden; border-radius: 5px; background: var(--surface); }
-.painting-summary-image img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
-.painting-summary > span:last-child { display: grid; gap: .15rem; min-width: 0; }
-.painting-summary strong, .painting-summary small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.painting-summary strong { font-size: .8rem; }
-.painting-summary small { color: var(--text-muted); font-size: .7rem; }
-.disclosure { min-width: 0; border-top: 1px solid var(--border); padding-top: .45rem; }
-.disclosure summary { cursor: pointer; color: var(--text); font-size: .75rem; }
-.disclosure dl { display: grid; gap: .35rem; margin: .55rem 0 0; }
-.disclosure dl div { display: flex; justify-content: space-between; gap: .5rem; min-width: 0; }
-.disclosure dt { color: var(--text-muted); font-size: .7rem; }
-.disclosure dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: .74rem; }
-.frame-control { display: flex; align-items: center; justify-content: space-between; gap: .4rem; min-width: 0; }
-.frame-control > span:first-child { display: grid; gap: .15rem; min-width: 0; }
-.frame-control strong { font-size: .75rem; }
-.frame-control small { color: var(--text-muted); font-size: .65rem; line-height: 1.3; }
-.stepper { display: grid; grid-template-columns: 1.7rem 3.3rem 1.7rem; align-items: center; gap: .2rem; flex: 0 0 auto; }
-.stepper button { min-width: 1.7rem; height: 1.7rem; }
-.stepper output { text-align: center; font-size: .75rem; }
+.decoration-inspector {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-ui);
+}
+.decoration-inspector h3 {
+  margin: 0;
+  font: 0.9rem/1.2 var(--font-ui);
+}
+.field-label {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.helper-text {
+  margin: 0;
+  color: var(--text-muted);
+  font: 0.68rem/1.35 var(--font-ui);
+}
+.painting-summary {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.painting-summary-image {
+  display: grid;
+  place-items: center;
+  width: 5rem;
+  height: 4rem;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--surface);
+}
+.painting-summary-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.painting-summary > span:last-child {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.painting-summary strong,
+.painting-summary small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.painting-summary strong {
+  font-size: 0.8rem;
+}
+.painting-summary small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.disclosure {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 0.45rem;
+}
+.disclosure summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.75rem;
+}
+.disclosure dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.55rem 0 0;
+}
+.disclosure dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.disclosure dt {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.disclosure dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.74rem;
+}
+.frame-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.frame-control > span:first-child {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.frame-control strong {
+  font-size: 0.75rem;
+}
+.frame-control small {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  line-height: 1.3;
+}
+.stepper {
+  display: grid;
+  grid-template-columns: 1.7rem 3.3rem 1.7rem;
+  align-items: center;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+}
+.stepper button {
+  min-width: 1.7rem;
+  height: 1.7rem;
+}
+.stepper output {
+  text-align: center;
+  font-size: 0.75rem;
+}
 
 :host-context([data-font='minecraft-style']) .decoration-inspector h3,
 :host-context([data-font='minecraft-style']) .painting-summary strong,
-:host-context([data-font='minecraft-style']) .frame-control strong { font-weight: 400; }
+:host-context([data-font='minecraft-style']) .frame-control strong {
+  font-weight: 400;
+}
 :host-context([data-font='minecraft-style']) .field-label,
 :host-context([data-font='minecraft-style']) .disclosure summary,
-:host-context([data-font='minecraft-style']) .frame-control strong { font-size: .84rem; line-height: 1.1; }
+:host-context([data-font='minecraft-style']) .frame-control strong {
+  font-size: 0.84rem;
+  line-height: 1.1;
+}
 :host-context([data-font='minecraft-style']) .helper-text,
 :host-context([data-font='minecraft-style']) .painting-summary small,
-:host-context([data-font='minecraft-style']) .frame-control small { font-size: .74rem; line-height: 1.15; }
-.advanced-fields { display: grid; gap: .3rem; margin-top: .55rem; min-width: 0; }
-.decoration-inspector .check { display: flex; align-items: center; gap: .35rem; color: var(--text); }
-.percent-input { display: flex; align-items: center; gap: .25rem; color: var(--text); }
-.percent-input input { width: 4.2rem; box-sizing: border-box; }
+:host-context([data-font='minecraft-style']) .frame-control small {
+  font-size: 0.74rem;
+  line-height: 1.15;
+}
+.advanced-fields {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+  min-width: 0;
+}
+.decoration-inspector .check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text);
+}
+.percent-input {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text);
+}
+.percent-input input {
+  width: 4.2rem;
+  box-sizing: border-box;
+}
 .decoration-inspector .stepper button,
-.decoration-inspector .change-painting { border: 0; background: var(--surface-raised); box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
+.decoration-inspector .change-painting {
+  border: 0;
+  background: var(--surface-raised);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+}
 .decoration-inspector .stepper button:hover,
-.decoration-inspector .change-painting:hover { background: var(--surface-hover); }
+.decoration-inspector .change-painting:hover {
+  background: var(--surface-hover);
+}

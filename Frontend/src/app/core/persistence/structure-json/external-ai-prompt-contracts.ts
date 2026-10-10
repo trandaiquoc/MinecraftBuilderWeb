@@ -1,8 +1,14 @@
 import type { ExternalAiContentLimits } from './external-ai-content-limits';
 
 export type ExternalAiPromptLocale = 'en' | 'vi';
-export interface ExternalAiItemContext { readonly id: string; readonly maxStackSize?: number; }
-export interface ExternalAiDecorationContext { readonly id: string; readonly kind: string; }
+export interface ExternalAiItemContext {
+  readonly id: string;
+  readonly maxStackSize?: number;
+}
+export interface ExternalAiDecorationContext {
+  readonly id: string;
+  readonly kind: string;
+}
 export interface ExternalAiModContext {
   readonly sourceId: string;
   readonly id: string;
@@ -15,7 +21,11 @@ export interface ExternalAiModContext {
   readonly items: readonly ExternalAiItemContext[];
   readonly decorations: readonly ExternalAiDecorationContext[];
 }
-export interface ExternalAiProjectSize { readonly x: number; readonly y: number; readonly z: number; }
+export interface ExternalAiProjectSize {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
 export interface ExternalAiProjectContext {
   readonly currentSize: ExternalAiProjectSize;
   readonly resizeSupported: boolean;
@@ -29,7 +39,12 @@ export interface ExternalAiPromptContext {
   readonly mods: readonly ExternalAiModContext[];
 }
 export type ExternalAiModContentCategory = 'blocks' | 'items' | 'decorations';
-export interface ExternalAiModContentSelection { readonly sourceId: string; readonly includeBlocks: boolean; readonly includeItems: boolean; readonly includeDecorations: boolean; }
+export interface ExternalAiModContentSelection {
+  readonly sourceId: string;
+  readonly includeBlocks: boolean;
+  readonly includeItems: boolean;
+  readonly includeDecorations: boolean;
+}
 export interface ExternalAiPromptOptions {
   readonly locale?: ExternalAiPromptLocale;
   readonly includeGuidance?: boolean;
@@ -39,5 +54,13 @@ export interface ExternalAiPromptOptions {
   readonly contentLimits?: ExternalAiContentLimits;
   readonly contentLimitsEnabled?: boolean;
 }
-export interface ExternalAiContentSelection { readonly includeAvailableContent?: boolean; readonly modSelections?: readonly ExternalAiModContentSelection[]; }
-export interface ExternalAiSelectedTotals { readonly mods: number; readonly blocks: number; readonly items: number; readonly decorations: number; }
+export interface ExternalAiContentSelection {
+  readonly includeAvailableContent?: boolean;
+  readonly modSelections?: readonly ExternalAiModContentSelection[];
+}
+export interface ExternalAiSelectedTotals {
+  readonly mods: number;
+  readonly blocks: number;
+  readonly items: number;
+  readonly decorations: number;
+}

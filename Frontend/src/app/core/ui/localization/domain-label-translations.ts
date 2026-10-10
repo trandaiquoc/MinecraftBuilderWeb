@@ -39,7 +39,22 @@ export const stateValueTranslations: DomainLabelDictionary = {
 };
 
 export const signColorTranslations: DomainLabelDictionary = {
-  white: ['White', 'Trắng'], orange: ['Orange', 'Cam'], magenta: ['Magenta', 'Tím hồng'], light_blue: ['Light blue', 'Xanh nhạt'], yellow: ['Yellow', 'Vàng'], lime: ['Lime', 'Xanh lá sáng'], pink: ['Pink', 'Hồng'], gray: ['Gray', 'Xám'], light_gray: ['Light gray', 'Xám nhạt'], cyan: ['Cyan', 'Xanh lơ'], purple: ['Purple', 'Tím'], blue: ['Blue', 'Xanh dương'], brown: ['Brown', 'Nâu'], green: ['Green', 'Xanh lá'], red: ['Red', 'Đỏ'], black: ['Black', 'Đen'],
+  white: ['White', 'Trắng'],
+  orange: ['Orange', 'Cam'],
+  magenta: ['Magenta', 'Tím hồng'],
+  light_blue: ['Light blue', 'Xanh nhạt'],
+  yellow: ['Yellow', 'Vàng'],
+  lime: ['Lime', 'Xanh lá sáng'],
+  pink: ['Pink', 'Hồng'],
+  gray: ['Gray', 'Xám'],
+  light_gray: ['Light gray', 'Xám nhạt'],
+  cyan: ['Cyan', 'Xanh lơ'],
+  purple: ['Purple', 'Tím'],
+  blue: ['Blue', 'Xanh dương'],
+  brown: ['Brown', 'Nâu'],
+  green: ['Green', 'Xanh lá'],
+  red: ['Red', 'Đỏ'],
+  black: ['Black', 'Đen'],
 };
 
 export const supportLevelTranslations: DomainLabelDictionary = {
@@ -61,6 +76,10 @@ export const visualSupportTranslations: DomainLabelDictionary = {
   fallback: ['Fallback', 'Dự phòng'],
 };
 
-export function translateDomainLabel(value: string, locale: Locale, dictionary: DomainLabelDictionary): string {
+export function translateDomainLabel(
+  value: string,
+  locale: Locale,
+  dictionary: DomainLabelDictionary,
+): string {
   return dictionary[value]?.[locale === 'en' ? 0 : 1] ?? value;
 }

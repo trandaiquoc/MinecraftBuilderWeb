@@ -1,5 +1,9 @@
 import type { VoxelCoordinate } from '../../domain/project.types';
-import type { FluidRenderResolver, FluidWorldLookup, ResolvedFluidRenderState } from './fluid-state';
+import type {
+  FluidRenderResolver,
+  FluidWorldLookup,
+  ResolvedFluidRenderState,
+} from './fluid-state';
 
 export type FluidFaceDirection = 'down' | 'up' | 'north' | 'south' | 'west' | 'east';
 
@@ -12,7 +16,10 @@ const offsets: Readonly<Record<FluidFaceDirection, VoxelCoordinate>> = {
   east: { x: 1, y: 0, z: 0 },
 };
 
-function neighborPosition(position: VoxelCoordinate, direction: FluidFaceDirection): VoxelCoordinate {
+function neighborPosition(
+  position: VoxelCoordinate,
+  direction: FluidFaceDirection,
+): VoxelCoordinate {
   const offset = offsets[direction];
   return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z };
 }

@@ -1,11 +1,28 @@
 <section class="inventory-inspector">
   <h3>{{ i18n.t('inventory') }}</h3>
-  @if (hasRaw()) { <p class="muted raw-warning">{{ i18n.t('rawDataWarning') }}</p> }
+  @if (hasRaw()) {
+    <p class="muted raw-warning">{{ i18n.t('rawDataWarning') }}</p>
+  }
   <div class="inventory-grid" [style.--inventory-columns]="columns()">
     @for (slot of slots(); track slot.slot) {
-      <button type="button" class="inventory-slot" [class.selected]="slot.slot === selectedSlot()" [attr.aria-pressed]="slot.slot === selectedSlot()" [attr.aria-label]="i18n.t('inventorySlot') + ' ' + (slot.slot + 1)" [title]="slot.stack ? displayName(slot.stack) + ' (' + slot.stack.id + ')' : i18n.t('emptySlot')" (click)="selectSlot(slot.slot)">
+      <button
+        type="button"
+        class="inventory-slot"
+        [class.selected]="slot.slot === selectedSlot()"
+        [attr.aria-pressed]="slot.slot === selectedSlot()"
+        [attr.aria-label]="i18n.t('inventorySlot') + ' ' + (slot.slot + 1)"
+        [title]="
+          slot.stack ? displayName(slot.stack) + ' (' + slot.stack.id + ')' : i18n.t('emptySlot')
+        "
+        (click)="selectSlot(slot.slot)"
+      >
         <span class="slot-number">{{ slot.slot + 1 }}</span>
-        @if (slot.stack) { <span class="slot-item">{{ displayName(slot.stack) }}</span><strong class="slot-count">{{ slot.stack.count }}</strong> } @else { <span class="slot-empty">·</span> }
+        @if (slot.stack) {
+          <span class="slot-item">{{ displayName(slot.stack) }}</span
+          ><strong class="slot-count">{{ slot.stack.count }}</strong>
+        } @else {
+          <span class="slot-empty">·</span>
+        }
       </button>
     }
   </div>
@@ -26,11 +43,26 @@
       [visualMissingLabel]="i18n.t('itemVisualMissing')"
       [visualLoadingLabel]="i18n.t('itemVisualLoading')"
       [disabled]="locked"
-      (stackChange)="setStack($event)" />
+      (stackChange)="setStack($event)"
+    />
     @if (selectedStack(); as stack) {
-      <label class="count-field"><span>{{ i18n.t('itemCount') }}</span><input type="number" min="1" [attr.max]="maxStackSize()" step="1" [value]="stack.count" [disabled]="locked" (change)="changeCount($event)" /></label>
-      <button type="button" class="clear-item" [disabled]="locked" (click)="clearSelected()">{{ i18n.t('clearItem') }}</button>
-      @if (countFeedback()) { <p class="validation-feedback">{{ i18n.t('invalid') }}</p> }
+      <label class="count-field"
+        ><span>{{ i18n.t('itemCount') }}</span
+        ><input
+          type="number"
+          min="1"
+          [attr.max]="maxStackSize()"
+          step="1"
+          [value]="stack.count"
+          [disabled]="locked"
+          (change)="changeCount($event)"
+      /></label>
+      <button type="button" class="clear-item" [disabled]="locked" (click)="clearSelected()">
+        {{ i18n.t('clearItem') }}
+      </button>
+      @if (countFeedback()) {
+        <p class="validation-feedback">{{ i18n.t('invalid') }}</p>
+      }
     }
   </div>
 </section>

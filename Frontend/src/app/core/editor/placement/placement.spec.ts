@@ -1,10 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { lanternChainAttachmentTarget, placementStatus, projectGridBounds, resolveAttachmentPlacement, targetFromBlockFace, targetFromEditingPlaneHit, targetFromGridHit } from './placement';
+import {
+  lanternChainAttachmentTarget,
+  placementStatus,
+  projectGridBounds,
+  resolveAttachmentPlacement,
+  targetFromBlockFace,
+  targetFromEditingPlaneHit,
+  targetFromGridHit,
+} from './placement';
 
 describe('placement math', () => {
   it('targets the neighboring voxel from a block face', () => {
-    expect(targetFromBlockFace({ x: 10, y: 20, z: 10 }, { x: 1, y: 0, z: 0 })).toEqual({ x: 11, y: 20, z: 10 });
-    expect(targetFromBlockFace({ x: 10, y: 20, z: 10 }, { x: 0, y: -1, z: 0 })).toEqual({ x: 10, y: 19, z: 10 });
+    expect(targetFromBlockFace({ x: 10, y: 20, z: 10 }, { x: 1, y: 0, z: 0 })).toEqual({
+      x: 11,
+      y: 20,
+      z: 10,
+    });
+    expect(targetFromBlockFace({ x: 10, y: 20, z: 10 }, { x: 0, y: -1, z: 0 })).toEqual({
+      x: 10,
+      y: 19,
+      z: 10,
+    });
   });
 
   it('floors grid hits to integer voxel coordinates', () => {
@@ -12,7 +28,11 @@ describe('placement math', () => {
   });
 
   it('maps an editing-plane ray hit to Current Y without requiring support', () => {
-    expect(targetFromEditingPlaneHit({ x: 1.8, z: 0.2 }, 4, { x: 3, y: 8, z: 3 })).toEqual({ x: 1, y: 4, z: 0 });
+    expect(targetFromEditingPlaneHit({ x: 1.8, z: 0.2 }, 4, { x: 3, y: 8, z: 3 })).toEqual({
+      x: 1,
+      y: 4,
+      z: 0,
+    });
     expect(targetFromEditingPlaneHit({ x: 3, z: 0 }, 4, { x: 3, y: 8, z: 3 })).toBeUndefined();
   });
 
@@ -33,49 +53,168 @@ describe('placement math', () => {
 });
 
 describe('Lantern to Chain attachment snap', () => {
-  const chain = { kind: 'resolved' as const, id: 'minecraft:chain', namespace: 'minecraft', position: { x: 3, y: 4, z: 5 }, state: { axis: 'y' } };
+  const chain = {
+    kind: 'resolved' as const,
+    id: 'minecraft:chain',
+    namespace: 'minecraft',
+    position: { x: 3, y: 4, z: 5 },
+    state: { axis: 'y' },
+  };
   const definition = (id: string) => {
-    if (id === 'minecraft:lantern' || id === 'minecraft:soul_lantern') return { behavior: { kind: 'lantern-placement' as const, hangingProperty: 'hanging' as const } } as never;
-    if (id === 'minecraft:oak_hanging_sign') return { behavior: { kind: 'hanging-sign' as const, rotationProperty: 'rotation' as const, attachedProperty: 'attached' as const, wallBlockId: '' } } as never;
-    if (id === 'minecraft:chain') return { behavior: { kind: 'vertical-chain' as const, axisProperty: 'axis' as const, verticalAxis: 'y' as const } } as never;
+    if (id === 'minecraft:lantern' || id === 'minecraft:soul_lantern')
+      return {
+        behavior: { kind: 'lantern-placement' as const, hangingProperty: 'hanging' as const },
+      } as never;
+    if (id === 'minecraft:oak_hanging_sign')
+      return {
+        behavior: {
+          kind: 'hanging-sign' as const,
+          rotationProperty: 'rotation' as const,
+          attachedProperty: 'attached' as const,
+          wallBlockId: '',
+        },
+      } as never;
+    if (id === 'minecraft:chain')
+      return {
+        behavior: {
+          kind: 'vertical-chain' as const,
+          axisProperty: 'axis' as const,
+          verticalAxis: 'y' as const,
+        },
+      } as never;
     return undefined;
   };
 
   it('targets the voxel directly below a vertical chain', () => {
-    expect(lanternChainAttachmentTarget('minecraft:lantern', chain.position, [chain], definition)).toEqual({ x: 3, y: 3, z: 5 });
+    expect(
+      lanternChainAttachmentTarget('minecraft:lantern', chain.position, [chain], definition),
+    ).toEqual({ x: 3, y: 3, z: 5 });
   });
 
   it('does not snap another active block or a horizontal chain', () => {
-    expect(lanternChainAttachmentTarget('minecraft:stone', chain.position, [chain], definition)).toBeUndefined();
-    expect(lanternChainAttachmentTarget('minecraft:lantern', chain.position, [{ ...chain, state: { axis: 'x' } }], definition)).toBeUndefined();
+    expect(
+      lanternChainAttachmentTarget('minecraft:stone', chain.position, [chain], definition),
+    ).toBeUndefined();
+    expect(
+      lanternChainAttachmentTarget(
+        'minecraft:lantern',
+        chain.position,
+        [{ ...chain, state: { axis: 'x' } }],
+        definition,
+      ),
+    ).toBeUndefined();
   });
 
   it('leaves occupied and out-of-bounds candidates for normal validation', () => {
     const occupied = { ...chain, id: 'minecraft:stone', position: { x: 3, y: 3, z: 5 }, state: {} };
-    expect(lanternChainAttachmentTarget('minecraft:lantern', chain.position, [chain, occupied], definition)).toEqual(occupied.position);
+    expect(
+      lanternChainAttachmentTarget(
+        'minecraft:lantern',
+        chain.position,
+        [chain, occupied],
+        definition,
+      ),
+    ).toEqual(occupied.position);
     const floorChain = { ...chain, position: { x: 1, y: 0, z: 1 } };
-    expect(lanternChainAttachmentTarget('minecraft:lantern', floorChain.position, [floorChain], definition)).toEqual({ x: 1, y: -1, z: 1 });
+    expect(
+      lanternChainAttachmentTarget(
+        'minecraft:lantern',
+        floorChain.position,
+        [floorChain],
+        definition,
+      ),
+    ).toEqual({ x: 1, y: -1, z: 1 });
   });
   it('extends a vertical chain above or below based on the hit half', () => {
-    expect(resolveAttachmentPlacement('minecraft:chain', chain.position, { y: 4.8 }, [chain], definition)).toMatchObject({ target: { x: 3, y: 5, z: 5 }, stateOverride: { axis: 'y' } });
-    expect(resolveAttachmentPlacement('minecraft:chain', chain.position, { y: 4.2 }, [chain], definition)).toMatchObject({ target: { x: 3, y: 3, z: 5 }, stateOverride: { axis: 'y' } });
+    expect(
+      resolveAttachmentPlacement(
+        'minecraft:chain',
+        chain.position,
+        { y: 4.8 },
+        [chain],
+        definition,
+      ),
+    ).toMatchObject({ target: { x: 3, y: 5, z: 5 }, stateOverride: { axis: 'y' } });
+    expect(
+      resolveAttachmentPlacement(
+        'minecraft:chain',
+        chain.position,
+        { y: 4.2 },
+        [chain],
+        definition,
+      ),
+    ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, stateOverride: { axis: 'y' } });
   });
   it('snaps lantern variants below a chain with canonical hanging state', () => {
-    expect(resolveAttachmentPlacement('minecraft:soul_lantern', chain.position, { y: 4.5 }, [chain], definition)).toMatchObject({ target: { x: 3, y: 3, z: 5 }, stateOverride: { hanging: 'true' } });
+    expect(
+      resolveAttachmentPlacement(
+        'minecraft:soul_lantern',
+        chain.position,
+        { y: 4.5 },
+        [chain],
+        definition,
+      ),
+    ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, stateOverride: { hanging: 'true' } });
   });
   it('snaps a hanging sign below a vertical chain or compatible hanging sign', () => {
-    expect(resolveAttachmentPlacement('minecraft:oak_hanging_sign', chain.position, { y: 4.5 }, [chain], definition)).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-chain' });
-    const sign = { ...chain, id: 'minecraft:oak_hanging_sign', state: { rotation: '0', attached: 'false', waterlogged: 'false' } };
-    expect(resolveAttachmentPlacement('minecraft:oak_hanging_sign', sign.position, { y: 4.5 }, [sign], definition)).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-stack' });
+    expect(
+      resolveAttachmentPlacement(
+        'minecraft:oak_hanging_sign',
+        chain.position,
+        { y: 4.5 },
+        [chain],
+        definition,
+      ),
+    ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-chain' });
+    const sign = {
+      ...chain,
+      id: 'minecraft:oak_hanging_sign',
+      state: { rotation: '0', attached: 'false', waterlogged: 'false' },
+    };
+    expect(
+      resolveAttachmentPlacement(
+        'minecraft:oak_hanging_sign',
+        sign.position,
+        { y: 4.5 },
+        [sign],
+        definition,
+      ),
+    ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-stack' });
   });
   it('uses verified external hanging-sign and vertical-chain behavior without namespace rules', () => {
-    const definition = (id: string) => id === 'example:hanging'
-      ? ({ behavior: { kind: 'hanging-sign', rotationProperty: 'rotation', attachedProperty: 'attached', wallBlockId: '' } } as never)
-      : id === 'example:lantern'
-        ? ({ behavior: { kind: 'lantern-placement', hangingProperty: 'hanging' } } as never)
-        : ({ behavior: { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' } } as never);
+    const definition = (id: string) =>
+      id === 'example:hanging'
+        ? ({
+            behavior: {
+              kind: 'hanging-sign',
+              rotationProperty: 'rotation',
+              attachedProperty: 'attached',
+              wallBlockId: '',
+            },
+          } as never)
+        : id === 'example:lantern'
+          ? ({ behavior: { kind: 'lantern-placement', hangingProperty: 'hanging' } } as never)
+          : ({
+              behavior: { kind: 'vertical-chain', axisProperty: 'axis', verticalAxis: 'y' },
+            } as never);
     const externalChain = { ...chain, id: 'example:chain', namespace: 'example' };
-    expect(resolveAttachmentPlacement('example:hanging', externalChain.position, { y: 4.5 }, [externalChain], definition)).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-chain' });
-    expect(resolveAttachmentPlacement('example:lantern', externalChain.position, { y: 4.5 }, [externalChain], definition)).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'chain-lantern' });
+    expect(
+      resolveAttachmentPlacement(
+        'example:hanging',
+        externalChain.position,
+        { y: 4.5 },
+        [externalChain],
+        definition,
+      ),
+    ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-chain' });
+    expect(
+      resolveAttachmentPlacement(
+        'example:lantern',
+        externalChain.position,
+        { y: 4.5 },
+        [externalChain],
+        definition,
+      ),
+    ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'chain-lantern' });
   });
 });

@@ -7,7 +7,10 @@ import { deriveVanillaInternalBlockIds } from './vanilla-internal-content';
 
 describe('authoritative vanilla internal content producer', () => {
   it('derives internal membership from the checked-in 1.21.1 block/item reports', () => {
-    const ids = deriveVanillaInternalBlockIds(parseVanillaBlockRegistry(blockRegistryDocument), parseVanillaItemRegistry(itemRegistryDocument));
+    const ids = deriveVanillaInternalBlockIds(
+      parseVanillaBlockRegistry(blockRegistryDocument),
+      parseVanillaItemRegistry(itemRegistryDocument),
+    );
     expect(ids.has('minecraft:potted_torchflower')).toBe(true);
     expect(ids.has('minecraft:torchflower_crop')).toBe(true);
     expect(ids.has('minecraft:oak_wall_sign')).toBe(true);
@@ -19,12 +22,26 @@ describe('authoritative vanilla internal content producer', () => {
   });
 
   it('keeps fluid and technical identity outside internal content', () => {
-    const blocks = parseVanillaBlockRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test', blocks: [
-      { id: 'minecraft:potted_torchflower', properties: [], defaultState: {} },
-      { id: 'minecraft:water', properties: [{ name: 'level', values: ['0'] }], defaultState: { level: '0' } },
-      { id: 'minecraft:piston_head', properties: [], defaultState: {} },
-    ] });
-    const items = parseVanillaItemRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test', items: [] });
+    const blocks = parseVanillaBlockRegistry({
+      schemaVersion: 1,
+      minecraftVersion: '1.21.1',
+      source: 'test',
+      blocks: [
+        { id: 'minecraft:potted_torchflower', properties: [], defaultState: {} },
+        {
+          id: 'minecraft:water',
+          properties: [{ name: 'level', values: ['0'] }],
+          defaultState: { level: '0' },
+        },
+        { id: 'minecraft:piston_head', properties: [], defaultState: {} },
+      ],
+    });
+    const items = parseVanillaItemRegistry({
+      schemaVersion: 1,
+      minecraftVersion: '1.21.1',
+      source: 'test',
+      items: [],
+    });
     const ids = deriveVanillaInternalBlockIds(blocks, items);
     expect(ids).toEqual(new Set(['minecraft:potted_torchflower']));
   });

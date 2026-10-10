@@ -23,7 +23,11 @@ export function boundedProjectMutationChanges(
   return changes;
 }
 
-export function projectMutationChanges(before: ProjectDocument, after: ProjectDocument, positions: readonly VoxelCoordinate[]): readonly ProjectMutationChange[] {
+export function projectMutationChanges(
+  before: ProjectDocument,
+  after: ProjectDocument,
+  positions: readonly VoxelCoordinate[],
+): readonly ProjectMutationChange[] {
   return boundedProjectMutationChanges(
     positions,
     (position) => findBlock(before, position),
@@ -32,7 +36,10 @@ export function projectMutationChanges(before: ProjectDocument, after: ProjectDo
 }
 
 /** Equality for persisted/render-relevant block values, independent of object identity. */
-export function placedBlockValueEqual(left: PlacedBlock | undefined, right: PlacedBlock | undefined): boolean {
+export function placedBlockValueEqual(
+  left: PlacedBlock | undefined,
+  right: PlacedBlock | undefined,
+): boolean {
   return canonicalValue(left) === canonicalValue(right);
 }
 
@@ -46,5 +53,8 @@ function canonicalValue(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonicalValue).join(',')}]`;
   const record = value as Readonly<Record<string, unknown>>;
-  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalValue(record[key])}`).join(',')}}`;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalValue(record[key])}`)
+    .join(',')}}`;
 }

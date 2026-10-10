@@ -33,7 +33,9 @@ describe('viewport block index owner', () => {
 
   it('records only new lookup work and clears terminal state', () => {
     const metrics = new Map<string, number>();
-    const owner = new ViewportBlockIndexOwner((name, delta = 1) => metrics.set(name, (metrics.get(name) ?? 0) + delta));
+    const owner = new ViewportBlockIndexOwner((name, delta = 1) =>
+      metrics.set(name, (metrics.get(name) ?? 0) + delta),
+    );
     owner.ensure(project('first'));
     owner.get({ x: 0, y: 0, z: 0 });
     owner.recordLookupDelta();
@@ -52,9 +54,21 @@ function project(id: string): ProjectDocument {
     metadata: { name: id, minecraftVersion: '1.21.1', createdAt: 'initial', updatedAt: 'initial' },
     size: { x: 2, y: 2, z: 2 },
     structureMode: 'vanilla-structure-block',
-    blocks: [{ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} }],
+    blocks: [
+      {
+        kind: 'resolved',
+        id: 'minecraft:stone',
+        namespace: 'minecraft',
+        position: { x: 0, y: 0, z: 0 },
+        state: {},
+      },
+    ],
     groups: [],
-    editorSettings: { currentY: 0, layerVisibility: 'whole-structure', referenceLayerOpacity: .28 },
+    editorSettings: {
+      currentY: 0,
+      layerVisibility: 'whole-structure',
+      referenceLayerOpacity: 0.28,
+    },
     decorations: [],
   };
 }

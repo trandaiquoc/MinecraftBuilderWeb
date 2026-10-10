@@ -3,9 +3,17 @@ import { BlockLibraryService } from '../../blocks/catalog/block-library.service'
 import { ItemCatalogService } from '../../items/catalog/item-catalog.service';
 import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
 import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
-import { HUGE_STRUCTURE_BLOCKS_MAX_AXIS, VANILLA_STRUCTURE_BLOCK_MAX_AXIS } from '../../domain/structure-size-policy';
+import {
+  HUGE_STRUCTURE_BLOCKS_MAX_AXIS,
+  VANILLA_STRUCTURE_BLOCK_MAX_AXIS,
+} from '../../domain/structure-size-policy';
 import type { ProjectDocument } from '../../domain/project.types';
-import type { ExternalAiDecorationContext, ExternalAiItemContext, ExternalAiModContext, ExternalAiPromptContext } from './external-ai-prompt-builder';
+import type {
+  ExternalAiDecorationContext,
+  ExternalAiItemContext,
+  ExternalAiModContext,
+  ExternalAiPromptContext,
+} from './external-ai-prompt-builder';
 
 @Injectable({ providedIn: 'root' })
 export class ExternalAiPromptContextService {
@@ -28,7 +36,10 @@ export class ExternalAiPromptContextService {
     for (const entry of itemsCatalog.all()) {
       if (!externalSourceIds.has(entry.sourceId)) continue;
       const bucket = itemsBySource.get(entry.sourceId) ?? [];
-      bucket.push({ id: entry.id, ...(entry.maxStackSize === undefined ? {} : { maxStackSize: entry.maxStackSize }) });
+      bucket.push({
+        id: entry.id,
+        ...(entry.maxStackSize === undefined ? {} : { maxStackSize: entry.maxStackSize }),
+      });
       itemsBySource.set(entry.sourceId, bucket);
     }
     const decorationsBySource = new Map<string, ExternalAiDecorationContext[]>();
@@ -36,7 +47,12 @@ export class ExternalAiPromptContextService {
       const sourceId = entry.sourceId ?? 'vanilla';
       if (!externalSourceIds.has(sourceId)) continue;
       const bucket = decorationsBySource.get(sourceId) ?? [];
-      bucket.push({ id: entry.id.includes(':') ? entry.id : `${entry.sourceId?.split(':')[1] ?? 'minecraft'}:${entry.id}`, kind: 'painting' });
+      bucket.push({
+        id: entry.id.includes(':')
+          ? entry.id
+          : `${entry.sourceId?.split(':')[1] ?? 'minecraft'}:${entry.id}`,
+        kind: 'painting',
+      });
       decorationsBySource.set(sourceId, bucket);
     }
     const mods: ExternalAiModContext[] = assets.importedMods().map((mod) => ({
@@ -56,7 +72,11 @@ export class ExternalAiPromptContextService {
       projectContext: {
         currentSize: project.size,
         resizeSupported: true,
-        maximumSize: { x: HUGE_STRUCTURE_BLOCKS_MAX_AXIS, y: HUGE_STRUCTURE_BLOCKS_MAX_AXIS, z: HUGE_STRUCTURE_BLOCKS_MAX_AXIS },
+        maximumSize: {
+          x: HUGE_STRUCTURE_BLOCKS_MAX_AXIS,
+          y: HUGE_STRUCTURE_BLOCKS_MAX_AXIS,
+          z: HUGE_STRUCTURE_BLOCKS_MAX_AXIS,
+        },
         vanillaStructureBlockLimit: VANILLA_STRUCTURE_BLOCK_MAX_AXIS,
       },
       mods,

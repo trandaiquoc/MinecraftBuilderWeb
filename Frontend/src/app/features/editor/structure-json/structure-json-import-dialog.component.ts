@@ -15,10 +15,20 @@ type ImportDialogTab = 'import' | 'ai';
 
 @Component({
   selector: 'app-structure-json-import-dialog',
-  imports: [CdkTrapFocus, LucideCheck, LucideX, UiTooltipDirective, ExternalAiWorkspaceComponent, StructureJsonImportWorkspaceComponent],
+  imports: [
+    CdkTrapFocus,
+    LucideCheck,
+    LucideX,
+    UiTooltipDirective,
+    ExternalAiWorkspaceComponent,
+    StructureJsonImportWorkspaceComponent,
+  ],
   templateUrl: './structure-json-import-dialog.component.html',
   styleUrl: './structure-json-import-dialog.component.scss',
-  host: { '(document:keydown.escape)': 'onEscape($event)', '(document:pointerdown)': 'onDocumentPointerDown($event)' },
+  host: {
+    '(document:keydown.escape)': 'onEscape($event)',
+    '(document:pointerdown)': 'onDocumentPointerDown($event)',
+  },
 })
 export class StructureJsonImportDialogComponent {
   protected readonly i18n = inject(I18nService);
@@ -30,8 +40,15 @@ export class StructureJsonImportDialogComponent {
   protected readonly tabs: readonly ImportDialogTab[] = ['import', 'ai'];
   protected readonly importWorkspace = viewChild(StructureJsonImportWorkspaceComponent);
   protected readonly placeableItems = computed(() => this.library.allPlaceableItems());
-  protected readonly contentLimits = computed<ExternalAiContentLimits>(() => normalizeExternalAiContentLimits(this.preferences.preferences().externalAiContentLimits, this.placeableItems()));
-  protected readonly contentLimitsEnabled = computed(() => this.preferences.preferences().externalAiContentLimitsEnabled);
+  protected readonly contentLimits = computed<ExternalAiContentLimits>(() =>
+    normalizeExternalAiContentLimits(
+      this.preferences.preferences().externalAiContentLimits,
+      this.placeableItems(),
+    ),
+  );
+  protected readonly contentLimitsEnabled = computed(
+    () => this.preferences.preferences().externalAiContentLimitsEnabled,
+  );
 
   protected close(): void {
     this.importWorkspace()?.cancelPendingWork();
@@ -40,7 +57,10 @@ export class StructureJsonImportDialogComponent {
 
   protected onEscape(event: Event): void {
     const closedSelector = this.aiWorkspace()?.closeContentSelector();
-    if (closedSelector) { event.stopPropagation(); return; }
+    if (closedSelector) {
+      event.stopPropagation();
+      return;
+    }
     this.close();
   }
 
@@ -50,8 +70,12 @@ export class StructureJsonImportDialogComponent {
     this.aiWorkspace()?.closeContentSelector();
   }
 
-  protected setTab(tab: ImportDialogTab): void { this.activeTab.set(tab); }
-  protected applyImport(): void { void this.importWorkspace()?.applyImport(); }
+  protected setTab(tab: ImportDialogTab): void {
+    this.activeTab.set(tab);
+  }
+  protected applyImport(): void {
+    void this.importWorkspace()?.applyImport();
+  }
 
   private readonly aiWorkspace = viewChild(ExternalAiWorkspaceComponent);
 }

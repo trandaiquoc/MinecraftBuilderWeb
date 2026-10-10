@@ -1,25 +1,127 @@
-:host { display: block; min-height: 0; height: 100%; }
-.block-usage-panel { display: flex; flex-direction: column; gap: .65rem; min-height: 0; height: 100%; }
-.usage-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
-h2 { margin: 0; font-size: .95rem; }
-.usage-heading p { margin: .2rem 0 0; color: var(--text-muted); font-size: .7rem; }
-.usage-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
-.usage-metrics div { padding: .45rem; background: var(--surface-raised); border-radius: .35rem; }
-.usage-metrics span, .usage-metrics strong { display: block; }
-.usage-metrics span { color: var(--text-muted); font-size: .62rem; }
-.usage-metrics strong { margin-top: .15rem; font-size: .9rem; }
-.usage-search, .usage-sort { display: grid; gap: .25rem; font-size: .7rem; color: var(--text-muted); }
-.usage-search input, .usage-sort select { width: 100%; box-sizing: border-box; }
-.usage-list { min-height: 0; flex: 1 1 auto; }
-.usage-row { min-height: 72px; box-sizing: border-box; padding: .25rem 0; }
-.usage-row-button { display: flex; width: 100%; min-height: 64px; align-items: center; gap: .55rem; text-align: left; }
-.usage-row.highlighted .usage-row-button { background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
-.usage-row.missing .usage-copy small { color: var(--warning); }
-.usage-thumbnail { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; background: var(--surface-raised); border-radius: .3rem; overflow: hidden; }
-.usage-thumbnail img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
-.usage-copy { min-width: 0; display: grid; gap: .1rem; }
-.usage-copy strong, .usage-copy code, .usage-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.usage-copy strong { font-size: .77rem; }
-.usage-copy code { font-size: .62rem; color: var(--text-muted); }
-.usage-copy small { font-size: .62rem; color: var(--text-muted); }
-.usage-empty { margin: 1rem 0; text-align: center; }
+:host {
+  display: block;
+  min-height: 0;
+  height: 100%;
+}
+.block-usage-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-height: 0;
+  height: 100%;
+}
+.usage-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.usage-heading p {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.usage-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.usage-metrics div {
+  padding: 0.45rem;
+  background: var(--surface-raised);
+  border-radius: 0.35rem;
+}
+.usage-metrics span,
+.usage-metrics strong {
+  display: block;
+}
+.usage-metrics span {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+.usage-metrics strong {
+  margin-top: 0.15rem;
+  font-size: 0.9rem;
+}
+.usage-search,
+.usage-sort {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.usage-search input,
+.usage-sort select {
+  width: 100%;
+  box-sizing: border-box;
+}
+.usage-list {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.usage-row {
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 0.25rem 0;
+}
+.usage-row-button {
+  display: flex;
+  width: 100%;
+  min-height: 64px;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: left;
+}
+.usage-row.highlighted .usage-row-button {
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+}
+.usage-row.missing .usage-copy small {
+  color: var(--warning);
+}
+.usage-thumbnail {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  background: var(--surface-raised);
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+.usage-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.usage-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+.usage-copy strong,
+.usage-copy code,
+.usage-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-copy strong {
+  font-size: 0.77rem;
+}
+.usage-copy code {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+.usage-copy small {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+.usage-empty {
+  margin: 1rem 0;
+  text-align: center;
+}

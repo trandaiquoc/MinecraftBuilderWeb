@@ -8,10 +8,17 @@ export class EditingPlanePresenter {
   private editingPlane?: THREE.Mesh;
   private editingGrid?: THREE.LineSegments;
 
-  constructor(private readonly scene: THREE.Scene, private palette: ViewportThemePalette) {}
+  constructor(
+    private readonly scene: THREE.Scene,
+    private palette: ViewportThemePalette,
+  ) {}
 
-  get plane(): THREE.Mesh | undefined { return this.editingPlane; }
-  get grid(): THREE.LineSegments | undefined { return this.editingGrid; }
+  get plane(): THREE.Mesh | undefined {
+    return this.editingPlane;
+  }
+  get grid(): THREE.LineSegments | undefined {
+    return this.editingGrid;
+  }
 
   set(y: number | undefined, project: ProjectDocument | undefined): void {
     if (!project || y === undefined) {
@@ -20,7 +27,10 @@ export class EditingPlanePresenter {
       return;
     }
     if (!this.editingPlane) {
-      this.editingPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
+      this.editingPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }),
+      );
       this.editingPlane.rotation.x = -Math.PI / 2;
       this.scene.add(this.editingPlane);
     }
@@ -45,12 +55,22 @@ export class EditingPlanePresenter {
 
   applyTheme(palette: ViewportThemePalette): void {
     this.palette = palette;
-    (this.editingGrid?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(palette.editingGrid);
+    (this.editingGrid?.material as THREE.LineBasicMaterial | undefined)?.color.setHex(
+      palette.editingGrid,
+    );
   }
 
   dispose(): void {
-    if (this.editingPlane) { this.scene.remove(this.editingPlane); this.editingPlane.geometry.dispose(); (this.editingPlane.material as THREE.Material).dispose(); }
-    if (this.editingGrid) { this.scene.remove(this.editingGrid); this.editingGrid.geometry.dispose(); (this.editingGrid.material as THREE.Material).dispose(); }
+    if (this.editingPlane) {
+      this.scene.remove(this.editingPlane);
+      this.editingPlane.geometry.dispose();
+      (this.editingPlane.material as THREE.Material).dispose();
+    }
+    if (this.editingGrid) {
+      this.scene.remove(this.editingGrid);
+      this.editingGrid.geometry.dispose();
+      (this.editingGrid.material as THREE.Material).dispose();
+    }
     this.editingPlane = undefined;
     this.editingGrid = undefined;
   }

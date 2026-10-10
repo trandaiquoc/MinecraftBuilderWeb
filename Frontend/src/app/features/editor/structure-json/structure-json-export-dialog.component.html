@@ -1,41 +1,178 @@
 <div class="structure-json-backdrop" role="presentation">
-  <section class="structure-json-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('exportStructureJson')" tabindex="-1" autofocus>
+  <section
+    class="structure-json-dialog"
+    cdkTrapFocus
+    [cdkTrapFocusAutoCapture]="true"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="i18n.t('exportStructureJson')"
+    tabindex="-1"
+    autofocus
+  >
     <header class="structure-json-header">
-      <div><p class="eyebrow">MinecraftBuilder</p><h2>{{ i18n.t('exportStructureJson') }}</h2><p>{{ i18n.t('exportStructureJsonDescription') }}</p></div>
-      <button type="button" class="ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button>
+      <div>
+        <p class="eyebrow">MinecraftBuilder</p>
+        <h2>{{ i18n.t('exportStructureJson') }}</h2>
+        <p>{{ i18n.t('exportStructureJsonDescription') }}</p>
+      </div>
+      <button
+        type="button"
+        class="ui-close-button"
+        uiTooltip="{{ i18n.t('cancel') }}"
+        [attr.aria-label]="i18n.t('cancel')"
+        (click)="close()"
+      >
+        <svg lucideX aria-hidden="true"></svg>
+      </button>
     </header>
     <div class="structure-json-layout">
       <aside class="structure-json-info">
         <h3>{{ i18n.t('structureJsonInfo') }}</h3>
         <dl>
-          <div><dt>{{ i18n.t('structureJsonProject') }}</dt><dd>{{ projectName() }}</dd></div>
-          <div><dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt><dd>{{ project().metadata.minecraftVersion }}</dd></div>
-          <div><dt>{{ i18n.t('structureJsonBlockCount') }}</dt><dd>{{ blockCount() }}</dd></div>
-          <div><dt>{{ i18n.t('structureJsonDecorationCount') }}</dt><dd>{{ decorationCount() }}</dd></div>
-          <div><dt>{{ i18n.t('structureJsonFormat') }}</dt><dd>{{ i18n.t('structureJsonCurrentFormat') }}</dd></div>
+          <div>
+            <dt>{{ i18n.t('structureJsonProject') }}</dt>
+            <dd>{{ projectName() }}</dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('structureJsonMinecraftVersion') }}</dt>
+            <dd>{{ project().metadata.minecraftVersion }}</dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('structureJsonBlockCount') }}</dt>
+            <dd>{{ blockCount() }}</dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('structureJsonDecorationCount') }}</dt>
+            <dd>{{ decorationCount() }}</dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('structureJsonFormat') }}</dt>
+            <dd>{{ i18n.t('structureJsonCurrentFormat') }}</dd>
+          </div>
         </dl>
         <p class="structure-json-limitations">{{ i18n.t('structureJsonLimitations') }}</p>
-        @if (hasUnsupportedBlockEntityData()) { <p class="structure-json-validation" role="status">{{ i18n.t('structureJsonBlockEntityWarning') }}</p> }
-        @if (hasRawDecorationMetadata()) { <p class="structure-json-validation" role="status">{{ i18n.t('structureJsonRawMetadataWarning') }}</p> }
+        @if (hasUnsupportedBlockEntityData()) {
+          <p class="structure-json-validation" role="status">
+            {{ i18n.t('structureJsonBlockEntityWarning') }}
+          </p>
+        }
+        @if (hasRawDecorationMetadata()) {
+          <p class="structure-json-validation" role="status">
+            {{ i18n.t('structureJsonRawMetadataWarning') }}
+          </p>
+        }
       </aside>
       <section class="structure-json-workspace">
         <div class="structure-json-tabs" role="tablist" (keydown)="handleTabKeydown($event)">
           @for (item of tabs; track item) {
-            <button type="button" role="tab" [id]="'structure-json-tab-' + item" [attr.aria-selected]="tab() === item" [attr.aria-controls]="'structure-json-panel-' + item" [class.active]="tab() === item" (click)="setTab(item)">{{ tabLabel(item) }}</button>
+            <button
+              type="button"
+              role="tab"
+              [id]="'structure-json-tab-' + item"
+              [attr.aria-selected]="tab() === item"
+              [attr.aria-controls]="'structure-json-panel-' + item"
+              [class.active]="tab() === item"
+              (click)="setTab(item)"
+            >
+              {{ tabLabel(item) }}
+            </button>
           }
         </div>
-        <div class="structure-json-panel" role="tabpanel" [id]="'structure-json-panel-' + tab()" [attr.aria-labelledby]="'structure-json-tab-' + tab()">
+        <div
+          class="structure-json-panel"
+          role="tabpanel"
+          [id]="'structure-json-panel-' + tab()"
+          [attr.aria-labelledby]="'structure-json-tab-' + tab()"
+        >
           @if (tab() === 'structure') {
-            <div class="editor-heading"><div><strong>{{ i18n.t('structureJsonTab') }}</strong>@if (dirty()) { <span class="dirty-status">{{ i18n.t('structureJsonDirty') }}</span> } @else { <span class="saved-status">{{ i18n.t('structureJsonSaved') }}</span> }</div><div class="editor-actions"><button type="button" class="ui-button ui-button--secondary ui-button--sm" [disabled]="!dirty()" (click)="discardChanges()">{{ i18n.t('structureJsonDiscardChanges') }}</button><button type="button" class="ui-button ui-button--primary ui-button--sm" [disabled]="!dirty()" (click)="saveChanges()"><svg lucideSave aria-hidden="true"></svg>{{ i18n.t('structureJsonSaveChanges') }}</button></div></div>
-            <textarea class="structure-json-code-editor" [value]="draftJson()" (input)="setDraftJson($any($event.target).value)" [attr.aria-label]="i18n.t('structureJsonTab')" spellcheck="false"></textarea>
-            @if (validationError(); as error) { <p class="structure-json-validation" role="alert">{{ error }}</p> }
+            <div class="editor-heading">
+              <div>
+                <strong>{{ i18n.t('structureJsonTab') }}</strong>
+                @if (dirty()) {
+                  <span class="dirty-status">{{ i18n.t('structureJsonDirty') }}</span>
+                } @else {
+                  <span class="saved-status">{{ i18n.t('structureJsonSaved') }}</span>
+                }
+              </div>
+              <div class="editor-actions">
+                <button
+                  type="button"
+                  class="ui-button ui-button--secondary ui-button--sm"
+                  [disabled]="!dirty()"
+                  (click)="discardChanges()"
+                >
+                  {{ i18n.t('structureJsonDiscardChanges') }}</button
+                ><button
+                  type="button"
+                  class="ui-button ui-button--primary ui-button--sm"
+                  [disabled]="!dirty()"
+                  (click)="saveChanges()"
+                >
+                  <svg lucideSave aria-hidden="true"></svg>{{ i18n.t('structureJsonSaveChanges') }}
+                </button>
+              </div>
+            </div>
+            <textarea
+              class="structure-json-code-editor"
+              [value]="draftJson()"
+              (input)="setDraftJson($any($event.target).value)"
+              [attr.aria-label]="i18n.t('structureJsonTab')"
+              spellcheck="false"
+            ></textarea>
+            @if (validationError(); as error) {
+              <p class="structure-json-validation" role="alert">{{ error }}</p>
+            }
           }
-          @if (feedback() === 'success') { <p class="structure-json-feedback success" role="status">{{ i18n.t('structureJsonCopySuccess') }}</p> }
-          @if (feedback() === 'error') { <p class="structure-json-feedback error" role="alert">{{ i18n.t('structureJsonCopyFailed') }}</p> }
+          @if (feedback() === 'success') {
+            <p class="structure-json-feedback success" role="status">
+              {{ i18n.t('structureJsonCopySuccess') }}
+            </p>
+          }
+          @if (feedback() === 'error') {
+            <p class="structure-json-feedback error" role="alert">
+              {{ i18n.t('structureJsonCopyFailed') }}
+            </p>
+          }
         </div>
       </section>
     </div>
-    <footer class="structure-json-footer"><button type="button" class="ui-button ui-button--ghost" (click)="close()">{{ i18n.t('cancel') }}</button><div><button type="button" class="ui-button ui-button--secondary" (click)="copyJson()"><svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('copyJson') }}</button><button type="button" class="ui-button ui-button--primary" (click)="download()"><svg lucideDownload aria-hidden="true"></svg>{{ i18n.t('downloadJson') }}</button></div></footer>
-    @if (downloadGuardOpen()) { <div class="download-guard-backdrop" role="presentation"><section class="download-guard" role="alertdialog" aria-modal="true" [attr.aria-label]="i18n.t('structureJsonDownloadGuardTitle')"><h3>{{ i18n.t('structureJsonDownloadGuardTitle') }}</h3><p>{{ i18n.t('structureJsonDownloadGuardText') }}</p><div><button type="button" class="ui-button ui-button--ghost" (click)="downloadGuardOpen.set(false)">{{ i18n.t('structureJsonDownloadCancel') }}</button><button type="button" class="ui-button ui-button--secondary" (click)="downloadSaved()">{{ i18n.t('structureJsonDownloadSaved') }}</button><button type="button" class="ui-button ui-button--primary" (click)="saveAndDownload()">{{ i18n.t('structureJsonSaveAndDownload') }}</button></div></section></div> }
+    <footer class="structure-json-footer">
+      <button type="button" class="ui-button ui-button--ghost" (click)="close()">
+        {{ i18n.t('cancel') }}
+      </button>
+      <div>
+        <button type="button" class="ui-button ui-button--secondary" (click)="copyJson()">
+          <svg lucideCopy aria-hidden="true"></svg>{{ i18n.t('copyJson') }}</button
+        ><button type="button" class="ui-button ui-button--primary" (click)="download()">
+          <svg lucideDownload aria-hidden="true"></svg>{{ i18n.t('downloadJson') }}
+        </button>
+      </div>
+    </footer>
+    @if (downloadGuardOpen()) {
+      <div class="download-guard-backdrop" role="presentation">
+        <section
+          class="download-guard"
+          role="alertdialog"
+          aria-modal="true"
+          [attr.aria-label]="i18n.t('structureJsonDownloadGuardTitle')"
+        >
+          <h3>{{ i18n.t('structureJsonDownloadGuardTitle') }}</h3>
+          <p>{{ i18n.t('structureJsonDownloadGuardText') }}</p>
+          <div>
+            <button
+              type="button"
+              class="ui-button ui-button--ghost"
+              (click)="downloadGuardOpen.set(false)"
+            >
+              {{ i18n.t('structureJsonDownloadCancel') }}</button
+            ><button type="button" class="ui-button ui-button--secondary" (click)="downloadSaved()">
+              {{ i18n.t('structureJsonDownloadSaved') }}</button
+            ><button type="button" class="ui-button ui-button--primary" (click)="saveAndDownload()">
+              {{ i18n.t('structureJsonSaveAndDownload') }}
+            </button>
+          </div>
+        </section>
+      </div>
+    }
   </section>
 </div>

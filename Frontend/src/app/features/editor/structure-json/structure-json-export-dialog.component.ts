@@ -4,7 +4,12 @@ import { LucideCopy, LucideDownload, LucideSave, LucideX } from '@lucide/angular
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { sanitizeFilename } from '../../../core/persistence/file-name';
-import { hasUnsupportedProjectBlockEntities, serializeStructureJson, StructureJsonValidationCode, validateStructureJson } from '../../../core/persistence/structure-json/structure-json';
+import {
+  hasUnsupportedProjectBlockEntities,
+  serializeStructureJson,
+  StructureJsonValidationCode,
+  validateStructureJson,
+} from '../../../core/persistence/structure-json/structure-json';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 
@@ -33,55 +38,154 @@ export class StructureJsonExportDialogComponent {
   protected readonly tabs: readonly StructureJsonTab[] = ['structure'];
 
   ngOnInit(): void {
-    const snapshot = serializeStructureJson(this.project(), this.resolveMaxStackSize, this.resolveDefinition);
+    const snapshot = serializeStructureJson(
+      this.project(),
+      this.resolveMaxStackSize,
+      this.resolveDefinition,
+    );
     this.savedJson.set(snapshot);
     this.draftJson.set(snapshot);
     this.validateDraft(snapshot);
   }
 
-  protected onEscape(): void { if (this.downloadGuardOpen()) this.downloadGuardOpen.set(false); else this.close(); }
-  protected close(): void { this.closed.emit(); }
-  protected projectName(): string { return this.project().metadata.name; }
-  protected blockCount(): number { return this.project().blocks.length; }
-  protected decorationCount(): number { return this.project().decorations?.length ?? 0; }
-  protected hasRawDecorationMetadata(): boolean { return (this.project().decorations ?? []).some((decoration) => !!decoration.raw && Object.keys(decoration.raw).length > 0); }
-  protected hasUnsupportedBlockEntityData(): boolean { return hasUnsupportedProjectBlockEntities(this.project(), this.resolveDefinition); }
-  protected setTab(tab: StructureJsonTab): void { this.tab.set(tab); this.feedback.set(undefined); }
+  protected onEscape(): void {
+    if (this.downloadGuardOpen()) this.downloadGuardOpen.set(false);
+    else this.close();
+  }
+  protected close(): void {
+    this.closed.emit();
+  }
+  protected projectName(): string {
+    return this.project().metadata.name;
+  }
+  protected blockCount(): number {
+    return this.project().blocks.length;
+  }
+  protected decorationCount(): number {
+    return this.project().decorations?.length ?? 0;
+  }
+  protected hasRawDecorationMetadata(): boolean {
+    return (this.project().decorations ?? []).some(
+      (decoration) => !!decoration.raw && Object.keys(decoration.raw).length > 0,
+    );
+  }
+  protected hasUnsupportedBlockEntityData(): boolean {
+    return hasUnsupportedProjectBlockEntities(this.project(), this.resolveDefinition);
+  }
+  protected setTab(tab: StructureJsonTab): void {
+    this.tab.set(tab);
+    this.feedback.set(undefined);
+  }
   protected handleTabKeydown(event: KeyboardEvent): void {
     const index = this.tabs.indexOf(this.tab());
-    const next = event.key === 'ArrowRight' ? (index + 1) % this.tabs.length : event.key === 'ArrowLeft' ? (index + this.tabs.length - 1) % this.tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? this.tabs.length - 1 : -1;
-    if (next >= 0) { event.preventDefault(); this.setTab(this.tabs[next]); }
+    const next =
+      event.key === 'ArrowRight'
+        ? (index + 1) % this.tabs.length
+        : event.key === 'ArrowLeft'
+          ? (index + this.tabs.length - 1) % this.tabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? this.tabs.length - 1
+              : -1;
+    if (next >= 0) {
+      event.preventDefault();
+      this.setTab(this.tabs[next]);
+    }
   }
-  protected setDraftJson(value: string): void { this.draftJson.set(value); this.validationError.set(undefined); this.feedback.set(undefined); }
+  protected setDraftJson(value: string): void {
+    this.draftJson.set(value);
+    this.validationError.set(undefined);
+    this.feedback.set(undefined);
+  }
   protected saveChanges(): boolean {
     if (!this.validateDraft()) return false;
     this.savedJson.set(this.draftJson());
     this.validationError.set(undefined);
     return true;
   }
-  protected discardChanges(): void { this.draftJson.set(this.savedJson()); this.validationError.set(undefined); this.feedback.set(undefined); }
-  protected async copyJson(): Promise<void> { if (!this.validateDraft()) return; await this.copy(this.draftJson()); }
-  protected download(): void { if (!this.validateDraft()) return; if (this.dirty()) this.downloadGuardOpen.set(true); else this.downloadText(this.savedJson()); }
-  protected downloadSaved(): void { if (!this.validateDraft(this.savedJson())) return; this.downloadGuardOpen.set(false); this.downloadText(this.savedJson()); }
-  protected saveAndDownload(): void { if (this.saveChanges()) { this.downloadGuardOpen.set(false); this.downloadText(this.savedJson()); } }
-  protected tabLabel(_tab: StructureJsonTab): string { return this.i18n.t('structureJsonTab'); }
-  protected validationMessage(code: StructureJsonValidationCode | undefined, path?: string): string {
-    const key = code === 'invalid-json' ? 'structureJsonValidationInvalidJson' : code === 'format' ? 'structureJsonValidationFormat' : code === 'version' ? 'structureJsonValidationVersion' : code === 'minecraft-version' ? 'structureJsonValidationMinecraftVersion' : code === 'blocks' ? 'structureJsonValidationBlocks' : code === 'block' ? 'structureJsonValidationBlock' : code === 'block-entity' ? 'structureJsonReasonInvalidBlockEntity' : code === 'decorations' ? 'structureJsonValidationDecorations' : code === 'decoration' ? 'structureJsonValidationDecoration' : 'structureJsonValidationShape';
+  protected discardChanges(): void {
+    this.draftJson.set(this.savedJson());
+    this.validationError.set(undefined);
+    this.feedback.set(undefined);
+  }
+  protected async copyJson(): Promise<void> {
+    if (!this.validateDraft()) return;
+    await this.copy(this.draftJson());
+  }
+  protected download(): void {
+    if (!this.validateDraft()) return;
+    if (this.dirty()) this.downloadGuardOpen.set(true);
+    else this.downloadText(this.savedJson());
+  }
+  protected downloadSaved(): void {
+    if (!this.validateDraft(this.savedJson())) return;
+    this.downloadGuardOpen.set(false);
+    this.downloadText(this.savedJson());
+  }
+  protected saveAndDownload(): void {
+    if (this.saveChanges()) {
+      this.downloadGuardOpen.set(false);
+      this.downloadText(this.savedJson());
+    }
+  }
+  protected tabLabel(_tab: StructureJsonTab): string {
+    return this.i18n.t('structureJsonTab');
+  }
+  protected validationMessage(
+    code: StructureJsonValidationCode | undefined,
+    path?: string,
+  ): string {
+    const key =
+      code === 'invalid-json'
+        ? 'structureJsonValidationInvalidJson'
+        : code === 'format'
+          ? 'structureJsonValidationFormat'
+          : code === 'version'
+            ? 'structureJsonValidationVersion'
+            : code === 'minecraft-version'
+              ? 'structureJsonValidationMinecraftVersion'
+              : code === 'blocks'
+                ? 'structureJsonValidationBlocks'
+                : code === 'block'
+                  ? 'structureJsonValidationBlock'
+                  : code === 'block-entity'
+                    ? 'structureJsonReasonInvalidBlockEntity'
+                    : code === 'decorations'
+                      ? 'structureJsonValidationDecorations'
+                      : code === 'decoration'
+                        ? 'structureJsonValidationDecoration'
+                        : 'structureJsonValidationShape';
     return `${this.i18n.t(key)}${path ? ` (${path})` : ''}`;
   }
   private downloadText(value: string): void {
     const url = URL.createObjectURL(new Blob([value], { type: 'application/json;charset=utf-8' }));
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${sanitizeFilename(this.project().metadata.name)}.structure.json`; anchor.click(); URL.revokeObjectURL(url);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${sanitizeFilename(this.project().metadata.name)}.structure.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
   private validateDraft(value = this.draftJson()): boolean {
     const result = validateStructureJson(value, this.resolveDefinition, this.resolveMaxStackSize);
-    if (!result.valid) { this.validationError.set(this.validationMessage(result.code, result.path)); this.tab.set('structure'); return false; }
+    if (!result.valid) {
+      this.validationError.set(this.validationMessage(result.code, result.path));
+      this.tab.set('structure');
+      return false;
+    }
     this.validationError.set(undefined);
     return true;
   }
   private readonly resolveDefinition = (id: string) => this.library.get(id);
   private readonly resolveMaxStackSize = (id: string) => this.library.maxStackSizeFor(id);
   private async copy(value: string): Promise<void> {
-    try { if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(value); this.feedback.set('success'); } catch { this.feedback.set('error'); }
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText)
+        throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(value);
+      this.feedback.set('success');
+    } catch {
+      this.feedback.set('error');
+    }
   }
 }

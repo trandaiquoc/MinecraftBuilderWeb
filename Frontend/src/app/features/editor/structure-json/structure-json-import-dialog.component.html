@@ -1,9 +1,49 @@
 <div class="structure-json-backdrop" role="presentation">
-  <section class="structure-json-dialog" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('importStructureJson')" tabindex="-1" autofocus>
-    <header class="structure-json-header"><div><p class="eyebrow">MinecraftBuilder</p><h2>{{ i18n.t('importStructureJson') }}</h2><p>{{ i18n.t('structureJsonImportDescription') }}</p></div><button type="button" class="ui-close-button" uiTooltip="{{ i18n.t('cancel') }}" [attr.aria-label]="i18n.t('cancel')" (click)="close()"><svg lucideX aria-hidden="true"></svg></button></header>
-    <div class="structure-json-tabs" role="tablist" [attr.aria-label]="i18n.t('structureJsonImportTabs')">
+  <section
+    class="structure-json-dialog"
+    cdkTrapFocus
+    [cdkTrapFocusAutoCapture]="true"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="i18n.t('importStructureJson')"
+    tabindex="-1"
+    autofocus
+  >
+    <header class="structure-json-header">
+      <div>
+        <p class="eyebrow">MinecraftBuilder</p>
+        <h2>{{ i18n.t('importStructureJson') }}</h2>
+        <p>{{ i18n.t('structureJsonImportDescription') }}</p>
+      </div>
+      <button
+        type="button"
+        class="ui-close-button"
+        uiTooltip="{{ i18n.t('cancel') }}"
+        [attr.aria-label]="i18n.t('cancel')"
+        (click)="close()"
+      >
+        <svg lucideX aria-hidden="true"></svg>
+      </button>
+    </header>
+    <div
+      class="structure-json-tabs"
+      role="tablist"
+      [attr.aria-label]="i18n.t('structureJsonImportTabs')"
+    >
       @for (item of tabs; track item) {
-        <button type="button" role="tab" [attr.aria-selected]="activeTab() === item" [class.active]="activeTab() === item" (click)="setTab(item)">{{ item === 'import' ? i18n.t('structureJsonImportTab') : i18n.t('structureJsonImportAiTab') }}</button>
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="activeTab() === item"
+          [class.active]="activeTab() === item"
+          (click)="setTab(item)"
+        >
+          {{
+            item === 'import'
+              ? i18n.t('structureJsonImportTab')
+              : i18n.t('structureJsonImportAiTab')
+          }}
+        </button>
       }
     </div>
     <div class="structure-json-body" [class.ai-mode]="activeTab() === 'ai'">
@@ -26,7 +66,14 @@
     <footer class="structure-json-footer">
       <span class="muted">{{ i18n.t('structureJsonImportReadOnly') }}</span>
       @if (activeTab() === 'import' && importWorkspace()?.hasPlan()) {
-        <button type="button" class="ui-button ui-button--primary" [disabled]="!importWorkspace()?.canApplyImport()" (click)="applyImport()"><svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('structureJsonApplyImport') }}</button>
+        <button
+          type="button"
+          class="ui-button ui-button--primary"
+          [disabled]="!importWorkspace()?.canApplyImport()"
+          (click)="applyImport()"
+        >
+          <svg lucideCheck aria-hidden="true"></svg>{{ i18n.t('structureJsonApplyImport') }}
+        </button>
       }
     </footer>
   </section>

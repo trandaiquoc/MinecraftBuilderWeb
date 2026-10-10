@@ -1,12 +1,34 @@
 import { describe, expect, it, vi } from 'vitest';
-import { sanitizeTraceScenario, stableTraceJson, viewportTraceFilename } from './viewport-trace-export';
+import {
+  sanitizeTraceScenario,
+  stableTraceJson,
+  viewportTraceFilename,
+} from './viewport-trace-export';
 import type { TraceDurationSummary } from './viewport-trace-statistics';
 import { ViewportRuntimeTrace, type ViewportTraceSample } from './viewport-runtime-trace';
 
 function sample(overrides: Partial<ViewportTraceSample> = {}): ViewportTraceSample {
   return {
-    camera: { position: { x: 0, y: 0, z: 5 }, target: { x: 0, y: 0, z: 0 }, offset: { x: 0, y: 0, z: 5 }, distance: 5, direction: { x: 0, y: 0, z: -1 }, quaternion: [0, 0, 0, 1], up: { x: 0, y: 1, z: 0 }, fov: 45, aspect: 1 },
-    hydration: { completed: 0, generation: 1 }, counters: { actualSceneRenders: 0, cameraRenderRequests: 0, cameraRenderRequestsCoalesced: 0, structuralReconciles: 0, fullSceneRebuilds: 0, terrainBulkBatches: 0 },
+    camera: {
+      position: { x: 0, y: 0, z: 5 },
+      target: { x: 0, y: 0, z: 0 },
+      offset: { x: 0, y: 0, z: 5 },
+      distance: 5,
+      direction: { x: 0, y: 0, z: -1 },
+      quaternion: [0, 0, 0, 1],
+      up: { x: 0, y: 1, z: 0 },
+      fov: 45,
+      aspect: 1,
+    },
+    hydration: { completed: 0, generation: 1 },
+    counters: {
+      actualSceneRenders: 0,
+      cameraRenderRequests: 0,
+      cameraRenderRequestsCoalesced: 0,
+      structuralReconciles: 0,
+      fullSceneRebuilds: 0,
+      terrainBulkBatches: 0,
+    },
     render: { frameDurationMs: 16, renderCpuMs: 1, drawCalls: 2, triangles: 12 },
     generations: { providerGeneration: 1 },
     ...overrides,
@@ -15,11 +37,21 @@ function sample(overrides: Partial<ViewportTraceSample> = {}): ViewportTraceSamp
 
 describe('ViewportRuntimeTrace', () => {
   it('records lifecycle, marks, summary and stable JSON', () => {
-    const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 12, minecraftVersion: '1.21.1' }), sample: () => sample({ staticModels: { standaloneLogical: 4, standaloneReasonCounts: { transparent: 2 } }, fluids: { fluidLogicalVoxels: 16, fluidChunkMeshes: 1, fluidStandaloneMeshes: 0 } }) });
-    trace.start('idle-build'); trace.mark('checkpoint');
+    const trace = new ViewportRuntimeTrace({
+      metadata: () => ({ projectBlocks: 12, minecraftVersion: '1.21.1' }),
+      sample: () =>
+        sample({
+          staticModels: { standaloneLogical: 4, standaloneReasonCounts: { transparent: 2 } },
+          fluids: { fluidLogicalVoxels: 16, fluidChunkMeshes: 1, fluidStandaloneMeshes: 0 },
+        }),
+    });
+    trace.start('idle-build');
+    trace.mark('checkpoint');
     const document = trace.stop();
     expect(document?.schema).toBe('minecraftbuilder.viewport-trace.v1');
-    expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['trace-start', 'mark', 'trace-stop']));
+    expect(document?.timeline.map((event) => event.type)).toEqual(
+      expect.arrayContaining(['trace-start', 'mark', 'trace-stop']),
+    );
     expect(document?.metadata['projectBlocks']).toBe(12);
     expect(document?.samples.at(-1)?.staticModels?.['standaloneLogical']).toBe(4);
     expect(document?.summary.staticModels['standaloneLogical']).toBe(4);
@@ -34,8 +66,14 @@ describe('ViewportRuntimeTrace', () => {
     let heavyCalls = 0;
     const trace = new ViewportRuntimeTrace({
       metadata: () => ({}),
-      sample: () => { lightCalls += 1; return sample({ staticModels: { available: false } }); },
-      checkpoint: () => { heavyCalls += 1; return sample({ staticModels: { available: true, standaloneLogical: 4 } }); },
+      sample: () => {
+        lightCalls += 1;
+        return sample({ staticModels: { available: false } });
+      },
+      checkpoint: () => {
+        heavyCalls += 1;
+        return sample({ staticModels: { available: true, standaloneLogical: 4 } });
+      },
     });
     trace.start('sample-cost');
     for (let index = 0; index < 100; index += 1) trace.captureSample('interval');
@@ -46,7 +84,10 @@ describe('ViewportRuntimeTrace', () => {
     const document = trace.stop();
     expect(heavyCalls).toBe(2);
     expect(lightCalls).toBe(102); // start + 100 explicit light samples + final light sample
-    expect(document?.checkpoints.map((checkpoint) => checkpoint.label)).toEqual(['BASELINE', 'FINAL']);
+    expect(document?.checkpoints.map((checkpoint) => checkpoint.label)).toEqual([
+      'BASELINE',
+      'FINAL',
+    ]);
     expect(document?.summary.traceSampleMs.observedCount).toBe(102);
     expect(document?.summary.lightSampleMs.observedCount).toBe(102);
     expect(document?.summary.heavyCheckpointMs.observedCount).toBe(2);
@@ -58,7 +99,10 @@ describe('ViewportRuntimeTrace', () => {
     const trace = new ViewportRuntimeTrace({
       metadata: () => ({}),
       sample: () => sample(),
-      checkpoint: () => { lifecycle.push('heavy-final'); return sample(); },
+      checkpoint: () => {
+        lifecycle.push('heavy-final');
+        return sample();
+      },
       onObservationStop: () => lifecycle.push('observation-stop'),
     });
     trace.start('final-order');
@@ -85,11 +129,28 @@ describe('ViewportRuntimeTrace', () => {
     trace.start('rmb-first');
     trace.record('controls-start');
     trace.record('movement-keydown', { action: 'forward' });
-    current = sample({ camera: { ...current.camera!, offset: { x: 1, y: 0, z: 5 }, position: { x: 1, y: 0, z: 5 }, direction: { x: .2, y: 0, z: -.98 } }, hydration: { completed: -1, generation: 2 }, generations: { providerGeneration: 2 } });
+    current = sample({
+      camera: {
+        ...current.camera!,
+        offset: { x: 1, y: 0, z: 5 },
+        position: { x: 1, y: 0, z: 5 },
+        direction: { x: 0.2, y: 0, z: -0.98 },
+      },
+      hydration: { completed: -1, generation: 2 },
+      generations: { providerGeneration: 2 },
+    });
     trace.captureSample('changed');
     const document = trace.stop();
     const types = document?.summary.anomalies.map((entry) => entry.type) ?? [];
-    expect(types).toEqual(expect.arrayContaining(['progress-regression', 'generation-changed-during-camera-only', 'provider-generation-changed-during-camera-only', 'camera-offset-drift-during-translation', 'camera-direction-drift-during-translation']));
+    expect(types).toEqual(
+      expect.arrayContaining([
+        'progress-regression',
+        'generation-changed-during-camera-only',
+        'provider-generation-changed-during-camera-only',
+        'camera-offset-drift-during-translation',
+        'camera-direction-drift-during-translation',
+      ]),
+    );
   });
 
   it('does not fail when PerformanceObserver is unavailable', () => {
@@ -99,7 +160,8 @@ describe('ViewportRuntimeTrace', () => {
     expect(trace.stop()).toBeUndefined();
     trace.start('unsupported');
     expect(trace.stop()?.summary.responsiveness.longTaskObserverSupported).toBe(false);
-    if (original) vi.stubGlobal('PerformanceObserver', original); else vi.unstubAllGlobals();
+    if (original) vi.stubGlobal('PerformanceObserver', original);
+    else vi.unstubAllGlobals();
   });
 
   it('retains critical marks while hydration progress floods the recorder', () => {
@@ -107,7 +169,13 @@ describe('ViewportRuntimeTrace', () => {
     trace.start('all-in-one-final');
     trace.mark('rmb-first');
     for (let completed = 0; completed < 100_000; completed += 1) {
-      trace.record('hydration-progress', { status: completed === 99_999 ? 'complete' : 'hydrating', generation: 1, completed, total: 100_000, percent: completed / 1_000 });
+      trace.record('hydration-progress', {
+        status: completed === 99_999 ? 'complete' : 'hydrating',
+        generation: 1,
+        completed,
+        total: 100_000,
+        percent: completed / 1_000,
+      });
     }
     trace.mark('rmb-second');
     trace.mark('mmb');
@@ -115,7 +183,9 @@ describe('ViewportRuntimeTrace', () => {
     trace.mark('wasd-near');
     trace.mark('wheel');
     const document = trace.stop();
-    const marks = document?.timeline.filter((event) => event.type === 'mark').map((event) => event.payload?.['label']);
+    const marks = document?.timeline
+      .filter((event) => event.type === 'mark')
+      .map((event) => event.payload?.['label']);
     expect(marks).toEqual(['rmb-first', 'rmb-second', 'mmb', 'wasd-far', 'wasd-near', 'wheel']);
     expect(document?.summary.hydration.endCompleted).toBe(99_999);
     expect(document?.summary.recorder['throttledHydrationEvents']).toBeGreaterThan(99_000);
@@ -125,7 +195,13 @@ describe('ViewportRuntimeTrace', () => {
     const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
     trace.start('bounded');
     for (let completed = 0; completed < 10_000; completed += 1) {
-      trace.record('hydration-progress', { status: 'hydrating', generation: 3, completed, total: 10_000, percent: completed / 100 });
+      trace.record('hydration-progress', {
+        status: 'hydrating',
+        generation: 3,
+        completed,
+        total: 10_000,
+        percent: completed / 100,
+      });
       trace.record('render-frame', { frame: completed });
       trace.record('render-request', { request: completed });
     }
@@ -152,9 +228,11 @@ describe('ViewportRuntimeTrace', () => {
   it('reports observed duration counts separately from bounded percentile samples', () => {
     const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => sample() });
     trace.start('durations');
-    for (let index = 0; index < 10_000; index += 1) trace.recordDuration('provider.create', index % 17);
+    for (let index = 0; index < 10_000; index += 1)
+      trace.recordDuration('provider.create', index % 17);
     const document = trace.stop();
-    const durations = document?.summary.build['durationSamples'] as Record<string, TraceDurationSummary> | undefined;
+    const durations = document?.summary.build['durationSamples'] as
+      Record<string, TraceDurationSummary> | undefined;
     expect(durations?.['provider.create'].observedCount).toBe(10_000);
     expect(durations?.['provider.create'].storedSampleCount).toBe(256);
     expect(durations?.['provider.create'].droppedSampleCount).toBe(9_744);
@@ -167,52 +245,136 @@ describe('ViewportRuntimeTrace', () => {
     trace.start('segments');
     trace.record('controls-start');
     trace.mark('rmb-first');
-    for (let index = 0; index < 2_000; index += 1) trace.record('hydration-progress', { status: 'hydrating', generation: 1, completed: index, total: 2_000 });
+    for (let index = 0; index < 2_000; index += 1)
+      trace.record('hydration-progress', {
+        status: 'hydrating',
+        generation: 1,
+        completed: index,
+        total: 2_000,
+      });
     trace.mark('rmb-second');
     trace.mark('wasd-far');
     trace.mark('wheel');
     const document = trace.stop();
-    expect(document?.summary.segments).toEqual(expect.objectContaining({ 'rmb-first': expect.any(Object), 'rmb-second': expect.any(Object), 'wasd-far': expect.any(Object), wheel: expect.any(Object) }));
-    expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['controls-start', 'first-gesture-before']));
+    expect(document?.summary.segments).toEqual(
+      expect.objectContaining({
+        'rmb-first': expect.any(Object),
+        'rmb-second': expect.any(Object),
+        'wasd-far': expect.any(Object),
+        wheel: expect.any(Object),
+      }),
+    );
+    expect(document?.timeline.map((event) => event.type)).toEqual(
+      expect.arrayContaining(['controls-start', 'first-gesture-before']),
+    );
   });
 
   it('emits before/after counter deltas for each named runtime phase', () => {
-    let current = sample({ counters: { actualSceneRenders: 2, fullSceneRebuilds: 1, terrainChunkRebuilds: 4, instancedMembers: 10, surfaceFastPathBlocks: 10, exposedFaceInstances: 30, neighborFacesCulled: 40 } });
-    const trace = new ViewportRuntimeTrace({ metadata: () => ({ projectBlocks: 110_592 }), sample: () => current });
+    let current = sample({
+      counters: {
+        actualSceneRenders: 2,
+        fullSceneRebuilds: 1,
+        terrainChunkRebuilds: 4,
+        instancedMembers: 10,
+        surfaceFastPathBlocks: 10,
+        exposedFaceInstances: 30,
+        neighborFacesCulled: 40,
+      },
+    });
+    const trace = new ViewportRuntimeTrace({
+      metadata: () => ({ projectBlocks: 110_592 }),
+      sample: () => current,
+    });
     trace.start('16d-a');
     trace.mark('LOCAL_PLACE');
-    current = sample({ counters: { actualSceneRenders: 3, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 7, instancedMembers: 4, surfaceFastPathBlocks: 4, exposedFaceInstances: 12, neighborFacesCulled: 20 } });
+    current = sample({
+      counters: {
+        actualSceneRenders: 3,
+        fullSceneRebuilds: 1,
+        terrainChunkRebuilds: 5,
+        incrementalChangedVoxels: 7,
+        instancedMembers: 4,
+        surfaceFastPathBlocks: 4,
+        exposedFaceInstances: 12,
+        neighborFacesCulled: 20,
+      },
+    });
     trace.mark('LOCAL_DELETE');
-    current = sample({ counters: { actualSceneRenders: 4, fullSceneRebuilds: 1, terrainChunkRebuilds: 5, incrementalChangedVoxels: 8, instancedMembers: 7, surfaceFastPathBlocks: 9, exposedFaceInstances: 18, neighborFacesCulled: 25 } });
+    current = sample({
+      counters: {
+        actualSceneRenders: 4,
+        fullSceneRebuilds: 1,
+        terrainChunkRebuilds: 5,
+        incrementalChangedVoxels: 8,
+        instancedMembers: 7,
+        surfaceFastPathBlocks: 9,
+        exposedFaceInstances: 18,
+        neighborFacesCulled: 25,
+      },
+    });
     trace.mark('GAUGE_INCREASE');
     const document = trace.stop();
     const phase = document?.summary.segments['LOCAL_PLACE'];
     expect(phase).toMatchObject({
       before: expect.objectContaining({ fullSceneRebuilds: 1, terrainChunkRebuilds: 4 }),
       after: expect.objectContaining({ terrainChunkRebuilds: 5 }),
-      counterDeltas: expect.objectContaining({ fullSceneRebuilds: 0, terrainChunkRebuilds: 1, actualSceneRenders: 1 }),
-      gaugeDeltas: expect.objectContaining({ instancedMembers: -6, surfaceFastPathBlocks: -6, exposedFaceInstances: -18, neighborFacesCulled: -20 }),
+      counterDeltas: expect.objectContaining({
+        fullSceneRebuilds: 0,
+        terrainChunkRebuilds: 1,
+        actualSceneRenders: 1,
+      }),
+      gaugeDeltas: expect.objectContaining({
+        instancedMembers: -6,
+        surfaceFastPathBlocks: -6,
+        exposedFaceInstances: -18,
+        neighborFacesCulled: -20,
+      }),
     });
     expect(phase?.['counterDeltas']).not.toHaveProperty('instancedMembers');
     expect(phase?.['counterDeltas']).not.toHaveProperty('surfaceFastPathBlocks');
     expect(phase?.['counterDeltas']).not.toHaveProperty('exposedFaceInstances');
     expect(phase?.['counterDeltas']).not.toHaveProperty('neighborFacesCulled');
     expect(document?.summary.segments['LOCAL_DELETE']).toMatchObject({
-      gaugeDeltas: { instancedMembers: 3, surfaceFastPathBlocks: 5, exposedFaceInstances: 6, neighborFacesCulled: 5 },
+      gaugeDeltas: {
+        instancedMembers: 3,
+        surfaceFastPathBlocks: 5,
+        exposedFaceInstances: 6,
+        neighborFacesCulled: 5,
+      },
     });
-    expect(document?.summary.segments['LOCAL_DELETE']?.['counterDeltas']).not.toHaveProperty('neighborFacesCulled');
+    expect(document?.summary.segments['LOCAL_DELETE']?.['counterDeltas']).not.toHaveProperty(
+      'neighborFacesCulled',
+    );
   });
 
   it('keeps regressions and generation evidence as critical timeline events', () => {
     let current = sample({ hydration: { completed: 10, generation: 1 } });
     const trace = new ViewportRuntimeTrace({ metadata: () => ({}), sample: () => current });
     trace.start('anomalies');
-    trace.record('hydration-progress', { status: 'hydrating', generation: 1, completed: 10, total: 20 });
-    trace.record('hydration-progress', { status: 'hydrating', generation: 2, completed: 1, total: 20 });
-    current = sample({ hydration: { completed: 1, generation: 2 }, generations: { providerGeneration: 2 } });
+    trace.record('hydration-progress', {
+      status: 'hydrating',
+      generation: 1,
+      completed: 10,
+      total: 20,
+    });
+    trace.record('hydration-progress', {
+      status: 'hydrating',
+      generation: 2,
+      completed: 1,
+      total: 20,
+    });
+    current = sample({
+      hydration: { completed: 1, generation: 2 },
+      generations: { providerGeneration: 2 },
+    });
     trace.captureSample('generation-change');
     const document = trace.stop();
-    expect(document?.timeline.map((event) => event.type)).toEqual(expect.arrayContaining(['anomaly:progress-regression', 'anomaly:hydration-generation-change']));
+    expect(document?.timeline.map((event) => event.type)).toEqual(
+      expect.arrayContaining([
+        'anomaly:progress-regression',
+        'anomaly:hydration-generation-change',
+      ]),
+    );
     expect(document?.summary.hydration.progressRegressionCount).toBeGreaterThan(0);
   });
 });

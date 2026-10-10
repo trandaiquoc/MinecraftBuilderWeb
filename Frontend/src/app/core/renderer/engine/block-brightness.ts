@@ -9,7 +9,9 @@ export function blockBrightnessMaterialFactor(value: number): number {
 }
 
 /** The guide uses a separate semantic scale and intentionally is not clamped to the user setting. */
-export function structureGuideBrightnessMaterialFactor(value: number = STRUCTURE_GUIDE_BRIGHTNESS): number {
+export function structureGuideBrightnessMaterialFactor(
+  value: number = STRUCTURE_GUIDE_BRIGHTNESS,
+): number {
   return brightnessMaterialFactor(value, 20);
 }
 
@@ -28,7 +30,12 @@ function materialColor(material: ColorMaterial): THREE.Color | undefined {
 
 function storedBaseColor(material: ColorMaterial): StoredColor | undefined {
   const value = material.userData[BASE_COLOR_KEY] as unknown;
-  if (!Array.isArray(value) || value.length !== 3 || value.some((channel) => typeof channel !== 'number' || !Number.isFinite(channel))) return undefined;
+  if (
+    !Array.isArray(value) ||
+    value.length !== 3 ||
+    value.some((channel) => typeof channel !== 'number' || !Number.isFinite(channel))
+  )
+    return undefined;
   return [value[0], value[1], value[2]];
 }
 
@@ -43,7 +50,7 @@ export function setBlockBrightnessBaseColor(material: ColorMaterial, color?: THR
 export function applyBlockBrightnessToMaterial(material: ColorMaterial, value: number): void {
   const color = materialColor(material);
   if (!color) return;
-  const base = storedBaseColor(material) ?? [color.r, color.g, color.b] satisfies StoredColor;
+  const base = storedBaseColor(material) ?? ([color.r, color.g, color.b] satisfies StoredColor);
   material.userData[BASE_COLOR_KEY] = base;
   const factor = blockBrightnessMaterialFactor(value);
   color.setRGB(base[0] * factor, base[1] * factor, base[2] * factor);
@@ -109,11 +116,16 @@ function structureGuideMaterial(material: THREE.Material, brightness: number): T
 }
 
 /** Applies the independent Structure Block guide brightness once to a newly-created visual. */
-export function applyStructureGuideBrightnessToObject(root: THREE.Object3D, brightness: number = STRUCTURE_GUIDE_BRIGHTNESS): void {
+export function applyStructureGuideBrightnessToObject(
+  root: THREE.Object3D,
+  brightness: number = STRUCTURE_GUIDE_BRIGHTNESS,
+): void {
   root.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    const guideMaterials = materials.map((material) => structureGuideMaterial(material, brightness));
+    const guideMaterials = materials.map((material) =>
+      structureGuideMaterial(material, brightness),
+    );
     object.material = Array.isArray(object.material) ? guideMaterials : guideMaterials[0];
   });
 }

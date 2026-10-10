@@ -22,7 +22,12 @@ export function deriveVanillaInternalBlockIds(
   const internal = new Set<string>();
   for (const block of blocks.all()) {
     if (!block.id.startsWith('minecraft:') || itemIds.has(block.id)) continue;
-    if (VANILLA_NON_INTERNAL_WORLD_IDS.has(block.id) || isTechnicalBlockId(block.id) || isDecorationEntityId(block.id)) continue;
+    if (
+      VANILLA_NON_INTERNAL_WORLD_IDS.has(block.id) ||
+      isTechnicalBlockId(block.id) ||
+      isDecorationEntityId(block.id)
+    )
+      continue;
     internal.add(block.id);
   }
   return internal;

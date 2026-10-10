@@ -29,7 +29,10 @@ export interface PlaceholderBatchRendererOptions {
 /** Owns coarse occupancy meshes used while real visuals hydrate. */
 export class PlaceholderBatchRenderer {
   private readonly batchStore = new Map<string, PlaceholderBatch>();
-  private readonly indexStore = new Map<string, { readonly batchKey: string; readonly index: number }>();
+  private readonly indexStore = new Map<
+    string,
+    { readonly batchKey: string; readonly index: number }
+  >();
   private readonly translation = new THREE.Matrix4();
   private layerPresentation?: {
     readonly visibleLayers: ReadonlySet<number>;
@@ -40,10 +43,19 @@ export class PlaceholderBatchRenderer {
 
   constructor(private readonly options: PlaceholderBatchRendererOptions) {}
 
-  get batches(): ReadonlyMap<string, PlaceholderBatch> { return this.batchStore; }
-  get indices(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> { return this.indexStore; }
+  get batches(): ReadonlyMap<string, PlaceholderBatch> {
+    return this.batchStore;
+  }
+  get indices(): ReadonlyMap<string, { readonly batchKey: string; readonly index: number }> {
+    return this.indexStore;
+  }
 
-  ensure(key: string, position: VoxelCoordinate, role: PlaceholderRole, groupIds: readonly string[] = []): void {
+  ensure(
+    key: string,
+    position: VoxelCoordinate,
+    role: PlaceholderRole,
+    groupIds: readonly string[] = [],
+  ): void {
     if (this.indexStore.has(key)) return;
     const normalizedGroups = this.layerPresentation ? [...new Set(groupIds)].sort() : [];
     const batchKey = this.batchKey(role, position, normalizedGroups);
@@ -53,18 +65,29 @@ export class PlaceholderBatchRenderer {
     batch.mesh.instanceMatrix.needsUpdate = true;
   }
 
-  ensureBulk(entries: readonly { readonly key: string; readonly position: VoxelCoordinate; readonly role: PlaceholderRole; readonly groupIds?: readonly string[] }[]): void {
+  ensureBulk(
+    entries: readonly {
+      readonly key: string;
+      readonly position: VoxelCoordinate;
+      readonly role: PlaceholderRole;
+      readonly groupIds?: readonly string[];
+    }[],
+  ): void {
     const touched = new Set<string>();
     for (const entry of entries) {
       if (this.indexStore.has(entry.key)) continue;
-      const normalizedGroups = this.layerPresentation ? [...new Set(entry.groupIds ?? [])].sort() : [];
+      const normalizedGroups = this.layerPresentation
+        ? [...new Set(entry.groupIds ?? [])].sort()
+        : [];
       const batchKey = this.batchKey(entry.role, entry.position, normalizedGroups);
       const batch = this.getBatch(batchKey, entry.role, entry.position, normalizedGroups);
       if (batch.keys.length >= batch.capacity) continue;
       this.insert(batch, entry.key, entry.position);
       touched.add(batchKey);
     }
-    for (const key of touched) this.batchStore.get(key)?.mesh.instanceMatrix && (this.batchStore.get(key)!.mesh.instanceMatrix.needsUpdate = true);
+    for (const key of touched)
+      this.batchStore.get(key)?.mesh.instanceMatrix &&
+        (this.batchStore.get(key)!.mesh.instanceMatrix.needsUpdate = true);
   }
 
   remove(key: string): void {
@@ -114,11 +137,23 @@ export class PlaceholderBatchRenderer {
     this.layerPresentation = undefined;
   }
 
-  setLayerPresentation(visibleLayers: ReadonlySet<number>, currentY: number, hiddenGroupIds: ReadonlySet<string>, isolatedGroupId?: string): void {
+  setLayerPresentation(
+    visibleLayers: ReadonlySet<number>,
+    currentY: number,
+    hiddenGroupIds: ReadonlySet<string>,
+    isolatedGroupId?: string,
+  ): void {
     this.layerPresentation = { visibleLayers, currentY, hiddenGroupIds, isolatedGroupId };
     for (const batch of this.batchStore.values()) {
       batch.mesh.visible = this.isVisible(batch);
-      this.setBatchRole(batch, batch.baseRole === 'missing' ? 'missing' : batch.layer === currentY ? 'normal' : 'reference');
+      this.setBatchRole(
+        batch,
+        batch.baseRole === 'missing'
+          ? 'missing'
+          : batch.layer === currentY
+            ? 'normal'
+            : 'reference',
+      );
     }
   }
 
@@ -130,11 +165,18 @@ export class PlaceholderBatchRenderer {
     }
   }
 
-  private getBatch(batchKey: string, role: PlaceholderRole, position: VoxelCoordinate, groupIds: readonly string[]): PlaceholderBatch {
+  private getBatch(
+    batchKey: string,
+    role: PlaceholderRole,
+    position: VoxelCoordinate,
+    groupIds: readonly string[],
+  ): PlaceholderBatch {
     const existing = this.batchStore.get(batchKey);
     if (existing) return existing;
     const baseMaterial = this.options.materials[role].clone();
-    const capacity = this.layerPresentation ? this.options.layerCapacity ?? this.options.capacity : this.options.capacity;
+    const capacity = this.layerPresentation
+      ? (this.options.layerCapacity ?? this.options.capacity)
+      : this.options.capacity;
     const mesh = new THREE.InstancedMesh(this.options.geometry, baseMaterial, capacity);
     mesh.count = 0;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -149,19 +191,40 @@ export class PlaceholderBatchRenderer {
     mesh.boundingBox = this.options.chunkBounds(this.options.chunkKey(position));
     mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
     this.options.recordBounds();
-    const batch: PlaceholderBatch = { key: batchKey, layer, groupIds, baseRole: role, role, capacity, mesh, keys: [], positions: [] };
+    const batch: PlaceholderBatch = {
+      key: batchKey,
+      layer,
+      groupIds,
+      baseRole: role,
+      role,
+      capacity,
+      mesh,
+      keys: [],
+      positions: [],
+    };
     this.batchStore.set(batchKey, batch);
     if (this.layerPresentation) {
       batch.mesh.visible = this.isVisible(batch);
-      this.setBatchRole(batch, role === 'missing' ? 'missing' : layer === this.layerPresentation.currentY ? 'normal' : 'reference');
+      this.setBatchRole(
+        batch,
+        role === 'missing'
+          ? 'missing'
+          : layer === this.layerPresentation.currentY
+            ? 'normal'
+            : 'reference',
+      );
     }
     return batch;
   }
 
-  private batchKey(role: PlaceholderRole, position: VoxelCoordinate, groupIds: readonly string[]): string {
+  private batchKey(
+    role: PlaceholderRole,
+    position: VoxelCoordinate,
+    groupIds: readonly string[],
+  ): string {
     const layer = this.layerPresentation ? Math.trunc(position.y) : -1;
     const groupKey = groupIds.join('\u001f');
-    const roleKey = this.layerPresentation ? role === 'missing' ? 'missing' : 'block' : role;
+    const roleKey = this.layerPresentation ? (role === 'missing' ? 'missing' : 'block') : role;
     return `${roleKey}|${layer}|${groupKey}|${this.options.chunkKey(position)}`;
   }
 
@@ -179,7 +242,7 @@ export class PlaceholderBatchRenderer {
     const material = batch.mesh.material as THREE.Material;
     if (role === 'reference') {
       material.transparent = true;
-      material.opacity = .24;
+      material.opacity = 0.24;
       material.depthWrite = false;
     } else if (role !== 'missing') {
       const base = this.options.materials[batch.baseRole];
@@ -206,8 +269,16 @@ export class PlaceholderBatchRenderer {
     this.indexStore.set(key, { batchKey: batch.key, index });
   }
 
-  private setInstance(batch: PlaceholderBatch, index: number, key: string, position: VoxelCoordinate): void {
-    batch.mesh.setMatrixAt(index, this.translation.makeTranslation(position.x + .5, position.y + .5, position.z + .5));
+  private setInstance(
+    batch: PlaceholderBatch,
+    index: number,
+    key: string,
+    position: VoxelCoordinate,
+  ): void {
+    batch.mesh.setMatrixAt(
+      index,
+      this.translation.makeTranslation(position.x + 0.5, position.y + 0.5, position.z + 0.5),
+    );
     const voxels = batch.mesh.userData['instanceVoxels'] as VoxelCoordinate[];
     const keys = batch.mesh.userData['instanceKeys'] as string[];
     voxels[index] = { ...position };

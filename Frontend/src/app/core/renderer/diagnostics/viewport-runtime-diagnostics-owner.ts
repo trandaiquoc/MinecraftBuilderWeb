@@ -1,4 +1,7 @@
-import type { ViewportGhostSceneSnapshot, ViewportInstanceOwnershipEvent } from './viewport-diagnostics-contracts';
+import type {
+  ViewportGhostSceneSnapshot,
+  ViewportInstanceOwnershipEvent,
+} from './viewport-diagnostics-contracts';
 
 /** Owns mutable diagnostic history and its bounded lifecycle. */
 export class ViewportRuntimeDiagnosticsOwner {
@@ -7,10 +10,18 @@ export class ViewportRuntimeDiagnosticsOwner {
   private readonly emptyTransitionSnapshotsValue: ViewportGhostSceneSnapshot[] = [];
   private readonly instanceOwnershipTraceValue: ViewportInstanceOwnershipEvent[] = [];
 
-  get enabled(): boolean { return this.enabledValue; }
-  get observedProjectBlockCount(): number { return this.observedProjectBlockCountValue; }
-  get emptyTransitionSnapshots(): readonly ViewportGhostSceneSnapshot[] { return this.emptyTransitionSnapshotsValue; }
-  get instanceOwnershipTrace(): readonly ViewportInstanceOwnershipEvent[] { return this.instanceOwnershipTraceValue; }
+  get enabled(): boolean {
+    return this.enabledValue;
+  }
+  get observedProjectBlockCount(): number {
+    return this.observedProjectBlockCountValue;
+  }
+  get emptyTransitionSnapshots(): readonly ViewportGhostSceneSnapshot[] {
+    return this.emptyTransitionSnapshotsValue;
+  }
+  get instanceOwnershipTrace(): readonly ViewportInstanceOwnershipEvent[] {
+    return this.instanceOwnershipTraceValue;
+  }
 
   setEnabled(enabled: boolean, projectBlockCount: number): void {
     this.enabledValue = enabled;
@@ -18,7 +29,10 @@ export class ViewportRuntimeDiagnosticsOwner {
     this.clearHistory();
   }
 
-  observeProjectBlockCount(projectBlockCount: number, captureEmptyTransition: () => ViewportGhostSceneSnapshot): void {
+  observeProjectBlockCount(
+    projectBlockCount: number,
+    captureEmptyTransition: () => ViewportGhostSceneSnapshot,
+  ): void {
     if (this.enabledValue && this.observedProjectBlockCountValue > 0 && projectBlockCount === 0) {
       this.emptyTransitionSnapshotsValue.push(captureEmptyTransition());
       if (this.emptyTransitionSnapshotsValue.length > 2) this.emptyTransitionSnapshotsValue.shift();

@@ -168,41 +168,248 @@ export interface ViewportPerformanceEvidence {
   readonly terrainCommit: Readonly<Record<string, unknown>>;
 }
 
-export interface ViewportDiagnostics { readonly initialized: boolean; readonly disposed: boolean; readonly canvasWidth: number; readonly canvasHeight: number; readonly gridExists: boolean; readonly boundsExists: boolean; readonly rendererExists: boolean; readonly sceneExists: true; readonly cameraExists: true; readonly controlsExist: boolean; readonly themeApplied: boolean; readonly resizeApplied: boolean; readonly renderMode: 'demand'; readonly renderCount: number; }
+export interface ViewportDiagnostics {
+  readonly initialized: boolean;
+  readonly disposed: boolean;
+  readonly canvasWidth: number;
+  readonly canvasHeight: number;
+  readonly gridExists: boolean;
+  readonly boundsExists: boolean;
+  readonly rendererExists: boolean;
+  readonly sceneExists: true;
+  readonly cameraExists: true;
+  readonly controlsExist: boolean;
+  readonly themeApplied: boolean;
+  readonly resizeApplied: boolean;
+  readonly renderMode: 'demand';
+  readonly renderCount: number;
+}
 export interface ViewportHydrationDiagnostics {
-  readonly generation: number; readonly queued: number; readonly running: number; readonly globalRunning: number; readonly currentGenerationRunning: number; readonly staleRunning: number; readonly hydrationScheduled: boolean; readonly hydrationTimerActive: boolean; readonly hydrationBatchBudget: number; readonly pendingSignatureCount: number; readonly placeholderSignatureCount: number; readonly placeholderVisualCount: number; readonly renderedBlockCount: number; readonly residentBlockCount: number; readonly expectedVisibleBlockCount: number; readonly runningOwnershipCount: number; readonly runningByGeneration: Readonly<Record<string, number>>; readonly orphanedHydrationCount: number; readonly orphanedHydrationSample: readonly string[]; readonly completed: number; readonly total: number; readonly scheduled: boolean; readonly regularQueued: number; readonly providerRefreshQueued: number; readonly regularRunning: number; readonly providerRefreshRunning: number; readonly providerRefreshPlanning: boolean; readonly providerRefreshPlanningProcessed: number; readonly providerRefreshPlanningTotal: number; readonly providerRefreshPlanningConsidered: number; readonly providerRefreshPlanningQueued: number; readonly providerRefreshPlanningMaxSliceMs: number; readonly providerRefreshPlanningYields: number; readonly providerRefreshPlanningDurationMs: number;
+  readonly generation: number;
+  readonly queued: number;
+  readonly running: number;
+  readonly globalRunning: number;
+  readonly currentGenerationRunning: number;
+  readonly staleRunning: number;
+  readonly hydrationScheduled: boolean;
+  readonly hydrationTimerActive: boolean;
+  readonly hydrationBatchBudget: number;
+  readonly pendingSignatureCount: number;
+  readonly placeholderSignatureCount: number;
+  readonly placeholderVisualCount: number;
+  readonly renderedBlockCount: number;
+  readonly residentBlockCount: number;
+  readonly expectedVisibleBlockCount: number;
+  readonly runningOwnershipCount: number;
+  readonly runningByGeneration: Readonly<Record<string, number>>;
+  readonly orphanedHydrationCount: number;
+  readonly orphanedHydrationSample: readonly string[];
+  readonly completed: number;
+  readonly total: number;
+  readonly scheduled: boolean;
+  readonly regularQueued: number;
+  readonly providerRefreshQueued: number;
+  readonly regularRunning: number;
+  readonly providerRefreshRunning: number;
+  readonly providerRefreshPlanning: boolean;
+  readonly providerRefreshPlanningProcessed: number;
+  readonly providerRefreshPlanningTotal: number;
+  readonly providerRefreshPlanningConsidered: number;
+  readonly providerRefreshPlanningQueued: number;
+  readonly providerRefreshPlanningMaxSliceMs: number;
+  readonly providerRefreshPlanningYields: number;
+  readonly providerRefreshPlanningDurationMs: number;
 }
-export interface VisibleSceneDiagnostics { readonly expectedVisibleVoxelCount: number; readonly renderedVoxelCount: number; readonly placeholderVoxelCount: number; readonly pendingVoxelCount: number; readonly expectedVoxelKeys: readonly string[]; readonly renderedVoxelKeys: readonly string[]; readonly placeholderVoxelKeys: readonly string[]; readonly pendingVoxelKeys: readonly string[]; readonly representedVoxelKeys: readonly string[]; }
-export interface ViewportVoxelOwnershipDiagnostic { readonly coordinateKey: string; readonly expectedVisible: boolean; readonly renderedEntry: boolean; readonly placeholderEntry: boolean; readonly pendingSignature?: string; readonly queuedJob: boolean; readonly runningGeneration?: number; }
+export interface VisibleSceneDiagnostics {
+  readonly expectedVisibleVoxelCount: number;
+  readonly renderedVoxelCount: number;
+  readonly placeholderVoxelCount: number;
+  readonly pendingVoxelCount: number;
+  readonly expectedVoxelKeys: readonly string[];
+  readonly renderedVoxelKeys: readonly string[];
+  readonly placeholderVoxelKeys: readonly string[];
+  readonly pendingVoxelKeys: readonly string[];
+  readonly representedVoxelKeys: readonly string[];
+}
+export interface ViewportVoxelOwnershipDiagnostic {
+  readonly coordinateKey: string;
+  readonly expectedVisible: boolean;
+  readonly renderedEntry: boolean;
+  readonly placeholderEntry: boolean;
+  readonly pendingSignature?: string;
+  readonly queuedJob: boolean;
+  readonly runningGeneration?: number;
+}
 export interface ViewportVisibleMeshDiagnostic {
-  readonly owner: string; readonly directSceneRoot: string; readonly objectType: string; readonly uuid: string; readonly visible: boolean;
-  readonly parentPath: readonly { readonly type: string; readonly name: string; readonly uuid: string; readonly visible: boolean }[];
-  readonly localPosition: CameraVector; readonly worldPosition: CameraVector; readonly worldBounds: { readonly min: CameraVector; readonly max: CameraVector }; readonly matrixWorld: readonly number[]; readonly renderOrder: number;
-  readonly descendantsOf: { readonly blocksGroup: boolean; readonly ghostModel: boolean; readonly ghost: boolean; readonly movePreviewGroup: boolean; readonly decorationGhostGroup: boolean; readonly decorationSelectionGroup: boolean; readonly logicalSelectionGroup: boolean };
+  readonly owner: string;
+  readonly directSceneRoot: string;
+  readonly objectType: string;
+  readonly uuid: string;
+  readonly visible: boolean;
+  readonly parentPath: readonly {
+    readonly type: string;
+    readonly name: string;
+    readonly uuid: string;
+    readonly visible: boolean;
+  }[];
+  readonly localPosition: CameraVector;
+  readonly worldPosition: CameraVector;
+  readonly worldBounds: { readonly min: CameraVector; readonly max: CameraVector };
+  readonly matrixWorld: readonly number[];
+  readonly renderOrder: number;
+  readonly descendantsOf: {
+    readonly blocksGroup: boolean;
+    readonly ghostModel: boolean;
+    readonly ghost: boolean;
+    readonly movePreviewGroup: boolean;
+    readonly decorationGhostGroup: boolean;
+    readonly decorationSelectionGroup: boolean;
+    readonly logicalSelectionGroup: boolean;
+  };
   readonly geometry: { readonly uuid: string; readonly type: string };
-  readonly materials: readonly { readonly uuid: string; readonly type: string; readonly visible: boolean; readonly opacity: number; readonly texture?: { readonly uuid: string; readonly sourceUuid: string; readonly sourceIdentity?: string } }[];
-  readonly userData: Readonly<Record<string, unknown>>; readonly instanceCount?: number;
-  readonly instances?: { readonly count: number; readonly batchKey?: string; readonly instanceKeys: readonly string[]; readonly instanceVoxels: readonly VoxelCoordinate[]; readonly worldPositions: readonly CameraVector[] };
+  readonly materials: readonly {
+    readonly uuid: string;
+    readonly type: string;
+    readonly visible: boolean;
+    readonly opacity: number;
+    readonly texture?: {
+      readonly uuid: string;
+      readonly sourceUuid: string;
+      readonly sourceIdentity?: string;
+    };
+  }[];
+  readonly userData: Readonly<Record<string, unknown>>;
+  readonly instanceCount?: number;
+  readonly instances?: {
+    readonly count: number;
+    readonly batchKey?: string;
+    readonly instanceKeys: readonly string[];
+    readonly instanceVoxels: readonly VoxelCoordinate[];
+    readonly worldPositions: readonly CameraVector[];
+  };
 }
-export interface ViewportSuspiciousVisualDiagnostic { readonly owner: string; readonly uuid: string; readonly reason: string; readonly intentionalPreview: boolean; readonly position: CameraVector; readonly worldBounds: ViewportVisibleMeshDiagnostic['worldBounds']; }
+export interface ViewportSuspiciousVisualDiagnostic {
+  readonly owner: string;
+  readonly uuid: string;
+  readonly reason: string;
+  readonly intentionalPreview: boolean;
+  readonly position: CameraVector;
+  readonly worldBounds: ViewportVisibleMeshDiagnostic['worldBounds'];
+}
 export interface ViewportInstanceOwnershipEvent {
-  readonly phase: 'before-insert' | 'after-insert' | 'before-remove' | 'after-remove' | 'after-remove-entry' | 'after-reconcile'; readonly key?: string; readonly source?: 'cached-template' | 'provider-async' | 'rollback' | 'reconcile'; readonly generation: number; readonly previousEntry?: { readonly batchKey?: string; readonly index?: number }; readonly physicalMemberships: readonly { readonly batchKey: string; readonly index: number }[]; readonly violations: readonly string[];
+  readonly phase:
+    | 'before-insert'
+    | 'after-insert'
+    | 'before-remove'
+    | 'after-remove'
+    | 'after-remove-entry'
+    | 'after-reconcile';
+  readonly key?: string;
+  readonly source?: 'cached-template' | 'provider-async' | 'rollback' | 'reconcile';
+  readonly generation: number;
+  readonly previousEntry?: { readonly batchKey?: string; readonly index?: number };
+  readonly physicalMemberships: readonly { readonly batchKey: string; readonly index: number }[];
+  readonly violations: readonly string[];
 }
 export interface ViewportOwnershipDiagnostics {
-  readonly authoritativeProjectBlockCount: number; readonly authoritativeVisibleBlockCount: number; readonly renderedBlockCount: number; readonly placeholderVisualCount: number; readonly instanceBatchCount: number; readonly instanceMemberCount: number; readonly placeholderBatchCount: number; readonly placeholderIndexCount: number; readonly blocksGroupChildCount: number; readonly blockLikeSceneObjectsOutsideBlocksGroup: number; readonly visibleMeshesOutsideBlocksGroup: number; readonly staleVoxelKeys: readonly string[]; readonly batchInvariantViolations: readonly string[]; readonly outsideBlocksGroupOwners: readonly string[]; readonly visibleMeshCount: number; readonly visibleMeshSample: readonly ViewportVisibleMeshDiagnostic[]; readonly visibleMeshesOutsideBlocksGroupSample: readonly ViewportVisibleMeshDiagnostic[]; readonly suspiciousVisualCount: number; readonly suspiciousVisuals: readonly ViewportSuspiciousVisualDiagnostic[]; readonly directSceneChildren: readonly { readonly owner: string; readonly uuid: string; readonly visible: boolean; readonly childCount: number }[];
-  readonly previewState: { readonly ghostVisible: boolean; readonly ghostModelPresent: boolean; readonly ghostModelVisible: boolean; readonly ghostModelKey: string; readonly ghostGeneration: number; readonly ghostTarget?: VoxelCoordinate; readonly movePreviewChildren: number; readonly decorationGhostChildren: number; readonly logicalSelectionChildren: number; readonly selectionOutlineVisible: boolean; readonly reusableTemplateCount: number };
-  readonly hydrationState: Pick<ViewportHydrationDiagnostics, 'queued' | 'running' | 'pendingSignatureCount' | 'placeholderSignatureCount' | 'runningOwnershipCount'>;
+  readonly authoritativeProjectBlockCount: number;
+  readonly authoritativeVisibleBlockCount: number;
+  readonly renderedBlockCount: number;
+  readonly placeholderVisualCount: number;
+  readonly instanceBatchCount: number;
+  readonly instanceMemberCount: number;
+  readonly placeholderBatchCount: number;
+  readonly placeholderIndexCount: number;
+  readonly blocksGroupChildCount: number;
+  readonly blockLikeSceneObjectsOutsideBlocksGroup: number;
+  readonly visibleMeshesOutsideBlocksGroup: number;
+  readonly staleVoxelKeys: readonly string[];
+  readonly batchInvariantViolations: readonly string[];
+  readonly outsideBlocksGroupOwners: readonly string[];
+  readonly visibleMeshCount: number;
+  readonly visibleMeshSample: readonly ViewportVisibleMeshDiagnostic[];
+  readonly visibleMeshesOutsideBlocksGroupSample: readonly ViewportVisibleMeshDiagnostic[];
+  readonly suspiciousVisualCount: number;
+  readonly suspiciousVisuals: readonly ViewportSuspiciousVisualDiagnostic[];
+  readonly directSceneChildren: readonly {
+    readonly owner: string;
+    readonly uuid: string;
+    readonly visible: boolean;
+    readonly childCount: number;
+  }[];
+  readonly previewState: {
+    readonly ghostVisible: boolean;
+    readonly ghostModelPresent: boolean;
+    readonly ghostModelVisible: boolean;
+    readonly ghostModelKey: string;
+    readonly ghostGeneration: number;
+    readonly ghostTarget?: VoxelCoordinate;
+    readonly movePreviewChildren: number;
+    readonly decorationGhostChildren: number;
+    readonly logicalSelectionChildren: number;
+    readonly selectionOutlineVisible: boolean;
+    readonly reusableTemplateCount: number;
+  };
+  readonly hydrationState: Pick<
+    ViewportHydrationDiagnostics,
+    | 'queued'
+    | 'running'
+    | 'pendingSignatureCount'
+    | 'placeholderSignatureCount'
+    | 'runningOwnershipCount'
+  >;
 }
 export interface ViewportGhostSceneSnapshot {
-  readonly capturedAt: string; readonly authoritativeProjectBlockCount: number; readonly activeBlock?: { readonly id: string; readonly state: Readonly<Record<string, string>> };
-  readonly ownership: Pick<ViewportOwnershipDiagnostics, 'authoritativeVisibleBlockCount' | 'renderedBlockCount' | 'placeholderVisualCount' | 'placeholderBatchCount' | 'placeholderIndexCount' | 'instanceBatchCount' | 'instanceMemberCount' | 'blocksGroupChildCount' | 'visibleMeshCount' | 'visibleMeshesOutsideBlocksGroup' | 'hydrationState'>;
-  readonly visibleMeshes: readonly ViewportVisibleMeshDiagnostic[]; readonly suspiciousVisualCount: number; readonly suspiciousVisuals: readonly ViewportSuspiciousVisualDiagnostic[]; readonly directSceneChildren: ViewportOwnershipDiagnostics['directSceneChildren']; readonly instanceOwnershipTrace: readonly ViewportInstanceOwnershipEvent[]; readonly previewState: ViewportOwnershipDiagnostics['previewState'];
+  readonly capturedAt: string;
+  readonly authoritativeProjectBlockCount: number;
+  readonly activeBlock?: { readonly id: string; readonly state: Readonly<Record<string, string>> };
+  readonly ownership: Pick<
+    ViewportOwnershipDiagnostics,
+    | 'authoritativeVisibleBlockCount'
+    | 'renderedBlockCount'
+    | 'placeholderVisualCount'
+    | 'placeholderBatchCount'
+    | 'placeholderIndexCount'
+    | 'instanceBatchCount'
+    | 'instanceMemberCount'
+    | 'blocksGroupChildCount'
+    | 'visibleMeshCount'
+    | 'visibleMeshesOutsideBlocksGroup'
+    | 'hydrationState'
+  >;
+  readonly visibleMeshes: readonly ViewportVisibleMeshDiagnostic[];
+  readonly suspiciousVisualCount: number;
+  readonly suspiciousVisuals: readonly ViewportSuspiciousVisualDiagnostic[];
+  readonly directSceneChildren: ViewportOwnershipDiagnostics['directSceneChildren'];
+  readonly instanceOwnershipTrace: readonly ViewportInstanceOwnershipEvent[];
+  readonly previewState: ViewportOwnershipDiagnostics['previewState'];
 }
 export interface ViewportEmptyTransitionDiagnostics {
-  readonly firstEmpty: ViewportGhostSceneSnapshot | null; readonly secondEmpty: ViewportGhostSceneSnapshot | null;
-  readonly differences: null | { readonly visibleMeshCountDelta: number; readonly renderedBlockCountDelta: number; readonly visibleMeshesAdded: readonly ViewportVisibleMeshDiagnostic[]; readonly visibleMeshesRemoved: readonly ViewportVisibleMeshDiagnostic[]; readonly suspiciousVisualsAdded: readonly ViewportSuspiciousVisualDiagnostic[]; readonly suspiciousVisualsRemoved: readonly ViewportSuspiciousVisualDiagnostic[]; readonly previewStateChanged: boolean };
+  readonly firstEmpty: ViewportGhostSceneSnapshot | null;
+  readonly secondEmpty: ViewportGhostSceneSnapshot | null;
+  readonly differences: null | {
+    readonly visibleMeshCountDelta: number;
+    readonly renderedBlockCountDelta: number;
+    readonly visibleMeshesAdded: readonly ViewportVisibleMeshDiagnostic[];
+    readonly visibleMeshesRemoved: readonly ViewportVisibleMeshDiagnostic[];
+    readonly suspiciousVisualsAdded: readonly ViewportSuspiciousVisualDiagnostic[];
+    readonly suspiciousVisualsRemoved: readonly ViewportSuspiciousVisualDiagnostic[];
+    readonly previewStateChanged: boolean;
+  };
 }
-export interface ViewportRuntimeDiagnostics { readonly current: ViewportGhostSceneSnapshot; readonly emptyTransitions: ViewportEmptyTransitionDiagnostics; }
-export interface ViewportControlConfiguration { readonly orbitSensitivity: number; readonly panSensitivity: number; readonly zoomSensitivity: number; readonly cameraMoveSpeed: number; readonly verticalMoveSpeed: number; }
+export interface ViewportRuntimeDiagnostics {
+  readonly current: ViewportGhostSceneSnapshot;
+  readonly emptyTransitions: ViewportEmptyTransitionDiagnostics;
+}
+export interface ViewportControlConfiguration {
+  readonly orbitSensitivity: number;
+  readonly panSensitivity: number;
+  readonly zoomSensitivity: number;
+  readonly cameraMoveSpeed: number;
+  readonly verticalMoveSpeed: number;
+}
 export type ViewportProjectionActivity = 'idle' | 'applying' | 'settling';
-export interface ViewportProjectionState { readonly activity: ViewportProjectionActivity; readonly revision: number; }
+export interface ViewportProjectionState {
+  readonly activity: ViewportProjectionActivity;
+  readonly revision: number;
+}

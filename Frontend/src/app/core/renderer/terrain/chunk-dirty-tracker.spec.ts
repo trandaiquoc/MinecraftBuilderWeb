@@ -7,7 +7,9 @@ describe('terrain chunk dirty tracker', () => {
   });
 
   it('marks only the direct shared-face neighbor at a boundary', () => {
-    expect([...dirtyTerrainChunkKeys([{ x: 15, y: 15, z: 15 }])]).toEqual(expect.arrayContaining(['0,0,0', '1,0,0', '0,1,0', '0,0,1']));
+    expect([...dirtyTerrainChunkKeys([{ x: 15, y: 15, z: 15 }])]).toEqual(
+      expect.arrayContaining(['0,0,0', '1,0,0', '0,1,0', '0,0,1']),
+    );
     expect([...dirtyTerrainChunkKeys([{ x: 15, y: 15, z: 15 }])]).toHaveLength(4);
   });
 });

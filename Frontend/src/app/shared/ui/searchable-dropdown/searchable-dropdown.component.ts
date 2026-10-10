@@ -1,5 +1,13 @@
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
-import { Component, ElementRef, EventEmitter, Input, Output, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  Output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { LucideChevronDown } from '@lucide/angular';
 import { rankSearchResults } from '../../../core/search/relevance-search';
 
@@ -7,7 +15,11 @@ export interface SearchableDropdownOption {
   readonly id: string;
   readonly label: string;
   readonly secondary?: string;
-  readonly thumbnail?: { readonly urls: readonly string[]; readonly alt: string; readonly fallback?: boolean };
+  readonly thumbnail?: {
+    readonly urls: readonly string[];
+    readonly alt: string;
+    readonly fallback?: boolean;
+  };
   readonly status?: string;
 }
 
@@ -46,7 +58,12 @@ export class SearchableDropdownComponent {
   }
   protected filteredOptions(): readonly SearchableDropdownOption[] {
     this.ensureOptionIndex();
-    return rankSearchResults(this.options, this.query(), (option) => [option.label, option.id, option.secondary ?? '', option.status ?? ''], 100);
+    return rankSearchResults(
+      this.options,
+      this.query(),
+      (option) => [option.label, option.id, option.secondary ?? '', option.status ?? ''],
+      100,
+    );
   }
   protected toggle(): void {
     if (this.disabled) return;
@@ -54,13 +71,28 @@ export class SearchableDropdownComponent {
     else {
       this.open.set(true);
       this.activeIndex.set(null);
-      queueMicrotask(() => { this.searchInput()?.nativeElement.focus(); this.announceVisibleOptions(); });
+      queueMicrotask(() => {
+        this.searchInput()?.nativeElement.focus();
+        this.announceVisibleOptions();
+      });
     }
   }
-  protected setQuery(event: Event): void { this.query.set((event.target as HTMLInputElement).value); this.activeIndex.set(null); queueMicrotask(() => this.announceVisibleOptions()); }
-  protected select(id: string): void { this.selectionChange.emit(id); this.close(); }
+  protected setQuery(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+    this.activeIndex.set(null);
+    queueMicrotask(() => this.announceVisibleOptions());
+  }
+  protected select(id: string): void {
+    this.selectionChange.emit(id);
+    this.close();
+  }
   protected onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); this.close(); return; }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+      return;
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       const options = this.filteredOptions();
       if (!options.length) return;
@@ -75,12 +107,31 @@ export class SearchableDropdownComponent {
     if (event.key === 'Enter') {
       const index = this.activeIndex();
       const option = index === null ? undefined : this.filteredOptions()[index];
-      if (option) { event.preventDefault(); this.select(option.id); }
+      if (option) {
+        event.preventDefault();
+        this.select(option.id);
+      }
     }
   }
-  protected close(): void { this.open.set(false); this.query.set(''); this.activeIndex.set(null); }
-  protected onHostKeydown(event: KeyboardEvent): void { if (this.open() && event.key === 'Escape') { event.preventDefault(); this.close(); } }
-  private announceVisibleOptions(): void { if (this.open()) this.visibleOptionIds.emit(this.filteredOptions().slice(0, 24).map((option) => option.id)); }
+  protected close(): void {
+    this.open.set(false);
+    this.query.set('');
+    this.activeIndex.set(null);
+  }
+  protected onHostKeydown(event: KeyboardEvent): void {
+    if (this.open() && event.key === 'Escape') {
+      event.preventDefault();
+      this.close();
+    }
+  }
+  private announceVisibleOptions(): void {
+    if (this.open())
+      this.visibleOptionIds.emit(
+        this.filteredOptions()
+          .slice(0, 24)
+          .map((option) => option.id),
+      );
+  }
 
   private ensureOptionIndex(): void {
     if (this.indexedOptions === this.options) return;

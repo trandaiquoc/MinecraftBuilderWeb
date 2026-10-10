@@ -25,7 +25,10 @@ export class ViewportHostLifecycleAdapter {
     canvas.addEventListener('pointerdown', this.handlers.onPointerDownCapture, true);
     canvas.addEventListener('pointerup', this.handlers.onPointerUpCapture, true);
     canvas.addEventListener('pointercancel', this.handlers.onPointerUpCapture, true);
-    canvas.addEventListener('wheel', this.handlers.onWheelCapture, { capture: true, passive: false });
+    canvas.addEventListener('wheel', this.handlers.onWheelCapture, {
+      capture: true,
+      passive: false,
+    });
     if (typeof document !== 'undefined') {
       document.addEventListener('focusin', this.handlers.onWindowBlur);
       document.addEventListener('visibilitychange', this.handlers.onVisibilityChange);
@@ -51,7 +54,8 @@ export class ViewportHostLifecycleAdapter {
       document.removeEventListener('focusin', this.handlers.onWindowBlur);
       document.removeEventListener('visibilitychange', this.handlers.onVisibilityChange);
     }
-    if (typeof window !== 'undefined') window.removeEventListener('blur', this.handlers.onWindowBlur);
+    if (typeof window !== 'undefined')
+      window.removeEventListener('blur', this.handlers.onWindowBlur);
     this.resizeObserver?.disconnect();
     this.resizeObserver = undefined;
     this.mounted = false;
@@ -59,6 +63,10 @@ export class ViewportHostLifecycleAdapter {
     this.container = undefined;
   }
 
-  get hostContainer(): HTMLElement | undefined { return this.container; }
-  get isMounted(): boolean { return this.mounted; }
+  get hostContainer(): HTMLElement | undefined {
+    return this.container;
+  }
+  get isMounted(): boolean {
+    return this.mounted;
+  }
 }

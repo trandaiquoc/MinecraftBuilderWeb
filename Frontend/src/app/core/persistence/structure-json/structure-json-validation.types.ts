@@ -3,7 +3,8 @@ import type { VoxelCoordinate } from '../../domain/project.types';
 import type { StructureJson, StructureJsonDecoration } from './structure-json';
 import type { ExternalAiContentLimits } from './external-ai-content-limits';
 
-export type StructureJsonIssueCategory = 'missing' | 'bounds' | 'state' | 'duplicate' | 'content-limit' | 'support' | 'warning';
+export type StructureJsonIssueCategory =
+  'missing' | 'bounds' | 'state' | 'duplicate' | 'content-limit' | 'support' | 'warning';
 export type StructureJsonIssueReason =
   | { readonly code: 'missing-block' }
   | { readonly code: 'out-of-bounds' }
@@ -33,7 +34,8 @@ export interface StructureJsonCoordinateConflict {
   readonly blockIds: readonly string[];
 }
 
-export type StructureJsonDecorationIssueCategory = 'missing-asset' | 'bounds' | 'invalid' | 'conflict' | 'content-limit';
+export type StructureJsonDecorationIssueCategory =
+  'missing-asset' | 'bounds' | 'invalid' | 'conflict' | 'content-limit';
 export interface StructureJsonDecorationIssue {
   readonly category: StructureJsonDecorationIssueCategory;
   readonly index: number;
@@ -89,8 +91,13 @@ export interface StructureJsonValidationCancellation {
   readonly isCancelled?: () => boolean;
 }
 
-export interface StructureJsonWorkerRequest { readonly text: string; }
-export interface StructureJsonWorkerResponse { readonly ok: boolean; readonly result: import('./structure-json').ParsedStructureJsonResult; }
+export interface StructureJsonWorkerRequest {
+  readonly text: string;
+}
+export interface StructureJsonWorkerResponse {
+  readonly ok: boolean;
+  readonly result: import('./structure-json').ParsedStructureJsonResult;
+}
 
 export type MutableStructureJsonIssues = {
   missing: StructureJsonBlockIssue[];
@@ -103,14 +110,35 @@ export type MutableStructureJsonIssues = {
 };
 
 export function emptyStructureJsonIssues(): MutableStructureJsonIssues {
-  return { missing: [], bounds: [], state: [], duplicate: [], contentLimit: [], support: [], warning: [] };
+  return {
+    missing: [],
+    bounds: [],
+    state: [],
+    duplicate: [],
+    contentLimit: [],
+    support: [],
+    warning: [],
+  };
 }
 
-export function emptyStructureJsonPreview(code?: import('./structure-json').StructureJsonValidationCode): StructureJsonValidationPreview {
+export function emptyStructureJsonPreview(
+  code?: import('./structure-json').StructureJsonValidationCode,
+): StructureJsonValidationPreview {
   return {
-    structuralValid: false, structuralCode: code, totalBlocks: 0, validBlocks: 0, missingBlocks: 0,
-    outOfBounds: 0, invalidStates: 0, duplicateCoordinates: 0, affectedDuplicateBlocks: 0,
-    issues: emptyStructureJsonIssues(), totalDecorations: 0, validDecorations: 0,
-    missingDecorationAssets: 0, invalidDecorations: 0, decorationIssues: [],
+    structuralValid: false,
+    structuralCode: code,
+    totalBlocks: 0,
+    validBlocks: 0,
+    missingBlocks: 0,
+    outOfBounds: 0,
+    invalidStates: 0,
+    duplicateCoordinates: 0,
+    affectedDuplicateBlocks: 0,
+    issues: emptyStructureJsonIssues(),
+    totalDecorations: 0,
+    validDecorations: 0,
+    missingDecorationAssets: 0,
+    invalidDecorations: 0,
+    decorationIssues: [],
   };
 }

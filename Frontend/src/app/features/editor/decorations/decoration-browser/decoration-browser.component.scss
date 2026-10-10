@@ -1,19 +1,101 @@
-.decoration-browser { display: grid; align-content: start; gap: .55rem; min-width: 0; min-height: 0; padding: .65rem; }
-.decoration-choice-list { display: grid; gap: .35rem; min-width: 0; }
-.decoration-card { display: grid; grid-template-columns: 3.1rem minmax(0, 1fr); align-items: center; gap: .55rem; width: 100%; min-width: 0; min-height: 3.25rem; padding: .3rem; border: 0; border-radius: 6px; background: var(--surface-muted); color: inherit; text-align: left; cursor: pointer; box-shadow: 0 2px 0 rgb(0 0 0 / .14); }
-.decoration-card:hover { background: var(--surface-hover); }
-.decoration-card.active { background: var(--control-selected); color: var(--control-selected-text); box-shadow: 0 4px 10px rgb(0 0 0 / .24); }
-.decoration-card-preview { display: grid; place-items: center; width: 3rem; height: 3rem; overflow: hidden; border-radius: 4px; background: var(--surface); }
-.decoration-card-preview img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
-.decoration-card-preview.painting-preview img { image-rendering: pixelated; }
-.glow-preview { background: color-mix(in srgb, #c8f4ff 30%, var(--surface)); }
-.decoration-card-copy { display: grid; min-width: 0; gap: .15rem; }
-.decoration-card-copy strong, .decoration-card-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.decoration-card-copy strong { font-size: .76rem; }
-.decoration-card-copy small { color: var(--text-muted); font-size: .66rem; }
-.decoration-card.active small { color: color-mix(in srgb, var(--control-selected-text) 78%, transparent); }
-.frame-item-picker { display: grid; gap: .3rem; min-width: 0; padding-top: .15rem; }
-.frame-item-picker > span { color: var(--text-muted); font-size: .7rem; }
+.decoration-browser {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.65rem;
+}
+.decoration-choice-list {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.decoration-card {
+  display: grid;
+  grid-template-columns: 3.1rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 3.25rem;
+  padding: 0.3rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.14);
+}
+.decoration-card:hover {
+  background: var(--surface-hover);
+}
+.decoration-card.active {
+  background: var(--control-selected);
+  color: var(--control-selected-text);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.24);
+}
+.decoration-card-preview {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface);
+}
+.decoration-card-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: auto;
+}
+.decoration-card-preview.painting-preview img {
+  image-rendering: pixelated;
+}
+.glow-preview {
+  background: color-mix(in srgb, #c8f4ff 30%, var(--surface));
+}
+.decoration-card-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+.decoration-card-copy strong,
+.decoration-card-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.decoration-card-copy strong {
+  font-size: 0.76rem;
+}
+.decoration-card-copy small {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+}
+.decoration-card.active small {
+  color: color-mix(in srgb, var(--control-selected-text) 78%, transparent);
+}
+.frame-item-picker {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding-top: 0.15rem;
+}
+.frame-item-picker > span {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
 
-:host-context([data-font='minecraft-style']) .decoration-card-copy strong { font-size: .88rem; line-height: 1.05; font-weight: 400; }
-:host-context([data-font='minecraft-style']) .decoration-card-copy small { font-size: .74rem; line-height: 1.05; }
+:host-context([data-font='minecraft-style']) .decoration-card-copy strong {
+  font-size: 0.88rem;
+  line-height: 1.05;
+  font-weight: 400;
+}
+:host-context([data-font='minecraft-style']) .decoration-card-copy small {
+  font-size: 0.74rem;
+  line-height: 1.05;
+}

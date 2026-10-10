@@ -12,13 +12,19 @@ export interface TerrainTemplateResourceEvidence {
 export class TerrainTemplateResourceOwner {
   readonly atlas?: TerrainTextureAtlas;
   private readonly templatesByKey = new Map<string, readonly SurfaceFaceTemplate[]>();
-  private readonly compiledByTemplates = new WeakMap<readonly SurfaceFaceTemplate[], readonly PrecompiledTerrainFace[]>();
+  private readonly compiledByTemplates = new WeakMap<
+    readonly SurfaceFaceTemplate[],
+    readonly PrecompiledTerrainFace[]
+  >();
   private readonly identityByTemplates = new WeakMap<readonly SurfaceFaceTemplate[], number>();
   private nextIdentity = 1;
   private resolutionCount = 0;
   private cacheHitCount = 0;
 
-  constructor(atlasMode: TerrainAtlasMode | undefined, private readonly record: (name: string, delta?: number) => void) {
+  constructor(
+    atlasMode: TerrainAtlasMode | undefined,
+    private readonly record: (name: string, delta?: number) => void,
+  ) {
     if (atlasMode === 'on') this.atlas = new TerrainTextureAtlas();
   }
 
@@ -40,7 +46,9 @@ export class TerrainTemplateResourceOwner {
     return templates;
   }
 
-  hasTemplates(key: string): boolean { return this.templatesByKey.has(key); }
+  hasTemplates(key: string): boolean {
+    return this.templatesByKey.has(key);
+  }
 
   compiledTemplates(record: TerrainSurfaceRecord): readonly PrecompiledTerrainFace[] {
     if (record.compiledTemplates) return record.compiledTemplates;
@@ -67,10 +75,11 @@ export class TerrainTemplateResourceOwner {
   clear(): void {
     const geometries = new Set<SurfaceFaceTemplate['geometry']>();
     const materials = new Set<SurfaceFaceTemplate['material']>();
-    for (const templates of this.templatesByKey.values()) for (const template of templates) {
-      geometries.add(template.geometry);
-      materials.add(template.material);
-    }
+    for (const templates of this.templatesByKey.values())
+      for (const template of templates) {
+        geometries.add(template.geometry);
+        materials.add(template.material);
+      }
     for (const geometry of geometries) geometry.dispose();
     for (const material of materials) material.dispose();
     this.templatesByKey.clear();

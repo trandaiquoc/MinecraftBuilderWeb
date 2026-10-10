@@ -1,6 +1,15 @@
-import type { ViewportGhostSceneSnapshot, ViewportInstanceOwnershipEvent, ViewportOwnershipDiagnostics } from './viewport-diagnostics-contracts';
+import type {
+  ViewportGhostSceneSnapshot,
+  ViewportInstanceOwnershipEvent,
+  ViewportOwnershipDiagnostics,
+} from './viewport-diagnostics-contracts';
 
-export function captureViewportGhostSceneSnapshot(diagnostics: ViewportOwnershipDiagnostics, activeBlock: { readonly id: string; readonly state: Readonly<Record<string, string>> } | undefined, instanceOwnershipTrace: readonly ViewportInstanceOwnershipEvent[]): ViewportGhostSceneSnapshot {
+export function captureViewportGhostSceneSnapshot(
+  diagnostics: ViewportOwnershipDiagnostics,
+  activeBlock:
+    { readonly id: string; readonly state: Readonly<Record<string, string>> } | undefined,
+  instanceOwnershipTrace: readonly ViewportInstanceOwnershipEvent[],
+): ViewportGhostSceneSnapshot {
   return {
     capturedAt: new Date().toISOString(),
     authoritativeProjectBlockCount: diagnostics.authoritativeProjectBlockCount,
@@ -22,7 +31,12 @@ export function captureViewportGhostSceneSnapshot(diagnostics: ViewportOwnership
     suspiciousVisualCount: diagnostics.suspiciousVisualCount,
     suspiciousVisuals: [...diagnostics.suspiciousVisuals],
     directSceneChildren: diagnostics.directSceneChildren.map((child) => ({ ...child })),
-    instanceOwnershipTrace: instanceOwnershipTrace.map((event) => ({ ...event, physicalMemberships: event.physicalMemberships.map((membership) => ({ ...membership })), violations: [...event.violations], ...(event.previousEntry ? { previousEntry: { ...event.previousEntry } } : {}) })),
+    instanceOwnershipTrace: instanceOwnershipTrace.map((event) => ({
+      ...event,
+      physicalMemberships: event.physicalMemberships.map((membership) => ({ ...membership })),
+      violations: [...event.violations],
+      ...(event.previousEntry ? { previousEntry: { ...event.previousEntry } } : {}),
+    })),
     previewState: { ...diagnostics.previewState },
   };
 }

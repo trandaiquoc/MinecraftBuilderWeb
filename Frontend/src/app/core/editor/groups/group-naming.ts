@@ -10,10 +10,15 @@ export function nextGroupId(groups: readonly ProjectGroup[]): string {
   return `group-${index}`;
 }
 
-export function uniqueGroupName(seed: string, groups: readonly ProjectGroup[], fallback = 'Imported Structure'): string {
+export function uniqueGroupName(
+  seed: string,
+  groups: readonly ProjectGroup[],
+  fallback = 'Imported Structure',
+): string {
   const base = seed.trim() || fallback;
   let candidate = base;
   let suffix = 2;
-  while (groups.some((group) => normalizeGroupName(group.name) === normalizeGroupName(candidate))) candidate = `${base} (${suffix++})`;
+  while (groups.some((group) => normalizeGroupName(group.name) === normalizeGroupName(candidate)))
+    candidate = `${base} (${suffix++})`;
   return candidate;
 }

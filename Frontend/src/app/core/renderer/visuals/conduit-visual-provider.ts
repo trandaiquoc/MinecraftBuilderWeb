@@ -10,12 +10,16 @@ export class ConduitVisualProvider implements SpecialBlockVisualAdapter {
   readonly staticBatchable = true;
   readonly overrideGeneric = true;
 
-  matches(block: PlacedBlock): boolean { return block.namespace === 'minecraft' && block.id === 'minecraft:conduit'; }
-  textureResource(): string { return 'minecraft:entity/conduit/base'; }
+  matches(block: PlacedBlock): boolean {
+    return block.namespace === 'minecraft' && block.id === 'minecraft:conduit';
+  }
+  textureResource(): string {
+    return 'minecraft:entity/conduit/base';
+  }
 
   create(_block: PlacedBlock, context?: SpecialVisualContext): THREE.Group {
     const root = new THREE.Group();
-    root.position.set(.5, .5, .5);
+    root.position.set(0.5, 0.5, 0.5);
     root.add(createSpecialModel(conduitInactiveModel, context?.texture));
     root.userData['specialModel'] = conduitInactiveModel.id;
     root.userData['conduitState'] = 'inactive';
@@ -24,6 +28,9 @@ export class ConduitVisualProvider implements SpecialBlockVisualAdapter {
 }
 
 export const conduitInactiveModel: SpecialModelDescriptor = {
-  id: 'minecraft-java-conduit-inactive-1.21.1', textureSize: [32, 16],
-  parts: [{ id: 'shell', cuboids: [{ id: 'shell', uv: [0, 0], from: [-3, -3, -3], size: [6, 6, 6] }] }],
+  id: 'minecraft-java-conduit-inactive-1.21.1',
+  textureSize: [32, 16],
+  parts: [
+    { id: 'shell', cuboids: [{ id: 'shell', uv: [0, 0], from: [-3, -3, -3], size: [6, 6, 6] }] },
+  ],
 };

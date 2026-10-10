@@ -28,11 +28,16 @@ export class ModSupportCatalog {
   }
 }
 
-export function matchesModSupportCertification(record: ModSupportCertification, lookup: ModSupportLookup): boolean {
-  return record.supportLevel === 'fully-supported'
-    && record.modId === lookup.metadata.modId
-    && record.modVersion === lookup.metadata.modVersion
-    && record.minecraftVersion === lookup.minecraftVersion
-    && record.loader === lookup.metadata.loader
-    && (!record.fingerprint || record.fingerprint === lookup.fingerprint);
+export function matchesModSupportCertification(
+  record: ModSupportCertification,
+  lookup: ModSupportLookup,
+): boolean {
+  return (
+    record.supportLevel === 'fully-supported' &&
+    record.modId === lookup.metadata.modId &&
+    record.modVersion === lookup.metadata.modVersion &&
+    record.minecraftVersion === lookup.minecraftVersion &&
+    record.loader === lookup.metadata.loader &&
+    (!record.fingerprint || record.fingerprint === lookup.fingerprint)
+  );
 }

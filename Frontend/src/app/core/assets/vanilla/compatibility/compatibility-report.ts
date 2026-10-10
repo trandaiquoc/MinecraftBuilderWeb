@@ -1,6 +1,8 @@
 import type { CompatibilityReport } from './compatibility.types';
 
-export function serializeCompatibilityReport(report: CompatibilityReport): string { return JSON.stringify(report, null, 2); }
+export function serializeCompatibilityReport(report: CompatibilityReport): string {
+  return JSON.stringify(report, null, 2);
+}
 
 export function downloadCompatibilityReport(report: CompatibilityReport): void {
   if (typeof document === 'undefined' || typeof URL === 'undefined') return;
@@ -13,4 +15,6 @@ export function downloadCompatibilityReport(report: CompatibilityReport): void {
   URL.revokeObjectURL(url);
 }
 
-function safeFilename(value: string): string { return value.replace(/[^A-Za-z0-9._+-]+/g, '_'); }
+function safeFilename(value: string): string {
+  return value.replace(/[^A-Za-z0-9._+-]+/g, '_');
+}

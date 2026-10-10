@@ -1,31 +1,144 @@
 @if (decorations.selected(); as selected) {
   <section class="decoration-inspector">
-    <h3>{{ selected.kind === 'glow-item-frame' ? i18n.t('glowItemFrame') : selected.kind === 'item-frame' ? i18n.t('itemFrame') : i18n.t('painting') }}</h3>
-    @if (selected.kind === 'glow-item-frame') { <p class="helper-text">{{ i18n.t('glowFrameHint') }}</p> }
+    <h3>
+      {{
+        selected.kind === 'glow-item-frame'
+          ? i18n.t('glowItemFrame')
+          : selected.kind === 'item-frame'
+            ? i18n.t('itemFrame')
+            : i18n.t('painting')
+      }}
+    </h3>
+    @if (selected.kind === 'glow-item-frame') {
+      <p class="helper-text">{{ i18n.t('glowFrameHint') }}</p>
+    }
     @if (selected.kind === 'painting') {
       <div class="painting-summary">
-        <span class="painting-summary-image"><img [src]="paintingTexture(selected.variantId)" [alt]="paintingLabel(selected.variantId)" /></span>
-        <span><strong>{{ paintingLabel(selected.variantId) }}</strong><small>{{ paintingSize(selected.variantId) }}</small></span>
+        <span class="painting-summary-image"
+          ><img
+            [src]="paintingTexture(selected.variantId)"
+            [alt]="paintingLabel(selected.variantId)"
+        /></span>
+        <span
+          ><strong>{{ paintingLabel(selected.variantId) }}</strong
+          ><small>{{ paintingSize(selected.variantId) }}</small></span
+        >
       </div>
-      <app-painting-picker [compact]="true" [selectedId]="selected.variantId ?? ''" (selectionChange)="selectVariant($event)" />
+      <app-painting-picker
+        [compact]="true"
+        [selectedId]="selected.variantId ?? ''"
+        (selectionChange)="selectVariant($event)"
+      />
       <details class="disclosure">
         <summary>{{ i18n.t('placementInfo') }}</summary>
-        <dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ facingLabel(selected.facing) }}</dd></div><div><dt>{{ i18n.t('variant') }}</dt><dd>{{ paintingLabel(selected.variantId) }} <small>({{ selected.variantId }})</small></dd></div></dl>
+        <dl>
+          <div>
+            <dt>{{ i18n.t('position') }}</dt>
+            <dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('facing') }}</dt>
+            <dd>{{ facingLabel(selected.facing) }}</dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('variant') }}</dt>
+            <dd>
+              {{ paintingLabel(selected.variantId) }} <small>({{ selected.variantId }})</small>
+            </dd>
+          </div>
+        </dl>
       </details>
     } @else {
-      <label class="field-label">{{ i18n.t('frameItem') }}<app-item-stack-picker [entries]="catalog.all()" [selectedStack]="selected.item" [placeholder]="i18n.t('searchItems')" [emptyLabel]="i18n.t('emptyFrame')" [ariaLabel]="i18n.t('frameItem')" [closeLabel]="i18n.t('cancel')" [noResults]="i18n.t('noMatches')" [sourceLabel]="i18n.t('contentSource')" [allSourcesLabel]="i18n.t('allSources')" [visualAvailableLabel]="i18n.t('itemVisualRenderable')" [visualUnsupportedLabel]="i18n.t('itemVisualUnsupported')" [visualMissingLabel]="i18n.t('itemVisualMissing')" [visualLoadingLabel]="i18n.t('itemVisualLoading')" (stackChange)="selectItem($event)" /></label>
+      <label class="field-label"
+        >{{ i18n.t('frameItem')
+        }}<app-item-stack-picker
+          [entries]="catalog.all()"
+          [selectedStack]="selected.item"
+          [placeholder]="i18n.t('searchItems')"
+          [emptyLabel]="i18n.t('emptyFrame')"
+          [ariaLabel]="i18n.t('frameItem')"
+          [closeLabel]="i18n.t('cancel')"
+          [noResults]="i18n.t('noMatches')"
+          [sourceLabel]="i18n.t('contentSource')"
+          [allSourcesLabel]="i18n.t('allSources')"
+          [visualAvailableLabel]="i18n.t('itemVisualRenderable')"
+          [visualUnsupportedLabel]="i18n.t('itemVisualUnsupported')"
+          [visualMissingLabel]="i18n.t('itemVisualMissing')"
+          [visualLoadingLabel]="i18n.t('itemVisualLoading')"
+          (stackChange)="selectItem($event)"
+      /></label>
       @if (selected.item) {
-        <div class="frame-control"><span><strong>{{ i18n.t('itemRotation') }}</strong><small>{{ i18n.t('itemRotationHint') }}</small></span><span class="stepper"><button type="button" [attr.aria-label]="i18n.t('itemRotationPrevious')" (click)="rotate(-1)">−</button><output>{{ (selected.rotation ?? 0) * 45 }}°</output><button type="button" [attr.aria-label]="i18n.t('itemRotationNext')" (click)="rotate(1)">+</button></span></div>
+        <div class="frame-control">
+          <span
+            ><strong>{{ i18n.t('itemRotation') }}</strong
+            ><small>{{ i18n.t('itemRotationHint') }}</small></span
+          ><span class="stepper"
+            ><button
+              type="button"
+              [attr.aria-label]="i18n.t('itemRotationPrevious')"
+              (click)="rotate(-1)"
+            >
+              −</button
+            ><output>{{ (selected.rotation ?? 0) * 45 }}°</output
+            ><button
+              type="button"
+              [attr.aria-label]="i18n.t('itemRotationNext')"
+              (click)="rotate(1)"
+            >
+              +
+            </button></span
+          >
+        </div>
       }
-      <details class="disclosure"><summary>{{ i18n.t('placementInfo') }}</summary><dl><div><dt>{{ i18n.t('position') }}</dt><dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd></div><div><dt>{{ i18n.t('facing') }}</dt><dd>{{ facingLabel(selected.facing) }}</dd></div></dl></details>
-      <details class="disclosure"><summary>{{ i18n.t('advanced') }}</summary>
+      <details class="disclosure">
+        <summary>{{ i18n.t('placementInfo') }}</summary>
+        <dl>
+          <div>
+            <dt>{{ i18n.t('position') }}</dt>
+            <dd>{{ selected.anchor.x }}, {{ selected.anchor.y }}, {{ selected.anchor.z }}</dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('facing') }}</dt>
+            <dd>{{ facingLabel(selected.facing) }}</dd>
+          </div>
+        </dl>
+      </details>
+      <details class="disclosure">
+        <summary>{{ i18n.t('advanced') }}</summary>
         <div class="advanced-fields">
-          <label class="check"><input type="checkbox" [checked]="selected.invisible" (change)="toggle('invisible', $event)" /> {{ i18n.t('invisible') }}</label><small class="helper-text">{{ i18n.t('invisibleHint') }}</small>
-          <label class="check"><input type="checkbox" [checked]="selected.fixed" (change)="toggle('fixed', $event)" /> {{ i18n.t('fixed') }}</label><small class="helper-text">{{ i18n.t('fixedHint') }}</small>
-          @if (selected.item) { <label class="field-label">{{ i18n.t('displayedItemDropChance') }}<span class="percent-input"><input type="number" min="0" max="100" step="5" [value]="(selected.itemDropChance ?? 1) * 100" (change)="setDropChance($event)" /> %</span></label><small class="helper-text">{{ i18n.t('itemDropChanceHint') }}</small> }
+          <label class="check"
+            ><input
+              type="checkbox"
+              [checked]="selected.invisible"
+              (change)="toggle('invisible', $event)"
+            />
+            {{ i18n.t('invisible') }}</label
+          ><small class="helper-text">{{ i18n.t('invisibleHint') }}</small>
+          <label class="check"
+            ><input type="checkbox" [checked]="selected.fixed" (change)="toggle('fixed', $event)" />
+            {{ i18n.t('fixed') }}</label
+          ><small class="helper-text">{{ i18n.t('fixedHint') }}</small>
+          @if (selected.item) {
+            <label class="field-label"
+              >{{ i18n.t('displayedItemDropChance')
+              }}<span class="percent-input"
+                ><input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="5"
+                  [value]="(selected.itemDropChance ?? 1) * 100"
+                  (change)="setDropChance($event)"
+                />
+                %</span
+              ></label
+            ><small class="helper-text">{{ i18n.t('itemDropChanceHint') }}</small>
+          }
         </div>
       </details>
     }
-    <button type="button" class="danger ui-button ui-button--danger" (click)="delete()">{{ selected.kind === 'painting' ? i18n.t('deleteDecoration') : i18n.t('deleteFrame') }}</button>
+    <button type="button" class="danger ui-button ui-button--danger" (click)="delete()">
+      {{ selected.kind === 'painting' ? i18n.t('deleteDecoration') : i18n.t('deleteFrame') }}
+    </button>
   </section>
 }

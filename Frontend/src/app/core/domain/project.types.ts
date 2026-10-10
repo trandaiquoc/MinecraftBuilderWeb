@@ -29,11 +29,32 @@ export interface SignSide {
   readonly color: string;
   readonly glowing: boolean;
 }
-export interface SignBlockEntityData { readonly kind: 'sign'; readonly front: SignSide; readonly back: SignSide; readonly waxed: boolean; readonly raw?: Readonly<Record<string, unknown>>; }
-export interface DecoratedPotDecorations { readonly back: string; readonly left: string; readonly right: string; readonly front: string; }
-export interface DecoratedPotBlockEntityData { readonly kind: 'decorated-pot'; readonly decorations: DecoratedPotDecorations; readonly item?: import('../items/item-stack.types').ItemStackData; readonly raw?: Readonly<Record<string, unknown>>; }
-export type ItemContainerBlockEntityData = import('../block-entities/item-display/item-container').ItemContainerBlockEntityData;
-export type ProjectBlockEntityData = Readonly<Record<string, unknown>> | SignBlockEntityData | DecoratedPotBlockEntityData | ItemContainerBlockEntityData;
+export interface SignBlockEntityData {
+  readonly kind: 'sign';
+  readonly front: SignSide;
+  readonly back: SignSide;
+  readonly waxed: boolean;
+  readonly raw?: Readonly<Record<string, unknown>>;
+}
+export interface DecoratedPotDecorations {
+  readonly back: string;
+  readonly left: string;
+  readonly right: string;
+  readonly front: string;
+}
+export interface DecoratedPotBlockEntityData {
+  readonly kind: 'decorated-pot';
+  readonly decorations: DecoratedPotDecorations;
+  readonly item?: import('../items/item-stack.types').ItemStackData;
+  readonly raw?: Readonly<Record<string, unknown>>;
+}
+export type ItemContainerBlockEntityData =
+  import('../block-entities/item-display/item-container').ItemContainerBlockEntityData;
+export type ProjectBlockEntityData =
+  | Readonly<Record<string, unknown>>
+  | SignBlockEntityData
+  | DecoratedPotBlockEntityData
+  | ItemContainerBlockEntityData;
 
 export interface BlockId {
   readonly id: string;

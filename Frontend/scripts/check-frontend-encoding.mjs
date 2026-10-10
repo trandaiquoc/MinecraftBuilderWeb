@@ -33,7 +33,11 @@ async function visit(directory) {
       await visit(file);
       continue;
     }
-    if (!extensions.has(entry.name.slice(entry.name.lastIndexOf('.'))) || entry.name.endsWith('.spec.ts')) continue;
+    if (
+      !extensions.has(entry.name.slice(entry.name.lastIndexOf('.'))) ||
+      entry.name.endsWith('.spec.ts')
+    )
+      continue;
     const text = await readFile(file, 'utf8');
     const found = signatures.filter((signature) => text.includes(signature));
     if (found.length) failures.push(`${relative(repositoryRoot, file)}: ${found.join(', ')}`);

@@ -1,6 +1,11 @@
 import { Injectable, signal } from '@angular/core';
 import { coordinateKey } from '../../domain/coordinates';
-import type { PlacedBlock, ProjectDocument, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import type {
+  PlacedBlock,
+  ProjectDocument,
+  ProjectSize,
+  VoxelCoordinate,
+} from '../../domain/project.types';
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import type { ProjectMutationHint } from '../mutations/project-mutation-hint';
 import { groupIdsOf } from '../groups/group-membership';
@@ -28,7 +33,10 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private blocksByKey = new Map<string, PlacedBlock>();
   private indicesByKey = new Map<string, number>();
   private blocksByY = new Map<number, Map<string, PlacedBlock>>();
-  private groupMembershipCountsByY = new Map<number, Map<string, { readonly groupIds: readonly string[]; count: number }>>();
+  private groupMembershipCountsByY = new Map<
+    number,
+    Map<string, { readonly groupIds: readonly string[]; count: number }>
+  >();
   private blocksById = new Map<string, Map<string, PlacedBlock>>();
   private readonly rebuildReasons = new Map<string, number>();
   private readonly usageRevisionState = signal(0);
@@ -37,8 +45,19 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private indicesComplete = true;
 
   ensure(project: ProjectDocument): void {
-    if (this.project === project && this.blocksReference === project.blocks && this.sizeSignature === sizeOf(project.size) && this.blocksByKey.size === project.blocks.length) return;
-    if (this.project?.id === project.id && this.blocksReference === project.blocks && this.sizeSignature === sizeOf(project.size) && this.blocksByKey.size === project.blocks.length) {
+    if (
+      this.project === project &&
+      this.blocksReference === project.blocks &&
+      this.sizeSignature === sizeOf(project.size) &&
+      this.blocksByKey.size === project.blocks.length
+    )
+      return;
+    if (
+      this.project?.id === project.id &&
+      this.blocksReference === project.blocks &&
+      this.sizeSignature === sizeOf(project.size) &&
+      this.blocksByKey.size === project.blocks.length
+    ) {
       this.project = project;
       return;
     }
@@ -64,7 +83,11 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   }
 
   /** Applies a history/editor transition without scanning the new snapshot. */
-  adoptTransition(from: ProjectDocument, to: ProjectDocument, hint: ProjectMutationHint | undefined): boolean {
+  adoptTransition(
+    from: ProjectDocument,
+    to: ProjectDocument,
+    hint: ProjectMutationHint | undefined,
+  ): boolean {
     if (hint?.kind === 'metadata-delta') return this.adoptMetadataTransition(from, to, hint);
     if (!this.isCompatibleTransition(from, to, hint)) {
       this.rebuild(to, this.reasonForInvalidTransition(from, to, hint));
@@ -120,10 +143,16 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     let appendIndex = from.blocks.length;
     for (const change of changes) {
       if (!change.before && change.after) {
-        if (to.blocks[appendIndex] === change.after) this.indicesByKey.set(coordinateKey(change.after.position), appendIndex);
+        if (to.blocks[appendIndex] === change.after)
+          this.indicesByKey.set(coordinateKey(change.after.position), appendIndex);
         else this.indicesComplete = false;
         appendIndex += 1;
-      } else if (!change.after || !change.before || coordinateKey(change.before.position) !== coordinateKey(change.after.position)) this.indicesComplete = false;
+      } else if (
+        !change.after ||
+        !change.before ||
+        coordinateKey(change.before.position) !== coordinateKey(change.after.position)
+      )
+        this.indicesComplete = false;
     }
     this.project = to;
     this.blocksReference = to.blocks;
@@ -133,8 +162,17 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     return true;
   }
 
-  private adoptMetadataTransition(from: ProjectDocument, to: ProjectDocument, hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>): boolean {
-    if (this.project !== from || from.id !== to.id || !sameSize(from.size, to.size) || from.blocks.length !== to.blocks.length) {
+  private adoptMetadataTransition(
+    from: ProjectDocument,
+    to: ProjectDocument,
+    hint: Extract<ProjectMutationHint, { readonly kind: 'metadata-delta' }>,
+  ): boolean {
+    if (
+      this.project !== from ||
+      from.id !== to.id ||
+      !sameSize(from.size, to.size) ||
+      from.blocks.length !== to.blocks.length
+    ) {
       this.rebuild(to, 'invalid-metadata-transition');
       return false;
     }
@@ -146,7 +184,11 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
         return false;
       }
       const key = coordinateKey(before.position);
-      if (this.blocksByKey.get(key) !== before || before.id !== after.id || before.namespace !== after.namespace) {
+      if (
+        this.blocksByKey.get(key) !== before ||
+        before.id !== after.id ||
+        before.namespace !== after.namespace
+      ) {
         this.rebuild(to, 'metadata-before-mismatch');
         return false;
       }
@@ -170,12 +212,26 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     return true;
   }
 
-  get(position: VoxelCoordinate): PlacedBlock | undefined { return this.blocksByKey.get(coordinateKey(position)); }
-  has(position: VoxelCoordinate): boolean { return this.blocksByKey.has(coordinateKey(position)); }
-  indexOf(position: VoxelCoordinate): number | undefined { return this.indicesComplete ? this.indicesByKey.get(coordinateKey(position)) : undefined; }
-  blocksAtY(y: number): readonly PlacedBlock[] { return [...(this.blocksByY.get(y)?.values() ?? [])]; }
-  blockCountAtY(y: number): number { return this.blocksByY.get(y)?.size ?? 0; }
-  blockCountAtYForPresentation(y: number, hiddenGroupIds: ReadonlySet<string>, isolatedGroupId?: string): number {
+  get(position: VoxelCoordinate): PlacedBlock | undefined {
+    return this.blocksByKey.get(coordinateKey(position));
+  }
+  has(position: VoxelCoordinate): boolean {
+    return this.blocksByKey.has(coordinateKey(position));
+  }
+  indexOf(position: VoxelCoordinate): number | undefined {
+    return this.indicesComplete ? this.indicesByKey.get(coordinateKey(position)) : undefined;
+  }
+  blocksAtY(y: number): readonly PlacedBlock[] {
+    return [...(this.blocksByY.get(y)?.values() ?? [])];
+  }
+  blockCountAtY(y: number): number {
+    return this.blocksByY.get(y)?.size ?? 0;
+  }
+  blockCountAtYForPresentation(
+    y: number,
+    hiddenGroupIds: ReadonlySet<string>,
+    isolatedGroupId?: string,
+  ): number {
     const memberships = this.groupMembershipCountsByY.get(y);
     if (!memberships) return 0;
     let count = 0;
@@ -186,14 +242,25 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     }
     return count;
   }
-  occupiedLayers(): readonly number[] { return [...this.blocksByY.keys()].sort((left, right) => left - right); }
-  allBlocks(): readonly PlacedBlock[] { return this.project?.blocks ?? []; }
+  occupiedLayers(): readonly number[] {
+    return [...this.blocksByY.keys()].sort((left, right) => left - right);
+  }
+  allBlocks(): readonly PlacedBlock[] {
+    return this.project?.blocks ?? [];
+  }
   usageEntries(): readonly ProjectBlockUsageEntry[] {
     return [...this.blocksById.entries()].map(([id, blocks]) => {
       let resolvedCount = 0;
       let missingCount = 0;
-      for (const block of blocks.values()) block.kind === 'missing' ? missingCount += 1 : resolvedCount += 1;
-      return { id, namespace: blocks.values().next().value?.namespace ?? namespaceOf(id), count: blocks.size, resolvedCount, missingCount };
+      for (const block of blocks.values())
+        block.kind === 'missing' ? (missingCount += 1) : (resolvedCount += 1);
+      return {
+        id,
+        namespace: blocks.values().next().value?.namespace ?? namespaceOf(id),
+        count: blocks.size,
+        resolvedCount,
+        missingCount,
+      };
     });
   }
   usageForId(id: string): ProjectBlockUsageEntry | undefined {
@@ -201,30 +268,63 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     if (!blocks?.size) return undefined;
     let resolvedCount = 0;
     let missingCount = 0;
-    for (const block of blocks.values()) block.kind === 'missing' ? missingCount += 1 : resolvedCount += 1;
-    return { id, namespace: blocks.values().next().value?.namespace ?? namespaceOf(id), count: blocks.size, resolvedCount, missingCount };
+    for (const block of blocks.values())
+      block.kind === 'missing' ? (missingCount += 1) : (resolvedCount += 1);
+    return {
+      id,
+      namespace: blocks.values().next().value?.namespace ?? namespaceOf(id),
+      count: blocks.size,
+      resolvedCount,
+      missingCount,
+    };
   }
-  blocksForId(id: string): readonly PlacedBlock[] { return [...(this.blocksById.get(id)?.values() ?? [])]; }
-  blockCountForId(id: string): number { return this.blocksById.get(id)?.size ?? 0; }
-  uniqueBlockIdCount(): number { return this.blocksById.size; }
-  get currentProject(): ProjectDocument | undefined { return this.project; }
-  get currentGeneration(): number { return this.generation; }
-  get rebuildCount(): number { return [...this.rebuildReasons.values()].reduce((sum, count) => sum + count, 0); }
-  rebuildCountFor(reason: string): number { return this.rebuildReasons.get(reason) ?? 0; }
-
-  private isCompatibleTransition(from: ProjectDocument, to: ProjectDocument, hint: ProjectMutationHint | undefined): hint is ProjectMutationHint {
-    return this.project === from
-      && from.id === to.id
-      && sameSize(from.size, to.size)
-      && !!hint
-      && hint.kind === 'block-delta'
-      && hint.changes.length > 0;
+  blocksForId(id: string): readonly PlacedBlock[] {
+    return [...(this.blocksById.get(id)?.values() ?? [])];
+  }
+  blockCountForId(id: string): number {
+    return this.blocksById.get(id)?.size ?? 0;
+  }
+  uniqueBlockIdCount(): number {
+    return this.blocksById.size;
+  }
+  get currentProject(): ProjectDocument | undefined {
+    return this.project;
+  }
+  get currentGeneration(): number {
+    return this.generation;
+  }
+  get rebuildCount(): number {
+    return [...this.rebuildReasons.values()].reduce((sum, count) => sum + count, 0);
+  }
+  rebuildCountFor(reason: string): number {
+    return this.rebuildReasons.get(reason) ?? 0;
   }
 
-  private reasonForInvalidTransition(from: ProjectDocument, to: ProjectDocument, hint: ProjectMutationHint | undefined): string {
+  private isCompatibleTransition(
+    from: ProjectDocument,
+    to: ProjectDocument,
+    hint: ProjectMutationHint | undefined,
+  ): hint is ProjectMutationHint {
+    return (
+      this.project === from &&
+      from.id === to.id &&
+      sameSize(from.size, to.size) &&
+      !!hint &&
+      hint.kind === 'block-delta' &&
+      hint.changes.length > 0
+    );
+  }
+
+  private reasonForInvalidTransition(
+    from: ProjectDocument,
+    to: ProjectDocument,
+    hint: ProjectMutationHint | undefined,
+  ): string {
     if (this.project !== from) return 'stale-index';
-    if (from.id !== to.id || !sameSize(from.size, to.size)) return 'project-identity-or-size-change';
-    if (!hint || hint.kind !== 'block-delta' || !hint.changes.length) return 'missing-or-empty-hint';
+    if (from.id !== to.id || !sameSize(from.size, to.size))
+      return 'project-identity-or-size-change';
+    if (!hint || hint.kind !== 'block-delta' || !hint.changes.length)
+      return 'missing-or-empty-hint';
     return 'invalid-hint';
   }
 
@@ -268,7 +368,9 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private addGroupMembershipCount(block: PlacedBlock): void {
     const groupIds = [...new Set(groupIdsOf(block))].sort();
     const signature = JSON.stringify(groupIds);
-    const memberships = this.groupMembershipCountsByY.get(block.position.y) ?? new Map<string, { readonly groupIds: readonly string[]; count: number }>();
+    const memberships =
+      this.groupMembershipCountsByY.get(block.position.y) ??
+      new Map<string, { readonly groupIds: readonly string[]; count: number }>();
     const existing = memberships.get(signature);
     if (existing) existing.count += 1;
     else memberships.set(signature, { groupIds, count: 1 });
@@ -304,6 +406,12 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
 /** Shared fallback for direct unit-test construction outside Angular DI. */
 export const defaultProjectBlockRuntimeIndex = new ProjectBlockRuntimeIndex();
 
-function sameSize(left: ProjectSize, right: ProjectSize): boolean { return left.x === right.x && left.y === right.y && left.z === right.z; }
-function sizeOf(size: ProjectSize): string { return `${size.x},${size.y},${size.z}`; }
-function namespaceOf(id: string): string { return id.includes(':') ? id.slice(0, id.indexOf(':')) : ''; }
+function sameSize(left: ProjectSize, right: ProjectSize): boolean {
+  return left.x === right.x && left.y === right.y && left.z === right.z;
+}
+function sizeOf(size: ProjectSize): string {
+  return `${size.x},${size.y},${size.z}`;
+}
+function namespaceOf(id: string): string {
+  return id.includes(':') ? id.slice(0, id.indexOf(':')) : '';
+}

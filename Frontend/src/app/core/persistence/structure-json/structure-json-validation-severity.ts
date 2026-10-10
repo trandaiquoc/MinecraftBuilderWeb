@@ -1,9 +1,14 @@
-import type { StructureJsonDecorationIssueCategory, StructureJsonIssueCategory } from './structure-json-validation.types';
+import type {
+  StructureJsonDecorationIssueCategory,
+  StructureJsonIssueCategory,
+} from './structure-json-validation.types';
 import type { StructureJsonImportBlockerCode } from './structure-json-import-plan';
 
 export type StructureJsonValidationSeverity = 'error' | 'warning';
 
-const BLOCK_CATEGORY_SEVERITY: Readonly<Record<StructureJsonIssueCategory, StructureJsonValidationSeverity>> = {
+const BLOCK_CATEGORY_SEVERITY: Readonly<
+  Record<StructureJsonIssueCategory, StructureJsonValidationSeverity>
+> = {
   missing: 'warning',
   bounds: 'error',
   state: 'error',
@@ -13,7 +18,9 @@ const BLOCK_CATEGORY_SEVERITY: Readonly<Record<StructureJsonIssueCategory, Struc
   warning: 'warning',
 };
 
-const DECORATION_CATEGORY_SEVERITY: Readonly<Record<StructureJsonDecorationIssueCategory, StructureJsonValidationSeverity>> = {
+const DECORATION_CATEGORY_SEVERITY: Readonly<
+  Record<StructureJsonDecorationIssueCategory, StructureJsonValidationSeverity>
+> = {
   'missing-asset': 'warning',
   bounds: 'error',
   invalid: 'error',
@@ -21,14 +28,20 @@ const DECORATION_CATEGORY_SEVERITY: Readonly<Record<StructureJsonDecorationIssue
   'content-limit': 'error',
 };
 
-export function structureJsonBlockIssueSeverity(category: StructureJsonIssueCategory): StructureJsonValidationSeverity {
+export function structureJsonBlockIssueSeverity(
+  category: StructureJsonIssueCategory,
+): StructureJsonValidationSeverity {
   return BLOCK_CATEGORY_SEVERITY[category];
 }
 
-export function structureJsonDecorationIssueSeverity(category: StructureJsonDecorationIssueCategory): StructureJsonValidationSeverity {
+export function structureJsonDecorationIssueSeverity(
+  category: StructureJsonDecorationIssueCategory,
+): StructureJsonValidationSeverity {
   return DECORATION_CATEGORY_SEVERITY[category];
 }
 
-export function structureJsonImportBlockerSeverity(_code: StructureJsonImportBlockerCode): StructureJsonValidationSeverity {
+export function structureJsonImportBlockerSeverity(
+  _code: StructureJsonImportBlockerCode,
+): StructureJsonValidationSeverity {
   return 'error';
 }

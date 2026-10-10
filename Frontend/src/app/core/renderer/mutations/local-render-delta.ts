@@ -24,7 +24,9 @@ export function planLocalRenderDelta(hint: ProjectMutationHint): LocalRenderDelt
   const changedKeys = new Set<string>();
   const affectedPositions = new Map<string, VoxelCoordinate>();
   for (const change of hint.changes) {
-    const positions = [change.position, change.before?.position, change.after?.position].filter((position): position is VoxelCoordinate => !!position);
+    const positions = [change.position, change.before?.position, change.after?.position].filter(
+      (position): position is VoxelCoordinate => !!position,
+    );
     for (const position of positions) {
       const key = coordinateKey(position);
       affectedPositions.set(key, position);
@@ -38,8 +40,19 @@ export function planLocalRenderDelta(hint: ProjectMutationHint): LocalRenderDelt
         if (!mutatedKeys.has(neighborKey)) dependencyKeys.add(neighborKey);
       }
     }
-    hintedKeys.add(change.before ? coordinateKey(change.before.position) : coordinateKey(change.position));
-    hintedKeys.add(change.after ? coordinateKey(change.after.position) : coordinateKey(change.position));
+    hintedKeys.add(
+      change.before ? coordinateKey(change.before.position) : coordinateKey(change.position),
+    );
+    hintedKeys.add(
+      change.after ? coordinateKey(change.after.position) : coordinateKey(change.position),
+    );
   }
-  return { hintedKeys, mutatedKeys, dependencyKeys, hydrationInvalidatedKeys: mutatedKeys, changedKeys, affectedPositions };
+  return {
+    hintedKeys,
+    mutatedKeys,
+    dependencyKeys,
+    hydrationInvalidatedKeys: mutatedKeys,
+    changedKeys,
+    affectedPositions,
+  };
 }

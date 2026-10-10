@@ -5,12 +5,18 @@ export interface GroupSearchLabels {
   readonly unlocked: string;
 }
 
-export function filterGroups(groups: readonly ProjectGroup[], query: string, labels: GroupSearchLabels): readonly ProjectGroup[] {
+export function filterGroups(
+  groups: readonly ProjectGroup[],
+  query: string,
+  labels: GroupSearchLabels,
+): readonly ProjectGroup[] {
   const term = normalizeSearch(query);
   if (!term) return groups;
   return groups.filter((group) => {
     const status = group.locked ? labels.locked : labels.unlocked;
-    return [group.name, status, group.locked ? 'locked' : 'unlocked'].some((value) => normalizeSearch(value).includes(term));
+    return [group.name, status, group.locked ? 'locked' : 'unlocked'].some((value) =>
+      normalizeSearch(value).includes(term),
+    );
   });
 }
 

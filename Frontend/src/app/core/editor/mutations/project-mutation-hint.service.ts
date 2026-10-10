@@ -29,5 +29,7 @@ export class ProjectMutationHintService {
     return this.pending?.from === from && this.pending.to === to;
   }
 
-  clear(): void { this.pending = undefined; }
+  clear(): void {
+    this.pending = undefined;
+  }
 }

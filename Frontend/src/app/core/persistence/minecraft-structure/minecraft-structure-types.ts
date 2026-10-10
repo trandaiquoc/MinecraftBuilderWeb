@@ -15,18 +15,55 @@ export type MinecraftNbtTag =
   | MinecraftNbtIntArray
   | MinecraftNbtLongArray;
 
-export interface MinecraftNbtByte { readonly type: 'byte'; readonly value: number; }
-export interface MinecraftNbtShort { readonly type: 'short'; readonly value: number; }
-export interface MinecraftNbtInt { readonly type: 'int'; readonly value: number; }
-export interface MinecraftNbtLong { readonly type: 'long'; readonly value: bigint; }
-export interface MinecraftNbtFloat { readonly type: 'float'; readonly value: number; }
-export interface MinecraftNbtDouble { readonly type: 'double'; readonly value: number; }
-export interface MinecraftNbtString { readonly type: 'string'; readonly value: string; }
-export interface MinecraftNbtList { readonly type: 'list'; readonly elementType: MinecraftNbtTag['type']; readonly value: readonly MinecraftNbtTag[]; }
-export interface MinecraftNbtCompound { readonly type: 'compound'; readonly value: Readonly<Record<string, MinecraftNbtTag>>; }
-export interface MinecraftNbtByteArray { readonly type: 'byte-array'; readonly value: readonly number[]; }
-export interface MinecraftNbtIntArray { readonly type: 'int-array'; readonly value: readonly number[]; }
-export interface MinecraftNbtLongArray { readonly type: 'long-array'; readonly value: readonly bigint[]; }
+export interface MinecraftNbtByte {
+  readonly type: 'byte';
+  readonly value: number;
+}
+export interface MinecraftNbtShort {
+  readonly type: 'short';
+  readonly value: number;
+}
+export interface MinecraftNbtInt {
+  readonly type: 'int';
+  readonly value: number;
+}
+export interface MinecraftNbtLong {
+  readonly type: 'long';
+  readonly value: bigint;
+}
+export interface MinecraftNbtFloat {
+  readonly type: 'float';
+  readonly value: number;
+}
+export interface MinecraftNbtDouble {
+  readonly type: 'double';
+  readonly value: number;
+}
+export interface MinecraftNbtString {
+  readonly type: 'string';
+  readonly value: string;
+}
+export interface MinecraftNbtList {
+  readonly type: 'list';
+  readonly elementType: MinecraftNbtTag['type'];
+  readonly value: readonly MinecraftNbtTag[];
+}
+export interface MinecraftNbtCompound {
+  readonly type: 'compound';
+  readonly value: Readonly<Record<string, MinecraftNbtTag>>;
+}
+export interface MinecraftNbtByteArray {
+  readonly type: 'byte-array';
+  readonly value: readonly number[];
+}
+export interface MinecraftNbtIntArray {
+  readonly type: 'int-array';
+  readonly value: readonly number[];
+}
+export interface MinecraftNbtLongArray {
+  readonly type: 'long-array';
+  readonly value: readonly bigint[];
+}
 
 export type MinecraftNbtRoot = Readonly<{ name: string; value: MinecraftNbtCompound }>;
 

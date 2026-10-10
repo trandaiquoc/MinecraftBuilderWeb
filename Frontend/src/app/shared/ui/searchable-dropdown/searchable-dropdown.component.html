@@ -1,31 +1,112 @@
 <div class="searchable-dropdown" [class.open]="open()" (keydown)="onHostKeydown($event)">
-  <button type="button" cdkOverlayOrigin #dropdownOrigin="cdkOverlayOrigin" class="dropdown-trigger" role="combobox" [disabled]="disabled" [attr.aria-label]="ariaLabel || placeholder" [attr.aria-expanded]="open()" [attr.aria-controls]="listId" (click)="toggle()">
+  <button
+    type="button"
+    cdkOverlayOrigin
+    #dropdownOrigin="cdkOverlayOrigin"
+    class="dropdown-trigger"
+    role="combobox"
+    [disabled]="disabled"
+    [attr.aria-label]="ariaLabel || placeholder"
+    [attr.aria-expanded]="open()"
+    [attr.aria-controls]="listId"
+    (click)="toggle()"
+  >
     <span class="selected-value">
       @if (selected; as current) {
-        @if (current.thumbnail) { <span class="dropdown-thumbnail" [class.fallback]="!current.thumbnail.urls.length || current.thumbnail.fallback" aria-hidden="true">@for (url of current.thumbnail.urls; track url) { <img [src]="url" alt="" /> }</span> }
+        @if (current.thumbnail) {
+          <span
+            class="dropdown-thumbnail"
+            [class.fallback]="!current.thumbnail.urls.length || current.thumbnail.fallback"
+            aria-hidden="true"
+          >
+            @for (url of current.thumbnail.urls; track url) {
+              <img [src]="url" alt="" />
+            }
+          </span>
+        }
         <span class="selected-copy">
-        <strong>{{ current.label }}</strong>
-        @if (current.secondary) { <small>{{ current.secondary }}</small> }
+          <strong>{{ current.label }}</strong>
+          @if (current.secondary) {
+            <small>{{ current.secondary }}</small>
+          }
         </span>
-      } @else { <span class="placeholder">{{ emptyLabel || placeholder }}</span> }
+      } @else {
+        <span class="placeholder">{{ emptyLabel || placeholder }}</span>
+      }
     </span>
     <span class="caret" aria-hidden="true"><svg lucideChevronDown></svg></span>
   </button>
   @if (open()) {
-    <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="dropdownOrigin" [cdkConnectedOverlayOpen]="open()" [cdkConnectedOverlayHasBackdrop]="true" cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop" (backdropClick)="close()" (detach)="close()">
-    <div class="dropdown-popover" [id]="listId" role="listbox" (click)="$event.stopPropagation()">
-      <input #searchInput type="search" class="dropdown-search" [value]="query()" [placeholder]="placeholder" [attr.aria-label]="placeholder" (input)="setQuery($event)" (keydown)="onKeydown($event)" />
-      <div class="dropdown-options">
-        @if (emptyLabel) { <button type="button" role="option" class="dropdown-option" [class.selected]="!selectedId" [attr.aria-selected]="!selectedId" (click)="select('')">{{ emptyLabel }}</button> }
-        @for (option of filteredOptions(); track option.id) {
-          <button type="button" role="option" class="dropdown-option" [class.selected]="option.id === selectedId" [class.active-option]="$index === activeIndex()" [attr.aria-selected]="option.id === selectedId" (click)="select(option.id)">
-            @if (option.thumbnail) { <span class="dropdown-thumbnail" [class.fallback]="!option.thumbnail.urls.length || option.thumbnail.fallback" aria-hidden="true">@for (url of option.thumbnail.urls; track url) { <img [src]="url" alt="" /> }</span> }
-            <span class="dropdown-option-copy"><strong>{{ option.label }}</strong>@if (option.secondary) { <small>{{ option.secondary }}</small> }@if (option.status) { <small class="option-status">{{ option.status }}</small> }</span>
-          </button>
-        }
-        @if (!filteredOptions().length) { <p class="no-results">{{ noResults }}</p> }
+    <ng-template
+      cdkConnectedOverlay
+      [cdkConnectedOverlayOrigin]="dropdownOrigin"
+      [cdkConnectedOverlayOpen]="open()"
+      [cdkConnectedOverlayHasBackdrop]="true"
+      cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+      (backdropClick)="close()"
+      (detach)="close()"
+    >
+      <div class="dropdown-popover" [id]="listId" role="listbox" (click)="$event.stopPropagation()">
+        <input
+          #searchInput
+          type="search"
+          class="dropdown-search"
+          [value]="query()"
+          [placeholder]="placeholder"
+          [attr.aria-label]="placeholder"
+          (input)="setQuery($event)"
+          (keydown)="onKeydown($event)"
+        />
+        <div class="dropdown-options">
+          @if (emptyLabel) {
+            <button
+              type="button"
+              role="option"
+              class="dropdown-option"
+              [class.selected]="!selectedId"
+              [attr.aria-selected]="!selectedId"
+              (click)="select('')"
+            >
+              {{ emptyLabel }}
+            </button>
+          }
+          @for (option of filteredOptions(); track option.id) {
+            <button
+              type="button"
+              role="option"
+              class="dropdown-option"
+              [class.selected]="option.id === selectedId"
+              [class.active-option]="$index === activeIndex()"
+              [attr.aria-selected]="option.id === selectedId"
+              (click)="select(option.id)"
+            >
+              @if (option.thumbnail) {
+                <span
+                  class="dropdown-thumbnail"
+                  [class.fallback]="!option.thumbnail.urls.length || option.thumbnail.fallback"
+                  aria-hidden="true"
+                >
+                  @for (url of option.thumbnail.urls; track url) {
+                    <img [src]="url" alt="" />
+                  }
+                </span>
+              }
+              <span class="dropdown-option-copy"
+                ><strong>{{ option.label }}</strong>
+                @if (option.secondary) {
+                  <small>{{ option.secondary }}</small>
+                }
+                @if (option.status) {
+                  <small class="option-status">{{ option.status }}</small>
+                }
+              </span>
+            </button>
+          }
+          @if (!filteredOptions().length) {
+            <p class="no-results">{{ noResults }}</p>
+          }
+        </div>
       </div>
-    </div>
     </ng-template>
   }
 </div>

@@ -4,9 +4,9 @@ import { paintingTextureResource } from '../../decorations/decoration.types';
 import { decorationAabb, directionVector } from '../../decorations/placement/decoration-placement';
 import type { ResolvedItemVisual } from './item-visual-resolver';
 
-const ITEM_FRAME_SPRITE_SIZE = .42;
-const ITEM_FRAME_LAYER_EPSILON = .001;
-const ITEM_FRAME_FRONT_EPSILON = .008;
+const ITEM_FRAME_SPRITE_SIZE = 0.42;
+const ITEM_FRAME_LAYER_EPSILON = 0.001;
+const ITEM_FRAME_FRONT_EPSILON = 0.008;
 
 export class DecorationTextureCache {
   private readonly textures = new Map<string, THREE.Texture>();
@@ -20,11 +20,19 @@ export class DecorationTextureCache {
   }
   getUrl(url: string | undefined): THREE.Texture | undefined {
     if (!url) return undefined;
-    const cached = this.textures.get(url); if (cached) return cached;
-    const texture = this.loader.load(url, () => this.onTextureReady()); texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter; texture.generateMipmaps = false;
-    this.textures.set(url, texture); return texture;
+    const cached = this.textures.get(url);
+    if (cached) return cached;
+    const texture = this.loader.load(url, () => this.onTextureReady());
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    this.textures.set(url, texture);
+    return texture;
   }
-  dispose(): void { for (const texture of this.textures.values()) texture.dispose(); this.textures.clear(); }
+  dispose(): void {
+    for (const texture of this.textures.values()) texture.dispose();
+    this.textures.clear();
+  }
 }
 
 export function createDecorationVisual(
@@ -42,32 +50,80 @@ export function createDecorationVisual(
   root.userData['decorationInstanceId'] = decoration.instanceId;
   root.userData['decoration'] = decoration;
   const aabb = decorationAabb(decoration);
-  const size = { x: aabb.max.x - aabb.min.x, y: aabb.max.y - aabb.min.y, z: aabb.max.z - aabb.min.z };
-  const textureResource = decoration.kind === 'painting' ? paintingResource?.(decoration.variantId ?? 'kebab') ?? paintingTextureResource(decoration.variantId ?? 'kebab') : decoration.kind === 'glow-item-frame' ? 'minecraft:block/glow_item_frame' : 'minecraft:block/item_frame';
+  const size = {
+    x: aabb.max.x - aabb.min.x,
+    y: aabb.max.y - aabb.min.y,
+    z: aabb.max.z - aabb.min.z,
+  };
+  const textureResource =
+    decoration.kind === 'painting'
+      ? (paintingResource?.(decoration.variantId ?? 'kebab') ??
+        paintingTextureResource(decoration.variantId ?? 'kebab'))
+      : decoration.kind === 'glow-item-frame'
+        ? 'minecraft:block/glow_item_frame'
+        : 'minecraft:block/item_frame';
   const texture = localCache?.get(textureResource);
-  const material = new THREE.MeshLambertMaterial({ color: decoration.kind === 'painting' ? 0xffffff : decoration.kind === 'glow-item-frame' ? 0xf4d35e : 0xb07d52, map: texture, transparent: decoration.invisible ?? false, opacity: decoration.invisible ? 0.18 : 1 });
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(size.x, .03), Math.max(size.y, .03), Math.max(size.z, .03)), material);
-  mesh.position.set((aabb.min.x + aabb.max.x) / 2, (aabb.min.y + aabb.max.y) / 2, (aabb.min.z + aabb.max.z) / 2);
+  const material = new THREE.MeshLambertMaterial({
+    color:
+      decoration.kind === 'painting'
+        ? 0xffffff
+        : decoration.kind === 'glow-item-frame'
+          ? 0xf4d35e
+          : 0xb07d52,
+    map: texture,
+    transparent: decoration.invisible ?? false,
+    opacity: decoration.invisible ? 0.18 : 1,
+  });
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(Math.max(size.x, 0.03), Math.max(size.y, 0.03), Math.max(size.z, 0.03)),
+    material,
+  );
+  mesh.position.set(
+    (aabb.min.x + aabb.max.x) / 2,
+    (aabb.min.y + aabb.max.y) / 2,
+    (aabb.min.z + aabb.max.z) / 2,
+  );
   mesh.userData['decorationInstanceId'] = decoration.instanceId;
   mesh.userData['decoration'] = decoration;
   if (decoration.kind !== 'painting' && decoration.item) {
     const itemId = decoration.item.id;
     const d = directionVector(decoration.facing);
     const resolvedVisual = itemVisual?.(itemId);
-    const resolvedResources = loadItemTextureLayers && resolvedVisual?.layers?.length ? resolvedVisual.layers : loadItemTextureLayers ? itemResources?.(itemId) : undefined;
+    const resolvedResources =
+      loadItemTextureLayers && resolvedVisual?.layers?.length
+        ? resolvedVisual.layers
+        : loadItemTextureLayers
+          ? itemResources?.(itemId)
+          : undefined;
     const resources = resolvedResources?.length ? resolvedResources : [undefined];
-    const frontOffset = Math.max(size.x * Math.abs(d.x), size.y * Math.abs(d.y), size.z * Math.abs(d.z)) / 2 + ITEM_FRAME_FRONT_EPSILON;
+    const frontOffset =
+      Math.max(size.x * Math.abs(d.x), size.y * Math.abs(d.y), size.z * Math.abs(d.z)) / 2 +
+      ITEM_FRAME_FRONT_EPSILON;
     const sprite = new THREE.Group();
-    sprite.position.set(mesh.position.x + d.x * frontOffset, mesh.position.y + d.y * frontOffset, mesh.position.z + d.z * frontOffset);
+    sprite.position.set(
+      mesh.position.x + d.x * frontOffset,
+      mesh.position.y + d.y * frontOffset,
+      mesh.position.z + d.z * frontOffset,
+    );
     orientItemSprite(sprite, decoration.facing, decoration.rotation ?? 0);
     sprite.userData['decorationInstanceId'] = decoration.instanceId;
     sprite.userData['decorationItem'] = decoration.item;
     sprite.userData['decorationItemId'] = itemId;
-    sprite.userData['itemVisualKind'] = resolvedVisual?.kind ?? (resolvedResources?.length ? 'generated-layers' : 'unsupported');
+    sprite.userData['itemVisualKind'] =
+      resolvedVisual?.kind ?? (resolvedResources?.length ? 'generated-layers' : 'unsupported');
     resources.forEach((resource, layerIndex) => {
       const itemUrl = resource ? textureUrl?.(resource) : undefined;
       const itemTexture = localCache?.getUrl(itemUrl);
-      const item = new THREE.Mesh(new THREE.PlaneGeometry(ITEM_FRAME_SPRITE_SIZE, ITEM_FRAME_SPRITE_SIZE), new THREE.MeshBasicMaterial({ color: itemTexture ? 0xffffff : 0x8e8e8e, map: itemTexture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      const item = new THREE.Mesh(
+        new THREE.PlaneGeometry(ITEM_FRAME_SPRITE_SIZE, ITEM_FRAME_SPRITE_SIZE),
+        new THREE.MeshBasicMaterial({
+          color: itemTexture ? 0xffffff : 0x8e8e8e,
+          map: itemTexture,
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
       item.position.z = layerIndex * ITEM_FRAME_LAYER_EPSILON;
       item.userData['decorationInstanceId'] = decoration.instanceId;
       item.userData['decorationItem'] = decoration.item;
@@ -77,9 +133,16 @@ export function createDecorationVisual(
     root.add(sprite);
   }
   if (decoration.invisible) {
-    const proxy = new THREE.Mesh(mesh.geometry.clone(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
-    proxy.position.copy(mesh.position); proxy.userData['decorationInstanceId'] = decoration.instanceId; proxy.userData['decoration'] = decoration; root.add(proxy);
-    mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose();
+    const proxy = new THREE.Mesh(
+      mesh.geometry.clone(),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    proxy.position.copy(mesh.position);
+    proxy.userData['decorationInstanceId'] = decoration.instanceId;
+    proxy.userData['decoration'] = decoration;
+    root.add(proxy);
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
   } else root.add(mesh);
   return root;
 }
@@ -87,7 +150,11 @@ export function createDecorationVisual(
 /** Replace the temporary layer planes with the normalized 2D preview produced
  * by ItemVisualService. This keeps frame rendering flat while ensuring the
  * picker and an already placed frame consume the same rasterized result. */
-export function applyDecorationItemPreview(sprite: THREE.Object3D, previewUrl: string, cache?: DecorationTextureCache): boolean {
+export function applyDecorationItemPreview(
+  sprite: THREE.Object3D,
+  previewUrl: string,
+  cache?: DecorationTextureCache,
+): boolean {
   const texture = cache?.getUrl(previewUrl);
   if (!texture) return false;
   for (const child of [...sprite.children]) {
@@ -98,7 +165,16 @@ export function applyDecorationItemPreview(sprite: THREE.Object3D, previewUrl: s
     }
     sprite.remove(child);
   }
-  const item = new THREE.Mesh(new THREE.PlaneGeometry(ITEM_FRAME_SPRITE_SIZE, ITEM_FRAME_SPRITE_SIZE), new THREE.MeshBasicMaterial({ color: 0xffffff, map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  const item = new THREE.Mesh(
+    new THREE.PlaneGeometry(ITEM_FRAME_SPRITE_SIZE, ITEM_FRAME_SPRITE_SIZE),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
   item.userData['decorationInstanceId'] = sprite.userData['decorationInstanceId'];
   item.userData['decorationItem'] = sprite.userData['decorationItem'];
   item.userData['itemVisualPreview'] = previewUrl;
@@ -107,10 +183,20 @@ export function applyDecorationItemPreview(sprite: THREE.Object3D, previewUrl: s
   return true;
 }
 
-function orientItemSprite(sprite: THREE.Object3D, facing: PlacedDecoration['facing'], rotation: number): void {
+function orientItemSprite(
+  sprite: THREE.Object3D,
+  facing: PlacedDecoration['facing'],
+  rotation: number,
+): void {
   const direction = directionVector(facing);
   const normal = new THREE.Vector3(direction.x, direction.y, direction.z).normalize();
-  const facingRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-  const roll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rotation * Math.PI / 4);
+  const facingRotation = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    normal,
+  );
+  const roll = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 0, 1),
+    (rotation * Math.PI) / 4,
+  );
   sprite.quaternion.copy(facingRotation).multiply(roll);
 }

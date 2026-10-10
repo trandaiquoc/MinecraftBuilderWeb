@@ -10,17 +10,22 @@ export class ShulkerBoxVisualProvider implements SpecialBlockVisualAdapter {
   readonly staticBatchable = true;
 
   matches(block: PlacedBlock): boolean {
-    return block.namespace === 'minecraft' && (block.id === 'minecraft:shulker_box' || block.id.endsWith('_shulker_box'));
+    return (
+      block.namespace === 'minecraft' &&
+      (block.id === 'minecraft:shulker_box' || block.id.endsWith('_shulker_box'))
+    );
   }
 
-  textureResource(block: PlacedBlock): string { return shulkerTextureResource(block); }
+  textureResource(block: PlacedBlock): string {
+    return shulkerTextureResource(block);
+  }
 
   create(block: PlacedBlock, context?: SpecialVisualContext): THREE.Group {
     const root = createSpecialModel(shulkerModel, context?.texture);
     const translation = new THREE.Group();
-    translation.position.set(.5, .5, .5);
+    translation.position.set(0.5, 0.5, 0.5);
     const inset = new THREE.Group();
-    inset.scale.setScalar(.9995);
+    inset.scale.setScalar(0.9995);
     const direction = new THREE.Group();
     direction.quaternion.copy(shulkerFacingQuaternion(block.state['facing']));
     const flip = new THREE.Group();
@@ -44,8 +49,18 @@ const shulkerModel: SpecialModelDescriptor = {
   id: 'minecraft-java-shulker-box-1.21.1',
   textureSize: [64, 64],
   parts: [
-    { id: 'base', pivot: [0, 24, 0], applyPivot: true, cuboids: [{ id: 'base', uv: [0, 28], from: [-8, -8, -8], size: [16, 8, 16] }] },
-    { id: 'lid', pivot: [0, 24, 0], applyPivot: true, cuboids: [{ id: 'lid', uv: [0, 0], from: [-8, -16, -8], size: [16, 12, 16] }] },
+    {
+      id: 'base',
+      pivot: [0, 24, 0],
+      applyPivot: true,
+      cuboids: [{ id: 'base', uv: [0, 28], from: [-8, -8, -8], size: [16, 8, 16] }],
+    },
+    {
+      id: 'lid',
+      pivot: [0, 24, 0],
+      applyPivot: true,
+      cuboids: [{ id: 'lid', uv: [0, 0], from: [-8, -16, -8], size: [16, 12, 16] }],
+    },
   ],
 };
 

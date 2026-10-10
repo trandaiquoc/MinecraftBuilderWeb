@@ -1,11 +1,25 @@
 import { effect, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { VIEWPORT_HYDRATION_STATUS_DELAY_MS, ViewportHydrationStatusService } from './viewport-hydration-status.service';
+import {
+  VIEWPORT_HYDRATION_STATUS_DELAY_MS,
+  ViewportHydrationStatusService,
+} from './viewport-hydration-status.service';
 import type { ViewportHydrationProgress } from '../../renderer/engine/three-viewport-engine';
 
 function progress(overrides: Partial<ViewportHydrationProgress> = {}): ViewportHydrationProgress {
-  return { generation: 1, status: 'hydrating', completed: 15, total: 20, blocksCompleted: 15, blocksTotal: 20, decorationsCompleted: 0, decorationsTotal: 0, percent: 75, ...overrides };
+  return {
+    generation: 1,
+    status: 'hydrating',
+    completed: 15,
+    total: 20,
+    blocksCompleted: 15,
+    blocksTotal: 20,
+    decorationsCompleted: 0,
+    decorationsTotal: 0,
+    percent: 75,
+    ...overrides,
+  };
 }
 
 describe('ViewportHydrationStatusService', () => {
@@ -15,7 +29,10 @@ describe('ViewportHydrationStatusService', () => {
     service.activate(owner);
     service.markNextActivity('import');
     service.publish(owner, progress({ total: 20_000, completed: 15_080, percent: 75.4 }));
-    expect(service.status()).toMatchObject({ activity: 'import', progress: { completed: 15_080, total: 20_000, percent: 75.4 } });
+    expect(service.status()).toMatchObject({
+      activity: 'import',
+      progress: { completed: 15_080, total: 20_000, percent: 75.4 },
+    });
   });
 
   it('does not flash tiny work, then exposes it only after the short delay', () => {
@@ -42,11 +59,30 @@ describe('ViewportHydrationStatusService', () => {
       const owner = service.claim();
       service.activate(owner);
       service.publish(owner, progress({ total: 1, completed: 0, percent: 0 }));
-      service.publish(owner, progress({ status: 'complete', completed: 1, total: 1, blocksCompleted: 1, blocksTotal: 1, percent: 100, finalization: { expectedBlocks: 1, finalReadyBlocks: 1, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+      service.publish(
+        owner,
+        progress({
+          status: 'complete',
+          completed: 1,
+          total: 1,
+          blocksCompleted: 1,
+          blocksTotal: 1,
+          percent: 100,
+          finalization: {
+            expectedBlocks: 1,
+            finalReadyBlocks: 1,
+            provisionalMissingBlocks: 0,
+            permanentMissingBlocks: 0,
+            pendingBlocks: 0,
+          },
+        }),
+      );
       vi.advanceTimersByTime(VIEWPORT_HYDRATION_STATUS_DELAY_MS + 1);
       expect(service.status()).toBeUndefined();
       expect(service.finalization()).toMatchObject({ loading: false, ready: true });
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('clears completion and ignores stale owners after a viewport switch', () => {
@@ -62,7 +98,10 @@ describe('ViewportHydrationStatusService', () => {
     expect(service.status()).toBeUndefined();
     service.publish(second, progress({ total: 100, completed: 60, percent: 60 }));
     expect(service.status()?.progress.percent).toBe(60);
-    service.publish(second, progress({ status: 'complete', completed: 100, total: 100, percent: 100 }));
+    service.publish(
+      second,
+      progress({ status: 'complete', completed: 100, total: 100, percent: 100 }),
+    );
     expect(service.status()).toBeUndefined();
   });
 
@@ -96,7 +135,10 @@ describe('ViewportHydrationStatusService', () => {
     service.markNextActivity('import');
     service.publish(owner, progress({ total: 100 }));
     expect(service.status()?.activity).toBe('import');
-    service.publish(owner, progress({ generation: 2, total: 100, percent: 10, completed: 10, blocksCompleted: 10 }));
+    service.publish(
+      owner,
+      progress({ generation: 2, total: 100, percent: 10, completed: 10, blocksCompleted: 10 }),
+    );
     expect(service.status()?.activity).toBe('build');
   });
 
@@ -109,12 +151,32 @@ describe('ViewportHydrationStatusService', () => {
       service.publish(oldOwner, progress({ generation: 1, total: 1, completed: 0, percent: 0 }));
       const currentOwner = service.claim();
       service.activate(currentOwner);
-      service.publish(currentOwner, progress({ generation: 2, status: 'complete', completed: 1, total: 1, blocksCompleted: 1, blocksTotal: 1, percent: 100, finalization: { expectedBlocks: 1, finalReadyBlocks: 1, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+      service.publish(
+        currentOwner,
+        progress({
+          generation: 2,
+          status: 'complete',
+          completed: 1,
+          total: 1,
+          blocksCompleted: 1,
+          blocksTotal: 1,
+          percent: 100,
+          finalization: {
+            expectedBlocks: 1,
+            finalReadyBlocks: 1,
+            provisionalMissingBlocks: 0,
+            permanentMissingBlocks: 0,
+            pendingBlocks: 0,
+          },
+        }),
+      );
       vi.advanceTimersByTime(VIEWPORT_HYDRATION_STATUS_DELAY_MS + 1);
       expect(service.status()).toBeUndefined();
       service.publish(oldOwner, progress({ generation: 1, total: 1, completed: 1, percent: 100 }));
       expect(service.status()).toBeUndefined();
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not expose local edit hydration as global loading', () => {
@@ -139,7 +201,10 @@ describe('ViewportHydrationStatusService', () => {
     service.activate(owner);
     service.publish(owner, progress({ total: 200, completed: 20, percent: 10 }));
     service.publish(owner, progress({ lane: 'content', total: 40, completed: 0, percent: 0 }));
-    expect(service.status()).toMatchObject({ activity: 'content', progress: { total: 40, completed: 0 } });
+    expect(service.status()).toMatchObject({
+      activity: 'content',
+      progress: { total: 40, completed: 0 },
+    });
   });
 
   it('settles unresolved blocks as a warning and reopens when content arrives', () => {
@@ -147,14 +212,70 @@ describe('ViewportHydrationStatusService', () => {
     const owner = service.claim();
     service.activate(owner);
     service.setSourceRestoreState(owner, { terminal: true, pending: false });
-    service.publish(owner, progress({ status: 'complete', completed: 100, total: 120, blocksCompleted: 100, blocksTotal: 120, percent: 83.3, finalization: { expectedBlocks: 120, finalReadyBlocks: 100, provisionalMissingBlocks: 0, permanentMissingBlocks: 20, pendingBlocks: 0 } }));
+    service.publish(
+      owner,
+      progress({
+        status: 'complete',
+        completed: 100,
+        total: 120,
+        blocksCompleted: 100,
+        blocksTotal: 120,
+        percent: 83.3,
+        finalization: {
+          expectedBlocks: 120,
+          finalReadyBlocks: 100,
+          provisionalMissingBlocks: 0,
+          permanentMissingBlocks: 20,
+          pendingBlocks: 0,
+        },
+      }),
+    );
     expect(service.status()).toBeUndefined();
-    expect(service.finalization()).toMatchObject({ phase: 'warning', loading: false, warning: true });
+    expect(service.finalization()).toMatchObject({
+      phase: 'warning',
+      loading: false,
+      warning: true,
+    });
 
-    service.publish(owner, progress({ lane: 'content', completed: 100, total: 20, blocksCompleted: 100, blocksTotal: 20, percent: 0, finalization: { expectedBlocks: 120, finalReadyBlocks: 100, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 20 } }));
+    service.publish(
+      owner,
+      progress({
+        lane: 'content',
+        completed: 100,
+        total: 20,
+        blocksCompleted: 100,
+        blocksTotal: 20,
+        percent: 0,
+        finalization: {
+          expectedBlocks: 120,
+          finalReadyBlocks: 100,
+          provisionalMissingBlocks: 0,
+          permanentMissingBlocks: 0,
+          pendingBlocks: 20,
+        },
+      }),
+    );
     expect(service.finalization()).toMatchObject({ phase: 'updating', loading: true });
     expect(service.status()?.progress.lane).toBe('content');
-    service.publish(owner, progress({ lane: 'content', status: 'complete', completed: 20, total: 20, blocksCompleted: 20, blocksTotal: 20, percent: 100, finalization: { expectedBlocks: 120, finalReadyBlocks: 120, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+    service.publish(
+      owner,
+      progress({
+        lane: 'content',
+        status: 'complete',
+        completed: 20,
+        total: 20,
+        blocksCompleted: 20,
+        blocksTotal: 20,
+        percent: 100,
+        finalization: {
+          expectedBlocks: 120,
+          finalReadyBlocks: 120,
+          provisionalMissingBlocks: 0,
+          permanentMissingBlocks: 0,
+          pendingBlocks: 0,
+        },
+      }),
+    );
     expect(service.finalization()).toMatchObject({ phase: 'ready', loading: false, ready: true });
   });
 
@@ -162,15 +283,34 @@ describe('ViewportHydrationStatusService', () => {
     const service = new ViewportHydrationStatusService();
     const owner = service.claim();
     service.activate(owner);
-    service.publish(owner, progress({ status: 'complete', completed: 20, total: 20, blocksCompleted: 20, blocksTotal: 20, percent: 100, finalization: { expectedBlocks: 20, finalReadyBlocks: 20, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: 0 } }));
+    service.publish(
+      owner,
+      progress({
+        status: 'complete',
+        completed: 20,
+        total: 20,
+        blocksCompleted: 20,
+        blocksTotal: 20,
+        percent: 100,
+        finalization: {
+          expectedBlocks: 20,
+          finalReadyBlocks: 20,
+          provisionalMissingBlocks: 0,
+          permanentMissingBlocks: 0,
+          pendingBlocks: 0,
+        },
+      }),
+    );
     const externalRevision = signal(0);
     let effectRuns = 0;
 
-    TestBed.runInInjectionContext(() => effect(() => {
-      externalRevision();
-      effectRuns += 1;
-      service.settleIfTerminal();
-    }));
+    TestBed.runInInjectionContext(() =>
+      effect(() => {
+        externalRevision();
+        effectRuns += 1;
+        service.settleIfTerminal();
+      }),
+    );
     TestBed.flushEffects();
     externalRevision.set(1);
     TestBed.flushEffects();

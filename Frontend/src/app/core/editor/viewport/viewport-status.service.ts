@@ -48,7 +48,12 @@ export class ViewportStatusService {
     this.projectId.set(undefined);
   }
 
-  publish(owner: ViewportStatusOwner, projectId: string | undefined, target: VoxelCoordinate | undefined, validation: PlacementStatus = 'invalid'): void {
+  publish(
+    owner: ViewportStatusOwner,
+    projectId: string | undefined,
+    target: VoxelCoordinate | undefined,
+    validation: PlacementStatus = 'invalid',
+  ): void {
     if (this.activeOwner !== owner.id) return;
     if (this.projectId() !== projectId) {
       this.clearState();
@@ -74,7 +79,10 @@ export class ViewportStatusService {
     this.projectId.set(undefined);
   }
 
-  private clearState(): void { this.target.set(undefined); this.validation.set('invalid'); }
+  private clearState(): void {
+    this.target.set(undefined);
+    this.validation.set('invalid');
+  }
 }
 
 function sameCoordinate(a: VoxelCoordinate | undefined, b: VoxelCoordinate | undefined): boolean {

@@ -4,7 +4,9 @@ import { HydrationScheduler } from './hydration-scheduler';
 describe('HydrationScheduler', () => {
   it('dequeues in order and avoids duplicate scheduled pumps', () => {
     const microtasks: (() => void)[] = [];
-    const scheduler = new HydrationScheduler<number>({ requestMicrotask: (callback) => microtasks.push(callback) });
+    const scheduler = new HydrationScheduler<number>({
+      requestMicrotask: (callback) => microtasks.push(callback),
+    });
     scheduler.enqueue([1, 2, 3]);
     expect(scheduler.queued()).toBe(3);
     expect(scheduler.dequeue()).toBe(1);

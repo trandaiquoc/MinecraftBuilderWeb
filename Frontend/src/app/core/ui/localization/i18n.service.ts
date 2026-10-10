@@ -1,7 +1,15 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, computed, inject } from '@angular/core';
 import { UiPreferencesService, UiLocale } from '../preferences/ui-preferences.service';
-import { behaviorSupportTranslations, signColorTranslations, statePropertyTranslations, stateValueTranslations, supportLevelTranslations, translateDomainLabel, visualSupportTranslations } from './domain-label-translations';
+import {
+  behaviorSupportTranslations,
+  signColorTranslations,
+  statePropertyTranslations,
+  stateValueTranslations,
+  supportLevelTranslations,
+  translateDomainLabel,
+  visualSupportTranslations,
+} from './domain-label-translations';
 import { translateModDiagnostic } from './mod-diagnostic-translations';
 import {
   BehaviorSupportLevel,
@@ -9,7 +17,13 @@ import {
   VisualSupportLevel,
 } from '../../blocks/catalog/block-definition.types';
 
-import { supplementalTranslations, structureExportUiTranslations, structureJsonProjectUiTranslations, structureJsonValidationTranslations, translations } from './translation-catalogs';
+import {
+  supplementalTranslations,
+  structureExportUiTranslations,
+  structureJsonProjectUiTranslations,
+  structureJsonValidationTranslations,
+  translations,
+} from './translation-catalogs';
 import type { Locale, TranslationKey } from './translation-catalogs';
 
 @Injectable({ providedIn: 'root' })
@@ -18,17 +32,29 @@ export class I18nService {
   private readonly preferences = inject(UiPreferencesService);
   readonly locale = computed<Locale>(() => this.preferences.preferences().locale);
 
-  constructor() { this.applyLocale(this.locale()); }
+  constructor() {
+    this.applyLocale(this.locale());
+  }
 
   t(key: TranslationKey): string {
     const locale = this.locale();
-    const exportTranslation = (structureExportUiTranslations[locale] as Readonly<Record<string, string>>)[key];
+    const exportTranslation = (
+      structureExportUiTranslations[locale] as Readonly<Record<string, string>>
+    )[key];
     if (exportTranslation) return exportTranslation;
-    const projectImportTranslation = (structureJsonProjectUiTranslations[locale] as Readonly<Record<string, string>>)[key];
+    const projectImportTranslation = (
+      structureJsonProjectUiTranslations[locale] as Readonly<Record<string, string>>
+    )[key];
     if (projectImportTranslation) return projectImportTranslation;
-    const validationTranslation = (structureJsonValidationTranslations[locale] as Readonly<Record<string, string>>)[key];
+    const validationTranslation = (
+      structureJsonValidationTranslations[locale] as Readonly<Record<string, string>>
+    )[key];
     if (validationTranslation) return validationTranslation;
-    return (translations[locale] as Readonly<Record<string, string>>)[key] ?? (supplementalTranslations[locale] as Readonly<Record<string, string>>)[key] ?? key;
+    return (
+      (translations[locale] as Readonly<Record<string, string>>)[key] ??
+      (supplementalTranslations[locale] as Readonly<Record<string, string>>)[key] ??
+      key
+    );
   }
 
   toggleLocale(): void {
@@ -62,8 +88,18 @@ export class I18nService {
   visualSupport(value: VisualSupportLevel): string {
     return translateDomainLabel(value, this.locale(), visualSupportTranslations);
   }
-  modDiagnostic(code: string, fallback: string, parameters: Readonly<Record<string, string | number>> = {}): string {
+  modDiagnostic(
+    code: string,
+    fallback: string,
+    parameters: Readonly<Record<string, string | number>> = {},
+  ): string {
     return translateModDiagnostic(code, fallback, parameters, this.locale());
   }
-  modDiagnosticGroup(kind: 'blocking' | 'warning' | 'info'): string { return kind === 'blocking' ? this.t('assetManagerBlocking') : kind === 'warning' ? this.t('assetManagerWarnings') : this.t('info'); }
+  modDiagnosticGroup(kind: 'blocking' | 'warning' | 'info'): string {
+    return kind === 'blocking'
+      ? this.t('assetManagerBlocking')
+      : kind === 'warning'
+        ? this.t('assetManagerWarnings')
+        : this.t('info');
+  }
 }

@@ -5,11 +5,16 @@ import { extractBehaviorFingerprint } from './behavior-fingerprint';
 import { matchVanillaBehaviorCandidates } from './behavior-classifier';
 import type { AssetBlockRecord } from '../../blocks/catalog/block-definition.types';
 
-const enabled = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.['CLEAN_CODE_STEP1_BENCHMARK'] === '1';
+const enabled =
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[
+    'CLEAN_CODE_STEP1_BENCHMARK'
+  ] === '1';
 
 describe.skipIf(!enabled)('Clean Code Step 1 before/after benchmark', () => {
   it('records vanilla catalog behavior classification cost', () => {
-    const records = vanillaRegistry.blocks as unknown as readonly (AssetBlockRecord & { readonly properties?: AssetBlockRecord['stateDefinitions'] })[];
+    const records = vanillaRegistry.blocks as unknown as readonly (AssetBlockRecord & {
+      readonly properties?: AssetBlockRecord['stateDefinitions'];
+    })[];
     const durations: number[] = [];
     let classified = 0;
     const fallbackIds = new Set<string>();
@@ -20,7 +25,11 @@ describe.skipIf(!enabled)('Clean Code Step 1 before/after benchmark', () => {
     }));
     for (const record of normalizedRecords) {
       const result = evaluateCommonBehavior(record);
-      if (!matchVanillaBehaviorCandidates(extractBehaviorFingerprint(record)).behavior && result.behavior) fallbackIds.add(record.id);
+      if (
+        !matchVanillaBehaviorCandidates(extractBehaviorFingerprint(record)).behavior &&
+        result.behavior
+      )
+        fallbackIds.add(record.id);
     }
     for (let sample = 0; sample < 5; sample += 1) {
       const start = performance.now();
@@ -33,7 +42,9 @@ describe.skipIf(!enabled)('Clean Code Step 1 before/after benchmark', () => {
     }
     const elapsedMs = median(durations);
     const output = `[step1-benchmark] vanilla classifier: ${records.length} registry blocks, ${classified} behaviors, trusted fallback-only ${fallbackIds.size} (${[...fallbackIds].slice(0, 12).join(', ')}), median/5 ${elapsedMs.toFixed(2)} ms\n`;
-    (globalThis as { process?: { stdout?: { write(value: string): void } } }).process?.stdout?.write(output);
+    (
+      globalThis as { process?: { stdout?: { write(value: string): void } } }
+    ).process?.stdout?.write(output);
     expect(records.length).toBeGreaterThan(1000);
   });
 });

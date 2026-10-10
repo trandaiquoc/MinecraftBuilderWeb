@@ -1,7 +1,13 @@
 import * as THREE from 'three';
-import { collectRendererOwnershipDiagnostics, type RendererOwnershipDiagnosticSnapshot } from './renderer-ownership-diagnostics';
+import {
+  collectRendererOwnershipDiagnostics,
+  type RendererOwnershipDiagnosticSnapshot,
+} from './renderer-ownership-diagnostics';
 
-function snapshot(scene: THREE.Scene, blocksGroup: THREE.Group): RendererOwnershipDiagnosticSnapshot {
+function snapshot(
+  scene: THREE.Scene,
+  blocksGroup: THREE.Group,
+): RendererOwnershipDiagnosticSnapshot {
   return {
     scene,
     canonicalRoot: new THREE.Group(),
@@ -31,7 +37,13 @@ function snapshot(scene: THREE.Scene, blocksGroup: THREE.Group): RendererOwnersh
       reusableTemplateCount: 0,
     },
     previewActivity: { activeBlock: false, groupMoveActive: false, decorationActive: false },
-    hydration: { queued: 0, running: 0, pendingSignatureCount: 0, placeholderSignatureCount: 0, runningOwnershipCount: 0 },
+    hydration: {
+      queued: 0,
+      running: 0,
+      pendingSignatureCount: 0,
+      placeholderSignatureCount: 0,
+      runningOwnershipCount: 0,
+    },
   };
 }
 

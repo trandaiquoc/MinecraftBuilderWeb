@@ -14,7 +14,15 @@ describe('viewport theme palette', () => {
   it('keeps interaction states distinct in both themes', () => {
     for (const mode of ['light', 'dark'] as const) {
       const palette = viewportThemePalette(mode);
-      expect(new Set([palette.selection, palette.group, palette.lockedGroup, palette.valid, palette.invalid]).size).toBe(5);
+      expect(
+        new Set([
+          palette.selection,
+          palette.group,
+          palette.lockedGroup,
+          palette.valid,
+          palette.invalid,
+        ]).size,
+      ).toBe(5);
     }
   });
 });

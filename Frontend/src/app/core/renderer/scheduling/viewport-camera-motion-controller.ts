@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
 import { cameraMovementScale, effectiveCameraMovementSpeed } from './camera-movement-speed';
-import { nextCameraDistanceFromWheel, wheelMagnitude, type WheelZoomAction } from './camera-wheel-zoom';
+import {
+  nextCameraDistanceFromWheel,
+  wheelMagnitude,
+  type WheelZoomAction,
+} from './camera-wheel-zoom';
 import { cameraActionMovementDelta } from './viewport-camera-geometry';
 import type { CameraControlConfiguration } from './viewport-camera-input-controller';
 
@@ -38,8 +42,17 @@ export class ViewportCameraMotionController {
       minDistance: controls.minDistance,
       maxDistance: controls.maxDistance,
     });
-    this.callbacks.recordTrace?.('wheel', { action, deltaY, deltaMode, magnitude: wheelMagnitude(deltaY, deltaMode), sensitivity: configuration.zoomSensitivity, distanceBefore: distance, distanceAfter: nextDistance });
-    if (distance > 0) camera.position.copy(controls.target).add(offset.normalize().multiplyScalar(nextDistance));
+    this.callbacks.recordTrace?.('wheel', {
+      action,
+      deltaY,
+      deltaMode,
+      magnitude: wheelMagnitude(deltaY, deltaMode),
+      sensitivity: configuration.zoomSensitivity,
+      distanceBefore: distance,
+      distanceAfter: nextDistance,
+    });
+    if (distance > 0)
+      camera.position.copy(controls.target).add(offset.normalize().multiplyScalar(nextDistance));
     controls.update();
     this.callbacks.requestRender();
   }
@@ -54,14 +67,26 @@ export class ViewportCameraMotionController {
       const camera = this.callbacks.camera;
       const cameraDistance = camera.position.distanceTo(controls.target);
       const configuration = this.callbacks.configuration();
-      const horizontalSpeed = effectiveCameraMovementSpeed(configuration.cameraMoveSpeed, cameraDistance);
+      const horizontalSpeed = effectiveCameraMovementSpeed(
+        configuration.cameraMoveSpeed,
+        cameraDistance,
+      );
       const direction = cameraActionMovementDelta(keys, camera, horizontalSpeed, delta);
       if (!direction.lengthSq()) return;
       camera.position.add(direction);
       controls.target.add(direction);
       moved = true;
       this.callbacks.recordMetric?.('cameraMovementFrames');
-      this.callbacks.recordTrace?.('movement-frame', { actions: [...keys], deltaSeconds: delta, configuredHorizontalSpeed: configuration.cameraMoveSpeed, configuredVerticalSpeed: configuration.verticalMoveSpeed, distance: cameraDistance, movementScale: cameraMovementScale(cameraDistance), effectiveHorizontalSpeed: horizontalSpeed, effectiveVerticalSpeed: horizontalSpeed });
+      this.callbacks.recordTrace?.('movement-frame', {
+        actions: [...keys],
+        deltaSeconds: delta,
+        configuredHorizontalSpeed: configuration.cameraMoveSpeed,
+        configuredVerticalSpeed: configuration.verticalMoveSpeed,
+        distance: cameraDistance,
+        movementScale: cameraMovementScale(cameraDistance),
+        effectiveHorizontalSpeed: horizontalSpeed,
+        effectiveVerticalSpeed: horizontalSpeed,
+      });
       controls.update();
     } finally {
       if (moved) {

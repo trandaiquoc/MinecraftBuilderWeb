@@ -20,7 +20,12 @@ export interface TerrainCommitMetrics {
 export interface TerrainCommitDiagnosticsEvidence {
   readonly commits: number;
   readonly last?: TerrainCommitMetrics;
-  readonly stages: Readonly<Record<string, { readonly count: number; readonly p50: number; readonly p95: number; readonly max: number }>>;
+  readonly stages: Readonly<
+    Record<
+      string,
+      { readonly count: number; readonly p50: number; readonly p95: number; readonly max: number }
+    >
+  >;
 }
 
 /** Small bounded accumulator for proving where a terrain commit spends time. */
@@ -36,19 +41,34 @@ export class TerrainCommitDiagnostics {
     this.samples.set(stage, values);
   }
 
-  recordCommit(metrics: TerrainCommitMetrics): void { this.commitCount += 1; this.last = metrics; }
+  recordCommit(metrics: TerrainCommitMetrics): void {
+    this.commitCount += 1;
+    this.last = metrics;
+  }
 
   evidence(): TerrainCommitDiagnosticsEvidence {
     return {
       commits: this.commitCount,
       ...(this.last ? { last: { ...this.last } } : {}),
-      stages: Object.fromEntries([...this.samples.entries()].map(([stage, values]) => [stage, summary(values)])),
+      stages: Object.fromEntries(
+        [...this.samples.entries()].map(([stage, values]) => [stage, summary(values)]),
+      ),
     };
   }
 }
 
-function summary(values: readonly number[]): { count: number; p50: number; p95: number; max: number } {
+function summary(values: readonly number[]): {
+  count: number;
+  p50: number;
+  p95: number;
+  max: number;
+} {
   if (!values.length) return { count: 0, p50: 0, p95: 0, max: 0 };
   const sorted = [...values].sort((left, right) => left - right);
-  return { count: sorted.length, p50: sorted[Math.floor((sorted.length - 1) * .5)], p95: sorted[Math.floor((sorted.length - 1) * .95)], max: sorted[sorted.length - 1] };
+  return {
+    count: sorted.length,
+    p50: sorted[Math.floor((sorted.length - 1) * 0.5)],
+    p95: sorted[Math.floor((sorted.length - 1) * 0.95)],
+    max: sorted[sorted.length - 1],
+  };
 }

@@ -1,17 +1,33 @@
-import type { AssetBlockRecord, BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
-import type { ContentPropertyDescriptor, NormalizedContentDescriptor } from '../../content/content-introspection';
+import type {
+  AssetBlockRecord,
+  BlockStateDefinition,
+} from '../../blocks/catalog/block-definition.types';
+import type {
+  ContentPropertyDescriptor,
+  NormalizedContentDescriptor,
+} from '../../content/content-introspection';
 import { GENERIC_BEHAVIOR_PROFILES } from './behavior-profiles';
 import { inferBehaviorTraits } from './behavior-traits';
 
-const SIX_FACE_VALUES: readonly string[] = GENERIC_BEHAVIOR_PROFILES.attachedSixFace.requiredStates.facing;
+const SIX_FACE_VALUES: readonly string[] =
+  GENERIC_BEHAVIOR_PROFILES.attachedSixFace.requiredStates.facing;
 
 export type BehaviorTrait =
-  | 'horizontal-connection' | 'neighbor-derived-shape' | 'six-face-orientation' | 'face-attachment'
-  | 'floor-support' | 'ceiling-support' | 'axis-orientation' | 'waterloggable'
-  | 'multi-block' | 'block-entity' | 'solid-support-provider';
+  | 'horizontal-connection'
+  | 'neighbor-derived-shape'
+  | 'six-face-orientation'
+  | 'face-attachment'
+  | 'floor-support'
+  | 'ceiling-support'
+  | 'axis-orientation'
+  | 'waterloggable'
+  | 'multi-block'
+  | 'block-entity'
+  | 'solid-support-provider';
 
 export interface BehaviorEvidenceRecord {
-  readonly source: 'tag' | 'jvm' | 'state-schema' | 'blockstate' | 'model' | 'relationship' | 'support' | 'name';
+  readonly source:
+    'tag' | 'jvm' | 'state-schema' | 'blockstate' | 'model' | 'relationship' | 'support' | 'name';
   readonly strength: 'strong' | 'partial' | 'weak';
   readonly detail: string;
 }
@@ -56,50 +72,143 @@ export interface BehaviorFingerprint {
   readonly nameTokens: readonly string[];
 }
 
-export interface BehaviorFingerprintResourceProvider { readJson(path: string): unknown | undefined; }
+export interface BehaviorFingerprintResourceProvider {
+  readJson(path: string): unknown | undefined;
+}
 
-export function extractBehaviorFingerprint(record: AssetBlockRecord, resources?: BehaviorFingerprintResourceProvider, descriptor?: NormalizedContentDescriptor): BehaviorFingerprint {
+export function extractBehaviorFingerprint(
+  record: AssetBlockRecord,
+  resources?: BehaviorFingerprintResourceProvider,
+  descriptor?: NormalizedContentDescriptor,
+): BehaviorFingerprint {
   const properties = descriptor?.properties?.map(toStateDefinition) ?? record.stateDefinitions;
-  const blockstate = record.resources.blockstate ? resources?.readJson(record.resources.blockstate) : undefined;
-  const modelReferences = uniqueStrings([record.resources.model, ...collectStrings(blockstate, 'model'), ...(record.itemEvidence?.referencedModels ?? [])]);
+  const blockstate = record.resources.blockstate
+    ? resources?.readJson(record.resources.blockstate)
+    : undefined;
+  const modelReferences = uniqueStrings([
+    record.resources.model,
+    ...collectStrings(blockstate, 'model'),
+    ...(record.itemEvidence?.referencedModels ?? []),
+  ]);
   const modelParents = collectModelParents(modelReferences, resources);
-  const predicates = uniqueStrings([...collectPredicateProperties(blockstate), ...(descriptor?.predicates ?? []).flatMap((predicate) => predicateProperties(predicate))]);
+  const predicates = uniqueStrings([
+    ...collectPredicateProperties(blockstate),
+    ...(descriptor?.predicates ?? []).flatMap((predicate) => predicateProperties(predicate)),
+  ]);
   const modelChangingProperties = uniqueStrings([
-    ...(descriptor?.properties?.filter((property) => property.derived || property.effects.visual).map((property) => property.name) ?? properties.filter((property) => property.derived).map((property) => property.name)),
+    ...(descriptor?.properties
+      ?.filter((property) => property.derived || property.effects.visual)
+      .map((property) => property.name) ??
+      properties.filter((property) => property.derived).map((property) => property.name)),
     ...predicates,
   ]);
-  const tags = uniqueStrings([...(record.semanticEvidence ?? []).flatMap((entry) => entry.supportingTags), ...(descriptor?.semanticEvidence ?? []).flatMap((entry) => entry.supportingTags)]);
-  const semanticAttachmentContracts = [...(record.semanticEvidence ?? []), ...(descriptor?.semanticEvidence ?? [])]
-    .filter((entry) => entry.strength === 'strong' && (entry.provenance === 'trusted-data' || entry.provenance === 'authoritative-registry'))
+  const tags = uniqueStrings([
+    ...(record.semanticEvidence ?? []).flatMap((entry) => entry.supportingTags),
+    ...(descriptor?.semanticEvidence ?? []).flatMap((entry) => entry.supportingTags),
+  ]);
+  const semanticAttachmentContracts = [
+    ...(record.semanticEvidence ?? []),
+    ...(descriptor?.semanticEvidence ?? []),
+  ]
+    .filter(
+      (entry) =>
+        entry.strength === 'strong' &&
+        (entry.provenance === 'trusted-data' || entry.provenance === 'authoritative-registry'),
+    )
     .map((entry) => entry.contractId)
     .filter((contractId) => contractId === 'six-face-attachment');
-  const supportContracts = uniqueStrings([...(record.supportContracts ?? []), ...(descriptor?.supportContracts ?? []), ...semanticAttachmentContracts]);
+  const supportContracts = uniqueStrings([
+    ...(record.supportContracts ?? []),
+    ...(descriptor?.supportContracts ?? []),
+    ...semanticAttachmentContracts,
+  ]);
   const supportRequirements = uniqueStrings([
-    ...(record.supportRequirements ?? []).map((requirement) => `${requirement.direction}:${requirement.contractId}`),
-    ...(descriptor?.supportRequirements ?? []).map((requirement) => `${requirement.direction}:${requirement.contractId}`),
+    ...(record.supportRequirements ?? []).map(
+      (requirement) => `${requirement.direction}:${requirement.contractId}`,
+    ),
+    ...(descriptor?.supportRequirements ?? []).map(
+      (requirement) => `${requirement.direction}:${requirement.contractId}`,
+    ),
   ]);
   const evidence: BehaviorEvidenceRecord[] = [
-    { source: 'state-schema', strength: 'strong', detail: `properties:${properties.map((property) => `${property.name}=${property.values.join('|')}`).join(';')}` },
-    ...(predicates.length ? [{ source: 'blockstate' as const, strength: 'strong' as const, detail: `model predicates:${predicates.join(',')}` }] : []),
-    ...(modelParents.length ? [{ source: 'model' as const, strength: 'strong' as const, detail: `parents:${modelParents.join(',')}` }] : []),
-    ...(tags.length ? [{ source: 'tag' as const, strength: 'strong' as const, detail: `tags:${tags.join(',')}` }] : []),
-    ...(supportContracts.length ? [{ source: 'support' as const, strength: 'strong' as const, detail: `contracts:${supportContracts.join(',')}` }] : []),
-    ...(record.itemEvidence?.placeable ? [{ source: 'relationship' as const, strength: 'partial' as const, detail: `item:${record.itemEvidence.itemId}` }] : []),
+    {
+      source: 'state-schema',
+      strength: 'strong',
+      detail: `properties:${properties.map((property) => `${property.name}=${property.values.join('|')}`).join(';')}`,
+    },
+    ...(predicates.length
+      ? [
+          {
+            source: 'blockstate' as const,
+            strength: 'strong' as const,
+            detail: `model predicates:${predicates.join(',')}`,
+          },
+        ]
+      : []),
+    ...(modelParents.length
+      ? [
+          {
+            source: 'model' as const,
+            strength: 'strong' as const,
+            detail: `parents:${modelParents.join(',')}`,
+          },
+        ]
+      : []),
+    ...(tags.length
+      ? [{ source: 'tag' as const, strength: 'strong' as const, detail: `tags:${tags.join(',')}` }]
+      : []),
+    ...(supportContracts.length
+      ? [
+          {
+            source: 'support' as const,
+            strength: 'strong' as const,
+            detail: `contracts:${supportContracts.join(',')}`,
+          },
+        ]
+      : []),
+    ...(record.itemEvidence?.placeable
+      ? [
+          {
+            source: 'relationship' as const,
+            strength: 'partial' as const,
+            detail: `item:${record.itemEvidence.itemId}`,
+          },
+        ]
+      : []),
   ];
   const base: Omit<BehaviorFingerprint, 'traits'> = {
-    id: record.id, displayName: record.displayName,
-    ...(record.behaviorEvidenceRequired !== undefined ? { behaviorEvidenceRequired: record.behaviorEvidenceRequired } : {}),
-    properties, defaultState: { ...record.defaultState }, modelChangingProperties, predicates,
-    modelReferences, modelParents, trustedFamilies: uniqueStrings(record.trustedBehaviorFamilies ?? []), tags,
+    id: record.id,
+    displayName: record.displayName,
+    ...(record.behaviorEvidenceRequired !== undefined
+      ? { behaviorEvidenceRequired: record.behaviorEvidenceRequired }
+      : {}),
+    properties,
+    defaultState: { ...record.defaultState },
+    modelChangingProperties,
+    predicates,
+    modelReferences,
+    modelParents,
+    trustedFamilies: uniqueStrings(record.trustedBehaviorFamilies ?? []),
+    tags,
     ...(record.itemEvidence?.itemId ? { itemBlockRelationship: record.itemEvidence.itemId } : {}),
-    capabilities: uniqueStrings([...(record.capabilities ?? []).map((capability) => capability.kind), ...(descriptor?.capabilities ?? [])]),
-    supportContracts, supportRequirements, evidence, nameTokens: nameTokens(record.id, record.displayName),
+    capabilities: uniqueStrings([
+      ...(record.capabilities ?? []).map((capability) => capability.kind),
+      ...(descriptor?.capabilities ?? []),
+    ]),
+    supportContracts,
+    supportRequirements,
+    evidence,
+    nameTokens: nameTokens(record.id, record.displayName),
   };
   return { ...base, traits: inferBehaviorTraits(base) };
 }
 
 function toStateDefinition(property: ContentPropertyDescriptor): BlockStateDefinition {
-  return { name: property.name, values: property.values, ...(property.derived ? { derived: true } : {}) };
+  return {
+    name: property.name,
+    values: property.values,
+    ...(property.derived ? { derived: true } : {}),
+  };
 }
 
 function uniqueStrings(values: readonly (string | undefined)[]): string[] {
@@ -107,14 +216,20 @@ function uniqueStrings(values: readonly (string | undefined)[]): string[] {
 }
 
 function nameTokens(id: string, displayName: string): readonly string[] {
-  return `${id} ${displayName}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return `${id} ${displayName}`
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
 }
 
 function collectStrings(value: unknown, key: string): string[] {
   const found: string[] = [];
   const visit = (node: unknown): void => {
     if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
     for (const [childKey, child] of Object.entries(node)) {
       if (childKey === key && typeof child === 'string') found.push(child);
       visit(child);
@@ -128,16 +243,20 @@ function collectPredicateProperties(value: unknown): string[] {
   const found: string[] = [];
   const visit = (node: unknown): void => {
     if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
     for (const [key, child] of Object.entries(node)) {
       if (key === 'variants' && child && typeof child === 'object' && !Array.isArray(child)) {
-        for (const variant of Object.keys(child)) for (const part of variant.split(',')) {
-          const [property, value] = part.trim().split('=', 2);
-          if (property) {
-            found.push(property);
-            if (value && SIX_FACE_VALUES.includes(value)) found.push(`${property}:${value}`);
+        for (const variant of Object.keys(child))
+          for (const part of variant.split(',')) {
+            const [property, value] = part.trim().split('=', 2);
+            if (property) {
+              found.push(property);
+              if (value && SIX_FACE_VALUES.includes(value)) found.push(`${property}:${value}`);
+            }
           }
-        }
       } else if (key === 'when' && child && typeof child === 'object' && !Array.isArray(child)) {
         found.push(...Object.keys(child));
       }
@@ -148,13 +267,28 @@ function collectPredicateProperties(value: unknown): string[] {
   return uniqueStrings(found);
 }
 
-function predicateProperties(predicate: { readonly kind?: string; readonly properties?: readonly { readonly property: string }[]; readonly predicates?: readonly unknown[] }): string[] {
+function predicateProperties(predicate: {
+  readonly kind?: string;
+  readonly properties?: readonly { readonly property: string }[];
+  readonly predicates?: readonly unknown[];
+}): string[] {
   return predicate.kind === 'properties'
     ? (predicate.properties ?? []).map((entry) => entry.property)
-    : (predicate.predicates ?? []).flatMap((entry) => predicateProperties(entry as { kind?: string; properties?: readonly { readonly property: string }[]; predicates?: readonly unknown[] }));
+    : (predicate.predicates ?? []).flatMap((entry) =>
+        predicateProperties(
+          entry as {
+            kind?: string;
+            properties?: readonly { readonly property: string }[];
+            predicates?: readonly unknown[];
+          },
+        ),
+      );
 }
 
-function collectModelParents(models: readonly string[], resources?: BehaviorFingerprintResourceProvider): string[] {
+function collectModelParents(
+  models: readonly string[],
+  resources?: BehaviorFingerprintResourceProvider,
+): string[] {
   if (!resources) return [];
   const parents = new Set<string>();
   const visit = (model: string, visited: Set<string>): void => {

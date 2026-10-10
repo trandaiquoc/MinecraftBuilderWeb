@@ -1,5 +1,9 @@
 import type { PlacedBlock } from '../../domain/project.types';
-import { isConfirmedOpaqueFullCube, type OcclusionClass, type OcclusionRole } from '../visibility/interior-occlusion';
+import {
+  isConfirmedOpaqueFullCube,
+  type OcclusionClass,
+  type OcclusionRole,
+} from '../visibility/interior-occlusion';
 
 export interface TerrainClassificationEntry {
   readonly block: PlacedBlock;
@@ -18,5 +22,9 @@ export function isCompiledTerrainEntry(entry: TerrainClassificationEntry): boole
 
 /** Reference layers may use terrain geometry, but never contribute occlusion. */
 export function isTerrainRenderableEntry(entry: TerrainClassificationEntry): boolean {
-  return (entry.role === 'normal' || entry.role === 'reference') && entry.block.kind === 'resolved' && entry.occlusionClass === 'opaque-full-cube';
+  return (
+    (entry.role === 'normal' || entry.role === 'reference') &&
+    entry.block.kind === 'resolved' &&
+    entry.occlusionClass === 'opaque-full-cube'
+  );
 }

@@ -13,7 +13,10 @@ describe('RenderRegionPolicy', () => {
   });
 
   it('produces conservative bounds for the complete region envelope', () => {
-    const bounds = policy.bounds('2,-1,3', new THREE.Box3(new THREE.Vector3(-0.25, 0, 0), new THREE.Vector3(1, 1, 1)));
+    const bounds = policy.bounds(
+      '2,-1,3',
+      new THREE.Box3(new THREE.Vector3(-0.25, 0, 0), new THREE.Vector3(1, 1, 1)),
+    );
     expect(bounds.min.toArray()).toEqual([63.75, -32, 96]);
     expect(bounds.max.toArray()).toEqual([96, 0, 128]);
   });

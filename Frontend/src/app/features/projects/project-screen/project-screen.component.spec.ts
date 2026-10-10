@@ -2,7 +2,12 @@ import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProjectDocument } from '../../../core/domain/project.types';
 import type { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
-import { canDeleteProject, projectCreationFailureMessage, projectCreationGuard, ProjectScreenComponent } from './project-screen.component';
+import {
+  canDeleteProject,
+  projectCreationFailureMessage,
+  projectCreationGuard,
+  ProjectScreenComponent,
+} from './project-screen.component';
 
 describe('projectCreationGuard', () => {
   it('ignores duplicate create/open actions without reporting invalid dimensions', () => {
@@ -26,8 +31,12 @@ describe('recent project deletion state', () => {
 
 describe('project creation failure classification', () => {
   it('keeps validation/persistence failures distinct for user-facing messages', () => {
-    expect(projectCreationFailureMessage(new Error('Invalid Minecraft version'), 'storage', 'generic')).toBe('generic');
-    expect(projectCreationFailureMessage(new Error('IndexedDB quota exceeded'), 'storage', 'generic')).toBe('storage');
+    expect(
+      projectCreationFailureMessage(new Error('Invalid Minecraft version'), 'storage', 'generic'),
+    ).toBe('generic');
+    expect(
+      projectCreationFailureMessage(new Error('IndexedDB quota exceeded'), 'storage', 'generic'),
+    ).toBe('storage');
   });
 });
 
@@ -60,7 +69,9 @@ describe('ProjectScreenComponent Structure JSON navigation', () => {
     state['dialogs'] = { error: showError };
     state['persistence'] = { list: vi.fn(async () => [summary]) };
 
-    await (component as unknown as { createProjectFromStructureJson(): Promise<void> }).createProjectFromStructureJson();
+    await (
+      component as unknown as { createProjectFromStructureJson(): Promise<void> }
+    ).createProjectFromStructureJson();
 
     expect(createProject).toHaveBeenCalledOnce();
     expect(navigateByUrl).toHaveBeenCalledWith('/editor');
@@ -72,7 +83,10 @@ describe('ProjectScreenComponent Structure JSON navigation', () => {
   });
 
   it('reports a thrown navigation failure and keeps the persisted project reopenable', async () => {
-    const project = { id: 'persisted-import-error', metadata: { name: 'Imported' } } as ProjectDocument;
+    const project = {
+      id: 'persisted-import-error',
+      metadata: { name: 'Imported' },
+    } as ProjectDocument;
     const failure = new Error('router rejected navigation');
     const createProject = vi.fn(async () => project);
     const handleError = vi.fn();
@@ -84,7 +98,11 @@ describe('ProjectScreenComponent Structure JSON navigation', () => {
     state['structureJsonImport'] = { createProject };
     state['session'] = { resetForProjectChange: vi.fn() };
     state['workspace'] = { activate: vi.fn() };
-    state['router'] = { navigateByUrl: vi.fn(async () => { throw failure; }) };
+    state['router'] = {
+      navigateByUrl: vi.fn(async () => {
+        throw failure;
+      }),
+    };
     state['errorHandler'] = { handleError };
     state['i18n'] = { t: (key: string) => key };
     state['error'] = error;
@@ -94,7 +112,9 @@ describe('ProjectScreenComponent Structure JSON navigation', () => {
     state['dialogs'] = { error: vi.fn(async () => undefined) };
     state['persistence'] = { list: vi.fn(async () => [summary]) };
 
-    await (component as unknown as { createProjectFromStructureJson(): Promise<void> }).createProjectFromStructureJson();
+    await (
+      component as unknown as { createProjectFromStructureJson(): Promise<void> }
+    ).createProjectFromStructureJson();
 
     expect(createProject).toHaveBeenCalledOnce();
     expect(handleError).toHaveBeenCalledWith(failure);

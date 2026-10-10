@@ -1,15 +1,53 @@
-<section class="quick-block-bar" [class.collapsed]="quick.collapsed()" [attr.aria-label]="i18n.t('quickBlockBar')">
-  <button type="button" class="collapse" uiTooltip="{{ quick.collapsed() ? i18n.t('expand') : i18n.t('collapse') }}" [attr.aria-label]="quick.collapsed() ? i18n.t('expand') : i18n.t('collapse')" (click)="quick.collapsed.set(!quick.collapsed())">
-    @if (quick.collapsed()) { <svg lucideChevronUp aria-hidden="true"></svg> } @else { <svg lucideChevronDown aria-hidden="true"></svg> }
+<section
+  class="quick-block-bar"
+  [class.collapsed]="quick.collapsed()"
+  [attr.aria-label]="i18n.t('quickBlockBar')"
+>
+  <button
+    type="button"
+    class="collapse"
+    uiTooltip="{{ quick.collapsed() ? i18n.t('expand') : i18n.t('collapse') }}"
+    [attr.aria-label]="quick.collapsed() ? i18n.t('expand') : i18n.t('collapse')"
+    (click)="quick.collapsed.set(!quick.collapsed())"
+  >
+    @if (quick.collapsed()) {
+      <svg lucideChevronUp aria-hidden="true"></svg>
+    } @else {
+      <svg lucideChevronDown aria-hidden="true"></svg>
+    }
   </button>
   @if (!quick.collapsed()) {
     <div class="slots">
       @for (entry of entries(); track entry.key; let index = $index) {
         <div class="slot" [class.active]="entry.active">
-          <button type="button" class="slot-select" [attr.aria-pressed]="entry.active" (click)="quick.select(entry)" [attr.title]="entry.displayName + ' · ' + entry.id"><span>@if (entry.thumbnail) { <img [src]="entry.thumbnail" alt="" /> } @else { ◇ }</span><small>{{ index === 9 ? 0 : index + 1 }}</small></button>
-          <button type="button" class="slot-remove ui-close-button" uiTooltip="{{ i18n.t('removeFromQuickBar') }}" (click)="quick.remove(index)" [attr.aria-label]="i18n.t('removeFromQuickBar')"><svg lucideX aria-hidden="true"></svg></button>
+          <button
+            type="button"
+            class="slot-select"
+            [attr.aria-pressed]="entry.active"
+            (click)="quick.select(entry)"
+            [attr.title]="entry.displayName + ' · ' + entry.id"
+          >
+            <span>
+              @if (entry.thumbnail) {
+                <img [src]="entry.thumbnail" alt="" />
+              } @else {
+                ◇
+              }</span
+            ><small>{{ index === 9 ? 0 : index + 1 }}</small>
+          </button>
+          <button
+            type="button"
+            class="slot-remove ui-close-button"
+            uiTooltip="{{ i18n.t('removeFromQuickBar') }}"
+            (click)="quick.remove(index)"
+            [attr.aria-label]="i18n.t('removeFromQuickBar')"
+          >
+            <svg lucideX aria-hidden="true"></svg>
+          </button>
         </div>
-      } @empty { <small class="empty">{{ i18n.t('addActiveBlockHint') }}</small> }
+      } @empty {
+        <small class="empty">{{ i18n.t('addActiveBlockHint') }}</small>
+      }
     </div>
   }
 </section>

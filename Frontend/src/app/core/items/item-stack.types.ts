@@ -15,6 +15,8 @@ export function normalizeItemStack(value: unknown): ItemStackData | undefined {
   return {
     id: record['id'],
     count,
-    ...(components && typeof components === 'object' && !Array.isArray(components) ? { components: components as Readonly<Record<string, unknown>> } : {}),
+    ...(components && typeof components === 'object' && !Array.isArray(components)
+      ? { components: components as Readonly<Record<string, unknown>> }
+      : {}),
   };
 }

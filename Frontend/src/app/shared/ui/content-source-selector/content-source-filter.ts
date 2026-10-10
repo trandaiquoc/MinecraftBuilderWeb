@@ -7,14 +7,36 @@ export interface SourceTaggedContent {
   readonly namespace?: string;
 }
 
-export function filterByContentSource<T extends SourceTaggedContent>(items: readonly T[], selected: ContentSourceSelection): readonly T[] {
+export function filterByContentSource<T extends SourceTaggedContent>(
+  items: readonly T[],
+  selected: ContentSourceSelection,
+): readonly T[] {
   if (selected === ALL_CONTENT_SOURCE) return items;
   return items.filter((item) => (item.sourceId ?? item.namespace) === selected);
 }
 
-export function sourceOptions(options: readonly ContentSourceOption[], allCount: number, allLabel: string, allTooltip?: string): readonly ContentSourceOption[] {
-  const all: ContentSourceOption = { id: ALL_CONTENT_SOURCE, label: allLabel, count: allCount, ...(allTooltip ? { tooltip: allTooltip } : {}) };
+export function sourceOptions(
+  options: readonly ContentSourceOption[],
+  allCount: number,
+  allLabel: string,
+  allTooltip?: string,
+): readonly ContentSourceOption[] {
+  const all: ContentSourceOption = {
+    id: ALL_CONTENT_SOURCE,
+    label: allLabel,
+    count: allCount,
+    ...(allTooltip ? { tooltip: allTooltip } : {}),
+  };
   const concrete = options.filter((option) => option.id !== ALL_CONTENT_SOURCE);
-  return [all, ...concrete.sort((left, right) => left.id === 'vanilla' ? -1 : right.id === 'vanilla' ? 1 : left.label.localeCompare(right.label))];
+  return [
+    all,
+    ...concrete.sort((left, right) =>
+      left.id === 'vanilla'
+        ? -1
+        : right.id === 'vanilla'
+          ? 1
+          : left.label.localeCompare(right.label),
+    ),
+  ];
 }
 import type { ContentSourceOption } from './content-source-selector.component';

@@ -15,5 +15,10 @@ export function signTextMetrics(blockId: string): SignTextMetrics {
 }
 
 export function fallbackMinecraftTextWidth(value: string): number {
-  return [...value].reduce((width, character) => width + (character === ' ' ? 3 : /[ilI.,'|]/.test(character) ? 3 : /[MW@#%]/.test(character) ? 9 : 7), 0);
+  return [...value].reduce(
+    (width, character) =>
+      width +
+      (character === ' ' ? 3 : /[ilI.,'|]/.test(character) ? 3 : /[MW@#%]/.test(character) ? 9 : 7),
+    0,
+  );
 }

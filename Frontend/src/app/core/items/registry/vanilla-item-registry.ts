@@ -20,11 +20,17 @@ export class VanillaItemRegistry {
     this.entries = new Map(document.items.map((entry) => [entry.id, entry]));
   }
 
-  get(id: string): VanillaItemRegistryEntry | undefined { return this.entries.get(id); }
-  all(): readonly VanillaItemRegistryEntry[] { return [...this.entries.values()]; }
+  get(id: string): VanillaItemRegistryEntry | undefined {
+    return this.entries.get(id);
+  }
+  all(): readonly VanillaItemRegistryEntry[] {
+    return [...this.entries.values()];
+  }
 }
 
-export async function loadVanillaItemRegistry(fetcher: typeof fetch = fetch): Promise<VanillaItemRegistry> {
+export async function loadVanillaItemRegistry(
+  fetcher: typeof fetch = fetch,
+): Promise<VanillaItemRegistry> {
   const response = await fetcher(VANILLA_ITEM_REGISTRY_URL);
   if (!response.ok) throw new Error(`Unable to load vanilla item registry (${response.status})`);
   return parseVanillaItemRegistry(await response.json());
@@ -32,19 +38,51 @@ export async function loadVanillaItemRegistry(fetcher: typeof fetch = fetch): Pr
 
 export function parseVanillaItemRegistry(value: unknown): VanillaItemRegistry {
   const document = record(value);
-  if (document['schemaVersion'] !== 1 || document['minecraftVersion'] !== '1.21.1' || typeof document['source'] !== 'string' || !Array.isArray(document['items'])) throw new Error('Invalid vanilla item registry header');
+  if (
+    document['schemaVersion'] !== 1 ||
+    document['minecraftVersion'] !== '1.21.1' ||
+    typeof document['source'] !== 'string' ||
+    !Array.isArray(document['items'])
+  )
+    throw new Error('Invalid vanilla item registry header');
   const seen = new Set<string>();
   const items = document['items'].map((value, index): VanillaItemRegistryEntry => {
-    const item = record(value); const id = item['id']; const components = item['defaultComponents'];
-    if (typeof id !== 'string' || !/^[a-z0-9_.-]+:[a-z0-9_./-]+$/.test(id) || seen.has(id)) throw new Error(`Invalid vanilla item registry entry at index ${index}`);
+    const item = record(value);
+    const id = item['id'];
+    const components = item['defaultComponents'];
+    if (typeof id !== 'string' || !/^[a-z0-9_.-]+:[a-z0-9_./-]+$/.test(id) || seen.has(id))
+      throw new Error(`Invalid vanilla item registry entry at index ${index}`);
     seen.add(id);
-    if (components !== undefined && (typeof components !== 'object' || components === null || Array.isArray(components))) throw new Error(`Invalid default components for ${id}`);
-    const defaultComponents = components ? { ...components as Record<string, unknown> } : undefined;
+    if (
+      components !== undefined &&
+      (typeof components !== 'object' || components === null || Array.isArray(components))
+    )
+      throw new Error(`Invalid default components for ${id}`);
+    const defaultComponents = components
+      ? { ...(components as Record<string, unknown>) }
+      : undefined;
     const maxStackSize = defaultComponents?.['minecraft:max_stack_size'];
-    if (maxStackSize !== undefined && (!Number.isInteger(maxStackSize) || (maxStackSize as number) < 1)) throw new Error(`Invalid max stack size for ${id}`);
-    return { id, ...(defaultComponents ? { defaultComponents } : {}), ...(maxStackSize === undefined ? {} : { maxStackSize: maxStackSize as number }) };
+    if (
+      maxStackSize !== undefined &&
+      (!Number.isInteger(maxStackSize) || (maxStackSize as number) < 1)
+    )
+      throw new Error(`Invalid max stack size for ${id}`);
+    return {
+      id,
+      ...(defaultComponents ? { defaultComponents } : {}),
+      ...(maxStackSize === undefined ? {} : { maxStackSize: maxStackSize as number }),
+    };
   });
-  return new VanillaItemRegistry({ schemaVersion: 1, minecraftVersion: '1.21.1', source: document['source'], items });
+  return new VanillaItemRegistry({
+    schemaVersion: 1,
+    minecraftVersion: '1.21.1',
+    source: document['source'],
+    items,
+  });
 }
 
-function record(value: unknown): Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}

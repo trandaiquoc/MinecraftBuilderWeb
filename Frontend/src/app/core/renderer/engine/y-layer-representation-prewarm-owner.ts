@@ -257,9 +257,11 @@ export class YLayerRepresentationPrewarmOwner {
       providerGeneration,
       usesTerrainTemplates ? 'terrain-surface' : 'static-instance',
     );
-    void preparation.then((evidence) => {
-      this.onVisualPreloadSettled(attempt, evidence, usesTerrainTemplates);
-    }).catch(() => this.failAttempt(attempt));
+    void preparation
+      .then((evidence) => {
+        this.onVisualPreloadSettled(attempt, evidence, usesTerrainTemplates);
+      })
+      .catch(() => this.failAttempt(attempt));
   }
 
   onHydrationCompleted(job: BlockHydrationJob, authoritative: boolean): void {
@@ -274,7 +276,8 @@ export class YLayerRepresentationPrewarmOwner {
       !sameOwnerToken(pending.ownerToken, job.ownerToken) ||
       job.token !== this.current.hydrationGeneration() ||
       !this.isCurrentRun(run)
-    ) return;
+    )
+      return;
     run.pendingJobs.delete(job.key);
     run.inFlight = Math.max(0, run.inFlight - 1);
     if (run.standaloneKeys.delete(job.key))
@@ -595,9 +598,12 @@ export class YLayerRepresentationPrewarmOwner {
   }
 
   private isCurrentAttempt(attempt: PrewarmAttempt): boolean {
-    return this.activeAttempt === attempt && this.scope?.attemptId === attempt.attemptId &&
+    return (
+      this.activeAttempt === attempt &&
+      this.scope?.attemptId === attempt.attemptId &&
       this.current.provider() === attempt.provider &&
-      this.isCurrent(attempt.project, attempt.providerGeneration);
+      this.isCurrent(attempt.project, attempt.providerGeneration)
+    );
   }
 
   private failAttempt(attempt: PrewarmAttempt): void {
@@ -694,8 +700,12 @@ function sameOwnerToken(
   left: HydrationWorkOwnerToken | undefined,
   right: HydrationWorkOwnerToken | undefined,
 ): boolean {
-  return left === right || (
-    !!left && !!right && left.owner === right.owner &&
-    left.attempt === right.attempt && left.generation === right.generation
+  return (
+    left === right ||
+    (!!left &&
+      !!right &&
+      left.owner === right.owner &&
+      left.attempt === right.attempt &&
+      left.generation === right.generation)
   );
 }

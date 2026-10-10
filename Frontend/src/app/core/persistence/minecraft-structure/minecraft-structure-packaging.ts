@@ -1,5 +1,11 @@
 import type { ProjectDocument } from '../../domain/project.types';
-import { classifyStructureSize, MINECRAFT_JAVA_1_21_1, MINECRAFT_JAVA_1_21_1_DATA_VERSION, type MinecraftStructureDiagnostic, type StructureSizeClass } from './minecraft-structure-contract';
+import {
+  classifyStructureSize,
+  MINECRAFT_JAVA_1_21_1,
+  MINECRAFT_JAVA_1_21_1_DATA_VERSION,
+  type MinecraftStructureDiagnostic,
+  type StructureSizeClass,
+} from './minecraft-structure-contract';
 import { exportMinecraftStructure } from './minecraft-structure-exporter';
 import type { MinecraftJavaNbtCodec } from './minecraft-structure-codec';
 import type { StructureExportPreferences } from '../../ui/preferences/ui-preferences.service';
@@ -21,11 +27,13 @@ export type StructurePackagingDiagnosticCode =
   | 'unsupported-packaging-version'
   | 'archive-write-failed';
 
-export type StructurePackagingDiagnostic = MinecraftStructureDiagnostic | {
-  readonly code: StructurePackagingDiagnosticCode;
-  readonly message: string;
-  readonly path?: string;
-};
+export type StructurePackagingDiagnostic =
+  | MinecraftStructureDiagnostic
+  | {
+      readonly code: StructurePackagingDiagnosticCode;
+      readonly message: string;
+      readonly path?: string;
+    };
 
 export interface StructureExportInput {
   readonly namespace: string;
@@ -92,66 +100,197 @@ export interface StructureExportFailure {
 
 export type StructureExportResult = StructureExportArtifacts | StructureExportFailure;
 
-export type DatapackArchiveResult = ({ readonly ok: true } & DatapackArchivePackage) | StructureExportFailure;
+export type DatapackArchiveResult =
+  ({ readonly ok: true } & DatapackArchivePackage) | StructureExportFailure;
 
-export type StandaloneStructureNbtResult = { readonly ok: true; readonly standalone: StandaloneStructureNbtPackage } | StructureExportFailure;
+export type StandaloneStructureNbtResult =
+  | { readonly ok: true; readonly standalone: StandaloneStructureNbtPackage }
+  | StructureExportFailure;
 
-export function validateStructureNamespace(value: unknown): readonly StructurePackagingDiagnostic[] {
-  if (typeof value === 'string' && value !== '.' && value !== '..' && RESOURCE_NAMESPACE.test(value)) return [];
-  return [{ code: 'invalid-namespace', message: 'Namespace must contain only lowercase letters, digits, underscores, dots, or hyphens.', path: 'namespace' }];
+export function validateStructureNamespace(
+  value: unknown,
+): readonly StructurePackagingDiagnostic[] {
+  if (
+    typeof value === 'string' &&
+    value !== '.' &&
+    value !== '..' &&
+    RESOURCE_NAMESPACE.test(value)
+  )
+    return [];
+  return [
+    {
+      code: 'invalid-namespace',
+      message:
+        'Namespace must contain only lowercase letters, digits, underscores, dots, or hyphens.',
+      path: 'namespace',
+    },
+  ];
 }
 
 export function validateStructurePath(value: unknown): readonly StructurePackagingDiagnostic[] {
-  if (typeof value !== 'string' || !value || !STRUCTURE_PATH.test(value) || value.startsWith('/') || value.endsWith('/') || value.includes('\\') || value.includes(':')) {
-    return [{ code: 'invalid-structure-path', message: 'Structure path must use lowercase Minecraft path characters and safe non-empty segments.', path: 'structurePath' }];
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    !STRUCTURE_PATH.test(value) ||
+    value.startsWith('/') ||
+    value.endsWith('/') ||
+    value.includes('\\') ||
+    value.includes(':')
+  ) {
+    return [
+      {
+        code: 'invalid-structure-path',
+        message:
+          'Structure path must use lowercase Minecraft path characters and safe non-empty segments.',
+        path: 'structurePath',
+      },
+    ];
   }
   const segments = value.split('/');
-  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return [{ code: 'invalid-structure-path', message: 'Structure path cannot contain empty, dot, or parent segments.', path: 'structurePath' }];
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..'))
+    return [
+      {
+        code: 'invalid-structure-path',
+        message: 'Structure path cannot contain empty, dot, or parent segments.',
+        path: 'structurePath',
+      },
+    ];
   return [];
 }
 
 export function validateArchiveName(value: unknown): readonly StructurePackagingDiagnostic[] {
-  if (typeof value !== 'string' || !value || !value.trim() || /^\s|\s$/.test(value) || value.endsWith('.') || value === '.' || value === '..' || CONTROL_CHARACTERS.test(value) || /[\\/:<>|"*?]/.test(value) || /^[a-z]:/i.test(value) || /\.zip$/i.test(value) || isWindowsReservedName(value)) {
-    return [{ code: 'invalid-archive-name', message: 'Archive name must be a safe filename stem without a .zip suffix or path separators.', path: 'archiveName' }];
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    !value.trim() ||
+    /^\s|\s$/.test(value) ||
+    value.endsWith('.') ||
+    value === '.' ||
+    value === '..' ||
+    CONTROL_CHARACTERS.test(value) ||
+    /[\\/:<>|"*?]/.test(value) ||
+    /^[a-z]:/i.test(value) ||
+    /\.zip$/i.test(value) ||
+    isWindowsReservedName(value)
+  ) {
+    return [
+      {
+        code: 'invalid-archive-name',
+        message:
+          'Archive name must be a safe filename stem without a .zip suffix or path separators.',
+        path: 'archiveName',
+      },
+    ];
   }
   return [];
 }
 
 /** Writes the already-prepared datapack plan without rerunning NBT export. */
-export async function writeDatapackArchive(plan: DatapackArchivePlan, writer: ZipArchiveWriter = new FflateZipArchiveWriter()): Promise<DatapackArchiveResult> {
+export async function writeDatapackArchive(
+  plan: DatapackArchivePlan,
+  writer: ZipArchiveWriter = new FflateZipArchiveWriter(),
+): Promise<DatapackArchiveResult> {
   try {
     return { ok: true, ...plan, bytes: await writer.write(plan.entries) };
   } catch (error) {
-    return { ok: false, diagnostics: [{ code: 'archive-write-failed', message: error instanceof Error ? error.message : 'ZIP archive writing failed.' }] };
+    return {
+      ok: false,
+      diagnostics: [
+        {
+          code: 'archive-write-failed',
+          message: error instanceof Error ? error.message : 'ZIP archive writing failed.',
+        },
+      ],
+    };
   }
 }
 
-export function validateStructureExportInput(project: ProjectDocument, input: StructureExportInput): readonly StructurePackagingDiagnostic[] {
+export function validateStructureExportInput(
+  project: ProjectDocument,
+  input: StructureExportInput,
+): readonly StructurePackagingDiagnostic[] {
   const diagnostics: StructurePackagingDiagnostic[] = [];
-  if (project.metadata.minecraftVersion !== MINECRAFT_JAVA_1_21_1) diagnostics.push({ code: 'unsupported-packaging-version', message: `Datapack packaging supports Minecraft Java ${MINECRAFT_JAVA_1_21_1} only.`, path: 'project.metadata.minecraftVersion' });
+  if (project.metadata.minecraftVersion !== MINECRAFT_JAVA_1_21_1)
+    diagnostics.push({
+      code: 'unsupported-packaging-version',
+      message: `Datapack packaging supports Minecraft Java ${MINECRAFT_JAVA_1_21_1} only.`,
+      path: 'project.metadata.minecraftVersion',
+    });
   diagnostics.push(...validateStructureNamespace(input.namespace));
   diagnostics.push(...validateStructurePath(input.structurePath));
   diagnostics.push(...validateArchiveName(input.archiveName));
-  if (typeof input.description !== 'string') diagnostics.push({ code: 'invalid-description', message: 'Pack description must be a string.', path: 'description' });
+  if (typeof input.description !== 'string')
+    diagnostics.push({
+      code: 'invalid-description',
+      message: 'Pack description must be a string.',
+      path: 'description',
+    });
   return diagnostics;
 }
 
-export function createPackMcmeta(minecraftVersion: string, description: string): { readonly ok: true; readonly json: string; readonly bytes: Uint8Array } | { readonly ok: false; readonly diagnostic: StructurePackagingDiagnostic } {
-  if (minecraftVersion !== MINECRAFT_JAVA_1_21_1) return { ok: false, diagnostic: { code: 'unsupported-packaging-version', message: `Datapack packaging supports Minecraft Java ${MINECRAFT_JAVA_1_21_1} only.`, path: 'minecraftVersion' } };
-  if (typeof description !== 'string') return { ok: false, diagnostic: { code: 'invalid-description', message: 'Pack description must be a string.', path: 'description' } };
-  const json = JSON.stringify({ pack: { pack_format: MINECRAFT_JAVA_1_21_1_PACK_FORMAT, description } });
+export function createPackMcmeta(
+  minecraftVersion: string,
+  description: string,
+):
+  | { readonly ok: true; readonly json: string; readonly bytes: Uint8Array }
+  | { readonly ok: false; readonly diagnostic: StructurePackagingDiagnostic } {
+  if (minecraftVersion !== MINECRAFT_JAVA_1_21_1)
+    return {
+      ok: false,
+      diagnostic: {
+        code: 'unsupported-packaging-version',
+        message: `Datapack packaging supports Minecraft Java ${MINECRAFT_JAVA_1_21_1} only.`,
+        path: 'minecraftVersion',
+      },
+    };
+  if (typeof description !== 'string')
+    return {
+      ok: false,
+      diagnostic: {
+        code: 'invalid-description',
+        message: 'Pack description must be a string.',
+        path: 'description',
+      },
+    };
+  const json = JSON.stringify({
+    pack: { pack_format: MINECRAFT_JAVA_1_21_1_PACK_FORMAT, description },
+  });
   return { ok: true, json, bytes: new TextEncoder().encode(json) };
 }
 
-export function deriveStructureExportDefaults(project: ProjectDocument, cached: Partial<StructureExportPreferences> = {}): StructureExportDefaults {
+export function deriveStructureExportDefaults(
+  project: ProjectDocument,
+  cached: Partial<StructureExportPreferences> = {},
+): StructureExportDefaults {
   const generatedName = slugifyProjectName(project.metadata.name);
-  const namespace = typeof cached.namespace === 'string' && validateStructureNamespace(cached.namespace).length === 0 ? cached.namespace : DEFAULT_STRUCTURE_EXPORT_NAMESPACE;
-  const archiveName = typeof cached.archiveName === 'string' && validateArchiveName(cached.archiveName).length === 0 ? cached.archiveName : generatedName;
-  const description = typeof cached.description === 'string' && cached.description.trim() ? cached.description : `MinecraftBuilder export: ${project.metadata.name.trim() || 'Structure'}`;
-  return { namespace, structurePath: generatedName, archiveName, archiveFilename: `${archiveName}.zip`, description };
+  const namespace =
+    typeof cached.namespace === 'string' &&
+    validateStructureNamespace(cached.namespace).length === 0
+      ? cached.namespace
+      : DEFAULT_STRUCTURE_EXPORT_NAMESPACE;
+  const archiveName =
+    typeof cached.archiveName === 'string' && validateArchiveName(cached.archiveName).length === 0
+      ? cached.archiveName
+      : generatedName;
+  const description =
+    typeof cached.description === 'string' && cached.description.trim()
+      ? cached.description
+      : `MinecraftBuilder export: ${project.metadata.name.trim() || 'Structure'}`;
+  return {
+    namespace,
+    structurePath: generatedName,
+    archiveName,
+    archiveFilename: `${archiveName}.zip`,
+    description,
+  };
 }
 
-export async function prepareStructureExport(project: ProjectDocument, codec: MinecraftJavaNbtCodec, input: StructureExportInput, resolveMaxStackSize?: (id: string) => number | undefined): Promise<StructureExportResult> {
+export async function prepareStructureExport(
+  project: ProjectDocument,
+  codec: MinecraftJavaNbtCodec,
+  input: StructureExportInput,
+  resolveMaxStackSize?: (id: string) => number | undefined,
+): Promise<StructureExportResult> {
   const inputDiagnostics = validateStructureExportInput(project, input);
   if (inputDiagnostics.length > 0) return { ok: false, diagnostics: inputDiagnostics };
   const exported = await exportMinecraftStructure(project, codec, undefined, resolveMaxStackSize);
@@ -159,7 +298,11 @@ export async function prepareStructureExport(project: ProjectDocument, codec: Mi
   const metadata = createStructureExportMetadata(input, project);
   const packMcmeta = createPackMcmeta(project.metadata.minecraftVersion, input.description);
   if (!packMcmeta.ok) return { ok: false, diagnostics: [packMcmeta.diagnostic] };
-  const standalone: StandaloneStructureNbtPackage = { ...metadata, bytes: exported.bytes, dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION };
+  const standalone: StandaloneStructureNbtPackage = {
+    ...metadata,
+    bytes: exported.bytes,
+    dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION,
+  };
   const datapack: DatapackArchivePlan = {
     ...metadata,
     packMcmeta: packMcmeta.json,
@@ -174,18 +317,44 @@ export async function prepareStructureExport(project: ProjectDocument, codec: Mi
 }
 
 /** Builds only the standalone artifact while keeping the production exporter authoritative. */
-export async function prepareStandaloneStructureNbt(project: ProjectDocument, codec: MinecraftJavaNbtCodec, input: StandaloneStructureNbtInput, resolveMaxStackSize?: (id: string) => number | undefined): Promise<StandaloneStructureNbtResult> {
+export async function prepareStandaloneStructureNbt(
+  project: ProjectDocument,
+  codec: MinecraftJavaNbtCodec,
+  input: StandaloneStructureNbtInput,
+  resolveMaxStackSize?: (id: string) => number | undefined,
+): Promise<StandaloneStructureNbtResult> {
   const diagnostics: StructurePackagingDiagnostic[] = [];
-  if (project.metadata.minecraftVersion !== MINECRAFT_JAVA_1_21_1) diagnostics.push({ code: 'unsupported-packaging-version', message: `Standalone packaging supports Minecraft Java ${MINECRAFT_JAVA_1_21_1} only.`, path: 'project.metadata.minecraftVersion' });
-  diagnostics.push(...validateStructureNamespace(input.namespace), ...validateStructurePath(input.structurePath));
+  if (project.metadata.minecraftVersion !== MINECRAFT_JAVA_1_21_1)
+    diagnostics.push({
+      code: 'unsupported-packaging-version',
+      message: `Standalone packaging supports Minecraft Java ${MINECRAFT_JAVA_1_21_1} only.`,
+      path: 'project.metadata.minecraftVersion',
+    });
+  diagnostics.push(
+    ...validateStructureNamespace(input.namespace),
+    ...validateStructurePath(input.structurePath),
+  );
   if (diagnostics.length > 0) return { ok: false, diagnostics };
   const exported = await exportMinecraftStructure(project, codec, undefined, resolveMaxStackSize);
   if (!exported.ok) return { ok: false, diagnostics: exported.diagnostics };
-  const metadata = createStructureExportMetadata({ ...input, archiveName: lastPathSegment(input.structurePath), description: '' }, project);
-  return { ok: true, standalone: { ...metadata, bytes: exported.bytes, dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION } };
+  const metadata = createStructureExportMetadata(
+    { ...input, archiveName: lastPathSegment(input.structurePath), description: '' },
+    project,
+  );
+  return {
+    ok: true,
+    standalone: {
+      ...metadata,
+      bytes: exported.bytes,
+      dataVersion: MINECRAFT_JAVA_1_21_1_DATA_VERSION,
+    },
+  };
 }
 
-export function createStructureExportMetadata(input: StructureExportInput, project: ProjectDocument): StructureExportMetadata {
+export function createStructureExportMetadata(
+  input: StructureExportInput,
+  project: ProjectDocument,
+): StructureExportMetadata {
   const archiveFilename = `${input.archiveName}.zip`;
   const sizeClass = classifyStructureSize(project.size);
   return {
@@ -201,14 +370,28 @@ export function createStructureExportMetadata(input: StructureExportInput, proje
   };
 }
 
-function lastPathSegment(path: string): string { return path.slice(path.lastIndexOf('/') + 1); }
+function lastPathSegment(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1);
+}
 
 function isWindowsReservedName(value: string): boolean {
   const stem = value.split('.')[0].toUpperCase();
-  return stem === 'CON' || stem === 'PRN' || stem === 'AUX' || stem === 'NUL' || /^COM[1-9]$/.test(stem) || /^LPT[1-9]$/.test(stem);
+  return (
+    stem === 'CON' ||
+    stem === 'PRN' ||
+    stem === 'AUX' ||
+    stem === 'NUL' ||
+    /^COM[1-9]$/.test(stem) ||
+    /^LPT[1-9]$/.test(stem)
+  );
 }
 
 function slugifyProjectName(value: string): string {
-  const slug = value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const slug = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   return slug || 'structure';
 }

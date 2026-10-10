@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ViewportCameraInputController } from './viewport-camera-input-controller';
 
-function fakeControls(): { mouseButtons: Record<string, THREE.MOUSE>; addEventListener: ReturnType<typeof vi.fn>; removeEventListener: ReturnType<typeof vi.fn>; rotateSpeed: number; panSpeed: number; zoomSpeed: number } {
+function fakeControls(): {
+  mouseButtons: Record<string, THREE.MOUSE>;
+  addEventListener: ReturnType<typeof vi.fn>;
+  removeEventListener: ReturnType<typeof vi.fn>;
+  rotateSpeed: number;
+  panSpeed: number;
+  zoomSpeed: number;
+} {
   return {
     mouseButtons: {},
     addEventListener: vi.fn(),
@@ -17,14 +24,34 @@ describe('ViewportCameraInputController', () => {
   it('owns movement RAF scheduling and clears it with input state', () => {
     const callbacks = new Map<number, FrameRequestCallback>();
     let nextId = 0;
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { const id = ++nextId; callbacks.set(id, callback); return id; });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      const id = ++nextId;
+      callbacks.set(id, callback);
+      return id;
+    });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
     try {
       const frames: number[] = [];
       const controller = new ViewportCameraInputController(
         () => fakeControls() as never,
-        { onControlChange: vi.fn(), onControlStart: vi.fn(), onControlEnd: vi.fn(), onPointerCameraStart: vi.fn(), onPointerCameraEnd: vi.fn(), onInteractionMarked: vi.fn(), onMovementFrame: (_actions, delta) => frames.push(delta), onWheel: vi.fn(), isSuspended: () => false },
-        { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 15 },
+        {
+          onControlChange: vi.fn(),
+          onControlStart: vi.fn(),
+          onControlEnd: vi.fn(),
+          onPointerCameraStart: vi.fn(),
+          onPointerCameraEnd: vi.fn(),
+          onInteractionMarked: vi.fn(),
+          onMovementFrame: (_actions, delta) => frames.push(delta),
+          onWheel: vi.fn(),
+          isSuspended: () => false,
+        },
+        {
+          orbitSensitivity: 1,
+          panSensitivity: 1,
+          zoomSensitivity: 2,
+          cameraMoveSpeed: 15,
+          verticalMoveSpeed: 15,
+        },
         20,
       );
       controller.cameraKeyDown('move-forward');
@@ -46,8 +73,24 @@ describe('ViewportCameraInputController', () => {
     controls.mouseButtons['LEFT'] = THREE.MOUSE.PAN;
     const controller = new ViewportCameraInputController(
       () => controls as never,
-      { onControlChange: vi.fn(), onControlStart: vi.fn(), onControlEnd: vi.fn(), onPointerCameraStart: vi.fn(), onPointerCameraEnd: vi.fn(), onInteractionMarked: vi.fn(), onMovementFrame: vi.fn(), onWheel: vi.fn(), isSuspended: () => false },
-      { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 15 },
+      {
+        onControlChange: vi.fn(),
+        onControlStart: vi.fn(),
+        onControlEnd: vi.fn(),
+        onPointerCameraStart: vi.fn(),
+        onPointerCameraEnd: vi.fn(),
+        onInteractionMarked: vi.fn(),
+        onMovementFrame: vi.fn(),
+        onWheel: vi.fn(),
+        isSuspended: () => false,
+      },
+      {
+        orbitSensitivity: 1,
+        panSensitivity: 1,
+        zoomSensitivity: 2,
+        cameraMoveSpeed: 15,
+        verticalMoveSpeed: 15,
+      },
       20,
     );
     controller.temporaryButton = { key: 'LEFT', previous: THREE.MOUSE.ROTATE };
@@ -60,12 +103,41 @@ describe('ViewportCameraInputController', () => {
     const onWheel = vi.fn();
     const controller = new ViewportCameraInputController(
       () => fakeControls() as never,
-      { onControlChange: vi.fn(), onControlStart: vi.fn(), onControlEnd: vi.fn(), onPointerCameraStart: vi.fn(), onPointerCameraEnd: vi.fn(), onInteractionMarked: vi.fn(), onMovementFrame: vi.fn(), onWheel, isSuspended: () => false },
-      { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 15 },
+      {
+        onControlChange: vi.fn(),
+        onControlStart: vi.fn(),
+        onControlEnd: vi.fn(),
+        onPointerCameraStart: vi.fn(),
+        onPointerCameraEnd: vi.fn(),
+        onInteractionMarked: vi.fn(),
+        onMovementFrame: vi.fn(),
+        onWheel,
+        isSuspended: () => false,
+      },
+      {
+        orbitSensitivity: 1,
+        panSensitivity: 1,
+        zoomSensitivity: 2,
+        cameraMoveSpeed: 15,
+        verticalMoveSpeed: 15,
+      },
       20,
     );
-    controller.setMouseBindings({ 'orbit-camera': 'RightClick', 'pan-camera': 'MiddleClick', 'primary-action': 'LeftClick', 'delete-target': 'Shift+LeftClick', 'pick-block': 'Alt+LeftClick', 'zoom-in': 'WheelUp', 'zoom-out': 'WheelDown' });
-    const event = { deltaY: -2, deltaMode: 0, preventDefault: vi.fn(), stopImmediatePropagation: vi.fn() } as unknown as WheelEvent;
+    controller.setMouseBindings({
+      'orbit-camera': 'RightClick',
+      'pan-camera': 'MiddleClick',
+      'primary-action': 'LeftClick',
+      'delete-target': 'Shift+LeftClick',
+      'pick-block': 'Alt+LeftClick',
+      'zoom-in': 'WheelUp',
+      'zoom-out': 'WheelDown',
+    });
+    const event = {
+      deltaY: -2,
+      deltaMode: 0,
+      preventDefault: vi.fn(),
+      stopImmediatePropagation: vi.fn(),
+    } as unknown as WheelEvent;
     controller.wheelCapture(event);
     expect(event.preventDefault).toHaveBeenCalled();
     expect(event.stopImmediatePropagation).toHaveBeenCalled();

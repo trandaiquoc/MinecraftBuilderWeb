@@ -1,4 +1,7 @@
-import type { TerrainRepresentationCommitCallbacks, TerrainSettlement } from './terrain-render-contracts';
+import type {
+  TerrainRepresentationCommitCallbacks,
+  TerrainSettlement,
+} from './terrain-render-contracts';
 
 /** Owns terminal hydration accounting and deferred block-representation commits for terrain chunks. */
 export class TerrainHydrationSettlementOwner {
@@ -6,7 +9,10 @@ export class TerrainHydrationSettlementOwner {
   private readonly failedKeys = new Set<string>();
   private readonly waiters = new Map<number, Array<(result: TerrainSettlement) => void>>();
   private readonly candidatesByChunk = new Map<string, Set<string>>();
-  private readonly commitsByChunk = new Map<string, Map<string, TerrainRepresentationCommitCallbacks>>();
+  private readonly commitsByChunk = new Map<
+    string,
+    Map<string, TerrainRepresentationCommitCallbacks>
+  >();
   private readonly commitChunkByKey = new Map<string, string>();
 
   get pendingCandidateCount(): number {
@@ -14,7 +20,9 @@ export class TerrainHydrationSettlementOwner {
     for (const candidates of this.candidatesByChunk.values()) count += candidates.size;
     return count;
   }
-  get pendingCandidateChunkCount(): number { return this.candidatesByChunk.size; }
+  get pendingCandidateChunkCount(): number {
+    return this.candidatesByChunk.size;
+  }
 
   whenSettled(isReady: () => boolean): Promise<TerrainSettlement> {
     if (isReady()) return Promise.resolve(this.result());
@@ -39,10 +47,15 @@ export class TerrainHydrationSettlementOwner {
   }
 
   result(): TerrainSettlement {
-    return { status: this.failedKeys.size ? 'failed' : 'settled', failedKeys: [...this.failedKeys] };
+    return {
+      status: this.failedKeys.size ? 'failed' : 'settled',
+      failedKeys: [...this.failedKeys],
+    };
   }
 
-  reportFailures(keys: readonly string[]): void { for (const key of keys) this.failedKeys.add(key); }
+  reportFailures(keys: readonly string[]): void {
+    for (const key of keys) this.failedKeys.add(key);
+  }
 
   notifyIfReady(isReady: () => boolean): void {
     if (!isReady()) return;
@@ -60,25 +73,44 @@ export class TerrainHydrationSettlementOwner {
     return [...pending];
   }
 
-  completeHydrationCandidates(chunkKey: string, candidates: readonly string[], represented: readonly string[]): void {
+  completeHydrationCandidates(
+    chunkKey: string,
+    candidates: readonly string[],
+    represented: readonly string[],
+  ): void {
     const pending = this.candidatesByChunk.get(chunkKey);
     if (!pending) return;
     const representedKeys = new Set(represented);
-    for (const candidate of candidates) if (representedKeys.has(candidate)) pending.delete(candidate);
+    for (const candidate of candidates)
+      if (representedKeys.has(candidate)) pending.delete(candidate);
     if (!pending.size) this.candidatesByChunk.delete(chunkKey);
   }
 
-  clearHydrationCandidates(chunkKey: string): void { this.candidatesByChunk.delete(chunkKey); }
-  clearHydrationCandidatesForAllChunks(): void { this.candidatesByChunk.clear(); }
+  clearHydrationCandidates(chunkKey: string): void {
+    this.candidatesByChunk.delete(chunkKey);
+  }
+  clearHydrationCandidatesForAllChunks(): void {
+    this.candidatesByChunk.clear();
+  }
 
-  registerRepresentationCommit(chunkKey: string, key: string, callbacks: TerrainRepresentationCommitCallbacks): void {
-    const pending = this.commitsByChunk.get(chunkKey) ?? new Map<string, TerrainRepresentationCommitCallbacks>();
+  registerRepresentationCommit(
+    chunkKey: string,
+    key: string,
+    callbacks: TerrainRepresentationCommitCallbacks,
+  ): void {
+    const pending =
+      this.commitsByChunk.get(chunkKey) ?? new Map<string, TerrainRepresentationCommitCallbacks>();
     pending.set(key, callbacks);
     this.commitsByChunk.set(chunkKey, pending);
     this.commitChunkByKey.set(key, chunkKey);
   }
 
-  settleRepresentationCommits(chunkKey: string, representedKeys: readonly string[], failedKeys: readonly string[], failureStatus: 'failed' | 'cancelled'): void {
+  settleRepresentationCommits(
+    chunkKey: string,
+    representedKeys: readonly string[],
+    failedKeys: readonly string[],
+    failureStatus: 'failed' | 'cancelled',
+  ): void {
     const pending = this.commitsByChunk.get(chunkKey);
     if (!pending) return;
     for (const key of representedKeys) this.finishRepresentationCommit(pending, key, 'committed');
@@ -111,19 +143,34 @@ export class TerrainHydrationSettlementOwner {
     this.waiters.delete(this.generation);
   }
 
-  private finishRepresentationCommit(pending: Map<string, TerrainRepresentationCommitCallbacks>, key: string, status: 'committed' | 'failed' | 'cancelled'): void {
+  private finishRepresentationCommit(
+    pending: Map<string, TerrainRepresentationCommitCallbacks>,
+    key: string,
+    status: 'committed' | 'failed' | 'cancelled',
+  ): void {
     const callbacks = pending.get(key);
     if (!callbacks) return;
     pending.delete(key);
     this.commitChunkByKey.delete(key);
     if (status === 'committed') {
-      try { callbacks.onCommitted(); } catch { /* A consumer callback is terminal even when its owner throws. */ }
+      try {
+        callbacks.onCommitted();
+      } catch {
+        /* A consumer callback is terminal even when its owner throws. */
+      }
     } else {
       this.invokeFailure(callbacks, status);
     }
   }
 
-  private invokeFailure(callbacks: TerrainRepresentationCommitCallbacks, status: 'failed' | 'cancelled'): void {
-    try { callbacks.onFailed(status); } catch { /* Continue settling sibling callbacks for the same chunk. */ }
+  private invokeFailure(
+    callbacks: TerrainRepresentationCommitCallbacks,
+    status: 'failed' | 'cancelled',
+  ): void {
+    try {
+      callbacks.onFailed(status);
+    } catch {
+      /* Continue settling sibling callbacks for the same chunk. */
+    }
   }
 }

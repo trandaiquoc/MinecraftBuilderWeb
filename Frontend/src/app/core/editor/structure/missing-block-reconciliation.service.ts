@@ -22,15 +22,36 @@ export class MissingBlockReconciliationService {
     const project = this.workspace.project();
     const revision = this.library.catalogRevision();
     const token = ++this.operationToken;
-    if (!project || !project.blocks.some((block) => block.kind === 'missing')) { this.activity.set('idle'); return; }
+    if (!project || !project.blocks.some((block) => block.kind === 'missing')) {
+      this.activity.set('idle');
+      return;
+    }
     this.activity.set('running');
-    void this.reconcile(project, revision, token, controller.signal).catch((error) => { if (!isAbortError(error)) throw error; });
+    void this.reconcile(project, revision, token, controller.signal).catch((error) => {
+      if (!isAbortError(error)) throw error;
+    });
   });
 
-  private async reconcile(project: ProjectDocument, revision: number, token: number, signal: AbortSignal): Promise<void> {
+  private async reconcile(
+    project: ProjectDocument,
+    revision: number,
+    token: number,
+    signal: AbortSignal,
+  ): Promise<void> {
     try {
-      const result = await reconcileMissingBlocksCooperatively(project, (id) => this.library.get(id), undefined, undefined, signal);
-      if (token !== this.operationToken || this.workspace.project() !== project || this.library.catalogRevision() !== revision) return;
+      const result = await reconcileMissingBlocksCooperatively(
+        project,
+        (id) => this.library.get(id),
+        undefined,
+        undefined,
+        signal,
+      );
+      if (
+        token !== this.operationToken ||
+        this.workspace.project() !== project ||
+        this.library.catalogRevision() !== revision
+      )
+        return;
       if (result.project !== project && result.changes.length) {
         const hint = blockMutationHint(result.changes, 'content-resolution', 'content-resolution');
         this.mutationHints.publish(project, result.project, hint);

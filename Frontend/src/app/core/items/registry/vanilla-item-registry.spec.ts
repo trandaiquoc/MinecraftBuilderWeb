@@ -2,11 +2,21 @@ import { describe, expect, it } from 'vitest';
 import registryDocument from '../../../../../public/assets/vanilla-item-registry-1.21.1.json';
 import { parseVanillaItemRegistry } from './vanilla-item-registry';
 
-const document = { schemaVersion: 1, minecraftVersion: '1.21.1', source: 'test', items: [
-  { id: 'minecraft:diamond' }, { id: 'minecraft:oak_log' },
-  { id: 'minecraft:lava_bucket' }, { id: 'minecraft:zombie_spawn_egg' }, { id: 'minecraft:armor_stand' },
-  { id: 'minecraft:water_bucket', defaultComponents: { 'minecraft:max_stack_size': 1 } }, { id: 'minecraft:oak_sign', defaultComponents: { 'minecraft:max_stack_size': 16 } }, { id: 'minecraft:air', defaultComponents: { 'minecraft:max_stack_size': 64 } },
-] } as const;
+const document = {
+  schemaVersion: 1,
+  minecraftVersion: '1.21.1',
+  source: 'test',
+  items: [
+    { id: 'minecraft:diamond' },
+    { id: 'minecraft:oak_log' },
+    { id: 'minecraft:lava_bucket' },
+    { id: 'minecraft:zombie_spawn_egg' },
+    { id: 'minecraft:armor_stand' },
+    { id: 'minecraft:water_bucket', defaultComponents: { 'minecraft:max_stack_size': 1 } },
+    { id: 'minecraft:oak_sign', defaultComponents: { 'minecraft:max_stack_size': 16 } },
+    { id: 'minecraft:air', defaultComponents: { 'minecraft:max_stack_size': 64 } },
+  ],
+} as const;
 
 describe('VanillaItemRegistry', () => {
   it('parses authoritative item IDs without inventing entity IDs', () => {

@@ -51,11 +51,17 @@ export interface ModLoaderAdapter {
 
 export class FabricModLoaderAdapter implements ModLoaderAdapter {
   readonly loader = 'fabric' as const;
-  detect(paths: readonly string[]): boolean { return paths.includes('fabric.mod.json'); }
-  inspectMetadata(value: unknown): NormalizedModMetadata { return normalizeFabricMetadata(value); }
+  detect(paths: readonly string[]): boolean {
+    return paths.includes('fabric.mod.json');
+  }
+  inspectMetadata(value: unknown): NormalizedModMetadata {
+    return normalizeFabricMetadata(value);
+  }
 }
 
-export function modLoaderAdapter(loader: SupportedModLoader): ModLoaderAdapter | undefined { return loader === 'fabric' ? new FabricModLoaderAdapter() : undefined; }
+export function modLoaderAdapter(loader: SupportedModLoader): ModLoaderAdapter | undefined {
+  return loader === 'fabric' ? new FabricModLoaderAdapter() : undefined;
+}
 
 export function detectLoader(paths: readonly string[]): SupportedModLoader {
   if (paths.includes('fabric.mod.json')) return 'fabric';
@@ -68,7 +74,8 @@ export function detectLoader(paths: readonly string[]): SupportedModLoader {
 export function normalizeFabricMetadata(value: unknown): NormalizedModMetadata {
   const source = record(value);
   const id = stringValue(source['id']);
-  if (!id || !/^[a-z0-9][a-z0-9_-]*$/.test(id)) throw new Error('fabric.mod.json has an invalid mod id');
+  if (!id || !/^[a-z0-9][a-z0-9_-]*$/.test(id))
+    throw new Error('fabric.mod.json has an invalid mod id');
   const version = stringValue(source['version']);
   if (!version) throw new Error('fabric.mod.json has no valid version');
   const depends = record(source['depends']);
@@ -76,7 +83,8 @@ export function normalizeFabricMetadata(value: unknown): NormalizedModMetadata {
   const suggestions = record(source['suggests']);
   return {
     loader: 'fabric',
-    schemaVersion: typeof source['schemaVersion'] === 'number' ? source['schemaVersion'] as number : undefined,
+    schemaVersion:
+      typeof source['schemaVersion'] === 'number' ? (source['schemaVersion'] as number) : undefined,
     modId: id,
     displayName: stringValue(source['name']) ?? id,
     modVersion: version,
@@ -92,7 +100,10 @@ export function normalizeFabricMetadata(value: unknown): NormalizedModMetadata {
   };
 }
 
-export function assessFabricCompatibility(expression: string | readonly string[] | undefined, version: string): ModCompatibilityStatus {
+export function assessFabricCompatibility(
+  expression: string | readonly string[] | undefined,
+  version: string,
+): ModCompatibilityStatus {
   return evaluateMinecraftRequirement(expression, version).status;
 }
 
@@ -102,15 +113,23 @@ export function parseFabricModMetadata(value: unknown): FabricModMetadata {
 
 function dependencyValue(value: unknown): string | readonly string[] | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
-  if (Array.isArray(value) && value.every((entry) => typeof entry === 'string' && entry.trim())) return value.map((entry) => (entry as string).trim());
+  if (Array.isArray(value) && value.every((entry) => typeof entry === 'string' && entry.trim()))
+    return value.map((entry) => (entry as string).trim());
   return undefined;
 }
 function safeIcon(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.startsWith('assets/') && !value.includes('..')) return value;
+  if (typeof value === 'string' && value.startsWith('assets/') && !value.includes('..'))
+    return value;
   return undefined;
 }
-function stringValue(value: unknown): string | undefined { return typeof value === 'string' && value.trim() ? value.trim() : undefined; }
-function record(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
 
 export function legacyFabricMetadata(value: NormalizedModMetadata): FabricModMetadata {
   return {

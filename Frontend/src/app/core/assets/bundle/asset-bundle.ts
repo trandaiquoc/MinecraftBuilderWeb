@@ -16,7 +16,16 @@ export interface AssetBundleSource {
 
 /** Explicit File API source. Keeping it here means future mod imports share the same source contract. */
 export class JarImportSource {
-  async load(file: File, minecraftVersion = '1.21.1', signal?: AbortSignal): Promise<VanillaAssetBundle> { return vanillaBundle((await VanillaAssetProvider.fromJar(file, minecraftVersion, file.name, signal)).serialize(), file.name); }
+  async load(
+    file: File,
+    minecraftVersion = '1.21.1',
+    signal?: AbortSignal,
+  ): Promise<VanillaAssetBundle> {
+    return vanillaBundle(
+      (await VanillaAssetProvider.fromJar(file, minecraftVersion, file.name, signal)).serialize(),
+      file.name,
+    );
+  }
 }
 
 export class IndexedDbAssetBundleSource implements AssetBundleSource {
@@ -28,8 +37,20 @@ export class IndexedDbAssetBundleSource implements AssetBundleSource {
   }
 }
 
-export function vanillaBundle(bundle: SerializedVanillaAssets, id = `vanilla-${bundle.minecraftVersion}`): VanillaAssetBundle {
-  return { ...bundle, id, type: 'vanilla', version: bundle.minecraftVersion, namespaces: ['minecraft'], manifest: { format: 'minecraft-builder-asset-bundle', version: 1 } };
+export function vanillaBundle(
+  bundle: SerializedVanillaAssets,
+  id = `vanilla-${bundle.minecraftVersion}`,
+): VanillaAssetBundle {
+  return {
+    ...bundle,
+    id,
+    type: 'vanilla',
+    version: bundle.minecraftVersion,
+    namespaces: ['minecraft'],
+    manifest: { format: 'minecraft-builder-asset-bundle', version: 1 },
+  };
 }
 
-export function providerFromBundle(bundle: VanillaAssetBundle): VanillaAssetProvider { return VanillaAssetProvider.deserialize(bundle); }
+export function providerFromBundle(bundle: VanillaAssetBundle): VanillaAssetProvider {
+  return VanillaAssetProvider.deserialize(bundle);
+}

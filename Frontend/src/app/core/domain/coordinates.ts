@@ -9,13 +9,26 @@ export function isPositiveInteger(value: number): boolean {
 }
 
 export function isNonNegativeVoxelCoordinate(position: VoxelCoordinate): boolean {
-  return isInteger(position.x) && isInteger(position.y) && isInteger(position.z) && position.x >= 0 && position.y >= 0 && position.z >= 0;
+  return (
+    isInteger(position.x) &&
+    isInteger(position.y) &&
+    isInteger(position.z) &&
+    position.x >= 0 &&
+    position.y >= 0 &&
+    position.z >= 0
+  );
 }
 
 /** Editor mutation invariant shared by the history boundary and coordinate validators. */
-export function projectCoordinatesAreNonNegative(project: Pick<ProjectDocument, 'blocks' | 'decorations'>): boolean {
-  return project.blocks.every((block) => isNonNegativeVoxelCoordinate(block.position))
-    && (project.decorations ?? []).every((decoration) => isNonNegativeVoxelCoordinate(decoration.anchor));
+export function projectCoordinatesAreNonNegative(
+  project: Pick<ProjectDocument, 'blocks' | 'decorations'>,
+): boolean {
+  return (
+    project.blocks.every((block) => isNonNegativeVoxelCoordinate(block.position)) &&
+    (project.decorations ?? []).every((decoration) =>
+      isNonNegativeVoxelCoordinate(decoration.anchor),
+    )
+  );
 }
 
 export function isWithinBounds(position: VoxelCoordinate, size: ProjectSize): boolean {

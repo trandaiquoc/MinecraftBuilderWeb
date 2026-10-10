@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HydrationWorkOwnerToken } from '../scheduling/hydration-work-coordinator';
-import { ViewportBlockHydrationPipeline, type HydrationExecutionPort } from './viewport-block-hydration-pipeline';
+import {
+  ViewportBlockHydrationPipeline,
+  type HydrationExecutionPort,
+} from './viewport-block-hydration-pipeline';
 
 interface Job {
   readonly key: string;
@@ -11,7 +14,12 @@ interface Job {
   readonly ownerToken?: HydrationWorkOwnerToken;
 }
 
-const pipeline = () => new ViewportBlockHydrationPipeline<Job>({ concurrency: 6, regularReservedCapacity: 4, providerRefreshCapacity: 2 });
+const pipeline = () =>
+  new ViewportBlockHydrationPipeline<Job>({
+    concurrency: 6,
+    regularReservedCapacity: 4,
+    providerRefreshCapacity: 2,
+  });
 
 describe('ViewportBlockHydrationPipeline', () => {
   it('tracks running signature ownership and rejects stale completions', () => {
@@ -80,7 +88,11 @@ describe('ViewportBlockHydrationPipeline', () => {
     const currentOwner = { owner: 'editor-hydration', attempt: 8, generation: 0 } as const;
     value.setPendingSignature('same-key', 'current-signature', currentOwner);
     value.enqueueRegular({
-      key: 'same-key', token: 0, projectionRevision: 0, signature: 'stale-signature', ownerToken: staleOwner,
+      key: 'same-key',
+      token: 0,
+      projectionRevision: 0,
+      signature: 'stale-signature',
+      ownerToken: staleOwner,
     });
     const port: HydrationExecutionPort<Job> = {
       isStopped: () => false,
@@ -123,7 +135,11 @@ describe('ViewportBlockHydrationPipeline', () => {
       interactiveJobLimit: () => 8,
       jobLimit: () => 8,
       ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
-      execute: (job, finish) => { executed.push(job.key); if (job.key === 'bad') throw new Error('expected'); finish(); },
+      execute: (job, finish) => {
+        executed.push(job.key);
+        if (job.key === 'bad') throw new Error('expected');
+        finish();
+      },
       onBatchStart: vi.fn(),
       onJobStarted: vi.fn(),
       onExecutionFailure: failed,
@@ -140,14 +156,29 @@ describe('ViewportBlockHydrationPipeline', () => {
 
   it('finishes running ownership even when a completion observer throws', () => {
     const value = pipeline();
-    value.enqueueRegular({ key: 'throwing-completion', token: 0, projectionRevision: 0, signature: 'a' });
+    value.enqueueRegular({
+      key: 'throwing-completion',
+      token: 0,
+      projectionRevision: 0,
+      signature: 'a',
+    });
     const port: HydrationExecutionPort<Job> = {
-      isStopped: () => false, isInteractive: () => false, now: () => 1, budgetMs: () => 10,
-      interactiveJobLimit: () => 8, jobLimit: () => 8,
+      isStopped: () => false,
+      isInteractive: () => false,
+      now: () => 1,
+      budgetMs: () => 10,
+      interactiveJobLimit: () => 8,
+      jobLimit: () => 8,
       ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
-      execute: (_job, finish) => finish(), onBatchStart: vi.fn(), onJobStarted: vi.fn(),
-      onExecutionFailure: vi.fn(), onJobComplete: () => { throw new Error('observer failure'); },
-      processAdditionalWork: vi.fn(), hasAdditionalWork: () => false,
+      execute: (_job, finish) => finish(),
+      onBatchStart: vi.fn(),
+      onJobStarted: vi.fn(),
+      onExecutionFailure: vi.fn(),
+      onJobComplete: () => {
+        throw new Error('observer failure');
+      },
+      processAdditionalWork: vi.fn(),
+      hasAdditionalWork: () => false,
     };
 
     expect(() => value.process(port)).not.toThrow();
@@ -156,15 +187,30 @@ describe('ViewportBlockHydrationPipeline', () => {
 
   it('releases running accounting before publishing terminal job completion', () => {
     const value = pipeline();
-    value.enqueueRegular({ key: 'final-block', token: 0, projectionRevision: 0, signature: 'stone' });
+    value.enqueueRegular({
+      key: 'final-block',
+      token: 0,
+      projectionRevision: 0,
+      signature: 'stone',
+    });
     let runningAtCompletion = -1;
     const port: HydrationExecutionPort<Job> = {
-      isStopped: () => false, isInteractive: () => false, now: () => 1, budgetMs: () => 10,
-      interactiveJobLimit: () => 8, jobLimit: () => 8,
+      isStopped: () => false,
+      isInteractive: () => false,
+      now: () => 1,
+      budgetMs: () => 10,
+      interactiveJobLimit: () => 8,
+      jobLimit: () => 8,
       ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
-      execute: (_job, finish) => finish(), onBatchStart: vi.fn(), onJobStarted: vi.fn(),
-      onExecutionFailure: vi.fn(), onJobComplete: () => { runningAtCompletion = value.runningGenerationCount(0); },
-      processAdditionalWork: vi.fn(), hasAdditionalWork: () => false,
+      execute: (_job, finish) => finish(),
+      onBatchStart: vi.fn(),
+      onJobStarted: vi.fn(),
+      onExecutionFailure: vi.fn(),
+      onJobComplete: () => {
+        runningAtCompletion = value.runningGenerationCount(0);
+      },
+      processAdditionalWork: vi.fn(),
+      hasAdditionalWork: () => false,
     };
 
     value.process(port);

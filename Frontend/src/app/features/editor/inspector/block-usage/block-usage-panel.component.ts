@@ -2,7 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { ProjectBlockRuntimeIndex, ProjectBlockUsageEntry } from '../../../../core/editor/runtime/project-block-runtime-index';
+import {
+  ProjectBlockRuntimeIndex,
+  ProjectBlockUsageEntry,
+} from '../../../../core/editor/runtime/project-block-runtime-index';
 import { BlockUsageHighlightService } from '../../../../core/editor/state/block-usage-highlight.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
@@ -46,16 +49,25 @@ export class BlockUsagePanelComponent {
     const catalogRevision = this.library.catalogRevision();
     void catalogRevision;
     const query = this.query().trim().toLocaleLowerCase();
-    const rows = this.runtimeIndex.usageEntries().map((entry) => {
-      const item = this.library.itemForBlock(entry.id);
-      const definition = this.library.get(entry.id);
-      return {
-        entry,
-        displayName: item?.displayName ?? definition?.displayName ?? entry.id,
-        source: item?.modName ?? item?.sourceName ?? definition?.sourceName ?? entry.namespace,
-        item,
-      };
-    }).filter((row) => !query || `${row.displayName} ${row.entry.id} ${row.entry.namespace} ${row.source}`.toLocaleLowerCase().includes(query));
+    const rows = this.runtimeIndex
+      .usageEntries()
+      .map((entry) => {
+        const item = this.library.itemForBlock(entry.id);
+        const definition = this.library.get(entry.id);
+        return {
+          entry,
+          displayName: item?.displayName ?? definition?.displayName ?? entry.id,
+          source: item?.modName ?? item?.sourceName ?? definition?.sourceName ?? entry.namespace,
+          item,
+        };
+      })
+      .filter(
+        (row) =>
+          !query ||
+          `${row.displayName} ${row.entry.id} ${row.entry.namespace} ${row.source}`
+            .toLocaleLowerCase()
+            .includes(query),
+      );
     const direction = this.sort();
     return rows.sort((left, right) => {
       if (direction === 'count-desc' || direction === 'count-asc') {
@@ -69,23 +81,46 @@ export class BlockUsagePanelComponent {
     });
   });
 
-  protected readonly uniqueTypes = computed(() => { this.runtimeIndex.usageRevision(); return this.runtimeIndex.uniqueBlockIdCount(); });
-  protected readonly missingBlocks = computed(() => { this.runtimeIndex.usageRevision(); return this.runtimeIndex.usageEntries().reduce((sum, entry) => sum + entry.missingCount, 0); });
+  protected readonly uniqueTypes = computed(() => {
+    this.runtimeIndex.usageRevision();
+    return this.runtimeIndex.uniqueBlockIdCount();
+  });
+  protected readonly missingBlocks = computed(() => {
+    this.runtimeIndex.usageRevision();
+    return this.runtimeIndex.usageEntries().reduce((sum, entry) => sum + entry.missingCount, 0);
+  });
 
-  protected search(event: Event): void { this.query.set((event.target as HTMLInputElement).value); }
-  protected setSort(event: Event): void { this.sort.set((event.target as HTMLSelectElement).value as UsageSort); }
+  protected search(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+  }
+  protected setSort(event: Event): void {
+    this.sort.set((event.target as HTMLSelectElement).value as UsageSort);
+  }
   protected percentage(count: number): string {
     const total = this.totalBlocks();
     if (!total) return '0%';
-    const value = count / total * 100;
+    const value = (count / total) * 100;
     return value > 0 && value < 0.1 ? '<0.1%' : `${value.toFixed(value >= 10 ? 1 : 1)}%`;
   }
-  protected formatCount(value: number): string { return new Intl.NumberFormat(this.i18n.locale()).format(value); }
-  protected isHighlighted(id: string): boolean { return this.highlight.highlightedBlockId() === id; }
-  protected toggleHighlight(id: string): void { this.highlight.toggle(id); }
-  protected clearHighlight(): void { this.highlight.clear(); }
-  protected requestThumbnail(row: UsageRow, event: { readonly priority: ThumbnailTaskPriority }): void {
+  protected formatCount(value: number): string {
+    return new Intl.NumberFormat(this.i18n.locale()).format(value);
+  }
+  protected isHighlighted(id: string): boolean {
+    return this.highlight.highlightedBlockId() === id;
+  }
+  protected toggleHighlight(id: string): void {
+    this.highlight.toggle(id);
+  }
+  protected clearHighlight(): void {
+    this.highlight.clear();
+  }
+  protected requestThumbnail(
+    row: UsageRow,
+    event: { readonly priority: ThumbnailTaskPriority },
+  ): void {
     if (row.item) this.assets.requestItemThumbnail(row.item, event.priority);
   }
-  protected trackRow(_: number, row: UsageRow): string { return row.entry.id; }
+  protected trackRow(_: number, row: UsageRow): string {
+    return row.entry.id;
+  }
 }

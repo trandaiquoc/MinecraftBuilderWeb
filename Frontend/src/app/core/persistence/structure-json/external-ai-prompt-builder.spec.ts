@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { buildContentContextText, buildExternalAiPrompt, externalAiInstructionSections, selectedExternalAiTotals, type ExternalAiPromptContext } from './external-ai-prompt-builder';
-import { normalizeExternalAiContentLimits, serializeExternalAiContentLimits } from './external-ai-content-limits';
+import {
+  buildContentContextText,
+  buildExternalAiPrompt,
+  externalAiInstructionSections,
+  selectedExternalAiTotals,
+  type ExternalAiPromptContext,
+} from './external-ai-prompt-builder';
+import {
+  normalizeExternalAiContentLimits,
+  serializeExternalAiContentLimits,
+} from './external-ai-content-limits';
 
 const context: ExternalAiPromptContext = {
   minecraftVersion: '1.21.1',
@@ -12,14 +21,37 @@ const context: ExternalAiPromptContext = {
     vanillaStructureBlockLimit: 48,
   },
   mods: [
-    { sourceId: 'source-a', id: 'example', name: 'Example Mod', version: '1.2.0', loader: 'fabric', namespaces: ['example'], blocks: ['example:z_block', 'example:a_block'], items: [{ id: 'example:gem', maxStackSize: 16 }], decorations: [{ id: 'example:poster', kind: 'painting' }] },
-    { sourceId: 'source-b', id: 'other', name: 'Other Mod', version: '2.0.0', loader: 'fabric', namespaces: ['other'], blocks: ['other:block'], items: [{ id: 'other:gear' }, { id: 'other:tool', maxStackSize: 1 }], decorations: [] },
+    {
+      sourceId: 'source-a',
+      id: 'example',
+      name: 'Example Mod',
+      version: '1.2.0',
+      loader: 'fabric',
+      namespaces: ['example'],
+      blocks: ['example:z_block', 'example:a_block'],
+      items: [{ id: 'example:gem', maxStackSize: 16 }],
+      decorations: [{ id: 'example:poster', kind: 'painting' }],
+    },
+    {
+      sourceId: 'source-b',
+      id: 'other',
+      name: 'Other Mod',
+      version: '2.0.0',
+      loader: 'fabric',
+      namespaces: ['other'],
+      blocks: ['other:block'],
+      items: [{ id: 'other:gear' }, { id: 'other:tool', maxStackSize: 1 }],
+      decorations: [],
+    },
   ],
 };
 
 describe('external Structure JSON AI prompt', () => {
   it('keeps the self-contained English guidance and exact user request last', () => {
-    const prompt = buildExternalAiPrompt('Build a crescent moon above a grass clearing.', context, { includeAvailableContent: true, locale: 'en' });
+    const prompt = buildExternalAiPrompt('Build a crescent moon above a grass clearing.', context, {
+      includeAvailableContent: true,
+      locale: 'en',
+    });
     expect(prompt.indexOf('OUTPUT')).toBeLessThan(prompt.indexOf('AVAILABLE_CONTENT_JSON'));
     expect(prompt.indexOf('AVAILABLE_CONTENT_JSON')).toBeLessThan(prompt.indexOf('USER REQUEST'));
     expect(prompt).toContain('minecraftbuilder-structure');
@@ -47,7 +79,10 @@ describe('external Structure JSON AI prompt', () => {
 
   it('localizes machine guidance while preserving the exact user description', () => {
     const description = 'Thiết kế đền cho pokemon Cresselia như ảnh';
-    const prompt = buildExternalAiPrompt(description, context, { includeAvailableContent: false, locale: 'vi' });
+    const prompt = buildExternalAiPrompt(description, context, {
+      includeAvailableContent: false,
+      locale: 'vi',
+    });
     expect(prompt).toContain('Bạn đang tạo');
     expect(prompt).toContain('KÍCH THƯỚC CẤU TRÚC');
     expect(prompt).toContain('YÊU CẦU NGƯỜI DÙNG');
@@ -67,16 +102,31 @@ describe('external Structure JSON AI prompt', () => {
     expect(text).not.toContain('"currentSize"');
     expect(text).not.toContain('"resizeSupported"');
     expect(text).not.toContain('47');
-    const largeContext = { ...context, projectContext: { ...context.projectContext, currentSize: { x: 128, y: 64, z: 96 } } };
+    const largeContext = {
+      ...context,
+      projectContext: { ...context.projectContext, currentSize: { x: 128, y: 64, z: 96 } },
+    };
     expect(buildContentContextText(largeContext)).not.toContain('128');
     expect(buildContentContextText(largeContext)).toContain('"x": 512');
   });
 
   it('serializes only the selected categories for each exact source', () => {
-    const text = buildContentContextText(context, { modSelections: [
-      { sourceId: 'source-a', includeBlocks: true, includeItems: false, includeDecorations: true },
-      { sourceId: 'source-b', includeBlocks: false, includeItems: true, includeDecorations: false },
-    ] });
+    const text = buildContentContextText(context, {
+      modSelections: [
+        {
+          sourceId: 'source-a',
+          includeBlocks: true,
+          includeItems: false,
+          includeDecorations: true,
+        },
+        {
+          sourceId: 'source-b',
+          includeBlocks: false,
+          includeItems: true,
+          includeDecorations: false,
+        },
+      ],
+    });
     expect(text).toContain('example:a_block');
     expect(text).not.toContain('example:gem');
     expect(text).toContain('example:poster');
@@ -87,17 +137,28 @@ describe('external Structure JSON AI prompt', () => {
   });
 
   it('defaults blocks and decorations on, items off for every source', () => {
-    const prompt = buildExternalAiPrompt('Make a tower.', context, { includeAvailableContent: true });
+    const prompt = buildExternalAiPrompt('Make a tower.', context, {
+      includeAvailableContent: true,
+    });
     expect(prompt).toContain('example:a_block');
     expect(prompt).toContain('example:poster');
     expect(prompt).not.toContain('example:gem');
     expect(prompt).toContain('other:block');
     expect(prompt).not.toContain('other:gear');
-    expect(selectedExternalAiTotals(context, undefined)).toEqual({ mods: 2, blocks: 3, items: 0, decorations: 1 });
+    expect(selectedExternalAiTotals(context, undefined)).toEqual({
+      mods: 2,
+      blocks: 3,
+      items: 0,
+      decorations: 1,
+    });
   });
 
   it('keeps guidance-off framing localized and free of historical fields', () => {
-    const prompt = buildExternalAiPrompt('Tạo một tháp.', context, { includeGuidance: false, includeAvailableContent: false, locale: 'vi' });
+    const prompt = buildExternalAiPrompt('Tạo một tháp.', context, {
+      includeGuidance: false,
+      includeAvailableContent: false,
+      locale: 'vi',
+    });
     expect(prompt).toContain('Nếu có thể tạo file');
     expect(prompt).toContain('code block');
     expect(prompt).toContain('YÊU CẦU NGƯỜI DÙNG');
@@ -106,7 +167,10 @@ describe('external Structure JSON AI prompt', () => {
   });
 
   it('allows the real JSON example to be disabled explicitly', () => {
-    const prompt = buildExternalAiPrompt('Make a tower.', context, { includeExample: false, includeAvailableContent: false });
+    const prompt = buildExternalAiPrompt('Make a tower.', context, {
+      includeExample: false,
+      includeAvailableContent: false,
+    });
     expect(prompt).not.toContain('Small JSON syntax example');
     expect(prompt).not.toContain('"blockEntity"');
     expect(prompt).not.toContain('"kind": "container"');
@@ -116,11 +180,21 @@ describe('external Structure JSON AI prompt', () => {
   it('keeps guidance sections ordered and semantically equivalent in both locales', () => {
     const english = externalAiInstructionSections('1.21.1', 'en', context.projectContext);
     const vietnamese = externalAiInstructionSections('1.21.1', 'vi', context.projectContext);
-    expect(english.map((section) => section.id)).toEqual(['output', 'contract', 'geometry', 'size', 'content', 'research', 'data', 'final']);
+    expect(english.map((section) => section.id)).toEqual([
+      'output',
+      'contract',
+      'geometry',
+      'size',
+      'content',
+      'research',
+      'data',
+      'final',
+    ]);
     expect(vietnamese.map((section) => section.id)).toEqual(english.map((section) => section.id));
     const englishText = english.flatMap((section) => section.lines).join('\n');
     const vietnameseText = vietnamese.flatMap((section) => section.lines).join('\n');
-    for (const text of ['sapling', 'research', 'AVAILABLE_CONTENT_JSON']) expect(englishText.toLowerCase()).toContain(text.toLowerCase());
+    for (const text of ['sapling', 'research', 'AVAILABLE_CONTENT_JSON'])
+      expect(englishText.toLowerCase()).toContain(text.toLowerCase());
     expect(vietnameseText).toContain('sapling');
     expect(vietnameseText).toContain('AVAILABLE_CONTENT_JSON');
     expect(vietnameseText).toContain('512 × 512 × 512');
@@ -132,8 +206,12 @@ describe('external Structure JSON AI prompt', () => {
   });
 
   it('requires grounded, origin-normalized generation without banning intentional floating', () => {
-    const english = externalAiInstructionSections('1.21.1', 'en', context.projectContext).flatMap((section) => section.lines).join('\n');
-    const vietnamese = externalAiInstructionSections('1.21.1', 'vi', context.projectContext).flatMap((section) => section.lines).join('\n');
+    const english = externalAiInstructionSections('1.21.1', 'en', context.projectContext)
+      .flatMap((section) => section.lines)
+      .join('\n');
+    const vietnamese = externalAiInstructionSections('1.21.1', 'vi', context.projectContext)
+      .flatMap((section) => section.lines)
+      .join('\n');
 
     for (const text of [english, vietnamese]) {
       expect(text).toContain('minX = 0');
@@ -143,7 +221,9 @@ describe('external Structure JSON AI prompt', () => {
     }
     expect(english).toMatch(/translate the whole design upward/i);
     expect(english).toContain('ordinary architecture and scenery must be grounded');
-    expect(english).toContain('Intentional floating is allowed only when the user explicitly requests');
+    expect(english).toContain(
+      'Intentional floating is allowed only when the user explicitly requests',
+    );
     expect(english).toContain('every block needs another block directly below it');
     expect(english).toContain('sapling');
     expect(english).toContain('valid wall, floor, hanging, or other required support');
@@ -157,11 +237,23 @@ describe('external Structure JSON AI prompt', () => {
   });
 
   it('keeps content limits out of the prompt until explicitly enabled', () => {
-    const limits = { blocks: ['minecraft:dragon_head', 'minecraft:dragon_head'], items: ['example:gem'], decorations: ['minecraft:poster'] } as const;
-    const options = { includeGuidance: false, includeAvailableContent: false, includeExample: false, contentLimits: limits };
+    const limits = {
+      blocks: ['minecraft:dragon_head', 'minecraft:dragon_head'],
+      items: ['example:gem'],
+      decorations: ['minecraft:poster'],
+    } as const;
+    const options = {
+      includeGuidance: false,
+      includeAvailableContent: false,
+      includeExample: false,
+      contentLimits: limits,
+    };
     const disabled = buildExternalAiPrompt('Build a shrine.', context, options);
     expect(disabled).not.toContain('CONTENT_LIMITS_JSON');
-    const enabled = buildExternalAiPrompt('Build a shrine.', context, { ...options, contentLimitsEnabled: true });
+    const enabled = buildExternalAiPrompt('Build a shrine.', context, {
+      ...options,
+      contentLimitsEnabled: true,
+    });
     expect(enabled).toContain('CONTENT_LIMITS_JSON');
     expect(enabled).toContain('"blocks"');
     expect(enabled).toContain('"items"');
@@ -172,19 +264,42 @@ describe('external Structure JSON AI prompt', () => {
     expect(enabled.indexOf('CONTENT_LIMITS_JSON')).toBeLessThan(enabled.indexOf('USER REQUEST'));
     expect(enabled.slice(enabled.indexOf('USER REQUEST'))).toContain('Build a shrine.');
     expect(enabled).not.toContain('formatVersion');
-    expect(serializeExternalAiContentLimits(normalizeExternalAiContentLimits(limits))).toContain('minecraft:dragon_head');
+    expect(serializeExternalAiContentLimits(normalizeExternalAiContentLimits(limits))).toContain(
+      'minecraft:dragon_head',
+    );
   });
 
   it('does not authorize unavailable mod IDs and preserves them in saved limits', () => {
-    const limits = { blocks: ['missing:crystal', 'minecraft:ancient_debris'], items: [], decorations: [] } as const;
-    const prompt = buildExternalAiPrompt('Build a mod shrine.', context, { includeAvailableContent: false, includeExample: false, contentLimitsEnabled: true, contentLimits: limits });
+    const limits = {
+      blocks: ['missing:crystal', 'minecraft:ancient_debris'],
+      items: [],
+      decorations: [],
+    } as const;
+    const prompt = buildExternalAiPrompt('Build a mod shrine.', context, {
+      includeAvailableContent: false,
+      includeExample: false,
+      contentLimitsEnabled: true,
+      contentLimits: limits,
+    });
     expect(prompt).toContain('minecraft:ancient_debris');
     expect(prompt).not.toContain('missing:crystal');
-    expect(normalizeExternalAiContentLimits(limits)).toEqual({ blocks: ['minecraft:ancient_debris', 'missing:crystal'], items: [], decorations: [] });
+    expect(normalizeExternalAiContentLimits(limits)).toEqual({
+      blocks: ['minecraft:ancient_debris', 'missing:crystal'],
+      items: [],
+      decorations: [],
+    });
   });
 
   it('canonicalizes a standing/wall logical block when the placeable catalog knows the mapping', () => {
-    const item = { itemId: 'minecraft:dragon_head', concreteBlockIds: ['minecraft:dragon_head', 'minecraft:dragon_wall_head'] } as any;
-    expect(normalizeExternalAiContentLimits({ blocks: ['minecraft:dragon_wall_head'], items: [], decorations: [] }, [item])).toEqual({ blocks: ['minecraft:dragon_head'], items: [], decorations: [] });
+    const item = {
+      itemId: 'minecraft:dragon_head',
+      concreteBlockIds: ['minecraft:dragon_head', 'minecraft:dragon_wall_head'],
+    } as any;
+    expect(
+      normalizeExternalAiContentLimits(
+        { blocks: ['minecraft:dragon_wall_head'], items: [], decorations: [] },
+        [item],
+      ),
+    ).toEqual({ blocks: ['minecraft:dragon_head'], items: [], decorations: [] });
   });
 });

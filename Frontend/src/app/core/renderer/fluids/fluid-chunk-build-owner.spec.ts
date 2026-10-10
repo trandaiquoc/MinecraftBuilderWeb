@@ -27,12 +27,19 @@ describe('FluidChunkBuildOwner', () => {
     const owner = new FluidChunkBuildOwner(records, residency);
     let resolveTexture!: (texture: THREE.Texture) => void;
     let announceRequest!: () => void;
-    const requestStarted = new Promise<void>((resolve) => { announceRequest = resolve; });
-    const textureRequest = new Promise<THREE.Texture>((resolve) => { resolveTexture = resolve; });
+    const requestStarted = new Promise<void>((resolve) => {
+      announceRequest = resolve;
+    });
+    const textureRequest = new Promise<THREE.Texture>((resolve) => {
+      resolveTexture = resolve;
+    });
     const provider: FluidChunkVisualProvider = {
       contractKey: 'provider-a',
       resolver: vanillaFluidRenderResolver,
-      texture: () => { announceRequest(); return textureRequest; },
+      texture: () => {
+        announceRequest();
+        return textureRequest;
+      },
     };
     const world: FluidWorldLookup = { getBlock: () => undefined, visualRevisionKey: 'fixture-v1' };
     owner.setProvider(provider);
@@ -43,8 +50,17 @@ describe('FluidChunkBuildOwner', () => {
     const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
     resolveTexture(texture);
 
-    await expect(pending).resolves.toMatchObject({ status: 'stale', committedKeys: [], fallbackKeys: [] });
-    expect(residency.evidence()).toMatchObject({ chunks: 0, meshes: 0, materialBuckets: 0, residentVariantCount: 0 });
+    await expect(pending).resolves.toMatchObject({
+      status: 'stale',
+      committedKeys: [],
+      fallbackKeys: [],
+    });
+    expect(residency.evidence()).toMatchObject({
+      chunks: 0,
+      meshes: 0,
+      materialBuckets: 0,
+      residentVariantCount: 0,
+    });
     owner.dispose();
     residency.dispose();
     texture.dispose();
@@ -56,16 +72,29 @@ describe('FluidChunkBuildOwner', () => {
     const owner = new FluidChunkBuildOwner(records, residency);
     let resolveTexture!: (texture: THREE.Texture) => void;
     let announceRequest!: () => void;
-    const textureRequest = new Promise<THREE.Texture>((resolve) => { resolveTexture = resolve; });
-    const requestStarted = new Promise<void>((resolve) => { announceRequest = resolve; });
+    const textureRequest = new Promise<THREE.Texture>((resolve) => {
+      resolveTexture = resolve;
+    });
+    const requestStarted = new Promise<void>((resolve) => {
+      announceRequest = resolve;
+    });
     const provider = (texture: () => Promise<THREE.Texture>): FluidChunkVisualProvider => ({
-      contractKey: 'provider-equivalent', resolver: vanillaFluidRenderResolver, texture,
+      contractKey: 'provider-equivalent',
+      resolver: vanillaFluidRenderResolver,
+      texture,
     });
     const world: FluidWorldLookup = { getBlock: () => undefined, visualRevisionKey: 'fixture-v1' };
-    owner.setProvider(provider(() => { announceRequest(); return textureRequest; }));
+    owner.setProvider(
+      provider(() => {
+        announceRequest();
+        return textureRequest;
+      }),
+    );
     const pending = owner.sync([waterRecord()], world);
     await requestStarted;
-    owner.setProvider(provider(async () => new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1)));
+    owner.setProvider(
+      provider(async () => new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1)),
+    );
     const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
     resolveTexture(texture);
 

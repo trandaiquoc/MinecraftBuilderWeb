@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalStructureModeForSize, effectiveStructureModeForSize, evaluateStructureSize, isStructureCreationAllowed, normalizeStructureModeForSize } from './structure-size-policy';
+import {
+  canonicalStructureModeForSize,
+  effectiveStructureModeForSize,
+  evaluateStructureSize,
+  isStructureCreationAllowed,
+  normalizeStructureModeForSize,
+} from './structure-size-policy';
 
 const size = (x: number, y: number, z: number) => ({ x, y, z });
 
@@ -36,9 +42,13 @@ describe('evaluateStructureSize', () => {
   });
 
   it('accepts the Huge Structure Blocks maximum and rejects every axis above it', () => {
-    expect(evaluateStructureSize(size(512, 512, 512), 'huge-structure-blocks').selectedModeValid).toBe(true);
+    expect(
+      evaluateStructureSize(size(512, 512, 512), 'huge-structure-blocks').selectedModeValid,
+    ).toBe(true);
     for (const oversized of [size(513, 1, 1), size(1, 513, 1), size(1, 1, 513)]) {
-      expect(evaluateStructureSize(oversized, 'huge-structure-blocks').selectedModeValid).toBe(false);
+      expect(evaluateStructureSize(oversized, 'huge-structure-blocks').selectedModeValid).toBe(
+        false,
+      );
     }
   });
 
@@ -49,8 +59,12 @@ describe('evaluateStructureSize', () => {
     size(Number.NaN, 1, 1),
     size(Number.POSITIVE_INFINITY, 1, 1),
   ])('rejects invalid form dimensions %j', (dimensions) => {
-    expect(evaluateStructureSize(dimensions, 'vanilla-structure-block').dimensionsValid).toBe(false);
-    expect(evaluateStructureSize(dimensions, 'vanilla-structure-block').selectedModeValid).toBe(false);
+    expect(evaluateStructureSize(dimensions, 'vanilla-structure-block').dimensionsValid).toBe(
+      false,
+    );
+    expect(evaluateStructureSize(dimensions, 'vanilla-structure-block').selectedModeValid).toBe(
+      false,
+    );
   });
 });
 
@@ -73,18 +87,32 @@ describe('canonical structure mode policy', () => {
     const unsupported = size(513, 18, 64);
     expect(canonicalStructureModeForSize(unsupported)).toBeUndefined();
     expect(isStructureCreationAllowed(unsupported, 'huge-structure-blocks')).toBe(false);
-    expect(normalizeStructureModeForSize(unsupported, 'huge-structure-blocks')).toBe('huge-structure-blocks');
+    expect(normalizeStructureModeForSize(unsupported, 'huge-structure-blocks')).toBe(
+      'huge-structure-blocks',
+    );
   });
 
   it('normalizes legacy mode metadata to the size-compatible mode', () => {
-    expect(normalizeStructureModeForSize(size(32, 32, 32), 'huge-structure-blocks')).toBe('vanilla-structure-block');
-    expect(normalizeStructureModeForSize(size(64, 18, 64), 'vanilla-structure-block')).toBe('huge-structure-blocks');
+    expect(normalizeStructureModeForSize(size(32, 32, 32), 'huge-structure-blocks')).toBe(
+      'vanilla-structure-block',
+    );
+    expect(normalizeStructureModeForSize(size(64, 18, 64), 'vanilla-structure-block')).toBe(
+      'huge-structure-blocks',
+    );
   });
 
   it('uses the optional automatic Huge mode only for supported oversized sizes', () => {
-    expect(effectiveStructureModeForSize(size(49, 48, 48), 'vanilla-structure-block', false)).toBe('vanilla-structure-block');
-    expect(effectiveStructureModeForSize(size(49, 48, 48), 'vanilla-structure-block', true)).toBe('huge-structure-blocks');
-    expect(effectiveStructureModeForSize(size(48, 48, 48), 'huge-structure-blocks', true)).toBe('vanilla-structure-block');
-    expect(effectiveStructureModeForSize(size(513, 18, 64), 'vanilla-structure-block', true)).toBe('vanilla-structure-block');
+    expect(effectiveStructureModeForSize(size(49, 48, 48), 'vanilla-structure-block', false)).toBe(
+      'vanilla-structure-block',
+    );
+    expect(effectiveStructureModeForSize(size(49, 48, 48), 'vanilla-structure-block', true)).toBe(
+      'huge-structure-blocks',
+    );
+    expect(effectiveStructureModeForSize(size(48, 48, 48), 'huge-structure-blocks', true)).toBe(
+      'vanilla-structure-block',
+    );
+    expect(effectiveStructureModeForSize(size(513, 18, 64), 'vanilla-structure-block', true)).toBe(
+      'vanilla-structure-block',
+    );
   });
 });

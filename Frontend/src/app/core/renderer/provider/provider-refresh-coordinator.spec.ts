@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ProviderRefreshCoordinator } from './provider-refresh-coordinator';
 
-function provider() { return { retain: vi.fn(), release: vi.fn() }; }
+function provider() {
+  return { retain: vi.fn(), release: vi.fn() };
+}
 
 describe('ProviderRefreshCoordinator', () => {
   it('retains the replacement and releases the retired provider after handoff', () => {

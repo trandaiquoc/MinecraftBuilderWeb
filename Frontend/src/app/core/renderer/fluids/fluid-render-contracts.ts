@@ -2,8 +2,16 @@ import type * as THREE from 'three';
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { FluidRenderResolver, ResolvedFluidRenderState } from './fluid-state';
 
-export interface FluidChunkRecord { readonly block: PlacedBlock; readonly state: ResolvedFluidRenderState; readonly role?: 'normal' | 'reference'; }
-export interface FluidChunkChange { readonly position: VoxelCoordinate; readonly before?: FluidChunkRecord; readonly after?: FluidChunkRecord; }
+export interface FluidChunkRecord {
+  readonly block: PlacedBlock;
+  readonly state: ResolvedFluidRenderState;
+  readonly role?: 'normal' | 'reference';
+}
+export interface FluidChunkChange {
+  readonly position: VoxelCoordinate;
+  readonly before?: FluidChunkRecord;
+  readonly after?: FluidChunkRecord;
+}
 export interface FluidChunkVisualProvider {
   readonly contractKey?: string;
   readonly resolver: FluidRenderResolver;

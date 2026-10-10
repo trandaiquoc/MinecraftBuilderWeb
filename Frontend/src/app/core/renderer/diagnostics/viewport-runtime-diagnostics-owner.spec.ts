@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ViewportGhostSceneSnapshot, ViewportInstanceOwnershipEvent } from './viewport-diagnostics-contracts';
+import type {
+  ViewportGhostSceneSnapshot,
+  ViewportInstanceOwnershipEvent,
+} from './viewport-diagnostics-contracts';
 import { ViewportRuntimeDiagnosticsOwner } from './viewport-runtime-diagnostics-owner';
 
 const snapshot = (): ViewportGhostSceneSnapshot => ({
@@ -16,17 +19,39 @@ const snapshot = (): ViewportGhostSceneSnapshot => ({
     blocksGroupChildCount: 0,
     visibleMeshCount: 0,
     visibleMeshesOutsideBlocksGroup: 0,
-    hydrationState: { queued: 0, running: 0, pendingSignatureCount: 0, placeholderSignatureCount: 0, runningOwnershipCount: 0 },
+    hydrationState: {
+      queued: 0,
+      running: 0,
+      pendingSignatureCount: 0,
+      placeholderSignatureCount: 0,
+      runningOwnershipCount: 0,
+    },
   },
   visibleMeshes: [],
   suspiciousVisualCount: 0,
   suspiciousVisuals: [],
   directSceneChildren: [],
   instanceOwnershipTrace: [],
-  previewState: { ghostVisible: false, ghostModelPresent: false, ghostModelVisible: false, ghostModelKey: '', ghostGeneration: 0, movePreviewChildren: 0, decorationGhostChildren: 0, logicalSelectionChildren: 0, selectionOutlineVisible: false, reusableTemplateCount: 0 },
+  previewState: {
+    ghostVisible: false,
+    ghostModelPresent: false,
+    ghostModelVisible: false,
+    ghostModelKey: '',
+    ghostGeneration: 0,
+    movePreviewChildren: 0,
+    decorationGhostChildren: 0,
+    logicalSelectionChildren: 0,
+    selectionOutlineVisible: false,
+    reusableTemplateCount: 0,
+  },
 });
 
-const event = (generation: number): ViewportInstanceOwnershipEvent => ({ phase: 'after-reconcile', generation, physicalMemberships: [], violations: [] });
+const event = (generation: number): ViewportInstanceOwnershipEvent => ({
+  phase: 'after-reconcile',
+  generation,
+  physicalMemberships: [],
+  violations: [],
+});
 
 describe('ViewportRuntimeDiagnosticsOwner', () => {
   it('tracks bounded empty transitions and ownership history only while enabled', () => {
@@ -37,7 +62,8 @@ describe('ViewportRuntimeDiagnosticsOwner', () => {
     owner.observeProjectBlockCount(0, snapshot);
     expect(owner.emptyTransitionSnapshots).toHaveLength(2);
 
-    for (let generation = 0; generation < 300; generation += 1) owner.recordInstanceOwnership(event(generation));
+    for (let generation = 0; generation < 300; generation += 1)
+      owner.recordInstanceOwnership(event(generation));
     expect(owner.instanceOwnershipTrace).toHaveLength(256);
     expect(owner.instanceOwnershipTrace[0].generation).toBe(44);
   });

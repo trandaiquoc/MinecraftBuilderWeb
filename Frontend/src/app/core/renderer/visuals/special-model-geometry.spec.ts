@@ -16,13 +16,30 @@ describe('special model geometry', () => {
   });
 
   it('keeps UV dimensions tied to the base cuboid when dilation expands geometry', () => {
-    const base = modelPartCuboidUv({ id: 'head', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8] });
-    const dilated = modelPartCuboidUv({ id: 'hat', uv: [32, 0], from: [-4, -8, -4], size: [8, 8, 8], dilation: .25 });
+    const base = modelPartCuboidUv({
+      id: 'head',
+      uv: [32, 0],
+      from: [-4, -8, -4],
+      size: [8, 8, 8],
+    });
+    const dilated = modelPartCuboidUv({
+      id: 'hat',
+      uv: [32, 0],
+      from: [-4, -8, -4],
+      size: [8, 8, 8],
+      dilation: 0.25,
+    });
     expect(dilated).toEqual(base);
   });
 
   it('uses Java ModelPart top-to-bottom UV orientation for entity faces', () => {
-    const visual = createSpecialModel({ id: 'uv-test', textureSize: [32, 32], parts: [{ id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }] }] });
+    const visual = createSpecialModel({
+      id: 'uv-test',
+      textureSize: [32, 32],
+      parts: [
+        { id: 'head', cuboids: [{ id: 'head', uv: [0, 0], from: [-4, -8, -4], size: [8, 8, 8] }] },
+      ],
+    });
     const mesh = visual.children[0].children[0].children[0] as THREE.Mesh;
     const uv = Array.from(mesh.geometry.getAttribute('uv').array as ArrayLike<number>);
     expect(uv[0]).toBeCloseTo(16 / 32);
@@ -34,8 +51,17 @@ describe('special model geometry', () => {
   });
 
   it('keeps the ModelPart Quad vertex order for every cuboid face', () => {
-    const cuboid: SpecialCuboidDescriptor = { id: 'head', uv: [0, 0], from: [0, 0, 0], size: [16, 16, 6] };
-    const visual = createSpecialModel({ id: 'uv-faces', textureSize: [64, 64], parts: [{ id: 'head', cuboids: [cuboid] }] });
+    const cuboid: SpecialCuboidDescriptor = {
+      id: 'head',
+      uv: [0, 0],
+      from: [0, 0, 0],
+      size: [16, 16, 6],
+    };
+    const visual = createSpecialModel({
+      id: 'uv-faces',
+      textureSize: [64, 64],
+      parts: [{ id: 'head', cuboids: [cuboid] }],
+    });
     const faceNames = ['north', 'south', 'east', 'west', 'up', 'down'] as const;
     const uv = modelPartCuboidUv(cuboid);
     const cuboidGroup = visual.children[0].children[0];
@@ -43,7 +69,16 @@ describe('special model geometry', () => {
       const attribute = (cuboidGroup.children[index] as THREE.Mesh).geometry.getAttribute('uv');
       const values = Array.from(attribute.array as ArrayLike<number>);
       const [u1, v1, u2, v2] = uv[face];
-      expect(values.slice(0, 8), face).toEqual([u2 / 64, 1 - v1 / 64, u1 / 64, 1 - v1 / 64, u1 / 64, 1 - v2 / 64, u2 / 64, 1 - v2 / 64]);
+      expect(values.slice(0, 8), face).toEqual([
+        u2 / 64,
+        1 - v1 / 64,
+        u1 / 64,
+        1 - v1 / 64,
+        u1 / 64,
+        1 - v2 / 64,
+        u2 / 64,
+        1 - v2 / 64,
+      ]);
     }
   });
 });

@@ -1,20 +1,49 @@
 import type { ProjectDocument, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { planYLayerProjectionDelta, type LayerBlockIndex } from '../../editor/viewport/y-layer';
 import { isBlockVisibleForViewport } from '../../editor/viewport/visible-blocks';
-import type { ViewportProjectionActivity, ViewportProjectionState } from '../diagnostics/viewport-diagnostics-contracts';
-import { cancelViewportFrame, requestViewportFrame } from '../scheduling/viewport-camera-input-controller';
+import type {
+  ViewportProjectionActivity,
+  ViewportProjectionState,
+} from '../diagnostics/viewport-diagnostics-contracts';
+import {
+  cancelViewportFrame,
+  requestViewportFrame,
+} from '../scheduling/viewport-camera-input-controller';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { coordinateKey } from '../../domain/coordinates';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
-import { blockRenderSignature, canonicalRenderOptions, renderFilterKey } from './viewport-render-signatures';
+import {
+  blockRenderSignature,
+  canonicalRenderOptions,
+  renderFilterKey,
+} from './viewport-render-signatures';
 import { yieldToBrowser } from '../../assets/cooperative-yield';
-import { YLayerPresentationOwner, type VisibleBlockProjectionEntry } from './y-layer-presentation-owner';
+import {
+  YLayerPresentationOwner,
+  type VisibleBlockProjectionEntry,
+} from './y-layer-presentation-owner';
 
-type ProjectionMetric = 'yLayerProjectionRequests' | 'yLayerProjectionRequestsCoalesced' | 'yLayerProjectionCommits' | 'yLayerProjectionSlices' | 'yLayerProjectionYields' | 'yLayerProjectionCancellations' | 'blockSignatureComputations' | 'yLayerProjectionChangedLayers' | 'yLayerProjectionChangedBlocks' | 'yLayerProjectionAddedVisible' | 'yLayerProjectionRemovedVisible' | 'yLayerProjectionRoleChanged' | 'yLayerProjectionVoxelVisits';
+type ProjectionMetric =
+  | 'yLayerProjectionRequests'
+  | 'yLayerProjectionRequestsCoalesced'
+  | 'yLayerProjectionCommits'
+  | 'yLayerProjectionSlices'
+  | 'yLayerProjectionYields'
+  | 'yLayerProjectionCancellations'
+  | 'blockSignatureComputations'
+  | 'yLayerProjectionChangedLayers'
+  | 'yLayerProjectionChangedBlocks'
+  | 'yLayerProjectionAddedVisible'
+  | 'yLayerProjectionRemovedVisible'
+  | 'yLayerProjectionRoleChanged'
+  | 'yLayerProjectionVoxelVisits';
 export const Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT = 384;
 export const Y_LAYER_PROJECTION_INITIAL_SLICE_BLOCK_LIMIT = 128;
 export const Y_LAYER_PROJECTION_SLICE_BUDGET_MS = 6;
-type ProjectionSnapshot = { readonly project: ProjectDocument; readonly options: ViewportRenderOptions };
+type ProjectionSnapshot = {
+  readonly project: ProjectDocument;
+  readonly options: ViewportRenderOptions;
+};
 type PrewarmedProjection = {
   readonly project: ProjectDocument;
   readonly options: ViewportRenderOptions;
@@ -47,7 +76,11 @@ type FrameCancel = (frame: number) => void;
 export interface YLayerProjectionPorts {
   readonly isDisposed: () => boolean;
   readonly isSuspended: () => boolean;
-  readonly applyDelta: (project: ProjectDocument, options: ViewportRenderOptions, delta: ProjectionLayerDelta) => void;
+  readonly applyDelta: (
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+    delta: ProjectionLayerDelta,
+  ) => void;
   readonly finishCooperativeWork: () => void;
   readonly keySettled: (key: string) => boolean;
   readonly onCommit: (project: ProjectDocument, options: ViewportRenderOptions) => void;
@@ -87,15 +120,34 @@ export class YLayerProjectionCoordinator {
     private readonly presentation: YLayerPresentationOwner = new YLayerPresentationOwner(),
   ) {}
 
-  get revision(): number { return this.revisionValue; }
-  get state(): ViewportProjectionState { return { activity: this.activity, revision: this.activityRevision }; }
-  get visibleEntries(): readonly VisibleBlockProjectionEntry[] { return this.presentation.isActive ? this.presentation.materializedEntries : this.visibleEntriesValue; }
-  get visibleEntriesByKey(): ReadonlyMap<string, VisibleBlockProjectionEntry> { return this.presentation.isActive ? this.presentation.materializedMap : this.visibleMap; }
-  get visibleProject(): ProjectDocument | undefined { return this.presentation.project ?? this.visibleProjectValue; }
-  get hasDirectPresentation(): boolean { return this.presentation.isActive; }
-  directVisibleEntryCount(): number | undefined { return this.presentation.visibleBlockCount(); }
+  get revision(): number {
+    return this.revisionValue;
+  }
+  get state(): ViewportProjectionState {
+    return { activity: this.activity, revision: this.activityRevision };
+  }
+  get visibleEntries(): readonly VisibleBlockProjectionEntry[] {
+    return this.presentation.isActive
+      ? this.presentation.materializedEntries
+      : this.visibleEntriesValue;
+  }
+  get visibleEntriesByKey(): ReadonlyMap<string, VisibleBlockProjectionEntry> {
+    return this.presentation.isActive ? this.presentation.materializedMap : this.visibleMap;
+  }
+  get visibleProject(): ProjectDocument | undefined {
+    return this.presentation.project ?? this.visibleProjectValue;
+  }
+  get hasDirectPresentation(): boolean {
+    return this.presentation.isActive;
+  }
+  directVisibleEntryCount(): number | undefined {
+    return this.presentation.visibleBlockCount();
+  }
 
-  cachedVisibleBlockCount(project: ProjectDocument, options: ViewportRenderOptions): number | undefined {
+  cachedVisibleBlockCount(
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+  ): number | undefined {
     const directCount = this.presentation.visibleBlockCount();
     if (directCount !== undefined) return directCount;
     return this.visibleProjectValue === project && this.visibleKey === renderFilterKey(options)
@@ -108,10 +160,13 @@ export class YLayerProjectionCoordinator {
   }
 
   isProjectionTargetInFlight(project: ProjectDocument, options: ViewportRenderOptions): boolean {
-    return [this.pending, this.applying].some((snapshot) => snapshot?.project === project
-      && snapshot.options.layerY === options.layerY
-      && snapshot.options.visibility === options.visibility
-      && snapshot.options.exposedFaceRendering === options.exposedFaceRendering);
+    return [this.pending, this.applying].some(
+      (snapshot) =>
+        snapshot?.project === project &&
+        snapshot.options.layerY === options.layerY &&
+        snapshot.options.visibility === options.visibility &&
+        snapshot.options.exposedFaceRendering === options.exposedFaceRendering,
+    );
   }
 
   hasVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): boolean {
@@ -122,19 +177,33 @@ export class YLayerProjectionCoordinator {
   canUseCachedVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): boolean {
     if (this.presentation.matches(project, options)) return true;
     if (this.hasVisibleProjection(project, options)) return true;
-    return this.pending?.project === project && this.committed?.project.id === project.id
-      && this.committed.project.blocks === project.blocks;
+    return (
+      this.pending?.project === project &&
+      this.committed?.project.id === project.id &&
+      this.committed.project.blocks === project.blocks
+    );
   }
 
-  visibleEntry(key: string): VisibleBlockProjectionEntry | undefined { return this.presentation.isActive ? this.presentation.visibleEntry(key) : this.visibleMap.get(key); }
-  hasVisibleEntry(key: string): boolean { return this.presentation.isActive ? !!this.presentation.visibleEntry(key) : this.visibleMap.has(key); }
+  visibleEntry(key: string): VisibleBlockProjectionEntry | undefined {
+    return this.presentation.isActive
+      ? this.presentation.visibleEntry(key)
+      : this.visibleMap.get(key);
+  }
+  hasVisibleEntry(key: string): boolean {
+    return this.presentation.isActive
+      ? !!this.presentation.visibleEntry(key)
+      : this.visibleMap.has(key);
+  }
 
   setDirectPresentation(
     project: ProjectDocument,
     options: ViewportRenderOptions,
     providerGeneration: number,
     resolveBlock: (position: VoxelCoordinate) => PlacedBlock | undefined,
-    createEntry: (block: PlacedBlock, options: ViewportRenderOptions) => VisibleBlockProjectionEntry,
+    createEntry: (
+      block: PlacedBlock,
+      options: ViewportRenderOptions,
+    ) => VisibleBlockProjectionEntry,
   ): void {
     this.presentation.activate(project, options, providerGeneration, resolveBlock, createEntry);
     this.visibleEntriesValue = [];
@@ -155,8 +224,17 @@ export class YLayerProjectionCoordinator {
     return true;
   }
 
-  createVisibleEntry(block: PlacedBlock, options: ViewportRenderOptions, occlusionClass: OcclusionClass): VisibleBlockProjectionEntry {
-    const role = block.kind === 'missing' ? 'missing' : options.layerY !== undefined && block.position.y !== options.layerY ? 'reference' : 'normal';
+  createVisibleEntry(
+    block: PlacedBlock,
+    options: ViewportRenderOptions,
+    occlusionClass: OcclusionClass,
+  ): VisibleBlockProjectionEntry {
+    const role =
+      block.kind === 'missing'
+        ? 'missing'
+        : options.layerY !== undefined && block.position.y !== options.layerY
+          ? 'reference'
+          : 'normal';
     this.ports.record('blockSignatureComputations');
     return { block, role, signature: `${blockRenderSignature(block)}|${role}`, occlusionClass };
   }
@@ -172,17 +250,18 @@ export class YLayerProjectionCoordinator {
     const blocksForLayer = createLayerLookup(project, layerIndex, blockOverrides);
     const changes = new Map<string, ProjectionVisibleChange>();
     const visibilityOptions = { ...canonicalRenderOptions(options), layerIndex };
-    for (const layer of layers) for (const block of blocksForLayer(layer)) {
-      this.ports.record('yLayerProjectionVoxelVisits');
-      const key = coordinateKey(block.position);
-      if (changes.has(key)) continue;
-      const before = this.visibleMap.get(key);
-      const after = isBlockVisibleForViewport(block, project, visibilityOptions)
-        ? this.createVisibleEntry(block, options, occlusionClass(block))
-        : undefined;
-      if (before?.signature === after?.signature && before?.role === after?.role) continue;
-      changes.set(key, { before, after, position: block.position });
-    }
+    for (const layer of layers)
+      for (const block of blocksForLayer(layer)) {
+        this.ports.record('yLayerProjectionVoxelVisits');
+        const key = coordinateKey(block.position);
+        if (changes.has(key)) continue;
+        const before = this.visibleMap.get(key);
+        const after = isBlockVisibleForViewport(block, project, visibilityOptions)
+          ? this.createVisibleEntry(block, options, occlusionClass(block))
+          : undefined;
+        if (before?.signature === after?.signature && before?.role === after?.role) continue;
+        changes.set(key, { before, after, position: block.position });
+      }
 
     let addedVisible = 0;
     let removedVisible = 0;
@@ -190,7 +269,8 @@ export class YLayerProjectionCoordinator {
     for (const [key, change] of changes) {
       if (!change.before && change.after) addedVisible += 1;
       else if (change.before && !change.after) removedVisible += 1;
-      else if (change.before && change.after && change.before.role !== change.after.role) roleChanged += 1;
+      else if (change.before && change.after && change.before.role !== change.after.role)
+        roleChanged += 1;
       if (change.after) this.cacheVisibleEntry(key, change.after);
       else this.removeVisibleEntry(key);
     }
@@ -205,34 +285,60 @@ export class YLayerProjectionCoordinator {
     return { changes, addedVisible, removedVisible, roleChanged };
   }
 
-  replaceVisible(project: ProjectDocument, options: ViewportRenderOptions, entries: readonly VisibleBlockProjectionEntry[]): void {
+  replaceVisible(
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+    entries: readonly VisibleBlockProjectionEntry[],
+  ): void {
     this.clearDirectPresentation();
     this.prewarmedProjection = undefined;
     this.visibleEntriesValue = [...entries];
-    this.visibleMap = new Map(entries.map((entry) => [coordinateKey(entry.block.position), entry] as const));
+    this.visibleMap = new Map(
+      entries.map((entry) => [coordinateKey(entry.block.position), entry] as const),
+    );
     this.visibleIndices.clear();
-    this.visibleEntriesValue.forEach((entry, index) => this.visibleIndices.set(coordinateKey(entry.block.position), index));
+    this.visibleEntriesValue.forEach((entry, index) =>
+      this.visibleIndices.set(coordinateKey(entry.block.position), index),
+    );
     this.associateVisibleProjection(project, options);
   }
 
-  prewarmVisible(project: ProjectDocument, options: ViewportRenderOptions, entries: readonly VisibleBlockProjectionEntry[], providerGeneration: number): void {
+  prewarmVisible(
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+    entries: readonly VisibleBlockProjectionEntry[],
+    providerGeneration: number,
+  ): void {
     this.replaceVisible(project, options, entries);
     this.prewarmedProjection = { project, options, providerGeneration };
   }
 
-  takePrewarmedVisible(project: ProjectDocument, options: ViewportRenderOptions, providerGeneration: number): PrewarmedProjectionResult | undefined {
+  takePrewarmedVisible(
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+    providerGeneration: number,
+  ): PrewarmedProjectionResult | undefined {
     const prepared = this.prewarmedProjection;
     this.prewarmedProjection = undefined;
     if (!prepared) return undefined;
     if (prepared.project !== project) return { fallbackReason: 'project-changed' };
-    if (prepared.providerGeneration !== providerGeneration) return { fallbackReason: 'provider-changed' };
-    if (prepared.options.layerY !== options.layerY || prepared.options.visibility !== options.visibility
-      || prepared.options.exposedFaceRendering !== options.exposedFaceRendering) return { fallbackReason: 'projection-changed' };
+    if (prepared.providerGeneration !== providerGeneration)
+      return { fallbackReason: 'provider-changed' };
+    if (
+      prepared.options.layerY !== options.layerY ||
+      prepared.options.visibility !== options.visibility ||
+      prepared.options.exposedFaceRendering !== options.exposedFaceRendering
+    )
+      return { fallbackReason: 'projection-changed' };
     return { entries: this.visibleEntriesValue };
   }
 
   associateVisibleProjection(project: ProjectDocument, options: ViewportRenderOptions): void {
-    if (this.presentation.isActive && !this.presentation.update(project, options, this.presentation.providerGeneration ?? 0)) this.clearDirectPresentation();
+    if (
+      this.presentation.isActive &&
+      !this.presentation.update(project, options, this.presentation.providerGeneration ?? 0)
+    )
+      this.clearDirectPresentation();
     this.visibleProjectValue = project;
     this.visibleKey = renderFilterKey(options);
   }
@@ -262,12 +368,26 @@ export class YLayerProjectionCoordinator {
     this.visibleIndices.delete(key);
   }
 
-  plan(project: ProjectDocument | undefined, fallback: ViewportRenderOptions, next: ViewportRenderOptions, index?: LayerBlockIndex) {
+  plan(
+    project: ProjectDocument | undefined,
+    fallback: ViewportRenderOptions,
+    next: ViewportRenderOptions,
+    index?: LayerBlockIndex,
+  ) {
     const base = this.committedOptionsFor(project) ?? fallback;
-    return planYLayerProjectionDelta(base.layerY, base.visibility, next.layerY, next.visibility, index, project?.blocks);
+    return planYLayerProjectionDelta(
+      base.layerY,
+      base.visibility,
+      next.layerY,
+      next.visibility,
+      index,
+      project?.blocks,
+    );
   }
 
-  setCommitted(project: ProjectDocument, options: ViewportRenderOptions): void { this.committed = { project, options }; }
+  setCommitted(project: ProjectDocument, options: ViewportRenderOptions): void {
+    this.committed = { project, options };
+  }
 
   request(project: ProjectDocument, options: ViewportRenderOptions, index?: LayerBlockIndex): void {
     this.pending = { project, options };
@@ -308,7 +428,10 @@ export class YLayerProjectionCoordinator {
     this.prewarmedProjection = undefined;
   }
 
-  dispose(): void { this.clear(); this.listeners.clear(); }
+  dispose(): void {
+    this.clear();
+    this.listeners.clear();
+  }
 
   onActivity(listener: (state: ViewportProjectionState) => void): () => void {
     this.listeners.add(listener);
@@ -316,10 +439,18 @@ export class YLayerProjectionCoordinator {
     return () => this.listeners.delete(listener);
   }
 
-  revisionForKey(key: string): number { return this.keyRevisions.get(key) ?? 0; }
-  bumpKeyRevisions(keys: ReadonlySet<string>): void { for (const key of keys) this.keyRevisions.set(key, this.revisionForKey(key) + 1); }
-  markPendingKeys(keys: ReadonlySet<string>): void { for (const key of keys) this.pendingKeys.add(key); }
-  isWorkCurrent(token: number): boolean { return token === this.workToken; }
+  revisionForKey(key: string): number {
+    return this.keyRevisions.get(key) ?? 0;
+  }
+  bumpKeyRevisions(keys: ReadonlySet<string>): void {
+    for (const key of keys) this.keyRevisions.set(key, this.revisionForKey(key) + 1);
+  }
+  markPendingKeys(keys: ReadonlySet<string>): void {
+    for (const key of keys) this.pendingKeys.add(key);
+  }
+  isWorkCurrent(token: number): boolean {
+    return token === this.workToken;
+  }
 
   private commitPending(): void {
     this.frame = undefined;
@@ -334,13 +465,25 @@ export class YLayerProjectionCoordinator {
       return;
     }
     const base = this.committed;
-    if (!base || base.project.id !== pending.project.id || base.project.blocks !== pending.project.blocks) {
+    if (
+      !base ||
+      base.project.id !== pending.project.id ||
+      base.project.blocks !== pending.project.blocks
+    ) {
       this.applying = undefined;
       this.setActivity('idle', this.activityRevision);
       return;
     }
-    const delta = planYLayerProjectionDelta(base.options.layerY, base.options.visibility, pending.options.layerY, pending.options.visibility, index ?? pending.options.layerIndex);
-    const layers = [...new Set([...delta.changedLayers, ...this.inFlightLayers])].sort((left, right) => left - right);
+    const delta = planYLayerProjectionDelta(
+      base.options.layerY,
+      base.options.visibility,
+      pending.options.layerY,
+      pending.options.visibility,
+      index ?? pending.options.layerIndex,
+    );
+    const layers = [...new Set([...delta.changedLayers, ...this.inFlightLayers])].sort(
+      (left, right) => left - right,
+    );
     if (!layers.length) {
       this.applying = undefined;
       this.setActivity('idle', this.activityRevision);
@@ -350,36 +493,59 @@ export class YLayerProjectionCoordinator {
     this.activityRevision = this.revisionValue;
     this.pendingKeys.clear();
     this.applying = pending;
-    void this.applyLayerWork(pending.project, pending.options, layers, index ?? pending.options.layerIndex, token).then((completed) => {
-      if (!completed || !this.isWorkCurrent(token) || this.ports.isDisposed()) return;
-      this.applying = undefined;
-      this.committed = pending;
-      this.ports.onCommit(pending.project, pending.options);
-      this.ports.record('yLayerProjectionCommits');
-      this.setActivity('settling', this.revisionValue);
-      this.scheduleSettlement(this.revisionValue);
-    }).catch((error: unknown) => {
-      if (this.ports.isDisposed()) return;
-      if (this.isWorkCurrent(token)) this.applying = undefined;
-      this.ports.onWorkFailure(error);
-      if (this.isWorkCurrent(token) && !this.pending && this.frame === undefined) this.setActivity('idle', this.activityRevision);
-    });
+    void this.applyLayerWork(
+      pending.project,
+      pending.options,
+      layers,
+      index ?? pending.options.layerIndex,
+      token,
+    )
+      .then((completed) => {
+        if (!completed || !this.isWorkCurrent(token) || this.ports.isDisposed()) return;
+        this.applying = undefined;
+        this.committed = pending;
+        this.ports.onCommit(pending.project, pending.options);
+        this.ports.record('yLayerProjectionCommits');
+        this.setActivity('settling', this.revisionValue);
+        this.scheduleSettlement(this.revisionValue);
+      })
+      .catch((error: unknown) => {
+        if (this.ports.isDisposed()) return;
+        if (this.isWorkCurrent(token)) this.applying = undefined;
+        this.ports.onWorkFailure(error);
+        if (this.isWorkCurrent(token) && !this.pending && this.frame === undefined)
+          this.setActivity('idle', this.activityRevision);
+      });
   }
 
-  private async applyLayerWork(project: ProjectDocument, options: ViewportRenderOptions, changedLayers: readonly number[], layerIndex: LayerBlockIndex | undefined, token: number): Promise<boolean> {
+  private async applyLayerWork(
+    project: ProjectDocument,
+    options: ViewportRenderOptions,
+    changedLayers: readonly number[],
+    layerIndex: LayerBlockIndex | undefined,
+    token: number,
+  ): Promise<boolean> {
     const blocksForLayer = createLayerLookup(project, layerIndex);
     const countedLayers = new Map<number, readonly PlacedBlock[]>();
-    const totalBlocks = changedLayers.length > 8 ? YLayerProjectionCoordinator.cooperativeBlockThreshold + 1
-      : changedLayers.reduce((count, layer) => {
-        const blocks = blocksForLayer(layer);
-        countedLayers.set(layer, blocks);
-        return count + blocks.length;
-      }, 0);
-    const cooperative = changedLayers.length > 8 || totalBlocks > YLayerProjectionCoordinator.cooperativeBlockThreshold;
+    const totalBlocks =
+      changedLayers.length > 8
+        ? YLayerProjectionCoordinator.cooperativeBlockThreshold + 1
+        : changedLayers.reduce((count, layer) => {
+            const blocks = blocksForLayer(layer);
+            countedLayers.set(layer, blocks);
+            return count + blocks.length;
+          }, 0);
+    const cooperative =
+      changedLayers.length > 8 ||
+      totalBlocks > YLayerProjectionCoordinator.cooperativeBlockThreshold;
     if (!cooperative) {
       if (!this.isWorkCurrent(token)) return false;
       try {
-        this.ports.applyDelta(project, options, { layers: changedLayers, flushTerrain: true, publishProgress: true });
+        this.ports.applyDelta(project, options, {
+          layers: changedLayers,
+          flushTerrain: true,
+          publishProgress: true,
+        });
         return this.isWorkCurrent(token);
       } finally {
         if (this.isWorkCurrent(token)) this.inFlightLayers.clear();
@@ -395,7 +561,12 @@ export class YLayerProjectionCoordinator {
         if (!blocks.length) {
           if (!this.isWorkCurrent(token)) return this.recordCancelledWork();
           this.inFlightLayers.add(layer);
-          this.ports.applyDelta(project, options, { layers: [layer], blockOverrides: new Map([[layer, []]]), flushTerrain: false, publishProgress: false });
+          this.ports.applyDelta(project, options, {
+            layers: [layer],
+            blockOverrides: new Map([[layer, []]]),
+            flushTerrain: false,
+            publishProgress: false,
+          });
           this.ports.record('yLayerProjectionSlices');
           hasMore = layerIndex + 1 < changedLayers.length;
           if (hasMore) {
@@ -409,14 +580,21 @@ export class YLayerProjectionCoordinator {
           const slice = blocks.slice(start, start + sliceLimit);
           this.inFlightLayers.add(layer);
           const started = performance.now();
-          this.ports.applyDelta(project, options, { layers: [layer], blockOverrides: new Map([[layer, slice]]), flushTerrain: false, publishProgress: false });
+          this.ports.applyDelta(project, options, {
+            layers: [layer],
+            blockOverrides: new Map([[layer, slice]]),
+            flushTerrain: false,
+            publishProgress: false,
+          });
           const elapsed = performance.now() - started;
           this.ports.recordMax('yLayerProjectionMaxSliceMs', elapsed);
           this.ports.record('yLayerProjectionSlices');
           start += slice.length;
           hasMore = start < blocks.length || layerIndex + 1 < changedLayers.length;
           if (hasMore) {
-            const targetLimit = Math.round(sliceLimit * Y_LAYER_PROJECTION_SLICE_BUDGET_MS / Math.max(elapsed, 1));
+            const targetLimit = Math.round(
+              (sliceLimit * Y_LAYER_PROJECTION_SLICE_BUDGET_MS) / Math.max(elapsed, 1),
+            );
             sliceLimit = Math.max(32, Math.min(Y_LAYER_PROJECTION_SLICE_BLOCK_LIMIT, targetLimit));
             this.ports.record('yLayerProjectionYields');
             await yieldToBrowser();
@@ -437,10 +615,21 @@ export class YLayerProjectionCoordinator {
   }
 
   private scheduleSettlement(revision: number): void {
-    if (this.ports.isDisposed() || this.activityRevision !== revision || this.activity !== 'settling' || this.settlementTimer !== undefined) return;
+    if (
+      this.ports.isDisposed() ||
+      this.activityRevision !== revision ||
+      this.activity !== 'settling' ||
+      this.settlementTimer !== undefined
+    )
+      return;
     this.settlementTimer = setTimeout(() => {
       this.settlementTimer = undefined;
-      if (this.ports.isDisposed() || this.activityRevision !== revision || this.activity !== 'settling') return;
+      if (
+        this.ports.isDisposed() ||
+        this.activityRevision !== revision ||
+        this.activity !== 'settling'
+      )
+        return;
       if ([...this.pendingKeys].every((key) => this.ports.keySettled(key))) {
         this.pendingKeys.clear();
         this.setActivity('idle', revision);
@@ -477,7 +666,7 @@ function groupBlocksByLayer(blocks: readonly PlacedBlock[]): Map<number, PlacedB
   const byLayer = new Map<number, PlacedBlock[]>();
   for (const block of blocks) {
     let layer = byLayer.get(block.position.y);
-    if (!layer) byLayer.set(block.position.y, layer = []);
+    if (!layer) byLayer.set(block.position.y, (layer = []));
     layer.push(block);
   }
   return byLayer;

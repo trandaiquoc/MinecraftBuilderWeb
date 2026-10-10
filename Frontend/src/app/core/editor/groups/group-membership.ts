@@ -11,11 +11,15 @@ export function hasGroup(block: PlacedBlock, groupId: string): boolean {
 }
 
 export function addGroup(block: PlacedBlock, groupId: string): PlacedBlock {
-  return hasGroup(block, groupId) ? block : { ...withoutLegacyGroupId(block), groupIds: [...groupIdsOf(block), groupId] };
+  return hasGroup(block, groupId)
+    ? block
+    : { ...withoutLegacyGroupId(block), groupIds: [...groupIdsOf(block), groupId] };
 }
 
 export function removeGroup(block: PlacedBlock, groupId: string): PlacedBlock {
-  return hasGroup(block, groupId) ? { ...withoutLegacyGroupId(block), groupIds: groupIdsOf(block).filter((id) => id !== groupId) } : block;
+  return hasGroup(block, groupId)
+    ? { ...withoutLegacyGroupId(block), groupIds: groupIdsOf(block).filter((id) => id !== groupId) }
+    : block;
 }
 
 export function isBlockLocked(block: PlacedBlock, groups: readonly ProjectGroup[]): boolean {
@@ -23,11 +27,15 @@ export function isBlockLocked(block: PlacedBlock, groups: readonly ProjectGroup[
 }
 
 export function isBlockVisible(block: PlacedBlock, groups: readonly ProjectGroup[]): boolean {
-  return !groupIdsOf(block).some((id) => groups.find((group) => group.id === id)?.visible === false);
+  return !groupIdsOf(block).some(
+    (id) => groups.find((group) => group.id === id)?.visible === false,
+  );
 }
 
 export function blockGroupNames(block: PlacedBlock, project: ProjectDocument): readonly string[] {
-  return groupIdsOf(block).map((id) => project.groups.find((group) => group.id === id)?.name).filter((name): name is string => !!name);
+  return groupIdsOf(block)
+    .map((id) => project.groups.find((group) => group.id === id)?.name)
+    .filter((name): name is string => !!name);
 }
 
 function withoutLegacyGroupId(block: PlacedBlock): Omit<PlacedBlock, 'groupId'> {

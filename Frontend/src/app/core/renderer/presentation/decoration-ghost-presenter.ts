@@ -22,19 +22,34 @@ export class DecorationGhostPresenter {
   private key = '';
   private status?: DecorationPlacementPlan['status'];
 
-  constructor(private palette: ViewportThemePalette, private readonly callbacks: DecorationGhostPresenterCallbacks) {}
+  constructor(
+    private palette: ViewportThemePalette,
+    private readonly callbacks: DecorationGhostPresenterCallbacks,
+  ) {}
 
-  get currentKey(): string { return this.key; }
-  set currentKey(value: string) { this.key = value; }
+  get currentKey(): string {
+    return this.key;
+  }
+  set currentKey(value: string) {
+    this.key = value;
+  }
 
   applyTheme(palette: ViewportThemePalette): void {
     this.palette = palette;
-    this.group.traverse((object) => { if (object.userData['decorationGhostOutline'] && object instanceof THREE.LineSegments) (object.material as THREE.LineBasicMaterial).color.setHex(this.status === 'valid' ? palette.valid : palette.invalid); });
+    this.group.traverse((object) => {
+      if (object.userData['decorationGhostOutline'] && object instanceof THREE.LineSegments)
+        (object.material as THREE.LineBasicMaterial).color.setHex(
+          this.status === 'valid' ? palette.valid : palette.invalid,
+        );
+    });
   }
 
   clear(): void {
     const changed = this.group.children.length > 0 || this.key !== '' || this.status !== undefined;
-    for (const child of [...this.group.children]) { disposeObject(child); this.group.remove(child); }
+    for (const child of [...this.group.children]) {
+      disposeObject(child);
+      this.group.remove(child);
+    }
     this.key = '';
     this.status = undefined;
     if (changed) this.callbacks.scheduleRender();
@@ -46,11 +61,43 @@ export class DecorationGhostPresenter {
     this.clear();
     this.key = key;
     this.status = status;
-    const visual = createDecorationVisual(candidate, this.callbacks.textureUrl, this.callbacks.textureCache(), this.callbacks.paintingResource, this.callbacks.itemResources, this.callbacks.itemVisual, false);
+    const visual = createDecorationVisual(
+      candidate,
+      this.callbacks.textureUrl,
+      this.callbacks.textureCache(),
+      this.callbacks.paintingResource,
+      this.callbacks.itemResources,
+      this.callbacks.itemVisual,
+      false,
+    );
     visual.renderOrder = 2000;
-    visual.traverse((object) => { object.renderOrder = 2000; if (object instanceof THREE.Mesh) { const materials = Array.isArray(object.material) ? object.material : [object.material]; for (const material of materials) { material.transparent = true; material.opacity = .5; material.depthWrite = false; material.depthTest = false; } } });
+    visual.traverse((object) => {
+      object.renderOrder = 2000;
+      if (object instanceof THREE.Mesh) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          material.transparent = true;
+          material.opacity = 0.5;
+          material.depthWrite = false;
+          material.depthTest = false;
+        }
+      }
+    });
     const bounds = new THREE.Box3().setFromObject(visual);
-    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(bounds.max.x - bounds.min.x + .05, bounds.max.y - bounds.min.y + .05, bounds.max.z - bounds.min.z + .05)), new THREE.LineBasicMaterial({ color: status === 'valid' ? this.palette.valid : this.palette.invalid, depthTest: false, depthWrite: false }));
+    const outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(
+        new THREE.BoxGeometry(
+          bounds.max.x - bounds.min.x + 0.05,
+          bounds.max.y - bounds.min.y + 0.05,
+          bounds.max.z - bounds.min.z + 0.05,
+        ),
+      ),
+      new THREE.LineBasicMaterial({
+        color: status === 'valid' ? this.palette.valid : this.palette.invalid,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
     outline.position.copy(bounds.getCenter(new THREE.Vector3()));
     outline.userData['decorationGhostOutline'] = true;
     outline.renderOrder = 2001;
@@ -59,5 +106,7 @@ export class DecorationGhostPresenter {
     this.callbacks.scheduleRender();
   }
 
-  dispose(): void { this.clear(); }
+  dispose(): void {
+    this.clear();
+  }
 }

@@ -7,7 +7,16 @@ describe('PlaceholderBatchRenderer', () => {
     const group = new THREE.Group();
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const material = new THREE.MeshBasicMaterial();
-    const renderer = new PlaceholderBatchRenderer({ blocksGroup: group, geometry, materials: { normal: material, reference: material, missing: material }, capacity: 64, layerCapacity: 9, chunkKey: () => 'region', chunkBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), recordBounds: () => undefined });
+    const renderer = new PlaceholderBatchRenderer({
+      blocksGroup: group,
+      geometry,
+      materials: { normal: material, reference: material, missing: material },
+      capacity: 64,
+      layerCapacity: 9,
+      chunkKey: () => 'region',
+      chunkBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)),
+      recordBounds: () => undefined,
+    });
 
     renderer.setLayerPresentation(new Set([0]), 0, new Set());
     renderer.ensure('layer', { x: 0, y: 0, z: 0 }, 'normal');
@@ -21,7 +30,9 @@ describe('PlaceholderBatchRenderer', () => {
     const worldBatch = [...renderer.batches.values()][0];
     expect(worldBatch.capacity).toBe(64);
     expect(worldBatch.mesh.instanceMatrix.array.length).toBe(64 * 16);
-    renderer.clear(); geometry.dispose(); material.dispose();
+    renderer.clear();
+    geometry.dispose();
+    material.dispose();
   });
 
   it('bulk inserts, swap-removes and clears coarse occupancy', () => {
@@ -37,7 +48,10 @@ describe('PlaceholderBatchRenderer', () => {
       chunkBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(1, 1, 1)),
       recordBounds: () => undefined,
     });
-    renderer.ensureBulk([{ key: 'a', position: { x: 0, y: 0, z: 0 }, role: 'normal' }, { key: 'b', position: { x: 1, y: 0, z: 0 }, role: 'normal' }]);
+    renderer.ensureBulk([
+      { key: 'a', position: { x: 0, y: 0, z: 0 }, role: 'normal' },
+      { key: 'b', position: { x: 1, y: 0, z: 0 }, role: 'normal' },
+    ]);
     const meshes = [...renderer.batches.values()].map((batch) => batch.mesh);
     const meshDisposals = meshes.map((mesh) => vi.spyOn(mesh, 'dispose'));
     const geometryDispose = vi.spyOn(geometry, 'dispose');
@@ -55,6 +69,7 @@ describe('PlaceholderBatchRenderer', () => {
     renderer.clear();
     expect(meshDisposals[0]).toHaveBeenCalledTimes(1);
     expect(meshDisposals[1]).toHaveBeenCalledTimes(1);
-    geometry.dispose(); material.dispose();
+    geometry.dispose();
+    material.dispose();
   });
 });

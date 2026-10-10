@@ -1,13 +1,33 @@
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import { CURRENT_PROJECT_SCHEMA_VERSION, type ProjectDocument, type ProjectSize } from '../../domain/project.types';
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  type ProjectDocument,
+  type ProjectSize,
+} from '../../domain/project.types';
 import { canonicalStructureModeForSize } from '../../domain/structure-size-policy';
 import { validateProject } from '../../domain/validation';
-import { buildStructureJsonImportPlan, prepareStructureJsonImportPlan, type StructureJsonImportPlan } from './structure-json-import-plan';
-import { inspectStructureJsonBounds, inferRequiredStructureJsonSize } from './structure-json-bounds';
-import { validateParsedStructureJsonPreviewAsync, type StructureJsonValidationCancellation, type StructureJsonValidationPreview } from './structure-json-import';
+import {
+  buildStructureJsonImportPlan,
+  prepareStructureJsonImportPlan,
+  type StructureJsonImportPlan,
+} from './structure-json-import-plan';
+import {
+  inspectStructureJsonBounds,
+  inferRequiredStructureJsonSize,
+} from './structure-json-bounds';
+import {
+  validateParsedStructureJsonPreviewAsync,
+  type StructureJsonValidationCancellation,
+  type StructureJsonValidationPreview,
+} from './structure-json-import';
 import type { StructureJson } from './structure-json';
 
-export type StructureJsonProjectImportError = 'empty-structure' | 'negative-coordinates' | 'unsupported-size' | 'validation' | 'invalid-project';
+export type StructureJsonProjectImportError =
+  | 'empty-structure'
+  | 'negative-coordinates'
+  | 'unsupported-size'
+  | 'validation'
+  | 'invalid-project';
 
 export interface StructureJsonProjectImportPreview {
   readonly source: StructureJson;
@@ -27,8 +47,15 @@ export interface StructureJsonProjectImportPreview {
 }
 
 export type StructureJsonProjectImportResult =
-  | { readonly ok: true; readonly preview: StructureJsonProjectImportPreview & { readonly project: ProjectDocument } }
-  | { readonly ok: false; readonly code: StructureJsonProjectImportError; readonly preview?: StructureJsonProjectImportPreview };
+  | {
+      readonly ok: true;
+      readonly preview: StructureJsonProjectImportPreview & { readonly project: ProjectDocument };
+    }
+  | {
+      readonly ok: false;
+      readonly code: StructureJsonProjectImportError;
+      readonly preview?: StructureJsonProjectImportPreview;
+    };
 
 export interface PrepareStructureJsonProjectImportOptions {
   readonly source: StructureJson;
@@ -41,7 +68,9 @@ export interface PrepareStructureJsonProjectImportOptions {
   readonly onProgress?: (completed: number, total: number) => void;
 }
 
-export async function prepareStructureJsonProjectImport(options: PrepareStructureJsonProjectImportOptions): Promise<StructureJsonProjectImportResult> {
+export async function prepareStructureJsonProjectImport(
+  options: PrepareStructureJsonProjectImportOptions,
+): Promise<StructureJsonProjectImportResult> {
   const { source } = options;
   const bounds = inspectStructureJsonBounds(source, { x: 1, y: 1, z: 1 });
   if (!bounds.hasCoordinateContent) return { ok: false, code: 'empty-structure' };
@@ -55,7 +84,12 @@ export async function prepareStructureJsonProjectImport(options: PrepareStructur
   const baseProject: ProjectDocument = {
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     id: options.projectId,
-    metadata: { name: projectName, minecraftVersion: source.minecraftVersion, createdAt: now, updatedAt: now },
+    metadata: {
+      name: projectName,
+      minecraftVersion: source.minecraftVersion,
+      createdAt: now,
+      updatedAt: now,
+    },
     size,
     structureMode,
     blocks: [],
@@ -63,9 +97,22 @@ export async function prepareStructureJsonProjectImport(options: PrepareStructur
     decorations: [],
     editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
   };
-  const validation = await validateParsedStructureJsonPreviewAsync(source, size, options.getDefinition, options.onProgress, options.cancellation, baseProject);
+  const validation = await validateParsedStructureJsonPreviewAsync(
+    source,
+    size,
+    options.getDefinition,
+    options.onProgress,
+    options.cancellation,
+    baseProject,
+  );
   if (!validation) return { ok: false, code: 'validation' };
-  const plan = buildStructureJsonImportPlan(source, validation, baseProject, options.getDefinition, 'replace');
+  const plan = buildStructureJsonImportPlan(
+    source,
+    validation,
+    baseProject,
+    options.getDefinition,
+    'replace',
+  );
   const preview: StructureJsonProjectImportPreview = {
     source,
     filename: options.filename,
@@ -83,11 +130,16 @@ export async function prepareStructureJsonProjectImport(options: PrepareStructur
   };
   if (!plan.applicable) return { ok: false, code: 'validation', preview };
   const project = prepareStructureJsonImportPlan(baseProject, plan);
-  if (!project || !validateProject(project).valid) return { ok: false, code: 'invalid-project', preview: { ...preview, project: undefined } };
+  if (!project || !validateProject(project).valid)
+    return { ok: false, code: 'invalid-project', preview: { ...preview, project: undefined } };
   return { ok: true, preview: { ...preview, project } };
 }
 
-export function proposedStructureProjectName(source: StructureJson, filename: string, fallbackName: string): string {
+export function proposedStructureProjectName(
+  source: StructureJson,
+  filename: string,
+  fallbackName: string,
+): string {
   const sourceName = source.name?.trim();
   if (sourceName) return sourceName;
   const filenameName = filename.replace(/\.json$/i, '').trim();

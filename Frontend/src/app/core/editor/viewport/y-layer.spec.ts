@@ -1,10 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { blocksForLayers, clampLayer, adjacentOccupiedLayer, jumpOccupiedLayer, occupiedLayers, planYLayerProjectionDelta, visibleLayerSet } from './y-layer';
+import {
+  blocksForLayers,
+  clampLayer,
+  adjacentOccupiedLayer,
+  jumpOccupiedLayer,
+  occupiedLayers,
+  planYLayerProjectionDelta,
+  visibleLayerSet,
+} from './y-layer';
 import { PlacedBlock } from '../../domain/project.types';
 
 const blocks: PlacedBlock[] = [
-  { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 1, z: 0 }, state: {} },
-  { kind: 'missing', id: 'example:block', namespace: 'example', position: { x: 1, y: 3, z: 1 }, state: { mode: 'x' } },
+  {
+    kind: 'resolved',
+    id: 'minecraft:stone',
+    namespace: 'minecraft',
+    position: { x: 0, y: 1, z: 0 },
+    state: {},
+  },
+  {
+    kind: 'missing',
+    id: 'example:block',
+    namespace: 'example',
+    position: { x: 1, y: 3, z: 1 },
+    state: { mode: 'x' },
+  },
 ];
 
 describe('Y-layer projection', () => {
@@ -34,15 +54,34 @@ describe('Y-layer projection', () => {
   });
 
   it('plans every occupied layer crossed by a non-adjacent all-below jump', () => {
-    const index = { blocksAtY: (y: number) => blocks.filter((block) => block.position.y === y), occupiedLayers: () => [1, 3, 5, 10, 20, 40, 79], allBlocks: () => blocks };
-    expect(planYLayerProjectionDelta(79, 'all-below', 20, 'all-below', index)).toEqual({ changed: true, changedLayers: [20, 40, 79] });
-    expect(planYLayerProjectionDelta(20, 'all-below', 79, 'all-below', index)).toEqual({ changed: true, changedLayers: [20, 40, 79] });
+    const index = {
+      blocksAtY: (y: number) => blocks.filter((block) => block.position.y === y),
+      occupiedLayers: () => [1, 3, 5, 10, 20, 40, 79],
+      allBlocks: () => blocks,
+    };
+    expect(planYLayerProjectionDelta(79, 'all-below', 20, 'all-below', index)).toEqual({
+      changed: true,
+      changedLayers: [20, 40, 79],
+    });
+    expect(planYLayerProjectionDelta(20, 'all-below', 79, 'all-below', index)).toEqual({
+      changed: true,
+      changedLayers: [20, 40, 79],
+    });
   });
 
   it('keeps whole-structure role changes bounded to the old and new current layers', () => {
-    expect(planYLayerProjectionDelta(20, 'whole-structure', 79, 'whole-structure')).toEqual({ changed: true, changedLayers: [20, 79] });
-    expect(planYLayerProjectionDelta(20, 'current-only', 21, 'current-only')).toEqual({ changed: true, changedLayers: [20, 21] });
-    expect(planYLayerProjectionDelta(20, 'previous-current-next', 21, 'previous-current-next').changedLayers).toEqual([19, 20, 21, 22]);
+    expect(planYLayerProjectionDelta(20, 'whole-structure', 79, 'whole-structure')).toEqual({
+      changed: true,
+      changedLayers: [20, 79],
+    });
+    expect(planYLayerProjectionDelta(20, 'current-only', 21, 'current-only')).toEqual({
+      changed: true,
+      changedLayers: [20, 21],
+    });
+    expect(
+      planYLayerProjectionDelta(20, 'previous-current-next', 21, 'previous-current-next')
+        .changedLayers,
+    ).toEqual([19, 20, 21, 22]);
   });
 
   it('plans only the occupied layers visible before or after a visibility-mode change', () => {
@@ -51,9 +90,17 @@ describe('Y-layer projection', () => {
       occupiedLayers: () => [1, 3, 5, 10],
       allBlocks: () => blocks,
     };
-    expect(planYLayerProjectionDelta(1, 'current-only', 1, 'whole-structure', index).changedLayers).toEqual([3, 5, 10]);
-    expect(planYLayerProjectionDelta(1, 'whole-structure', 1, 'current-next', index).changedLayers).toEqual([2, 3, 5, 10]);
-    expect(planYLayerProjectionDelta(10, 'all-below', 5, 'current-only', index).changedLayers).toEqual([1, 3, 5, 10]);
-    expect(planYLayerProjectionDelta(5, 'whole-structure', 5, 'all-below', index).changedLayers).toEqual([10]);
+    expect(
+      planYLayerProjectionDelta(1, 'current-only', 1, 'whole-structure', index).changedLayers,
+    ).toEqual([3, 5, 10]);
+    expect(
+      planYLayerProjectionDelta(1, 'whole-structure', 1, 'current-next', index).changedLayers,
+    ).toEqual([2, 3, 5, 10]);
+    expect(
+      planYLayerProjectionDelta(10, 'all-below', 5, 'current-only', index).changedLayers,
+    ).toEqual([1, 3, 5, 10]);
+    expect(
+      planYLayerProjectionDelta(5, 'whole-structure', 5, 'all-below', index).changedLayers,
+    ).toEqual([10]);
   });
 });

@@ -13,7 +13,10 @@ describe('Minecraft compatibility predicates', () => {
 
   it('uses OR semantics for arrays and blocks missing/unknown versions', () => {
     expect(evaluateMinecraftRequirement(['1.20.x', '1.21.x'], '1.21.1').status).toBe('compatible');
-    expect(evaluateMinecraftRequirement(undefined, '1.21.1')).toMatchObject({ status: 'unknown', reason: 'missing-minecraft-dependency' });
+    expect(evaluateMinecraftRequirement(undefined, '1.21.1')).toMatchObject({
+      status: 'unknown',
+      reason: 'missing-minecraft-dependency',
+    });
     expect(evaluateMinecraftRequirement('1.21.1', '1.21-pre1').status).toBe('unknown');
   });
 });

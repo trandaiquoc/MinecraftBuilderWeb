@@ -1,17 +1,65 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument } from '../../domain/project.types';
-import { CURRENT_PROJECT_PACKAGE_VERSION, PROJECT_PACKAGE_FORMAT, serializeProjectPackage } from '../project-package/project-package';
-import { createStructureJsonExample, parseStructureJson, projectBlockEntityDataFromStructureJson, serializeStructureJson, serializeStructureJsonValue, structureJsonFromProject, STRUCTURE_JSON_FORMAT, validateStructureJson } from './structure-json';
+import {
+  CURRENT_PROJECT_PACKAGE_VERSION,
+  PROJECT_PACKAGE_FORMAT,
+  serializeProjectPackage,
+} from '../project-package/project-package';
+import {
+  createStructureJsonExample,
+  parseStructureJson,
+  projectBlockEntityDataFromStructureJson,
+  serializeStructureJson,
+  serializeStructureJsonValue,
+  structureJsonFromProject,
+  STRUCTURE_JSON_FORMAT,
+  validateStructureJson,
+} from './structure-json';
 
 const baseProject: ProjectDocument = {
   schemaVersion: 3,
   id: 'internal-project-id',
-  metadata: { name: 'AI House', minecraftVersion: '1.21.1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-  size: { x: 4, y: 4, z: 4 }, structureMode: 'vanilla-structure-block', groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }], editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .5 },
-  decorations: [{ kind: 'item-frame', instanceId: 'frame-1', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', rotation: 0, invisible: false, fixed: false, itemDropChance: 1 }],
+  metadata: {
+    name: 'AI House',
+    minecraftVersion: '1.21.1',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  size: { x: 4, y: 4, z: 4 },
+  structureMode: 'vanilla-structure-block',
+  groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }],
+  editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
+  decorations: [
+    {
+      kind: 'item-frame',
+      instanceId: 'frame-1',
+      entityTypeId: 'minecraft:item_frame',
+      anchor: { x: 0, y: 0, z: 0 },
+      facing: 'north',
+      rotation: 0,
+      invisible: false,
+      fixed: false,
+      itemDropChance: 1,
+    },
+  ],
   blocks: [
-    { kind: 'missing', id: 'chipped:unknown_block', namespace: 'chipped', position: { x: 2, y: 0, z: 1 }, state: { z: 'last', a: 'first' }, groupIds: ['roof'], blockEntityData: { kind: 'unknown' } },
-    { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {}, groupIds: ['roof'] },
+    {
+      kind: 'missing',
+      id: 'chipped:unknown_block',
+      namespace: 'chipped',
+      position: { x: 2, y: 0, z: 1 },
+      state: { z: 'last', a: 'first' },
+      groupIds: ['roof'],
+      blockEntityData: { kind: 'unknown' },
+    },
+    {
+      kind: 'resolved',
+      id: 'minecraft:stone',
+      namespace: 'minecraft',
+      position: { x: 0, y: 0, z: 0 },
+      state: {},
+      groupIds: ['roof'],
+    },
   ],
 };
 
@@ -54,68 +102,234 @@ describe('Structure JSON codec', () => {
   it('keeps the canonical example inside the public contract', () => {
     const example = createStructureJsonExample();
     expect(example.blocks.length).toBeGreaterThanOrEqual(2);
-    expect(JSON.parse(serializeStructureJsonValue(example))).toMatchObject({ format: STRUCTURE_JSON_FORMAT, decorations: expect.any(Array) });
+    expect(JSON.parse(serializeStructureJsonValue(example))).toMatchObject({
+      format: STRUCTURE_JSON_FORMAT,
+      decorations: expect.any(Array),
+    });
   });
 
   it('round-trips normal and glow frame item payloads without dropping components', () => {
     const project: ProjectDocument = {
       ...baseProject,
       decorations: [
-        { kind: 'item-frame', instanceId: 'frame-1', entityTypeId: 'minecraft:item_frame', anchor: { x: 0, y: 0, z: 0 }, facing: 'north', item: { id: 'minecraft:diamond', count: 2, components: { custom_name: 'Gem' } }, rotation: 3, invisible: false, fixed: false, itemDropChance: 1 },
-        { kind: 'glow-item-frame', instanceId: 'frame-2', entityTypeId: 'minecraft:glow_item_frame', anchor: { x: 1, y: 0, z: 0 }, facing: 'south', item: { id: 'minecraft:stone', count: 1, components: { custom_model_data: 7 } }, rotation: 6, invisible: false, fixed: true, itemDropChance: .5 },
+        {
+          kind: 'item-frame',
+          instanceId: 'frame-1',
+          entityTypeId: 'minecraft:item_frame',
+          anchor: { x: 0, y: 0, z: 0 },
+          facing: 'north',
+          item: { id: 'minecraft:diamond', count: 2, components: { custom_name: 'Gem' } },
+          rotation: 3,
+          invisible: false,
+          fixed: false,
+          itemDropChance: 1,
+        },
+        {
+          kind: 'glow-item-frame',
+          instanceId: 'frame-2',
+          entityTypeId: 'minecraft:glow_item_frame',
+          anchor: { x: 1, y: 0, z: 0 },
+          facing: 'south',
+          item: { id: 'minecraft:stone', count: 1, components: { custom_model_data: 7 } },
+          rotation: 6,
+          invisible: false,
+          fixed: true,
+          itemDropChance: 0.5,
+        },
       ],
     };
     const parsed = parseStructureJson(serializeStructureJson(project));
     expect(parsed.valid).toBe(true);
     expect(parsed.value && 'decorations' in parsed.value ? parsed.value.decorations : []).toEqual([
-      expect.objectContaining({ kind: 'item-frame', item: { id: 'minecraft:diamond', count: 2, components: { custom_name: 'Gem' } } }),
-      expect.objectContaining({ kind: 'glow-item-frame', item: { id: 'minecraft:stone', components: { custom_model_data: 7 } } }),
+      expect.objectContaining({
+        kind: 'item-frame',
+        item: { id: 'minecraft:diamond', count: 2, components: { custom_name: 'Gem' } },
+      }),
+      expect.objectContaining({
+        kind: 'glow-item-frame',
+        item: { id: 'minecraft:stone', components: { custom_model_data: 7 } },
+      }),
     ]);
   });
 
   it('validates the current public shape without applying project semantics', () => {
     const valid = serializeStructureJsonValue(createStructureJsonExample());
     expect(validateStructureJson(valid).valid).toBe(true);
-    const current = JSON.stringify({ format: STRUCTURE_JSON_FORMAT, minecraftVersion: '1.21.1', blocks: [], decorations: [] });
+    const current = JSON.stringify({
+      format: STRUCTURE_JSON_FORMAT,
+      minecraftVersion: '1.21.1',
+      blocks: [],
+      decorations: [],
+    });
     expect(validateStructureJson(current).valid).toBe(true);
-    expect(validateStructureJson('{"format":"minecraftbuilder-structure"}').code).toBe('minecraft-version');
+    expect(validateStructureJson('{"format":"minecraftbuilder-structure"}').code).toBe(
+      'minecraft-version',
+    );
     expect(validateStructureJson('{')).toMatchObject({ valid: false, code: 'invalid-json' });
-    expect(validateStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:stone', x: 0.5, y: 0, z: 0 }], decorations: [] })).code).toBe('block');
-    expect(validateStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, minecraftVersion: '1.21.1', blocks: [{ id: 'example:block', x: 0, y: 0, z: 0, state: { facing: 'north' } }], decorations: [] })).valid).toBe(true);
-    expect(validateStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 1, minecraftVersion: '1.21.1', blocks: [], decorations: [] })).code).toBe('version');
+    expect(
+      validateStructureJson(
+        JSON.stringify({
+          format: STRUCTURE_JSON_FORMAT,
+          minecraftVersion: '1.21.1',
+          blocks: [{ id: 'minecraft:stone', x: 0.5, y: 0, z: 0 }],
+          decorations: [],
+        }),
+      ).code,
+    ).toBe('block');
+    expect(
+      validateStructureJson(
+        JSON.stringify({
+          format: STRUCTURE_JSON_FORMAT,
+          minecraftVersion: '1.21.1',
+          blocks: [{ id: 'example:block', x: 0, y: 0, z: 0, state: { facing: 'north' } }],
+          decorations: [],
+        }),
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateStructureJson(
+        JSON.stringify({
+          format: STRUCTURE_JSON_FORMAT,
+          formatVersion: 1,
+          minecraftVersion: '1.21.1',
+          blocks: [],
+          decorations: [],
+        }),
+      ).code,
+    ).toBe('version');
   });
 
   it('accepts only the supported legacy v2 shape and normalizes it', () => {
-    const parsed = parseStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 2, minecraftVersion: '1.21.1', blocks: [], decorations: [] }));
+    const parsed = parseStructureJson(
+      JSON.stringify({
+        format: STRUCTURE_JSON_FORMAT,
+        formatVersion: 2,
+        minecraftVersion: '1.21.1',
+        blocks: [],
+        decorations: [],
+      }),
+    );
     expect(parsed.valid).toBe(true);
     expect(parsed.value).not.toHaveProperty('formatVersion');
-    expect(parseStructureJson(JSON.stringify({ format: STRUCTURE_JSON_FORMAT, formatVersion: 3, minecraftVersion: '1.21.1', blocks: [], decorations: [] })).code).toBe('version');
+    expect(
+      parseStructureJson(
+        JSON.stringify({
+          format: STRUCTURE_JSON_FORMAT,
+          formatVersion: 3,
+          minecraftVersion: '1.21.1',
+          blocks: [],
+          decorations: [],
+        }),
+      ).code,
+    ).toBe('version');
   });
 
   it('serializes supported semantic block entities without exposing project metadata', () => {
     const project: ProjectDocument = {
       ...baseProject,
       blocks: [
-        { kind: 'resolved', id: 'minecraft:chest', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {}, blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 32 } }, { slot: 26, stack: { id: 'minecraft:stone', count: 1 } }] } },
-        { kind: 'resolved', id: 'minecraft:oak_sign', namespace: 'minecraft', position: { x: 1, y: 0, z: 0 }, state: {}, blockEntityData: { kind: 'sign', front: { lines: ['Moon', '', '', ''], color: 'light_blue', glowing: true }, back: { lines: ['', '', '', ''], color: 'black', glowing: false }, waxed: false } },
-        { kind: 'resolved', id: 'minecraft:decorated_pot', namespace: 'minecraft', position: { x: 2, y: 0, z: 0 }, state: {}, blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:angler_pottery_sherd', right: 'minecraft:heart_pottery_sherd', front: 'minecraft:skull_pottery_sherd' }, item: { id: 'minecraft:diamond', count: 4 } } },
+        {
+          kind: 'resolved',
+          id: 'minecraft:chest',
+          namespace: 'minecraft',
+          position: { x: 0, y: 0, z: 0 },
+          state: {},
+          blockEntityData: {
+            kind: 'item-container',
+            hostKind: 'inventory-storage',
+            slots: [
+              { slot: 0, stack: { id: 'minecraft:diamond', count: 32 } },
+              { slot: 26, stack: { id: 'minecraft:stone', count: 1 } },
+            ],
+          },
+        },
+        {
+          kind: 'resolved',
+          id: 'minecraft:oak_sign',
+          namespace: 'minecraft',
+          position: { x: 1, y: 0, z: 0 },
+          state: {},
+          blockEntityData: {
+            kind: 'sign',
+            front: { lines: ['Moon', '', '', ''], color: 'light_blue', glowing: true },
+            back: { lines: ['', '', '', ''], color: 'black', glowing: false },
+            waxed: false,
+          },
+        },
+        {
+          kind: 'resolved',
+          id: 'minecraft:decorated_pot',
+          namespace: 'minecraft',
+          position: { x: 2, y: 0, z: 0 },
+          state: {},
+          blockEntityData: {
+            kind: 'decorated-pot',
+            decorations: {
+              back: 'minecraft:brick',
+              left: 'minecraft:angler_pottery_sherd',
+              right: 'minecraft:heart_pottery_sherd',
+              front: 'minecraft:skull_pottery_sherd',
+            },
+            item: { id: 'minecraft:diamond', count: 4 },
+          },
+        },
       ],
     };
     const value = structureJsonFromProject(project);
-    expect(value.blocks.map((block) => block.blockEntity?.kind)).toEqual(['container', 'sign', 'decorated-pot']);
+    expect(value.blocks.map((block) => block.blockEntity?.kind)).toEqual([
+      'container',
+      'sign',
+      'decorated-pot',
+    ]);
     const chest = value.blocks[0]?.blockEntity;
-    expect(chest).toEqual({ kind: 'container', items: [{ slot: 0, item: { id: 'minecraft:diamond', count: 32 } }, { slot: 26, item: { id: 'minecraft:stone' } }] });
+    expect(chest).toEqual({
+      kind: 'container',
+      items: [
+        { slot: 0, item: { id: 'minecraft:diamond', count: 32 } },
+        { slot: 26, item: { id: 'minecraft:stone' } },
+      ],
+    });
     const parsed = parseStructureJson(serializeStructureJson(project));
     expect(parsed.valid).toBe(true);
     expect(parsed.value?.blocks[1]?.blockEntity).toEqual(value.blocks[1]?.blockEntity);
   });
 
   it('rejects incompatible semantic hosts and over-limit item stacks at validation boundaries', () => {
-    const stoneContainer = JSON.stringify({ format: STRUCTURE_JSON_FORMAT, minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:stone', x: 0, y: 0, z: 0, blockEntity: { kind: 'container', items: [] } }], decorations: [] });
+    const stoneContainer = JSON.stringify({
+      format: STRUCTURE_JSON_FORMAT,
+      minecraftVersion: '1.21.1',
+      blocks: [
+        { id: 'minecraft:stone', x: 0, y: 0, z: 0, blockEntity: { kind: 'container', items: [] } },
+      ],
+      decorations: [],
+    });
     expect(validateStructureJson(stoneContainer).code).toBe('block-entity');
-    const overLimit = JSON.stringify({ format: STRUCTURE_JSON_FORMAT, minecraftVersion: '1.21.1', blocks: [{ id: 'minecraft:chest', x: 0, y: 0, z: 0, blockEntity: { kind: 'container', items: [{ slot: 0, item: { id: 'minecraft:diamond', count: 65 } }] } }], decorations: [] });
-    expect(validateStructureJson(overLimit, undefined, (id) => id === 'minecraft:diamond' ? 64 : undefined).code).toBe('block-entity');
-    const data = projectBlockEntityDataFromStructureJson({ kind: 'container', items: [{ slot: 0, item: { id: 'minecraft:diamond', count: 2 } }] }, 'minecraft:chest');
+    const overLimit = JSON.stringify({
+      format: STRUCTURE_JSON_FORMAT,
+      minecraftVersion: '1.21.1',
+      blocks: [
+        {
+          id: 'minecraft:chest',
+          x: 0,
+          y: 0,
+          z: 0,
+          blockEntity: {
+            kind: 'container',
+            items: [{ slot: 0, item: { id: 'minecraft:diamond', count: 65 } }],
+          },
+        },
+      ],
+      decorations: [],
+    });
+    expect(
+      validateStructureJson(overLimit, undefined, (id) =>
+        id === 'minecraft:diamond' ? 64 : undefined,
+      ).code,
+    ).toBe('block-entity');
+    const data = projectBlockEntityDataFromStructureJson(
+      { kind: 'container', items: [{ slot: 0, item: { id: 'minecraft:diamond', count: 2 } }] },
+      'minecraft:chest',
+    );
     expect(data).toMatchObject({ kind: 'item-container', hostKind: 'inventory-storage' });
   });
 });

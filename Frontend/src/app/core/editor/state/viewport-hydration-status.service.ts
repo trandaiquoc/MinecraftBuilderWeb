@@ -1,6 +1,10 @@
 import { Injectable, signal, untracked } from '@angular/core';
 import type { ViewportHydrationProgress } from '../../renderer/engine/three-viewport-engine';
-import { ViewportFinalizationCoordinator, ViewportFinalizationState, ViewportFinalizationAudit } from './viewport-finalization-coordinator';
+import {
+  ViewportFinalizationCoordinator,
+  ViewportFinalizationState,
+  ViewportFinalizationAudit,
+} from './viewport-finalization-coordinator';
 
 export type ViewportHydrationActivity = 'import' | 'build' | 'content';
 
@@ -52,9 +56,14 @@ export class ViewportHydrationStatusService {
     this.sourceRestoreFailed = false;
   }
 
-  markNextActivity(activity: ViewportHydrationActivity): void { this.nextActivity = activity; }
+  markNextActivity(activity: ViewportHydrationActivity): void {
+    this.nextActivity = activity;
+  }
 
-  setSourceRestoreState(owner: number, state: { readonly terminal: boolean; readonly pending: boolean; readonly failed?: boolean }): void {
+  setSourceRestoreState(
+    owner: number,
+    state: { readonly terminal: boolean; readonly pending: boolean; readonly failed?: boolean },
+  ): void {
     if (owner !== this.activeOwner) return;
     this.sourceRestoreTerminal = state.terminal;
     this.sourceRestorePending = state.pending;
@@ -62,7 +71,11 @@ export class ViewportHydrationStatusService {
     this.refreshFinalization();
   }
 
-  setFinalizationAuditHooks(owner: number, audit: ((includeOwnership: boolean) => ViewportFinalizationAudit | undefined) | undefined, reconcile: (() => void) | undefined): void {
+  setFinalizationAuditHooks(
+    owner: number,
+    audit: ((includeOwnership: boolean) => ViewportFinalizationAudit | undefined) | undefined,
+    reconcile: (() => void) | undefined,
+  ): void {
     if (owner !== this.activeOwner) return;
     // Keep the renderer-specific audit seam in the viewport component; the
     // status service only owns policy and watchdog timing.
@@ -74,7 +87,8 @@ export class ViewportHydrationStatusService {
     if (this.activeOwner === undefined || !this.lastProgress) return;
     untracked(() => {
       this.refreshFinalization();
-      if (!this.finalization()?.loading && this.lastProgress?.status !== 'hydrating') this.clearVisibleState();
+      if (!this.finalization()?.loading && this.lastProgress?.status !== 'hydrating')
+        this.clearVisibleState();
     });
   }
 
@@ -98,9 +112,15 @@ export class ViewportHydrationStatusService {
     // renderer generation. Its lane is still authoritative for the status
     // surface, even though no structural generation was restarted.
     if (progress.lane === 'content') this.generationActivity = 'content';
-    const snapshot: ViewportHydrationStatusSnapshot = { progress, activity: this.generationActivity };
+    const snapshot: ViewportHydrationStatusSnapshot = {
+      progress,
+      activity: this.generationActivity,
+    };
     this.pending = snapshot;
-    if (progress.total >= VIEWPORT_HYDRATION_STATUS_WORK_THRESHOLD || (progress.finalization && this.finalization()?.loading && progress.lane === 'content')) {
+    if (
+      progress.total >= VIEWPORT_HYDRATION_STATUS_WORK_THRESHOLD ||
+      (progress.finalization && this.finalization()?.loading && progress.lane === 'content')
+    ) {
       this.cancelShowTimer();
       this.status.set(snapshot);
       return;
@@ -108,7 +128,8 @@ export class ViewportHydrationStatusService {
     if (this.status() || this.showTimer !== undefined) return;
     this.showTimer = setTimeout(() => {
       this.showTimer = undefined;
-      if (this.activeOwner === owner && this.pending?.progress.generation === progress.generation) this.status.set(this.pending);
+      if (this.activeOwner === owner && this.pending?.progress.generation === progress.generation)
+        this.status.set(this.pending);
     }, VIEWPORT_HYDRATION_STATUS_DELAY_MS);
   }
 

@@ -18,6 +18,8 @@ describe('vanilla asset cache migration', () => {
   });
 
   it('rejects an unsupported cache without presenting it as ready', () => {
-    expect(() => migrateCachedVanillaAssets({ ...legacy, schemaVersion: 99 })).toThrow('schema is unsupported');
+    expect(() => migrateCachedVanillaAssets({ ...legacy, schemaVersion: 99 })).toThrow(
+      'schema is unsupported',
+    );
   });
 });

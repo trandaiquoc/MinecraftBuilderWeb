@@ -22,26 +22,59 @@ const item = (id: string, displayName: string, sourceId: string): ItemCatalogEnt
 });
 
 const mod: ImportedModSummary = {
-  sourceId: 'mod-a', modId: 'mod_a', displayName: 'Mod A', version: '1.0', namespaces: ['mod_a'], candidateBlockCount: 0,
+  sourceId: 'mod-a',
+  modId: 'mod_a',
+  displayName: 'Mod A',
+  version: '1.0',
+  namespaces: ['mod_a'],
+  candidateBlockCount: 0,
   report: {
-    metadataFormat: 'fabric', loader: 'fabric', loaderSupported: true, namespaces: ['mod_a'], retainedResourceCount: 0,
-    candidateBlockCount: 0, blocks: { detected: 0, imported: 0, partial: 0, unsupported: 0 },
-    items: { detected: 2, indexed: 2, unsupportedVisuals: 0 }, decorations: { detected: 0, imported: 0, partial: 0, unsupported: 0 },
-    conflicts: [], warnings: [], diagnostics: [], runtimeDependencies: {}, nestedJarCount: 0,
+    metadataFormat: 'fabric',
+    loader: 'fabric',
+    loaderSupported: true,
+    namespaces: ['mod_a'],
+    retainedResourceCount: 0,
+    candidateBlockCount: 0,
+    blocks: { detected: 0, imported: 0, partial: 0, unsupported: 0 },
+    items: { detected: 2, indexed: 2, unsupportedVisuals: 0 },
+    decorations: { detected: 0, imported: 0, partial: 0, unsupported: 0 },
+    conflicts: [],
+    warnings: [],
+    diagnostics: [],
+    runtimeDependencies: {},
+    nestedJarCount: 0,
   },
 };
 
 describe('AssetManagerModDetailsComponent', () => {
   it('filters items by source and search while requesting only visible item previews', async () => {
-    const entries = [item('mod_a:sky_stone', 'Sky Stone', 'mod-a'), item('mod_a:sky_dust', 'Sky Dust', 'mod-a'), item('other:sky_stone', 'Other Sky Stone', 'other')];
+    const entries = [
+      item('mod_a:sky_stone', 'Sky Stone', 'mod-a'),
+      item('mod_a:sky_dust', 'Sky Dust', 'mod-a'),
+      item('other:sky_stone', 'Other Sky Stone', 'other'),
+    ];
     const catalog = { generation: signal(1), all: () => entries };
     const states = new Map<string, { status: string }>();
-    const request = vi.fn((id: string) => { states.set(id, { status: 'queued' }); return Promise.resolve({}); });
-    const visuals = { revision: signal(0), state: (id: string) => states.get(id) ?? { status: 'idle' }, request };
+    const request = vi.fn((id: string) => {
+      states.set(id, { status: 'queued' });
+      return Promise.resolve({});
+    });
+    const visuals = {
+      revision: signal(0),
+      state: (id: string) => states.get(id) ?? { status: 'idle' },
+      request,
+    };
     await TestBed.configureTestingModule({
       imports: [AssetManagerModDetailsComponent],
       providers: [
-        { provide: I18nService, useValue: { t: (key: string) => key, modDiagnostic: (_code: string, message: string) => message, modDiagnosticGroup: (kind: string) => kind } },
+        {
+          provide: I18nService,
+          useValue: {
+            t: (key: string) => key,
+            modDiagnostic: (_code: string, message: string) => message,
+            modDiagnosticGroup: (kind: string) => kind,
+          },
+        },
         { provide: ContentAssetRuntimeService, useValue: { activeVersion: () => '1.21.1' } },
         { provide: ModSupportCatalog, useValue: { certificationFor: () => undefined } },
         { provide: ItemCatalogService, useValue: catalog },
@@ -53,7 +86,11 @@ describe('AssetManagerModDetailsComponent', () => {
     fixture.componentRef.setInput('mod', mod);
     fixture.detectChanges();
     await fixture.whenStable();
-    expect([...fixture.nativeElement.querySelectorAll('.details-item-copy code')].map((node: Element) => node.textContent)).toEqual(['mod_a:sky_stone', 'mod_a:sky_dust']);
+    expect(
+      [...fixture.nativeElement.querySelectorAll('.details-item-copy code')].map(
+        (node: Element) => node.textContent,
+      ),
+    ).toEqual(['mod_a:sky_stone', 'mod_a:sky_dust']);
     expect(request.mock.calls.map(([id]) => id)).toEqual(['mod_a:sky_stone', 'mod_a:sky_dust']);
 
     const search = fixture.nativeElement.querySelector('input[type="search"]') as HTMLInputElement;
@@ -61,7 +98,9 @@ describe('AssetManagerModDetailsComponent', () => {
     search.dispatchEvent(new Event('input'));
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('.details-item-row').length).toBe(1);
-    expect(fixture.nativeElement.querySelector('.details-item-copy code')?.textContent).toBe('mod_a:sky_dust');
+    expect(fixture.nativeElement.querySelector('.details-item-copy code')?.textContent).toBe(
+      'mod_a:sky_dust',
+    );
     expect(request).toHaveBeenCalledTimes(2);
   });
 });

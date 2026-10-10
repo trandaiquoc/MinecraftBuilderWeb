@@ -3,7 +3,11 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { UiTooltipDirective } from './ui-tooltip.directive';
 
-@Component({ standalone: true, imports: [UiTooltipDirective], template: '<button type="button" uiTooltip="Settings">Settings</button>' })
+@Component({
+  standalone: true,
+  imports: [UiTooltipDirective],
+  template: '<button type="button" uiTooltip="Settings">Settings</button>',
+})
 class TooltipHostComponent {}
 
 describe('UiTooltipDirective lifecycle', () => {

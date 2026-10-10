@@ -5,7 +5,8 @@ export const Y_LAYER_PRELOAD_SLICE_MS = 6;
 export const Y_LAYER_PRELOAD_MAX_VARIANTS = 4096;
 export const Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES = 64 * 1024 * 1024;
 
-export type YLayerVisualPreloadState = 'idle' | 'preparing' | 'templates-ready' | 'partial' | 'cancelled' | 'failed';
+export type YLayerVisualPreloadState =
+  'idle' | 'preparing' | 'templates-ready' | 'partial' | 'cancelled' | 'failed';
 
 export interface YLayerVisualPreloadEvidence {
   readonly state: YLayerVisualPreloadState;
@@ -44,20 +45,41 @@ export interface YLayerVisualPreloaderPorts<T> {
 /** Prepares reusable model resources across occupied layers without adding scene objects. */
 export class YLayerVisualPreloader<T> {
   private runToken = 0;
-  private active?: { readonly blocks: readonly PlacedBlock[]; readonly providerGeneration: number; readonly scopeKey: string; readonly completion: Promise<YLayerVisualPreloadEvidence> };
+  private active?: {
+    readonly blocks: readonly PlacedBlock[];
+    readonly providerGeneration: number;
+    readonly scopeKey: string;
+    readonly completion: Promise<YLayerVisualPreloadEvidence>;
+  };
   private evidenceValue: YLayerVisualPreloadEvidence = emptyEvidence();
 
   constructor(private readonly ports: YLayerVisualPreloaderPorts<T>) {}
 
-  get evidence(): YLayerVisualPreloadEvidence { return this.evidenceValue; }
+  get evidence(): YLayerVisualPreloadEvidence {
+    return this.evidenceValue;
+  }
 
-  start(blocks: readonly PlacedBlock[], providerGeneration: number, scopeKey = ''): Promise<YLayerVisualPreloadEvidence> {
-    if (this.active?.blocks === blocks && this.active.providerGeneration === providerGeneration
-      && this.active.scopeKey === scopeKey && this.evidenceValue.state !== 'cancelled') return this.active.completion;
+  start(
+    blocks: readonly PlacedBlock[],
+    providerGeneration: number,
+    scopeKey = '',
+  ): Promise<YLayerVisualPreloadEvidence> {
+    if (
+      this.active?.blocks === blocks &&
+      this.active.providerGeneration === providerGeneration &&
+      this.active.scopeKey === scopeKey &&
+      this.evidenceValue.state !== 'cancelled'
+    )
+      return this.active.completion;
 
     this.cancel();
     const token = this.runToken;
-    this.evidenceValue = { ...emptyEvidence(), state: 'preparing', templateState: 'preparing', blocksTotal: blocks.length };
+    this.evidenceValue = {
+      ...emptyEvidence(),
+      state: 'preparing',
+      templateState: 'preparing',
+      blocksTotal: blocks.length,
+    };
     const completion = this.prepare(blocks, providerGeneration, token).catch(() =>
       this.finishFailed(blocks.length, token),
     );
@@ -67,13 +89,25 @@ export class YLayerVisualPreloader<T> {
 
   cancel(): void {
     this.runToken += 1;
-    if (this.evidenceValue.state === 'preparing') this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', templateState: 'cancelled' };
+    if (this.evidenceValue.state === 'preparing')
+      this.evidenceValue = {
+        ...this.evidenceValue,
+        state: 'cancelled',
+        templateState: 'cancelled',
+      };
     this.active = undefined;
   }
 
-  dispose(): void { this.cancel(); this.evidenceValue = emptyEvidence(); }
+  dispose(): void {
+    this.cancel();
+    this.evidenceValue = emptyEvidence();
+  }
 
-  private async prepare(blocks: readonly PlacedBlock[], providerGeneration: number, token: number): Promise<YLayerVisualPreloadEvidence> {
+  private async prepare(
+    blocks: readonly PlacedBlock[],
+    providerGeneration: number,
+    token: number,
+  ): Promise<YLayerVisualPreloadEvidence> {
     const seenKeys = new Map<string, boolean>();
     const readyByLayer = new Map<number, number>();
     const totalByLayer = new Map<number, number>();
@@ -90,8 +124,19 @@ export class YLayerVisualPreloader<T> {
     for (let index = 0; index < blocks.length; index += 1) {
       if (index % 128 === 0) {
         if (index > 0 && this.currentTime() - sliceStartedAt >= Y_LAYER_PRELOAD_SLICE_MS) {
-          this.publishProgress(blocks.length, blocksVisited, totalByLayer, readyByLayer, failedLayers, variantsPrepared, variantsReused, variantsSkipped, estimatedTemplateBytes);
-          if (!this.isCurrent(blocks, providerGeneration, token)) return this.finishCancelled(blocks.length, token);
+          this.publishProgress(
+            blocks.length,
+            blocksVisited,
+            totalByLayer,
+            readyByLayer,
+            failedLayers,
+            variantsPrepared,
+            variantsReused,
+            variantsSkipped,
+            estimatedTemplateBytes,
+          );
+          if (!this.isCurrent(blocks, providerGeneration, token))
+            return this.finishCancelled(blocks.length, token);
           await this.ports.yieldToBrowser();
           sliceStartedAt = this.currentTime();
         } else if (!this.isCurrent(blocks, providerGeneration, token)) {
@@ -114,7 +159,10 @@ export class YLayerVisualPreloader<T> {
         if (this.ports.hasCached(key)) {
           ready = true;
           variantsReused += 1;
-        } else if (variantsPrepared >= Y_LAYER_PRELOAD_MAX_VARIANTS || estimatedTemplateBytes >= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES) {
+        } else if (
+          variantsPrepared >= Y_LAYER_PRELOAD_MAX_VARIANTS ||
+          estimatedTemplateBytes >= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES
+        ) {
           ready = false;
           variantsSkipped += 1;
         } else {
@@ -128,9 +176,10 @@ export class YLayerVisualPreloader<T> {
             if (resource && !resource.alreadyCached) this.ports.dispose(resource);
             return this.finishCancelled(blocks.length, token);
           }
-          const fitsBudget = !!resource
-            && variantsPrepared < Y_LAYER_PRELOAD_MAX_VARIANTS
-            && estimatedTemplateBytes + resource.estimatedBytes <= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES;
+          const fitsBudget =
+            !!resource &&
+            variantsPrepared < Y_LAYER_PRELOAD_MAX_VARIANTS &&
+            estimatedTemplateBytes + resource.estimatedBytes <= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES;
           if (resource && fitsBudget) {
             let committed = resource.alreadyCached === true;
             try {
@@ -161,7 +210,8 @@ export class YLayerVisualPreloader<T> {
       else failedLayers.add(layer);
     }
 
-    if (!this.isCurrent(blocks, providerGeneration, token)) return this.finishCancelled(blocks.length, token);
+    if (!this.isCurrent(blocks, providerGeneration, token))
+      return this.finishCancelled(blocks.length, token);
     const layersReady = countReadyLayers(totalByLayer, readyByLayer, failedLayers);
     this.evidenceValue = {
       ...this.evidenceValue,
@@ -192,25 +242,45 @@ export class YLayerVisualPreloader<T> {
     estimatedTemplateBytes: number,
   ): void {
     this.evidenceValue = {
-      state: 'preparing', templateState: 'preparing', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent',
-      blocksTotal, blocksVisited, layersTotal: totalByLayer.size,
+      state: 'preparing',
+      templateState: 'preparing',
+      representationState: 'viewport-lazy',
+      gpuPresentationState: 'viewport-dependent',
+      blocksTotal,
+      blocksVisited,
+      layersTotal: totalByLayer.size,
       layersReady: countReadyLayers(totalByLayer, readyByLayer, failedLayers),
-      reusableVariantsPrepared: variantsPrepared, reusableVariantsReused: variantsReused,
-      reusableVariantsSkipped: variantsSkipped, estimatedTemplateBytes,
+      reusableVariantsPrepared: variantsPrepared,
+      reusableVariantsReused: variantsReused,
+      reusableVariantsSkipped: variantsSkipped,
+      estimatedTemplateBytes,
     };
   }
 
-  private isCurrent(blocks: readonly PlacedBlock[], providerGeneration: number, token: number): boolean {
-    return token === this.runToken && providerGeneration === this.ports.providerGeneration()
-      && this.ports.isCurrent(blocks, providerGeneration);
+  private isCurrent(
+    blocks: readonly PlacedBlock[],
+    providerGeneration: number,
+    token: number,
+  ): boolean {
+    return (
+      token === this.runToken &&
+      providerGeneration === this.ports.providerGeneration() &&
+      this.ports.isCurrent(blocks, providerGeneration)
+    );
   }
 
-  private currentTime(): number { return this.ports.now?.() ?? now(); }
+  private currentTime(): number {
+    return this.ports.now?.() ?? now();
+  }
 
   private finishCancelled(blocksTotal: number, token: number): YLayerVisualPreloadEvidence {
     if (token !== this.runToken) return terminalEvidence('cancelled', blocksTotal);
     if (this.evidenceValue.state === 'preparing')
-      this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', templateState: 'cancelled' };
+      this.evidenceValue = {
+        ...this.evidenceValue,
+        state: 'cancelled',
+        templateState: 'cancelled',
+      };
     return this.evidenceValue;
   }
 
@@ -222,7 +292,9 @@ export class YLayerVisualPreloader<T> {
   }
 }
 
-function now(): number { return typeof performance === 'undefined' ? Date.now() : performance.now(); }
+function now(): number {
+  return typeof performance === 'undefined' ? Date.now() : performance.now();
+}
 
 function countReadyLayers(
   totalByLayer: ReadonlyMap<number, number>,
@@ -237,14 +309,26 @@ function countReadyLayers(
 }
 
 function emptyEvidence(): YLayerVisualPreloadEvidence {
-  return { state: 'idle', templateState: 'idle', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent', blocksTotal: 0, blocksVisited: 0, layersTotal: 0, layersReady: 0, reusableVariantsPrepared: 0, reusableVariantsReused: 0, reusableVariantsSkipped: 0, estimatedTemplateBytes: 0 };
+  return {
+    state: 'idle',
+    templateState: 'idle',
+    representationState: 'viewport-lazy',
+    gpuPresentationState: 'viewport-dependent',
+    blocksTotal: 0,
+    blocksVisited: 0,
+    layersTotal: 0,
+    layersReady: 0,
+    reusableVariantsPrepared: 0,
+    reusableVariantsReused: 0,
+    reusableVariantsSkipped: 0,
+    estimatedTemplateBytes: 0,
+  };
 }
 
-function terminalEvidence(
-  state: 'cancelled',
-  blocksTotal: number,
-): YLayerVisualPreloadEvidence {
+function terminalEvidence(state: 'cancelled', blocksTotal: number): YLayerVisualPreloadEvidence {
   return { ...emptyEvidence(), state, templateState: state, blocksTotal };
 }
 
-export function yieldYLayerPreloadToBrowser(): Promise<void> { return yieldToBrowser(); }
+export function yieldYLayerPreloadToBrowser(): Promise<void> {
+  return yieldToBrowser();
+}

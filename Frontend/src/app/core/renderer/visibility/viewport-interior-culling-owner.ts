@@ -1,6 +1,10 @@
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { coordinateKey } from '../../domain/coordinates';
-import { coordinateNeighbors, hasConfirmedOpaqueNeighbors, type OcclusionEntry } from './interior-occlusion';
+import {
+  coordinateNeighbors,
+  hasConfirmedOpaqueNeighbors,
+  type OcclusionEntry,
+} from './interior-occlusion';
 
 export interface InteriorCullingChange {
   readonly position: VoxelCoordinate;
@@ -10,11 +14,22 @@ export interface InteriorCullingChange {
 export class ViewportInteriorCullingOwner {
   private readonly culledKeys = new Set<string>();
 
-  constructor(private readonly record: (metric: 'interiorCullingChecks' | 'interiorBlocksCulled', delta?: number) => void) {}
+  constructor(
+    private readonly record: (
+      metric: 'interiorCullingChecks' | 'interiorBlocksCulled',
+      delta?: number,
+    ) => void,
+  ) {}
 
-  get size(): number { return this.culledKeys.size; }
-  has(key: string): boolean { return this.culledKeys.has(key); }
-  keys(): IterableIterator<string> { return this.culledKeys.keys(); }
+  get size(): number {
+    return this.culledKeys.size;
+  }
+  has(key: string): boolean {
+    return this.culledKeys.has(key);
+  }
+  keys(): IterableIterator<string> {
+    return this.culledKeys.keys();
+  }
 
   clear(): void {
     for (const _key of this.culledKeys) this.record('interiorBlocksCulled', -1);
@@ -33,7 +48,9 @@ export class ViewportInteriorCullingOwner {
     changed: ReadonlySet<string>,
     previousVisiblePositions: ReadonlyMap<string, VoxelCoordinate>,
   ): void {
-    const entries = new Map(visible.map((entry) => [coordinateKey(entry.block.position), entry] as const));
+    const entries = new Map(
+      visible.map((entry) => [coordinateKey(entry.block.position), entry] as const),
+    );
     if (full) {
       this.clear();
       for (const entry of visible) this.updateEntry(entry, entries);
@@ -61,11 +78,15 @@ export class ViewportInteriorCullingOwner {
     const dirty = new Set<string>();
     for (const change of changes.values()) {
       dirty.add(coordinateKey(change.position));
-      for (const neighbor of coordinateNeighbors(change.position)) dirty.add(coordinateKey(neighbor));
+      for (const neighbor of coordinateNeighbors(change.position))
+        dirty.add(coordinateKey(neighbor));
     }
     for (const key of dirty) {
       const entry = visibleEntry(key);
-      if (!entry) { this.remove(key); continue; }
+      if (!entry) {
+        this.remove(key);
+        continue;
+      }
       this.updateEntry(entry, visibleEntries);
     }
   }
@@ -78,7 +99,10 @@ export class ViewportInteriorCullingOwner {
   ): void {
     for (const key of keys) {
       const entry = visibleEntry(key);
-      if (!entry) { this.remove(key); continue; }
+      if (!entry) {
+        this.remove(key);
+        continue;
+      }
       this.updateEntry(entry, visibleEntries);
     }
   }

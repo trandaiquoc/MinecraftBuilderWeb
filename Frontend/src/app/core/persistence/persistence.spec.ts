@@ -3,7 +3,13 @@ import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
 import { DirtyState } from './autosave/dirty-state';
 import { AutosaveController } from './autosave/autosave-controller';
-import { CURRENT_PROJECT_PACKAGE_VERSION, parseProjectPackage, PROJECT_PACKAGE_FORMAT, ProjectPackageError, serializeProjectPackage } from './project-package/project-package';
+import {
+  CURRENT_PROJECT_PACKAGE_VERSION,
+  parseProjectPackage,
+  PROJECT_PACKAGE_FORMAT,
+  ProjectPackageError,
+  serializeProjectPackage,
+} from './project-package/project-package';
 import { ProjectPersistenceService } from './project-persistence.service';
 import { ProjectStore, ProjectSummary } from './project-store/project-store.port';
 import { projectSummaryFromStoredRecord } from './project-store/indexeddb-project-store';
@@ -11,8 +17,16 @@ import { projectSummaryFromStoredRecord } from './project-store/indexeddb-projec
 const project: ProjectDocument = {
   schemaVersion: 2,
   id: 'p1',
-  metadata: { name: 'Demo', minecraftVersion: '1.21.1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-  size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block', blocks: [], groups: [],
+  metadata: {
+    name: 'Demo',
+    minecraftVersion: '1.21.1',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  size: { x: 8, y: 8, z: 8 },
+  structureMode: 'vanilla-structure-block',
+  blocks: [],
+  groups: [],
   editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
 };
 
@@ -20,7 +34,10 @@ describe('local persistence helpers', () => {
   it('keeps the project backup format and version stable', () => {
     expect(PROJECT_PACKAGE_FORMAT).toBe('minecraftbuilder-project');
     expect(CURRENT_PROJECT_PACKAGE_VERSION).toBe(1);
-    expect(JSON.parse(serializeProjectPackage(project))).toMatchObject({ format: 'minecraftbuilder-project', formatVersion: 1 });
+    expect(JSON.parse(serializeProjectPackage(project))).toMatchObject({
+      format: 'minecraftbuilder-project',
+      formatVersion: 1,
+    });
   });
 
   it('round-trips a versioned project package', () => {
@@ -31,70 +48,196 @@ describe('local persistence helpers', () => {
     const enriched: ProjectDocument = {
       ...project,
       blocks: [
-        { ...block('minecraft:chest', 0, 0, 0), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 1 } }] } },
-        { ...block('minecraft:barrel', 2, 0, 0), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 26, stack: { id: 'minecraft:stone', count: 7 } }] } },
-        { ...block('minecraft:hopper', 3, 0, 0), blockEntityData: { kind: 'item-container', hostKind: 'inventory-storage', slots: [{ slot: 4, stack: { id: 'minecraft:apple', count: 2 } }] } },
-        { ...block('minecraft:decorated_pot', 1, 0, 0), blockEntityData: { kind: 'decorated-pot', decorations: { back: 'minecraft:brick', left: 'minecraft:brick', right: 'minecraft:brick', front: 'minecraft:brick' }, item: { id: 'minecraft:apple', count: 2 } } },
+        {
+          ...block('minecraft:chest', 0, 0, 0),
+          blockEntityData: {
+            kind: 'item-container',
+            hostKind: 'inventory-storage',
+            slots: [{ slot: 0, stack: { id: 'minecraft:diamond', count: 1 } }],
+          },
+        },
+        {
+          ...block('minecraft:barrel', 2, 0, 0),
+          blockEntityData: {
+            kind: 'item-container',
+            hostKind: 'inventory-storage',
+            slots: [{ slot: 26, stack: { id: 'minecraft:stone', count: 7 } }],
+          },
+        },
+        {
+          ...block('minecraft:hopper', 3, 0, 0),
+          blockEntityData: {
+            kind: 'item-container',
+            hostKind: 'inventory-storage',
+            slots: [{ slot: 4, stack: { id: 'minecraft:apple', count: 2 } }],
+          },
+        },
+        {
+          ...block('minecraft:decorated_pot', 1, 0, 0),
+          blockEntityData: {
+            kind: 'decorated-pot',
+            decorations: {
+              back: 'minecraft:brick',
+              left: 'minecraft:brick',
+              right: 'minecraft:brick',
+              front: 'minecraft:brick',
+            },
+            item: { id: 'minecraft:apple', count: 2 },
+          },
+        },
       ],
     };
-    expect(parseProjectPackage(serializeProjectPackage(enriched))).toEqual(migrateProject(enriched));
+    expect(parseProjectPackage(serializeProjectPackage(enriched))).toEqual(
+      migrateProject(enriched),
+    );
   });
 
   it('classifies malformed, arbitrary, newer, and invalid package data without activating anything', () => {
     expect(() => parseProjectPackage('{')).toThrowError(ProjectPackageError);
-    try { parseProjectPackage('{"blocks":[]}'); } catch (error) { expect(error).toMatchObject({ category: 'not-project-package' }); }
-    const newer = JSON.stringify({ format: 'minecraftbuilder-project', formatVersion: 1, project: { ...project, schemaVersion: 99 } });
+    try {
+      parseProjectPackage('{"blocks":[]}');
+    } catch (error) {
+      expect(error).toMatchObject({ category: 'not-project-package' });
+    }
+    const newer = JSON.stringify({
+      format: 'minecraftbuilder-project',
+      formatVersion: 1,
+      project: { ...project, schemaVersion: 99 },
+    });
     expect(() => parseProjectPackage(newer)).toThrowError(/newer than supported/);
-    const invalid = JSON.stringify({ format: 'minecraftbuilder-project', formatVersion: 1, project: { ...project, blocks: [{ ...block('minecraft:stone', 99, 0, 0) }] } });
+    const invalid = JSON.stringify({
+      format: 'minecraftbuilder-project',
+      formatVersion: 1,
+      project: { ...project, blocks: [{ ...block('minecraft:stone', 99, 0, 0) }] },
+    });
     expect(() => parseProjectPackage(invalid)).toThrowError(/Invalid project package data/);
   });
 
   it('uses the cheap key lookup contract for import collision checks', async () => {
-    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
-    expect(await persistence.exists(project.id)).toBe(true); expect(await persistence.exists('missing')).toBe(false);
+    const store = new MemoryProjectStore();
+    const persistence = new ProjectPersistenceService(store, 0);
+    await persistence.create(project);
+    expect(await persistence.exists(project.id)).toBe(true);
+    expect(await persistence.exists('missing')).toBe(false);
   });
 
   it('keeps summary migration independent from full project documents', () => {
-    expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z', size: project.size, structureMode: project.structureMode })).toEqual({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', size: project.size, structureMode: project.structureMode, updatedAt: '2026-01-01T00:00:00Z' });
-    expect(projectSummaryFromStoredRecord({ id: 'p1', name: 'Demo', minecraftVersion: '1.21.1', updatedAt: '2026-01-01T00:00:00Z', document: project })).toMatchObject({ size: project.size, structureMode: project.structureMode });
-    const oversized = { ...project, size: { x: 64, y: 18, z: 64 }, structureMode: 'vanilla-structure-block' as const };
-    expect(projectSummaryFromStoredRecord({ id: oversized.id, name: oversized.metadata.name, minecraftVersion: oversized.metadata.minecraftVersion, updatedAt: oversized.metadata.updatedAt, document: oversized })).toMatchObject({ size: oversized.size, structureMode: 'huge-structure-blocks' });
-    expect(projectSummaryFromStoredRecord({ id: oversized.id, name: oversized.metadata.name, minecraftVersion: oversized.metadata.minecraftVersion, updatedAt: oversized.metadata.updatedAt, size: oversized.size, structureMode: oversized.structureMode })).toMatchObject({ size: oversized.size, structureMode: 'huge-structure-blocks' });
+    expect(
+      projectSummaryFromStoredRecord({
+        id: 'p1',
+        name: 'Demo',
+        minecraftVersion: '1.21.1',
+        updatedAt: '2026-01-01T00:00:00Z',
+        size: project.size,
+        structureMode: project.structureMode,
+      }),
+    ).toEqual({
+      id: 'p1',
+      name: 'Demo',
+      minecraftVersion: '1.21.1',
+      size: project.size,
+      structureMode: project.structureMode,
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
+    expect(
+      projectSummaryFromStoredRecord({
+        id: 'p1',
+        name: 'Demo',
+        minecraftVersion: '1.21.1',
+        updatedAt: '2026-01-01T00:00:00Z',
+        document: project,
+      }),
+    ).toMatchObject({ size: project.size, structureMode: project.structureMode });
+    const oversized = {
+      ...project,
+      size: { x: 64, y: 18, z: 64 },
+      structureMode: 'vanilla-structure-block' as const,
+    };
+    expect(
+      projectSummaryFromStoredRecord({
+        id: oversized.id,
+        name: oversized.metadata.name,
+        minecraftVersion: oversized.metadata.minecraftVersion,
+        updatedAt: oversized.metadata.updatedAt,
+        document: oversized,
+      }),
+    ).toMatchObject({ size: oversized.size, structureMode: 'huge-structure-blocks' });
+    expect(
+      projectSummaryFromStoredRecord({
+        id: oversized.id,
+        name: oversized.metadata.name,
+        minecraftVersion: oversized.metadata.minecraftVersion,
+        updatedAt: oversized.metadata.updatedAt,
+        size: oversized.size,
+        structureMode: oversized.structureMode,
+      }),
+    ).toMatchObject({ size: oversized.size, structureMode: 'huge-structure-blocks' });
   });
 
   it('updates recent-project size and mode when the canonical project is saved', async () => {
-    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
-    expect(await store.list()).toContainEqual(expect.objectContaining({ size: { x: 8, y: 8, z: 8 }, structureMode: 'vanilla-structure-block' }));
-    const changed = { ...project, size: { x: 64, y: 18, z: 64 }, structureMode: 'huge-structure-blocks' as const };
+    const store = new MemoryProjectStore();
+    const persistence = new ProjectPersistenceService(store, 0);
+    await persistence.create(project);
+    expect(await store.list()).toContainEqual(
+      expect.objectContaining({
+        size: { x: 8, y: 8, z: 8 },
+        structureMode: 'vanilla-structure-block',
+      }),
+    );
+    const changed = {
+      ...project,
+      size: { x: 64, y: 18, z: 64 },
+      structureMode: 'huge-structure-blocks' as const,
+    };
     await persistence.save(changed);
-    expect(await store.list()).toContainEqual(expect.objectContaining({ size: changed.size, structureMode: changed.structureMode }));
+    expect(await store.list()).toContainEqual(
+      expect.objectContaining({ size: changed.size, structureMode: changed.structureMode }),
+    );
   });
 
   it('does not mark a newer dirty revision clean when an older save completes', () => {
-    const state = new DirtyState(); const first = state.markDirty(); const second = state.markDirty();
-    expect(state.markClean(first)).toBe(false); expect(state.isDirty).toBe(true);
-    expect(state.markClean(second)).toBe(true); expect(state.isDirty).toBe(false);
+    const state = new DirtyState();
+    const first = state.markDirty();
+    const second = state.markDirty();
+    expect(state.markClean(first)).toBe(false);
+    expect(state.isDirty).toBe(true);
+    expect(state.markClean(second)).toBe(true);
+    expect(state.isDirty).toBe(false);
   });
 
   it('debounces and persists the canonical project plus recovery lifecycle', async () => {
     vi.useFakeTimers();
-    const store = new MemoryProjectStore(); await store.create(project);
+    const store = new MemoryProjectStore();
+    await store.create(project);
     const autosave = new AutosaveController(store, { delayMs: 50 });
     const changed = withBlocks(block('minecraft:stone', 1, 1, 1));
     autosave.schedule(changed, 1);
-    await vi.advanceTimersByTimeAsync(49); expect((await store.open(project.id))?.blocks).toHaveLength(0);
-    await vi.advanceTimersByTimeAsync(1); await autosave.flush();
+    await vi.advanceTimersByTimeAsync(49);
+    expect((await store.open(project.id))?.blocks).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await autosave.flush();
     expect((await store.open(project.id))?.blocks).toEqual(changed.blocks);
     expect(await store.openRecoverySnapshot(project.id)).toBeUndefined();
-    autosave.dispose(); vi.useRealTimers();
+    autosave.dispose();
+    vi.useRealTimers();
   });
 
   it('persists editor-settings-only revisions without cloning or snapshotting the structure', async () => {
     const store = new MemoryProjectStore();
-    const structure = withBlocks(block('minecraft:stone', 1, 1, 1), block('minecraft:dirt', 2, 1, 1));
+    const structure = withBlocks(
+      block('minecraft:stone', 1, 1, 1),
+      block('minecraft:dirt', 2, 1, 1),
+    );
     await store.create(structure);
     const persistence = new ProjectPersistenceService(store, 0);
-    const changed = { ...structure, editorSettings: { ...structure.editorSettings, currentY: 3, layerVisibility: 'whole-structure' as const } };
+    const changed = {
+      ...structure,
+      editorSettings: {
+        ...structure.editorSettings,
+        currentY: 3,
+        layerVisibility: 'whole-structure' as const,
+      },
+    };
 
     persistence.markEditorSettingsChanged(changed);
     await persistence.flushAutosave();
@@ -111,7 +254,10 @@ describe('local persistence helpers', () => {
     await store.create(project);
     const autosave = new AutosaveController(store, { delayMs: 0 });
     const structural = withBlocks(block('minecraft:stone', 1, 1, 1));
-    const settings = { ...structural, editorSettings: { ...structural.editorSettings, currentY: 4 } };
+    const settings = {
+      ...structural,
+      editorSettings: { ...structural.editorSettings, currentY: 4 },
+    };
 
     autosave.schedule(structural, 1);
     autosave.scheduleEditorSettings(settings, 2);
@@ -125,65 +271,129 @@ describe('local persistence helpers', () => {
   });
 
   it('writes recovery, then main, then cleanup in that exact order', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
+    const store = new MemoryProjectStore();
+    await store.create(project);
     const events: string[] = [];
-    const writeRecovery = store.saveRecoverySnapshot.bind(store); const writeMain = store.save.bind(store); const deleteRecovery = store.deleteRecoverySnapshot.bind(store);
-    store.saveRecoverySnapshot = async (value) => { events.push('recovery'); await writeRecovery(value); };
-    store.save = async (value) => { events.push('main'); await writeMain(value); };
-    store.deleteRecoverySnapshot = async (id) => { events.push('cleanup'); await deleteRecovery(id); };
+    const writeRecovery = store.saveRecoverySnapshot.bind(store);
+    const writeMain = store.save.bind(store);
+    const deleteRecovery = store.deleteRecoverySnapshot.bind(store);
+    store.saveRecoverySnapshot = async (value) => {
+      events.push('recovery');
+      await writeRecovery(value);
+    };
+    store.save = async (value) => {
+      events.push('main');
+      await writeMain(value);
+    };
+    store.deleteRecoverySnapshot = async (id) => {
+      events.push('cleanup');
+      await deleteRecovery(id);
+    };
     const persistence = new ProjectPersistenceService(store, 0);
-    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1))); await persistence.flushAutosave();
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await persistence.flushAutosave();
     expect(events).toEqual(['recovery', 'main', 'cleanup']);
   });
 
   it('persists derived states, multi-group memberships, and multi-block parts as one final document', async () => {
-    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
+    const store = new MemoryProjectStore();
+    const persistence = new ProjectPersistenceService(store, 0);
+    await persistence.create(project);
     const changed: ProjectDocument = {
       ...project,
-      groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }, { id: 'entry', name: 'Entrance', visible: true, locked: false }],
+      groups: [
+        { id: 'roof', name: 'Roof', visible: true, locked: false },
+        { id: 'entry', name: 'Entrance', visible: true, locked: false },
+      ],
       blocks: [
-        block('minecraft:oak_fence', 1, 0, 1, { east: 'true', north: 'false', south: 'false', west: 'false', waterlogged: 'false' }, ['roof', 'entry']),
-        block('minecraft:oak_fence', 2, 0, 1, { west: 'true', north: 'false', south: 'false', east: 'false', waterlogged: 'false' }),
-        block('minecraft:oak_door', 3, 0, 3, { half: 'lower', facing: 'north', hinge: 'left', open: 'false', powered: 'false' }),
-        block('minecraft:oak_door', 3, 1, 3, { half: 'upper', facing: 'north', hinge: 'left', open: 'false', powered: 'false' }),
+        block(
+          'minecraft:oak_fence',
+          1,
+          0,
+          1,
+          { east: 'true', north: 'false', south: 'false', west: 'false', waterlogged: 'false' },
+          ['roof', 'entry'],
+        ),
+        block('minecraft:oak_fence', 2, 0, 1, {
+          west: 'true',
+          north: 'false',
+          south: 'false',
+          east: 'false',
+          waterlogged: 'false',
+        }),
+        block('minecraft:oak_door', 3, 0, 3, {
+          half: 'lower',
+          facing: 'north',
+          hinge: 'left',
+          open: 'false',
+          powered: 'false',
+        }),
+        block('minecraft:oak_door', 3, 1, 3, {
+          half: 'upper',
+          facing: 'north',
+          hinge: 'left',
+          open: 'false',
+          powered: 'false',
+        }),
         block('minecraft:red_bed', 4, 0, 4, { part: 'foot', facing: 'east', occupied: 'false' }),
         block('minecraft:red_bed', 5, 0, 4, { part: 'head', facing: 'east', occupied: 'false' }),
       ],
     };
-    persistence.markChanged(changed); await persistence.flushAutosave();
+    persistence.markChanged(changed);
+    await persistence.flushAutosave();
     expect(await persistence.open(project.id)).toEqual(changed);
     expect((await persistence.open(project.id))?.blocks[0].groupIds).toEqual(['roof', 'entry']);
   });
 
   it('persists the undone document while history itself remains session-only', async () => {
-    const store = new MemoryProjectStore(); const persistence = new ProjectPersistenceService(store, 0); await persistence.create(project);
-    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1))); await persistence.flushAutosave();
-    persistence.markChanged(project); await persistence.flushAutosave();
+    const store = new MemoryProjectStore();
+    const persistence = new ProjectPersistenceService(store, 0);
+    await persistence.create(project);
+    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await persistence.flushAutosave();
+    persistence.markChanged(project);
+    await persistence.flushAutosave();
     expect((await persistence.open(project.id))?.blocks).toEqual([]);
   });
 
   it('serializes an edit created while an older async save is in flight', async () => {
-    const store = new ControlledProjectStore(); const statuses: string[] = [];
+    const store = new ControlledProjectStore();
+    const statuses: string[] = [];
     const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
-    const first = withBlocks(block('minecraft:stone', 1, 0, 1)); const latest = withBlocks(block('minecraft:stone', 2, 0, 1));
-    persistence.markChanged(first); const flushing = persistence.flushAutosave();
-    await store.waitForSave(1); persistence.markChanged(latest); store.completeNextSave();
-    await store.waitForSave(1); expect(persistence.dirtyState.isDirty).toBe(true); store.completeNextSave();
+    const first = withBlocks(block('minecraft:stone', 1, 0, 1));
+    const latest = withBlocks(block('minecraft:stone', 2, 0, 1));
+    persistence.markChanged(first);
+    const flushing = persistence.flushAutosave();
+    await store.waitForSave(1);
+    persistence.markChanged(latest);
+    store.completeNextSave();
+    await store.waitForSave(1);
+    expect(persistence.dirtyState.isDirty).toBe(true);
+    store.completeNextSave();
     await flushing;
-    expect(store.persisted).toEqual(latest); expect(persistence.dirtyState.isDirty).toBe(false); expect(statuses.at(-1)).toBe('saved');
+    expect(store.persisted).toEqual(latest);
+    expect(persistence.dirtyState.isDirty).toBe(false);
+    expect(statuses.at(-1)).toBe('saved');
   });
 
   it('keeps the project dirty and reports an error when canonical save fails', async () => {
-    const store = new MemoryProjectStore(); await store.create(project); store.save = async () => { throw new Error('quota'); };
-    const statuses: string[] = []; const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    store.save = async () => {
+      throw new Error('quota');
+    };
+    const statuses: string[] = [];
+    const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).rejects.toThrow('quota');
-    expect(persistence.dirtyState.isDirty).toBe(true); expect(statuses.at(-1)).toBe('error');
+    expect(persistence.dirtyState.isDirty).toBe(true);
+    expect(statuses.at(-1)).toBe('error');
     expect(await store.openRecoverySnapshot(project.id)).toBeDefined();
   });
 
   it('deletes the project and recovery snapshot after draining pending autosave', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
+    const store = new MemoryProjectStore();
+    await store.create(project);
     const persistence = new ProjectPersistenceService(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await persistence.delete(project.id);
@@ -192,14 +402,17 @@ describe('local persistence helpers', () => {
   });
 
   it('waits for an in-flight canonical save before deleting', async () => {
-    const store = new ControlledProjectStore(); await store.create(project);
+    const store = new ControlledProjectStore();
+    await store.create(project);
     const persistence = new ProjectPersistenceService(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     const flushing = persistence.flushAutosave();
     await store.waitForSave(1);
 
     let deleted = false;
-    const deleting = persistence.delete(project.id).then(() => { deleted = true; });
+    const deleting = persistence.delete(project.id).then(() => {
+      deleted = true;
+    });
     await Promise.resolve();
     expect(deleted).toBe(false);
     store.completeNextSave();
@@ -209,8 +422,11 @@ describe('local persistence helpers', () => {
   });
 
   it('keeps the project when the final autosave flush fails', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
-    store.save = async () => { throw new Error('quota'); };
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    store.save = async () => {
+      throw new Error('quota');
+    };
     const persistence = new ProjectPersistenceService(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
 
@@ -219,9 +435,15 @@ describe('local persistence helpers', () => {
   });
 
   it('treats recovery cleanup failure as a separate warning after the main save is safe', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
-    store.deleteRecoverySnapshot = async () => { throw new Error('cleanup'); };
-    const warnings: unknown[] = []; const persistence = new ProjectPersistenceService(store, 0, undefined, (error) => warnings.push(error));
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    store.deleteRecoverySnapshot = async () => {
+      throw new Error('cleanup');
+    };
+    const warnings: unknown[] = [];
+    const persistence = new ProjectPersistenceService(store, 0, undefined, (error) =>
+      warnings.push(error),
+    );
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).resolves.toBeUndefined();
     expect(persistence.dirtyState.isDirty).toBe(false);
@@ -231,8 +453,11 @@ describe('local persistence helpers', () => {
   });
 
   it('keeps recovery data and dirty state when the recovery write fails', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
-    store.saveRecoverySnapshot = async () => { throw new Error('recovery quota'); };
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    store.saveRecoverySnapshot = async () => {
+      throw new Error('recovery quota');
+    };
     const persistence = new ProjectPersistenceService(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).rejects.toThrow('recovery quota');
@@ -241,10 +466,14 @@ describe('local persistence helpers', () => {
   });
 
   it('deletes by summary id without opening the full project document', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
+    const store = new MemoryProjectStore();
+    await store.create(project);
     let opens = 0;
     const openStoredProject = store.open.bind(store);
-    store.open = async (id: string) => { opens += 1; return openStoredProject(id); };
+    store.open = async (id: string) => {
+      opens += 1;
+      return openStoredProject(id);
+    };
     const persistence = new ProjectPersistenceService(store, 0);
 
     await persistence.delete(project.id);
@@ -253,7 +482,8 @@ describe('local persistence helpers', () => {
   });
 
   it('cannot resurrect a deleted project when a later destroy flush runs', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
+    const store = new MemoryProjectStore();
+    await store.create(project);
     const persistence = new ProjectPersistenceService(store, 25);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await persistence.delete(project.id);
@@ -269,12 +499,19 @@ describe('local persistence helpers', () => {
   });
 
   it('quiesces edits that arrive while the delete transaction is in flight', async () => {
-    const store = new MemoryProjectStore(); await store.create(project);
+    const store = new MemoryProjectStore();
+    await store.create(project);
     let releaseDelete!: () => void;
     let deleteStarted = false;
-    const deleteGate = new Promise<void>((resolve) => { releaseDelete = resolve; });
+    const deleteGate = new Promise<void>((resolve) => {
+      releaseDelete = resolve;
+    });
     const deleteStoredProject = store.delete.bind(store);
-    store.delete = async (id: string) => { deleteStarted = true; await deleteGate; await deleteStoredProject(id); };
+    store.delete = async (id: string) => {
+      deleteStarted = true;
+      await deleteGate;
+      await deleteStoredProject(id);
+    };
     const persistence = new ProjectPersistenceService(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     const deleting = persistence.delete(project.id);
@@ -288,31 +525,109 @@ describe('local persistence helpers', () => {
   });
 });
 
-function block(id: string, x: number, y: number, z: number, state: Readonly<Record<string, string>> = {}, groupIds: readonly string[] = []) {
-  return { kind: 'resolved' as const, id, namespace: 'minecraft', position: { x, y, z }, state, groupIds };
+function block(
+  id: string,
+  x: number,
+  y: number,
+  z: number,
+  state: Readonly<Record<string, string>> = {},
+  groupIds: readonly string[] = [],
+) {
+  return {
+    kind: 'resolved' as const,
+    id,
+    namespace: 'minecraft',
+    position: { x, y, z },
+    state,
+    groupIds,
+  };
 }
-function withBlocks(...blocks: ProjectDocument['blocks']): ProjectDocument { return { ...project, blocks: blocks.flat() }; }
+function withBlocks(...blocks: ProjectDocument['blocks']): ProjectDocument {
+  return { ...project, blocks: blocks.flat() };
+}
 
 class MemoryProjectStore implements ProjectStore {
-  protected readonly projects = new Map<string, ProjectDocument>(); private readonly recovery = new Map<string, ProjectDocument>();
+  protected readonly projects = new Map<string, ProjectDocument>();
+  private readonly recovery = new Map<string, ProjectDocument>();
   private readonly editorSettings = new Map<string, ProjectDocument['editorSettings']>();
   editorSettingsSaves = 0;
   fullProjectSaves = 0;
-  async create(value: ProjectDocument): Promise<void> { this.projects.set(value.id, structuredClone(value)); this.editorSettings.set(value.id, structuredClone(value.editorSettings)); }
-  async exists(id: string): Promise<boolean> { return this.projects.has(id); }
-  async open(id: string): Promise<ProjectDocument | undefined> { const value = this.projects.get(id); return value && { ...structuredClone(value), editorSettings: structuredClone(this.editorSettings.get(id) ?? value.editorSettings) }; }
-  async save(value: ProjectDocument): Promise<void> { this.fullProjectSaves += 1; this.projects.set(value.id, structuredClone(value)); this.editorSettings.set(value.id, structuredClone(value.editorSettings)); }
-  async saveEditorSettings(id: string, settings: ProjectDocument['editorSettings']): Promise<void> { this.editorSettingsSaves += 1; this.editorSettings.set(id, structuredClone(settings)); }
-  async delete(id: string): Promise<void> { this.projects.delete(id); this.editorSettings.delete(id); this.recovery.delete(id); }
-  async list(): Promise<readonly ProjectSummary[]> { return [...this.projects.values()].map((value) => ({ id: value.id, name: value.metadata.name, minecraftVersion: value.metadata.minecraftVersion, size: value.size, structureMode: value.structureMode, updatedAt: value.metadata.updatedAt })); }
-  async saveRecoverySnapshot(value: ProjectDocument): Promise<void> { this.recovery.set(value.id, structuredClone(value)); }
-  async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> { const value = this.recovery.get(id); return value && { ...structuredClone(value), editorSettings: structuredClone(this.editorSettings.get(id) ?? value.editorSettings) }; }
-  async deleteRecoverySnapshot(id: string): Promise<void> { this.recovery.delete(id); }
+  async create(value: ProjectDocument): Promise<void> {
+    this.projects.set(value.id, structuredClone(value));
+    this.editorSettings.set(value.id, structuredClone(value.editorSettings));
+  }
+  async exists(id: string): Promise<boolean> {
+    return this.projects.has(id);
+  }
+  async open(id: string): Promise<ProjectDocument | undefined> {
+    const value = this.projects.get(id);
+    return (
+      value && {
+        ...structuredClone(value),
+        editorSettings: structuredClone(this.editorSettings.get(id) ?? value.editorSettings),
+      }
+    );
+  }
+  async save(value: ProjectDocument): Promise<void> {
+    this.fullProjectSaves += 1;
+    this.projects.set(value.id, structuredClone(value));
+    this.editorSettings.set(value.id, structuredClone(value.editorSettings));
+  }
+  async saveEditorSettings(id: string, settings: ProjectDocument['editorSettings']): Promise<void> {
+    this.editorSettingsSaves += 1;
+    this.editorSettings.set(id, structuredClone(settings));
+  }
+  async delete(id: string): Promise<void> {
+    this.projects.delete(id);
+    this.editorSettings.delete(id);
+    this.recovery.delete(id);
+  }
+  async list(): Promise<readonly ProjectSummary[]> {
+    return [...this.projects.values()].map((value) => ({
+      id: value.id,
+      name: value.metadata.name,
+      minecraftVersion: value.metadata.minecraftVersion,
+      size: value.size,
+      structureMode: value.structureMode,
+      updatedAt: value.metadata.updatedAt,
+    }));
+  }
+  async saveRecoverySnapshot(value: ProjectDocument): Promise<void> {
+    this.recovery.set(value.id, structuredClone(value));
+  }
+  async openRecoverySnapshot(id: string): Promise<ProjectDocument | undefined> {
+    const value = this.recovery.get(id);
+    return (
+      value && {
+        ...structuredClone(value),
+        editorSettings: structuredClone(this.editorSettings.get(id) ?? value.editorSettings),
+      }
+    );
+  }
+  async deleteRecoverySnapshot(id: string): Promise<void> {
+    this.recovery.delete(id);
+  }
 }
 
 class ControlledProjectStore extends MemoryProjectStore {
-  persisted?: ProjectDocument; private readonly saves: { readonly project: ProjectDocument; readonly complete: () => void }[] = [];
-  override save(value: ProjectDocument): Promise<void> { return new Promise((resolve) => this.saves.push({ project: structuredClone(value), complete: () => { this.persisted = structuredClone(value); resolve(); } })); }
-  async waitForSave(count: number): Promise<void> { while (this.saves.length < count) await Promise.resolve(); }
-  completeNextSave(): void { this.saves.shift()?.complete(); }
+  persisted?: ProjectDocument;
+  private readonly saves: { readonly project: ProjectDocument; readonly complete: () => void }[] =
+    [];
+  override save(value: ProjectDocument): Promise<void> {
+    return new Promise((resolve) =>
+      this.saves.push({
+        project: structuredClone(value),
+        complete: () => {
+          this.persisted = structuredClone(value);
+          resolve();
+        },
+      }),
+    );
+  }
+  async waitForSave(count: number): Promise<void> {
+    while (this.saves.length < count) await Promise.resolve();
+  }
+  completeNextSave(): void {
+    this.saves.shift()?.complete();
+  }
 }

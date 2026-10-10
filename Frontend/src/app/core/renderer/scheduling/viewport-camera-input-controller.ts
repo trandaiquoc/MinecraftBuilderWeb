@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { MovementAction } from '../../editor/input/keyboard-bindings';
-import { DEFAULT_MOUSE_BINDINGS, type MouseAction, mouseActionForEvent } from '../../editor/input/mouse-bindings';
+import {
+  DEFAULT_MOUSE_BINDINGS,
+  type MouseAction,
+  mouseActionForEvent,
+} from '../../editor/input/mouse-bindings';
 import { CameraInteractionController } from './camera-interaction-controller';
 import type { WheelZoomAction } from './camera-wheel-zoom';
 
@@ -31,7 +35,10 @@ export class ViewportCameraInputController {
   private controls?: OrbitControls;
   private configuration: CameraControlConfiguration;
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
-  private temporaryMouseButton?: { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined };
+  private temporaryMouseButton?: {
+    readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT';
+    readonly previous: THREE.MOUSE | null | undefined;
+  };
   private cameraMoveFrame?: number;
   private disposed = false;
 
@@ -45,15 +52,46 @@ export class ViewportCameraInputController {
     this.interaction = new CameraInteractionController({ idleGraceMs });
   }
 
-  get pressedActions(): Set<string> { return this.interaction.pressedActions; }
-  get gestureInProgress(): boolean { return this.interaction.gestureInProgress; }
-  set gestureInProgress(value: boolean) { if (value) this.interaction.beginGesture(); else this.interaction.endGesture(); }
-  get movementFrame(): number | undefined { return this.cameraMoveFrame; }
-  set movementFrame(value: number | undefined) { this.cameraMoveFrame = value; }
-  get temporaryButton(): { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined } | undefined { return this.temporaryMouseButton; }
-  set temporaryButton(value: { readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT'; readonly previous: THREE.MOUSE | null | undefined } | undefined) { this.temporaryMouseButton = value; }
-  get controlConfiguration(): CameraControlConfiguration { return this.configuration; }
-  get currentMouseBindings(): Readonly<Record<MouseAction, string>> { return this.mouseBindings; }
+  get pressedActions(): Set<string> {
+    return this.interaction.pressedActions;
+  }
+  get gestureInProgress(): boolean {
+    return this.interaction.gestureInProgress;
+  }
+  set gestureInProgress(value: boolean) {
+    if (value) this.interaction.beginGesture();
+    else this.interaction.endGesture();
+  }
+  get movementFrame(): number | undefined {
+    return this.cameraMoveFrame;
+  }
+  set movementFrame(value: number | undefined) {
+    this.cameraMoveFrame = value;
+  }
+  get temporaryButton():
+    | {
+        readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT';
+        readonly previous: THREE.MOUSE | null | undefined;
+      }
+    | undefined {
+    return this.temporaryMouseButton;
+  }
+  set temporaryButton(
+    value:
+      | {
+          readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT';
+          readonly previous: THREE.MOUSE | null | undefined;
+        }
+      | undefined,
+  ) {
+    this.temporaryMouseButton = value;
+  }
+  get controlConfiguration(): CameraControlConfiguration {
+    return this.configuration;
+  }
+  get currentMouseBindings(): Readonly<Record<MouseAction, string>> {
+    return this.mouseBindings;
+  }
 
   attachControls(controls: OrbitControls): void {
     if (this.controls === controls) return;
@@ -94,14 +132,17 @@ export class ViewportCameraInputController {
   cameraKeyUp(action: MovementAction): void {
     if (this.disposed || this.callbacks.isSuspended()) return;
     this.interaction.release(action);
-    if (!this.pressedActions.size && this.cameraMoveFrame === undefined) this.callbacks.onControlChange();
+    if (!this.pressedActions.size && this.cameraMoveFrame === undefined)
+      this.callbacks.onControlChange();
   }
 
   markCameraInteraction(): void {
     this.callbacks.onInteractionMarked(this.interaction.mark());
   }
 
-  isCameraInteracting(): boolean { return this.interaction.isActive(); }
+  isCameraInteracting(): boolean {
+    return this.interaction.isActive();
+  }
 
   clearInput(): void {
     this.interaction.clear();
@@ -111,22 +152,34 @@ export class ViewportCameraInputController {
     }
   }
 
-  startMovement(): void { this.startCameraMovement(); }
+  startMovement(): void {
+    this.startCameraMovement();
+  }
 
-  endEditorPointerGesture(): void { this.restoreTemporaryMouseButton(); }
+  endEditorPointerGesture(): void {
+    this.restoreTemporaryMouseButton();
+  }
 
   pointerDownCapture(event: PointerEvent): void {
     const controls = this.getControls();
     const action = mouseActionForEvent(event, this.mouseBindings);
     if (!action || !controls) return;
-    const key = event.button === 0 ? 'LEFT' : event.button === 1 ? 'MIDDLE' : event.button === 2 ? 'RIGHT' : undefined;
+    const key =
+      event.button === 0
+        ? 'LEFT'
+        : event.button === 1
+          ? 'MIDDLE'
+          : event.button === 2
+            ? 'RIGHT'
+            : undefined;
     if (!key) return;
     const mapped = controls.mouseButtons[key];
     if (action === 'orbit-camera' || action === 'pan-camera') {
       this.callbacks.onPointerCameraStart(event.button, action);
       if (mapped === undefined) {
         this.temporaryMouseButton = { key, previous: mapped };
-        controls.mouseButtons[key] = action === 'orbit-camera' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
+        controls.mouseButtons[key] =
+          action === 'orbit-camera' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
       }
       return;
     }
@@ -163,9 +216,18 @@ export class ViewportCameraInputController {
     this.restoreTemporaryMouseButton();
   }
 
-  private readonly onControlChange = (): void => { this.markCameraInteraction(); this.callbacks.onControlChange(); };
-  private readonly onControlStart = (): void => { this.interaction.beginGesture(); this.callbacks.onControlStart(); };
-  private readonly onControlEnd = (): void => { this.interaction.endGesture(); this.callbacks.onControlEnd(); };
+  private readonly onControlChange = (): void => {
+    this.markCameraInteraction();
+    this.callbacks.onControlChange();
+  };
+  private readonly onControlStart = (): void => {
+    this.interaction.beginGesture();
+    this.callbacks.onControlStart();
+  };
+  private readonly onControlEnd = (): void => {
+    this.interaction.endGesture();
+    this.callbacks.onControlEnd();
+  };
 
   private startCameraMovement(): void {
     if (this.cameraMoveFrame !== undefined) return;
@@ -173,7 +235,7 @@ export class ViewportCameraInputController {
     const step = (now: number): void => {
       this.cameraMoveFrame = undefined;
       const rawDeltaMs = now - previous;
-      const delta = Math.min(rawDeltaMs / 1000, .1);
+      const delta = Math.min(rawDeltaMs / 1000, 0.1);
       previous = now;
       this.callbacks.onMovementFrame(this.interaction.pressedActions as Set<MovementAction>, delta);
       if (this.pressedActions.size) this.cameraMoveFrame = requestViewportFrame(step);
@@ -219,7 +281,9 @@ export class ViewportCameraInputController {
 }
 
 export function requestViewportFrame(callback: FrameRequestCallback): number {
-  return typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(() => callback(performance.now()), 0) as unknown as number;
+  return typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame(callback)
+    : (setTimeout(() => callback(performance.now()), 0) as unknown as number);
 }
 
 export function cancelViewportFrame(frame: number): void {

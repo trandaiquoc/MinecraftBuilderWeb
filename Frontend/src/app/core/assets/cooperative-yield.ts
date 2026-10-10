@@ -1,6 +1,8 @@
 export async function yieldToBrowser(signal?: AbortSignal): Promise<void> {
   signal?.throwIfAborted();
-  const schedulerApi = (globalThis as typeof globalThis & { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  const schedulerApi = (
+    globalThis as typeof globalThis & { scheduler?: { yield?: () => Promise<void> } }
+  ).scheduler;
   if (schedulerApi?.yield) {
     await schedulerApi.yield();
     signal?.throwIfAborted();
@@ -9,7 +11,11 @@ export async function yieldToBrowser(signal?: AbortSignal): Promise<void> {
   await new Promise<void>((resolve) => {
     if (typeof MessageChannel !== 'undefined') {
       const channel = new MessageChannel();
-      channel.port1.onmessage = () => { channel.port1.close(); channel.port2.close(); resolve(); };
+      channel.port1.onmessage = () => {
+        channel.port1.close();
+        channel.port2.close();
+        resolve();
+      };
       channel.port2.postMessage(0);
       return;
     }
@@ -23,10 +29,15 @@ export class CooperativeWorkBudget {
   private startedAt = performance.now();
   private processedSinceReset = 0;
 
-  constructor(private readonly maxMilliseconds = 10, private readonly maxItems = 32) {}
+  constructor(
+    private readonly maxMilliseconds = 10,
+    private readonly maxItems = 32,
+  ) {}
 
   shouldYield(processedItems: number): boolean {
-    return processedItems >= this.maxItems || performance.now() - this.startedAt >= this.maxMilliseconds;
+    return (
+      processedItems >= this.maxItems || performance.now() - this.startedAt >= this.maxMilliseconds
+    );
   }
 
   shouldYieldNow(items = 1): boolean {
@@ -34,5 +45,8 @@ export class CooperativeWorkBudget {
     return this.shouldYield(this.processedSinceReset);
   }
 
-  reset(): void { this.startedAt = performance.now(); this.processedSinceReset = 0; }
+  reset(): void {
+    this.startedAt = performance.now();
+    this.processedSinceReset = 0;
+  }
 }

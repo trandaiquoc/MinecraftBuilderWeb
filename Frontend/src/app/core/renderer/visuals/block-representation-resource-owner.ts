@@ -9,14 +9,32 @@ export interface BlockRepresentationResourceOwnerPorts {
     readonly parentFor: (block: RenderedBlockEntry['block']) => THREE.Group;
     readonly release: (object: THREE.Object3D | undefined) => void;
   };
-  readonly terrain: { readonly has: (key: string) => boolean; readonly remove: (key: string) => void; readonly clear: () => void; readonly dispose: () => void };
-  readonly surface: { readonly ownership: ReadonlyMap<string, unknown>; readonly setVisible: (key: string, visible: boolean) => boolean; readonly remove: (key: string, entry?: RenderedBlockEntry) => void; readonly clear: (entries: Iterable<RenderedBlockEntry>) => void };
+  readonly terrain: {
+    readonly has: (key: string) => boolean;
+    readonly remove: (key: string) => void;
+    readonly clear: () => void;
+    readonly dispose: () => void;
+  };
+  readonly surface: {
+    readonly ownership: ReadonlyMap<string, unknown>;
+    readonly setVisible: (key: string, visible: boolean) => boolean;
+    readonly remove: (key: string, entry?: RenderedBlockEntry) => void;
+    readonly clear: (entries: Iterable<RenderedBlockEntry>) => void;
+  };
   readonly instance: {
     readonly ownershipIndex: ReadonlyMap<string, unknown>;
     readonly memberships: (key: string, scanAll?: boolean) => readonly unknown[];
     readonly setVisible: (key: string, visible: boolean) => boolean;
-    readonly remove: (key: string, entry: RenderedBlockEntry, source: 'rollback' | 'reconcile') => void;
-    readonly removeOrphaned: (key: string, source: 'rollback' | 'reconcile', entry?: RenderedBlockEntry) => void;
+    readonly remove: (
+      key: string,
+      entry: RenderedBlockEntry,
+      source: 'rollback' | 'reconcile',
+    ) => void;
+    readonly removeOrphaned: (
+      key: string,
+      source: 'rollback' | 'reconcile',
+      entry?: RenderedBlockEntry,
+    ) => void;
     readonly reconcile: (entries: ReadonlyMap<string, RenderedBlockEntry>) => void;
   };
   readonly placeholders: { readonly remove: (key: string) => void; readonly clear: () => void };
@@ -24,7 +42,12 @@ export interface BlockRepresentationResourceOwnerPorts {
   readonly fallbackMaterials: Readonly<Record<PlaceholderRole, THREE.Material>>;
   readonly record: (metric: string, delta?: number) => void;
   readonly invalidateDiagnostics: () => void;
-  readonly trace: (phase: string, key: string | undefined, source: string, entry?: RenderedBlockEntry) => void;
+  readonly trace: (
+    phase: string,
+    key: string | undefined,
+    source: string,
+    entry?: RenderedBlockEntry,
+  ) => void;
 }
 
 /** Owns cross-renderer disposal and membership cleanup for one canonical block entry. */
@@ -37,8 +60,10 @@ export class BlockRepresentationResourceOwner {
   releaseRepresentation(key: string, entry: RenderedBlockEntry): void {
     this.ports.invalidateDiagnostics();
     if (entry.fluidChunkKey !== undefined) return;
-    if (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key)) this.ports.terrain.remove(key);
-    const hasSurfaceVisual = entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key);
+    if (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key))
+      this.ports.terrain.remove(key);
+    const hasSurfaceVisual =
+      entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key);
     if (hasSurfaceVisual) this.ports.surface.remove(key, entry);
     if (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key)) {
       this.ports.trace('before-remove', key, 'reconcile', entry);
@@ -56,10 +81,18 @@ export class BlockRepresentationResourceOwner {
   }
 
   setPresentationVisible(key: string, entry: RenderedBlockEntry, visible: boolean): boolean {
-    if (entry.fluidChunkKey !== undefined || entry.terrainChunkKey !== undefined || this.ports.terrain.has(key)) return false;
+    if (
+      entry.fluidChunkKey !== undefined ||
+      entry.terrainChunkKey !== undefined ||
+      this.ports.terrain.has(key)
+    )
+      return false;
     if (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key)) {
       if (!this.ports.instance.setVisible(key, visible)) return false;
-    } else if (entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key)) {
+    } else if (
+      entry.surfaceFaceMemberships !== undefined ||
+      this.ports.surface.ownership.has(key)
+    ) {
       if (!this.ports.surface.setVisible(key, visible)) return false;
     } else if (entry.object) entry.object.visible = visible;
     else return false;
@@ -71,10 +104,25 @@ export class BlockRepresentationResourceOwner {
    * been installed. The canonical store is deliberately untouched here: the
    * commit owner still owns the final store transition.
    */
-  releasePreviousAfterReplacement(key: string, entry: RenderedBlockEntry, replacement: 'terrain' | 'surface' | 'instance' | 'object'): void {
-    if (replacement !== 'terrain' && (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key))) this.ports.terrain.remove(key);
-    if (replacement !== 'surface' && (entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key))) this.ports.surface.remove(key, entry);
-    if (replacement !== 'instance' && (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key))) {
+  releasePreviousAfterReplacement(
+    key: string,
+    entry: RenderedBlockEntry,
+    replacement: 'terrain' | 'surface' | 'instance' | 'object',
+  ): void {
+    if (
+      replacement !== 'terrain' &&
+      (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key))
+    )
+      this.ports.terrain.remove(key);
+    if (
+      replacement !== 'surface' &&
+      (entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key))
+    )
+      this.ports.surface.remove(key, entry);
+    if (
+      replacement !== 'instance' &&
+      (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key))
+    ) {
       this.ports.instance.remove(key, entry, 'reconcile');
     }
     if (!entry.instanceBatchKey && !entry.surfaceFaceMemberships && entry.object) {
@@ -93,11 +141,17 @@ export class BlockRepresentationResourceOwner {
     this.removeOrphanedInstanceMemberships(key, 'rollback', entry);
   }
 
-  removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry?: RenderedBlockEntry): void {
+  removeOrphanedInstanceMemberships(
+    key: string,
+    source: 'rollback' | 'reconcile',
+    entry?: RenderedBlockEntry,
+  ): void {
     this.ports.instance.removeOrphaned(key, source, entry);
   }
 
-  reconcileInstances(entries: ReadonlyMap<string, RenderedBlockEntry>): void { this.ports.instance.reconcile(entries); }
+  reconcileInstances(entries: ReadonlyMap<string, RenderedBlockEntry>): void {
+    this.ports.instance.reconcile(entries);
+  }
 
   private clearEntries(entries: Iterable<RenderedBlockEntry>): void {
     const snapshot = [...entries];
@@ -116,19 +170,38 @@ export class BlockRepresentationResourceOwner {
     this.ports.terrain.dispose();
   }
 
-  removePlaceholder(key: string): void { this.ports.placeholders.remove(key); }
-  clearPlaceholders(): void { this.ports.placeholders.clear(); }
+  removePlaceholder(key: string): void {
+    this.ports.placeholders.remove(key);
+  }
+  clearPlaceholders(): void {
+    this.ports.placeholders.clear();
+  }
 
-  createFallback(entry: RenderedBlockEntry, referenceOpacity = .28): THREE.Mesh {
+  createFallback(entry: RenderedBlockEntry, referenceOpacity = 0.28): THREE.Mesh {
     if (entry.fallback) return entry.fallback;
-    if (!this.fallbackGeometryCounted) { this.ports.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
-    if (!this.fallbackMaterialRoles.has(entry.role)) { this.ports.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(entry.role); }
+    if (!this.fallbackGeometryCounted) {
+      this.ports.record('fallbackGeometryConstructions');
+      this.fallbackGeometryCounted = true;
+    }
+    if (!this.fallbackMaterialRoles.has(entry.role)) {
+      this.ports.record('fallbackMaterialCreations');
+      this.fallbackMaterialRoles.add(entry.role);
+    }
     const isReference = entry.role === 'reference';
-    const material = entry.role === 'missing' ? this.ports.fallbackMaterials.missing : isReference ? this.ports.fallbackMaterials.reference : this.ports.fallbackMaterials.normal;
+    const material =
+      entry.role === 'missing'
+        ? this.ports.fallbackMaterials.missing
+        : isReference
+          ? this.ports.fallbackMaterials.reference
+          : this.ports.fallbackMaterials.normal;
     material.transparent = isReference;
     material.opacity = isReference ? referenceOpacity : 1;
     const fallback = new THREE.Mesh(this.ports.fallbackGeometry, material);
-    fallback.position.set(entry.block.position.x + .5, entry.block.position.y + .5, entry.block.position.z + .5);
+    fallback.position.set(
+      entry.block.position.x + 0.5,
+      entry.block.position.y + 0.5,
+      entry.block.position.z + 0.5,
+    );
     fallback.userData['voxel'] = entry.block.position;
     fallback.userData['renderRole'] = entry.role;
     (this.ports.objectPresentation?.parentFor(entry.block) ?? this.ports.blocksGroup).add(fallback);

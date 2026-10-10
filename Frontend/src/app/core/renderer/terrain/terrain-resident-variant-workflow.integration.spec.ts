@@ -7,29 +7,51 @@ import { ViewportBlockRepresentationStore } from '../engine/viewport-block-repre
 import type { ViewportRenderOptions } from '../engine/viewport-engine-contracts';
 import type { VisibleBlockProjectionEntry } from '../engine/y-layer-presentation-owner';
 import { meshTerrainCore } from './terrain-mesh-core';
-import type { TerrainMeshJob, TerrainMeshResult, TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './terrain-mesh-protocol';
-import { ChunkSurfaceRenderer, type TerrainApplyResult, type TerrainSurfaceRecord } from './chunk-surface-renderer';
+import type {
+  TerrainMeshJob,
+  TerrainMeshResult,
+  TerrainMeshWorkerRequest,
+  TerrainMeshWorkerResponse,
+} from './terrain-mesh-protocol';
+import {
+  ChunkSurfaceRenderer,
+  type TerrainApplyResult,
+  type TerrainSurfaceRecord,
+} from './chunk-surface-renderer';
 import type { TerrainWorkerLike } from './terrain-mesh-worker-pool';
-import { ViewportTerrainWorkflowOwner, type TerrainWorkflowPorts } from './viewport-terrain-workflow-owner';
+import {
+  ViewportTerrainWorkflowOwner,
+  type TerrainWorkflowPorts,
+} from './viewport-terrain-workflow-owner';
 
 class ImmediateTerrainWorker implements TerrainWorkerLike {
   onmessage: ((event: MessageEvent<TerrainMeshWorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
   posted = 0;
 
-  constructor(private readonly transformFirst?: (job: TerrainMeshJob, result: TerrainMeshResult) => TerrainMeshResult) {}
+  constructor(
+    private readonly transformFirst?: (
+      job: TerrainMeshJob,
+      result: TerrainMeshResult,
+    ) => TerrainMeshResult,
+  ) {}
 
   postMessage(request: TerrainMeshWorkerRequest): void {
     this.posted += 1;
     const first = this.posted === 1;
     queueMicrotask(() => {
       const result = meshTerrainCore(request.job);
-      const committed = first && this.transformFirst ? this.transformFirst(request.job, result) : result;
-      this.onmessage?.({ data: { type: 'result', result: committed } } as MessageEvent<TerrainMeshWorkerResponse>);
+      const committed =
+        first && this.transformFirst ? this.transformFirst(request.job, result) : result;
+      this.onmessage?.({
+        data: { type: 'result', result: committed },
+      } as MessageEvent<TerrainMeshWorkerResponse>);
     });
   }
 
-  terminate(): void { this.onmessage = null; }
+  terminate(): void {
+    this.onmessage = null;
+  }
 }
 
 interface PublishedTerrainResult {
@@ -37,7 +59,9 @@ interface PublishedTerrainResult {
   readonly result: TerrainApplyResult;
 }
 
-function createHarness(transformFirst?: (job: TerrainMeshJob, result: TerrainMeshResult) => TerrainMeshResult) {
+function createHarness(
+  transformFirst?: (job: TerrainMeshJob, result: TerrainMeshResult) => TerrainMeshResult,
+) {
   const blocksGroup = new THREE.Group();
   const store = new ViewportBlockRepresentationStore();
   const visibleEntries = new Map<string, VisibleBlockProjectionEntry>();
@@ -62,12 +86,17 @@ function createHarness(transformFirst?: (job: TerrainMeshJob, result: TerrainMes
   });
   const trace = vi.fn();
   const clearPending = vi.fn();
-  const complete = vi.fn((generation: number, keys: readonly string[]) => completed.push({ generation, keys }));
+  const complete = vi.fn((generation: number, keys: readonly string[]) =>
+    completed.push({ generation, keys }),
+  );
   workflow = new ViewportTerrainWorkflowOwner({
     renderer,
     representation: {
       store,
-      commit: { setTerrainMembership: (key, chunkKey, reusableKey) => store.setTerrainRepresentation(key, chunkKey, reusableKey) },
+      commit: {
+        setTerrainMembership: (key, chunkKey, reusableKey) =>
+          store.setTerrainRepresentation(key, chunkKey, reusableKey),
+      },
       visibleEntry: (key) => visibleEntries.get(key),
       visibleSignature: (key) => visibleEntries.get(key)?.signature,
       clearPending,
@@ -104,12 +133,27 @@ function createHarness(transformFirst?: (job: TerrainMeshJob, result: TerrainMes
   });
 
   return {
-    blocksGroup, store, visibleEntries, placeholderVisuals, completed, fallbackEnqueue,
-    ensurePlaceholder, removePlaceholder, published, worker, renderer, workflow,
+    blocksGroup,
+    store,
+    visibleEntries,
+    placeholderVisuals,
+    completed,
+    fallbackEnqueue,
+    ensurePlaceholder,
+    removePlaceholder,
+    published,
+    worker,
+    renderer,
+    workflow,
     register(block: PlacedBlock): string {
       const key = voxelKey(block.position);
       const signature = `signature:${key}`;
-      visibleEntries.set(key, { block, role: 'normal', signature, occlusionClass: 'opaque-full-cube' });
+      visibleEntries.set(key, {
+        block,
+        role: 'normal',
+        signature,
+        occlusionClass: 'opaque-full-cube',
+      });
       store.createOrReplace({ key, block, signature, role: 'normal', revision: 0 });
       return key;
     },
@@ -127,14 +171,23 @@ describe('terrain resident variant workflow integration', () => {
     harness.workflow.setPlaceholderSignature(blockKey, `signature:${blockKey}`);
     harness.placeholderVisuals.add(blockKey);
 
-    harness.renderer.bulkUpsert([record], [toOccupancy(block)], [block.position], { initial: true });
+    harness.renderer.bulkUpsert([record], [toOccupancy(block)], [block.position], {
+      initial: true,
+    });
     expect((await harness.renderer.whenSettled()).status).toBe('settled');
     const originalMesh = harness.blocksGroup.children[0] as THREE.Mesh;
     const originalGeometry = originalMesh.geometry;
     const disposeGeometry = vi.spyOn(originalGeometry, 'dispose');
     const extra = blockAt({ x: 5, y: 8, z: 3 });
     const extraKey = harness.register(extra);
-    harness.renderer.applyBlockChanges([{ key: extraKey, position: extra.position, after: toRecord(extra, templates), afterOpaque: true }]);
+    harness.renderer.applyBlockChanges([
+      {
+        key: extraKey,
+        position: extra.position,
+        after: toRecord(extra, templates),
+        afterOpaque: true,
+      },
+    ]);
     expect((await harness.renderer.whenSettled()).status).toBe('settled');
 
     harness.published.length = 0;
@@ -147,9 +200,18 @@ describe('terrain resident variant workflow integration', () => {
     harness.workflow.setPlaceholderSignature(blockKey, `signature:${blockKey}`);
     harness.placeholderVisuals.add(blockKey);
 
-    const restore = harness.renderer.applyBlockChanges([
-      { key: extraKey, position: extra.position, before: toRecord(extra, templates), afterOpaque: false },
-    ], true, [blockKey]);
+    const restore = harness.renderer.applyBlockChanges(
+      [
+        {
+          key: extraKey,
+          position: extra.position,
+          before: toRecord(extra, templates),
+          afterOpaque: false,
+        },
+      ],
+      true,
+      [blockKey],
+    );
     expect(restore.pending).toBe(true);
     expect((await harness.renderer.whenSettled()).status).toBe('settled');
 
@@ -191,9 +253,17 @@ describe('terrain resident variant workflow integration', () => {
     const harness = createHarness((job, result) => {
       const failedEntry = job.entries.find((entry) => entry.key === failedKey);
       if (!failedEntry) return result;
-      const representedJob = { ...job, entries: job.entries.filter((entry) => entry.key !== failedKey) };
+      const representedJob = {
+        ...job,
+        entries: job.entries.filter((entry) => entry.key !== failedKey),
+      };
       const represented = meshTerrainCore(representedJob);
-      return { ...represented, blocksCompiled: result.blocksCompiled, facesCulled: result.facesCulled, unrepresentedExposedKeys: [failedKey] };
+      return {
+        ...represented,
+        blocksCompiled: result.blocksCompiled,
+        facesCulled: result.facesCulled,
+        unrepresentedExposedKeys: [failedKey],
+      };
     });
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const templates = cubeTemplates(material);
@@ -213,7 +283,14 @@ describe('terrain resident variant workflow integration', () => {
 
     const extra = blockAt({ x: 7, y: 8, z: 3 });
     const extraKey = harness.register(extra);
-    harness.renderer.applyBlockChanges([{ key: extraKey, position: extra.position, after: toRecord(extra, templates), afterOpaque: true }]);
+    harness.renderer.applyBlockChanges([
+      {
+        key: extraKey,
+        position: extra.position,
+        after: toRecord(extra, templates),
+        afterOpaque: true,
+      },
+    ]);
     await harness.renderer.whenSettled();
 
     harness.published.length = 0;
@@ -225,9 +302,18 @@ describe('terrain resident variant workflow integration', () => {
     harness.store.remove(extraKey);
     harness.visibleEntries.delete(extraKey);
 
-    harness.renderer.applyBlockChanges([
-      { key: extraKey, position: extra.position, before: toRecord(extra, templates), afterOpaque: false },
-    ], true, [representedKey, failedKey]);
+    harness.renderer.applyBlockChanges(
+      [
+        {
+          key: extraKey,
+          position: extra.position,
+          before: toRecord(extra, templates),
+          afterOpaque: false,
+        },
+      ],
+      true,
+      [representedKey, failedKey],
+    );
     expect((await harness.renderer.whenSettled()).status).toBe('failed');
 
     expect(harness.published).toHaveLength(1);
@@ -240,14 +326,18 @@ describe('terrain resident variant workflow integration', () => {
         disposition: 'partial-unrepresented',
       },
     });
-    expect(harness.store.get(representedKey)?.terrainChunkKey).toBe(renderChunkKey(representedBlock.position));
+    expect(harness.store.get(representedKey)?.terrainChunkKey).toBe(
+      renderChunkKey(representedBlock.position),
+    );
     expect(harness.store.get(failedKey)?.terrainChunkKey).toBeUndefined();
     expect(harness.workflow.hasPlaceholder(failedKey)).toBe(true);
     expect(harness.placeholderVisuals.has(failedKey)).toBe(true);
     expect(harness.ensurePlaceholder).toHaveBeenCalledOnce();
     expect(harness.completed).toEqual([{ generation: 9, keys: [representedKey] }]);
     expect(harness.fallbackEnqueue).toHaveBeenCalledOnce();
-    expect(harness.fallbackEnqueue).toHaveBeenCalledWith(expect.objectContaining({ key: failedKey }));
+    expect(harness.fallbackEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ key: failedKey }),
+    );
     expect(harness.renderer.ownershipFor(failedKey)).toBeUndefined();
     expect(harness.renderer.ownershipFor(representedKey)).toBeDefined();
     harness.workflow.dispose();
@@ -257,7 +347,10 @@ describe('terrain resident variant workflow integration', () => {
   });
 });
 
-function toRecord(block: PlacedBlock, templates: readonly SurfaceFaceTemplate[]): TerrainSurfaceRecord {
+function toRecord(
+  block: PlacedBlock,
+  templates: readonly SurfaceFaceTemplate[],
+): TerrainSurfaceRecord {
   return { key: voxelKey(block.position), block, templates };
 }
 
@@ -269,13 +362,21 @@ function blockAt(position: PlacedBlock['position']): PlacedBlock {
   return { kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position, state: {} };
 }
 
-function voxelKey(position: PlacedBlock['position']): string { return `${position.x},${position.y},${position.z}`; }
+function voxelKey(position: PlacedBlock['position']): string {
+  return `${position.x},${position.y},${position.z}`;
+}
 
 function cubeTemplates(material: THREE.Material): readonly SurfaceFaceTemplate[] {
   return (['north', 'south', 'east', 'west', 'up', 'down'] as const).map((direction) => {
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0], 3));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0], 3),
+    );
+    geometry.setAttribute(
+      'normal',
+      new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], 3),
+    );
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
     geometry.setIndex([0, 1, 2, 0, 2, 3]);
     return { geometry, material, direction, matrix: new THREE.Matrix4() };

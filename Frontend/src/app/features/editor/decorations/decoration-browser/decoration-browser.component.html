@@ -1,23 +1,91 @@
 <section class="decoration-browser">
-  <app-content-source-selector [sources]="sources()" [selectedId]="activeSource()" [label]="i18n.t('contentSource')" [manageLabel]="i18n.t('manageSources')" (selectionChange)="selectSource($event)" (manageRequested)="openAssetManager()" />
-  @if (visiblePaintingVariants().length || showFrames()) { <div class="decoration-choice-list">
-    @if (visiblePaintingVariants().length) { <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'painting'" [attr.aria-pressed]="decorations.active()?.kind === 'painting'" (click)="selectPaintingForSource()">
-      <span class="decoration-card-preview painting-preview"><img [src]="paintingTexture()" [alt]="i18n.t('painting')" /></span>
-      <span class="decoration-card-copy"><strong>{{ i18n.t('painting') }}</strong><small>{{ paintingCaption() }}</small></span>
-    </button> }
-    @if (showFrames()) { <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'item-frame'" [attr.aria-pressed]="decorations.active()?.kind === 'item-frame'" (click)="decorations.selectFrame(false)">
-      <span class="decoration-card-preview"><img [src]="frameTexture(false)" [alt]="i18n.t('itemFrame')" /></span>
-      <span class="decoration-card-copy"><strong>{{ i18n.t('itemFrame') }}</strong><small>{{ i18n.t('normalFrame') }}</small></span>
-    </button>
-    <button type="button" class="decoration-card" [class.active]="decorations.active()?.kind === 'glow-item-frame'" [attr.aria-pressed]="decorations.active()?.kind === 'glow-item-frame'" (click)="decorations.selectFrame(true)">
-      <span class="decoration-card-preview glow-preview"><img [src]="frameTexture(true)" [alt]="i18n.t('glowItemFrame')" /></span>
-      <span class="decoration-card-copy"><strong>{{ i18n.t('glowItemFrame') }}</strong><small>{{ i18n.t('glowFrameShort') }}</small></span>
-    </button> }
-  </div> }
-  @if (visiblePaintingVariants().length && decorations.active()?.kind === 'painting') {
-    <app-painting-picker [sourceId]="activeSource()" [selectedId]="decorations.active()?.variantId ?? ''" (selectionChange)="decorations.selectPainting($event)" />
+  <app-content-source-selector
+    [sources]="sources()"
+    [selectedId]="activeSource()"
+    [label]="i18n.t('contentSource')"
+    [manageLabel]="i18n.t('manageSources')"
+    (selectionChange)="selectSource($event)"
+    (manageRequested)="openAssetManager()"
+  />
+  @if (visiblePaintingVariants().length || showFrames()) {
+    <div class="decoration-choice-list">
+      @if (visiblePaintingVariants().length) {
+        <button
+          type="button"
+          class="decoration-card"
+          [class.active]="decorations.active()?.kind === 'painting'"
+          [attr.aria-pressed]="decorations.active()?.kind === 'painting'"
+          (click)="selectPaintingForSource()"
+        >
+          <span class="decoration-card-preview painting-preview"
+            ><img [src]="paintingTexture()" [alt]="i18n.t('painting')"
+          /></span>
+          <span class="decoration-card-copy"
+            ><strong>{{ i18n.t('painting') }}</strong
+            ><small>{{ paintingCaption() }}</small></span
+          >
+        </button>
+      }
+      @if (showFrames()) {
+        <button
+          type="button"
+          class="decoration-card"
+          [class.active]="decorations.active()?.kind === 'item-frame'"
+          [attr.aria-pressed]="decorations.active()?.kind === 'item-frame'"
+          (click)="decorations.selectFrame(false)"
+        >
+          <span class="decoration-card-preview"
+            ><img [src]="frameTexture(false)" [alt]="i18n.t('itemFrame')"
+          /></span>
+          <span class="decoration-card-copy"
+            ><strong>{{ i18n.t('itemFrame') }}</strong
+            ><small>{{ i18n.t('normalFrame') }}</small></span
+          >
+        </button>
+        <button
+          type="button"
+          class="decoration-card"
+          [class.active]="decorations.active()?.kind === 'glow-item-frame'"
+          [attr.aria-pressed]="decorations.active()?.kind === 'glow-item-frame'"
+          (click)="decorations.selectFrame(true)"
+        >
+          <span class="decoration-card-preview glow-preview"
+            ><img [src]="frameTexture(true)" [alt]="i18n.t('glowItemFrame')"
+          /></span>
+          <span class="decoration-card-copy"
+            ><strong>{{ i18n.t('glowItemFrame') }}</strong
+            ><small>{{ i18n.t('glowFrameShort') }}</small></span
+          >
+        </button>
+      }
+    </div>
   }
-  @if (decorations.active()?.kind === 'item-frame' || decorations.active()?.kind === 'glow-item-frame') {
-    <label class="frame-item-picker"><span>{{ i18n.t('frameItem') }}</span><app-item-stack-picker [entries]="itemEntries()" [selectedStack]="decorations.active()?.item" [placeholder]="i18n.t('searchItems')" [emptyLabel]="i18n.t('emptyFrame')" [ariaLabel]="i18n.t('frameItem')" [noResults]="i18n.t('noItemMatches')" [sourceLabel]="i18n.t('contentSource')" [allSourcesLabel]="i18n.t('allSources')" [visualAvailableLabel]="i18n.t('itemVisualRenderable')" [visualUnsupportedLabel]="i18n.t('itemVisualUnsupported')" [visualMissingLabel]="i18n.t('itemVisualMissing')" [visualLoadingLabel]="i18n.t('itemVisualLoading')" (stackChange)="decorations.selectItem($event)" /></label>
+  @if (visiblePaintingVariants().length && decorations.active()?.kind === 'painting') {
+    <app-painting-picker
+      [sourceId]="activeSource()"
+      [selectedId]="decorations.active()?.variantId ?? ''"
+      (selectionChange)="decorations.selectPainting($event)"
+    />
+  }
+  @if (
+    decorations.active()?.kind === 'item-frame' || decorations.active()?.kind === 'glow-item-frame'
+  ) {
+    <label class="frame-item-picker"
+      ><span>{{ i18n.t('frameItem') }}</span
+      ><app-item-stack-picker
+        [entries]="itemEntries()"
+        [selectedStack]="decorations.active()?.item"
+        [placeholder]="i18n.t('searchItems')"
+        [emptyLabel]="i18n.t('emptyFrame')"
+        [ariaLabel]="i18n.t('frameItem')"
+        [noResults]="i18n.t('noItemMatches')"
+        [sourceLabel]="i18n.t('contentSource')"
+        [allSourcesLabel]="i18n.t('allSources')"
+        [visualAvailableLabel]="i18n.t('itemVisualRenderable')"
+        [visualUnsupportedLabel]="i18n.t('itemVisualUnsupported')"
+        [visualMissingLabel]="i18n.t('itemVisualMissing')"
+        [visualLoadingLabel]="i18n.t('itemVisualLoading')"
+        (stackChange)="decorations.selectItem($event)"
+    /></label>
   }
 </section>

@@ -1,4 +1,9 @@
-import type { FabricModMetadata, ModCompatibilityResult, NormalizedModMetadata, SupportedModLoader } from './mod-loader';
+import type {
+  FabricModMetadata,
+  ModCompatibilityResult,
+  NormalizedModMetadata,
+  SupportedModLoader,
+} from './mod-loader';
 
 export const EXTERNAL_MOD_CACHE_SCHEMA_VERSION = 2 as const;
 
@@ -31,7 +36,11 @@ export interface ModImportReport {
   readonly projectMinecraftVersion?: string;
   readonly canActivate?: boolean;
   readonly blocks: ModImportCounts;
-  readonly items: { readonly detected: number; readonly indexed: number; readonly unsupportedVisuals: number };
+  readonly items: {
+    readonly detected: number;
+    readonly indexed: number;
+    readonly unsupportedVisuals: number;
+  };
   readonly decorations: ModImportCounts;
   readonly conflicts: readonly ModImportDiagnostic[];
   readonly warnings: readonly ModImportDiagnostic[];
@@ -63,9 +72,11 @@ export interface ExternalModResourceInput {
 }
 
 export function isModConflictDiagnostic(diagnostic: ModImportDiagnostic): boolean {
-  return diagnostic.code === 'resource-conflict'
-    || diagnostic.code === 'tag-replacement-unsupported'
-    || diagnostic.code === 'block-id-conflict'
-    || diagnostic.code === 'item-id-conflict'
-    || diagnostic.code === 'decoration-id-conflict';
+  return (
+    diagnostic.code === 'resource-conflict' ||
+    diagnostic.code === 'tag-replacement-unsupported' ||
+    diagnostic.code === 'block-id-conflict' ||
+    diagnostic.code === 'item-id-conflict' ||
+    diagnostic.code === 'decoration-id-conflict'
+  );
 }

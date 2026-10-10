@@ -6,29 +6,64 @@ import { ActiveBlockService } from '../../blocks/placement-palette/active-block.
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { planPlacement } from '../../block-behavior/placement/placement-plan';
 
-const project = { size: { x: 8, y: 8, z: 8 }, blocks: [], decorations: [] } as unknown as ProjectDocument;
+const project = {
+  size: { x: 8, y: 8, z: 8 },
+  blocks: [],
+  decorations: [],
+} as unknown as ProjectDocument;
 const active = { id: 'minecraft:stone', state: {}, support: 'full' } as unknown as ActiveBlock;
 
 describe('resolvePlacementPreview', () => {
   it('does not invoke placement planning when preview is not requested', () => {
     const provider = vi.fn();
-    const result = resolvePlacementPreview({ requested: false, project, active, target: { x: 1, y: 1, z: 1 }, provider });
+    const result = resolvePlacementPreview({
+      requested: false,
+      project,
+      active,
+      target: { x: 1, y: 1, z: 1 },
+      provider,
+    });
     expect(provider).not.toHaveBeenCalled();
     expect(result).toEqual({});
   });
 
   it('returns valid, unknown and invalid placement statuses only for requested previews', () => {
-    const valid = resolvePlacementPreview({ requested: true, project, active, target: { x: 1, y: 1, z: 1 }, provider: () => ({ blocks: [], request: { id: active.id, position: { x: 1, y: 1, z: 1 }, state: {} }, validation: { status: 'valid', reason: 'ok', affectedPositions: [] } } as never) });
+    const valid = resolvePlacementPreview({
+      requested: true,
+      project,
+      active,
+      target: { x: 1, y: 1, z: 1 },
+      provider: () =>
+        ({
+          blocks: [],
+          request: { id: active.id, position: { x: 1, y: 1, z: 1 }, state: {} },
+          validation: { status: 'valid', reason: 'ok', affectedPositions: [] },
+        }) as never,
+    });
     expect(valid.status).toBe('valid');
-    const unknown = resolvePlacementPreview({ requested: true, project, active: { ...active, support: 'unknown' }, target: { x: 1, y: 1, z: 1 } });
+    const unknown = resolvePlacementPreview({
+      requested: true,
+      project,
+      active: { ...active, support: 'unknown' },
+      target: { x: 1, y: 1, z: 1 },
+    });
     expect(unknown.status).toBe('unknown');
-    const invalid = resolvePlacementPreview({ requested: true, project, active, target: { x: -1, y: 1, z: 1 } });
+    const invalid = resolvePlacementPreview({
+      requested: true,
+      project,
+      active,
+      target: { x: -1, y: 1, z: 1 },
+    });
     expect(invalid.status).toBe('invalid');
   });
 
   it('exposes one status source for placement and decoration feedback', () => {
-    expect(placementFeedbackForHit({ placement: { status: 'valid' } }, false)).toEqual({ status: 'valid' });
-    expect(placementFeedbackForHit({ decorationPlan: { status: 'invalid' } }, true)).toEqual({ status: 'invalid' });
+    expect(placementFeedbackForHit({ placement: { status: 'valid' } }, false)).toEqual({
+      status: 'valid',
+    });
+    expect(placementFeedbackForHit({ decorationPlan: { status: 'invalid' } }, true)).toEqual({
+      status: 'invalid',
+    });
     expect(placementFeedbackForHit({ placement: { status: 'valid' } }, true)).toBeUndefined();
   });
 
@@ -41,7 +76,16 @@ describe('resolvePlacementPreview', () => {
       project,
       active: activeService.active(),
       target: { x: 1, y: 1, z: 1 },
-      provider: (currentProject, currentActive, target, context, lookup) => planPlacement(currentProject, currentActive, target, context, (id) => library.get(id), library.getItem(currentActive.itemId ?? currentActive.id), lookup),
+      provider: (currentProject, currentActive, target, context, lookup) =>
+        planPlacement(
+          currentProject,
+          currentActive,
+          target,
+          context,
+          (id) => library.get(id),
+          library.getItem(currentActive.itemId ?? currentActive.id),
+          lookup,
+        ),
     });
     expect(result.status).toBe('valid');
     expect(result.plan?.request.kind).toBe('resolved');

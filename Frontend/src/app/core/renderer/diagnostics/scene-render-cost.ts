@@ -47,13 +47,21 @@ export function countObjectMeshCost(root: THREE.Object3D, includeRoot = false): 
     if (!(object instanceof THREE.Mesh)) return;
     meshes += 1;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    if (materials.some((material) => material.transparent || material.opacity < 1)) transparentMeshes += 1;
+    if (materials.some((material) => material.transparent || material.opacity < 1))
+      transparentMeshes += 1;
     else opaqueMeshes += 1;
   });
   return { objects, meshes, transparentMeshes, opaqueMeshes };
 }
 
-export function countBatchCost(batches: Iterable<{ readonly regionKey?: string; readonly keys: readonly unknown[]; readonly mesh?: THREE.Mesh; readonly parts?: readonly THREE.Mesh[] }>): BatchCost {
+export function countBatchCost(
+  batches: Iterable<{
+    readonly regionKey?: string;
+    readonly keys: readonly unknown[];
+    readonly mesh?: THREE.Mesh;
+    readonly parts?: readonly THREE.Mesh[];
+  }>,
+): BatchCost {
   let batchCount = 0;
   let meshCount = 0;
   let members = 0;
@@ -72,17 +80,46 @@ export function countBatchCost(batches: Iterable<{ readonly regionKey?: string; 
       for (const material of materialList) materials.add(material);
     }
   }
-  return { batchCount, meshCount, members, materials: materials.size, geometries: geometries.size, regions: regions.size };
+  return {
+    batchCount,
+    meshCount,
+    members,
+    materials: materials.size,
+    geometries: geometries.size,
+    regions: regions.size,
+  };
 }
 
 export function collectSceneRenderCost(input: {
   readonly scene: THREE.Object3D;
   readonly blocksGroup: THREE.Group;
   readonly decorationsGroup: THREE.Group;
-  readonly instanceBatches: Iterable<{ readonly regionKey?: string; readonly keys: readonly unknown[]; readonly mesh?: THREE.Mesh; readonly parts?: readonly THREE.Mesh[] }>;
-  readonly surfaceBatches: Iterable<{ readonly regionKey?: string; readonly keys: readonly unknown[]; readonly mesh?: THREE.Mesh; readonly parts?: readonly THREE.Mesh[] }>;
-  readonly placeholderBatches: Iterable<{ readonly regionKey?: string; readonly keys: readonly unknown[]; readonly mesh?: THREE.Mesh; readonly parts?: readonly THREE.Mesh[] }>;
-  readonly renderedBlocks: Iterable<{ readonly object?: THREE.Object3D; readonly instanceBatchKey?: string; readonly surfaceFaceMemberships?: readonly unknown[]; readonly terrainChunkKey?: string; readonly fluidChunkKey?: string; readonly fluidFallback?: boolean }>;
+  readonly instanceBatches: Iterable<{
+    readonly regionKey?: string;
+    readonly keys: readonly unknown[];
+    readonly mesh?: THREE.Mesh;
+    readonly parts?: readonly THREE.Mesh[];
+  }>;
+  readonly surfaceBatches: Iterable<{
+    readonly regionKey?: string;
+    readonly keys: readonly unknown[];
+    readonly mesh?: THREE.Mesh;
+    readonly parts?: readonly THREE.Mesh[];
+  }>;
+  readonly placeholderBatches: Iterable<{
+    readonly regionKey?: string;
+    readonly keys: readonly unknown[];
+    readonly mesh?: THREE.Mesh;
+    readonly parts?: readonly THREE.Mesh[];
+  }>;
+  readonly renderedBlocks: Iterable<{
+    readonly object?: THREE.Object3D;
+    readonly instanceBatchKey?: string;
+    readonly surfaceFaceMemberships?: readonly unknown[];
+    readonly terrainChunkKey?: string;
+    readonly fluidChunkKey?: string;
+    readonly fluidFallback?: boolean;
+  }>;
   readonly renderedDecorations: Iterable<{ readonly object: THREE.Object3D }>;
 }): SceneRenderCost {
   let object3dCount = 0;
@@ -96,13 +133,18 @@ export function collectSceneRenderCost(input: {
     meshCount += 1;
     if (object.visible) visibleMeshCount += 1;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    if (materials.some((material) => material.transparent || material.opacity < 1)) transparentMeshCount += 1;
+    if (materials.some((material) => material.transparent || material.opacity < 1))
+      transparentMeshCount += 1;
     else opaqueMeshCount += 1;
   });
   const instance = countBatchCost(input.instanceBatches);
   const surface = countBatchCost(input.surfaceBatches);
   const placeholders = countBatchCost(input.placeholderBatches);
-  const regions = new Set([...input.instanceBatches, ...input.surfaceBatches].map((batch) => batch.regionKey).filter((key): key is string => !!key)).size;
+  const regions = new Set(
+    [...input.instanceBatches, ...input.surfaceBatches]
+      .map((batch) => batch.regionKey)
+      .filter((key): key is string => !!key),
+  ).size;
   let standaloneBlockObjects = 0;
   let standaloneBlockMeshes = 0;
   let standaloneTransparentMeshes = 0;
@@ -111,9 +153,21 @@ export function collectSceneRenderCost(input: {
   for (const entry of input.renderedBlocks) {
     if (entry.fluidChunkKey !== undefined) continue;
     if (entry.fluidFallback) continue;
-    if (!entry.object || entry.instanceBatchKey || entry.surfaceFaceMemberships?.length || entry.terrainChunkKey !== undefined) continue;
+    if (
+      !entry.object ||
+      entry.instanceBatchKey ||
+      entry.surfaceFaceMemberships?.length ||
+      entry.terrainChunkKey !== undefined
+    )
+      continue;
     const cost = countObjectMeshCost(entry.object, true);
-    if (entry.object.userData['fluidRenderLayer'] !== undefined || entry.object.userData['fluidKind'] !== undefined) { fluidStandaloneMeshes += cost.meshes; continue; }
+    if (
+      entry.object.userData['fluidRenderLayer'] !== undefined ||
+      entry.object.userData['fluidKind'] !== undefined
+    ) {
+      fluidStandaloneMeshes += cost.meshes;
+      continue;
+    }
     standaloneBlockObjects += 1;
     standaloneBlockMeshes += cost.meshes;
     standaloneTransparentMeshes += cost.transparentMeshes;
@@ -128,8 +182,35 @@ export function collectSceneRenderCost(input: {
   }
   let terrainTriangleCount = 0;
   let fluidChunkMeshes = 0;
-  const fluidChunkRoot = input.blocksGroup.children.find((child) => child.userData['fluidChunks'] === true);
-  fluidChunkRoot?.traverse((object) => { if (object instanceof THREE.Mesh) fluidChunkMeshes += 1; });
-  for (const child of input.blocksGroup.children) if (child.userData['terrainChunk'] && child instanceof THREE.Mesh) terrainTriangleCount += (child.geometry.getIndex()?.count ?? child.geometry.getAttribute('position')?.count ?? 0) / 3;
-  return { object3dCount, meshCount, visibleMeshCount, transparentMeshCount, opaqueMeshCount, regions, instance, surface, placeholders, standaloneBlockObjects, standaloneBlockMeshes, standaloneTransparentMeshes, standaloneOpaqueMeshes, fluidChunkMeshes, fluidStandaloneMeshes, decorationObjects, decorationMeshes, terrainTriangleCount };
+  const fluidChunkRoot = input.blocksGroup.children.find(
+    (child) => child.userData['fluidChunks'] === true,
+  );
+  fluidChunkRoot?.traverse((object) => {
+    if (object instanceof THREE.Mesh) fluidChunkMeshes += 1;
+  });
+  for (const child of input.blocksGroup.children)
+    if (child.userData['terrainChunk'] && child instanceof THREE.Mesh)
+      terrainTriangleCount +=
+        (child.geometry.getIndex()?.count ?? child.geometry.getAttribute('position')?.count ?? 0) /
+        3;
+  return {
+    object3dCount,
+    meshCount,
+    visibleMeshCount,
+    transparentMeshCount,
+    opaqueMeshCount,
+    regions,
+    instance,
+    surface,
+    placeholders,
+    standaloneBlockObjects,
+    standaloneBlockMeshes,
+    standaloneTransparentMeshes,
+    standaloneOpaqueMeshes,
+    fluidChunkMeshes,
+    fluidStandaloneMeshes,
+    decorationObjects,
+    decorationMeshes,
+    terrainTriangleCount,
+  };
 }

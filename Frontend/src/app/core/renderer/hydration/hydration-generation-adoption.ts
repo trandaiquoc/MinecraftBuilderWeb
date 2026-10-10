@@ -10,8 +10,15 @@ export interface HydrationAdoptionCandidate {
   readonly committed: boolean;
 }
 
-export function adoptCommittedHydrationKeys(candidates: readonly HydrationAdoptionCandidate[]): readonly string[] {
+export function adoptCommittedHydrationKeys(
+  candidates: readonly HydrationAdoptionCandidate[],
+): readonly string[] {
   return candidates
-    .filter((candidate) => candidate.visible && candidate.committed && candidate.committedSignature === candidate.signature)
+    .filter(
+      (candidate) =>
+        candidate.visible &&
+        candidate.committed &&
+        candidate.committedSignature === candidate.signature,
+    )
     .map((candidate) => candidate.key);
 }

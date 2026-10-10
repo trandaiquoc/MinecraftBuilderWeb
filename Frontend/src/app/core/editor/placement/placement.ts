@@ -5,7 +5,11 @@ import type { BlockDefinition } from '../../blocks/catalog/block-definition.type
 
 export type PlacementStatus = 'valid' | 'warning' | 'invalid' | 'unknown';
 
-export interface FaceNormal { readonly x: number; readonly y: number; readonly z: number; }
+export interface FaceNormal {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
 export type HorizontalDirection = 'north' | 'east' | 'south' | 'west';
 export interface PlacementContext {
   readonly faceNormal?: FaceNormal;
@@ -15,8 +19,17 @@ export interface PlacementContext {
   readonly yaw?: number;
   readonly stateOverride?: Readonly<Record<string, string>>;
 }
-export interface AttachmentPlacementResult { readonly target: VoxelCoordinate; readonly stateOverride: Readonly<Record<string, string>>; readonly snapType: 'chain-extension' | 'chain-lantern' | 'hanging-sign-chain' | 'hanging-sign-stack'; }
-export interface ProjectGridBounds { readonly min: VoxelCoordinate; readonly maxEdge: VoxelCoordinate; readonly maxVoxel: VoxelCoordinate; }
+export interface AttachmentPlacementResult {
+  readonly target: VoxelCoordinate;
+  readonly stateOverride: Readonly<Record<string, string>>;
+  readonly snapType:
+    'chain-extension' | 'chain-lantern' | 'hanging-sign-chain' | 'hanging-sign-stack';
+}
+export interface ProjectGridBounds {
+  readonly min: VoxelCoordinate;
+  readonly maxEdge: VoxelCoordinate;
+  readonly maxVoxel: VoxelCoordinate;
+}
 
 export function projectGridBounds(size: ProjectSize): ProjectGridBounds {
   return {
@@ -27,14 +40,25 @@ export function projectGridBounds(size: ProjectSize): ProjectGridBounds {
 }
 
 export function targetFromBlockFace(block: VoxelCoordinate, normal: FaceNormal): VoxelCoordinate {
-  return { x: block.x + Math.sign(normal.x), y: block.y + Math.sign(normal.y), z: block.z + Math.sign(normal.z) };
+  return {
+    x: block.x + Math.sign(normal.x),
+    y: block.y + Math.sign(normal.y),
+    z: block.z + Math.sign(normal.z),
+  };
 }
 
-export function targetFromGridHit(point: { readonly x: number; readonly z: number }): VoxelCoordinate {
+export function targetFromGridHit(point: {
+  readonly x: number;
+  readonly z: number;
+}): VoxelCoordinate {
   return { x: Math.floor(point.x), y: 0, z: Math.floor(point.z) };
 }
 
-export function targetFromEditingPlaneHit(point: { readonly x: number; readonly z: number }, currentY: number, size: ProjectSize): VoxelCoordinate | undefined {
+export function targetFromEditingPlaneHit(
+  point: { readonly x: number; readonly z: number },
+  currentY: number,
+  size: ProjectSize,
+): VoxelCoordinate | undefined {
   const target = { x: Math.floor(point.x), y: Math.trunc(currentY), z: Math.floor(point.z) };
   return isWithinBounds(target, size) ? target : undefined;
 }
@@ -43,34 +67,81 @@ export function normalizeVoxelCoordinate(position: VoxelCoordinate): VoxelCoordi
   return { x: Math.trunc(position.x), y: Math.trunc(position.y), z: Math.trunc(position.z) };
 }
 
-export function lanternChainAttachmentTarget(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, blocks: readonly PlacedBlock[] | ReadonlyBlockLookup, definition?: (id: string) => BlockDefinition | undefined): VoxelCoordinate | undefined {
-  return resolveAttachmentPlacement(activeBlockId, hitPosition, undefined, blocks, definition)?.target;
+export function lanternChainAttachmentTarget(
+  activeBlockId: string | undefined,
+  hitPosition: VoxelCoordinate,
+  blocks: readonly PlacedBlock[] | ReadonlyBlockLookup,
+  definition?: (id: string) => BlockDefinition | undefined,
+): VoxelCoordinate | undefined {
+  return resolveAttachmentPlacement(activeBlockId, hitPosition, undefined, blocks, definition)
+    ?.target;
 }
 
 /** Reusable attachment policy; bounds/occupancy are deliberately validated by the normal placement flow. */
-export function resolveAttachmentPlacement(activeBlockId: string | undefined, hitPosition: VoxelCoordinate, hitPoint: { readonly y: number } | undefined, blocks: readonly PlacedBlock[] | ReadonlyBlockLookup, definition?: (id: string) => BlockDefinition | undefined): AttachmentPlacementResult | undefined {
+export function resolveAttachmentPlacement(
+  activeBlockId: string | undefined,
+  hitPosition: VoxelCoordinate,
+  hitPoint: { readonly y: number } | undefined,
+  blocks: readonly PlacedBlock[] | ReadonlyBlockLookup,
+  definition?: (id: string) => BlockDefinition | undefined,
+): AttachmentPlacementResult | undefined {
   const hit = blockAt(blocks, hitPosition);
   const activeBehavior = activeBlockId ? definition?.(activeBlockId)?.behavior : undefined;
   const isHangingSign = activeBehavior?.kind === 'hanging-sign';
   const hitBehavior = hit ? definition?.(hit.id)?.behavior : undefined;
-  const isVerticalChain = hitBehavior?.kind === 'vertical-chain' && hit?.state[hitBehavior.axisProperty] === hitBehavior.verticalAxis;
+  const isVerticalChain =
+    hitBehavior?.kind === 'vertical-chain' &&
+    hit?.state[hitBehavior.axisProperty] === hitBehavior.verticalAxis;
   const isHangingSignBlock = hitBehavior?.kind === 'hanging-sign';
-  if (isHangingSign && isVerticalChain) return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: {}, snapType: 'hanging-sign-chain' };
-  if (isHangingSign && isHangingSignBlock) return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: {}, snapType: 'hanging-sign-stack' };
+  if (isHangingSign && isVerticalChain)
+    return {
+      target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z },
+      stateOverride: {},
+      snapType: 'hanging-sign-chain',
+    };
+  if (isHangingSign && isHangingSignBlock)
+    return {
+      target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z },
+      stateOverride: {},
+      snapType: 'hanging-sign-stack',
+    };
   if (!isVerticalChain) return undefined;
   if (activeBehavior?.kind === 'vertical-chain') {
-    const direction = hitPoint && hitPoint.y < hitPosition.y + .5 ? -1 : 1;
-    return { target: { x: hitPosition.x, y: hitPosition.y + direction, z: hitPosition.z }, stateOverride: { axis: 'y' }, snapType: 'chain-extension' };
+    const direction = hitPoint && hitPoint.y < hitPosition.y + 0.5 ? -1 : 1;
+    return {
+      target: { x: hitPosition.x, y: hitPosition.y + direction, z: hitPosition.z },
+      stateOverride: { axis: 'y' },
+      snapType: 'chain-extension',
+    };
   }
-  if (activeBehavior?.kind === 'lantern-placement') return { target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z }, stateOverride: { hanging: 'true' }, snapType: 'chain-lantern' };
+  if (activeBehavior?.kind === 'lantern-placement')
+    return {
+      target: { x: hitPosition.x, y: hitPosition.y - 1, z: hitPosition.z },
+      stateOverride: { hanging: 'true' },
+      snapType: 'chain-lantern',
+    };
   return undefined;
 }
 
-function blockAt(source: readonly PlacedBlock[] | ReadonlyBlockLookup, position: VoxelCoordinate): PlacedBlock | undefined {
-  return 'get' in source ? source.get(position) : source.find((block) => block.position.x === position.x && block.position.y === position.y && block.position.z === position.z);
+function blockAt(
+  source: readonly PlacedBlock[] | ReadonlyBlockLookup,
+  position: VoxelCoordinate,
+): PlacedBlock | undefined {
+  return 'get' in source
+    ? source.get(position)
+    : source.find(
+        (block) =>
+          block.position.x === position.x &&
+          block.position.y === position.y &&
+          block.position.z === position.z,
+      );
 }
 
-export function placementStatus(target: VoxelCoordinate | undefined, size: ProjectSize, support: 'full' | 'partial' | 'fallback' | 'unknown' = 'full'): PlacementStatus {
+export function placementStatus(
+  target: VoxelCoordinate | undefined,
+  size: ProjectSize,
+  support: 'full' | 'partial' | 'fallback' | 'unknown' = 'full',
+): PlacementStatus {
   if (!target || !isWithinBounds(target, size)) return 'invalid';
   if (support === 'unknown') return 'unknown';
   if (support === 'partial' || support === 'fallback') return 'warning';

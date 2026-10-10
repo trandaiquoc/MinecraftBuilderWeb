@@ -3,20 +3,33 @@ import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.
 import type { PaintingVariant } from '../../decorations/decoration.types';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
-import { CompositeAssetResourceProvider, ContentSourceCleanupError } from './composite-asset-provider';
+import {
+  CompositeAssetResourceProvider,
+  ContentSourceCleanupError,
+} from './composite-asset-provider';
 import { TagIndex } from '../../content/tag-index';
 import { yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../mod/mod-import-cancellation';
 
-export interface SourceRegistrationDiagnostic { readonly sourceId: string; readonly message: string; }
-export interface ContentContributionConflict { readonly kind: 'block-id' | 'item-id' | 'decoration-id'; readonly id: string; readonly sourceIds: readonly string[]; }
+export interface SourceRegistrationDiagnostic {
+  readonly sourceId: string;
+  readonly message: string;
+}
+export interface ContentContributionConflict {
+  readonly kind: 'block-id' | 'item-id' | 'decoration-id';
+  readonly id: string;
+  readonly sourceIds: readonly string[];
+}
 export interface ItemEvidenceSource {
   readonly sourceId: string;
   readonly sourceName: string;
   readonly items: readonly CatalogItemEvidence[];
   readonly provider?: ContentSourceProvider;
 }
-export interface CatalogConflictProgress { readonly processed: number; readonly total: number; }
+export interface CatalogConflictProgress {
+  readonly processed: number;
+  readonly total: number;
+}
 export interface PreparedContentSource {
   readonly provider: ContentSourceProvider;
   readonly catalog: BlockCatalogSource & { readonly paintingVariants?: readonly PaintingVariant[] };
@@ -29,11 +42,19 @@ export class ContentSourceRegistry {
   private readonly contributions = new Map<string, BlockCatalogSource>();
   private readonly paintingContributions = new Map<string, readonly PaintingVariant[]>();
   private conflictsValue: SourceRegistrationDiagnostic[] = [];
-  constructor(activeVersion = '1.21.1') { this.resources.setActiveVersion(activeVersion); }
+  constructor(activeVersion = '1.21.1') {
+    this.resources.setActiveVersion(activeVersion);
+  }
 
-  setActiveVersion(version: string): void { this.resources.setActiveVersion(version); }
-  activeMinecraftVersion(): string { return this.resources.activeMinecraftVersion; }
-  clear(): void { for (const source of this.sources()) this.remove(source.id); }
+  setActiveVersion(version: string): void {
+    this.resources.setActiveVersion(version);
+  }
+  activeMinecraftVersion(): string {
+    return this.resources.activeMinecraftVersion;
+  }
+  clear(): void {
+    for (const source of this.sources()) this.remove(source.id);
+  }
 
   /**
    * Publishes a prepared set of sources as one content boundary. Catalogs are
@@ -49,7 +70,8 @@ export class ContentSourceRegistry {
       if (sourceIds.has(id)) throw new Error(`Content source is duplicated in batch: ${id}`);
       sourceIds.add(id);
       const existing = this.providerForSource(id);
-      if (existing && !entry.replaceExisting) throw new Error(`Content source is already registered: ${id}`);
+      if (existing && !entry.replaceExisting)
+        throw new Error(`Content source is already registered: ${id}`);
     }
 
     const liveCatalog = this.catalog();
@@ -57,32 +79,51 @@ export class ContentSourceRegistry {
     // invalid prepared record from failing after the resource boundary.
     const normalizedStagedCatalog = new BlockCatalog();
     normalizedStagedCatalog.replaceSources(entries.map((entry) => entry.catalog));
-    const liveBlocks = new Map(liveCatalog.all().filter((block) => !sourceIds.has(block.sourceId ?? '')).map((block) => [block.id, block.sourceId] as const));
-    const liveItems = new Map(this.itemEvidenceSources().filter((source) => !sourceIds.has(source.sourceId)).flatMap((source) => source.items.map((item) => [item.itemId, source.sourceId] as const)));
-    const livePaintings = new Map(this.paintingVariants().filter((painting) => !sourceIds.has(painting.sourceId ?? 'vanilla')).map((painting) => [painting.id, painting.sourceId ?? 'vanilla'] as const));
+    const liveBlocks = new Map(
+      liveCatalog
+        .all()
+        .filter((block) => !sourceIds.has(block.sourceId ?? ''))
+        .map((block) => [block.id, block.sourceId] as const),
+    );
+    const liveItems = new Map(
+      this.itemEvidenceSources()
+        .filter((source) => !sourceIds.has(source.sourceId))
+        .flatMap((source) => source.items.map((item) => [item.itemId, source.sourceId] as const)),
+    );
+    const livePaintings = new Map(
+      this.paintingVariants()
+        .filter((painting) => !sourceIds.has(painting.sourceId ?? 'vanilla'))
+        .map((painting) => [painting.id, painting.sourceId ?? 'vanilla'] as const),
+    );
     for (const entry of entries) {
       const id = entry.provider.source.id;
       const catalog = entry.catalog;
       for (const block of catalog.blocks) {
         const owner = liveBlocks.get(block.id);
-        if (owner && owner !== id) throw new Error(`Catalog block-id conflict for ${block.id} (${owner}, ${id})`);
+        if (owner && owner !== id)
+          throw new Error(`Catalog block-id conflict for ${block.id} (${owner}, ${id})`);
         liveBlocks.set(block.id, id);
       }
       for (const item of catalog.targetItems ?? []) {
         const owner = liveItems.get(item.itemId);
-        if (owner && owner !== id) throw new Error(`Catalog item-id conflict for ${item.itemId} (${owner}, ${id})`);
+        if (owner && owner !== id)
+          throw new Error(`Catalog item-id conflict for ${item.itemId} (${owner}, ${id})`);
         liveItems.set(item.itemId, id);
       }
       for (const painting of catalog.paintingVariants ?? []) {
         const owner = livePaintings.get(painting.id);
-        if (owner && owner !== id) throw new Error(`Catalog decoration-id conflict for ${painting.id} (${owner}, ${id})`);
+        if (owner && owner !== id)
+          throw new Error(`Catalog decoration-id conflict for ${painting.id} (${owner}, ${id})`);
         livePaintings.set(painting.id, id);
       }
     }
 
     let cleanupError: ContentSourceCleanupError | undefined;
-    try { this.resources.commitBatch(entries.map(({ provider, replaceExisting }) => ({ provider, replaceExisting }))); }
-    catch (error) {
+    try {
+      this.resources.commitBatch(
+        entries.map(({ provider, replaceExisting }) => ({ provider, replaceExisting })),
+      );
+    } catch (error) {
       if (!(error instanceof ContentSourceCleanupError) || !error.committed) throw error;
       cleanupError = error;
     }
@@ -100,8 +141,9 @@ export class ContentSourceRegistry {
     assertCompatibleSource(provider.source, this.activeMinecraftVersion());
     const catalog = provider.catalog?.();
     let cleanupError: ContentSourceCleanupError | undefined;
-    try { this.resources.replace(provider); }
-    catch (error) {
+    try {
+      this.resources.replace(provider);
+    } catch (error) {
       if (!(error instanceof ContentSourceCleanupError) || !error.committed) throw error;
       cleanupError = error;
     }
@@ -112,8 +154,9 @@ export class ContentSourceRegistry {
   remove(sourceId: string): boolean {
     let removed = false;
     let cleanupError: ContentSourceCleanupError | undefined;
-    try { removed = this.resources.remove(sourceId); }
-    catch (error) {
+    try {
+      removed = this.resources.remove(sourceId);
+    } catch (error) {
       if (!(error instanceof ContentSourceCleanupError) || !error.committed) throw error;
       removed = true;
       cleanupError = error;
@@ -122,15 +165,33 @@ export class ContentSourceRegistry {
     if (cleanupError) throw cleanupError;
     return removed;
   }
-  get generation(): number { return this.resources.revision; }
-  sources(): readonly ContentSourceDescriptor[] { return this.resources.sources(); }
-  providerForSource(sourceId: string): ContentSourceProvider | undefined { return this.resources.providerForSource(sourceId); }
-  /** Normalized tag evidence across all active sources, without exposing source-specific JSON shape. */
-  tagIndex(): TagIndex { return new TagIndex(this.sources().map((source) => this.providerForSource(source.id)).filter((provider): provider is ContentSourceProvider => !!provider)); }
-  decorationSources(): readonly ContentSourceDescriptor[] {
-    return this.sources().filter((source) => source.decorationSupport === true || (this.paintingContributions.get(source.id)?.length ?? 0) > 0);
+  get generation(): number {
+    return this.resources.revision;
   }
-  paintingVariants(): readonly PaintingVariant[] { return [...this.paintingContributions.values()].flat(); }
+  sources(): readonly ContentSourceDescriptor[] {
+    return this.resources.sources();
+  }
+  providerForSource(sourceId: string): ContentSourceProvider | undefined {
+    return this.resources.providerForSource(sourceId);
+  }
+  /** Normalized tag evidence across all active sources, without exposing source-specific JSON shape. */
+  tagIndex(): TagIndex {
+    return new TagIndex(
+      this.sources()
+        .map((source) => this.providerForSource(source.id))
+        .filter((provider): provider is ContentSourceProvider => !!provider),
+    );
+  }
+  decorationSources(): readonly ContentSourceDescriptor[] {
+    return this.sources().filter(
+      (source) =>
+        source.decorationSupport === true ||
+        (this.paintingContributions.get(source.id)?.length ?? 0) > 0,
+    );
+  }
+  paintingVariants(): readonly PaintingVariant[] {
+    return [...this.paintingContributions.values()].flat();
+  }
   itemEvidenceSources(): readonly ItemEvidenceSource[] {
     return [...this.contributions.entries()].map(([sourceId, source]) => ({
       sourceId,
@@ -139,28 +200,129 @@ export class ContentSourceRegistry {
       provider: this.providerForSource(sourceId),
     }));
   }
-  conflicts(): readonly SourceRegistrationDiagnostic[] { return [...this.conflictsValue]; }
-  catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] { return this.catalog().conflicts(); }
+  conflicts(): readonly SourceRegistrationDiagnostic[] {
+    return [...this.conflictsValue];
+  }
+  catalogConflicts(): readonly { readonly id: string; readonly sourceIds: readonly string[] }[] {
+    return this.catalog().conflicts();
+  }
   inspectCatalogContribution(source: BlockCatalogSource): readonly ContentContributionConflict[] {
     const conflicts: ContentContributionConflict[] = [];
-    const existingBlocks = new Map(this.catalog().all().map((entry) => [entry.id, entry.sourceId]));
-    for (const block of source.blocks) { const owner = existingBlocks.get(block.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'block-id', id: block.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); }
-    const existingItems = new Map(this.itemEvidenceSources().flatMap((entry) => entry.items.map((item) => [item.itemId, entry.sourceId] as const)));
-    for (const item of source.targetItems ?? []) { const owner = existingItems.get(item.itemId); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'item-id', id: item.itemId, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); }
-    const existingDecorations = new Map(this.paintingVariants().map((entry) => [entry.id, entry.sourceId ?? 'vanilla']));
-    for (const entry of source.paintingVariants ?? []) { const owner = existingDecorations.get(entry.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'decoration-id', id: entry.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); }
+    const existingBlocks = new Map(
+      this.catalog()
+        .all()
+        .map((entry) => [entry.id, entry.sourceId]),
+    );
+    for (const block of source.blocks) {
+      const owner = existingBlocks.get(block.id);
+      if (owner && owner !== source.sourceId)
+        conflicts.push({
+          kind: 'block-id',
+          id: block.id,
+          sourceIds: [owner, source.sourceId ?? 'unknown'].sort(),
+        });
+    }
+    const existingItems = new Map(
+      this.itemEvidenceSources().flatMap((entry) =>
+        entry.items.map((item) => [item.itemId, entry.sourceId] as const),
+      ),
+    );
+    for (const item of source.targetItems ?? []) {
+      const owner = existingItems.get(item.itemId);
+      if (owner && owner !== source.sourceId)
+        conflicts.push({
+          kind: 'item-id',
+          id: item.itemId,
+          sourceIds: [owner, source.sourceId ?? 'unknown'].sort(),
+        });
+    }
+    const existingDecorations = new Map(
+      this.paintingVariants().map((entry) => [entry.id, entry.sourceId ?? 'vanilla']),
+    );
+    for (const entry of source.paintingVariants ?? []) {
+      const owner = existingDecorations.get(entry.id);
+      if (owner && owner !== source.sourceId)
+        conflicts.push({
+          kind: 'decoration-id',
+          id: entry.id,
+          sourceIds: [owner, source.sourceId ?? 'unknown'].sort(),
+        });
+    }
     return conflicts;
   }
-  async inspectCatalogContributionAsync(source: BlockCatalogSource, onProgress?: (progress: CatalogConflictProgress) => void, signal?: AbortSignal): Promise<readonly ContentContributionConflict[]> {
+  async inspectCatalogContributionAsync(
+    source: BlockCatalogSource,
+    onProgress?: (progress: CatalogConflictProgress) => void,
+    signal?: AbortSignal,
+  ): Promise<readonly ContentContributionConflict[]> {
     throwIfAborted(signal);
     const conflicts: ContentContributionConflict[] = [];
-    const existingBlocks = new Map(this.catalog().all().map((entry) => [entry.id, entry.sourceId]));
-    const existingItems = new Map(this.itemEvidenceSources().flatMap((entry) => entry.items.map((item) => [item.itemId, entry.sourceId] as const)));
-    const existingDecorations = new Map(this.paintingVariants().map((entry) => [entry.id, entry.sourceId ?? 'vanilla']));
-    const total = source.blocks.length + (source.targetItems?.length ?? 0) + (source.paintingVariants?.length ?? 0); let processed = 0;
-    for (const block of source.blocks) { throwIfAborted(signal); const owner = existingBlocks.get(block.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'block-id', id: block.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) { await yieldToBrowser(signal); throwIfAborted(signal); } }
-    for (const item of source.targetItems ?? []) { throwIfAborted(signal); const owner = existingItems.get(item.itemId); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'item-id', id: item.itemId, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) { await yieldToBrowser(signal); throwIfAborted(signal); } }
-    for (const entry of source.paintingVariants ?? []) { throwIfAborted(signal); const owner = existingDecorations.get(entry.id); if (owner && owner !== source.sourceId) conflicts.push({ kind: 'decoration-id', id: entry.id, sourceIds: [owner, source.sourceId ?? 'unknown'].sort() }); processed += 1; onProgress?.({ processed, total }); if (processed % 64 === 0) { await yieldToBrowser(signal); throwIfAborted(signal); } }
+    const existingBlocks = new Map(
+      this.catalog()
+        .all()
+        .map((entry) => [entry.id, entry.sourceId]),
+    );
+    const existingItems = new Map(
+      this.itemEvidenceSources().flatMap((entry) =>
+        entry.items.map((item) => [item.itemId, entry.sourceId] as const),
+      ),
+    );
+    const existingDecorations = new Map(
+      this.paintingVariants().map((entry) => [entry.id, entry.sourceId ?? 'vanilla']),
+    );
+    const total =
+      source.blocks.length +
+      (source.targetItems?.length ?? 0) +
+      (source.paintingVariants?.length ?? 0);
+    let processed = 0;
+    for (const block of source.blocks) {
+      throwIfAborted(signal);
+      const owner = existingBlocks.get(block.id);
+      if (owner && owner !== source.sourceId)
+        conflicts.push({
+          kind: 'block-id',
+          id: block.id,
+          sourceIds: [owner, source.sourceId ?? 'unknown'].sort(),
+        });
+      processed += 1;
+      onProgress?.({ processed, total });
+      if (processed % 64 === 0) {
+        await yieldToBrowser(signal);
+        throwIfAborted(signal);
+      }
+    }
+    for (const item of source.targetItems ?? []) {
+      throwIfAborted(signal);
+      const owner = existingItems.get(item.itemId);
+      if (owner && owner !== source.sourceId)
+        conflicts.push({
+          kind: 'item-id',
+          id: item.itemId,
+          sourceIds: [owner, source.sourceId ?? 'unknown'].sort(),
+        });
+      processed += 1;
+      onProgress?.({ processed, total });
+      if (processed % 64 === 0) {
+        await yieldToBrowser(signal);
+        throwIfAborted(signal);
+      }
+    }
+    for (const entry of source.paintingVariants ?? []) {
+      throwIfAborted(signal);
+      const owner = existingDecorations.get(entry.id);
+      if (owner && owner !== source.sourceId)
+        conflicts.push({
+          kind: 'decoration-id',
+          id: entry.id,
+          sourceIds: [owner, source.sourceId ?? 'unknown'].sort(),
+        });
+      processed += 1;
+      onProgress?.({ processed, total });
+      if (processed % 64 === 0) {
+        await yieldToBrowser(signal);
+        throwIfAborted(signal);
+      }
+    }
     return conflicts;
   }
 
@@ -168,13 +330,22 @@ export class ContentSourceRegistry {
     this.conflictsValue = [];
     const catalog = new BlockCatalog();
     for (const source of this.contributions.values()) {
-      try { catalog.replaceSource(source); }
-      catch (error) { this.conflictsValue.push({ sourceId: source.blocks[0]?.sourceId ?? 'unknown', message: error instanceof Error ? error.message : String(error) }); }
+      try {
+        catalog.replaceSource(source);
+      } catch (error) {
+        this.conflictsValue.push({
+          sourceId: source.blocks[0]?.sourceId ?? 'unknown',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
     return catalog;
   }
 
-  private publishCatalog(sourceId: string, source: BlockCatalogSource & { readonly paintingVariants?: readonly PaintingVariant[] }): void {
+  private publishCatalog(
+    sourceId: string,
+    source: BlockCatalogSource & { readonly paintingVariants?: readonly PaintingVariant[] },
+  ): void {
     this.contributions.set(sourceId, source);
     this.paintingContributions.set(sourceId, source.paintingVariants ?? []);
   }
@@ -185,6 +356,12 @@ export class ContentSourceRegistry {
   }
 }
 
-export function assertCompatibleSource(source: Pick<ContentSourceDescriptor, 'minecraftVersion'>, activeVersion = '1.21.1'): void {
-  if (source.minecraftVersion !== activeVersion) throw new Error(`Unsupported content source Minecraft version: ${source.minecraftVersion}. Expected ${activeVersion}.`);
+export function assertCompatibleSource(
+  source: Pick<ContentSourceDescriptor, 'minecraftVersion'>,
+  activeVersion = '1.21.1',
+): void {
+  if (source.minecraftVersion !== activeVersion)
+    throw new Error(
+      `Unsupported content source Minecraft version: ${source.minecraftVersion}. Expected ${activeVersion}.`,
+    );
 }

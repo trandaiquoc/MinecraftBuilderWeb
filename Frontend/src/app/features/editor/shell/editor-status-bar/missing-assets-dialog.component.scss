@@ -1,17 +1,103 @@
-:host { position: fixed; inset: 0; z-index: 120; display: block; font-family: var(--font-ui); }
-.missing-assets-backdrop { display: grid; place-items: center; width: 100%; height: 100%; padding: 1rem; box-sizing: border-box; background: rgb(0 0 0 / .48); }
-.missing-assets-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(42rem, 100%); max-height: min(40rem, 100%); overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow-dialog); }
-.missing-assets-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
-.missing-assets-header h2 { margin: 0; font: 650 1rem/1.2 var(--font-ui); }
-.missing-assets-header p { margin: .35rem 0 0; color: var(--text-muted); font-size: .78rem; }
-.missing-assets-list { display: grid; align-content: start; gap: .55rem; overflow: auto; padding: 1rem; }
-.missing-assets-group { display: grid; gap: .25rem; padding: .7rem; border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: 0 2px 0 rgb(0 0 0 / .12); }
-.missing-assets-group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
-.missing-assets-group-heading > div { display: grid; gap: .15rem; min-width: 0; }
-.missing-assets-group-heading strong { overflow: hidden; text-overflow: ellipsis; }
-.missing-assets-group-heading b { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-.missing-assets-group code, .missing-assets-ids code { color: var(--text-muted); font: .72rem/1.25 var(--font-mono); overflow-wrap: anywhere; }
-.missing-assets-group > small { color: var(--text-muted); }
-.missing-assets-ids { display: flex; flex-wrap: wrap; gap: .25rem .45rem; margin-top: .2rem; }
-.missing-assets-ids span { color: var(--text-muted); font-size: .72rem; }
-.missing-assets-empty { margin: 0; color: var(--text-muted); }
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: block;
+  font-family: var(--font-ui);
+}
+.missing-assets-backdrop {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+  background: rgb(0 0 0 / 0.48);
+}
+.missing-assets-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(42rem, 100%);
+  max-height: min(40rem, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-dialog);
+}
+.missing-assets-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+.missing-assets-header h2 {
+  margin: 0;
+  font: 650 1rem/1.2 var(--font-ui);
+}
+.missing-assets-header p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+.missing-assets-list {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  overflow: auto;
+  padding: 1rem;
+}
+.missing-assets-group {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.12);
+}
+.missing-assets-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.missing-assets-group-heading > div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.missing-assets-group-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.missing-assets-group-heading b {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.missing-assets-group code,
+.missing-assets-ids code {
+  color: var(--text-muted);
+  font: 0.72rem/1.25 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.missing-assets-group > small {
+  color: var(--text-muted);
+}
+.missing-assets-ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
+  margin-top: 0.2rem;
+}
+.missing-assets-ids span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+.missing-assets-empty {
+  margin: 0;
+  color: var(--text-muted);
+}

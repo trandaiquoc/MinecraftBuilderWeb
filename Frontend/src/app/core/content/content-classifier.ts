@@ -10,7 +10,13 @@ export type MinecraftContentKind =
   | 'item-only'
   | 'unknown';
 
-export type ContentClassificationProvenance = 'authoritative-registry' | 'target-resource' | 'common-java-semantic' | 'logical-rule' | 'inferred' | 'unknown';
+export type ContentClassificationProvenance =
+  | 'authoritative-registry'
+  | 'target-resource'
+  | 'common-java-semantic'
+  | 'logical-rule'
+  | 'inferred'
+  | 'unknown';
 
 export interface ContentClassification {
   readonly kind: MinecraftContentKind;
@@ -23,39 +29,116 @@ export interface ContentClassification {
   readonly decoration: boolean;
 }
 
-const DECORATION_IDS = new Set(['minecraft:item_frame', 'minecraft:glow_item_frame', 'minecraft:painting']);
+const DECORATION_IDS = new Set([
+  'minecraft:item_frame',
+  'minecraft:glow_item_frame',
+  'minecraft:painting',
+]);
 const TECHNICAL_IDS = new Set([
-  'minecraft:air', 'minecraft:cave_air', 'minecraft:void_air', 'minecraft:end_portal', 'minecraft:end_gateway', 'minecraft:nether_portal',
-  'minecraft:piston_head', 'minecraft:moving_piston', 'minecraft:bubble_column', 'minecraft:fire', 'minecraft:soul_fire', 'minecraft:frosted_ice',
-  'minecraft:command_block', 'minecraft:chain_command_block', 'minecraft:repeating_command_block', 'minecraft:jigsaw', 'minecraft:structure_block',
-  'minecraft:structure_void', 'minecraft:barrier', 'minecraft:light',
+  'minecraft:air',
+  'minecraft:cave_air',
+  'minecraft:void_air',
+  'minecraft:end_portal',
+  'minecraft:end_gateway',
+  'minecraft:nether_portal',
+  'minecraft:piston_head',
+  'minecraft:moving_piston',
+  'minecraft:bubble_column',
+  'minecraft:fire',
+  'minecraft:soul_fire',
+  'minecraft:frosted_ice',
+  'minecraft:command_block',
+  'minecraft:chain_command_block',
+  'minecraft:repeating_command_block',
+  'minecraft:jigsaw',
+  'minecraft:structure_block',
+  'minecraft:structure_void',
+  'minecraft:barrier',
+  'minecraft:light',
 ]);
 
-export function classifyContent(input: { readonly id: string; readonly namespace?: string; readonly hasWorldBlock?: boolean; readonly hasItemEvidence?: boolean; readonly logical?: boolean; readonly authoritative?: boolean; readonly internal?: boolean; readonly contentKind?: MinecraftContentKind }): ContentClassification {
+export function classifyContent(input: {
+  readonly id: string;
+  readonly namespace?: string;
+  readonly hasWorldBlock?: boolean;
+  readonly hasItemEvidence?: boolean;
+  readonly logical?: boolean;
+  readonly authoritative?: boolean;
+  readonly internal?: boolean;
+  readonly contentKind?: MinecraftContentKind;
+}): ContentClassification {
   const id = input.id;
   const worldBlock = input.hasWorldBlock === true;
   const item = input.hasItemEvidence === true;
   const decoration = DECORATION_IDS.has(id);
   const technical = TECHNICAL_IDS.has(id);
   const internal = input.internal === true || input.contentKind === 'internal-block';
-  const result = (kind: MinecraftContentKind, placeable: boolean, provenance: ContentClassificationProvenance): ContentClassification => ({ kind, placeable, provenance, worldBlock, item, internal, technical, decoration });
+  const result = (
+    kind: MinecraftContentKind,
+    placeable: boolean,
+    provenance: ContentClassificationProvenance,
+  ): ContentClassification => ({
+    kind,
+    placeable,
+    provenance,
+    worldBlock,
+    item,
+    internal,
+    technical,
+    decoration,
+  });
   if (decoration) return result('decoration-entity', false, 'common-java-semantic');
   if (technical) return result('technical-block', false, 'common-java-semantic');
   if (internal) return result('internal-block', false, 'common-java-semantic');
   if (input.logical) return result('logical-block-item', true, 'logical-rule');
-  if (worldBlock && item) return result('block-backed-item', true, input.authoritative ? 'authoritative-registry' : 'target-resource');
-  if (worldBlock) return result('world-block', false, input.authoritative ? 'authoritative-registry' : 'target-resource');
+  if (worldBlock && item)
+    return result(
+      'block-backed-item',
+      true,
+      input.authoritative ? 'authoritative-registry' : 'target-resource',
+    );
+  if (worldBlock)
+    return result(
+      'world-block',
+      false,
+      input.authoritative ? 'authoritative-registry' : 'target-resource',
+    );
   if (item) return result('item-only', false, 'target-resource');
   return result('unknown', false, 'unknown');
 }
 
-export function isDecorationEntityId(id: string): boolean { return DECORATION_IDS.has(id); }
-export function isTechnicalBlockId(id: string): boolean { return TECHNICAL_IDS.has(id); }
-export function vanillaTechnicalBlockIds(): readonly string[] { return [...TECHNICAL_IDS]; }
+export function isDecorationEntityId(id: string): boolean {
+  return DECORATION_IDS.has(id);
+}
+export function isTechnicalBlockId(id: string): boolean {
+  return TECHNICAL_IDS.has(id);
+}
+export function vanillaTechnicalBlockIds(): readonly string[] {
+  return [...TECHNICAL_IDS];
+}
 /** Content-domain evidence replaces registry-name suffix heuristics. */
-export function isInternalContent(contentKind?: MinecraftContentKind): boolean { return contentKind === 'internal-block'; }
+export function isInternalContent(contentKind?: MinecraftContentKind): boolean {
+  return contentKind === 'internal-block';
+}
 
-export function classifyBlockDefinition(definition: { readonly id: string; readonly namespace?: string; readonly itemEvidence?: BlockItemEvidence; readonly contentKind?: MinecraftContentKind; readonly behavior?: BlockBehavior }): ContentClassification {
-  const logical = (definition.behavior?.kind === 'paired-horizontal' || definition.behavior?.kind === 'double-height') && definition.itemEvidence?.placeable === true;
-  return classifyContent({ id: definition.id, namespace: definition.namespace, hasWorldBlock: true, hasItemEvidence: !!definition.itemEvidence, logical, contentKind: definition.contentKind ?? definition.itemEvidence?.contentKind, authoritative: definition.itemEvidence?.sourceFormat === 'authoritative-registry' });
+export function classifyBlockDefinition(definition: {
+  readonly id: string;
+  readonly namespace?: string;
+  readonly itemEvidence?: BlockItemEvidence;
+  readonly contentKind?: MinecraftContentKind;
+  readonly behavior?: BlockBehavior;
+}): ContentClassification {
+  const logical =
+    (definition.behavior?.kind === 'paired-horizontal' ||
+      definition.behavior?.kind === 'double-height') &&
+    definition.itemEvidence?.placeable === true;
+  return classifyContent({
+    id: definition.id,
+    namespace: definition.namespace,
+    hasWorldBlock: true,
+    hasItemEvidence: !!definition.itemEvidence,
+    logical,
+    contentKind: definition.contentKind ?? definition.itemEvidence?.contentKind,
+    authoritative: definition.itemEvidence?.sourceFormat === 'authoritative-registry',
+  });
 }

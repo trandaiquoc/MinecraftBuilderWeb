@@ -60,18 +60,31 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
   private fairnessCursor = 0;
   private fairnessDeferralCount = 0;
   private readonly options: HydrationWorkCoordinatorOptions;
-  private readonly fairnessPattern: readonly HydrationWorkKind[] = ['regular', 'regular', 'provider-refresh', 'regular', 'regular', 'provider-refresh'];
+  private readonly fairnessPattern: readonly HydrationWorkKind[] = [
+    'regular',
+    'regular',
+    'provider-refresh',
+    'regular',
+    'regular',
+    'provider-refresh',
+  ];
 
   constructor(options: Partial<HydrationWorkCoordinatorOptions> = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
-  enqueueRegular(job: T): void { this.addQueued(this.regularQueue, { ...job, providerRefresh: false }, 'regular'); }
+  enqueueRegular(job: T): void {
+    this.addQueued(this.regularQueue, { ...job, providerRefresh: false }, 'regular');
+  }
 
   enqueueProviderRefresh(job: T): boolean {
     if (this.providerRefreshKeys.has(job.key)) return false;
     this.providerRefreshKeys.add(job.key);
-    this.addQueued(this.providerRefreshQueue, { ...job, providerRefresh: true }, 'provider-refresh');
+    this.addQueued(
+      this.providerRefreshQueue,
+      { ...job, providerRefresh: true },
+      'provider-refresh',
+    );
     return true;
   }
 
@@ -81,7 +94,11 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
       const queued = this.regularQueue[index];
       if (queued.pending && !predicate(queued.job)) this.removeQueued(queued, 'regular');
     }
-    for (let index = this.providerRefreshHead; index < this.providerRefreshQueue.length; index += 1) {
+    for (
+      let index = this.providerRefreshHead;
+      index < this.providerRefreshQueue.length;
+      index += 1
+    ) {
       const queued = this.providerRefreshQueue[index];
       if (queued.pending && !predicate(queued.job)) this.removeQueued(queued, 'provider-refresh');
     }
@@ -92,7 +109,8 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     for (const key of keys) {
       const entries = this.queuedByKey.get(key);
       if (!entries) continue;
-      for (const queued of entries) this.removeQueued(queued, queued.job.providerRefresh ? 'provider-refresh' : 'regular');
+      for (const queued of entries)
+        this.removeQueued(queued, queued.job.providerRefresh ? 'provider-refresh' : 'regular');
     }
   }
 
@@ -120,28 +138,49 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
   }
 
   compact(): void {
-    if (this.regularHead > 0) { this.regularQueue = this.regularQueue.slice(this.regularHead); this.regularHead = 0; }
-    if (this.providerRefreshHead > 0) { this.providerRefreshQueue = this.providerRefreshQueue.slice(this.providerRefreshHead); this.providerRefreshHead = 0; }
+    if (this.regularHead > 0) {
+      this.regularQueue = this.regularQueue.slice(this.regularHead);
+      this.regularHead = 0;
+    }
+    if (this.providerRefreshHead > 0) {
+      this.providerRefreshQueue = this.providerRefreshQueue.slice(this.providerRefreshHead);
+      this.providerRefreshHead = 0;
+    }
   }
 
   compactConsumed(): void {
-    if (this.regularHead >= this.regularQueue.length) { this.regularQueue = []; this.regularHead = 0; }
-    if (this.providerRefreshHead >= this.providerRefreshQueue.length) { this.providerRefreshQueue = []; this.providerRefreshHead = 0; }
+    if (this.regularHead >= this.regularQueue.length) {
+      this.regularQueue = [];
+      this.regularHead = 0;
+    }
+    if (this.providerRefreshHead >= this.providerRefreshQueue.length) {
+      this.providerRefreshQueue = [];
+      this.providerRefreshHead = 0;
+    }
   }
 
-  regularJobs(): readonly T[] { return this.regularQueue.slice(this.regularHead).filter((queued) => queued.pending).map((queued) => queued.job); }
+  regularJobs(): readonly T[] {
+    return this.regularQueue
+      .slice(this.regularHead)
+      .filter((queued) => queued.pending)
+      .map((queued) => queued.job);
+  }
 
   replaceRegular(jobs: readonly T[]): void {
     this.clearQueue(this.regularQueue, 'regular');
     this.regularHead = 0;
-    for (const job of jobs) this.addQueued(this.regularQueue, { ...job, providerRefresh: false }, 'regular');
+    for (const job of jobs)
+      this.addQueued(this.regularQueue, { ...job, providerRefresh: false }, 'regular');
   }
 
   /** Takes one valid job and reserves its typed running slot. */
   takeNext(token: number): T | undefined {
     while (this.hasPending()) {
       const kind = this.nextKind();
-      const queued = kind === 'regular' ? this.regularQueue[this.regularHead++] : this.providerRefreshQueue[this.providerRefreshHead++];
+      const queued =
+        kind === 'regular'
+          ? this.regularQueue[this.regularHead++]
+          : this.providerRefreshQueue[this.providerRefreshHead++];
       if (!queued?.pending) continue;
       const job = queued.job;
       this.removeQueued(queued, kind);
@@ -150,7 +189,11 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
         continue;
       }
       if (kind === 'regular') this.regularRunning += 1;
-      else { this.providerRefreshRunning += 1; this.providerRefreshKeys.add(job.key); this.runningProviderRefreshKeys.add(job.key); }
+      else {
+        this.providerRefreshRunning += 1;
+        this.providerRefreshKeys.add(job.key);
+        this.runningProviderRefreshKeys.add(job.key);
+      }
       return job;
     }
     return undefined;
@@ -164,12 +207,24 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     } else this.regularRunning = Math.max(0, this.regularRunning - 1);
   }
 
-  queuedRegular(): number { return this.regularQueuedCount; }
-  queuedProviderRefresh(): number { return this.providerRefreshQueuedCount; }
-  queuedTotal(): number { return this.queuedRegular() + this.queuedProviderRefresh(); }
-  runningTotal(): number { return this.regularRunning + this.providerRefreshRunning; }
-  canStart(): boolean { return this.runningTotal() < this.options.concurrency; }
-  fairnessDeferrals(): number { return this.fairnessDeferralCount; }
+  queuedRegular(): number {
+    return this.regularQueuedCount;
+  }
+  queuedProviderRefresh(): number {
+    return this.providerRefreshQueuedCount;
+  }
+  queuedTotal(): number {
+    return this.queuedRegular() + this.queuedProviderRefresh();
+  }
+  runningTotal(): number {
+    return this.regularRunning + this.providerRefreshRunning;
+  }
+  canStart(): boolean {
+    return this.runningTotal() < this.options.concurrency;
+  }
+  fairnessDeferrals(): number {
+    return this.fairnessDeferralCount;
+  }
   counts(): HydrationWorkCounts {
     return {
       regularQueued: this.queuedRegular(),
@@ -180,7 +235,9 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     };
   }
 
-  private hasPending(): boolean { return this.queuedTotal() > 0; }
+  private hasPending(): boolean {
+    return this.queuedTotal() > 0;
+  }
 
   private addQueued(queue: QueuedWork<T>[], job: T, kind: HydrationWorkKind): void {
     const queued = { job, pending: true };
@@ -201,14 +258,20 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     const entries = this.queuedByKey.get(key);
     entries?.delete(queued);
     if (!entries?.size) this.queuedByKey.delete(key);
-    if (kind === 'provider-refresh' && !this.runningProviderRefreshKeys.has(key)) this.providerRefreshKeys.delete(key);
+    if (kind === 'provider-refresh' && !this.runningProviderRefreshKeys.has(key))
+      this.providerRefreshKeys.delete(key);
   }
 
   private clearQueue(queue: QueuedWork<T>[], kind: HydrationWorkKind): void {
     for (const queued of queue) this.removeQueued(queued, kind);
     queue.length = 0;
-    if (kind === 'regular') { this.regularHead = 0; this.regularQueuedCount = 0; }
-    else { this.providerRefreshHead = 0; this.providerRefreshQueuedCount = 0; }
+    if (kind === 'regular') {
+      this.regularHead = 0;
+      this.regularQueuedCount = 0;
+    } else {
+      this.providerRefreshHead = 0;
+      this.providerRefreshQueuedCount = 0;
+    }
   }
 
   private nextKind(): HydrationWorkKind {
@@ -220,7 +283,10 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     const preferred = this.fairnessPattern[this.fairnessCursor++ % this.fairnessPattern.length];
     if (this.canStartKind(preferred)) return preferred;
     const alternate: HydrationWorkKind = preferred === 'regular' ? 'provider-refresh' : 'regular';
-    if (this.canStartKind(alternate)) { this.fairnessDeferralCount += 1; return alternate; }
+    if (this.canStartKind(alternate)) {
+      this.fairnessDeferralCount += 1;
+      return alternate;
+    }
     return preferred;
   }
 
@@ -228,9 +294,10 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
     if (kind === 'regular') return this.queuedRegular() > 0;
     if (!this.queuedProviderRefresh()) return false;
     const reserved = Math.min(this.options.regularReservedCapacity, this.options.concurrency);
-    const refreshCapacity = this.queuedRegular() > 0
-      ? Math.min(this.options.providerRefreshCapacity, this.options.concurrency - reserved)
-      : this.options.concurrency;
+    const refreshCapacity =
+      this.queuedRegular() > 0
+        ? Math.min(this.options.providerRefreshCapacity, this.options.concurrency - reserved)
+        : this.options.concurrency;
     return this.providerRefreshRunning < refreshCapacity;
   }
 }

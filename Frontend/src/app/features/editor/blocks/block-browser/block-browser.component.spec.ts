@@ -1,7 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { BlockBrowserComponent, blockGridColumnCount, groupBlockItemsIntoRows } from './block-browser.component';
+import {
+  BlockBrowserComponent,
+  blockGridColumnCount,
+  groupBlockItemsIntoRows,
+} from './block-browser.component';
 
 describe('BlockBrowser grid sizing', () => {
   it('returns a bounded responsive column count', () => {
@@ -16,9 +20,13 @@ describe('BlockBrowser grid sizing', () => {
 
   it('groups items into deterministic virtual rows', () => {
     expect(groupBlockItemsIntoRows(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 4)).toEqual([
-      ['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h'], ['i', 'j'],
+      ['a', 'b', 'c', 'd'],
+      ['e', 'f', 'g', 'h'],
+      ['i', 'j'],
     ]);
-    expect(groupBlockItemsIntoRows(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 2)).toHaveLength(5);
+    expect(
+      groupBlockItemsIntoRows(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 2),
+    ).toHaveLength(5);
     expect(groupBlockItemsIntoRows(['a', 'b'], 0)).toEqual([['a'], ['b']]);
   });
 });
@@ -35,7 +43,9 @@ describe('BlockBrowserComponent bootstrap presentation', () => {
     // jsdom has no layout engine, so CDK does not calculate a rendered range;
     // the viewport itself is the stable bootstrap contract. Browser coverage
     // verifies that rows are materialized once it has real dimensions.
-    expect(fixture.nativeElement.querySelector('cdk-virtual-scroll-viewport.results')).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('cdk-virtual-scroll-viewport.results'),
+    ).not.toBeNull();
   });
 
   it('retains the fatal no-assets recovery surface', async () => {

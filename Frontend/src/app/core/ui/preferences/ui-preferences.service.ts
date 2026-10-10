@@ -1,7 +1,19 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { DEFAULT_KEYBINDINGS, KeyboardAction, normalizeBindings } from '../../editor/input/keyboard-bindings';
-import { DEFAULT_MOUSE_BINDINGS, MouseAction, normalizeMouseBindings } from '../../editor/input/mouse-bindings';
-import { DEFAULT_EXTERNAL_AI_CONTENT_LIMITS, ExternalAiContentLimits, normalizeExternalAiContentLimits } from '../../persistence/structure-json/external-ai-content-limits';
+import {
+  DEFAULT_KEYBINDINGS,
+  KeyboardAction,
+  normalizeBindings,
+} from '../../editor/input/keyboard-bindings';
+import {
+  DEFAULT_MOUSE_BINDINGS,
+  MouseAction,
+  normalizeMouseBindings,
+} from '../../editor/input/mouse-bindings';
+import {
+  DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
+  ExternalAiContentLimits,
+  normalizeExternalAiContentLimits,
+} from '../../persistence/structure-json/external-ai-content-limits';
 
 export type UiLocale = 'en' | 'vi';
 export type ThemePreset = 'dark' | 'light' | 'craft' | 'custom';
@@ -67,46 +79,88 @@ const defaults: UiPreferences = {
   showStructureBlockGuide: true,
   structureExport: { namespace: 'minecraftbuilder', archiveName: '', description: '' },
   editorMode: '3d',
-  appearance: { preset: 'craft', base: 'dark', font: 'geist', fontSize: 'normal', editorBackground: 'dark' },
+  appearance: {
+    preset: 'craft',
+    base: 'dark',
+    font: 'geist',
+    fontSize: 'normal',
+    editorBackground: 'dark',
+  },
   accessibility: { blockBrightness: 3 },
-  controls: { orbitSensitivity: 1, panSensitivity: 1, zoomSensitivity: 2, cameraMoveSpeed: 15, verticalMoveSpeed: 9, clickDragThreshold: 5 },
+  controls: {
+    orbitSensitivity: 1,
+    panSensitivity: 1,
+    zoomSensitivity: 2,
+    cameraMoveSpeed: 15,
+    verticalMoveSpeed: 9,
+    clickDragThreshold: 5,
+  },
   shortcuts: DEFAULT_KEYBINDINGS,
   mouseBindings: DEFAULT_MOUSE_BINDINGS,
   externalAiContentLimits: DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
   externalAiContentLimitsEnabled: false,
-  layout: { editorToolbarVisible: true, leftSidebarVisible: true, rightSidebarVisible: true, quickBarVisible: true, statusBarVisible: true, leftSidebarWidth: 260, rightSidebarWidth: 230 },
+  layout: {
+    editorToolbarVisible: true,
+    leftSidebarVisible: true,
+    rightSidebarVisible: true,
+    quickBarVisible: true,
+    statusBarVisible: true,
+    leftSidebarWidth: 260,
+    rightSidebarWidth: 230,
+  },
 };
 
 @Injectable({ providedIn: 'root' })
 export class UiPreferencesService {
   readonly preferences = signal<UiPreferences>(this.read());
-  private readonly accessibilityPreview = signal<Partial<UiPreferences['accessibility']> | undefined>(undefined);
+  private readonly accessibilityPreview = signal<
+    Partial<UiPreferences['accessibility']> | undefined
+  >(undefined);
   readonly effectivePreferences = computed<UiPreferences>(() => {
     const current = this.preferences();
     const preview = this.accessibilityPreview();
-    return preview ? { ...current, accessibility: { ...current.accessibility, ...preview } } : current;
+    return preview
+      ? { ...current, accessibility: { ...current.accessibility, ...preview } }
+      : current;
   });
 
   previewAccessibility(patch: Partial<UiPreferences['accessibility']>): void {
     this.accessibilityPreview.update((current) => ({
       ...current,
       ...patch,
-      ...(patch.blockBrightness === undefined ? {} : { blockBrightness: normalizeBlockBrightness(patch.blockBrightness) }),
+      ...(patch.blockBrightness === undefined
+        ? {}
+        : { blockBrightness: normalizeBlockBrightness(patch.blockBrightness) }),
     }));
   }
 
-  clearAccessibilityPreview(): void { this.accessibilityPreview.set(undefined); }
+  clearAccessibilityPreview(): void {
+    this.accessibilityPreview.set(undefined);
+  }
 
   update(patch: Partial<UiPreferences>): void {
     const current = this.preferences();
-    const accessibility = patch.accessibility ? { ...current.accessibility, ...patch.accessibility, blockBrightness: normalizeBlockBrightness(patch.accessibility.blockBrightness ?? current.accessibility.blockBrightness) } : current.accessibility;
+    const accessibility = patch.accessibility
+      ? {
+          ...current.accessibility,
+          ...patch.accessibility,
+          blockBrightness: normalizeBlockBrightness(
+            patch.accessibility.blockBrightness ?? current.accessibility.blockBrightness,
+          ),
+        }
+      : current.accessibility;
     this.commit({ ...current, ...patch, accessibility, version: 1 });
   }
 
-  setLocale(locale: UiLocale): void { this.commit({ ...this.preferences(), locale }); }
+  setLocale(locale: UiLocale): void {
+    this.commit({ ...this.preferences(), locale });
+  }
 
   setAppearance(patch: Partial<UiPreferences['appearance']>): void {
-    this.commit({ ...this.preferences(), appearance: { ...this.preferences().appearance, ...patch } });
+    this.commit({
+      ...this.preferences(),
+      appearance: { ...this.preferences().appearance, ...patch },
+    });
   }
 
   setControls(patch: Partial<UiPreferences['controls']>): void {
@@ -115,19 +169,37 @@ export class UiPreferencesService {
 
   setAccessibility(patch: Partial<UiPreferences['accessibility']>): void {
     const current = this.preferences();
-    this.commit({ ...current, accessibility: { ...current.accessibility, ...patch, blockBrightness: normalizeBlockBrightness(patch.blockBrightness ?? current.accessibility.blockBrightness) } });
+    this.commit({
+      ...current,
+      accessibility: {
+        ...current.accessibility,
+        ...patch,
+        blockBrightness: normalizeBlockBrightness(
+          patch.blockBrightness ?? current.accessibility.blockBrightness,
+        ),
+      },
+    });
   }
 
   setStructureExport(patch: Partial<StructureExportPreferences>): void {
-    this.commit({ ...this.preferences(), structureExport: { ...this.preferences().structureExport, ...patch } });
+    this.commit({
+      ...this.preferences(),
+      structureExport: { ...this.preferences().structureExport, ...patch },
+    });
   }
 
   setExternalAiContentLimits(limits: ExternalAiContentLimits): void {
-    this.commit({ ...this.preferences(), externalAiContentLimits: normalizeExternalAiContentLimits(limits) });
+    this.commit({
+      ...this.preferences(),
+      externalAiContentLimits: normalizeExternalAiContentLimits(limits),
+    });
   }
 
   resetExternalAiContentLimits(): void {
-    this.commit({ ...this.preferences(), externalAiContentLimits: DEFAULT_EXTERNAL_AI_CONTENT_LIMITS });
+    this.commit({
+      ...this.preferences(),
+      externalAiContentLimits: DEFAULT_EXTERNAL_AI_CONTENT_LIMITS,
+    });
   }
 
   setExternalAiContentLimitsEnabled(enabled: boolean): void {
@@ -138,13 +210,21 @@ export class UiPreferencesService {
     this.commit({ ...this.preferences(), layout: { ...this.preferences().layout, ...patch } });
   }
 
-  reset(): void { this.commit(defaults); }
+  reset(): void {
+    this.commit(defaults);
+  }
 
-  defaultPreferences(): UiPreferences { return clonePreferences(defaults); }
+  defaultPreferences(): UiPreferences {
+    return clonePreferences(defaults);
+  }
 
   private commit(value: UiPreferences): void {
     this.preferences.set(value);
-    try { localStorage.setItem(KEY, JSON.stringify(value)); } catch { /* Browser storage is optional. */ }
+    try {
+      localStorage.setItem(KEY, JSON.stringify(value));
+    } catch {
+      /* Browser storage is optional. */
+    }
   }
 
   private read(): UiPreferences {
@@ -160,80 +240,163 @@ export class UiPreferencesService {
       const migrated = { ...defaults, layout };
       localStorage.setItem(KEY, JSON.stringify(migrated));
       return migrated;
-    } catch { return defaults; }
+    } catch {
+      return defaults;
+    }
   }
 }
 
 function normalize(value: unknown): UiPreferences {
   if (!value || typeof value !== 'object') return defaults;
   const candidate = value as Partial<UiPreferences>;
-  const appearance = candidate.appearance && typeof candidate.appearance === 'object' ? candidate.appearance : {};
-  const controls = candidate.controls && typeof candidate.controls === 'object' ? candidate.controls : {};
+  const appearance =
+    candidate.appearance && typeof candidate.appearance === 'object' ? candidate.appearance : {};
+  const controls =
+    candidate.controls && typeof candidate.controls === 'object' ? candidate.controls : {};
   const shortcuts = normalizeBindings(candidate.shortcuts);
   const mouseBindings = normalizeMouseBindings(candidate.mouseBindings);
   const layout = candidate.layout && typeof candidate.layout === 'object' ? candidate.layout : {};
-  const hasContentLimits = Object.prototype.hasOwnProperty.call(candidate, 'externalAiContentLimits');
-  const hasLegacyMaterialRules = Object.prototype.hasOwnProperty.call(candidate, 'externalAiMaterialRules');
+  const hasContentLimits = Object.prototype.hasOwnProperty.call(
+    candidate,
+    'externalAiContentLimits',
+  );
+  const hasLegacyMaterialRules = Object.prototype.hasOwnProperty.call(
+    candidate,
+    'externalAiMaterialRules',
+  );
   const contentLimitsValue = hasContentLimits
     ? (candidate as { readonly externalAiContentLimits?: unknown }).externalAiContentLimits
     : hasLegacyMaterialRules
       ? (candidate as { readonly externalAiMaterialRules?: unknown }).externalAiMaterialRules
       : undefined;
-  const legacyContentLimitsEnabled = typeof (candidate as { readonly externalAiMaterialPolicyEnabled?: unknown }).externalAiMaterialPolicyEnabled === 'boolean'
-    ? (candidate as { readonly externalAiMaterialPolicyEnabled: boolean }).externalAiMaterialPolicyEnabled
-    : undefined;
+  const legacyContentLimitsEnabled =
+    typeof (candidate as { readonly externalAiMaterialPolicyEnabled?: unknown })
+      .externalAiMaterialPolicyEnabled === 'boolean'
+      ? (candidate as { readonly externalAiMaterialPolicyEnabled: boolean })
+          .externalAiMaterialPolicyEnabled
+      : undefined;
   delete (candidate as Record<string, unknown>)['externalAiMaterialRules'];
   delete (candidate as Record<string, unknown>)['externalAiMaterialPolicyEnabled'];
   return {
     ...defaults,
     ...candidate,
     locale: isLocale(candidate.locale) ? candidate.locale : defaults.locale,
-    autoUseHugeStructureBlocks: typeof candidate.autoUseHugeStructureBlocks === 'boolean' ? candidate.autoUseHugeStructureBlocks : defaults.autoUseHugeStructureBlocks,
-    showStructureBlockGuide: typeof candidate.showStructureBlockGuide === 'boolean' ? candidate.showStructureBlockGuide : defaults.showStructureBlockGuide,
+    autoUseHugeStructureBlocks:
+      typeof candidate.autoUseHugeStructureBlocks === 'boolean'
+        ? candidate.autoUseHugeStructureBlocks
+        : defaults.autoUseHugeStructureBlocks,
+    showStructureBlockGuide:
+      typeof candidate.showStructureBlockGuide === 'boolean'
+        ? candidate.showStructureBlockGuide
+        : defaults.showStructureBlockGuide,
     structureExport: normalizeStructureExport(candidate.structureExport),
     editorMode: isEditorMode(candidate.editorMode) ? candidate.editorMode : defaults.editorMode,
     appearance: {
-      preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset) ? (appearance as Partial<UiPreferences['appearance']>).preset! : defaults.appearance.preset,
-      base: isBase((appearance as Partial<UiPreferences['appearance']>).base) ? (appearance as Partial<UiPreferences['appearance']>).base! : defaults.appearance.base,
-      font: isFont((appearance as Partial<UiPreferences['appearance']>).font) ? (appearance as Partial<UiPreferences['appearance']>).font! : defaults.appearance.font,
-      fontSize: isFontSize((appearance as Partial<UiPreferences['appearance']>).fontSize) ? (appearance as Partial<UiPreferences['appearance']>).fontSize! : defaults.appearance.fontSize,
-      editorBackground: isBase((appearance as Partial<UiPreferences['appearance']>).editorBackground) ? (appearance as Partial<UiPreferences['appearance']>).editorBackground! : defaults.appearance.editorBackground,
+      preset: isPreset((appearance as Partial<UiPreferences['appearance']>).preset)
+        ? (appearance as Partial<UiPreferences['appearance']>).preset!
+        : defaults.appearance.preset,
+      base: isBase((appearance as Partial<UiPreferences['appearance']>).base)
+        ? (appearance as Partial<UiPreferences['appearance']>).base!
+        : defaults.appearance.base,
+      font: isFont((appearance as Partial<UiPreferences['appearance']>).font)
+        ? (appearance as Partial<UiPreferences['appearance']>).font!
+        : defaults.appearance.font,
+      fontSize: isFontSize((appearance as Partial<UiPreferences['appearance']>).fontSize)
+        ? (appearance as Partial<UiPreferences['appearance']>).fontSize!
+        : defaults.appearance.fontSize,
+      editorBackground: isBase(
+        (appearance as Partial<UiPreferences['appearance']>).editorBackground,
+      )
+        ? (appearance as Partial<UiPreferences['appearance']>).editorBackground!
+        : defaults.appearance.editorBackground,
     },
     accessibility: {
-      blockBrightness: normalizeBlockBrightness((candidate.accessibility as Partial<UiPreferences['accessibility']> | undefined)?.blockBrightness),
+      blockBrightness: normalizeBlockBrightness(
+        (candidate.accessibility as Partial<UiPreferences['accessibility']> | undefined)
+          ?.blockBrightness,
+      ),
     },
     controls: {
-      orbitSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).orbitSensitivity, .1, 3, defaults.controls.orbitSensitivity),
-      panSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).panSensitivity, .1, 3, defaults.controls.panSensitivity),
-      zoomSensitivity: numberInRange((controls as Partial<UiPreferences['controls']>).zoomSensitivity, .1, 3, defaults.controls.zoomSensitivity),
-      cameraMoveSpeed: numberInRange((controls as Partial<UiPreferences['controls']>).cameraMoveSpeed, 1, 30, defaults.controls.cameraMoveSpeed),
-      verticalMoveSpeed: numberInRange((controls as Partial<UiPreferences['controls']>).verticalMoveSpeed, 1, 30, defaults.controls.verticalMoveSpeed),
-      clickDragThreshold: numberInRange((controls as Partial<UiPreferences['controls']>).clickDragThreshold, 1, 20, defaults.controls.clickDragThreshold),
+      orbitSensitivity: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).orbitSensitivity,
+        0.1,
+        3,
+        defaults.controls.orbitSensitivity,
+      ),
+      panSensitivity: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).panSensitivity,
+        0.1,
+        3,
+        defaults.controls.panSensitivity,
+      ),
+      zoomSensitivity: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).zoomSensitivity,
+        0.1,
+        3,
+        defaults.controls.zoomSensitivity,
+      ),
+      cameraMoveSpeed: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).cameraMoveSpeed,
+        1,
+        30,
+        defaults.controls.cameraMoveSpeed,
+      ),
+      verticalMoveSpeed: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).verticalMoveSpeed,
+        1,
+        30,
+        defaults.controls.verticalMoveSpeed,
+      ),
+      clickDragThreshold: numberInRange(
+        (controls as Partial<UiPreferences['controls']>).clickDragThreshold,
+        1,
+        20,
+        defaults.controls.clickDragThreshold,
+      ),
     },
     shortcuts,
     mouseBindings,
-    externalAiContentLimits: contentLimitsValue === undefined ? DEFAULT_EXTERNAL_AI_CONTENT_LIMITS : normalizeExternalAiContentLimits(contentLimitsValue),
-    externalAiContentLimitsEnabled: typeof (candidate as { readonly externalAiContentLimitsEnabled?: unknown }).externalAiContentLimitsEnabled === 'boolean'
-      ? (candidate as { readonly externalAiContentLimitsEnabled: boolean }).externalAiContentLimitsEnabled
-      : legacyContentLimitsEnabled !== undefined
-        ? legacyContentLimitsEnabled
-        : defaults.externalAiContentLimitsEnabled,
+    externalAiContentLimits:
+      contentLimitsValue === undefined
+        ? DEFAULT_EXTERNAL_AI_CONTENT_LIMITS
+        : normalizeExternalAiContentLimits(contentLimitsValue),
+    externalAiContentLimitsEnabled:
+      typeof (candidate as { readonly externalAiContentLimitsEnabled?: unknown })
+        .externalAiContentLimitsEnabled === 'boolean'
+        ? (candidate as { readonly externalAiContentLimitsEnabled: boolean })
+            .externalAiContentLimitsEnabled
+        : legacyContentLimitsEnabled !== undefined
+          ? legacyContentLimitsEnabled
+          : defaults.externalAiContentLimitsEnabled,
     layout: {
       ...defaults.layout,
       ...layout,
-      leftSidebarWidth: numberInRange((layout as Partial<UiPreferences['layout']>).leftSidebarWidth, 180, 520, defaults.layout.leftSidebarWidth),
-      rightSidebarWidth: numberInRange((layout as Partial<UiPreferences['layout']>).rightSidebarWidth, 200, 520, defaults.layout.rightSidebarWidth),
+      leftSidebarWidth: numberInRange(
+        (layout as Partial<UiPreferences['layout']>).leftSidebarWidth,
+        180,
+        520,
+        defaults.layout.leftSidebarWidth,
+      ),
+      rightSidebarWidth: numberInRange(
+        (layout as Partial<UiPreferences['layout']>).rightSidebarWidth,
+        200,
+        520,
+        defaults.layout.rightSidebarWidth,
+      ),
     },
     version: 1,
   };
 }
 
 function numberInRange(value: unknown, min: number, max: number, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback;
 }
 
 export function normalizeBlockBrightness(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return defaults.accessibility.blockBrightness;
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    return defaults.accessibility.blockBrightness;
   return Math.min(10, Math.max(0, Math.round(value)));
 }
 
@@ -242,26 +405,67 @@ export function blockBrightnessStopPercent(value: number, max = 10): number {
   return Math.min(100, Math.max(0, (value / max) * 100));
 }
 
-function isLocale(value: unknown): value is UiLocale { return value === 'en' || value === 'vi'; }
-function isPreset(value: unknown): value is ThemePreset { return value === 'dark' || value === 'light' || value === 'craft' || value === 'custom'; }
-function isBase(value: unknown): value is BaseTheme { return value === 'dark' || value === 'light'; }
-function isFont(value: unknown): value is UiFont { return value === 'geist' || value === 'minecraft-style'; }
-function isFontSize(value: unknown): value is UiFontSize { return value === 'small' || value === 'normal' || value === 'large'; }
-function isEditorMode(value: unknown): value is PersistedEditorMode { return value === '3d' || value === 'y-layer'; }
+function isLocale(value: unknown): value is UiLocale {
+  return value === 'en' || value === 'vi';
+}
+function isPreset(value: unknown): value is ThemePreset {
+  return value === 'dark' || value === 'light' || value === 'craft' || value === 'custom';
+}
+function isBase(value: unknown): value is BaseTheme {
+  return value === 'dark' || value === 'light';
+}
+function isFont(value: unknown): value is UiFont {
+  return value === 'geist' || value === 'minecraft-style';
+}
+function isFontSize(value: unknown): value is UiFontSize {
+  return value === 'small' || value === 'normal' || value === 'large';
+}
+function isEditorMode(value: unknown): value is PersistedEditorMode {
+  return value === '3d' || value === 'y-layer';
+}
 
 function normalizeLayout(value: unknown): UiPreferences['layout'] {
   if (!value || typeof value !== 'object') return defaults.layout;
   const candidate = value as Partial<UiPreferences['layout']>;
   return {
-    editorToolbarVisible: typeof candidate.editorToolbarVisible === 'boolean' ? candidate.editorToolbarVisible : defaults.layout.editorToolbarVisible,
-    leftSidebarVisible: typeof candidate.leftSidebarVisible === 'boolean' ? candidate.leftSidebarVisible : defaults.layout.leftSidebarVisible,
-    rightSidebarVisible: typeof candidate.rightSidebarVisible === 'boolean' ? candidate.rightSidebarVisible : defaults.layout.rightSidebarVisible,
-    quickBarVisible: typeof candidate.quickBarVisible === 'boolean' ? candidate.quickBarVisible : defaults.layout.quickBarVisible,
-    statusBarVisible: typeof candidate.statusBarVisible === 'boolean' ? candidate.statusBarVisible : defaults.layout.statusBarVisible,
-    leftSidebarWidth: numberInRange(candidate.leftSidebarWidth, 180, 520, defaults.layout.leftSidebarWidth),
-    rightSidebarWidth: numberInRange(candidate.rightSidebarWidth, 200, 520, defaults.layout.rightSidebarWidth),
-    ...(typeof candidate.groupMovePanelX === 'number' && Number.isFinite(candidate.groupMovePanelX) ? { groupMovePanelX: candidate.groupMovePanelX } : {}),
-    ...(typeof candidate.groupMovePanelY === 'number' && Number.isFinite(candidate.groupMovePanelY) ? { groupMovePanelY: candidate.groupMovePanelY } : {}),
+    editorToolbarVisible:
+      typeof candidate.editorToolbarVisible === 'boolean'
+        ? candidate.editorToolbarVisible
+        : defaults.layout.editorToolbarVisible,
+    leftSidebarVisible:
+      typeof candidate.leftSidebarVisible === 'boolean'
+        ? candidate.leftSidebarVisible
+        : defaults.layout.leftSidebarVisible,
+    rightSidebarVisible:
+      typeof candidate.rightSidebarVisible === 'boolean'
+        ? candidate.rightSidebarVisible
+        : defaults.layout.rightSidebarVisible,
+    quickBarVisible:
+      typeof candidate.quickBarVisible === 'boolean'
+        ? candidate.quickBarVisible
+        : defaults.layout.quickBarVisible,
+    statusBarVisible:
+      typeof candidate.statusBarVisible === 'boolean'
+        ? candidate.statusBarVisible
+        : defaults.layout.statusBarVisible,
+    leftSidebarWidth: numberInRange(
+      candidate.leftSidebarWidth,
+      180,
+      520,
+      defaults.layout.leftSidebarWidth,
+    ),
+    rightSidebarWidth: numberInRange(
+      candidate.rightSidebarWidth,
+      200,
+      520,
+      defaults.layout.rightSidebarWidth,
+    ),
+    ...(typeof candidate.groupMovePanelX === 'number' && Number.isFinite(candidate.groupMovePanelX)
+      ? { groupMovePanelX: candidate.groupMovePanelX }
+      : {}),
+    ...(typeof candidate.groupMovePanelY === 'number' && Number.isFinite(candidate.groupMovePanelY)
+      ? { groupMovePanelY: candidate.groupMovePanelY }
+      : {}),
   };
 }
 
@@ -269,12 +473,35 @@ function normalizeStructureExport(value: unknown): StructureExportPreferences {
   if (!value || typeof value !== 'object') return defaults.structureExport;
   const candidate = value as Partial<StructureExportPreferences>;
   return {
-    namespace: typeof candidate.namespace === 'string' ? candidate.namespace : defaults.structureExport.namespace,
-    archiveName: typeof candidate.archiveName === 'string' ? candidate.archiveName : defaults.structureExport.archiveName,
-    description: typeof candidate.description === 'string' ? candidate.description : defaults.structureExport.description,
+    namespace:
+      typeof candidate.namespace === 'string'
+        ? candidate.namespace
+        : defaults.structureExport.namespace,
+    archiveName:
+      typeof candidate.archiveName === 'string'
+        ? candidate.archiveName
+        : defaults.structureExport.archiveName,
+    description:
+      typeof candidate.description === 'string'
+        ? candidate.description
+        : defaults.structureExport.description,
   };
 }
 
 function clonePreferences(value: UiPreferences): UiPreferences {
-  return { ...value, appearance: { ...value.appearance }, structureExport: { ...value.structureExport }, accessibility: { ...value.accessibility }, controls: { ...value.controls }, shortcuts: { ...value.shortcuts }, mouseBindings: { ...value.mouseBindings }, externalAiContentLimits: { blocks: [...value.externalAiContentLimits.blocks], items: [...value.externalAiContentLimits.items], decorations: [...value.externalAiContentLimits.decorations] }, layout: { ...value.layout } };
+  return {
+    ...value,
+    appearance: { ...value.appearance },
+    structureExport: { ...value.structureExport },
+    accessibility: { ...value.accessibility },
+    controls: { ...value.controls },
+    shortcuts: { ...value.shortcuts },
+    mouseBindings: { ...value.mouseBindings },
+    externalAiContentLimits: {
+      blocks: [...value.externalAiContentLimits.blocks],
+      items: [...value.externalAiContentLimits.items],
+      decorations: [...value.externalAiContentLimits.decorations],
+    },
+    layout: { ...value.layout },
+  };
 }

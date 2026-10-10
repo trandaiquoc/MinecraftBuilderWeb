@@ -17,6 +17,10 @@ describe('yieldToBrowser', () => {
   it('falls back when scheduler.yield is unavailable', async () => {
     const previous = (globalThis as typeof globalThis & { scheduler?: unknown }).scheduler;
     Object.defineProperty(globalThis, 'scheduler', { configurable: true, value: undefined });
-    try { await yieldToBrowser(); } finally { Object.defineProperty(globalThis, 'scheduler', { configurable: true, value: previous }); }
+    try {
+      await yieldToBrowser();
+    } finally {
+      Object.defineProperty(globalThis, 'scheduler', { configurable: true, value: previous });
+    }
   });
 });

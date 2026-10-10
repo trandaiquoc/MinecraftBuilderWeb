@@ -1,8 +1,42 @@
-:host { display: block; min-width: 0; }
-.pot-inspector { display: grid; gap: .55rem; margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--border); }
-h3, h4 { margin: 0; font-size: .82rem; }
-.raw-warning { margin: 0; font-size: .7rem; }
-.pot-patterns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
-.pot-patterns label { display: grid; gap: .2rem; color: var(--text-muted); font-size: .7rem; }
-.count-field { display: grid; grid-template-columns: 1fr 5rem; align-items: center; gap: .4rem; font-size: .75rem; }
-.count-field input { width: 100%; box-sizing: border-box; }
+:host {
+  display: block;
+  min-width: 0;
+}
+.pot-inspector {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+h3,
+h4 {
+  margin: 0;
+  font-size: 0.82rem;
+}
+.raw-warning {
+  margin: 0;
+  font-size: 0.7rem;
+}
+.pot-patterns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+.pot-patterns label {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.count-field {
+  display: grid;
+  grid-template-columns: 1fr 5rem;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+.count-field input {
+  width: 100%;
+  box-sizing: border-box;
+}

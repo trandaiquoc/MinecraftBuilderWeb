@@ -16,7 +16,11 @@ export interface OcclusionEntry {
  * suffixes, and fallback visuals are intentionally not treated as proof.
  */
 export function isConfirmedOpaqueFullCube(entry: OcclusionEntry): boolean {
-  return entry.role === 'normal' && entry.block.kind === 'resolved' && entry.occlusionClass === 'opaque-full-cube';
+  return (
+    entry.role === 'normal' &&
+    entry.block.kind === 'resolved' &&
+    entry.occlusionClass === 'opaque-full-cube'
+  );
 }
 
 export function hasConfirmedOpaqueNeighbors(
@@ -31,11 +35,17 @@ export function hasConfirmedOpaqueNeighbors(
 }
 
 /** Deterministic full-cube benchmark helper. It has no Three.js dependency. */
-export function interiorOpaqueFullCubeKeys(entries: readonly OcclusionEntry[]): ReadonlySet<string> {
-  const map = new Map(entries.map((entry) => [coordinateKey(entry.block.position), entry] as const));
-  return new Set(entries
-    .filter((entry) => hasConfirmedOpaqueNeighbors(entry, map))
-    .map((entry) => coordinateKey(entry.block.position)));
+export function interiorOpaqueFullCubeKeys(
+  entries: readonly OcclusionEntry[],
+): ReadonlySet<string> {
+  const map = new Map(
+    entries.map((entry) => [coordinateKey(entry.block.position), entry] as const),
+  );
+  return new Set(
+    entries
+      .filter((entry) => hasConfirmedOpaqueNeighbors(entry, map))
+      .map((entry) => coordinateKey(entry.block.position)),
+  );
 }
 
 export function coordinateNeighbors(position: VoxelCoordinate): readonly VoxelCoordinate[] {

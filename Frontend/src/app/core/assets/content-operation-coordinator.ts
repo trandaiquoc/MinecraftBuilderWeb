@@ -13,17 +13,26 @@ interface ActiveOperation {
 export class ContentOperationCoordinator {
   private active?: ActiveOperation;
 
-  async run<T>(priority: ContentOperationPriority, work: (signal: AbortSignal) => Promise<T>, callerSignal?: AbortSignal): Promise<T> {
+  async run<T>(
+    priority: ContentOperationPriority,
+    work: (signal: AbortSignal) => Promise<T>,
+    callerSignal?: AbortSignal,
+  ): Promise<T> {
     const previous = this.active;
-    const backgroundMustWaitForForeground = priority === 'background' && previous?.priority === 'foreground';
+    const backgroundMustWaitForForeground =
+      priority === 'background' && previous?.priority === 'foreground';
     if (previous && !backgroundMustWaitForForeground) {
-      previous.controller.abort(createAbortError(`${priority} content operation superseded the active operation`));
+      previous.controller.abort(
+        createAbortError(`${priority} content operation superseded the active operation`),
+      );
     }
     if (previous) await previous.done;
     const controller = new AbortController();
     const combined = combineAbortSignals(controller.signal, callerSignal);
     let finish!: () => void;
-    const done = new Promise<void>((resolve) => { finish = resolve; });
+    const done = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
     const operation: ActiveOperation = { priority, controller, done, finish };
     this.active = operation;
     try {
@@ -36,8 +45,11 @@ export class ContentOperationCoordinator {
   }
 
   abortBackground(): void {
-    if (this.active?.priority === 'background') this.active.controller.abort(createAbortError('Foreground content work requested'));
+    if (this.active?.priority === 'background')
+      this.active.controller.abort(createAbortError('Foreground content work requested'));
   }
 
-  isBusy(): boolean { return this.active !== undefined; }
+  isBusy(): boolean {
+    return this.active !== undefined;
+  }
 }

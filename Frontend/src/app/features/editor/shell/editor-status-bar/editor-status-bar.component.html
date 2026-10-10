@@ -2,31 +2,95 @@
   <div class="status-left">
     <span>{{ mode.mode() === '3d' ? i18n.t('mode3d') : i18n.t('modeYLayer') }}</span>
     <span>{{ tool.active() === 'place' ? i18n.t('toolPlace') : i18n.t('toolSelect') }}</span>
-    @if (activePlacement(); as active) { <span class="active-placement-status" [attr.data-placement-kind]="active.kind" [attr.title]="active.label"><span class="active-placement-label">{{ active.kind === 'block' ? i18n.t('activeBlock') : i18n.t('activeDecoration') }}:</span> <span class="active-placement-value">{{ active.label }}</span></span> }
-    <span [attr.data-status]="autosave.status() === 'error' ? 'invalid' : autosave.status() === 'saved' ? 'valid' : 'warning'" [attr.title]="autosave.error()">{{ saveStatusLabel() }}</span>
-    @if (mode.mode() === 'y-layer') { <span>{{ i18n.t('currentLayer') }}: {{ currentLayer() }}</span> }
-    @if (selectionCount() > 1) { <span>{{ selectionSummaryLabel() }}</span> }
-    @if (statusCoordinate(); as coordinate) { <span class="coordinate-status" [attr.title]="coordinateTitle()">{{ coordinateLabel() }}</span> }
-    @if (workspace.project()) { <span class="block-count-status">{{ i18n.t('totalBlocks') }}: {{ projectBlockCount().toLocaleString(i18n.locale()) }}</span> }
-    @if (workspace.project(); as project) { <span class="project-size-status" [attr.aria-label]="projectSizeLabel()">{{ projectSizeLabel() }}</span> }
+    @if (activePlacement(); as active) {
+      <span
+        class="active-placement-status"
+        [attr.data-placement-kind]="active.kind"
+        [attr.title]="active.label"
+        ><span class="active-placement-label"
+          >{{ active.kind === 'block' ? i18n.t('activeBlock') : i18n.t('activeDecoration') }}:</span
+        >
+        <span class="active-placement-value">{{ active.label }}</span></span
+      >
+    }
+    <span
+      [attr.data-status]="
+        autosave.status() === 'error'
+          ? 'invalid'
+          : autosave.status() === 'saved'
+            ? 'valid'
+            : 'warning'
+      "
+      [attr.title]="autosave.error()"
+      >{{ saveStatusLabel() }}</span
+    >
+    @if (mode.mode() === 'y-layer') {
+      <span>{{ i18n.t('currentLayer') }}: {{ currentLayer() }}</span>
+    }
+    @if (selectionCount() > 1) {
+      <span>{{ selectionSummaryLabel() }}</span>
+    }
+    @if (statusCoordinate(); as coordinate) {
+      <span class="coordinate-status" [attr.title]="coordinateTitle()">{{
+        coordinateLabel()
+      }}</span>
+    }
+    @if (workspace.project()) {
+      <span class="block-count-status"
+        >{{ i18n.t('totalBlocks') }}: {{ projectBlockCount().toLocaleString(i18n.locale()) }}</span
+      >
+    }
+    @if (workspace.project(); as project) {
+      <span class="project-size-status" [attr.aria-label]="projectSizeLabel()">{{
+        projectSizeLabel()
+      }}</span>
+    }
   </div>
   <div class="status-right">
     @if (assetStatus(); as asset) {
       @if (missingWarningVisible()) {
-      <button type="button" class="asset-status asset-status--action" [attr.data-status]="assetDataStatus(asset)" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true" [attr.aria-label]="assetStatusLabel()" (click)="openMissingAssets()">
-        <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
-      </button>
+        <button
+          type="button"
+          class="asset-status asset-status--action"
+          [attr.data-status]="assetDataStatus(asset)"
+          [attr.aria-busy]="assetLoading(asset)"
+          aria-live="polite"
+          aria-atomic="true"
+          [attr.aria-label]="assetStatusLabel()"
+          (click)="openMissingAssets()"
+        >
+          <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
+        </button>
       } @else if (assetLoading(asset)) {
-      <span class="asset-status" data-status="unknown" aria-busy="true" aria-live="polite" aria-atomic="true">
-        <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
-        <app-ui-progress class="block-loading-progress" [indeterminate]="true" [compact]="true" [label]="assetStatusLabel()" />
-      </span>
+        <span
+          class="asset-status"
+          data-status="unknown"
+          aria-busy="true"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
+          <app-ui-progress
+            class="block-loading-progress"
+            [indeterminate]="true"
+            [compact]="true"
+            [label]="assetStatusLabel()"
+          />
+        </span>
       } @else {
-      <span class="asset-status" [attr.data-status]="assetDataStatus(asset)" [attr.aria-busy]="assetLoading(asset)" aria-live="polite" aria-atomic="true">
-        <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
-      </span>
+        <span
+          class="asset-status"
+          [attr.data-status]="assetDataStatus(asset)"
+          [attr.aria-busy]="assetLoading(asset)"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span class="asset-status-copy">{{ assetStatusLabel() }}</span>
+        </span>
       }
     }
   </div>
 </footer>
-@if (missingDialogOpen()) { <app-missing-assets-dialog [summary]="missingSummary()" (closed)="missingDialogOpen.set(false)" /> }
+@if (missingDialogOpen()) {
+  <app-missing-assets-dialog [summary]="missingSummary()" (closed)="missingDialogOpen.set(false)" />
+}

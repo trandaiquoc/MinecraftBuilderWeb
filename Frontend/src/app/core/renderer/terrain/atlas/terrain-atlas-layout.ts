@@ -23,16 +23,30 @@ interface MutablePage {
 export class TerrainAtlasLayout {
   private readonly pages: MutablePage[] = [];
 
-  constructor(readonly pageSize: TerrainAtlasPageSize = { width: 1024, height: 1024 }, readonly gutter = 1) {
-    if (!Number.isInteger(pageSize.width) || !Number.isInteger(pageSize.height) || pageSize.width <= 0 || pageSize.height <= 0) throw new Error('Invalid terrain atlas page size');
+  constructor(
+    readonly pageSize: TerrainAtlasPageSize = { width: 1024, height: 1024 },
+    readonly gutter = 1,
+  ) {
+    if (
+      !Number.isInteger(pageSize.width) ||
+      !Number.isInteger(pageSize.height) ||
+      pageSize.width <= 0 ||
+      pageSize.height <= 0
+    )
+      throw new Error('Invalid terrain atlas page size');
     if (!Number.isInteger(gutter) || gutter < 0) throw new Error('Invalid terrain atlas gutter');
   }
 
-  get pageCount(): number { return this.pages.length; }
-  clear(): void { this.pages.length = 0; }
+  get pageCount(): number {
+    return this.pages.length;
+  }
+  clear(): void {
+    this.pages.length = 0;
+  }
 
   allocate(width: number, height: number): TerrainAtlasRect | undefined {
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return undefined;
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0)
+      return undefined;
     const paddedWidth = width + this.gutter * 2;
     const paddedHeight = height + this.gutter * 2;
     if (paddedWidth > this.pageSize.width || paddedHeight > this.pageSize.height) return undefined;

@@ -22,10 +22,27 @@ export function fluidMaterialIdentityKey(descriptor: FluidMaterialDescriptor): s
   ]);
 }
 
-export function fluidMaterialCacheKey(providerContractKey: string, descriptor: FluidMaterialDescriptor): string {
+export function fluidMaterialCacheKey(
+  providerContractKey: string,
+  descriptor: FluidMaterialDescriptor,
+): string {
   return `${providerContractKey}|${fluidMaterialIdentityKey(descriptor)}`;
 }
 
-export function fluidMaterialDescriptor(state: Pick<ResolvedFluidRenderState, 'materialKey' | 'renderLayer' | 'tint' | 'opacity' | 'depthWrite' | 'doubleSided'>, texture: string): FluidMaterialDescriptor {
-  return { materialKey: state.materialKey, renderLayer: state.renderLayer, texture, tint: state.tint, opacity: state.opacity, depthWrite: state.depthWrite, doubleSided: state.doubleSided };
+export function fluidMaterialDescriptor(
+  state: Pick<
+    ResolvedFluidRenderState,
+    'materialKey' | 'renderLayer' | 'tint' | 'opacity' | 'depthWrite' | 'doubleSided'
+  >,
+  texture: string,
+): FluidMaterialDescriptor {
+  return {
+    materialKey: state.materialKey,
+    renderLayer: state.renderLayer,
+    texture,
+    tint: state.tint,
+    opacity: state.opacity,
+    depthWrite: state.depthWrite,
+    doubleSided: state.doubleSided,
+  };
 }

@@ -20,10 +20,25 @@ export class UiTooltipDirective {
   protected readonly suppressed = signal(false);
   private pointerInside = false;
 
-  protected handlePointerEnter(): void { this.pointerInside = true; this.suppressed.set(false); }
-  protected handlePointerLeave(): void { this.pointerInside = false; this.suppressed.set(false); }
-  protected handlePointerDown(): void { this.pointerInside = true; this.suppressed.set(true); }
-  protected handleFocusIn(): void { if (!this.pointerInside) this.suppressed.set(false); }
-  protected handleBlur(): void { if (!this.pointerInside) this.suppressed.set(false); }
-  protected handleActivation(): void { this.suppressed.set(true); }
+  protected handlePointerEnter(): void {
+    this.pointerInside = true;
+    this.suppressed.set(false);
+  }
+  protected handlePointerLeave(): void {
+    this.pointerInside = false;
+    this.suppressed.set(false);
+  }
+  protected handlePointerDown(): void {
+    this.pointerInside = true;
+    this.suppressed.set(true);
+  }
+  protected handleFocusIn(): void {
+    if (!this.pointerInside) this.suppressed.set(false);
+  }
+  protected handleBlur(): void {
+    if (!this.pointerInside) this.suppressed.set(false);
+  }
+  protected handleActivation(): void {
+    this.suppressed.set(true);
+  }
 }

@@ -5,7 +5,12 @@ import { parseFabricModMetadata, normalizeFabricMetadata } from './mod-loader';
 
 describe('external mod import report', () => {
   it('derives import counts and activation from retained resources and diagnostics', () => {
-    const rawMetadata = { id: 'sample', name: 'Sample Mod', version: '1.0.0', depends: { minecraft: '1.21.x' } };
+    const rawMetadata = {
+      id: 'sample',
+      name: 'Sample Mod',
+      version: '1.0.0',
+      depends: { minecraft: '1.21.x' },
+    };
     const normalizedMetadata = normalizeFabricMetadata(rawMetadata);
     const metadata = parseFabricModMetadata(rawMetadata);
     const json = {
@@ -22,7 +27,10 @@ describe('external mod import report', () => {
       json,
       binaryResourceCount: 2,
       minecraftVersion: '1.21.1',
-      compatibility: evaluateMinecraftRequirement(normalizedMetadata.minecraftRequirement, '1.21.1'),
+      compatibility: evaluateMinecraftRequirement(
+        normalizedMetadata.minecraftRequirement,
+        '1.21.1',
+      ),
       diagnostics: [
         { severity: 'warning', code: 'custom-model-loader', message: 'Not executed' },
         { severity: 'error', code: 'resource-conflict', message: 'Conflicting resource' },
@@ -42,16 +50,27 @@ describe('external mod import report', () => {
   });
 
   it('allows activation only for supported, compatible metadata without blocking diagnostics', () => {
-    const normalizedMetadata = normalizeFabricMetadata({ id: 'safe', version: '1.0.0', depends: { minecraft: '1.21.1' } });
+    const normalizedMetadata = normalizeFabricMetadata({
+      id: 'safe',
+      version: '1.0.0',
+      depends: { minecraft: '1.21.1' },
+    });
     const report = buildExternalModImportReport({
       sourceId: 'mod:safe',
-      metadata: parseFabricModMetadata({ id: 'safe', version: '1.0.0', depends: { minecraft: '1.21.1' } }),
+      metadata: parseFabricModMetadata({
+        id: 'safe',
+        version: '1.0.0',
+        depends: { minecraft: '1.21.1' },
+      }),
       normalizedMetadata,
       namespaces: ['safe'],
       json: {},
       binaryResourceCount: 0,
       minecraftVersion: '1.21.1',
-      compatibility: evaluateMinecraftRequirement(normalizedMetadata.minecraftRequirement, '1.21.1'),
+      compatibility: evaluateMinecraftRequirement(
+        normalizedMetadata.minecraftRequirement,
+        '1.21.1',
+      ),
       diagnostics: [],
     });
     expect(report.canActivate).toBe(true);

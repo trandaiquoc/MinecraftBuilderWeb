@@ -1,17 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import type { ModImportProgress, PreparedModImport } from '../../../../core/assets/mod/external-mod-importer';
+import type {
+  ModImportProgress,
+  PreparedModImport,
+} from '../../../../core/assets/mod/external-mod-importer';
 import { ModImportTimeoutError } from '../../../../core/assets/mod/mod-import-cancellation';
 import type { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { AssetManagerModImportWorkflow } from './asset-manager-mod-import-workflow';
 
 function prepared(canActivate = true): PreparedModImport {
-  return { canActivate, dispose: vi.fn(), resources: new Map(), report: undefined } as unknown as PreparedModImport;
+  return {
+    canActivate,
+    dispose: vi.fn(),
+    resources: new Map(),
+    report: undefined,
+  } as unknown as PreparedModImport;
 }
 
 function setup() {
   const activity = {
-    begin: vi.fn(), update: vi.fn(), finish: vi.fn(), cancel: vi.fn(), timeout: vi.fn(), fail: vi.fn(),
+    begin: vi.fn(),
+    update: vi.fn(),
+    finish: vi.fn(),
+    cancel: vi.fn(),
+    timeout: vi.fn(),
+    fail: vi.fn(),
   };
   const assets = {
     activity,
@@ -22,11 +35,16 @@ function setup() {
   return {
     activity,
     assets,
-    workflow: new AssetManagerModImportWorkflow(assets as unknown as ContentAssetRuntimeService, i18n as unknown as I18nService),
+    workflow: new AssetManagerModImportWorkflow(
+      assets as unknown as ContentAssetRuntimeService,
+      i18n as unknown as I18nService,
+    ),
   };
 }
 
-function file(name = 'mod.jar'): File { return { name, size: 12 } as File; }
+function file(name = 'mod.jar'): File {
+  return { name, size: 12 } as File;
+}
 
 describe('AssetManagerModImportWorkflow', () => {
   it('owns successful preflight state and disposes a previous prepared payload when the file changes', async () => {
@@ -53,10 +71,14 @@ describe('AssetManagerModImportWorkflow', () => {
     let resolveInspection!: (value: PreparedModImport) => void;
     const late = prepared();
     let requestSignal: AbortSignal | undefined;
-    assets.inspectModJar.mockImplementation((_file: File, _progress: (progress: ModImportProgress) => void, signal: AbortSignal) => {
-      requestSignal = signal;
-      return new Promise((resolve) => { resolveInspection = resolve; });
-    });
+    assets.inspectModJar.mockImplementation(
+      (_file: File, _progress: (progress: ModImportProgress) => void, signal: AbortSignal) => {
+        requestSignal = signal;
+        return new Promise((resolve) => {
+          resolveInspection = resolve;
+        });
+      },
+    );
 
     const inspection = workflow.inspect(file());
     expect(workflow.importing()).toBe(true);
@@ -75,7 +97,9 @@ describe('AssetManagerModImportWorkflow', () => {
   it('retains retry eligibility after timeout and replaces the operation generation on retry', async () => {
     const { assets, activity, workflow } = setup();
     const result = prepared();
-    assets.inspectModJar.mockRejectedValueOnce(new ModImportTimeoutError('opening-archive', 60_000)).mockResolvedValueOnce(result);
+    assets.inspectModJar
+      .mockRejectedValueOnce(new ModImportTimeoutError('opening-archive', 60_000))
+      .mockResolvedValueOnce(result);
 
     await workflow.inspect(file());
     expect(workflow.operationStatus()).toBe('timed-out');
@@ -95,7 +119,11 @@ describe('AssetManagerModImportWorkflow', () => {
     const value = prepared();
     assets.inspectModJar.mockResolvedValue(value);
     let resolveCommit!: () => void;
-    assets.commitPreparedModImport.mockReturnValue(new Promise<void>((resolve) => { resolveCommit = resolve; }));
+    assets.commitPreparedModImport.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveCommit = resolve;
+      }),
+    );
     await workflow.inspect(file());
 
     const first = workflow.confirm();
@@ -116,10 +144,14 @@ describe('AssetManagerModImportWorkflow', () => {
     assets.inspectModJar.mockResolvedValue(value);
     let resolveCommit!: () => void;
     let commitSignal: AbortSignal | undefined;
-    assets.commitPreparedModImport.mockImplementation((_prepared: PreparedModImport, _progress: unknown, signal: AbortSignal) => {
-      commitSignal = signal;
-      return new Promise<void>((resolve) => { resolveCommit = resolve; });
-    });
+    assets.commitPreparedModImport.mockImplementation(
+      (_prepared: PreparedModImport, _progress: unknown, signal: AbortSignal) => {
+        commitSignal = signal;
+        return new Promise<void>((resolve) => {
+          resolveCommit = resolve;
+        });
+      },
+    );
     await workflow.inspect(file());
 
     const commit = workflow.confirm();

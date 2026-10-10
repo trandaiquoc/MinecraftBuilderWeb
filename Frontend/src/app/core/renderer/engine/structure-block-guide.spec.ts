@@ -10,6 +10,6 @@ describe('Structure Block guide position', () => {
   it('keeps the guide center stable in voxel coordinates', () => {
     const position = structureBlockGuidePosition({ x: 0, y: 0, z: 0 });
     expect(position).toEqual({ x: 0, y: -1, z: 0 });
-    expect(structureBlockGuideCenter(position)).toEqual({ x: .5, y: -.5, z: .5 });
+    expect(structureBlockGuideCenter(position)).toEqual({ x: 0.5, y: -0.5, z: 0.5 });
   });
 });

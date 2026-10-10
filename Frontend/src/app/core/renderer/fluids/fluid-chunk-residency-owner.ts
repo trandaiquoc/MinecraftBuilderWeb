@@ -57,24 +57,50 @@ export class FluidChunkResidencyOwner {
   private presentationUpdatesValue = 0;
   private meshVisibilityUpdatesValue = 0;
   private meshRoleUpdatesValue = 0;
-  private referenceOpacity = .28;
+  private referenceOpacity = 0.28;
 
   constructor(private readonly blocksGroup: THREE.Group) {
     this.group.name = 'fluidChunks';
     this.group.userData['fluidChunks'] = true;
   }
 
-  get chunkCount(): number { return this.chunks.size; }
-  get residentVariantCount(): number { return this.residentVariants.size; }
-  get residentVariantBytes(): number { return this.residentVariantBytesValue; }
-  get materialBucketCount(): number { return this.materialCache.size; }
-  get isLayered(): boolean { return !!this.layerPresentation; }
-  get layeredPresentationReady(): boolean {
-    return !!this.layerPresentation && [...this.chunks.values()].every((chunk) => chunk.meshes.every((mesh) => Number.isInteger(mesh.userData['fluidLayer']) && (mesh.userData['fluidLayer'] as number) >= 0 && Array.isArray(mesh.userData['fluidGroupIds'])));
+  get chunkCount(): number {
+    return this.chunks.size;
   }
-  currentChunks(): IterableIterator<FluidResidentChunk> { return this.chunks.values(); }
-  currentChunkKeys(): IterableIterator<string> { return this.chunks.keys(); }
-  currentChunk(key: string): FluidResidentChunk | undefined { return this.chunks.get(key); }
+  get residentVariantCount(): number {
+    return this.residentVariants.size;
+  }
+  get residentVariantBytes(): number {
+    return this.residentVariantBytesValue;
+  }
+  get materialBucketCount(): number {
+    return this.materialCache.size;
+  }
+  get isLayered(): boolean {
+    return !!this.layerPresentation;
+  }
+  get layeredPresentationReady(): boolean {
+    return (
+      !!this.layerPresentation &&
+      [...this.chunks.values()].every((chunk) =>
+        chunk.meshes.every(
+          (mesh) =>
+            Number.isInteger(mesh.userData['fluidLayer']) &&
+            (mesh.userData['fluidLayer'] as number) >= 0 &&
+            Array.isArray(mesh.userData['fluidGroupIds']),
+        ),
+      )
+    );
+  }
+  currentChunks(): IterableIterator<FluidResidentChunk> {
+    return this.chunks.values();
+  }
+  currentChunkKeys(): IterableIterator<string> {
+    return this.chunks.keys();
+  }
+  currentChunk(key: string): FluidResidentChunk | undefined {
+    return this.chunks.get(key);
+  }
 
   setProviderContractKey(key: string | undefined): void {
     if (this.providerContractKey === key) return;
@@ -87,10 +113,15 @@ export class FluidChunkResidencyOwner {
     this.layerPresentation = presentation;
     if (presentation) this.referenceOpacity = presentation.referenceOpacity;
     this.presentationUpdatesValue += 1;
-    for (const chunk of this.chunks.values()) for (const mesh of chunk.meshes) this.applyLayerPresentation(mesh);
+    for (const chunk of this.chunks.values())
+      for (const mesh of chunk.meshes) this.applyLayerPresentation(mesh);
   }
 
-  async createBuildResources(data: FluidMeshBuildResult, provider: FluidChunkVisualProvider, isCurrent: () => boolean): Promise<FluidChunkBuildResources | undefined> {
+  async createBuildResources(
+    data: FluidMeshBuildResult,
+    provider: FluidChunkVisualProvider,
+    isCurrent: () => boolean,
+  ): Promise<FluidChunkBuildResources | undefined> {
     const meshes: THREE.Mesh[] = [];
     const createdMaterials: THREE.Material[] = [];
     const createdMaterialKeys: string[] = [];
@@ -99,7 +130,8 @@ export class FluidChunkResidencyOwner {
       for (const mesh of meshes) this.disposeMesh(mesh);
       for (let index = 0; index < createdMaterials.length; index += 1) {
         const key = createdMaterialKeys[index];
-        if (key && this.materialCache.get(key) === createdMaterials[index]) this.materialCache.delete(key);
+        if (key && this.materialCache.get(key) === createdMaterials[index])
+          this.materialCache.delete(key);
         createdMaterials[index].dispose();
       }
       this.disposeUnusedMaterials();
@@ -108,15 +140,32 @@ export class FluidChunkResidencyOwner {
 
     for (const bucket of data.buckets) {
       const geometry = createGeometry(bucket.positions, bucket.normals, bucket.uvs, bucket.indices);
-      const materialKey = fluidMaterialCacheKey(provider.contractKey ?? 'fluid-provider-default', fluidMaterialDescriptor(bucket, bucket.texture));
+      const materialKey = fluidMaterialCacheKey(
+        provider.contractKey ?? 'fluid-provider-default',
+        fluidMaterialDescriptor(bucket, bucket.texture),
+      );
       let material = this.materialCache.get(materialKey);
       if (!material) {
         this.materialCacheMissesValue += 1;
         let texture: THREE.Texture | undefined;
-        try { texture = await provider.texture(bucket.texture); } catch { texture = undefined; }
-        if (!isCurrent()) { geometry.dispose(); return discard(); }
+        try {
+          texture = await provider.texture(bucket.texture);
+        } catch {
+          texture = undefined;
+        }
+        if (!isCurrent()) {
+          geometry.dispose();
+          return discard();
+        }
         if (!texture) for (const key of bucket.voxelKeys) fallbackKeys.add(key);
-        material = new THREE.MeshLambertMaterial({ map: texture, color: bucket.tint ?? 0xffffff, transparent: bucket.renderLayer === 'translucent', opacity: bucket.opacity ?? (bucket.renderLayer === 'translucent' ? .8 : 1), depthWrite: bucket.depthWrite, side: bucket.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+        material = new THREE.MeshLambertMaterial({
+          map: texture,
+          color: bucket.tint ?? 0xffffff,
+          transparent: bucket.renderLayer === 'translucent',
+          opacity: bucket.opacity ?? (bucket.renderLayer === 'translucent' ? 0.8 : 1),
+          depthWrite: bucket.depthWrite,
+          side: bucket.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+        });
         material.userData['fluidMaterialKey'] = materialKey;
         material.userData['fluidFallback'] = !texture;
         this.materialCache.set(materialKey, material);
@@ -124,7 +173,8 @@ export class FluidChunkResidencyOwner {
         createdMaterialKeys.push(materialKey);
       } else {
         this.materialCacheHitsValue += 1;
-        if (material.userData['fluidFallback']) for (const key of bucket.voxelKeys) fallbackKeys.add(key);
+        if (material.userData['fluidFallback'])
+          for (const key of bucket.voxelKeys) fallbackKeys.add(key);
       }
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData['fluidChunk'] = true;
@@ -145,7 +195,8 @@ export class FluidChunkResidencyOwner {
     for (const mesh of resources.meshes) this.disposeMesh(mesh);
     for (let index = 0; index < resources.createdMaterials.length; index += 1) {
       const key = resources.createdMaterialKeys[index];
-      if (key && this.materialCache.get(key) === resources.createdMaterials[index]) this.materialCache.delete(key);
+      if (key && this.materialCache.get(key) === resources.createdMaterials[index])
+        this.materialCache.delete(key);
       resources.createdMaterials[index].dispose();
     }
     this.disposeUnusedMaterials();
@@ -202,7 +253,8 @@ export class FluidChunkResidencyOwner {
   }
 
   detachGroupIfEmpty(): void {
-    if (!this.chunks.size && !this.group.children.length && this.group.parent === this.blocksGroup) this.blocksGroup.remove(this.group);
+    if (!this.chunks.size && !this.group.children.length && this.group.parent === this.blocksGroup)
+      this.blocksGroup.remove(this.group);
   }
 
   clear(): void {
@@ -216,7 +268,9 @@ export class FluidChunkResidencyOwner {
     this.blocksGroup.remove(this.group);
   }
 
-  dispose(): void { this.clear(); }
+  dispose(): void {
+    this.clear();
+  }
 
   evidence(): FluidChunkResidencyEvidence {
     return {
@@ -254,7 +308,10 @@ export class FluidChunkResidencyOwner {
 
   private retainVariant(chunk: FluidResidentChunk): void {
     for (const mesh of chunk.meshes) this.group.remove(mesh);
-    if (chunk.providerContractKey !== this.providerContractKey || chunk.estimatedBytes > FLUID_RESIDENT_VARIANT_BUDGET_BYTES) {
+    if (
+      chunk.providerContractKey !== this.providerContractKey ||
+      chunk.estimatedBytes > FLUID_RESIDENT_VARIANT_BUDGET_BYTES
+    ) {
       this.disposeChunk(chunk);
       this.disposeUnusedMaterials();
       return;
@@ -268,7 +325,10 @@ export class FluidChunkResidencyOwner {
     }
     this.residentVariants.set(variantKey, chunk);
     this.residentVariantBytesValue += chunk.estimatedBytes;
-    while (this.residentVariantBytesValue > FLUID_RESIDENT_VARIANT_BUDGET_BYTES && this.residentVariants.size) {
+    while (
+      this.residentVariantBytesValue > FLUID_RESIDENT_VARIANT_BUDGET_BYTES &&
+      this.residentVariants.size
+    ) {
       const oldestKey = this.residentVariants.keys().next().value;
       if (oldestKey === undefined) break;
       const oldest = this.residentVariants.get(oldestKey)!;
@@ -288,9 +348,17 @@ export class FluidChunkResidencyOwner {
 
   private disposeUnusedMaterials(): void {
     const used = new Set<THREE.Material>();
-    for (const chunk of this.chunks.values()) for (const mesh of chunk.meshes) used.add(mesh.userData['fluidBaseMaterial'] as THREE.Material);
-    for (const chunk of this.residentVariants.values()) for (const mesh of chunk.meshes) used.add(mesh.userData['fluidBaseMaterial'] as THREE.Material);
-    for (const [key, material] of this.materialCache) if (!used.has(material)) { material.dispose(); this.materialCache.delete(key); }
+    for (const chunk of this.chunks.values())
+      for (const mesh of chunk.meshes)
+        used.add(mesh.userData['fluidBaseMaterial'] as THREE.Material);
+    for (const chunk of this.residentVariants.values())
+      for (const mesh of chunk.meshes)
+        used.add(mesh.userData['fluidBaseMaterial'] as THREE.Material);
+    for (const [key, material] of this.materialCache)
+      if (!used.has(material)) {
+        material.dispose();
+        this.materialCache.delete(key);
+      }
   }
 
   private disposeChunk(chunk: FluidResidentChunk): void {
@@ -306,18 +374,28 @@ export class FluidChunkResidencyOwner {
 
   private applyLayerPresentation(mesh: THREE.Mesh): void {
     const presentation = this.layerPresentation;
-    if (!presentation || !Number.isInteger(mesh.userData['fluidLayer']) || (mesh.userData['fluidLayer'] as number) < 0) {
+    if (
+      !presentation ||
+      !Number.isInteger(mesh.userData['fluidLayer']) ||
+      (mesh.userData['fluidLayer'] as number) < 0
+    ) {
       this.setMeshVisibility(mesh, true);
       this.setMeshRole(mesh, 'normal', 1);
       return;
     }
     const layer = mesh.userData['fluidLayer'] as number;
     const groupIds = mesh.userData['fluidGroupIds'] as readonly string[];
-    const visible = presentation.visibleLayers.has(layer)
-      && !groupIds.some((id) => presentation.hiddenGroupIds.has(id))
-      && (presentation.isolatedGroupId === undefined || groupIds.includes(presentation.isolatedGroupId));
+    const visible =
+      presentation.visibleLayers.has(layer) &&
+      !groupIds.some((id) => presentation.hiddenGroupIds.has(id)) &&
+      (presentation.isolatedGroupId === undefined ||
+        groupIds.includes(presentation.isolatedGroupId));
     this.setMeshVisibility(mesh, visible);
-    this.setMeshRole(mesh, layer === presentation.currentY ? 'normal' : 'reference', presentation.referenceOpacity);
+    this.setMeshRole(
+      mesh,
+      layer === presentation.currentY ? 'normal' : 'reference',
+      presentation.referenceOpacity,
+    );
   }
 
   private setMeshVisibility(mesh: THREE.Mesh, visible: boolean): void {
@@ -344,7 +422,11 @@ export class FluidChunkResidencyOwner {
       mesh.material = presentationMaterial;
       this.meshRoleUpdatesValue += 1;
     }
-    if (!presentationMaterial.transparent || presentationMaterial.opacity !== opacity || presentationMaterial.depthWrite !== base.depthWrite) {
+    if (
+      !presentationMaterial.transparent ||
+      presentationMaterial.opacity !== opacity ||
+      presentationMaterial.depthWrite !== base.depthWrite
+    ) {
       presentationMaterial.transparent = true;
       presentationMaterial.opacity = opacity;
       presentationMaterial.depthWrite = base.depthWrite;
@@ -354,7 +436,12 @@ export class FluidChunkResidencyOwner {
   }
 }
 
-function createGeometry(positions: readonly number[], normals: readonly number[], uvs: readonly number[], indices: readonly number[]): THREE.BufferGeometry {
+function createGeometry(
+  positions: readonly number[],
+  normals: readonly number[],
+  uvs: readonly number[],
+  indices: readonly number[],
+): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
@@ -363,10 +450,23 @@ function createGeometry(positions: readonly number[], normals: readonly number[]
   return geometry;
 }
 
-function sameLayerPresentation(left: FluidLayerPresentation | undefined, right: FluidLayerPresentation | undefined): boolean {
+function sameLayerPresentation(
+  left: FluidLayerPresentation | undefined,
+  right: FluidLayerPresentation | undefined,
+): boolean {
   if (left === right) return true;
-  if (!left || !right || left.currentY !== right.currentY || left.isolatedGroupId !== right.isolatedGroupId || left.referenceOpacity !== right.referenceOpacity) return false;
-  return sameSet(left.visibleLayers, right.visibleLayers) && sameSet(left.hiddenGroupIds, right.hiddenGroupIds);
+  if (
+    !left ||
+    !right ||
+    left.currentY !== right.currentY ||
+    left.isolatedGroupId !== right.isolatedGroupId ||
+    left.referenceOpacity !== right.referenceOpacity
+  )
+    return false;
+  return (
+    sameSet(left.visibleLayers, right.visibleLayers) &&
+    sameSet(left.hiddenGroupIds, right.hiddenGroupIds)
+  );
 }
 
 function sameSet<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {

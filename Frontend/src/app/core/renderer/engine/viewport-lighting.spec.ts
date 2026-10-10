@@ -11,14 +11,21 @@ describe('viewportLightingForBrightness', () => {
   });
 
   it('preserves the current lighting at the default level', () => {
-    expect(viewportLightingForBrightness(3)).toEqual({ hemisphereIntensity: 2.65, directionalIntensity: 1.15 });
+    expect(viewportLightingForBrightness(3)).toEqual({
+      hemisphereIntensity: 2.65,
+      directionalIntensity: 1.15,
+    });
   });
 
   it('is monotonic and clamps the supported range', () => {
     const levels = Array.from({ length: 11 }, (_, level) => viewportLightingForBrightness(level));
     for (let index = 1; index < levels.length; index += 1) {
-      expect(levels[index].hemisphereIntensity).toBeGreaterThan(levels[index - 1].hemisphereIntensity);
-      expect(levels[index].directionalIntensity).toBeGreaterThan(levels[index - 1].directionalIntensity);
+      expect(levels[index].hemisphereIntensity).toBeGreaterThan(
+        levels[index - 1].hemisphereIntensity,
+      );
+      expect(levels[index].directionalIntensity).toBeGreaterThan(
+        levels[index - 1].directionalIntensity,
+      );
     }
     expect(viewportLightingForBrightness(-4)).toEqual(levels[0]);
     expect(viewportLightingForBrightness(99)).toEqual(levels[10]);

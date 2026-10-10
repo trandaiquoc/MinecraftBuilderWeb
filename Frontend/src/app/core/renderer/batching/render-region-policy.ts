@@ -13,7 +13,8 @@ export interface RenderRegionCoordinate {
  */
 export class RenderRegionPolicy {
   constructor(readonly size = 32) {
-    if (!Number.isInteger(size) || size <= 0) throw new Error('Render region size must be a positive integer');
+    if (!Number.isInteger(size) || size <= 0)
+      throw new Error('Render region size must be a positive integer');
   }
 
   coordinate(position: VoxelCoordinate): RenderRegionCoordinate {
@@ -24,22 +25,35 @@ export class RenderRegionPolicy {
     };
   }
 
-  key(position: VoxelCoordinate): string { return this.keyFor(this.coordinate(position)); }
+  key(position: VoxelCoordinate): string {
+    return this.keyFor(this.coordinate(position));
+  }
 
-  keyFor(region: RenderRegionCoordinate): string { return `${region.x},${region.y},${region.z}`; }
+  keyFor(region: RenderRegionCoordinate): string {
+    return `${region.x},${region.y},${region.z}`;
+  }
 
   bounds(key: string, envelope: THREE.Box3): THREE.Box3 {
     const region = parseRenderRegionKey(key);
     if (!region) return new THREE.Box3().makeEmpty();
-    const origin = new THREE.Vector3(region.x * this.size, region.y * this.size, region.z * this.size);
+    const origin = new THREE.Vector3(
+      region.x * this.size,
+      region.y * this.size,
+      region.z * this.size,
+    );
     return new THREE.Box3(
       origin.clone().add(envelope.min),
-      origin.clone().add(new THREE.Vector3(this.size - 1, this.size - 1, this.size - 1)).add(envelope.max),
+      origin
+        .clone()
+        .add(new THREE.Vector3(this.size - 1, this.size - 1, this.size - 1))
+        .add(envelope.max),
     );
   }
 }
 
 export function parseRenderRegionKey(key: string): RenderRegionCoordinate | undefined {
   const values = key.split(',').map(Number);
-  return values.length === 3 && values.every(Number.isInteger) ? { x: values[0], y: values[1], z: values[2] } : undefined;
+  return values.length === 3 && values.every(Number.isInteger)
+    ? { x: values[0], y: values[1], z: values[2] }
+    : undefined;
 }

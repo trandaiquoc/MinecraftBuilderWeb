@@ -31,7 +31,11 @@
                 "input": "public"
               }
             ],
-            "styles": ["node_modules/@fontsource-variable/geist/index.css", "node_modules/@fontsource/vt323/index.css", "src/styles.scss"]
+            "styles": [
+              "node_modules/@fontsource-variable/geist/index.css",
+              "node_modules/@fontsource/vt323/index.css",
+              "src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {

@@ -12,7 +12,10 @@ export class HydrationScheduler<T> {
   private scheduled = false;
   private generation = 0;
   private readonly requestMicrotask: (callback: () => void) => void;
-  private readonly requestTimer: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
+  private readonly requestTimer: (
+    callback: () => void,
+    delay: number,
+  ) => ReturnType<typeof setTimeout>;
   private readonly clearTimer: (timer: ReturnType<typeof setTimeout>) => void;
 
   constructor(options: HydrationSchedulerOptions = {}) {

@@ -1,7 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { Overlay } from '@angular/cdk/overlay';
 import { ComponentPortal } from '@angular/cdk/portal';
-import { UiAlertAction, UiAlertActionKind, UiAlertDialogComponent, UiAlertKind, UiAlertModel } from '../../../shared/ui/dialog/ui-alert-dialog.component';
+import {
+  UiAlertAction,
+  UiAlertActionKind,
+  UiAlertDialogComponent,
+  UiAlertKind,
+  UiAlertModel,
+} from '../../../shared/ui/dialog/ui-alert-dialog.component';
 
 export interface DialogConfirmOptions {
   readonly title: string;
@@ -31,20 +37,66 @@ export class DialogService {
   private readonly overlay = inject(Overlay);
 
   confirm(options: DialogConfirmOptions): Promise<boolean> {
-    return this.open({ kind: options.icon === 'error' ? 'error' : 'confirm', title: options.title, text: options.text, confirmButtonText: options.confirmButtonText ?? 'Confirm', cancelButtonText: options.cancelButtonText ?? 'Cancel', destructive: options.destructive === true, showCancel: true, cancelValue: false }).then((value) => value === true);
+    return this.open({
+      kind: options.icon === 'error' ? 'error' : 'confirm',
+      title: options.title,
+      text: options.text,
+      confirmButtonText: options.confirmButtonText ?? 'Confirm',
+      cancelButtonText: options.cancelButtonText ?? 'Cancel',
+      destructive: options.destructive === true,
+      showCancel: true,
+      cancelValue: false,
+    }).then((value) => value === true);
   }
   choice<T>(options: DialogChoiceOptions<T>): Promise<T | undefined> {
-    const actions: readonly UiAlertAction[] = options.options.map((option) => ({ id: option.id, label: option.label, value: option.value, kind: option.kind }));
-    return this.open({ kind: options.icon === 'error' ? 'error' : options.icon === 'warning' ? 'warning' : 'confirm', title: options.title, text: options.text, confirmButtonText: '', cancelButtonText: '', destructive: false, showCancel: false, actions, cancelValue: undefined }).then((value) => value as T | undefined);
+    const actions: readonly UiAlertAction[] = options.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      value: option.value,
+      kind: option.kind,
+    }));
+    return this.open({
+      kind: options.icon === 'error' ? 'error' : options.icon === 'warning' ? 'warning' : 'confirm',
+      title: options.title,
+      text: options.text,
+      confirmButtonText: '',
+      cancelButtonText: '',
+      destructive: false,
+      showCancel: false,
+      actions,
+      cancelValue: undefined,
+    }).then((value) => value as T | undefined);
   }
-  success(title: string, text?: string): Promise<boolean> { return this.open(this.notice('success', title, text)).then((value) => value === true); }
-  warning(title: string, text?: string): Promise<boolean> { return this.open(this.notice('warning', title, text)).then((value) => value === true); }
-  error(title: string, text?: string): Promise<boolean> { return this.open(this.notice('error', title, text)).then((value) => value === true); }
-  info(title: string, text?: string): Promise<boolean> { return this.open(this.notice('info', title, text)).then((value) => value === true); }
+  success(title: string, text?: string): Promise<boolean> {
+    return this.open(this.notice('success', title, text)).then((value) => value === true);
+  }
+  warning(title: string, text?: string): Promise<boolean> {
+    return this.open(this.notice('warning', title, text)).then((value) => value === true);
+  }
+  error(title: string, text?: string): Promise<boolean> {
+    return this.open(this.notice('error', title, text)).then((value) => value === true);
+  }
+  info(title: string, text?: string): Promise<boolean> {
+    return this.open(this.notice('info', title, text)).then((value) => value === true);
+  }
 
-  private notice(kind: UiAlertKind, title: string, text?: string): UiAlertModel { return { kind, title, text, confirmButtonText: 'OK', cancelButtonText: 'Cancel', destructive: kind === 'error', showCancel: false, cancelValue: false }; }
+  private notice(kind: UiAlertKind, title: string, text?: string): UiAlertModel {
+    return {
+      kind,
+      title,
+      text,
+      confirmButtonText: 'OK',
+      cancelButtonText: 'Cancel',
+      destructive: kind === 'error',
+      showCancel: false,
+      cancelValue: false,
+    };
+  }
   private open(model: UiAlertModel): Promise<unknown> {
-    const previous = typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    const previous =
+      typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : undefined;
     const ref = this.overlay.create({
       hasBackdrop: true,
       backdropClass: 'ui-dialog-backdrop',
@@ -64,7 +116,12 @@ export class DialogService {
       };
       component.instance.configure(model, finish);
       component.changeDetectorRef.detectChanges();
-      ref.keydownEvents().subscribe((event) => { if (event.key === 'Escape') { event.preventDefault(); finish(model.cancelValue); } });
+      ref.keydownEvents().subscribe((event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          finish(model.cancelValue);
+        }
+      });
     });
   }
 }

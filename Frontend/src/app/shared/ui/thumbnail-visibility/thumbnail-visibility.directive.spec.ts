@@ -11,34 +11,71 @@ describe('ThumbnailVisibilityDirective', () => {
     let observerCount = 0;
     let options: IntersectionObserverInit | undefined;
     class FakeIntersectionObserver {
-      constructor(next: IntersectionObserverCallback, init?: IntersectionObserverInit) { callback = next; options = init; observerCount += 1; }
+      constructor(next: IntersectionObserverCallback, init?: IntersectionObserverInit) {
+        callback = next;
+        options = init;
+        observerCount += 1;
+      }
       observe(): void {}
       disconnect(): void {}
       unobserve(): void {}
-      takeRecords(): IntersectionObserverEntry[] { return []; }
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
       root: Element | Document | null = null;
       rootMargin = '';
       thresholds: readonly number[] = [];
     }
     Object.assign(globalThis, { IntersectionObserver: FakeIntersectionObserver });
     try {
-      const root = document.createElement('div'); root.className = 'results';
-      Object.defineProperty(root, 'getBoundingClientRect', { value: () => ({ top: 0, left: 0, right: 100, bottom: 100 }) });
-      const host = document.createElement('div'); root.append(host);
-      const secondHost = document.createElement('div'); root.append(secondHost);
-      const directive = runInInjectionContext(TestBed.inject(EnvironmentInjector), () => new ThumbnailVisibilityDirective(new ElementRef(host)));
-      const second = runInInjectionContext(TestBed.inject(EnvironmentInjector), () => new ThumbnailVisibilityDirective(new ElementRef(secondHost)));
+      const root = document.createElement('div');
+      root.className = 'results';
+      Object.defineProperty(root, 'getBoundingClientRect', {
+        value: () => ({ top: 0, left: 0, right: 100, bottom: 100 }),
+      });
+      const host = document.createElement('div');
+      root.append(host);
+      const secondHost = document.createElement('div');
+      root.append(secondHost);
+      const directive = runInInjectionContext(
+        TestBed.inject(EnvironmentInjector),
+        () => new ThumbnailVisibilityDirective(new ElementRef(host)),
+      );
+      const second = runInInjectionContext(
+        TestBed.inject(EnvironmentInjector),
+        () => new ThumbnailVisibilityDirective(new ElementRef(secondHost)),
+      );
       const priorities: string[] = [];
       directive.thumbnailVisible.subscribe((event) => priorities.push(event.priority));
       second.thumbnailVisible.subscribe((event) => priorities.push(event.priority));
       directive.ngAfterViewInit();
       second.ngAfterViewInit();
-      callback?.([
-        { target: host, isIntersecting: true, boundingClientRect: { top: 20, left: 0, right: 10, bottom: 40 } } as unknown as IntersectionObserverEntry,
-        { target: secondHost, isIntersecting: true, boundingClientRect: { top: 140, left: 0, right: 10, bottom: 160 } } as unknown as IntersectionObserverEntry,
-      ], {} as IntersectionObserver);
+      callback?.(
+        [
+          {
+            target: host,
+            isIntersecting: true,
+            boundingClientRect: { top: 20, left: 0, right: 10, bottom: 40 },
+          } as unknown as IntersectionObserverEntry,
+          {
+            target: secondHost,
+            isIntersecting: true,
+            boundingClientRect: { top: 140, left: 0, right: 10, bottom: 160 },
+          } as unknown as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      );
       const countAfterIntersect = priorities.length;
-      callback?.([{ target: host, isIntersecting: false, boundingClientRect: { top: 300, left: 0, right: 10, bottom: 320 } } as unknown as IntersectionObserverEntry], {} as IntersectionObserver);
+      callback?.(
+        [
+          {
+            target: host,
+            isIntersecting: false,
+            boundingClientRect: { top: 300, left: 0, right: 10, bottom: 320 },
+          } as unknown as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      );
       directive.thumbnailVisibilityEpoch = 1;
       second.thumbnailVisibilityEpoch = 1;
       expect(options?.root).toBe(root);

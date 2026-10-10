@@ -11,7 +11,9 @@ export interface AssetResourceProvider {
 
 export class MemoryAssetResourceProvider implements AssetResourceProvider {
   constructor(private readonly resources: Readonly<Record<string, unknown>>) {}
-  readJson(path: string): unknown | undefined { return this.resources[path]; }
+  readJson(path: string): unknown | undefined {
+    return this.resources[path];
+  }
 }
 
 export interface ModelTransform {

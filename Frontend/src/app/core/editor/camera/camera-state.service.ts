@@ -10,7 +10,9 @@ export class CameraStateService {
   readonly yLayer = this.current;
   private readonly byProject = new Map<string, CameraState>();
 
-  get(_mode: EditorMode, projectId?: string): CameraState | undefined { return projectId ? this.byProject.get(projectId) : this.current(); }
+  get(_mode: EditorMode, projectId?: string): CameraState | undefined {
+    return projectId ? this.byProject.get(projectId) : this.current();
+  }
   set(_mode: EditorMode, state: CameraState, projectId?: string): void {
     if (projectId) this.byProject.set(projectId, state);
     this.current.set(state);

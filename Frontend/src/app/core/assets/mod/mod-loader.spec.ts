@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { assessFabricCompatibility, detectLoader, normalizeFabricMetadata, parseFabricModMetadata } from './mod-loader';
+import {
+  assessFabricCompatibility,
+  detectLoader,
+  normalizeFabricMetadata,
+  parseFabricModMetadata,
+} from './mod-loader';
 
 describe('mod loader adapters', () => {
   it('detects supported and unsupported loader metadata without executing it', () => {
@@ -24,8 +29,13 @@ describe('mod loader adapters', () => {
       jars: [{ file: 'nested.jar' }],
     });
     expect(normalized).toMatchObject({
-      loader: 'fabric', modId: 'example', displayName: 'Example Mod', modVersion: '1.2.3',
-      minecraftRequirement: ['1.20.x', '1.21.x'], environment: '*', icon: 'assets/example/icon.png',
+      loader: 'fabric',
+      modId: 'example',
+      displayName: 'Example Mod',
+      modVersion: '1.2.3',
+      minecraftRequirement: ['1.20.x', '1.21.x'],
+      environment: '*',
+      icon: 'assets/example/icon.png',
     });
     expect(normalized.runtimeDependencies['fabricloader']).toBe('>=0.15');
     expect(normalized.optionalDependencies['example-library']).toBe('>=1.0');
@@ -33,11 +43,17 @@ describe('mod loader adapters', () => {
   });
 
   it('parses Fabric metadata for legacy provider consumers and validates compatibility', () => {
-    expect(parseFabricModMetadata({ id: 'example', name: 'Example', version: '1.0' })).toMatchObject({
-      id: 'example', displayName: 'Example', version: '1.0',
+    expect(
+      parseFabricModMetadata({ id: 'example', name: 'Example', version: '1.0' }),
+    ).toMatchObject({
+      id: 'example',
+      displayName: 'Example',
+      version: '1.0',
     });
     expect(() => parseFabricModMetadata({ version: '1.0.0' })).toThrow(/mod id/);
-    expect(() => parseFabricModMetadata({ id: 'bad id', version: '1.0.0' })).toThrow(/invalid mod id/);
+    expect(() => parseFabricModMetadata({ id: 'bad id', version: '1.0.0' })).toThrow(
+      /invalid mod id/,
+    );
     expect(() => parseFabricModMetadata({ id: 'valid', version: '' })).toThrow(/version/);
     expect(assessFabricCompatibility('1.21.x', '1.21.1')).toBe('compatible');
     expect(assessFabricCompatibility('1.20.6', '1.21.1')).toBe('incompatible');

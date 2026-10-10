@@ -5,7 +5,13 @@ import { vanillaFluidRenderResolver } from './fluid-state';
 import type { FluidChunkRecord } from './fluid-render-contracts';
 
 function record(x: number, level = '0'): FluidChunkRecord {
-  const block: PlacedBlock = { kind: 'resolved', id: 'minecraft:water', namespace: 'minecraft', position: { x, y: 0, z: 0 }, state: { level } };
+  const block: PlacedBlock = {
+    kind: 'resolved',
+    id: 'minecraft:water',
+    namespace: 'minecraft',
+    position: { x, y: 0, z: 0 },
+    state: { level },
+  };
   return { block, state: vanillaFluidRenderResolver.resolve(block)! };
 }
 
@@ -32,10 +38,14 @@ describe('FluidChunkRecordStore', () => {
     store.reconcile([left, remote], undefined, 16, [], false);
 
     const updated = record(0, '4');
-    const delta = store.applyDelta([
-      { position: left.block.position, before: left, after: updated },
-      { position: remote.block.position, before: remote },
-    ], [left.block.position, remote.block.position], 16);
+    const delta = store.applyDelta(
+      [
+        { position: left.block.position, before: left, after: updated },
+        { position: remote.block.position, before: remote },
+      ],
+      [left.block.position, remote.block.position],
+      16,
+    );
 
     expect(delta.changedKeys).toEqual(['0,0,0', '48,0,0']);
     expect(store.get('0,0,0')).toBe(updated);

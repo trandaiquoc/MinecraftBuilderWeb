@@ -9,15 +9,24 @@ export type SignTextSide = 'front' | 'back';
 export class SignTextSideService {
   readonly side = signal<SignTextSide>('front');
 
-  set(side: SignTextSide): void { this.side.set(side); }
-
-  setFromHit(block: PlacedBlock, normal: FaceNormal | undefined): void {
-    if (!normal || normal.y !== 0) { this.side.set('front'); return; }
-    const front = signOutwardNormal(block);
-    this.side.set(front.x === Math.sign(normal.x) && front.z === Math.sign(normal.z) ? 'front' : 'back');
+  set(side: SignTextSide): void {
+    this.side.set(side);
   }
 
-  toggle(): void { this.side.update((side) => side === 'front' ? 'back' : 'front'); }
+  setFromHit(block: PlacedBlock, normal: FaceNormal | undefined): void {
+    if (!normal || normal.y !== 0) {
+      this.side.set('front');
+      return;
+    }
+    const front = signOutwardNormal(block);
+    this.side.set(
+      front.x === Math.sign(normal.x) && front.z === Math.sign(normal.z) ? 'front' : 'back',
+    );
+  }
+
+  toggle(): void {
+    this.side.update((side) => (side === 'front' ? 'back' : 'front'));
+  }
 }
 
 function signOutwardNormal(block: PlacedBlock): { readonly x: number; readonly z: number } {
@@ -27,6 +36,6 @@ function signOutwardNormal(block: PlacedBlock): { readonly x: number; readonly z
   if (facing === 'west') return { x: -1, z: 0 };
   if (facing === 'south') return { x: 0, z: 1 };
   const rotation = Number(block.state['rotation']) & 15;
-  const angle = rotation * Math.PI / 8;
+  const angle = (rotation * Math.PI) / 8;
   return { x: Math.round(-Math.sin(angle)), z: Math.round(Math.cos(angle)) };
 }

@@ -70,13 +70,16 @@ export interface TerrainMeshResult {
 }
 
 export type TerrainMeshWorkerRequest = { readonly type: 'mesh'; readonly job: TerrainMeshJob };
-export type TerrainMeshWorkerResponse = { readonly type: 'result'; readonly result: TerrainMeshResult } | { readonly type: 'error'; readonly jobId: number; readonly message: string };
+export type TerrainMeshWorkerResponse =
+  | { readonly type: 'result'; readonly result: TerrainMeshResult }
+  | { readonly type: 'error'; readonly jobId: number; readonly message: string };
 
 export function terrainMeshTransferList(job: TerrainMeshJob): Transferable[] {
   const transfer: Transferable[] = [job.occupancy.opaque.buffer];
-  for (const template of job.templates) for (const face of template.faces) {
-    transfer.push(face.positions.buffer, face.normals.buffer, face.uvs.buffer);
-  }
+  for (const template of job.templates)
+    for (const face of template.faces) {
+      transfer.push(face.positions.buffer, face.normals.buffer, face.uvs.buffer);
+    }
   return transfer;
 }
 
@@ -84,16 +87,22 @@ export function cloneTerrainMeshJob(job: TerrainMeshJob): TerrainMeshJob {
   return {
     ...job,
     chunk: { ...job.chunk },
-    templates: job.templates.map((template) => ({ faces: template.faces.map((face) => ({
-      ...face,
-      positions: new Float32Array(face.positions),
-      normals: new Float32Array(face.normals),
-      uvs: new Float32Array(face.uvs),
-    })) })),
+    templates: job.templates.map((template) => ({
+      faces: template.faces.map((face) => ({
+        ...face,
+        positions: new Float32Array(face.positions),
+        normals: new Float32Array(face.normals),
+        uvs: new Float32Array(face.uvs),
+      })),
+    })),
     entries: job.entries.map((entry) => ({
       ...entry,
       position: [...entry.position] as [number, number, number],
     })),
-    occupancy: { ...job.occupancy, origin: [...job.occupancy.origin] as [number, number, number], opaque: new Uint8Array(job.occupancy.opaque) },
+    occupancy: {
+      ...job.occupancy,
+      origin: [...job.occupancy.origin] as [number, number, number],
+      opaque: new Uint8Array(job.occupancy.opaque),
+    },
   };
 }

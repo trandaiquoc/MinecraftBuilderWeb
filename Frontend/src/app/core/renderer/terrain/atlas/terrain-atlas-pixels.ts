@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { TerrainAtlasRect } from './terrain-atlas-layout';
 
-export type TerrainPixelExtractionRoute = 'data-buffer' | 'offscreen-canvas' | 'html-canvas' | 'atlas-page';
+export type TerrainPixelExtractionRoute =
+  'data-buffer' | 'offscreen-canvas' | 'html-canvas' | 'atlas-page';
 
 export interface TerrainPixelSource {
   readonly width: number;
@@ -13,10 +14,13 @@ export interface TerrainPixelSource {
 
 /** Read raw image data without changing the provider texture. */
 export function readTerrainTexturePixels(texture: THREE.Texture): TerrainPixelSource | undefined {
-  const image = texture.source?.data as { readonly width?: number; readonly height?: number; readonly data?: ArrayLike<number> } | undefined;
+  const image = texture.source?.data as
+    | { readonly width?: number; readonly height?: number; readonly data?: ArrayLike<number> }
+    | undefined;
   const width = Number(image?.width ?? 0);
   const height = Number(image?.height ?? 0);
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return undefined;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0)
+    return undefined;
   if (image?.data && image.data.length >= width * height * 3) {
     const channels = image.data.length >= width * height * 4 ? 4 : 3;
     const data = new Uint8Array(width * height * 4);
@@ -35,17 +39,26 @@ export function readTerrainTexturePixels(texture: THREE.Texture): TerrainPixelSo
       : typeof document !== 'undefined'
         ? Object.assign(document.createElement('canvas'), { width, height })
         : undefined;
-    const context = canvas?.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+    const context = canvas?.getContext('2d') as
+      CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
     if (!canvas || !context || !('drawImage' in context)) return undefined;
     context.drawImage(image as CanvasImageSource, 0, 0, width, height);
-    return { width, height, data: new Uint8Array(context.getImageData(0, 0, width, height).data), route: offscreen ? 'offscreen-canvas' : 'html-canvas' };
+    return {
+      width,
+      height,
+      data: new Uint8Array(context.getImageData(0, 0, width, height).data),
+      route: offscreen ? 'offscreen-canvas' : 'html-canvas',
+    };
   } catch {
     return undefined;
   }
 }
 
 /** Normalize source sampling to the atlas convention (top-row-first + flipY=true). */
-export function normalizeTerrainPixels(source: TerrainPixelSource, sourceFlipY: boolean): TerrainPixelSource {
+export function normalizeTerrainPixels(
+  source: TerrainPixelSource,
+  sourceFlipY: boolean,
+): TerrainPixelSource {
   if (sourceFlipY) return source;
   const data = new Uint8Array(source.data.length);
   const rowBytes = source.width * 4;
@@ -72,16 +85,29 @@ export function summarizeTerrainPixels(source: TerrainPixelSource): TerrainPixel
   let alphaMax = 0;
   let checksum = 0x811c9dc5;
   for (let index = 0; index < source.data.length; index += 1) {
-    checksum ^= source.data[index]; checksum = Math.imul(checksum, 0x01000193) >>> 0;
+    checksum ^= source.data[index];
+    checksum = Math.imul(checksum, 0x01000193) >>> 0;
     if (index % 4 !== 3 || source.data[index] === 0) continue;
     nonTransparentPixels += 1;
     alphaMin = Math.min(alphaMin, source.data[index]);
     alphaMax = Math.max(alphaMax, source.data[index]);
   }
-  return { width: source.width, height: source.height, nonTransparentPixels, alphaMin: nonTransparentPixels ? alphaMin : 0, alphaMax, checksum };
+  return {
+    width: source.width,
+    height: source.height,
+    nonTransparentPixels,
+    alphaMin: nonTransparentPixels ? alphaMin : 0,
+    alphaMax,
+    checksum,
+  };
 }
 
-export function copyTerrainPixelsWithGutter(target: Uint8Array, pageWidth: number, rect: TerrainAtlasRect, source: TerrainPixelSource): void {
+export function copyTerrainPixelsWithGutter(
+  target: Uint8Array,
+  pageWidth: number,
+  rect: TerrainAtlasRect,
+  source: TerrainPixelSource,
+): void {
   const sourceIndex = (x: number, y: number): number => (y * source.width + x) * 4;
   const write = (x: number, y: number, index: number): void => {
     const targetIndex = (y * pageWidth + x) * 4;
@@ -90,7 +116,8 @@ export function copyTerrainPixelsWithGutter(target: Uint8Array, pageWidth: numbe
     target[targetIndex + 2] = source.data[index + 2];
     target[targetIndex + 3] = source.data[index + 3];
   };
-  for (let y = 0; y < source.height; y += 1) for (let x = 0; x < source.width; x += 1) write(rect.x + x, rect.y + y, sourceIndex(x, y));
+  for (let y = 0; y < source.height; y += 1)
+    for (let x = 0; x < source.width; x += 1) write(rect.x + x, rect.y + y, sourceIndex(x, y));
   for (let edge = 1; edge <= rect.gutter; edge += 1) {
     for (let x = 0; x < source.width; x += 1) {
       write(rect.x + x, rect.y - edge, sourceIndex(x, 0));
@@ -103,6 +130,10 @@ export function copyTerrainPixelsWithGutter(target: Uint8Array, pageWidth: numbe
     write(rect.x - edge, rect.y - edge, sourceIndex(0, 0));
     write(rect.x + source.width - 1 + edge, rect.y - edge, sourceIndex(source.width - 1, 0));
     write(rect.x - edge, rect.y + source.height - 1 + edge, sourceIndex(0, source.height - 1));
-    write(rect.x + source.width - 1 + edge, rect.y + source.height - 1 + edge, sourceIndex(source.width - 1, source.height - 1));
+    write(
+      rect.x + source.width - 1 + edge,
+      rect.y + source.height - 1 + edge,
+      sourceIndex(source.width - 1, source.height - 1),
+    );
   }
 }

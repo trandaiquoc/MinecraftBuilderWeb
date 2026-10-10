@@ -11,7 +11,9 @@ export interface HoverPointerRequest<T> {
 export interface ViewportHoverControllerCallbacks<T> {
   readonly isSuspended: () => boolean;
   readonly cameraGestureInProgress: () => boolean;
-  readonly record: (name: 'hoverRaycasts' | 'hoverPointerMovesCoalesced' | 'hoverRaycastsSuppressedDuringCamera') => void;
+  readonly record: (
+    name: 'hoverRaycasts' | 'hoverPointerMovesCoalesced' | 'hoverRaycastsSuppressedDuringCamera',
+  ) => void;
   readonly hit: (request: HoverPointerRequest<T>) => T;
 }
 
@@ -25,14 +27,22 @@ export class ViewportHoverController<T> {
 
   hover(request: HoverPointerRequest<T>): void {
     if (this.callbacks.isSuspended()) return;
-    if (this.callbacks.cameraGestureInProgress()) { this.callbacks.record('hoverRaycastsSuppressedDuringCamera'); return; }
+    if (this.callbacks.cameraGestureInProgress()) {
+      this.callbacks.record('hoverRaycastsSuppressedDuringCamera');
+      return;
+    }
     if (this.pending) this.callbacks.record('hoverPointerMovesCoalesced');
     this.pending = request;
     if (this.frame !== undefined || this.timer !== undefined) return;
     const run = () => {
-      this.frame = undefined; this.timer = undefined;
-      const next = this.pending; this.pending = undefined;
-      if (!next || this.callbacks.cameraGestureInProgress()) { if (next) this.callbacks.record('hoverRaycastsSuppressedDuringCamera'); return; }
+      this.frame = undefined;
+      this.timer = undefined;
+      const next = this.pending;
+      this.pending = undefined;
+      if (!next || this.callbacks.cameraGestureInProgress()) {
+        if (next) this.callbacks.record('hoverRaycastsSuppressedDuringCamera');
+        return;
+      }
       this.callbacks.record('hoverRaycasts');
       next.listener(this.callbacks.hit(next));
     };
@@ -41,9 +51,16 @@ export class ViewportHoverController<T> {
   }
 
   cancel(countAsSuppressed: boolean): void {
-    if (this.frame !== undefined && typeof cancelAnimationFrame === 'function') { cancelAnimationFrame(this.frame); this.frame = undefined; }
-    if (this.timer !== undefined) { clearTimeout(this.timer); this.timer = undefined; }
-    if (countAsSuppressed && this.pending) this.callbacks.record('hoverRaycastsSuppressedDuringCamera');
+    if (this.frame !== undefined && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.frame);
+      this.frame = undefined;
+    }
+    if (this.timer !== undefined) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+    if (countAsSuppressed && this.pending)
+      this.callbacks.record('hoverRaycastsSuppressedDuringCamera');
     this.pending = undefined;
   }
 }

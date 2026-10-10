@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { ProjectBlockSpatialIndex } from './project-block-spatial-index';
 import type { PlacedBlock } from './project.types';
 
-const block = (x: number, y = 0, z = 0): PlacedBlock => ({ kind: 'resolved', id: 'minecraft:stone', namespace: 'minecraft', position: { x, y, z }, state: {} });
+const block = (x: number, y = 0, z = 0): PlacedBlock => ({
+  kind: 'resolved',
+  id: 'minecraft:stone',
+  namespace: 'minecraft',
+  position: { x, y, z },
+  state: {},
+});
 
 describe('ProjectBlockSpatialIndex', () => {
   it('looks up blocks without changing the source snapshot', () => {

@@ -1,5 +1,10 @@
 import { meshTerrainCore } from './terrain-mesh-core';
-import type { TerrainMeshJob, TerrainMeshResult, TerrainMeshWorkerRequest, TerrainMeshWorkerResponse } from './terrain-mesh-protocol';
+import type {
+  TerrainMeshJob,
+  TerrainMeshResult,
+  TerrainMeshWorkerRequest,
+  TerrainMeshWorkerResponse,
+} from './terrain-mesh-protocol';
 
 export interface TerrainWorkerLike {
   onmessage: ((event: MessageEvent<TerrainMeshWorkerResponse>) => void) | null;
@@ -8,8 +13,17 @@ export interface TerrainWorkerLike {
   terminate(): void;
 }
 
-interface PendingJob { readonly job: TerrainMeshJob; readonly resolve: (result: TerrainMeshResult) => void; readonly reject: (error: unknown) => void; }
-interface WorkerSlot { readonly worker: TerrainWorkerLike; busy: boolean; startedAt: number; job?: PendingJob; }
+interface PendingJob {
+  readonly job: TerrainMeshJob;
+  readonly resolve: (result: TerrainMeshResult) => void;
+  readonly reject: (error: unknown) => void;
+}
+interface WorkerSlot {
+  readonly worker: TerrainWorkerLike;
+  busy: boolean;
+  startedAt: number;
+  job?: PendingJob;
+}
 
 export interface TerrainMeshWorkerPoolEvidence {
   readonly terrainWorkerSupported: boolean;
@@ -20,8 +34,18 @@ export interface TerrainMeshWorkerPoolEvidence {
   readonly terrainWorkerStaleResults: number;
   readonly terrainWorkerFailures: number;
   readonly terrainWorkerFallbackJobs: number;
-  readonly terrainWorkerCpuMs: { readonly count: number; readonly p50: number; readonly p95: number; readonly max: number };
-  readonly terrainWorkerRoundTripMs: { readonly count: number; readonly p50: number; readonly p95: number; readonly max: number };
+  readonly terrainWorkerCpuMs: {
+    readonly count: number;
+    readonly p50: number;
+    readonly p95: number;
+    readonly max: number;
+  };
+  readonly terrainWorkerRoundTripMs: {
+    readonly count: number;
+    readonly p50: number;
+    readonly p95: number;
+    readonly max: number;
+  };
   readonly terrainWorkerBytesIn: number;
   readonly terrainWorkerBytesOut: number;
 }
@@ -50,13 +74,17 @@ export class TerrainMeshWorkerPool {
   readonly workerCount: number;
 
   constructor(private readonly options: TerrainMeshWorkerPoolOptions = {}) {
-    const factory = options.workerFactory ?? (typeof Worker === 'undefined' ? undefined : defaultWorkerFactory);
+    const factory =
+      options.workerFactory ?? (typeof Worker === 'undefined' ? undefined : defaultWorkerFactory);
     this.supported = options.supported ?? !!factory;
     this.workerCount = clampWorkerCount(options.workerCount ?? defaultWorkerCount());
     if (this.supported && factory) {
       for (let i = 0; i < this.workerCount; i += 1) {
-        try { this.slots.push(this.createSlot(factory())); }
-        catch { this.failures += 1; }
+        try {
+          this.slots.push(this.createSlot(factory()));
+        } catch {
+          this.failures += 1;
+        }
       }
     }
     if (!this.slots.length && options.supported === undefined) this.supported = false;
@@ -81,7 +109,9 @@ export class TerrainMeshWorkerPool {
     });
   }
 
-  markStaleResult(): void { this.staleResults += 1; }
+  markStaleResult(): void {
+    this.staleResults += 1;
+  }
 
   evidence(): TerrainMeshWorkerPoolEvidence {
     return {
@@ -103,7 +133,8 @@ export class TerrainMeshWorkerPool {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const pending of this.queue.splice(0)) pending.reject(new Error('Terrain mesh worker pool disposed'));
+    for (const pending of this.queue.splice(0))
+      pending.reject(new Error('Terrain mesh worker pool disposed'));
     for (const slot of this.slots) {
       const pending = slot.job;
       slot.job = undefined;
@@ -120,7 +151,8 @@ export class TerrainMeshWorkerPool {
       if (this.disposed) return;
       const pending = slot.job;
       if (!pending) return;
-      slot.busy = false; slot.job = undefined;
+      slot.busy = false;
+      slot.job = undefined;
       const result = event.data;
       if (result.type === 'error') {
         this.failures += 1;
@@ -137,13 +169,15 @@ export class TerrainMeshWorkerPool {
     worker.onerror = () => {
       if (this.disposed) return;
       const pending = slot.job;
-      slot.busy = false; slot.job = undefined;
+      slot.busy = false;
+      slot.job = undefined;
       this.failures += 1;
       if (pending) this.resolveFallback(pending);
       slot.worker.terminate();
       const index = this.slots.indexOf(slot);
       if (index >= 0) this.slots.splice(index, 1);
-      if (!this.slots.length) for (const queued of this.queue.splice(0)) this.resolveFallback(queued);
+      if (!this.slots.length)
+        for (const queued of this.queue.splice(0)) this.resolveFallback(queued);
       this.pump();
     };
     return slot;
@@ -157,19 +191,30 @@ export class TerrainMeshWorkerPool {
         if (pending) this.queue.unshift(pending);
         continue;
       }
-      slot.busy = true; slot.job = pending; slot.startedAt = now();
+      slot.busy = true;
+      slot.job = pending;
+      slot.startedAt = now();
       try {
         const transfer: Transferable[] = [];
-        for (const template of pending.job.templates) for (const face of template.faces) transfer.push(face.positions.buffer, face.normals.buffer, face.uvs.buffer);
+        for (const template of pending.job.templates)
+          for (const face of template.faces)
+            transfer.push(face.positions.buffer, face.normals.buffer, face.uvs.buffer);
         transfer.push(pending.job.occupancy.opaque.buffer);
         slot.worker.postMessage({ type: 'mesh', job: pending.job }, transfer);
       } catch (error) {
-        slot.busy = false; slot.job = undefined; this.failures += 1; pending.reject(error); this.pump();
+        slot.busy = false;
+        slot.job = undefined;
+        this.failures += 1;
+        pending.reject(error);
+        this.pump();
       }
     }
   }
 
-  private recordSample(target: number[], value: number): void { target.push(Math.max(0, value)); if (target.length > 256) target.shift(); }
+  private recordSample(target: number[], value: number): void {
+    target.push(Math.max(0, value));
+    if (target.length > 256) target.shift();
+  }
 
   private resolveFallback(pending: PendingJob): void {
     try {
@@ -190,15 +235,56 @@ function defaultWorkerCount(): number {
   const concurrency = typeof navigator === 'undefined' ? 2 : navigator.hardwareConcurrency || 2;
   return Math.max(1, Math.min(4, concurrency - 2));
 }
-function clampWorkerCount(value: number): number { return Math.max(1, Math.min(4, Math.floor(value))); }
-function defaultWorkerFactory(): TerrainWorkerLike {
-  return new Worker(new URL('./terrain-mesh.worker', import.meta.url), { type: 'module' }) as unknown as TerrainWorkerLike;
+function clampWorkerCount(value: number): number {
+  return Math.max(1, Math.min(4, Math.floor(value)));
 }
-function now(): number { return typeof performance === 'undefined' ? Date.now() : performance.now(); }
-function summary(values: readonly number[]): { count: number; p50: number; p95: number; max: number } {
+function defaultWorkerFactory(): TerrainWorkerLike {
+  return new Worker(new URL('./terrain-mesh.worker', import.meta.url), {
+    type: 'module',
+  }) as unknown as TerrainWorkerLike;
+}
+function now(): number {
+  return typeof performance === 'undefined' ? Date.now() : performance.now();
+}
+function summary(values: readonly number[]): {
+  count: number;
+  p50: number;
+  p95: number;
+  max: number;
+} {
   if (!values.length) return { count: 0, p50: 0, p95: 0, max: 0 };
   const sorted = [...values].sort((a, b) => a - b);
-  return { count: sorted.length, p50: sorted[Math.floor((sorted.length - 1) * 0.5)], p95: sorted[Math.floor((sorted.length - 1) * 0.95)], max: sorted.at(-1)! };
+  return {
+    count: sorted.length,
+    p50: sorted[Math.floor((sorted.length - 1) * 0.5)],
+    p95: sorted[Math.floor((sorted.length - 1) * 0.95)],
+    max: sorted.at(-1)!,
+  };
 }
-function estimateJobBytes(job: TerrainMeshJob): number { return job.occupancy.opaque.byteLength + job.templates.reduce((total, template) => total + template.faces.reduce((sum, face) => sum + face.positions.byteLength + face.normals.byteLength + face.uvs.byteLength, 0), 0) + job.entries.length * 32; }
-function estimateResultBytes(result: TerrainMeshResult): number { return result.buckets.reduce((total, bucket) => total + bucket.positions.byteLength + bucket.normals.byteLength + bucket.uvs.byteLength + bucket.indices.byteLength, 0); }
+function estimateJobBytes(job: TerrainMeshJob): number {
+  return (
+    job.occupancy.opaque.byteLength +
+    job.templates.reduce(
+      (total, template) =>
+        total +
+        template.faces.reduce(
+          (sum, face) =>
+            sum + face.positions.byteLength + face.normals.byteLength + face.uvs.byteLength,
+          0,
+        ),
+      0,
+    ) +
+    job.entries.length * 32
+  );
+}
+function estimateResultBytes(result: TerrainMeshResult): number {
+  return result.buckets.reduce(
+    (total, bucket) =>
+      total +
+      bucket.positions.byteLength +
+      bucket.normals.byteLength +
+      bucket.uvs.byteLength +
+      bucket.indices.byteLength,
+    0,
+  );
+}

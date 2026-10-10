@@ -1,5 +1,9 @@
 export function sanitizeTraceScenario(value: string): string {
-  const normalized = value.trim().replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  const normalized = value
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
   return normalized || 'trace';
 }
 
@@ -12,8 +16,11 @@ export function stableTraceJson(value: unknown): string {
   return JSON.stringify(sortTraceValue(value), undefined, 2);
 }
 
-export function downloadViewportTrace<T extends { readonly scenario: string; readonly startedAt: string }>(trace: T): void {
-  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined') return;
+export function downloadViewportTrace<
+  T extends { readonly scenario: string; readonly startedAt: string },
+>(trace: T): void {
+  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined')
+    return;
   const blob = new Blob([stableTraceJson(trace)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -26,5 +33,9 @@ export function downloadViewportTrace<T extends { readonly scenario: string; rea
 function sortTraceValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortTraceValue);
   if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => [key, sortTraceValue(entry)]));
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => [key, sortTraceValue(entry)]),
+  );
 }

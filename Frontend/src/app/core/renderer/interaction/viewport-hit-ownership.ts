@@ -10,7 +10,12 @@ export function blockCoordinateFromHit(hit: THREE.Intersection): VoxelCoordinate
   return (hit.object.userData['instanceVoxels'] as VoxelCoordinate[] | undefined)?.[instanceId];
 }
 
-export function surfaceFaceDirectionFromHit(hit: THREE.Intersection): SurfaceFaceDirection | undefined {
-  if (hit.instanceId === undefined || hit.object.userData['surfaceFaceBatch'] !== true) return undefined;
-  return (hit.object.userData['instanceFaceDirections'] as SurfaceFaceDirection[] | undefined)?.[hit.instanceId];
+export function surfaceFaceDirectionFromHit(
+  hit: THREE.Intersection,
+): SurfaceFaceDirection | undefined {
+  if (hit.instanceId === undefined || hit.object.userData['surfaceFaceBatch'] !== true)
+    return undefined;
+  return (hit.object.userData['instanceFaceDirections'] as SurfaceFaceDirection[] | undefined)?.[
+    hit.instanceId
+  ];
 }

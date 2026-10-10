@@ -5,7 +5,19 @@ import { ViewportBlockRepresentationStore } from './viewport-block-representatio
 describe('ViewportBlockRepresentationStore', () => {
   it('advances its revision for representation ownership changes', () => {
     const store = new ViewportBlockRepresentationStore();
-    const entry = { key: '1,2,3', block: { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 2, z: 3 }, state: {} } satisfies PlacedBlock, signature: 'stone', role: 'normal' as const, revision: 0 };
+    const entry = {
+      key: '1,2,3',
+      block: {
+        kind: 'resolved' as const,
+        id: 'minecraft:stone',
+        namespace: 'minecraft',
+        position: { x: 1, y: 2, z: 3 },
+        state: {},
+      } satisfies PlacedBlock,
+      signature: 'stone',
+      role: 'normal' as const,
+      revision: 0,
+    };
 
     expect(store.revision).toBe(0);
     store.createOrReplace(entry);
@@ -18,21 +30,51 @@ describe('ViewportBlockRepresentationStore', () => {
 
   it('owns canonical entry mutation and updates/removes it by voxel key', () => {
     const store = new ViewportBlockRepresentationStore();
-    const entry = { key: '1,2,3', block: { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 1, y: 2, z: 3 }, state: {} } satisfies PlacedBlock, signature: 'stone', role: 'normal' as const, revision: 0 };
+    const entry = {
+      key: '1,2,3',
+      block: {
+        kind: 'resolved' as const,
+        id: 'minecraft:stone',
+        namespace: 'minecraft',
+        position: { x: 1, y: 2, z: 3 },
+        state: {},
+      } satisfies PlacedBlock,
+      signature: 'stone',
+      role: 'normal' as const,
+      revision: 0,
+    };
 
     store.createOrReplace(entry);
     expect(store.get(entry.key)).toMatchObject(entry);
     expect(store.get(entry.key)).not.toBe(entry);
     expect(Object.isFrozen(store.get(entry.key))).toBe(true);
     expect([...store.keys()]).toEqual([entry.key]);
-    expect(store.snapshot()[0]).toMatchObject({ key: entry.key, signature: entry.signature, role: entry.role, revision: entry.revision, block: entry.block });
+    expect(store.snapshot()[0]).toMatchObject({
+      key: entry.key,
+      signature: entry.signature,
+      role: entry.role,
+      revision: entry.revision,
+      block: entry.block,
+    });
     expect(store.remove(entry.key)).toBe(true);
     expect(store.size).toBe(0);
   });
 
   it('returns detached diagnostic snapshots', () => {
     const store = new ViewportBlockRepresentationStore();
-    const entry = { key: '0,0,0', block: { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} } satisfies PlacedBlock, signature: 'stone', role: 'normal' as const, revision: 0 };
+    const entry = {
+      key: '0,0,0',
+      block: {
+        kind: 'resolved' as const,
+        id: 'minecraft:stone',
+        namespace: 'minecraft',
+        position: { x: 0, y: 0, z: 0 },
+        state: {},
+      } satisfies PlacedBlock,
+      signature: 'stone',
+      role: 'normal' as const,
+      revision: 0,
+    };
     store.createOrReplace(entry);
 
     const snapshot = store.snapshot()[0];
@@ -52,7 +94,20 @@ describe('ViewportBlockRepresentationStore', () => {
     const store = new ViewportBlockRepresentationStore();
     const first = {} as import('../visuals/block-visual-provider-contract').BlockVisualProvider;
     const second = {} as import('../visuals/block-visual-provider-contract').BlockVisualProvider;
-    const entry = { key: '0,0,0', block: { kind: 'resolved' as const, id: 'minecraft:stone', namespace: 'minecraft', position: { x: 0, y: 0, z: 0 }, state: {} } satisfies PlacedBlock, signature: 'stone', role: 'normal' as const, revision: 0, provider: first };
+    const entry = {
+      key: '0,0,0',
+      block: {
+        kind: 'resolved' as const,
+        id: 'minecraft:stone',
+        namespace: 'minecraft',
+        position: { x: 0, y: 0, z: 0 },
+        state: {},
+      } satisfies PlacedBlock,
+      signature: 'stone',
+      role: 'normal' as const,
+      revision: 0,
+      provider: first,
+    };
 
     store.createOrReplace(entry);
     expect(store.providerReferenceCount(first)).toBe(1);

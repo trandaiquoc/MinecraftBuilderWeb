@@ -1,13 +1,32 @@
-import type { BlockCapability, BlockCapabilityEvidence, BlockCapabilityProfile } from '../capabilities/block-capability.types';
-import type { ContentItemHostVisualDescriptor, ContentSemanticEvidence, ContentSpecialVisualDescriptor, NormalizedContentDescriptor } from '../../content/content-introspection';
-import type { BehaviorClassificationSummary, BehaviorFingerprint } from '../../block-behavior/compatibility/behavior-fingerprint';
+import type {
+  BlockCapability,
+  BlockCapabilityEvidence,
+  BlockCapabilityProfile,
+} from '../capabilities/block-capability.types';
+import type {
+  ContentItemHostVisualDescriptor,
+  ContentSemanticEvidence,
+  ContentSpecialVisualDescriptor,
+  NormalizedContentDescriptor,
+} from '../../content/content-introspection';
+import type {
+  BehaviorClassificationSummary,
+  BehaviorFingerprint,
+} from '../../block-behavior/compatibility/behavior-fingerprint';
 import type { LogicalPlacementMetadata } from '../../block-behavior/logical-objects/logical-placement';
 
 export type BlockSupportLevel = 'full' | 'partial' | 'fallback';
 export type BehaviorSupportLevel = 'full' | 'partial' | 'unknown';
 export type VisualSupportLevel = 'real' | 'partial' | 'fallback';
-export type BlockVisualClassification = 'standard-json' | 'special-renderer-required' | 'intentionally-invisible';
-export type DefaultStateSource = 'authoritative-report' | 'verified-fixture' | 'compatible-common' | 'resource-derived' | 'resource-render-fallback' | 'unknown';
+export type BlockVisualClassification =
+  'standard-json' | 'special-renderer-required' | 'intentionally-invisible';
+export type DefaultStateSource =
+  | 'authoritative-report'
+  | 'verified-fixture'
+  | 'compatible-common'
+  | 'resource-derived'
+  | 'resource-render-fallback'
+  | 'unknown';
 
 export interface PlacementSupportRequirement {
   readonly direction: 'below' | 'above' | 'north' | 'east' | 'south' | 'west';
@@ -40,7 +59,8 @@ export interface BlockItemEvidence {
   readonly placeable?: boolean;
   readonly contentKind?: import('../../content/content-classifier').MinecraftContentKind;
   readonly provenance?: import('../../content/content-classifier').ContentClassificationProvenance;
-  readonly sourceFormat?: 'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
+  readonly sourceFormat?:
+    'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
   readonly referencedModels?: readonly string[];
   readonly referencedResources?: readonly string[];
   readonly maxStackSize?: number;
@@ -52,7 +72,8 @@ export interface CatalogItemEvidence {
   readonly referencedModels: readonly string[];
   readonly referencedResources: readonly string[];
   readonly explicitBlockPlacement?: { readonly blockId: string };
-  readonly sourceFormat: 'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
+  readonly sourceFormat:
+    'modern-item-definition' | 'legacy-item-model' | 'authoritative-registry' | 'unknown';
   readonly sourceId?: string;
   readonly sourceName?: string;
   /** Authoritative Item#getMaxCount() evidence when available. */
@@ -61,19 +82,45 @@ export interface CatalogItemEvidence {
 
 export type BlockBehavior =
   | { readonly kind: 'solid' }
-  | { readonly kind: 'horizontal-connect'; readonly family: 'fence' | 'pane' | 'wall'; readonly connectionGroup: string; readonly compatibleGroups: readonly string[]; readonly connectsToSolid: boolean; readonly derivedProperties: readonly string[] }
+  | {
+      readonly kind: 'horizontal-connect';
+      readonly family: 'fence' | 'pane' | 'wall';
+      readonly connectionGroup: string;
+      readonly compatibleGroups: readonly string[];
+      readonly connectsToSolid: boolean;
+      readonly derivedProperties: readonly string[];
+    }
   | { readonly kind: 'stairs'; readonly derivedProperties: readonly ['shape'] }
   | { readonly kind: 'wall-mounted'; readonly facingProperty: 'facing' }
   | { readonly kind: 'wall-sign'; readonly facingProperty: 'facing' }
-  | { readonly kind: 'standing-sign'; readonly rotationProperty: 'rotation'; readonly wallBlockId: string }
-  | { readonly kind: 'hanging-sign'; readonly rotationProperty: 'rotation'; readonly attachedProperty: 'attached'; readonly wallBlockId: string }
+  | {
+      readonly kind: 'standing-sign';
+      readonly rotationProperty: 'rotation';
+      readonly wallBlockId: string;
+    }
+  | {
+      readonly kind: 'hanging-sign';
+      readonly rotationProperty: 'rotation';
+      readonly attachedProperty: 'attached';
+      readonly wallBlockId: string;
+    }
   | { readonly kind: 'wall-hanging-sign'; readonly facingProperty: 'facing' }
   | { readonly kind: 'floor-supported' }
   | { readonly kind: 'vertical-chain'; readonly axisProperty: 'axis'; readonly verticalAxis: 'y' }
   | { readonly kind: 'lantern-placement'; readonly hangingProperty: 'hanging' }
   | { readonly kind: 'torch-placement'; readonly wallBlockId: string }
-  | { readonly kind: 'double-height'; readonly halfProperty: 'half'; readonly requiresFloor: boolean }
-  | { readonly kind: 'paired-horizontal'; readonly partProperty: 'part'; readonly facingProperty: 'facing'; readonly firstPart: 'foot'; readonly secondPart: 'head' }
+  | {
+      readonly kind: 'double-height';
+      readonly halfProperty: 'half';
+      readonly requiresFloor: boolean;
+    }
+  | {
+      readonly kind: 'paired-horizontal';
+      readonly partProperty: 'part';
+      readonly facingProperty: 'facing';
+      readonly firstPart: 'foot';
+      readonly secondPart: 'head';
+    }
   | { readonly kind: 'candle'; readonly candlesProperty: 'candles'; readonly maxCandles: 4 }
   | { readonly kind: 'six-face-placement'; readonly facingProperty: 'facing' }
   /** Six-direction placement whose facing is the face the block is attached to. */
@@ -81,8 +128,18 @@ export type BlockBehavior =
   | { readonly kind: 'decorated-pot-placement'; readonly facingProperty: 'facing' }
   | { readonly kind: 'conduit-placement'; readonly waterloggedProperty: 'waterlogged' }
   | { readonly kind: 'fluid'; readonly fluid: 'water' | 'lava' }
-  | { readonly kind: 'button'; readonly faceProperty: 'face'; readonly facingProperty: 'facing'; readonly poweredProperty: 'powered' }
-  | { readonly kind: 'head-placement'; readonly wall: boolean; readonly rotationProperty: 'rotation'; readonly facingProperty: 'facing' };
+  | {
+      readonly kind: 'button';
+      readonly faceProperty: 'face';
+      readonly facingProperty: 'facing';
+      readonly poweredProperty: 'powered';
+    }
+  | {
+      readonly kind: 'head-placement';
+      readonly wall: boolean;
+      readonly rotationProperty: 'rotation';
+      readonly facingProperty: 'facing';
+    };
 
 export interface BlockDefinition {
   readonly id: string;

@@ -49,7 +49,9 @@ export class EditorMovementInputSession {
     return this.streamState === 'uncertain' || this.ownership.ownerCount() > 0;
   }
 
-  ownerCount(): number { return this.ownership.ownerCount(); }
+  ownerCount(): number {
+    return this.ownership.ownerCount();
+  }
 
   clear(): void {
     this.cancelAmbiguousRelease();
@@ -58,7 +60,9 @@ export class EditorMovementInputSession {
     this.streamState = 'synchronized';
   }
 
-  dispose(): void { this.clear(); }
+  dispose(): void {
+    this.clear();
+  }
 
   private release(owner: string, action: MovementAction): void {
     this.ownership.release(owner);

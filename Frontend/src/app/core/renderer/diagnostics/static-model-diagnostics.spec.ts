@@ -23,21 +23,72 @@ describe('collectStaticModelDiagnostics', () => {
     const geometry = new THREE.BoxGeometry();
     const material = new THREE.MeshBasicMaterial();
     const objects = Array.from({ length: 4 }, () => new THREE.Mesh(geometry, material));
-    const snapshot = collectStaticModelDiagnostics([
-      { key: 'a', id: 'minecraft:stone', object: objects[0], staticModelAttempted: true, staticModelDecision: { classification: 'rejected', kind: 'transparent', reason: 'blended-transparency' } },
-      { key: 'b', id: 'minecraft:sign', object: objects[1], staticModelAttempted: true, staticModelDecision: { classification: 'rejected', kind: 'special-unsafe', reason: 'unique-content' }, staticModelFamily: 'signs' },
-      { key: 'c', id: 'minecraft:water', object: objects[2], staticModelAttempted: false, staticModelFamily: 'fluids' },
-      { key: 'd', id: 'minecraft:stone', object: objects[3], staticModelAttempted: true, staticModelDecision: { classification: 'batchable', kind: 'batchable-opaque', reason: 'classified-static-model' } },
-      { key: 'batched', id: 'minecraft:stone', object: objects[0], instanceBatchKey: 'batch' },
-    ], metrics(), [{ key: 'stone', partCount: 1 }]);
+    const snapshot = collectStaticModelDiagnostics(
+      [
+        {
+          key: 'a',
+          id: 'minecraft:stone',
+          object: objects[0],
+          staticModelAttempted: true,
+          staticModelDecision: {
+            classification: 'rejected',
+            kind: 'transparent',
+            reason: 'blended-transparency',
+          },
+        },
+        {
+          key: 'b',
+          id: 'minecraft:sign',
+          object: objects[1],
+          staticModelAttempted: true,
+          staticModelDecision: {
+            classification: 'rejected',
+            kind: 'special-unsafe',
+            reason: 'unique-content',
+          },
+          staticModelFamily: 'signs',
+        },
+        {
+          key: 'c',
+          id: 'minecraft:water',
+          object: objects[2],
+          staticModelAttempted: false,
+          staticModelFamily: 'fluids',
+        },
+        {
+          key: 'd',
+          id: 'minecraft:stone',
+          object: objects[3],
+          staticModelAttempted: true,
+          staticModelDecision: {
+            classification: 'batchable',
+            kind: 'batchable-opaque',
+            reason: 'classified-static-model',
+          },
+        },
+        { key: 'batched', id: 'minecraft:stone', object: objects[0], instanceBatchKey: 'batch' },
+      ],
+      metrics(),
+      [{ key: 'stone', partCount: 1 }],
+    );
     expect(snapshot.standaloneLogical).toBe(4);
     expect(snapshot.standaloneMeshes).toBe(4);
     expect(snapshot.standaloneClassifiedRejected).toBe(2);
     expect(snapshot.standaloneNeverClassified).toBe(1);
     expect(snapshot.standaloneClassifiedBatchableButNotBatched).toBe(1);
-    expect(snapshot.standaloneReasonCounts).toEqual({ 'classification-special-unsafe': 1, 'classification-transparent': 1, 'classified-batchable-but-not-batched': 1, 'never-classified': 1 });
+    expect(snapshot.standaloneReasonCounts).toEqual({
+      'classification-special-unsafe': 1,
+      'classification-transparent': 1,
+      'classified-batchable-but-not-batched': 1,
+      'never-classified': 1,
+    });
     expect(snapshot.standaloneLogicalByFamily['signs']).toEqual({ logical: 1, meshes: 1 });
-    expect(snapshot.topStandaloneBlockIds[0]).toMatchObject({ id: 'minecraft:stone', logicalCount: 2, meshCount: 2 });
-    geometry.dispose(); material.dispose();
+    expect(snapshot.topStandaloneBlockIds[0]).toMatchObject({
+      id: 'minecraft:stone',
+      logicalCount: 2,
+      meshCount: 2,
+    });
+    geometry.dispose();
+    material.dispose();
   });
 });

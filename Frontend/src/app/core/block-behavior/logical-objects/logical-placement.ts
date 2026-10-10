@@ -25,9 +25,17 @@ export interface LogicalPlacementPart {
   readonly offset: VoxelCoordinate;
 }
 
-export function logicalPlacementForBehavior(behavior: BlockBehavior | undefined): LogicalPlacementMetadata | undefined {
+export function logicalPlacementForBehavior(
+  behavior: BlockBehavior | undefined,
+): LogicalPlacementMetadata | undefined {
   if (behavior?.kind === 'double-height') {
-    return { layout: 'vertical-two-part', identityProperty: behavior.halfProperty, firstIdentity: 'lower', secondIdentity: 'upper', sharedState: 'all-except-identity' };
+    return {
+      layout: 'vertical-two-part',
+      identityProperty: behavior.halfProperty,
+      firstIdentity: 'lower',
+      secondIdentity: 'upper',
+      sharedState: 'all-except-identity',
+    };
   }
   if (behavior?.kind === 'paired-horizontal') {
     return {
@@ -43,11 +51,15 @@ export function logicalPlacementForBehavior(behavior: BlockBehavior | undefined)
   return undefined;
 }
 
-export function logicalPlacementParts(metadata: LogicalPlacementMetadata, state: Readonly<Record<string, string>>): readonly LogicalPlacementPart[] {
-  if (metadata.layout === 'vertical-two-part') return [
-    { identityValue: metadata.firstIdentity, offset: { x: 0, y: 0, z: 0 } },
-    { identityValue: metadata.secondIdentity, offset: { x: 0, y: 1, z: 0 } },
-  ];
+export function logicalPlacementParts(
+  metadata: LogicalPlacementMetadata,
+  state: Readonly<Record<string, string>>,
+): readonly LogicalPlacementPart[] {
+  if (metadata.layout === 'vertical-two-part')
+    return [
+      { identityValue: metadata.firstIdentity, offset: { x: 0, y: 0, z: 0 } },
+      { identityValue: metadata.secondIdentity, offset: { x: 0, y: 1, z: 0 } },
+    ];
   const facing = state[metadata.facingProperty ?? 'facing'] ?? 'north';
   const offset = directionOffset(facing);
   return [
@@ -57,7 +69,10 @@ export function logicalPlacementParts(metadata: LogicalPlacementMetadata, state:
 }
 
 /** Materialize all parts from one origin block without mutating its state. */
-export function expandLogicalPlacement(block: PlacedBlock, metadata: LogicalPlacementMetadata): readonly PlacedBlock[] {
+export function expandLogicalPlacement(
+  block: PlacedBlock,
+  metadata: LogicalPlacementMetadata,
+): readonly PlacedBlock[] {
   const sharedState = { ...(metadata.sharedStateDefaults ?? {}), ...block.state };
   return logicalPlacementParts(metadata, sharedState).map((part) => ({
     ...block,
@@ -66,20 +81,38 @@ export function expandLogicalPlacement(block: PlacedBlock, metadata: LogicalPlac
   }));
 }
 
-export function logicalPartOffset(metadata: LogicalPlacementMetadata, identityValue: string, state: Readonly<Record<string, string>>): VoxelCoordinate | undefined {
+export function logicalPartOffset(
+  metadata: LogicalPlacementMetadata,
+  identityValue: string,
+  state: Readonly<Record<string, string>>,
+): VoxelCoordinate | undefined {
   const parts = logicalPlacementParts(metadata, state);
   const part = parts.find((entry) => entry.identityValue === identityValue);
   return part?.offset;
 }
 
-export function oppositeLogicalPart(metadata: LogicalPlacementMetadata, identityValue: string): string | undefined {
+export function oppositeLogicalPart(
+  metadata: LogicalPlacementMetadata,
+  identityValue: string,
+): string | undefined {
   if (identityValue === metadata.firstIdentity) return metadata.secondIdentity;
   if (identityValue === metadata.secondIdentity) return metadata.firstIdentity;
   return undefined;
 }
 
 export function directionOffset(direction: string): VoxelCoordinate {
-  return ({ north: { x: 0, y: 0, z: -1 }, south: { x: 0, y: 0, z: 1 }, east: { x: 1, y: 0, z: 0 }, west: { x: -1, y: 0, z: 0 } } as Record<string, VoxelCoordinate>)[direction] ?? { x: 0, y: 0, z: 0 };
+  return (
+    (
+      {
+        north: { x: 0, y: 0, z: -1 },
+        south: { x: 0, y: 0, z: 1 },
+        east: { x: 1, y: 0, z: 0 },
+        west: { x: -1, y: 0, z: 0 },
+      } as Record<string, VoxelCoordinate>
+    )[direction] ?? { x: 0, y: 0, z: 0 }
+  );
 }
 
-function add(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate { return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z }; }
+function add(position: VoxelCoordinate, offset: VoxelCoordinate): VoxelCoordinate {
+  return { x: position.x + offset.x, y: position.y + offset.y, z: position.z + offset.z };
+}

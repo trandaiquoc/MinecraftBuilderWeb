@@ -12,13 +12,15 @@ const project = (id: string, currentY: number): ProjectDocument => ({
   structureMode: 'vanilla-structure-block',
   blocks: [],
   groups: [],
-  editorSettings: { currentY, layerVisibility: 'whole-structure', referenceLayerOpacity: .28 },
+  editorSettings: { currentY, layerVisibility: 'whole-structure', referenceLayerOpacity: 0.28 },
 });
 
 describe('EditorSessionService Y-layer preview', () => {
   it('keeps scrub previews transient and exposes the effective layer immediately', () => {
     const workspace = new WorkspaceStateService();
-    TestBed.configureTestingModule({ providers: [{ provide: WorkspaceStateService, useValue: workspace }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: WorkspaceStateService, useValue: workspace }],
+    });
     const session = TestBed.inject(EditorSessionService);
     const current = project('current', 20);
     workspace.project.set(current);
@@ -37,7 +39,9 @@ describe('EditorSessionService Y-layer preview', () => {
 
   it('does not leak a preview to another project', () => {
     const workspace = new WorkspaceStateService();
-    TestBed.configureTestingModule({ providers: [{ provide: WorkspaceStateService, useValue: workspace }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: WorkspaceStateService, useValue: workspace }],
+    });
     const session = TestBed.inject(EditorSessionService);
     const first = project('first', 3);
     const second = project('second', 7);

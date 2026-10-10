@@ -1,4 +1,7 @@
-import type { HydrationFinalizationSnapshot, HydrationProgressSnapshot } from '../../renderer/scheduling/hydration-progress-tracker';
+import type {
+  HydrationFinalizationSnapshot,
+  HydrationProgressSnapshot,
+} from '../../renderer/scheduling/hydration-progress-tracker';
 
 export type ViewportFinalizationPhase = 'idle' | 'building' | 'updating' | 'warning' | 'ready';
 
@@ -24,7 +27,8 @@ export interface ViewportFinalizationWork {
   readonly projectionPending: boolean;
 }
 
-export type ViewportFinalizationIssue = 'incomplete-ownership' | 'rendering-failure' | 'stalled-work';
+export type ViewportFinalizationIssue =
+  'incomplete-ownership' | 'rendering-failure' | 'stalled-work';
 
 export interface ViewportFinalizationState {
   readonly phase: ViewportFinalizationPhase;
@@ -42,7 +46,13 @@ export interface ViewportFinalizationAudit {
   readonly ownershipComplete?: boolean;
 }
 
-const emptyState: ViewportFinalizationState = { phase: 'idle', loading: false, ready: false, warning: false, indeterminate: false };
+const emptyState: ViewportFinalizationState = {
+  phase: 'idle',
+  loading: false,
+  ready: false,
+  warning: false,
+  indeterminate: false,
+};
 
 /**
  * Small policy object for the user-facing project-finalization state. It does
@@ -61,14 +71,19 @@ export class ViewportFinalizationCoordinator {
   private reconcile?: () => void;
   private readonly listeners = new Set<(state: ViewportFinalizationState) => void>();
 
-  state(): ViewportFinalizationState { return this.current; }
+  state(): ViewportFinalizationState {
+    return this.current;
+  }
 
   onState(listener: (state: ViewportFinalizationState) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  setAuditHooks(audit: ((includeOwnership: boolean) => ViewportFinalizationAudit | undefined) | undefined, reconcile: (() => void) | undefined): void {
+  setAuditHooks(
+    audit: ((includeOwnership: boolean) => ViewportFinalizationAudit | undefined) | undefined,
+    reconcile: (() => void) | undefined,
+  ): void {
     this.audit = audit;
     this.reconcile = reconcile;
     if (!audit) {
@@ -83,7 +98,8 @@ export class ViewportFinalizationCoordinator {
     this.latestInput = input;
     const signature = progressSignature(input);
     const signatureChanged = signature !== this.lastProgressSignature;
-    const retainedIssue = !signatureChanged && !this.current.loading ? this.current.issue : undefined;
+    const retainedIssue =
+      !signatureChanged && !this.current.loading ? this.current.issue : undefined;
     this.setState(deriveViewportFinalizationState(input, retainedIssue));
     if (signatureChanged) {
       this.lastProgressSignature = signature;
@@ -106,7 +122,9 @@ export class ViewportFinalizationCoordinator {
     this.latestInput = undefined;
   }
 
-  dispose(): void { this.reset(); }
+  dispose(): void {
+    this.reset();
+  }
 
   private scheduleStallAudit(): void {
     this.cancelStallAudit();
@@ -131,7 +149,8 @@ export class ViewportFinalizationCoordinator {
     if (result) this.latestInput = result.input;
     if (result && inspectOwnership) {
       const runnable = hasRunnableWork(result.input);
-      const terminalSource = result.input.sourceRestoreTerminal && !result.input.sourceRestorePending;
+      const terminalSource =
+        result.input.sourceRestoreTerminal && !result.input.sourceRestorePending;
       if (!runnable && terminalSource) {
         const revisionBeforeReconcile = this.updateRevision;
         this.reconcile?.();
@@ -139,13 +158,20 @@ export class ViewportFinalizationCoordinator {
         const reconciledInput = this.latestInput ?? result.input;
         if (reconciliationPublished && !this.current.loading) return;
         if (reconciliationPublished && hasRunnableWork(reconciledInput)) return;
-        if (reconciliationPublished && (!reconciledInput.sourceRestoreTerminal || reconciledInput.sourceRestorePending)) return;
+        if (
+          reconciliationPublished &&
+          (!reconciledInput.sourceRestoreTerminal || reconciledInput.sourceRestorePending)
+        )
+          return;
         const reconciledAudit = this.audit(true);
         const latestInput = reconciledAudit?.input ?? this.latestInput ?? result.input;
         if (reconciledAudit?.ownershipComplete ?? result.ownershipComplete) {
           this.setState(deriveViewportFinalizationState(latestInput));
         } else {
-          const issue = (latestInput.renderingFailureCount ?? 0) > 0 ? 'rendering-failure' : 'incomplete-ownership';
+          const issue =
+            (latestInput.renderingFailureCount ?? 0) > 0
+              ? 'rendering-failure'
+              : 'incomplete-ownership';
           this.setState(deriveViewportFinalizationState(latestInput, issue));
         }
       } else {
@@ -174,52 +200,119 @@ export class ViewportFinalizationCoordinator {
   }
 }
 
-export function deriveViewportFinalizationState(input: ViewportFinalizationInput, issue?: ViewportFinalizationIssue): ViewportFinalizationState {
+export function deriveViewportFinalizationState(
+  input: ViewportFinalizationInput,
+  issue?: ViewportFinalizationIssue,
+): ViewportFinalizationState {
   const progress = input.progress;
   const finalization = progress?.finalization ?? fallbackFinalization(progress);
   const providerPlanning = input.providerRefreshPlanning === true;
-  const providerWork = (input.providerRefreshQueued ?? 0) > 0 || (input.providerRefreshRunning ?? 0) > 0;
+  const providerWork =
+    (input.providerRefreshQueued ?? 0) > 0 || (input.providerRefreshRunning ?? 0) > 0;
   const terrainWork = (input.terrainPending ?? 0) > 0 || (input.work?.terrainPending ?? 0) > 0;
   const queuedWork = input.work ? input.work.blockQueued + input.work.decorationQueued : 0;
   const runningWork = input.work ? input.work.blockRunning : 0;
   const fluidWork = (input.work?.fluidPending ?? 0) > 0;
   const projectionWork = input.work?.projectionPending === true;
-  const structuralWork = progress?.status === 'hydrating' && progress.total > 0 && (progress.lane ?? 'structural') !== 'local';
-  const unresolvedPending = finalization.pendingBlocks > 0 || finalization.provisionalMissingBlocks > 0;
+  const structuralWork =
+    progress?.status === 'hydrating' &&
+    progress.total > 0 &&
+    (progress.lane ?? 'structural') !== 'local';
+  const unresolvedPending =
+    finalization.pendingBlocks > 0 || finalization.provisionalMissingBlocks > 0;
   const sourcePending = !input.sourceRestoreTerminal || input.sourceRestorePending;
-  const missingWarning = finalization.permanentMissingBlocks > 0 || input.sourceRestoreFailed === true;
+  const missingWarning =
+    finalization.permanentMissingBlocks > 0 || input.sourceRestoreFailed === true;
   const renderingWarning = (input.renderingFailureCount ?? 0) > 0;
-  const terminalIssue = issue === 'incomplete-ownership' || issue === 'rendering-failure' || issue === 'stalled-work';
-  const loading = !terminalIssue && (providerPlanning || providerWork || terrainWork || queuedWork > 0 || runningWork > 0 || fluidWork || projectionWork || structuralWork || unresolvedPending || sourcePending);
-  const ownershipTerminal = finalization.finalReadyBlocks + finalization.permanentMissingBlocks >= finalization.expectedBlocks;
+  const terminalIssue =
+    issue === 'incomplete-ownership' || issue === 'rendering-failure' || issue === 'stalled-work';
+  const loading =
+    !terminalIssue &&
+    (providerPlanning ||
+      providerWork ||
+      terrainWork ||
+      queuedWork > 0 ||
+      runningWork > 0 ||
+      fluidWork ||
+      projectionWork ||
+      structuralWork ||
+      unresolvedPending ||
+      sourcePending);
+  const ownershipTerminal =
+    finalization.finalReadyBlocks + finalization.permanentMissingBlocks >=
+    finalization.expectedBlocks;
   const warning = missingWarning || renderingWarning || issue !== undefined;
-  const ready = !loading && !warning && input.sourceRestoreTerminal && ownershipTerminal && !!progress;
+  const ready =
+    !loading && !warning && input.sourceRestoreTerminal && ownershipTerminal && !!progress;
   const phase: ViewportFinalizationPhase = ready
     ? 'ready'
     : warning && !loading
       ? 'warning'
       : loading
-        ? ((progress?.lane ?? 'structural') === 'content' || providerPlanning || providerWork ? 'updating' : 'building')
+        ? (progress?.lane ?? 'structural') === 'content' || providerPlanning || providerWork
+          ? 'updating'
+          : 'building'
         : 'idle';
   return { phase, loading, ready, warning, indeterminate: true, issue, progress, finalization };
 }
 
-function fallbackFinalization(progress: HydrationProgressSnapshot | undefined): HydrationFinalizationSnapshot {
+function fallbackFinalization(
+  progress: HydrationProgressSnapshot | undefined,
+): HydrationFinalizationSnapshot {
   const expectedBlocks = progress?.blocksTotal ?? 0;
   const finalReadyBlocks = progress?.blocksCompleted ?? 0;
-  return { expectedBlocks, finalReadyBlocks, provisionalMissingBlocks: 0, permanentMissingBlocks: 0, pendingBlocks: Math.max(0, expectedBlocks - finalReadyBlocks) };
+  return {
+    expectedBlocks,
+    finalReadyBlocks,
+    provisionalMissingBlocks: 0,
+    permanentMissingBlocks: 0,
+    pendingBlocks: Math.max(0, expectedBlocks - finalReadyBlocks),
+  };
 }
 
 function progressSignature(input: ViewportFinalizationInput): string {
   const p = input.progress;
   const f = p?.finalization;
   const work = input.work;
-  return [p?.generation ?? 0, p?.lane ?? 'none', p?.completed ?? 0, p?.total ?? 0, f?.finalReadyBlocks ?? p?.blocksCompleted ?? 0, f?.pendingBlocks ?? 0, f?.provisionalMissingBlocks ?? 0, f?.permanentMissingBlocks ?? 0, input.sourceRestoreTerminal, input.sourceRestorePending, input.providerRefreshPlanning, input.providerRefreshQueued ?? 0, input.providerRefreshRunning ?? 0, input.terrainPending ?? 0, work?.blockQueued ?? 0, work?.blockRunning ?? 0, work?.decorationQueued ?? 0, work?.fluidPending ?? 0, work?.projectionPending ?? false, input.renderingFailureCount ?? 0].join('|');
+  return [
+    p?.generation ?? 0,
+    p?.lane ?? 'none',
+    p?.completed ?? 0,
+    p?.total ?? 0,
+    f?.finalReadyBlocks ?? p?.blocksCompleted ?? 0,
+    f?.pendingBlocks ?? 0,
+    f?.provisionalMissingBlocks ?? 0,
+    f?.permanentMissingBlocks ?? 0,
+    input.sourceRestoreTerminal,
+    input.sourceRestorePending,
+    input.providerRefreshPlanning,
+    input.providerRefreshQueued ?? 0,
+    input.providerRefreshRunning ?? 0,
+    input.terrainPending ?? 0,
+    work?.blockQueued ?? 0,
+    work?.blockRunning ?? 0,
+    work?.decorationQueued ?? 0,
+    work?.fluidPending ?? 0,
+    work?.projectionPending ?? false,
+    input.renderingFailureCount ?? 0,
+  ].join('|');
 }
 
 function hasRunnableWork(input: ViewportFinalizationInput): boolean {
   const work = input.work;
-  return input.providerRefreshPlanning === true || (input.providerRefreshQueued ?? 0) > 0 || (input.providerRefreshRunning ?? 0) > 0 || (input.terrainPending ?? 0) > 0 || !!work && (work.blockQueued > 0 || work.blockRunning > 0 || work.decorationQueued > 0 || work.terrainPending > 0 || work.fluidPending > 0 || work.projectionPending);
+  return (
+    input.providerRefreshPlanning === true ||
+    (input.providerRefreshQueued ?? 0) > 0 ||
+    (input.providerRefreshRunning ?? 0) > 0 ||
+    (input.terrainPending ?? 0) > 0 ||
+    (!!work &&
+      (work.blockQueued > 0 ||
+        work.blockRunning > 0 ||
+        work.decorationQueued > 0 ||
+        work.terrainPending > 0 ||
+        work.fluidPending > 0 ||
+        work.projectionPending))
+  );
 }
 
 const MAX_SILENT_WORK_MS = 30_000;

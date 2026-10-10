@@ -13,31 +13,56 @@ describe('Structure Block guide renderer', () => {
     const create = vi.fn(async (block: { readonly id: string }) => {
       const object = new THREE.Group();
       object.add(new THREE.Mesh(geometry, sourceMaterial));
-      return { object, resolved: { diagnostics: [], support: 'full' as const }, mode: 'real' as const, diagnostics: [], trace: { texturePaths: [], pngBytesFound: true, textureDecoded: true, geometryBuilt: true, meshBuilt: true } };
+      return {
+        object,
+        resolved: { diagnostics: [], support: 'full' as const },
+        mode: 'real' as const,
+        diagnostics: [],
+        trace: {
+          texturePaths: [],
+          pngBytesFound: true,
+          textureDecoded: true,
+          geometryBuilt: true,
+          meshBuilt: true,
+        },
+      };
     });
     const provider = { create, thumbnailUrl: () => undefined } as unknown as BlockVisualProvider;
-    const definition = { id: 'minecraft:structure_block', sourceId: 'vanilla', defaultState: { mode: 'load' } } as unknown as BlockDefinition;
+    const definition = {
+      id: 'minecraft:structure_block',
+      sourceId: 'vanilla',
+      defaultState: { mode: 'load' },
+    } as unknown as BlockDefinition;
     const engine = new ThreeViewportEngine();
     engine.setBlockDefinitionResolver(() => definition);
     engine.setVisualProvider(provider);
     engine.update({ ...rendererBenchmarkProject('small'), blocks: [] }, undefined);
     await Promise.resolve();
 
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ id: 'minecraft:structure_block', state: { mode: 'save' } }));
-    const guideGroup = (engine as unknown as { structureBlockGuideGroup: THREE.Group }).structureBlockGuideGroup;
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'minecraft:structure_block', state: { mode: 'save' } }),
+    );
+    const guideGroup = (engine as unknown as { structureBlockGuideGroup: THREE.Group })
+      .structureBlockGuideGroup;
     expect(guideGroup.name).toBe('structureBlockGuide');
     expect(guideGroup.children).toHaveLength(1);
     expect(guideGroup.children[0].position.toArray()).toEqual([0, -1, 0]);
     const guideMaterials: THREE.Material[] = [];
-    guideGroup.traverse((object) => { if (object instanceof THREE.Mesh) guideMaterials.push(object.material as THREE.Material); });
+    guideGroup.traverse((object) => {
+      if (object instanceof THREE.Mesh) guideMaterials.push(object.material as THREE.Material);
+    });
     expect(guideMaterials).toHaveLength(1);
     expect(guideMaterials[0]).not.toBe(sourceMaterial);
     expect(guideMaterials[0].userData['structureGuideOwnedMaterial']).toBe(true);
     expect(guideGroup.getObjectByName('structureBlockGuideOutline')).toBeUndefined();
-    const guideColorBeforeUserBrightness = (guideMaterials[0] as THREE.MeshBasicMaterial).color.clone();
+    const guideColorBeforeUserBrightness = (
+      guideMaterials[0] as THREE.MeshBasicMaterial
+    ).color.clone();
     engine.setBlockBrightness(0);
     engine.setBlockBrightness(10);
-    expect((guideMaterials[0] as THREE.MeshBasicMaterial).color.equals(guideColorBeforeUserBrightness)).toBe(true);
+    expect(
+      (guideMaterials[0] as THREE.MeshBasicMaterial).color.equals(guideColorBeforeUserBrightness),
+    ).toBe(true);
 
     engine.dispose();
     sourceMaterial.dispose();

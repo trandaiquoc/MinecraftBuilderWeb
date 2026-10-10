@@ -5,13 +5,28 @@ import { PaintingPickerComponent } from './painting-picker.component';
 
 describe('PaintingPickerComponent', () => {
   it('reacts when the source input changes after creation', async () => {
-    await TestBed.configureTestingModule({ imports: [PaintingPickerComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [PaintingPickerComponent],
+    }).compileComponents();
     const fixture = TestBed.createComponent(PaintingPickerComponent);
     const catalog = TestBed.inject(PaintingVariantCatalogService);
-    catalog.replaceSource('example-paintings', [{ id: 'example:poster', width: 2, height: 1, assetPath: 'example:painting/poster', sourceId: 'example-paintings', sourceName: 'Example' }]);
+    catalog.replaceSource('example-paintings', [
+      {
+        id: 'example:poster',
+        width: 2,
+        height: 1,
+        assetPath: 'example:painting/poster',
+        sourceId: 'example-paintings',
+        sourceName: 'Example',
+      },
+    ]);
     fixture.componentRef.setInput('sourceId', '__minecraftbuilder_all__');
     fixture.detectChanges();
-    expect([...fixture.nativeElement.querySelectorAll('.painting-card')].some((card) => card.textContent.includes('Poster'))).toBe(true);
+    expect(
+      [...fixture.nativeElement.querySelectorAll('.painting-card')].some((card) =>
+        card.textContent.includes('Poster'),
+      ),
+    ).toBe(true);
     fixture.componentRef.setInput('sourceId', 'example-paintings');
     fixture.detectChanges();
     const cards = [...fixture.nativeElement.querySelectorAll('.painting-card')];

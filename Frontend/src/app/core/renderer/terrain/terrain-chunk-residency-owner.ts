@@ -61,28 +61,54 @@ export class TerrainChunkResidencyOwner {
   private blocksCompiledValue = 0;
   private facesEmittedValue = 0;
   private facesCulledValue = 0;
-  private referenceOpacity = .28;
+  private referenceOpacity = 0.28;
 
   constructor(private readonly options: TerrainChunkResidencyOptions) {}
 
-  get chunkCount(): number { return this.chunks.size; }
+  get chunkCount(): number {
+    return this.chunks.size;
+  }
   get meshCount(): number {
     let count = 0;
     for (const chunk of this.chunks.values()) count += chunk.meshes.length;
     return count;
   }
-  get residentVariantCount(): number { return this.residentVariants.size; }
-  get residentVariantBytes(): number { return this.residentVariantBytesValue; }
-  get residentVariantHits(): number { return this.residentVariantHitsValue; }
-  get residentVariantEvictions(): number { return this.residentVariantEvictionsValue; }
-  get rebuildCount(): number { return this.rebuildCountValue; }
-  get blocksCompiled(): number { return this.blocksCompiledValue; }
-  get facesEmitted(): number { return this.facesEmittedValue; }
-  get facesCulled(): number { return this.facesCulledValue; }
-  get(key: string): TerrainChunkObject | undefined { return this.chunks.get(key); }
-  values(): IterableIterator<TerrainChunkObject> { return this.chunks.values(); }
-  ownershipFor(key: string): TerrainOwnershipEvidence | undefined { return this.ownership.get(key); }
-  isRepresented(key: string): boolean { return this.ownership.has(key); }
+  get residentVariantCount(): number {
+    return this.residentVariants.size;
+  }
+  get residentVariantBytes(): number {
+    return this.residentVariantBytesValue;
+  }
+  get residentVariantHits(): number {
+    return this.residentVariantHitsValue;
+  }
+  get residentVariantEvictions(): number {
+    return this.residentVariantEvictionsValue;
+  }
+  get rebuildCount(): number {
+    return this.rebuildCountValue;
+  }
+  get blocksCompiled(): number {
+    return this.blocksCompiledValue;
+  }
+  get facesEmitted(): number {
+    return this.facesEmittedValue;
+  }
+  get facesCulled(): number {
+    return this.facesCulledValue;
+  }
+  get(key: string): TerrainChunkObject | undefined {
+    return this.chunks.get(key);
+  }
+  values(): IterableIterator<TerrainChunkObject> {
+    return this.chunks.values();
+  }
+  ownershipFor(key: string): TerrainOwnershipEvidence | undefined {
+    return this.ownership.get(key);
+  }
+  isRepresented(key: string): boolean {
+    return this.ownership.has(key);
+  }
 
   takeResidentVariant(chunkKey: string, signature: string): TerrainChunkObject | undefined {
     const variantKey = `${chunkKey}|${signature}`;
@@ -93,7 +119,12 @@ export class TerrainChunkResidencyOwner {
     return variant;
   }
 
-  installCompiled(key: string, compiled: CompiledTerrainChunk, revision: number, signature: string): TerrainChunkInstallation {
+  installCompiled(
+    key: string,
+    compiled: CompiledTerrainChunk,
+    revision: number,
+    signature: string,
+  ): TerrainChunkInstallation {
     this.rebuildCountValue += 1;
     this.blocksCompiledValue += compiled.blocksCompiled;
     this.facesEmittedValue += compiled.facesEmitted;
@@ -110,7 +141,9 @@ export class TerrainChunkResidencyOwner {
         new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
         new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z),
       );
-      bucket.geometry.boundingSphere = bucket.geometry.boundingBox.getBoundingSphere(new THREE.Sphere());
+      bucket.geometry.boundingSphere = bucket.geometry.boundingBox.getBoundingSphere(
+        new THREE.Sphere(),
+      );
       const mesh = new THREE.Mesh(bucket.geometry, bucket.material.clone());
       const material = mesh.material as THREE.Material;
       const role = terrainPresentationRole(bucket.key);
@@ -129,15 +162,35 @@ export class TerrainChunkResidencyOwner {
     const removed = this.ownershipKeysByChunk.get(key)?.size ?? 0;
     this.retainCurrent(key);
     if (meshes.length) {
-      this.chunks.set(key, createTerrainChunkObject(key, compiled.chunk, meshes, signature, compiled.emittedKeys, compiled.fullyOccludedKeys, compiled.unrepresentedExposedKeys));
+      this.chunks.set(
+        key,
+        createTerrainChunkObject(
+          key,
+          compiled.chunk,
+          meshes,
+          signature,
+          compiled.emittedKeys,
+          compiled.fullyOccludedKeys,
+          compiled.unrepresentedExposedKeys,
+        ),
+      );
     } else {
       this.chunks.delete(key);
     }
-    const ownershipDurationMs = this.replaceOwnership(key, revision, compiled.emittedKeys, compiled.fullyOccludedKeys);
+    const ownershipDurationMs = this.replaceOwnership(
+      key,
+      revision,
+      compiled.emittedKeys,
+      compiled.fullyOccludedKeys,
+    );
     for (const failedKey of compiled.unrepresentedExposedKeys) this.ownership.delete(failedKey);
     const keys = this.ownershipKeysByChunk.get(key);
     if (keys) for (const failedKey of compiled.unrepresentedExposedKeys) keys.delete(failedKey);
-    return { removed, inserted: this.ownershipKeysByChunk.get(key)?.size ?? 0, ownershipDurationMs };
+    return {
+      removed,
+      inserted: this.ownershipKeysByChunk.get(key)?.size ?? 0,
+      ownershipDurationMs,
+    };
   }
 
   installResidentVariant(key: string, cached: TerrainChunkObject, revision: number): void {
@@ -145,7 +198,8 @@ export class TerrainChunkResidencyOwner {
     for (const mesh of cached.meshes) {
       mesh.userData['terrainChunk'] = key;
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const material of materials) if (material.userData['terrainRole'] === 'reference') this.applyReferenceOpacity(material);
+      for (const material of materials)
+        if (material.userData['terrainRole'] === 'reference') this.applyReferenceOpacity(material);
       this.options.blocksGroup.add(mesh);
     }
     this.chunks.set(key, cached);
@@ -181,10 +235,11 @@ export class TerrainChunkResidencyOwner {
   }
 
   applyMaterial(callback: (material: THREE.Material) => void): void {
-    for (const chunk of this.chunks.values()) for (const mesh of chunk.meshes) {
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const material of materials) callback(material);
-    }
+    for (const chunk of this.chunks.values())
+      for (const mesh of chunk.meshes) {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const material of materials) callback(material);
+      }
   }
 
   clear(): void {
@@ -212,14 +267,25 @@ export class TerrainChunkResidencyOwner {
     };
   }
 
-  private replaceOwnership(chunkKey: string, revision: number, emittedKeys: readonly string[], occludedKeys: readonly string[]): number {
+  private replaceOwnership(
+    chunkKey: string,
+    revision: number,
+    emittedKeys: readonly string[],
+    occludedKeys: readonly string[],
+  ): number {
     const started = performance.now();
     this.clearOwnership(chunkKey);
     const emitted = new Set(emittedKeys);
     const occluded = new Set(occludedKeys);
     const keys = new Set<string>();
     for (const key of [...emittedKeys, ...occludedKeys]) {
-      this.ownership.set(key, { key, chunkKey, revision, facesEmitted: emitted.has(key) ? 1 : 0, fullyOccluded: occluded.has(key) });
+      this.ownership.set(key, {
+        key,
+        chunkKey,
+        revision,
+        facesEmitted: emitted.has(key) ? 1 : 0,
+        fullyOccluded: occluded.has(key),
+      });
       keys.add(key);
     }
     this.ownershipKeysByChunk.set(chunkKey, keys);
@@ -241,7 +307,10 @@ export class TerrainChunkResidencyOwner {
     }
     this.residentVariants.set(variantKey, chunk);
     this.residentVariantBytesValue += chunk.estimatedBytes;
-    while (this.residentVariantBytesValue > TERRAIN_RESIDENT_VARIANT_BUDGET_BYTES && this.residentVariants.size) {
+    while (
+      this.residentVariantBytesValue > TERRAIN_RESIDENT_VARIANT_BUDGET_BYTES &&
+      this.residentVariants.size
+    ) {
       const oldestKey = this.residentVariants.keys().next().value;
       if (oldestKey === undefined) break;
       const oldest = this.residentVariants.get(oldestKey)!;
@@ -278,8 +347,20 @@ function createTerrainChunkObject(
   fullyOccludedKeys: readonly string[],
   failedKeys: readonly string[],
 ): TerrainChunkObject {
-  const geometryBytes = meshes.reduce((total, mesh) => total + geometryByteLength(mesh.geometry), 0);
-  return { key, chunk, meshes, signature, emittedKeys: [...emittedKeys], fullyOccludedKeys: [...fullyOccludedKeys], failedKeys: [...failedKeys], estimatedBytes: geometryBytes + signature.length * 2 };
+  const geometryBytes = meshes.reduce(
+    (total, mesh) => total + geometryByteLength(mesh.geometry),
+    0,
+  );
+  return {
+    key,
+    chunk,
+    meshes,
+    signature,
+    emittedKeys: [...emittedKeys],
+    fullyOccludedKeys: [...fullyOccludedKeys],
+    failedKeys: [...failedKeys],
+    estimatedBytes: geometryBytes + signature.length * 2,
+  };
 }
 
 function geometryByteLength(geometry: THREE.BufferGeometry): number {

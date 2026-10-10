@@ -2,20 +2,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { RendererDiagnostics } from '../engine/renderer-diagnostics';
 import { ViewportHydrationExecutionOwner } from './viewport-hydration-execution-owner';
 
-const job = (overrides: Record<string, unknown> = {}) => ({
-  token: 4,
-  projectionRevision: 2,
-  key: '1,2,3',
-  block: { kind: 'normal' },
-  signature: 'stone|normal',
-  role: 'normal',
-  worldContext: { getBlock: () => undefined },
-  options: {},
-  allowInstancing: false,
-  surfaceFastPathEligible: false,
-  surfaceVisibleEntries: new Map(),
-  ...overrides,
-}) as never;
+const job = (overrides: Record<string, unknown> = {}) =>
+  ({
+    token: 4,
+    projectionRevision: 2,
+    key: '1,2,3',
+    block: { kind: 'normal' },
+    signature: 'stone|normal',
+    role: 'normal',
+    worldContext: { getBlock: () => undefined },
+    options: {},
+    allowInstancing: false,
+    surfaceFastPathEligible: false,
+    surfaceVisibleEntries: new Map(),
+    ...overrides,
+  }) as never;
 
 const ownerWith = (overrides: Record<string, unknown> = {}) => {
   const diagnostics = new RendererDiagnostics();
@@ -33,28 +34,46 @@ const ownerWith = (overrides: Record<string, unknown> = {}) => {
     })),
     revisionForKey: vi.fn(() => 2),
   };
-  const owner = new ViewportHydrationExecutionOwner({
-    hydrationPipeline: { workCounts: () => ({ regularQueued: 0, providerRefreshQueued: 0, regularRunning: 0, providerRefreshRunning: 0 }) },
-    blockRepresentationHydration: { create: vi.fn(), refresh: vi.fn() },
-    providerRefreshPipeline: provider,
-    projection,
-    decorations: { queuedCount: 2, processBatch: processDecorationBatch },
+  const owner = new ViewportHydrationExecutionOwner(
+    {
+      hydrationPipeline: {
+        workCounts: () => ({
+          regularQueued: 0,
+          providerRefreshQueued: 0,
+          regularRunning: 0,
+          providerRefreshRunning: 0,
+        }),
+      },
+      blockRepresentationHydration: { create: vi.fn(), refresh: vi.fn() },
+      providerRefreshPipeline: provider,
+      projection,
+      decorations: { queuedCount: 2, processBatch: processDecorationBatch },
+      diagnostics,
+      runtimeTrace: () => ({ recordDuration }) as never,
+      isStopped: () => false,
+      isInteractive: () => false,
+      rollbackPartialInstanceVisual: vi.fn(),
+      markHydrationFailure: vi.fn(),
+      publishProviderRefreshProgress: vi.fn(),
+      completeHydrationPart,
+      ...overrides,
+    } as never,
+    {
+      syncBudgetMs: 4,
+      interactiveSyncBudgetMs: 1,
+      maxJobsPerBatch: 8,
+      interactiveMaxJobsPerBatch: 2,
+    },
+  );
+  return {
+    owner,
     diagnostics,
-    runtimeTrace: () => ({ recordDuration } as never),
-    isStopped: () => false,
-    isInteractive: () => false,
-    rollbackPartialInstanceVisual: vi.fn(),
-    markHydrationFailure: vi.fn(),
-    publishProviderRefreshProgress: vi.fn(),
     completeHydrationPart,
-    ...overrides,
-  } as never, {
-    syncBudgetMs: 4,
-    interactiveSyncBudgetMs: 1,
-    maxJobsPerBatch: 8,
-    interactiveMaxJobsPerBatch: 2,
-  });
-  return { owner, diagnostics, completeHydrationPart, completeProviderJob, projection, processDecorationBatch, recordDuration };
+    completeProviderJob,
+    projection,
+    processDecorationBatch,
+    recordDuration,
+  };
 };
 
 describe('ViewportHydrationExecutionOwner', () => {
@@ -70,10 +89,19 @@ describe('ViewportHydrationExecutionOwner', () => {
 
   it('settles provider refreshes through the provider pipeline without block progress', () => {
     const value = ownerWith();
-    value.owner.port.onJobComplete(job({ providerRefresh: true, providerRefreshGeneration: 7 }), true);
+    value.owner.port.onJobComplete(
+      job({ providerRefresh: true, providerRefreshGeneration: 7 }),
+      true,
+    );
 
     expect(value.completeProviderJob).toHaveBeenCalledOnce();
-    expect(value.completeProviderJob).toHaveBeenCalledWith(7, expect.objectContaining({ onTrace: expect.any(Function), onStateChange: expect.any(Function) }));
+    expect(value.completeProviderJob).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        onTrace: expect.any(Function),
+        onStateChange: expect.any(Function),
+      }),
+    );
     expect(value.completeHydrationPart).not.toHaveBeenCalled();
   });
 

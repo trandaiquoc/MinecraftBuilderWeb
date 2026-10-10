@@ -14,14 +14,21 @@ describe('viewport Pick + logical Selection interaction boundary', () => {
   it('forwards placeholder/instanced voxel hits identically and ignores empty space', () => {
     const pick = vi.fn();
     const select = vi.fn();
-    expect(pickAndSelectBlockFromViewportHit({ block: { x: 5, y: 0, z: 1 } }, pick, select)).toBe(true);
+    expect(pickAndSelectBlockFromViewportHit({ block: { x: 5, y: 0, z: 1 } }, pick, select)).toBe(
+      true,
+    );
     expect(pickAndSelectBlockFromViewportHit({}, pick, select)).toBe(false);
     expect(pick).toHaveBeenCalledTimes(1);
     expect(select).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a decoration that wins the distance comparison out of block Pick + Selection', () => {
-    const hit = { block: { x: 1, y: 2, z: 3 }, decoration: {}, blockDistance: 2, decorationDistance: 1 };
+    const hit = {
+      block: { x: 1, y: 2, z: 3 },
+      decoration: {},
+      blockDistance: 2,
+      decorationDistance: 1,
+    };
     expect(blockHitWinsOverDecoration(hit)).toBe(false);
     const pick = vi.fn();
     const select = vi.fn();
@@ -31,7 +38,14 @@ describe('viewport Pick + logical Selection interaction boundary', () => {
   });
 
   it('lets the block win when it is the nearer final or placeholder hit', () => {
-    expect(blockHitWinsOverDecoration({ block: { x: 1, y: 2, z: 3 }, decoration: {}, blockDistance: 1, decorationDistance: 2 })).toBe(true);
+    expect(
+      blockHitWinsOverDecoration({
+        block: { x: 1, y: 2, z: 3 },
+        decoration: {},
+        blockDistance: 1,
+        decorationDistance: 2,
+      }),
+    ).toBe(true);
     expect(blockHitWinsOverDecoration({ block: { x: 1, y: 2, z: 3 } })).toBe(true);
   });
 });

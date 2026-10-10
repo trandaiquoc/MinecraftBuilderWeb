@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EditorMovementInputSession, AMBIGUOUS_RELEASE_GRACE_MS } from './editor-movement-input-session';
+import {
+  EditorMovementInputSession,
+  AMBIGUOUS_RELEASE_GRACE_MS,
+} from './editor-movement-input-session';
 
 describe('EditorMovementInputSession', () => {
   afterEach(() => vi.useRealTimers());

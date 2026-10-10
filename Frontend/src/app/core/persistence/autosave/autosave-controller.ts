@@ -24,7 +24,10 @@ export class AutosaveController {
   private suspended = false;
   private disposed = false;
 
-  constructor(private readonly store: ProjectStore, private readonly options: AutosaveOptions = {}) {}
+  constructor(
+    private readonly store: ProjectStore,
+    private readonly options: AutosaveOptions = {},
+  ) {}
 
   schedule(project: ProjectDocument, revision: number): void {
     if (this.disposed) return;
@@ -34,9 +37,10 @@ export class AutosaveController {
 
   scheduleEditorSettings(project: ProjectDocument, revision: number): void {
     if (this.disposed) return;
-    const pendingFullSave = this.latest !== undefined
-      && this.latest.revision > this.savedRevision
-      && !this.latest.editorSettingsOnly;
+    const pendingFullSave =
+      this.latest !== undefined &&
+      this.latest.revision > this.savedRevision &&
+      !this.latest.editorSettingsOnly;
     this.latest = { project, revision, editorSettingsOnly: !pendingFullSave };
     this.scheduleDrain();
   }
@@ -44,7 +48,10 @@ export class AutosaveController {
   private scheduleDrain(): void {
     this.cancel();
     if (this.suspended || this.drainPromise) return;
-    this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      void this.drain().catch(() => undefined);
+    }, this.options.delayMs ?? 1000);
   }
 
   cancel(): void {
@@ -58,19 +65,29 @@ export class AutosaveController {
   }
 
   /** Prevents new timers while a destructive persistence operation drains and deletes. */
-  suspend(): void { this.suspended = true; this.cancel(); }
+  suspend(): void {
+    this.suspended = true;
+    this.cancel();
+  }
 
   /** Resumes autosave after a failed destructive operation without dropping the latest edit. */
   resume(): void {
     if (this.disposed) return;
     this.suspended = false;
     if (this.latest && !this.drainPromise && this.timer === undefined) {
-      this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
+      this.timer = setTimeout(() => {
+        this.timer = undefined;
+        void this.drain().catch(() => undefined);
+      }, this.options.delayMs ?? 1000);
     }
   }
 
   /** Stops pending work without allowing a stale snapshot to be written later. */
-  discard(): void { this.cancel(); this.latest = undefined; this.attemptedRevision = this.savedRevision; }
+  discard(): void {
+    this.cancel();
+    this.latest = undefined;
+    this.attemptedRevision = this.savedRevision;
+  }
 
   reset(): void {
     this.cancel();
@@ -86,7 +103,9 @@ export class AutosaveController {
     if (this.latest && this.latest.revision <= revision) this.latest = undefined;
   }
 
-  get persistedRevision(): number { return this.savedRevision; }
+  get persistedRevision(): number {
+    return this.savedRevision;
+  }
 
   flush(): Promise<void> {
     this.cancel();
@@ -97,7 +116,17 @@ export class AutosaveController {
     if (this.drainPromise) return this.drainPromise;
     this.drainPromise = this.persistLatest().finally(() => {
       this.drainPromise = undefined;
-      if (!this.disposed && !this.suspended && this.latest && this.latest.revision > this.attemptedRevision && this.timer === undefined) this.timer = setTimeout(() => { this.timer = undefined; void this.drain().catch(() => undefined); }, this.options.delayMs ?? 1000);
+      if (
+        !this.disposed &&
+        !this.suspended &&
+        this.latest &&
+        this.latest.revision > this.attemptedRevision &&
+        this.timer === undefined
+      )
+        this.timer = setTimeout(() => {
+          this.timer = undefined;
+          void this.drain().catch(() => undefined);
+        }, this.options.delayMs ?? 1000);
     });
     return this.drainPromise;
   }
@@ -106,7 +135,10 @@ export class AutosaveController {
     while (this.latest && this.latest.revision > this.savedRevision) {
       const snapshot = this.latest;
       this.attemptedRevision = snapshot.revision;
-      const metadata: ProjectPersistenceMetadata = { persistenceToken: createPersistenceToken(), persistedAt: new Date().toISOString() };
+      const metadata: ProjectPersistenceMetadata = {
+        persistenceToken: createPersistenceToken(),
+        persistedAt: new Date().toISOString(),
+      };
       this.options.onSaving?.(snapshot.revision);
       try {
         if (snapshot.editorSettingsOnly && this.store.saveEditorSettings) {
@@ -117,8 +149,11 @@ export class AutosaveController {
         }
         this.savedRevision = snapshot.revision;
         this.options.onSaved?.(snapshot.revision);
-        try { await this.store.deleteRecoverySnapshot(snapshot.project.id); }
-        catch (error) { this.options.onCleanupError?.(error, snapshot.revision); }
+        try {
+          await this.store.deleteRecoverySnapshot(snapshot.project.id);
+        } catch (error) {
+          this.options.onCleanupError?.(error, snapshot.revision);
+        }
       } catch (error) {
         this.options.onError?.(error, snapshot.revision);
         throw error;
@@ -128,6 +163,7 @@ export class AutosaveController {
 }
 
 function createPersistenceToken(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    return crypto.randomUUID();
   return `persist-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

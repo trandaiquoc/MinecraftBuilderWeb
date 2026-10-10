@@ -15,7 +15,11 @@ export class EditorModeService {
     this.mode.set(mode);
     this.preferences?.update({ editorMode: mode });
     if (!this.preferences) {
-      try { localStorage.setItem('minecraft-builder.ui-editor-mode', mode); } catch { /* Browser storage is optional. */ }
+      try {
+        localStorage.setItem('minecraft-builder.ui-editor-mode', mode);
+      } catch {
+        /* Browser storage is optional. */
+      }
     }
   }
 }
@@ -24,5 +28,7 @@ function readStoredMode(): EditorMode {
   try {
     const value = localStorage.getItem('minecraft-builder.ui-editor-mode');
     return value === 'y-layer' ? 'y-layer' : '3d';
-  } catch { return '3d'; }
+  } catch {
+    return '3d';
+  }
 }

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { combineAbortSignals, createPhaseWatchdog, isAbortError, ModImportTimeoutError } from './mod-import-cancellation';
+import {
+  combineAbortSignals,
+  createPhaseWatchdog,
+  isAbortError,
+  ModImportTimeoutError,
+} from './mod-import-cancellation';
 
 describe('mod import cancellation policy', () => {
   afterEach(() => vi.useRealTimers());

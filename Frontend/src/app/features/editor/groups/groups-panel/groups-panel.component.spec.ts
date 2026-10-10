@@ -22,7 +22,10 @@ describe('GroupsPanelComponent visual state contract', () => {
       activeGroup,
       activeGroupBlockCount: signal(0),
       isolatedGroupId: signal<string | undefined>(undefined),
-      select: vi.fn((id: string) => { activeGroupId.set(id); activeGroup.set(groups.find((group) => group.id === id)); }),
+      select: vi.fn((id: string) => {
+        activeGroupId.set(id);
+        activeGroup.set(groups.find((group) => group.id === id));
+      }),
       create: vi.fn(),
       renameActive: vi.fn(),
       setActiveVisible: vi.fn(),
@@ -33,8 +36,43 @@ describe('GroupsPanelComponent visual state contract', () => {
       deleteActive: vi.fn(),
       deleteActiveBlocks: vi.fn(),
     };
-    const selection = { logicalPositions: signal([]), single: signal(undefined), box: signal(undefined) };
-    const i18n = { t: (key: string) => ({ groupName: 'Group name', createGroup: 'Create', searchGroups: 'Search', clearSearch: 'Clear', locked: 'locked', unlocked: 'unlocked', groupLockedState: 'Locked', groupUnlockedState: 'Unlocked', noGroupResults: 'No results', noGroups: 'No groups', blockCount: 'blocks', renameGroup: 'Rename', hideGroup: 'Hide', showGroup: 'Show', unlockGroup: 'Unlock', lockGroup: 'Lock', addSelectionToGroup: 'Add', removeSelectionFromGroup: 'Remove', isolateGroup: 'Isolate', hideMove: 'Hide move', showMove: 'Show move', deleteGroup: 'Delete', deleteGroupBlocks: 'Delete blocks', deleteGroupBlocksTitle: 'Delete', deleteGroupBlocksConfirmation: 'Delete', deleteGroupBlocksConfirm: 'Delete', cancel: 'Cancel' }[key] ?? key) };
+    const selection = {
+      logicalPositions: signal([]),
+      single: signal(undefined),
+      box: signal(undefined),
+    };
+    const i18n = {
+      t: (key: string) =>
+        ({
+          groupName: 'Group name',
+          createGroup: 'Create',
+          searchGroups: 'Search',
+          clearSearch: 'Clear',
+          locked: 'locked',
+          unlocked: 'unlocked',
+          groupLockedState: 'Locked',
+          groupUnlockedState: 'Unlocked',
+          noGroupResults: 'No results',
+          noGroups: 'No groups',
+          blockCount: 'blocks',
+          renameGroup: 'Rename',
+          hideGroup: 'Hide',
+          showGroup: 'Show',
+          unlockGroup: 'Unlock',
+          lockGroup: 'Lock',
+          addSelectionToGroup: 'Add',
+          removeSelectionFromGroup: 'Remove',
+          isolateGroup: 'Isolate',
+          hideMove: 'Hide move',
+          showMove: 'Show move',
+          deleteGroup: 'Delete',
+          deleteGroupBlocks: 'Delete blocks',
+          deleteGroupBlocksTitle: 'Delete',
+          deleteGroupBlocksConfirmation: 'Delete',
+          deleteGroupBlocksConfirm: 'Delete',
+          cancel: 'Cancel',
+        })[key] ?? key,
+    };
     await TestBed.configureTestingModule({
       imports: [GroupsPanelComponent],
       providers: [
@@ -47,7 +85,8 @@ describe('GroupsPanelComponent visual state contract', () => {
     }).compileComponents();
     const fixture = TestBed.createComponent(GroupsPanelComponent);
     fixture.detectChanges();
-    const buttons = () => [...fixture.nativeElement.querySelectorAll('.group-item')] as HTMLButtonElement[];
+    const buttons = () =>
+      [...fixture.nativeElement.querySelectorAll('.group-item')] as HTMLButtonElement[];
 
     expect(buttons()[0].getAttribute('aria-pressed')).toBe('false');
     buttons()[0].click();

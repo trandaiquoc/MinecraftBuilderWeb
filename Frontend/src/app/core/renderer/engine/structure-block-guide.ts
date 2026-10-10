@@ -13,5 +13,5 @@ export function structureBlockGuidePosition(min: VoxelCoordinate): VoxelCoordina
 
 /** The guide is centered in its helper voxel, just like a normal block model. */
 export function structureBlockGuideCenter(position: VoxelCoordinate): VoxelCoordinate {
-  return { x: position.x + .5, y: position.y + .5, z: position.z + .5 };
+  return { x: position.x + 0.5, y: position.y + 0.5, z: position.z + 0.5 };
 }

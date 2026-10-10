@@ -26,7 +26,7 @@ function project(overrides: Partial<ProjectDocument> = {}): ProjectDocument {
     structureMode: 'vanilla-structure-block',
     blocks: [],
     groups: [],
-    editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: .28 },
+    editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.28 },
     ...overrides,
   };
 }
@@ -54,7 +54,9 @@ describe('decoration render lifecycle', () => {
       record,
     });
 
-    expect(lifecycle.reconcile(project({ decorations: [decoration] }), { layerY: 3 }, 4)).toEqual([decoration]);
+    expect(lifecycle.reconcile(project({ decorations: [decoration] }), { layerY: 3 }, 4)).toEqual([
+      decoration,
+    ]);
     expect(lifecycle.queuedCount).toBe(1);
     expect(lifecycle.pendingCount).toBe(1);
     expect(scheduleHydration).toHaveBeenCalledOnce();
@@ -89,11 +91,20 @@ describe('decoration render lifecycle', () => {
     lifecycle.reconcile(project({ decorations: [decoration] }), { layerY: 3 }, 2);
     lifecycle.processBatch(2, Number.POSITIVE_INFINITY, 1);
 
-    expect(lifecycle.reconcile(project({ decorations: [decoration] }), { layerY: 4 }, 2)).toEqual([]);
+    expect(lifecycle.reconcile(project({ decorations: [decoration] }), { layerY: 4 }, 2)).toEqual(
+      [],
+    );
     expect(group.children).toHaveLength(0);
     expect(lifecycle.size).toBe(0);
 
-    lifecycle.reconcile(project({ groups: [{ id: 'hidden', name: 'Hidden', visible: false, locked: false }], decorations: [{ ...decoration, groupIds: ['hidden'] }] }), { visibility: 'whole-structure' }, 2);
+    lifecycle.reconcile(
+      project({
+        groups: [{ id: 'hidden', name: 'Hidden', visible: false, locked: false }],
+        decorations: [{ ...decoration, groupIds: ['hidden'] }],
+      }),
+      { visibility: 'whole-structure' },
+      2,
+    );
     expect(lifecycle.queuedCount).toBe(0);
     expect(lifecycle.size).toBe(0);
     expect(record).toHaveBeenCalledWith('decorationRemovals');
@@ -116,12 +127,25 @@ describe('decoration render lifecycle', () => {
       complete: () => undefined,
       record: () => undefined,
     });
-    const before = project({ decorations: [{ ...decoration, groupIds: ['group-1'] }], groups: [{ id: 'group-1', name: 'Group', visible: true, locked: false }] });
-    const after = { ...before, groups: [{ id: 'group-1', name: 'Group', visible: false, locked: false }] };
+    const before = project({
+      decorations: [{ ...decoration, groupIds: ['group-1'] }],
+      groups: [{ id: 'group-1', name: 'Group', visible: true, locked: false }],
+    });
+    const after = {
+      ...before,
+      groups: [{ id: 'group-1', name: 'Group', visible: false, locked: false }],
+    };
     lifecycle.reconcile(before, { visibility: 'whole-structure' }, 1);
     lifecycle.processBatch(1, Number.POSITIVE_INFINITY, 1);
 
-    lifecycle.applyMetadataChanges([{ id: decoration.instanceId, before: before.decorations![0], after: after.decorations![0] }], before, { visibility: 'whole-structure' }, after, { visibility: 'whole-structure' }, 1);
+    lifecycle.applyMetadataChanges(
+      [{ id: decoration.instanceId, before: before.decorations![0], after: after.decorations![0] }],
+      before,
+      { visibility: 'whole-structure' },
+      after,
+      { visibility: 'whole-structure' },
+      1,
+    );
     expect(lifecycle.get(decoration.instanceId)).toBeUndefined();
     expect(group.children).toHaveLength(0);
     expect(lifecycle.pendingCount).toBe(0);

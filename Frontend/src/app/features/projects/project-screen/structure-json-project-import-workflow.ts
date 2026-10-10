@@ -2,10 +2,18 @@ import { DestroyRef, inject, signal } from '@angular/core';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import type { ProjectDocument } from '../../../core/domain/project.types';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
-import { parseStructureJsonWithWorker, type StructureJsonValidationCancellation } from '../../../core/persistence/structure-json/structure-json-import';
-import { prepareStructureJsonProjectImport, type StructureJsonProjectImportError, type StructureJsonProjectImportPreview } from '../../../core/persistence/structure-json/structure-json-project-import';
+import {
+  parseStructureJsonWithWorker,
+  type StructureJsonValidationCancellation,
+} from '../../../core/persistence/structure-json/structure-json-import';
+import {
+  prepareStructureJsonProjectImport,
+  type StructureJsonProjectImportError,
+  type StructureJsonProjectImportPreview,
+} from '../../../core/persistence/structure-json/structure-json-project-import';
 
-export type StructureJsonProjectImportProgress = 'idle' | 'reading' | 'parsing' | 'checking' | 'saving' | 'error' | 'ready';
+export type StructureJsonProjectImportProgress =
+  'idle' | 'reading' | 'parsing' | 'checking' | 'saving' | 'error' | 'ready';
 export type StructureJsonProjectImportFailure =
   | { readonly kind: 'parse'; readonly code?: string }
   | { readonly kind: 'prepare'; readonly code: StructureJsonProjectImportError }
@@ -34,7 +42,10 @@ export class StructureJsonProjectImportWorkflow {
     const generation = ++this.generation;
     const controller = new AbortController();
     this.cancellation = controller;
-    const cancellation: StructureJsonValidationCancellation = { signal: controller.signal, isCancelled: () => generation !== this.generation };
+    const cancellation: StructureJsonValidationCancellation = {
+      signal: controller.signal,
+      isCancelled: () => generation !== this.generation,
+    };
     this.open.set(true);
     this.filename.set(file.name);
     this.preview.set(undefined);
