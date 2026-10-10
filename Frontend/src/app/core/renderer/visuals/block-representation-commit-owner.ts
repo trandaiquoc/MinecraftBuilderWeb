@@ -12,6 +12,17 @@ import type { TerrainRepresentationCommitCallbacks, TerrainRepresentationCommitS
 
 type CommitBlock = BlockHydrationJob['block'];
 
+interface SurfaceRepresentationTarget {
+  readonly memberships: readonly SurfaceFaceMembership[];
+  readonly object?: THREE.Object3D;
+}
+
+interface InstanceRepresentationTarget {
+  readonly batchKey: string;
+  readonly index: number;
+  readonly object?: THREE.Object3D;
+}
+
 export interface BlockRepresentationRenderTargets {
   readonly terrain: {
     readonly templatesFor: (key: string) => readonly SurfaceFaceTemplate[] | undefined;
@@ -23,16 +34,14 @@ export interface BlockRepresentationRenderTargets {
   readonly surface: {
     readonly templatesFor: (key: string) => readonly SurfaceFaceTemplate[] | undefined;
     readonly cacheTemplates: (key: string, templates: readonly SurfaceFaceTemplate[]) => void;
-    readonly meshFor: (batchKey: string) => THREE.Object3D | undefined;
-    readonly add: (block: CommitBlock, key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockProjectionEntry>, role: 'normal' | 'reference') => readonly SurfaceFaceMembership[] | undefined;
+    readonly add: (block: CommitBlock, key: string, templates: readonly SurfaceFaceTemplate[], visible: ReadonlyMap<string, VisibleBlockProjectionEntry>, role: 'normal' | 'reference') => SurfaceRepresentationTarget | undefined;
   };
   readonly instances: {
     readonly shouldAttempt: (allowInstancing: boolean, reusableKey: string | undefined) => boolean;
     readonly templateFor: (key: string) => CompiledInstanceTemplates | undefined;
     readonly decisionFor: (key: string) => ReturnType<StaticModelBatchRenderer['decisionFor']>;
-    readonly batches: ReadonlyMap<string, { readonly parts: readonly THREE.InstancedMesh[] }>;
-    readonly add: (object: THREE.Object3D, block: CommitBlock, key: string, reusableKey: string | undefined, source: 'provider-async' | 'cached-template', role: 'normal' | 'reference') => { readonly batchKey: string; readonly index: number } | undefined;
-    readonly addFromTemplates: (templates: readonly InstancePartTemplate[], block: CommitBlock, key: string, source: 'provider-async' | 'cached-template', compiled: CompiledInstanceTemplates, role: 'normal' | 'reference') => { readonly batchKey: string; readonly index: number } | undefined;
+    readonly add: (object: THREE.Object3D, block: CommitBlock, key: string, reusableKey: string | undefined, source: 'provider-async' | 'cached-template', role: 'normal' | 'reference') => InstanceRepresentationTarget | undefined;
+    readonly addFromTemplates: (templates: readonly InstancePartTemplate[], block: CommitBlock, key: string, source: 'provider-async' | 'cached-template', compiled: CompiledInstanceTemplates, role: 'normal' | 'reference') => InstanceRepresentationTarget | undefined;
   };
   readonly object: {
     readonly blocksGroup: THREE.Group;
@@ -41,21 +50,19 @@ export interface BlockRepresentationRenderTargets {
     readonly applyBrightness: (object: THREE.Object3D) => void;
     readonly applyReferenceOpacity: (object: THREE.Object3D, opacity: number) => void;
     readonly familyFromReusableKey: (key: string | undefined) => string | undefined;
-    readonly familyFromVisual: (object: THREE.Object3D) => string | undefined;
     readonly extractSurfaceTemplates: (object: THREE.Object3D) => readonly SurfaceFaceTemplate[] | undefined;
   };
 }
 
 export interface BlockRepresentationCommitOwnerPorts {
   readonly store: ViewportBlockRepresentationStore;
-  readonly resources: Pick<BlockRepresentationResourceOwner, 'ensureFallback' | 'remove' | 'removePlaceholder' | 'rollbackPartial' | 'removeOrphanedInstanceMemberships' | 'releasePreviousAfterReplacement'>;
+  readonly resources: Pick<BlockRepresentationResourceOwner, 'createFallback' | 'releaseRepresentation' | 'removePlaceholder' | 'rollbackPartial' | 'removeOrphanedInstanceMemberships' | 'releasePreviousAfterReplacement' | 'clear' | 'dispose' | 'clearPlaceholders' | 'reconcileInstances' | 'setPresentationVisible'>;
   readonly targets: BlockRepresentationRenderTargets;
-  readonly record: (metric: string, delta?: number) => void;
-  readonly invalidateDiagnostics: () => void;
-  readonly recordProviderCacheStats: () => void;
-  readonly scheduleRender: () => void;
-  readonly onFailure?: (key: string) => void;
-  readonly onSuccess?: (key: string) => void;
+  readonly lifecycle: {
+    readonly finished: (job: BlockHydrationJob | undefined, succeeded: boolean) => void;
+    readonly refreshFailed: (key: string) => void;
+    readonly cachedTemplateInserted: () => void;
+  };
 }
 
 /**
@@ -65,9 +72,89 @@ export interface BlockRepresentationCommitOwnerPorts {
 export class BlockRepresentationCommitOwner {
   constructor(private readonly ports: BlockRepresentationCommitOwnerPorts) {}
 
+  publish(entry: RenderedBlockEntry): void { this.ports.store.createOrReplace(entry); }
+
+  updateBlock(key: string, block: CommitBlock): boolean { return this.ports.store.setBlock(key, block); }
+
+  updateProvider(key: string, provider: BlockVisualProvider | undefined): boolean { return this.ports.store.setProvider(key, provider); }
+
+  beginAsyncRevision(key: string): number | undefined { return this.ports.store.incrementRevision(key); }
+
+  setFallback(entry: RenderedBlockEntry, fallback: THREE.Mesh): boolean { return this.ports.store.setFallback(entry.key, fallback); }
+
+  setTerrainMembership(key: string, chunkKey: string | undefined, reusableVisualKey?: string): boolean {
+    return this.ports.store.setTerrainRepresentation(key, chunkKey, reusableVisualKey);
+  }
+
+  setFluidRepresentation(key: string, chunkKey: string | undefined, fallback?: boolean): boolean {
+    return this.ports.store.setFluidRepresentation(key, chunkKey, fallback);
+  }
+
+  setSurfaceMemberships(key: string, memberships: readonly SurfaceFaceMembership[] | undefined): boolean {
+    return this.ports.store.setSurfaceMemberships(key, memberships);
+  }
+
+  setSurfaceObject(key: string, memberships: readonly SurfaceFaceMembership[], object: THREE.Object3D | undefined): boolean {
+    return this.ports.store.setSurfaceObject(key, memberships, object);
+  }
+
+  detachFluidClaim(key: string): boolean {
+    if (this.ports.store.get(key)?.fluidChunkKey === undefined) return false;
+    return this.ports.store.remove(key);
+  }
+
+  remove(key: string, entry = this.ports.store.get(key)): void {
+    if (!entry) {
+      this.ports.resources.removeOrphanedInstanceMemberships(key, 'reconcile');
+      return;
+    }
+    const removalRevision = this.ports.store.incrementRevision(entry.key);
+    if (removalRevision === undefined) return;
+    this.ports.resources.releaseRepresentation(key, entry);
+    this.ports.store.removeIfRevision(key, removalRevision);
+  }
+
+  setPresentationVisible(key: string, entry: RenderedBlockEntry, visible: boolean): boolean {
+    if (!this.ports.resources.setPresentationVisible(key, entry, visible)) return false;
+    this.ports.store.setPresentationVisible(key, visible);
+    return true;
+  }
+
+  recordInstanceMembershipChange(key: string, batchKey: string | undefined, index: number | undefined, object: THREE.Object3D | undefined): void {
+    this.ports.store.setInstanceMembership(key, { batchKey, index, object });
+  }
+
+  ensureFallback(entry: RenderedBlockEntry, referenceOpacity = .28): THREE.Mesh {
+    const fallback = this.ports.resources.createFallback(entry, referenceOpacity);
+    this.ports.store.setFallback(entry.key, fallback);
+    return fallback;
+  }
+
+  removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry?: RenderedBlockEntry): void {
+    this.ports.resources.removeOrphanedInstanceMemberships(key, source, entry);
+  }
+
+  rollbackPartial(key: string): void {
+    this.ports.resources.rollbackPartial(key, this.ports.store.get(key));
+  }
+
+  reconcileInstances(): void { this.ports.resources.reconcileInstances(this.ports.store); }
+
+  clear(): void {
+    this.ports.resources.clear(this.ports.store.values());
+    this.ports.store.clear();
+  }
+
+  dispose(): void {
+    this.ports.resources.dispose(this.ports.store.values());
+    this.ports.store.clear();
+  }
+
+  clearPlaceholders(): void { this.ports.resources.clearPlaceholders(); }
+
   begin(job: BlockHydrationJob, provider?: BlockVisualProvider): RenderedBlockEntry {
     const existing = this.ports.store.get(job.key);
-    if (existing) this.ports.resources.remove(job.key, existing);
+    if (existing) this.remove(job.key, existing);
     else this.ports.resources.removeOrphanedInstanceMemberships(job.key, 'reconcile');
     this.ports.resources.removePlaceholder(job.key);
     const entry: RenderedBlockEntry = { key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider };
@@ -95,7 +182,7 @@ export class BlockRepresentationCommitOwner {
         onFailed: () => {
           if (this.ports.store.get(job.key) !== cachedEntry) { resolvePending?.(); return; }
           const current = this.ports.store.get(job.key);
-          if (current) this.ports.resources.ensureFallback(current);
+          if (current) this.ensureFallback(current);
           this.ports.store.setTerrainRepresentation(job.key, undefined);
           this.finish(job, false);
           resolvePending?.();
@@ -111,9 +198,9 @@ export class BlockRepresentationCommitOwner {
     }
     const surface = job.surfaceFastPathEligible ? this.ports.targets.surface.templatesFor(reusableKey) : undefined;
     if (surface) {
-      const memberships = this.ports.targets.surface.add(job.block, job.key, surface, job.surfaceVisibleEntries, role);
-      if (memberships) {
-        this.ports.store.setSurfaceObject(job.key, memberships, memberships.length ? this.ports.targets.surface.meshFor(memberships[0].batchKey) : undefined);
+      const target = this.ports.targets.surface.add(job.block, job.key, surface, job.surfaceVisibleEntries, role);
+      if (target) {
+        this.ports.store.setSurfaceObject(job.key, target.memberships, target.object);
         this.finish(job);
         return true;
       }
@@ -122,9 +209,8 @@ export class BlockRepresentationCommitOwner {
     if (compiled && this.ports.targets.instances.shouldAttempt(job.allowInstancing, reusableKey)) {
       const instance = this.ports.targets.instances.addFromTemplates(compiled.templates, job.block, job.key, 'cached-template', compiled, role);
       if (instance) {
-        this.ports.record('reusableTemplateCacheHits');
-        this.ports.record('cachedTemplateInsertions');
-        this.ports.store.setInstanceMembership(job.key, { batchKey: instance.batchKey, index: instance.index, object: this.ports.targets.instances.batches.get(instance.batchKey)?.parts[0] });
+        this.ports.lifecycle.cachedTemplateInserted();
+        this.ports.store.setInstanceMembership(job.key, instance);
         this.ports.store.setStaticModel(job.key, { attempted: true, decision: this.ports.targets.instances.decisionFor(job.key), family: this.ports.targets.object.familyFromReusableKey(reusableKey) });
         this.finish(job);
         return true;
@@ -138,7 +224,7 @@ export class BlockRepresentationCommitOwner {
     if (!entry) return undefined;
     const staticAllowed = job.role !== 'missing' && this.ports.targets.instances.shouldAttempt(job.allowInstancing || job.surfaceFastPathEligible, reusableKey);
     this.ports.store.setStaticModel(job.key, { attempted: staticAllowed, family: this.ports.targets.object.familyFromReusableKey(reusableKey) });
-    const fallback = this.ports.resources.ensureFallback(entry, job.options.referenceOpacity);
+    const fallback = this.ensureFallback(entry, job.options.referenceOpacity);
     const revision = this.ports.store.incrementRevision(job.key) ?? entry.revision;
     return { entry, fallback, revision, staticAllowed };
   }
@@ -182,7 +268,7 @@ export class BlockRepresentationCommitOwner {
     }
     const object = this.prepareObject(visual.object, job, visual);
     let terrainCompiled = false;
-    let surfaceMemberships: readonly SurfaceFaceMembership[] | undefined;
+    let surfaceTarget: SurfaceRepresentationTarget | undefined;
     if (job.surfaceFastPathEligible && reusableKey) {
       const cachedTerrain = this.ports.targets.terrain.templatesFor(reusableKey);
       const templates = visual.terrainTemplates ?? this.ports.targets.object.extractSurfaceTemplates(object);
@@ -200,22 +286,22 @@ export class BlockRepresentationCommitOwner {
         if (!cachedTerrain) {
           const cachedSurface = this.ports.targets.surface.templatesFor(reusableKey);
           if (!cachedSurface) this.ports.targets.surface.cacheTemplates(reusableKey, templates);
-          surfaceMemberships = this.ports.targets.surface.add(job.block, job.key, cachedSurface ?? templates, job.surfaceVisibleEntries, job.role === 'reference' ? 'reference' : 'normal');
+          surfaceTarget = this.ports.targets.surface.add(job.block, job.key, cachedSurface ?? templates, job.surfaceVisibleEntries, job.role === 'reference' ? 'reference' : 'normal');
         }
       }
     }
-    const instance = !terrainCompiled && surfaceMemberships === undefined && staticAllowed
+    const instance = !terrainCompiled && surfaceTarget === undefined && staticAllowed
       ? this.ports.targets.instances.add(object, job.block, job.key, reusableKey, 'provider-async', job.role === 'reference' ? 'reference' : 'normal')
       : undefined;
     this.releaseObject(fallback);
     if (terrainCompiled) {
       this.ports.store.setTerrainRepresentation(job.key, this.ports.targets.terrain.chunkKey(job.block.position), reusableKey);
       disposeObject(object);
-    } else if (surfaceMemberships !== undefined) {
-      this.ports.store.setSurfaceObject(job.key, surfaceMemberships, surfaceMemberships.length ? this.ports.targets.surface.meshFor(surfaceMemberships[0].batchKey) : undefined);
+    } else if (surfaceTarget !== undefined) {
+      this.ports.store.setSurfaceObject(job.key, surfaceTarget.memberships, surfaceTarget.object);
       disposeObject(object);
     } else if (instance) {
-      this.ports.store.setInstanceMembership(job.key, { batchKey: instance.batchKey, index: instance.index, object: this.ports.targets.instances.batches.get(instance.batchKey)?.parts[0] });
+      this.ports.store.setInstanceMembership(job.key, instance);
       this.ports.store.setStaticModel(job.key, { decision: this.ports.targets.instances.decisionFor(job.key) });
       disposeObject(object);
     } else {
@@ -247,10 +333,10 @@ export class BlockRepresentationCommitOwner {
       const fail = (status: 'failed' | 'cancelled'): void => {
         try {
           if (!ownsTransaction()) return;
-          const fallback = current.fallback ?? this.ports.resources.ensureFallback(current);
+          const fallback = current.fallback ?? this.ensureFallback(current);
           this.ports.store.setTerrainRepresentation(job.key, undefined);
           fallback.userData['diagnostics'] = [{ code: 'PROVIDER_REFRESH_FAILED', message: status === 'cancelled' ? 'Terrain replacement was cancelled' : 'Terrain replacement failed' }];
-          this.ports.invalidateDiagnostics();
+          this.ports.lifecycle.refreshFailed(job.key);
           this.finish(job, false);
         } finally { resolvePending?.(); }
       };
@@ -273,7 +359,7 @@ export class BlockRepresentationCommitOwner {
     const base = { key: job.key, block: job.block, signature: job.signature, role: job.role, revision: 0, provider, reusableVisualKey: reusableKey, staticModelAttempted: staticAllowed, staticModelFamily: this.ports.targets.object.familyFromReusableKey(reusableKey), staticModelDecision: this.ports.targets.instances.decisionFor(job.key) } as const;
     if (instance) {
       this.ports.resources.releasePreviousAfterReplacement(job.key, current, 'instance');
-      this.ports.store.createOrReplace({ ...base, instanceBatchKey: instance.batchKey, instanceIndex: instance.index, object: this.ports.targets.instances.batches.get(instance.batchKey)?.parts[0] });
+      this.ports.store.createOrReplace({ ...base, instanceBatchKey: instance.batchKey, instanceIndex: instance.index, object: instance.object });
       disposeObject(object);
     } else {
       if (job.role === 'reference') this.ports.targets.object.applyReferenceOpacity(object, job.options.referenceOpacity ?? .28);
@@ -285,7 +371,7 @@ export class BlockRepresentationCommitOwner {
   }
 
   fail(job: BlockHydrationJob, fallback: THREE.Mesh, error: unknown): void {
-    this.ports.resources.rollbackPartial(job.key);
+    this.ports.resources.rollbackPartial(job.key, this.ports.store.get(job.key));
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : 'Unknown visual provider error' }];
     this.finish(job, false);
@@ -295,7 +381,7 @@ export class BlockRepresentationCommitOwner {
   failCached(job: BlockHydrationJob, error: unknown): void {
     const current = this.ports.store.get(job.key);
     if (!current) return;
-    const fallback = current.fallback ?? this.ports.resources.ensureFallback(current);
+    const fallback = current.fallback ?? this.ensureFallback(current);
     this.ports.store.setTerrainRepresentation(job.key, undefined);
     fallback.userData['renderMode'] = 'fallback';
     fallback.userData['diagnostics'] = [{ code: 'UNKNOWN_ERROR', message: error instanceof Error ? error.message : String(error) }];
@@ -308,8 +394,7 @@ export class BlockRepresentationCommitOwner {
     const diagnostics = [{ code: 'PROVIDER_REFRESH_FAILED', message: error instanceof Error ? error.message : String(error) }];
     if (current.fallback) current.fallback.userData['diagnostics'] = diagnostics;
     if (current.object) current.object.userData['diagnostics'] = diagnostics;
-    this.ports.onFailure?.(job.key);
-    this.ports.invalidateDiagnostics();
+    this.ports.lifecycle.refreshFailed(job.key);
   }
 
   private prepareObject(object: THREE.Object3D, job: BlockHydrationJob, visual: HydratedBlockVisualResult): THREE.Object3D {
@@ -338,9 +423,6 @@ export class BlockRepresentationCommitOwner {
 
   private finish(job?: BlockHydrationJob, succeeded = true): void {
     if (job?.layerPrewarm) return;
-    if (job) (succeeded ? this.ports.onSuccess : this.ports.onFailure)?.(job.key);
-    this.ports.recordProviderCacheStats();
-    this.ports.invalidateDiagnostics();
-    this.ports.scheduleRender();
+    this.ports.lifecycle.finished(job, succeeded);
   }
 }

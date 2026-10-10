@@ -4,6 +4,10 @@ import { coordinateNeighbors } from '../visibility/interior-occlusion';
 import type { TerrainClassificationEntry } from './terrain-classifier';
 import { isCompiledTerrainEntry } from './terrain-classifier';
 
+export interface TerrainOccupancyLookup {
+  hasOpaque(position: VoxelCoordinate): boolean;
+}
+
 /** O(1) semantic occupancy queries for the current render dataset. */
 export class TerrainOccupancy {
   private readonly opaque = new Set<string>();

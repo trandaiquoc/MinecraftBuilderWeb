@@ -1,10 +1,9 @@
 import * as THREE from 'three';
 import type { PlaceholderRole } from '../batching/placeholder-batch-renderer';
-import type { RenderedBlockEntry, ViewportBlockRepresentationStore } from '../engine/viewport-block-representation-store';
+import type { RenderedBlockEntry } from '../engine/viewport-block-representation-store';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
 
 export interface BlockRepresentationResourceOwnerPorts {
-  readonly store: ViewportBlockRepresentationStore;
   readonly blocksGroup: THREE.Group;
   readonly objectPresentation?: {
     readonly parentFor: (block: RenderedBlockEntry['block']) => THREE.Group;
@@ -35,21 +34,15 @@ export class BlockRepresentationResourceOwner {
 
   constructor(private readonly ports: BlockRepresentationResourceOwnerPorts) {}
 
-  remove(key: string, entry: RenderedBlockEntry): void {
+  releaseRepresentation(key: string, entry: RenderedBlockEntry): void {
     this.ports.invalidateDiagnostics();
-    const removalRevision = this.ports.store.incrementRevision(entry.key);
-    if (removalRevision === undefined) return;
-    if (entry.fluidChunkKey !== undefined) {
-      this.ports.store.removeIfRevision(key, removalRevision);
-      return;
-    }
+    if (entry.fluidChunkKey !== undefined) return;
     if (entry.terrainChunkKey !== undefined || this.ports.terrain.has(key)) this.ports.terrain.remove(key);
     const hasSurfaceVisual = entry.surfaceFaceMemberships !== undefined || this.ports.surface.ownership.has(key);
     if (hasSurfaceVisual) this.ports.surface.remove(key, entry);
     if (entry.instanceBatchKey || this.ports.instance.ownershipIndex.has(key)) {
       this.ports.trace('before-remove', key, 'reconcile', entry);
       this.ports.instance.remove(key, entry, 'reconcile');
-      this.ports.store.setInstanceMembership(entry.key, {});
       this.ports.trace('after-remove', key, 'reconcile');
     } else if (!hasSurfaceVisual) {
       this.releaseObject(entry.object);
@@ -59,7 +52,6 @@ export class BlockRepresentationResourceOwner {
         disposeObject(entry.fallback);
       }
     }
-    this.ports.store.removeIfRevision(key, removalRevision);
     this.ports.trace('after-remove-entry', key, 'reconcile', entry);
   }
 
@@ -71,7 +63,6 @@ export class BlockRepresentationResourceOwner {
       if (!this.ports.surface.setVisible(key, visible)) return false;
     } else if (entry.object) entry.object.visible = visible;
     else return false;
-    this.ports.store.setPresentationVisible(key, visible);
     return true;
   }
 
@@ -97,38 +88,38 @@ export class BlockRepresentationResourceOwner {
     this.ports.invalidateDiagnostics();
   }
 
-  rollbackPartial(key: string): void {
-    this.ports.surface.remove(key, this.ports.store.get(key));
-    this.removeOrphanedInstanceMemberships(key, 'rollback');
+  rollbackPartial(key: string, entry?: RenderedBlockEntry): void {
+    this.ports.surface.remove(key, entry);
+    this.removeOrphanedInstanceMemberships(key, 'rollback', entry);
   }
 
-  removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry = this.ports.store.get(key)): void {
+  removeOrphanedInstanceMemberships(key: string, source: 'rollback' | 'reconcile', entry?: RenderedBlockEntry): void {
     this.ports.instance.removeOrphaned(key, source, entry);
-    if (entry) this.ports.store.setInstanceMembership(entry.key, {});
   }
 
-  reconcileInstances(): void { this.ports.instance.reconcile(this.ports.store); }
+  reconcileInstances(entries: ReadonlyMap<string, RenderedBlockEntry>): void { this.ports.instance.reconcile(entries); }
 
-  private clearEntries(): void {
-    for (const [key, entry] of this.ports.store) this.remove(key, entry);
-    this.ports.surface.clear(this.ports.store.values());
+  private clearEntries(entries: Iterable<RenderedBlockEntry>): void {
+    const snapshot = [...entries];
+    for (const entry of snapshot) this.releaseRepresentation(entry.key, entry);
+    this.ports.surface.clear(snapshot);
     this.ports.placeholders.clear();
   }
 
-  clear(): void {
-    this.clearEntries();
+  clear(entries: Iterable<RenderedBlockEntry>): void {
+    this.clearEntries(entries);
     this.ports.terrain.clear();
   }
 
-  dispose(): void {
-    this.clearEntries();
+  dispose(entries: Iterable<RenderedBlockEntry>): void {
+    this.clearEntries(entries);
     this.ports.terrain.dispose();
   }
 
   removePlaceholder(key: string): void { this.ports.placeholders.remove(key); }
   clearPlaceholders(): void { this.ports.placeholders.clear(); }
 
-  ensureFallback(entry: RenderedBlockEntry, referenceOpacity = .28): THREE.Mesh {
+  createFallback(entry: RenderedBlockEntry, referenceOpacity = .28): THREE.Mesh {
     if (entry.fallback) return entry.fallback;
     if (!this.fallbackGeometryCounted) { this.ports.record('fallbackGeometryConstructions'); this.fallbackGeometryCounted = true; }
     if (!this.fallbackMaterialRoles.has(entry.role)) { this.ports.record('fallbackMaterialCreations'); this.fallbackMaterialRoles.add(entry.role); }
@@ -140,7 +131,6 @@ export class BlockRepresentationResourceOwner {
     fallback.position.set(entry.block.position.x + .5, entry.block.position.y + .5, entry.block.position.z + .5);
     fallback.userData['voxel'] = entry.block.position;
     fallback.userData['renderRole'] = entry.role;
-    this.ports.store.setFallback(entry.key, fallback);
     (this.ports.objectPresentation?.parentFor(entry.block) ?? this.ports.blocksGroup).add(fallback);
     this.ports.record('fallbackMeshCreations');
     return fallback;

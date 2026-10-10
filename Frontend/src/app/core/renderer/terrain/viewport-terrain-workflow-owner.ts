@@ -24,7 +24,8 @@ export interface TerrainHydrationCandidate {
 
 export interface TerrainWorkflowPorts {
   readonly representation: {
-    readonly store: ViewportBlockRepresentationStore;
+    readonly store: Pick<ViewportBlockRepresentationStore, 'get'>;
+    readonly commit: { readonly setTerrainMembership: (key: string, chunkKey: string | undefined, reusableVisualKey?: string) => boolean };
     readonly visibleEntry: (key: string) => VisibleBlockProjectionEntry | undefined;
     readonly visibleSignature: (key: string) => string | undefined;
     readonly clearPending: (key: string) => void;
@@ -134,7 +135,7 @@ export class ViewportTerrainWorkflowOwner {
     for (const key of failed) {
       const current = this.ports.representation.store.get(key);
       if (!current || represented.has(key)) continue;
-      this.ports.representation.store.setTerrainRepresentation(key, undefined);
+      this.ports.representation.commit.setTerrainMembership(key, undefined);
       this.ports.representation.ensurePlaceholder(key, current.block, current.role);
       if (!this.ports.representation.pending(key)) this.placeholderState.set(key, current.signature);
     }
@@ -142,7 +143,7 @@ export class ViewportTerrainWorkflowOwner {
       const current = this.ports.representation.store.get(record.key);
       if (!current || current.signature !== this.ports.representation.visibleSignature(record.key)) continue;
       if (!represented.has(record.key)) continue;
-      this.ports.representation.store.setTerrainRepresentation(record.key, renderChunkKey(record.block.position));
+      this.ports.representation.commit.setTerrainMembership(record.key, renderChunkKey(record.block.position));
       this.ports.representation.clearPending(record.key);
       this.placeholderState.delete(record.key);
       this.ports.representation.removePlaceholder(record.key);

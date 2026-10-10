@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import { RetainableProvider } from '../provider/provider-refresh-coordinator';
-import { FluidChunkChange, FluidChunkDiagnostics, FluidChunkRecord, FluidChunkRenderer, FluidChunkSyncResult, FluidChunkVisualProvider, FluidLayerPresentation } from './fluid-chunk-renderer';
+import { FluidChunkRenderer, type FluidChunkDiagnostics } from './fluid-chunk-renderer';
+import type { FluidChunkChange, FluidChunkRecord, FluidChunkSyncResult, FluidChunkVisualProvider, FluidLayerPresentation } from './fluid-render-contracts';
 import { FluidRenderResolver, FluidWorldLookup } from './fluid-state';
 
 export interface ProjectionFluidEntry {
@@ -43,10 +44,9 @@ export interface FluidLifecycleCallbacks {
 
 /** Owns fluid claim, provider handoff, stale generations, and hydration terminal state. */
 export class FluidRenderCoordinator {
-  private provider?: FluidChunkVisualProvider;
   private providerLease?: RetainableProvider;
   private readonly retiredProviderLeases = new Set<RetainableProvider>();
-  private readonly detected = new Map<string, FluidChunkRecord>();
+  private detectedKeys = new Set<string>();
   private pending = new Set<string>();
   private committed = new Set<string>();
   private fallback = new Set<string>();
@@ -79,10 +79,9 @@ export class FluidRenderCoordinator {
   }
 
   setProvider(provider: FluidChunkVisualProvider | undefined, lease?: RetainableProvider): void {
-    const previous = this.provider;
+    const previous = this.renderer.providerSnapshot();
     if (previous?.contractKey === provider?.contractKey && provider) {
       if (this.providerLease && this.providerLease !== lease && this.renderer.diagnostics().fluidChunks > 0) this.retiredProviderLeases.add(this.providerLease);
-      this.provider = provider;
       this.providerLease = lease;
       this.renderer.setProvider(provider);
       this.equivalentTransitions += previous ? 1 : 0;
@@ -95,17 +94,16 @@ export class FluidRenderCoordinator {
       this.transitionRebuildBaseline = this.renderer.diagnostics().fluidChunkRebuilds;
       this.trackingTransitionRebuild = true;
       if (this.providerLease && this.providerLease !== lease) this.retiredProviderLeases.add(this.providerLease);
-      this.pending = new Set(this.detected.keys());
+      this.pending = new Set(this.detectedKeys);
       this.committed.clear();
       this.fallback.clear();
       this.failed.clear();
     }
     if (previous && !provider && this.providerLease) this.retiredProviderLeases.add(this.providerLease);
-    this.provider = provider;
     this.providerLease = lease;
     this.renderer.setProvider(provider);
     if (!provider) {
-      this.detected.clear();
+      this.detectedKeys.clear();
       this.pending.clear(); this.committed.clear(); this.fallback.clear(); this.failed.clear();
       this.retiredProviderLeases.clear();
       this.syncGeneration += 1;
@@ -115,13 +113,12 @@ export class FluidRenderCoordinator {
   sync(records: readonly FluidChunkRecord[], world: FluidWorldLookup, hydrationGeneration: number, changedPositions?: readonly VoxelCoordinate[]): Promise<void> {
     const generation = ++this.syncGeneration;
     const next = new Map(records.map((record) => [keyOf(record), record] as const));
-    this.detected.clear();
-    for (const [key, record] of next) this.detected.set(key, record);
-    this.pending = this.provider ? new Set(next.keys()) : new Set();
+    this.detectedKeys = new Set(next.keys());
+    this.pending = this.renderer.providerSnapshot() ? new Set(next.keys()) : new Set();
     this.committed = new Set();
     this.fallback = new Set();
     this.failed.clear();
-    if (!this.provider) return Promise.resolve();
+    if (!this.renderer.providerSnapshot()) return Promise.resolve();
     return this.renderer.sync(records, world, changedPositions).then((result) => {
       if (generation !== this.syncGeneration || result.status === 'stale') return;
       this.applyResult(result, hydrationGeneration, generation);
@@ -141,22 +138,22 @@ export class FluidRenderCoordinator {
       const key = keyOfPosition(change.after?.block.position ?? change.before?.block.position ?? change.position);
       changedKeys.add(key);
       if (change.after) {
-        this.detected.set(key, change.after);
+        this.detectedKeys.add(key);
         this.pending.add(key); this.committed.delete(key); this.fallback.delete(key);
         this.failed.delete(key);
       } else {
-        this.detected.delete(key);
+        this.detectedKeys.delete(key);
         this.pending.delete(key); this.committed.delete(key); this.fallback.delete(key);
         this.failed.delete(key);
       }
     }
-    if (!this.provider) return Promise.resolve();
+    if (!this.renderer.providerSnapshot()) return Promise.resolve();
     return this.renderer.syncDelta(changes, changedPositions, world).then((result) => {
       if (generation !== this.syncGeneration || result.status === 'stale') return;
       this.applyDeltaResult(result, hydrationGeneration, generation, changedKeys);
     }, (error: unknown) => {
       if (generation !== this.syncGeneration) return;
-      for (const key of changedKeys) if (this.detected.has(key)) {
+      for (const key of changedKeys) if (this.detectedKeys.has(key)) {
         this.pending.delete(key);
         this.failed.add(key);
       }
@@ -164,8 +161,8 @@ export class FluidRenderCoordinator {
     });
   }
 
-  claimedKeys(): ReadonlySet<string> { return new Set(this.detected.keys()); }
-  isClaimed(key: string): boolean { return this.detected.has(key); }
+  claimedKeys(): ReadonlySet<string> { return new Set(this.detectedKeys); }
+  isClaimed(key: string): boolean { return this.detectedKeys.has(key); }
   isTerminal(key: string): boolean { return this.committed.has(key) || this.fallback.has(key); }
   objectsForVoxel(key: string): readonly THREE.Object3D[] { return this.renderer.objectsForVoxel(key); }
   hasVoxel(key: string): boolean { return this.renderer.hasVoxel(key); }
@@ -182,10 +179,10 @@ export class FluidRenderCoordinator {
   diagnostics(): FluidLifecycleDiagnostics {
     const base = this.renderer.diagnostics();
     const terminal = this.committed.size + this.fallback.size;
-    const orphaned = Math.max(0, this.detected.size - this.pending.size - terminal);
+    const orphaned = Math.max(0, this.detectedKeys.size - this.pending.size - terminal);
     return {
       ...base,
-      fluidDetectedVoxels: this.detected.size,
+      fluidDetectedVoxels: this.detectedKeys.size,
       fluidPendingVoxels: this.pending.size,
       fluidCommittedVoxels: this.committed.size,
       fluidOrphanedLogicalCount: orphaned,
@@ -205,10 +202,10 @@ export class FluidRenderCoordinator {
     const terminal = this.committed.size + this.fallback.size;
     return {
       ...this.renderer.lightDiagnostics(),
-      fluidDetectedVoxels: this.detected.size,
+      fluidDetectedVoxels: this.detectedKeys.size,
       fluidPendingVoxels: this.pending.size,
       fluidCommittedVoxels: this.committed.size,
-      fluidOrphanedLogicalCount: Math.max(0, this.detected.size - this.pending.size - terminal),
+      fluidOrphanedLogicalCount: Math.max(0, this.detectedKeys.size - this.pending.size - terminal),
       fluidFailedVoxels: this.failed.size,
       fluidFallbackVoxels: this.fallback.size,
       fluidProviderTransitions: this.providerTransitions,
@@ -222,7 +219,7 @@ export class FluidRenderCoordinator {
 
   clear(): void {
     this.syncGeneration += 1;
-    this.detected.clear(); this.pending.clear(); this.committed.clear(); this.fallback.clear(); this.failed.clear();
+    this.detectedKeys.clear(); this.pending.clear(); this.committed.clear(); this.fallback.clear(); this.failed.clear();
     this.retiredProviderLeases.clear();
     this.renderer.clear();
   }
@@ -241,7 +238,7 @@ export class FluidRenderCoordinator {
     this.fallback = new Set(result.fallbackKeys);
     this.committed = new Set(result.committedKeys.filter((key) => !this.fallback.has(key)));
     const terminal = new Set([...this.committed, ...this.fallback]);
-    const failed = [...this.detected.keys()].filter((key) => !terminal.has(key));
+    const failed = [...this.detectedKeys].filter((key) => !terminal.has(key));
     this.failed = new Set(failed);
     this.pending.clear();
     const rebuilds = this.renderer.diagnostics().fluidChunkRebuilds;
@@ -259,7 +256,7 @@ export class FluidRenderCoordinator {
   private applyDeltaResult(result: FluidChunkSyncResult, hydrationGeneration: number, generation: number, changedKeys: ReadonlySet<string>): void {
     if (generation !== this.syncGeneration || result.status === 'stale') return;
     if (result.status === 'unavailable') {
-      const failed = [...changedKeys].filter((key) => this.detected.has(key));
+      const failed = [...changedKeys].filter((key) => this.detectedKeys.has(key));
       for (const key of failed) { this.pending.delete(key); this.failed.add(key); }
       if (failed.length) this.callbacks.onFailure?.(hydrationGeneration, failed, new Error('Fluid renderer became unavailable before committing changed visuals.'));
       return;
@@ -271,10 +268,10 @@ export class FluidRenderCoordinator {
       if (fallback.has(key)) { this.fallback.add(key); this.committed.delete(key); }
       else { this.committed.add(key); this.fallback.delete(key); }
     }
-    for (const key of changedKeys) if (!this.detected.has(key)) {
+    for (const key of changedKeys) if (!this.detectedKeys.has(key)) {
       this.pending.delete(key); this.committed.delete(key); this.fallback.delete(key);
     }
-    const failed = [...changedKeys].filter((key) => this.detected.has(key) && !this.committed.has(key) && !this.fallback.has(key));
+    const failed = [...changedKeys].filter((key) => this.detectedKeys.has(key) && !this.committed.has(key) && !this.fallback.has(key));
     for (const key of failed) { this.pending.delete(key); this.failed.add(key); }
     const terminal = result.committedKeys.filter((key) => fallback.has(key));
     const committed = result.committedKeys.filter((key) => !fallback.has(key));

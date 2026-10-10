@@ -39,8 +39,10 @@ function createOwner(overrides: Partial<BlockRepresentationHydrationOwnerPorts> 
 } {
   const provider = { create: vi.fn(), thumbnailUrl: vi.fn() } as unknown as BlockVisualProvider;
   const fallback = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  const store = new ViewportBlockRepresentationStore();
   const commit = {
     begin: vi.fn(),
+    beginAsyncRevision: vi.fn((key: string) => store.incrementRevision(key)),
     tryCached: vi.fn(() => false),
     beginAsync: vi.fn(() => ({ entry: undefined, fallback, revision: 1, staticAllowed: false })),
     commitCreate: vi.fn(),
@@ -51,7 +53,6 @@ function createOwner(overrides: Partial<BlockRepresentationHydrationOwnerPorts> 
   };
   const releaseRetiredProviders = vi.fn();
   const invalidateDiagnostics = vi.fn();
-  const store = new ViewportBlockRepresentationStore();
   const ports: BlockRepresentationHydrationOwnerPorts = {
     store,
     provider: () => provider,
@@ -155,7 +156,7 @@ describe('BlockRepresentationHydrationOwner provider lifetime', () => {
 
 function fixtureCommit(): Record<string, ReturnType<typeof vi.fn>> {
   return {
-    begin: vi.fn(), tryCached: vi.fn(() => false),
+    begin: vi.fn(), beginAsyncRevision: vi.fn(), tryCached: vi.fn(() => false),
     beginAsync: vi.fn(() => ({ entry: undefined, fallback: new THREE.Mesh(), revision: 1, staticAllowed: false })),
     commitCreate: vi.fn(), commitRefresh: vi.fn(), fail: vi.fn(), failCached: vi.fn(), recordRefreshFailure: vi.fn(),
   };

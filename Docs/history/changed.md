@@ -2645,3 +2645,38 @@ structure, and block-asset work, without exposing numeric progress. Terminal
 missing/render failures remain warnings and do not become a false ready state.
 This change does not claim GPU presentation readiness or remove the documented
 renderer-family/Y-layer limitations above.
+
+## Renderer resource ownership consolidation
+
+Terrain logical records, chunk indexing, occupancy, and dirty dependency keys
+are owned by `TerrainChunkLogicalStore`. Reusable surface templates, compiled
+template data, template identity, atlas lifetime, and source geometry/material
+disposal are owned by `TerrainTemplateResourceOwner`. `TerrainChunkWorkOwner`
+owns chunk revisions, worker scheduling, stale-result validation, and job
+terminal state. `TerrainChunkResultCommitOwner` converts accepted worker output
+to Three.js geometry, installs it through `TerrainChunkResidencyOwner`, and
+publishes hydration settlement. The residency owner remains the sole owner of
+attached/retained chunk meshes and bounded resident variants. Worker-backed
+dirty chunks now check retained variants before serializing a new mesh job.
+
+Fluid records and chunk indexes are owned by `FluidChunkRecordStore`;
+`FluidChunkBuildOwner` owns provider epochs, serialized builds, signatures, and
+stale-result rejection; `FluidChunkResidencyOwner` owns mesh/material creation,
+presentation, bounded variants, and disposal. The pure fluid record signature
+has one implementation. `FluidRenderCoordinator` remains the viewport-facing
+owner of fluid claims, hydration terminal sets, and provider leases.
+
+`BlockRepresentationCommitOwner` is the only production writer of the
+viewport representation ledger. It decides and publishes representation
+transitions; `BlockRepresentationResourceOwner` releases physical memberships
+and GPU resources without changing the ledger. Viewport orchestration and
+terrain workflow hold read-only ledger contracts and issue typed commit
+operations. Renderer owners perform their own disposal; the viewport no longer
+walks the block scene and disposes resources a second time.
+
+Regression coverage exercises terrain template identity/disposal, resident
+variant reuse in worker mode, worker cancellation/settlement, fluid record and
+residency lifecycle, stale provider work, and representation commit ownership.
+These tests establish CPU-side ownership and resource lifecycle contracts; they
+do not establish browser GPU residency, hardware-GPU frame timing, or complete
+mixed-family 110K performance acceptance.

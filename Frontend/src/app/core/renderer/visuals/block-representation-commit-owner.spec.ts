@@ -32,19 +32,21 @@ function createOwner(store: ViewportBlockRepresentationStore, group: THREE.Group
   const ports: BlockRepresentationCommitOwnerPorts = {
     store,
     resources: {
-      ensureFallback: vi.fn(), remove: vi.fn(), removePlaceholder: vi.fn(), rollbackPartial: vi.fn(),
+      createFallback: vi.fn(() => new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial())),
+      releaseRepresentation: vi.fn(), removePlaceholder: vi.fn(), rollbackPartial: vi.fn(),
       removeOrphanedInstanceMemberships: vi.fn(), releasePreviousAfterReplacement: release,
+      clear: vi.fn(), dispose: vi.fn(), clearPlaceholders: vi.fn(), reconcileInstances: vi.fn(), setPresentationVisible: vi.fn(() => true),
     },
     targets: {
       terrain: { templatesFor: () => undefined, cacheTemplates: vi.fn(), chunkKey: () => 'chunk', remove: vi.fn(), add: (_block, _key, templates, _role, callbacks) => terrainAdd(templates, callbacks) },
-      surface: { templatesFor: () => undefined, cacheTemplates: vi.fn(), meshFor: () => undefined, add: () => undefined },
-      instances: { shouldAttempt: () => false, templateFor: () => undefined, decisionFor: () => undefined, batches: new Map(), add: () => undefined, addFromTemplates: () => undefined },
+      surface: { templatesFor: () => undefined, cacheTemplates: vi.fn(), add: () => undefined },
+      instances: { shouldAttempt: () => false, templateFor: () => undefined, decisionFor: () => undefined, add: () => undefined, addFromTemplates: () => undefined },
       object: {
         blocksGroup: group, applyBrightness: vi.fn(), applyReferenceOpacity: vi.fn(), familyFromReusableKey: () => undefined,
-        familyFromVisual: () => undefined, extractSurfaceTemplates: () => undefined,
+        extractSurfaceTemplates: () => undefined,
       },
     },
-    record: vi.fn(), invalidateDiagnostics: vi.fn(), recordProviderCacheStats: vi.fn(), scheduleRender: vi.fn(),
+    lifecycle: { finished: vi.fn(), refreshFailed: vi.fn(), cachedTemplateInserted: vi.fn() },
   };
   return { owner: new BlockRepresentationCommitOwner(ports), ports };
 }
@@ -122,9 +124,7 @@ describe('BlockRepresentationCommitOwner Y-layer prewarm commits', () => {
     owner.begin(prewarmJob, provider);
     owner.commitCreate(prewarmJob, visual(new THREE.Group()), undefined, fallback, false);
 
-    expect(ports.recordProviderCacheStats).not.toHaveBeenCalled();
-    expect(ports.invalidateDiagnostics).not.toHaveBeenCalled();
-    expect(ports.scheduleRender).not.toHaveBeenCalled();
+    expect(ports.lifecycle.finished).not.toHaveBeenCalled();
   });
 
   it('keeps ordinary hydration side effects immediate', () => {
@@ -136,8 +136,36 @@ describe('BlockRepresentationCommitOwner Y-layer prewarm commits', () => {
     owner.begin(job, provider);
     owner.commitCreate(job, visual(new THREE.Group()), undefined, fallback, false);
 
-    expect(ports.recordProviderCacheStats).toHaveBeenCalledOnce();
-    expect(ports.invalidateDiagnostics).toHaveBeenCalledOnce();
-    expect(ports.scheduleRender).toHaveBeenCalledOnce();
+    expect(ports.lifecycle.finished).toHaveBeenCalledOnce();
+  });
+});
+
+describe('BlockRepresentationCommitOwner ledger transitions', () => {
+  it('owns removal from the representation ledger while resource release stays delegated', () => {
+    const store = new ViewportBlockRepresentationStore();
+    const group = new THREE.Group();
+    const { owner, ports } = createOwner(store, group, () => 'committed', vi.fn());
+    const object = new THREE.Group();
+    group.add(object);
+    store.createOrReplace({ key: job.key, block, signature: 'stone', role: 'normal', revision: 0, object, provider });
+
+    owner.remove(job.key);
+
+    expect(ports.resources.releaseRepresentation).toHaveBeenCalledOnce();
+    expect(store.has(job.key)).toBe(false);
+  });
+
+  it('publishes visibility state only after its physical representation accepts the change', () => {
+    const store = new ViewportBlockRepresentationStore();
+    const { owner, ports } = createOwner(store, new THREE.Group(), () => 'committed', vi.fn());
+    const object = new THREE.Group();
+    store.createOrReplace({ key: job.key, block, signature: 'stone', role: 'normal', revision: 0, object, provider });
+    vi.mocked(ports.resources.setPresentationVisible).mockReturnValueOnce(false);
+
+    expect(owner.setPresentationVisible(job.key, store.get(job.key)!, false)).toBe(false);
+    expect(store.get(job.key)?.presentationVisible).toBeUndefined();
+
+    expect(owner.setPresentationVisible(job.key, store.get(job.key)!, false)).toBe(true);
+    expect(store.get(job.key)?.presentationVisible).toBe(false);
   });
 });

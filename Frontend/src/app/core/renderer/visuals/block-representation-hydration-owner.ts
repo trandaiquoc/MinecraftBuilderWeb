@@ -7,7 +7,7 @@ import { disposeObject } from '../presentation/renderer-resource-disposal';
 export type { BlockHydrationJob, HydratedBlockVisualResult, HydrationWorldContext } from './block-representation-contracts';
 
 export interface BlockRepresentationHydrationOwnerPorts {
-  readonly store: ViewportBlockRepresentationStore;
+  readonly store: Pick<ViewportBlockRepresentationStore, 'get'>;
   readonly provider: () => BlockVisualProvider | undefined;
   readonly providerGeneration: () => number;
   readonly resolve: {
@@ -59,7 +59,7 @@ export class BlockRepresentationHydrationOwner {
     const finish = this.beginOperation(provider, onComplete);
     try {
       const generation = this.ports.providerGeneration();
-      const revision = this.ports.store.incrementRevision(job.key) ?? entry.revision;
+      const revision = this.ports.commit.beginAsyncRevision(job.key) ?? entry.revision;
       const reusableKey = this.ports.resolve.reusableKey(provider, job.block, job.worldContext);
       const request = job.surfaceFastPathEligible && reusableKey
         ? this.ports.resolve.terrain(reusableKey, job.block, job.worldContext, provider)

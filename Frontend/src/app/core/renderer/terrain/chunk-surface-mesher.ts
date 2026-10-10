@@ -3,7 +3,7 @@ import type { VoxelCoordinate } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { instanceGeometryCompatibilityKey, instanceMaterialCompatibilityKey } from '../batching/instance-template-cache';
-import { TerrainOccupancy } from './chunk-occupancy';
+import type { TerrainOccupancyLookup } from './chunk-occupancy';
 import type { TerrainChunkCoordinate } from './chunk-coordinate';
 import type { TerrainTextureAtlas } from './atlas/terrain-texture-atlas';
 import { meshTerrainCore } from './terrain-mesh-core';
@@ -88,7 +88,7 @@ export interface CompiledTerrainChunk {
 }
 
 /** CPU-only surface compiler. It emits one quad's triangles directly into chunk buffers. */
-export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonly TerrainMeshEntry[], occupancy: TerrainOccupancy, atlas?: TerrainTextureAtlas): CompiledTerrainChunk {
+export function meshTerrainChunk(chunk: TerrainChunkCoordinate, entries: readonly TerrainMeshEntry[], occupancy: TerrainOccupancyLookup, atlas?: TerrainTextureAtlas): CompiledTerrainChunk {
   const materialByBucket = new Map<string, THREE.Material>();
   const templateIndexes = new WeakMap<readonly PrecompiledTerrainFace[], Map<'normal' | 'reference', number>>();
   const templates: TerrainMeshTemplateData[] = [];
