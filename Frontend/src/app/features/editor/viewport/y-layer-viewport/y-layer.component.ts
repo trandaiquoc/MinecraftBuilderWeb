@@ -68,13 +68,26 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   private readonly engine = new ThreeViewportEngine();
   private readonly viewportSession = new ViewportSessionOwner(this.engine, () => this.viewportActive(), 'Y-layer');
   private readonly preparationScheduler = inject(ViewportPreparationScheduler);
+  private preparationWasHydrating = false;
+  private readonly preparationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => {
+    if (progress.status === 'hydrating') {
+      this.preparationWasHydrating = true;
+    } else if (this.preparationWasHydrating) {
+      this.preparationWasHydrating = false;
+      this.preparationScheduler.retry('y-layer');
+    }
+  });
   private readonly viewReady = signal(false);
   private viewportMounted = false;
   protected readonly projectionBusy = signal(false);
   protected readonly projectionIndicatorVisible = signal(false);
   private projectionIndicatorTimer?: ReturnType<typeof setTimeout>;
   private projectionIndicatorRevision?: number;
-  private readonly projectionActivityUnsubscribe = this.engine.onProjectionActivity((state) => this.handleProjectionActivity(state));
+  private readonly projectionActivityUnsubscribe = this.engine.onProjectionActivity((state) => {
+    const wasBusy = this.projectionBusy();
+    this.handleProjectionActivity(state);
+    if (wasBusy && state.activity === 'idle') this.preparationScheduler.retry('y-layer');
+  });
   private get hydrationOwner() { return this.viewportSession.hydrationOwner; }
   private get viewportStatusOwner() { return this.viewportSession.viewportStatusOwner; }
   private readonly layerIndexSync = effect(() => { const project = this.workspace.project(); if (project) this.layerIndex.ensure(project); this.engine.setLayerIndex(this.layerIndex); });
@@ -95,7 +108,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const providerGeneration = this.assets.generation();
     const visualRevision = this.library.catalogRevision();
     if (!project || !provider) {
-      this.preparationScheduler.update('y-layer', undefined, false, 0, () => undefined);
+      this.preparationScheduler.update('y-layer', undefined, false, 0, () => 'rejected');
       return;
     }
     const scope: ViewportPreparationScope = {
@@ -113,14 +126,13 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       if (!current || current !== scope.project || current.id !== scope.projectId || current.blocks !== scope.blocks
         || current.decorations !== scope.decorations
         || this.assets.visualProvider() !== provider || this.assets.generation() !== providerGeneration
-        || this.library.catalogRevision() !== visualRevision) return false;
+        || this.library.catalogRevision() !== visualRevision) return 'rejected';
       if (!this.viewportActive()) {
         this.layerIndex.ensure(current);
-        this.engine.prepareInactiveViewport(current, this.active.active(), this.renderOptions(current));
+        return this.engine.prepareInactiveViewport(current, this.active.active(), this.renderOptions(current));
       } else {
-        this.engine.prepareYLayerVisualResources(current);
+        return this.engine.prepareYLayerVisualResources(current);
       }
-      return true;
     });
   });
   private pointerStart?: { x: number; y: number };
@@ -136,7 +148,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); this.viewReady.set(true); }
-  ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.unregister('y-layer'); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.preparationProgressUnsubscribe(); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.unregister('y-layer'); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }

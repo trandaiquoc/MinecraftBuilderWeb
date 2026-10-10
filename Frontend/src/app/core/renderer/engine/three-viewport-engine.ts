@@ -120,7 +120,7 @@ import { canonicalRenderOptions, renderFilterKey } from './viewport-render-signa
 import { stableValueKey } from '../../domain/stable-value-key';
 import { ViewportBlockRepresentationStore, type RenderedBlockEntry } from './viewport-block-representation-store';
 import { ViewportBlockIndexOwner } from './viewport-block-index-owner';
-import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, ViewportHydrationWorkSnapshot, PlacementPlanProvider } from './viewport-engine-contracts';
+import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, ViewportHydrationWorkSnapshot, ViewportPreparationAttempt, PlacementPlanProvider } from './viewport-engine-contracts';
 export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
 
 
@@ -1061,8 +1061,18 @@ export class ThreeViewportEngine {
 
   get isSuspended(): boolean { return this.suspended; }
 
-  prepareYLayerVisualResources(project: ProjectDocument): void {
+  prepareYLayerVisualResources(project: ProjectDocument): ViewportPreparationAttempt {
+    if (this.disposed || this.project !== project || this.renderOptions.layerY === undefined || !this.visualProvider)
+      return 'rejected';
+    const wasPreparing = this.yLayerPrewarm.isPreparingRepresentation || this.yLayerPrewarm.visualEvidence.state === 'preparing';
     this.yLayerPrewarm.prepare(project);
+    const visualState = this.yLayerPrewarm.visualEvidence.state;
+    const representationState = this.yLayerPrewarm.representationEvidence.state;
+    if (visualState === 'preparing' || representationState === 'preparing')
+      return wasPreparing ? 'in-progress' : 'accepted';
+    if (visualState === 'cancelled' || visualState === 'idle' || representationState === 'cancelled')
+      return 'rejected';
+    return 'completed';
   }
 
   private activatePreparedYLayerPresentation(project: ProjectDocument | undefined, providerGeneration: number): void {
@@ -1073,9 +1083,14 @@ export class ThreeViewportEngine {
     this.runtimeTrace?.record('y-layer-presentation', { mode: 'resident-batches', layerY: options.layerY, visibility: options.visibility, residentBlocks: this.blockRepresentations.size, instanceMembers: this.instanceOwnershipIndex.size, activation: 'prewarm-complete' });
   }
 
-  /** Reconciles and hydrates an inactive retained scene without mounting a second WebGL renderer. */
-  prepareInactiveViewport(project: ProjectDocument, active: ActiveBlock | undefined, options: ViewportRenderOptions): number {
-    if (this.disposed || !this.suspended || this.renderer || this.project?.id !== project.id || this.project.blocks !== project.blocks) return 0;
+  /**
+   * Reconciles an inactive retained scene without mounting a second WebGL renderer.
+   * `completed` means the synchronous structure/decorations sync committed; the
+   * hydration and GPU readiness contracts remain independently authoritative.
+   */
+  prepareInactiveViewport(project: ProjectDocument, active: ActiveBlock | undefined, options: ViewportRenderOptions): ViewportPreparationAttempt {
+    if (this.disposed || !this.suspended || this.renderer || this.project?.id !== project.id || this.project.blocks !== project.blocks) return 'rejected';
+    const workWasPending = this.inactivePreparationWorkPending();
     this.backgroundPreparation = true;
     this.suspended = false;
     try {
@@ -1086,12 +1101,29 @@ export class ThreeViewportEngine {
       const decorationKey = `${project.id}|${renderFilterKey(options)}|${this.decorationVisuals.revision}`;
       if (sync.project === project && sync.syncKey === expectedKey && this.syncedDecorationProject === project && this.decorationSyncKey === decorationKey) {
         this.suspendedNeedsRefresh = false;
-        return this.visibleBlockRepresentationCount() + this.placeholderIndices.size;
+        return 'completed';
       }
-      return 0;
+      const workPending = this.inactivePreparationWorkPending();
+      if (workPending) return workWasPending ? 'in-progress' : 'accepted';
+      return 'rejected';
     } finally {
       this.suspended = true;
     }
+  }
+
+  private inactivePreparationWorkPending(): boolean {
+    const work = this.hydrationPipeline.workCounts();
+    return this.yLayerProjection.state.activity !== 'idle'
+      || work.regularQueued > 0
+      || work.providerRefreshQueued > 0
+      || work.regularRunning > 0
+      || work.providerRefreshRunning > 0
+      || this.queuedDecorationHydrationJobs() > 0
+      || this.terrainPipeline.pendingGroupCount > 0
+      || this.fluidCoordinator.pendingCount > 0
+      || this.providerRefreshPipeline.isPlanning
+      || this.yLayerPrewarm.isPreparingRepresentation
+      || this.yLayerPrewarm.visualEvidence.state === 'preparing';
   }
 
   publishCurrentHydrationProgress(): void {

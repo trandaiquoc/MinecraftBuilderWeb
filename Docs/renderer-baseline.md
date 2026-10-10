@@ -208,7 +208,12 @@ These owners use the same representation and GPU resource owners described
 above; they do not introduce parallel ledgers or disposal.
 
 Viewport preparation is one active-first scheduled lifecycle across 3D and
-Y-layer components. A task that reports an incomplete/stale attempt is deferred
-until a subsequent component state update instead of being retried in a tight
-idle-callback loop. Readiness still means CPU-side preparation/representation
-settlement, not WebGL upload or a stable presented frame.
+Y-layer components. Attempts report `completed`, `accepted`, `in-progress`, or
+`rejected`; only owner-confirmed `completed` attempts enter the scheduler's
+completed state. Accepted/in-progress work waits for a hydration or projection
+transition before retry, while rejected work waits for a readiness/scope update.
+Task completion means the synchronous sync or preparation request reached its
+declared terminal point; it does not claim CPU representation settlement,
+WebGL upload, or a stable presented frame. Empty projects can complete without
+requiring a nonzero representation count. Removing/unregistering a task removes
+its completion state with it.

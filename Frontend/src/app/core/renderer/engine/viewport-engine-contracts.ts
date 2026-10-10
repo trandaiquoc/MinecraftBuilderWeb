@@ -16,6 +16,8 @@ export interface ViewportHit { readonly target?: VoxelCoordinate; readonly place
 export type ViewportHoverListener = (hit: ViewportHit) => void;
 export interface ViewportRenderOptions { readonly layerY?: number; readonly visibility?: YLayerVisibility; readonly referenceOpacity?: number; readonly layerIndex?: LayerBlockIndex; readonly selected?: VoxelCoordinate; readonly selectedPositions?: readonly VoxelCoordinate[]; readonly selectionKind?: string; readonly selectionCount?: number; readonly selectionBounds?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly selectedDecorationId?: string; readonly activeDecoration?: ActiveDecoration; readonly selectionBox?: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate }; readonly isolatedGroupId?: string; readonly isolatedGroupPositions?: readonly VoxelCoordinate[]; readonly activeGroupId?: string; readonly activeGroupPositions?: readonly VoxelCoordinate[]; readonly groupMovePreview?: GroupMovePreview; readonly highlightedBlockId?: string; readonly highlightedBlockPositions?: readonly VoxelCoordinate[]; readonly showStructureBlockGuide?: boolean; readonly structureBlockGuideRevision?: number; readonly exposedFaceRendering?: boolean; }
 export interface ViewportEngineOptions { readonly terrainAtlasMode?: TerrainAtlasMode; readonly terrainShouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean; }
+/** Result of one preparation attempt; completion is not GPU-presentation readiness. */
+export type ViewportPreparationAttempt = 'completed' | 'accepted' | 'in-progress' | 'rejected';
 export type ViewportHydrationStatus = HydrationStatus;
 export interface ViewportHydrationWorkSnapshot {
   readonly blockQueued: number;

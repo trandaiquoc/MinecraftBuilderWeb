@@ -2378,7 +2378,7 @@ describe('selection visualization scalability', () => {
     engine.update(project, undefined, options);
     engine.setVisualProvider(provider);
 
-    expect(engine.prepareInactiveViewport(project, undefined, options)).toBeGreaterThan(0);
+    expect(engine.prepareInactiveViewport(project, undefined, options)).toBe('completed');
     await settleHydration(100, engine);
     expect(engine.hydrationProgress().status).toBe('complete');
     expect(provider.create).toHaveBeenCalled();
@@ -2433,6 +2433,30 @@ describe('selection visualization scalability', () => {
 
     expect(reconcile).toHaveBeenCalledTimes(1);
     expect(reconcile.mock.calls[0][1]).toMatchObject({ visibility: 'whole-structure', layerY: 0 });
+    engine.dispose();
+  });
+
+  it('completes inactive preparation for an empty project without relying on representation counts', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: [], decorations: [] };
+    const layerIndex = { blocksAtY: () => [], occupiedLayers: () => [], allBlocks: () => [] };
+    const options = { layerY: 0, visibility: 'current-only' as const, layerIndex };
+    engine.setVisualProvider(rendererBenchmarkVisualProvider());
+    engine.suspend();
+    engine.update(project, undefined, options);
+
+    expect(engine.prepareInactiveViewport(project, undefined, options)).toBe('completed');
+    expect(engine.performanceEvidence().renderedBlocks).toBe(0);
+    engine.dispose();
+  });
+
+  it('rejects inactive preparation when its lifecycle preconditions are not met', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    engine.update(project, undefined);
+
+    expect(engine.prepareInactiveViewport(project, undefined, {})).toBe('rejected');
     engine.dispose();
   });
 

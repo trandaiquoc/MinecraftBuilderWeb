@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import type { ViewportPreparationAttempt } from '../../../../core/renderer/engine/viewport-engine-contracts';
 
 export interface ViewportPreparationScope {
   readonly projectId: string;
@@ -17,9 +18,11 @@ type IdleWindow = {
 
 interface PreparationTask {
   readonly id: string;
-  readonly ready: boolean;
-  readonly priority: number;
-  readonly prepare: () => void | boolean;
+  ready: boolean;
+  priority: number;
+  prepare: () => ViewportPreparationAttempt;
+  state: 'queued' | 'running' | ViewportPreparationAttempt;
+  retryAfterAttempt: boolean;
 }
 
 /** Coordinates one active-first preparation queue across both retained viewports. */
@@ -27,8 +30,6 @@ interface PreparationTask {
 export class ViewportPreparationScheduler {
   private scope?: ViewportPreparationScope;
   private readonly tasks = new Map<string, PreparationTask>();
-  private readonly completed = new Set<string>();
-  private readonly deferred = new Set<string>();
   private generation = 0;
   private scheduled = false;
   private scheduledTaskId?: string;
@@ -41,11 +42,10 @@ export class ViewportPreparationScheduler {
     scope: ViewportPreparationScope | undefined,
     ready: boolean,
     priority: number,
-    prepare: () => void | boolean,
+    prepare: () => ViewportPreparationAttempt,
   ): void {
     if (!scope) {
       this.tasks.delete(id);
-      this.deferred.delete(id);
       this.releaseScopeIfUnused();
       this.scheduleNext();
       return;
@@ -53,19 +53,51 @@ export class ViewportPreparationScheduler {
     if (!sameScope(this.scope, scope)) {
       this.cancelPending();
       this.scope = scope;
-      this.completed.clear();
-      this.deferred.clear();
+      for (const task of this.tasks.values()) {
+        task.state = 'queued';
+        task.retryAfterAttempt = false;
+      }
     }
-    this.deferred.delete(id);
-    this.tasks.set(id, { id, ready, priority, prepare });
+    const existing = this.tasks.get(id);
+    if (existing) {
+      const wasReady = existing.ready;
+      existing.ready = ready;
+      existing.priority = priority;
+      existing.prepare = prepare;
+      if (
+        existing.state === 'rejected' ||
+        (!wasReady && ready && (existing.state === 'accepted' || existing.state === 'in-progress'))
+      ) {
+        existing.state = 'queued';
+      }
+    } else {
+      this.tasks.set(id, {
+        id,
+        ready,
+        priority,
+        prepare,
+        state: 'queued',
+        retryAfterAttempt: false,
+      });
+    }
     this.scheduleNext();
   }
 
   unregister(id: string): void {
     this.tasks.delete(id);
-    this.completed.delete(id);
-    this.deferred.delete(id);
     this.releaseScopeIfUnused();
+    this.scheduleNext();
+  }
+
+  /** Reconsiders a waiting task after an owner reports a meaningful state transition. */
+  retry(id: string): void {
+    const task = this.tasks.get(id);
+    if (!task || task.state === 'completed' || task.state === 'queued') return;
+    if (task.state === 'running') {
+      task.retryAfterAttempt = true;
+      return;
+    }
+    task.state = 'queued';
     this.scheduleNext();
   }
 
@@ -73,14 +105,11 @@ export class ViewportPreparationScheduler {
     this.cancelPending();
     this.scope = undefined;
     this.tasks.clear();
-    this.completed.clear();
-    this.deferred.clear();
   }
 
   private scheduleNext(): void {
     const next = [...this.tasks.values()]
-      .filter((task) => task.ready && !this.completed.has(task.id))
-      .filter((task) => !this.deferred.has(task.id))
+      .filter((task) => task.ready && task.state === 'queued')
       .sort((left, right) => left.priority - right.priority || left.id.localeCompare(right.id))[0];
     if (!next) {
       if (this.scheduled) this.cancelPending();
@@ -95,13 +124,36 @@ export class ViewportPreparationScheduler {
     this.scheduledTaskId = next.id;
     const token = this.generation;
     const expectedScope = this.scope;
+    const expectedTask = next;
     const run = (): void => {
       this.clearScheduledHandles();
       const current = this.tasks.get(next.id);
-      if (token !== this.generation || !sameScope(this.scope, expectedScope) || !current?.ready)
+      if (
+        token !== this.generation ||
+        !sameScope(this.scope, expectedScope) ||
+        current !== expectedTask ||
+        !current.ready ||
+        current.state !== 'queued'
+      )
         return;
-      if (current.prepare() === false) this.deferred.add(current.id);
-      else this.completed.add(current.id);
+      current.state = 'running';
+      let result: ViewportPreparationAttempt;
+      try {
+        result = current.prepare();
+      } catch (error) {
+        if (this.tasks.get(current.id) === current && token === this.generation)
+          current.state = 'rejected';
+        this.scheduleNext();
+        throw error;
+      }
+      if (
+        token === this.generation &&
+        sameScope(this.scope, expectedScope) &&
+        this.tasks.get(current.id) === current
+      ) {
+        current.state = current.retryAfterAttempt && result !== 'completed' ? 'queued' : result;
+        current.retryAfterAttempt = false;
+      }
       this.scheduleNext();
     };
 
@@ -124,8 +176,6 @@ export class ViewportPreparationScheduler {
     if (this.tasks.size > 0) return;
     this.cancelPending();
     this.scope = undefined;
-    this.completed.clear();
-    this.deferred.clear();
   }
 
   private clearScheduledHandles(): void {

@@ -68,6 +68,15 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly engine = new ThreeViewportEngine();
   private readonly session = new ViewportSessionOwner(this.engine, () => this.viewportActive(), '3D');
   private readonly preparationScheduler = inject(ViewportPreparationScheduler);
+  private preparationWasHydrating = false;
+  private readonly preparationProgressUnsubscribe = this.engine.onHydrationProgress((progress) => {
+    if (progress.status === 'hydrating') {
+      this.preparationWasHydrating = true;
+    } else if (this.preparationWasHydrating) {
+      this.preparationWasHydrating = false;
+      this.preparationScheduler.retry('3d-inactive');
+    }
+  });
   private readonly viewReady = signal(false);
   private viewportMounted = false;
   private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample(), checkpoint: () => this.engine.runtimeTraceHeavySample() });
@@ -97,7 +106,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const providerGeneration = this.assets.generation();
     const visualRevision = this.library.catalogRevision();
     if (!project || !provider) {
-      this.preparationScheduler.update('3d-inactive', undefined, false, 1, () => undefined);
+      this.preparationScheduler.update('3d-inactive', undefined, false, 1, () => 'rejected');
       return;
     }
     const scope: ViewportPreparationScope = {
@@ -112,13 +121,12 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const activeViewportUsable = !!finalization && !finalization.loading && (finalization.ready || finalization.warning);
     this.preparationScheduler.update('3d-inactive', scope, this.assets.contentReady() && activeViewportUsable && !isActiveViewport, 1, () => {
       const current = this.workspace.project();
-      if (this.viewportActive()) return false;
+      if (this.viewportActive()) return 'rejected';
       if (!current || current !== scope.project || current.id !== scope.projectId || current.blocks !== scope.blocks
         || current.decorations !== scope.decorations
         || this.assets.visualProvider() !== provider || this.assets.generation() !== providerGeneration
-        || this.library.catalogRevision() !== visualRevision) return false;
-      this.engine.prepareInactiveViewport(current, this.active.active(), this.renderOptions(current));
-      return true;
+        || this.library.catalogRevision() !== visualRevision) return 'rejected';
+      return this.engine.prepareInactiveViewport(current, this.active.active(), this.renderOptions(current));
     });
   });
   private readonly toolSync = effect(() => {
@@ -188,7 +196,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.unregister('3d-inactive'); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.preparationProgressUnsubscribe(); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.unregister('3d-inactive'); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }
