@@ -35,6 +35,7 @@ import { ViewportHydrationStatusService } from '../../../../core/editor/state/vi
 import type { ProjectDocument } from '../../../../core/domain/project.types';
 import type { ViewportRuntimeTraceApi } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
+import { ViewportPreparationScheduler, type ViewportPreparationScope } from '../shared/viewport-preparation-scheduler';
 
 declare global {
   interface Window { __mbViewportDiagnostics?: () => ViewportRuntimeDiagnostics; }
@@ -66,6 +67,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   protected readonly target = signal<string>('');
   private readonly engine = new ThreeViewportEngine();
   private readonly session = new ViewportSessionOwner(this.engine, () => this.viewportActive(), '3D');
+  private readonly preparationScheduler = new ViewportPreparationScheduler();
   private readonly viewReady = signal(false);
   private viewportMounted = false;
   private readonly viewportTrace = new ViewportRuntimeTrace({ metadata: () => this.engine.runtimeTraceMetadata(), sample: () => this.engine.runtimeTraceSample(), checkpoint: () => this.engine.runtimeTraceHeavySample() });
@@ -86,30 +88,34 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.mountViewport();
   });
   private readonly sync = effect(() => { this.viewReady(); const activeViewport = this.viewportActive(); this.decorations.selectedId(); this.decorations.active(); const project = this.workspace.project(); this.engine.update(project, this.active.active(), this.renderOptions(project), activeViewport ? this.mutationHints.consume(project, 'three-d-viewport') : undefined); });
-  private readonly prepareViewportResources = effect((onCleanup) => {
+  private readonly prepareViewportResources = effect(() => {
     if (!this.viewReady()) return;
-    const activeViewport = this.viewportActive();
-    const project = this.workspace.project();
+    const isActiveViewport = this.viewportActive();
     const finalization = this.hydrationStatus.finalization();
-    if (!project || !finalization || (!finalization.ready && !finalization.warning)) return;
-
-    let cancelled = false;
-    let idleWindow: (Window & { cancelIdleCallback?: (handle: number) => void }) | undefined;
-    let idleHandle: number | undefined;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const prewarm = (): void => {
-      if (cancelled || this.viewportActive() !== activeViewport || this.workspace.project() !== project) return;
-      if (!activeViewport) this.engine.prepareInactiveViewport(project, this.active.active(), this.renderOptions(project));
-      this.engine.prepareYLayerVisualResources(project);
+    const project = this.workspace.project();
+    const provider = this.assets.visualProvider();
+    const providerGeneration = this.assets.generation();
+    const visualRevision = this.library.catalogRevision();
+    if (!project || !provider) { this.preparationScheduler.cancel(); return; }
+    const scope: ViewportPreparationScope = {
+      projectId: project.id,
+      project,
+      blocks: project.blocks,
+      decorations: project.decorations,
+      provider,
+      providerGeneration,
+      visualRevision,
     };
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      idleWindow = window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (handle: number) => void };
-      idleHandle = idleWindow.requestIdleCallback(prewarm, { timeout: 1500 });
-    } else timeout = setTimeout(prewarm, 0);
-    onCleanup(() => {
-      cancelled = true;
-      if (timeout !== undefined) clearTimeout(timeout);
-      if (idleHandle !== undefined) idleWindow?.cancelIdleCallback?.(idleHandle);
+    const activeViewportUsable = !!finalization && !finalization.loading && (finalization.ready || finalization.warning);
+    this.preparationScheduler.schedule(scope, this.assets.contentReady() && activeViewportUsable && !isActiveViewport, () => {
+      const current = this.workspace.project();
+      if (this.viewportActive()) return false;
+      if (!current || current !== scope.project || current.id !== scope.projectId || current.blocks !== scope.blocks
+        || current.decorations !== scope.decorations
+        || this.assets.visualProvider() !== provider || this.assets.generation() !== providerGeneration
+        || this.library.catalogRevision() !== visualRevision) return false;
+      this.engine.prepareInactiveViewport(current, this.active.active(), this.renderOptions(current));
+      return true;
     });
   });
   private readonly toolSync = effect(() => {
@@ -179,7 +185,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportTrace.stop();
     this.engine.setRuntimeDiagnosticsEnabled(false);
     const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('3d', state, projectId);
-    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prepareViewportResources.destroy(); this.engine.dispose();
+    this.host().nativeElement.removeEventListener('pointermove', this.onNativePointerMove); this.session.destroy(); this.mountActiveViewport.destroy(); this.sync.destroy(); this.toolSync.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.dispose(); this.engine.dispose();
   }
 
   fitStructure(): void { this.engine.fitStructure(); }

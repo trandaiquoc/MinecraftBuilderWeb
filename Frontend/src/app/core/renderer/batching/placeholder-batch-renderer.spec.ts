@@ -3,6 +3,27 @@ import { describe, expect, it, vi } from 'vitest';
 import { PlaceholderBatchRenderer } from './placeholder-batch-renderer';
 
 describe('PlaceholderBatchRenderer', () => {
+  it('uses bounded layer capacity for Y-layer placeholders', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new PlaceholderBatchRenderer({ blocksGroup: group, geometry, materials: { normal: material, reference: material, missing: material }, capacity: 64, layerCapacity: 9, chunkKey: () => 'region', chunkBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), recordBounds: () => undefined });
+
+    renderer.setLayerPresentation(new Set([0]), 0, new Set());
+    renderer.ensure('layer', { x: 0, y: 0, z: 0 }, 'normal');
+    const layerBatch = [...renderer.batches.values()][0];
+    expect(layerBatch.capacity).toBe(9);
+    expect(layerBatch.mesh.instanceMatrix.array.length).toBe(9 * 16);
+    renderer.clear();
+
+    renderer.clearLayerPresentation();
+    renderer.ensure('world', { x: 0, y: 0, z: 0 }, 'normal');
+    const worldBatch = [...renderer.batches.values()][0];
+    expect(worldBatch.capacity).toBe(64);
+    expect(worldBatch.mesh.instanceMatrix.array.length).toBe(64 * 16);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
   it('bulk inserts, swap-removes and clears coarse occupancy', () => {
     const group = new THREE.Group();
     const geometry = new THREE.BoxGeometry(1, 1, 1);

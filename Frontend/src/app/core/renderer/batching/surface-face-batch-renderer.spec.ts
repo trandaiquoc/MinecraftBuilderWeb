@@ -72,6 +72,28 @@ describe('SurfaceFaceBatchRenderer', () => {
     renderer.clear([]); geometry.dispose(); material.dispose();
   });
 
+  it('allocates Y-layer face buffers from layer capacity while retaining the 3D default', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new SurfaceFaceBatchRenderer({ blocksGroup: group, capacity: 64, layerCapacity: 9, chunkKey: () => 'region', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), unitEnvelope: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(1, 1, 1)), record: () => undefined, getEntry: () => undefined });
+    const templates: SurfaceFaceTemplate[] = (['north', 'east', 'south', 'west', 'up', 'down'] as const).map((direction) => ({ geometry, material, direction, matrix: new THREE.Matrix4() }));
+
+    renderer.setLayerPresentation(new Set([0]), 0, .25);
+    renderer.add({ position: { x: 0, y: 0, z: 0 } }, 'layer', templates, new Set(['north']));
+    const layerBatch = [...renderer.batches.values()][0];
+    expect(layerBatch.capacity).toBe(9);
+    expect(layerBatch.mesh.instanceMatrix.array.length).toBe(9 * 16);
+    renderer.clear([]);
+
+    renderer.clearLayerPresentation();
+    renderer.add({ position: { x: 0, y: 0, z: 0 } }, 'world', templates, new Set(['north']));
+    const worldBatch = [...renderer.batches.values()][0];
+    expect(worldBatch.capacity).toBe(64);
+    expect(worldBatch.mesh.instanceMatrix.array.length).toBe(64 * 16);
+    renderer.clear([]); geometry.dispose(); material.dispose();
+  });
+
   it('tracks all exposed memberships and removes them safely', () => {
     const group = new THREE.Group();
     const geometry = new THREE.PlaneGeometry(1, 1);

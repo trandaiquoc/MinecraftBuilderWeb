@@ -26,6 +26,8 @@ export interface InstanceBatch {
 export interface InstanceBatchRendererOptions {
   readonly blocksGroup: THREE.Group;
   readonly capacity: number;
+  /** Capacity for layer-scoped batches, bounded by one horizontal render region. */
+  readonly layerCapacity?: number;
   readonly chunkKey: (position: VoxelCoordinate) => string;
   readonly stableBounds: (chunk: string, envelope: THREE.Box3) => THREE.Box3;
   readonly regionPolicy?: RenderRegionPolicy;
@@ -71,6 +73,7 @@ export class InstanceBatchRenderer {
     const roleKey = this.layerPresentation ? '' : `|role:${renderRole}`;
     const normalizedGroupIds = this.layerPresentation ? [...new Set(groupIds)].sort() : [];
     const groupKey = normalizedGroupIds.join('\u001f');
+    const capacity = this.layerPresentation ? this.options.layerCapacity ?? this.options.capacity : this.options.capacity;
     const baseKey = `${region}|layer:${layer}|${resolved.signature}${roleKey}|groups:${groupKey}`;
     const existingEntry = this.options.getEntry(key);
     const existingMembership = existingEntry?.instanceBatchKey
@@ -92,7 +95,7 @@ export class InstanceBatchRenderer {
         material.transparent = renderRole === 'reference';
         material.opacity = renderRole === 'reference' ? this.referenceOpacity : 1;
         material.depthWrite = true;
-        const mesh = new THREE.InstancedMesh(template.geometry, material, this.options.capacity);
+        const mesh = new THREE.InstancedMesh(template.geometry, material, capacity);
         mesh.count = 0;
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.userData['instanceVoxels'] = [];
@@ -105,7 +108,7 @@ export class InstanceBatchRenderer {
         return mesh;
       });
       this.options.record('instancedBoundsComputations', parts.length);
-      batch = { key: batchKey, regionKey: region, segment, layer, groupIds: normalizedGroupIds, capacity: this.options.capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
+      batch = { key: batchKey, regionKey: region, segment, layer, groupIds: normalizedGroupIds, capacity, templates: resolved.templates, parts, keys: [], positions: [], renderRole };
       this.batchStore.set(batchKey, batch);
       if (this.visibleLayers) for (const part of parts) part.visible = this.isBatchVisible(batch);
       if (this.layerPresentation) this.setBatchRole(batch, layer === this.layerPresentation.currentY ? 'normal' : 'reference');

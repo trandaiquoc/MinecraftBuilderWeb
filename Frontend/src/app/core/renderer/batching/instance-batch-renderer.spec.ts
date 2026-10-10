@@ -49,6 +49,28 @@ describe('InstanceBatchRenderer', () => {
     renderer.clear(); geometry.dispose(); material.dispose();
   });
 
+  it('uses a plane-sized instance buffer for Y-layer batches without changing 3D capacity', () => {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const renderer = new InstanceBatchRenderer({ blocksGroup: group, capacity: 64, layerCapacity: 9, chunkKey: () => 'region', stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(16, 16, 16)), record: () => undefined, getEntry: () => undefined });
+    const templates = [{ geometry, material, matrix: new THREE.Matrix4() }];
+
+    renderer.setLayerPresentation(new Set([0]), 0, .25);
+    renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'layer');
+    const layerBatch = [...renderer.batches.values()][0];
+    expect(layerBatch.capacity).toBe(9);
+    expect(layerBatch.parts[0].instanceMatrix.array.length).toBe(9 * 16);
+    renderer.clear();
+
+    renderer.clearLayerPresentation();
+    renderer.addFromTemplates(templates, { x: 0, y: 0, z: 0 }, 'world');
+    const worldBatch = [...renderer.batches.values()][0];
+    expect(worldBatch.capacity).toBe(64);
+    expect(worldBatch.parts[0].instanceMatrix.array.length).toBe(64 * 16);
+    renderer.clear(); geometry.dispose(); material.dispose();
+  });
+
   it('preserves a hidden member when swap-back removal moves it to another index', () => {
     const group = new THREE.Group();
     const geometry = new THREE.BoxGeometry(1, 1, 1);

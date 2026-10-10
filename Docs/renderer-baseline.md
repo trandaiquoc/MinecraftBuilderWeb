@@ -114,3 +114,59 @@ strict `off` path remains the baseline reference; `on` uses append-only atlas
 pages with per-face strict fallback and reports atlas page/sprite/material
 evidence. The atlas is renderer-owned and is reset with provider generation
 changes.
+
+### Active-first viewport preparation follow-up (2026-10-10)
+
+The viewport components now schedule inactive preparation only after content
+restore is terminal and the active viewport has reached usable finalization.
+The idle callback is scoped to project identity, block/decor arrays, provider
+identity/generation, and catalog visual revision. Switching the inactive
+viewport to active cancels pending idle work; a changed scope can schedule a
+new run. Provider/resolver setters no longer launch a competing Y-layer scan.
+For saved Y-layer mode, inactive preparation uses the saved visibility options
+and suppresses the initial Current Only bootstrap. The Y engine owns the
+all-layer resource prewarm; the 3D engine does not repeat that scan.
+
+The reusable-template scan now checks elapsed work every 128 blocks and yields
+after roughly 6 ms, publishing progress at each yield. Y-layer static/surface
+batches allocate for one horizontal render region (32 x 32 entries), while
+placeholder batches use their 16 x 16 chunk plane. This reduces per-part
+instance-matrix allocations from 32,768 to 1,024 entries for static/surface
+batches and from 4,096 to 256 for placeholders; 3D batch capacity is unchanged.
+The bounded standalone residency limit is 16,384, enough for the observed
+13,824 unbatchable grass fallbacks in the fixture while remaining bounded.
+
+Current Vitest benchmark (`npm run benchmark:renderer`, 110,592 blocks / 48
+layers, fixture canonicalized to `minecraft:stone` for deterministic static
+template coverage, without decorations/fluids/mod visuals) measured active
+current-layer hydration at 99.8 ms, all-layer template
+and representation preparation at 1,895.4 ms, first layer switch after
+preparation at 1.1 ms, repeated switch pair at 29.0 ms, All Below expansion at
+2.6 ms, Whole expansion at 1.4 ms, and contraction at 1.3 ms. All 110,592 CPU
+representations were resident; visibility transitions performed zero provider
+object creations, zero instance-matrix writes, and zero projection voxel visits
+(384 batch visibility updates). Process RSS was about 625 MB and JS heap about
+432 MB. Vitest has no WebGL context, so these figures do not demonstrate GPU
+readiness or browser responsiveness.
+
+In the current Chrome 154 headless SwiftShader session on the persisted
+110,592-block project, with Y-layer active, the engine reached 110,592/110,592
+CPU representations and terminal hydration. Its inactive 3D engine also
+reached 110,592/110,592 representations and terminal hydration without a
+renderer or canvas. Thus
+inactive viewport preparation is automatic and CPU-ready, but GPU presentation
+remains `viewport-dependent`, not preloaded. On first 3D activation after that
+CPU preparation, the first rendered frame was observed on RAF 2; the measured
+interaction-to-four-following-frames interval was 976.5 ms, with 692.4 ms max
+RAF gap and 116/148 ms long tasks. After both contexts had been mounted, a
+separate warm toggle sample still contained 2,004 ms and 576 ms RAF gaps. This
+headless session therefore does not pass smooth mode activation or no-stall
+acceptance. Heap at the warm sample was about 628 MB; GPU allocation bytes were
+unavailable.
+
+No trustworthy before measurement from the same Chrome build, fixture, saved
+mode, and machine state exists. The historical Chrome observations above are
+not a controlled baseline/after comparison. The code-level and Vitest CPU
+improvements are verified; active/inactive GPU readiness, startup p50/p95,
+hardware-GPU behavior, mixed 110K renderer-family coverage, and multi-second
+headless stalls remain open. Overall startup/preload acceptance is PARTIAL.

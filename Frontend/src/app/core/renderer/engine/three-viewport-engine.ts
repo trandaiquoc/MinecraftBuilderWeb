@@ -188,7 +188,9 @@ export const VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH = 8;
 export const VIEWPORT_CAMERA_IDLE_GRACE_MS = 160;
 export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
 export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
-export const Y_LAYER_STANDALONE_RESIDENCY_LIMIT = 8_192;
+// The cap covers the observed 13,824-entry grass-block fallback population
+// while keeping non-batchable content bounded on larger mixed projects.
+export const Y_LAYER_STANDALONE_RESIDENCY_LIMIT = 16_384;
 
 /** Adds voxel/world translation without replacing a special visual's local vanilla transform. */
 export function translateVisualToVoxel(object: THREE.Object3D, position: VoxelCoordinate): void {
@@ -281,6 +283,7 @@ export class ThreeViewportEngine {
     geometry: this.placeholderGeometry,
     materials: this.placeholderMaterials,
     capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
+    layerCapacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 2,
     chunkKey,
     chunkBounds: (chunk) => stableChunkBounds(chunk, unitVoxelEnvelope()),
     recordBounds: () => this.instrumentation.record('instancedBoundsComputations'),
@@ -486,6 +489,7 @@ export class ThreeViewportEngine {
   private readonly surfaceRenderer = new SurfaceFaceBatchRenderer({
     blocksGroup: this.blocksGroup,
     capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
+    layerCapacity: VIEWPORT_RENDER_REGION_SIZE ** 2,
     chunkKey,
     stableBounds: stableChunkBounds,
     regionPolicy: this.renderRegionPolicy,
@@ -644,6 +648,7 @@ export class ThreeViewportEngine {
     this.instanceRenderer = new StaticModelBatchRenderer({
       blocksGroup: this.blocksGroup,
       capacity: VIEWPORT_INSTANCE_CHUNK_SIZE ** 3,
+      layerCapacity: VIEWPORT_RENDER_REGION_SIZE ** 2,
       chunkKey,
       stableBounds: stableChunkBounds,
       regionPolicy: this.renderRegionPolicy,
@@ -1283,7 +1288,6 @@ export class ThreeViewportEngine {
     const requiresStructureResync = !previousProvider || !provider;
     if (requiresStructureResync) this.structureSyncState.invalidateKey();
     if (provider) this.syncSpecialVisualDescriptors();
-    if (this.project) this.prepareYLayerVisualResources(this.project);
     if (previousProvider && provider) {
       if (this.suspended) this.providerRefreshPipeline.defer(previousProvider, provider);
       else this.queueProviderRefresh(previousProvider, provider);
@@ -1325,12 +1329,12 @@ export class ThreeViewportEngine {
   }
   setSpecialVisualDescriptorResolver(resolver: ((blockId: string) => ContentSpecialVisualDescriptor | undefined) | undefined, revision?: number): void {
     if (resolver === this.specialVisualResolver && revision === this.specialVisualRevision) return;
+    this.cancelLayerRepresentationPrewarm();
     this.yLayerVisualPreloader.cancel();
     this.specialVisualResolver = resolver;
     this.specialVisualRevision = revision;
     if (this.suspended) {
       this.suspendedNeedsRefresh = true;
-      if (this.project) this.prepareYLayerVisualResources(this.project);
       return;
     }
     if (this.syncSpecialVisualDescriptors()) {
@@ -1340,7 +1344,6 @@ export class ThreeViewportEngine {
       this.structureBlockGuideKey = '';
       this.update(this.project, this.activeBlock, this.renderOptions);
     }
-    if (this.project) this.prepareYLayerVisualResources(this.project);
   }
   setDecorationTextureProvider(provider: ((resource: string) => string | undefined) | undefined, revision?: unknown): void {
     if (provider === this.decorationTextureUrl && Object.is(revision, this.decorationTextureRevision)) return;
@@ -1591,6 +1594,7 @@ export class ThreeViewportEngine {
     const bootstrapInitialYProjection = !!project
       && !structureState.project
       && !this.suspended
+      && !this.backgroundPreparation
       && project.blocks.length >= COOPERATIVE_INITIAL_Y_PROJECTION_THRESHOLD
       && options.layerY !== undefined
       && !!options.visibility

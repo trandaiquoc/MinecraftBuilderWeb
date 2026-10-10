@@ -9,13 +9,14 @@ function block(position: VoxelCoordinate, id = 'minecraft:stone'): ProjectDocume
   return { kind: 'resolved', id, namespace: 'minecraft', position, state: {} };
 }
 
-function fixture(capacity = 4) {
+function fixture(capacity = 4, layerCapacity?: number) {
   const group = new THREE.Group();
   const entries = new Map<string, { instanceBatchKey?: string; instanceIndex?: number; object?: THREE.Object3D }>();
   const diagnostics = new RendererDiagnostics();
   const renderer = new StaticModelBatchRenderer({
     blocksGroup: group,
     capacity,
+    ...(layerCapacity !== undefined ? { layerCapacity } : {}),
     chunkKey: (position) => `${Math.floor(position.x / 16)},0,0`,
     stableBounds: () => new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(32, 32, 32)),
     regionPolicy: new RenderRegionPolicy(32),
@@ -32,6 +33,20 @@ function template(color = 0x557799): { geometry: THREE.BoxGeometry; material: TH
 }
 
 describe('static model batch renderer', () => {
+  it('uses the layer capacity for layer-resident static model batches', () => {
+    const state = fixture(64, 9);
+    state.renderer.setLayerPresentation(new Set([0]), 0, .28);
+    const key = '0,0,0';
+    state.entries.set(key, {});
+
+    expect(state.renderer.addFromTemplates([template()], block({ x: 0, y: 0, z: 0 }), key)).toBeDefined();
+    const batch = [...state.renderer.batches.values()][0];
+    expect(batch.capacity).toBe(9);
+    expect(batch.parts[0].instanceMatrix.array.length).toBe(9 * 16);
+
+    state.renderer.clear();
+  });
+
   it('uses cache hits for stable keys and segments without falling back', () => {
     const fixtureState = fixture(4);
     const geometry = new THREE.BoxGeometry(.5, .5, .5); geometry.userData['providerOwnedGeometry'] = true;

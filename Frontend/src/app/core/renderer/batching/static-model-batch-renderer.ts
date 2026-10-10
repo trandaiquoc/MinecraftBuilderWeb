@@ -11,6 +11,7 @@ import type { RenderRegionPolicy } from './render-region-policy';
 export interface StaticModelBatchRendererOptions {
   readonly blocksGroup: THREE.Group;
   readonly capacity: number;
+  readonly layerCapacity?: number;
   readonly chunkKey: (position: VoxelCoordinate) => string;
   readonly stableBounds: (region: string, envelope: THREE.Box3) => THREE.Box3;
   readonly regionPolicy: RenderRegionPolicy;
@@ -61,6 +62,7 @@ export class StaticModelBatchRenderer {
     this.delegate = new InstanceBatchRenderer({
       blocksGroup: options.blocksGroup,
       capacity: options.capacity,
+      layerCapacity: options.layerCapacity,
       chunkKey: options.chunkKey,
       stableBounds: options.stableBounds,
       regionPolicy: options.regionPolicy,

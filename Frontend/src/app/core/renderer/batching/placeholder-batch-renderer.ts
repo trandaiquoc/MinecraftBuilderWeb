@@ -20,6 +20,7 @@ export interface PlaceholderBatchRendererOptions {
   readonly geometry: THREE.BufferGeometry;
   readonly materials: Readonly<Record<PlaceholderRole, THREE.Material>>;
   readonly capacity: number;
+  readonly layerCapacity?: number;
   readonly chunkKey: (position: VoxelCoordinate) => string;
   readonly chunkBounds: (chunk: string) => THREE.Box3;
   readonly recordBounds: () => void;
@@ -133,7 +134,8 @@ export class PlaceholderBatchRenderer {
     const existing = this.batchStore.get(batchKey);
     if (existing) return existing;
     const baseMaterial = this.options.materials[role].clone();
-    const mesh = new THREE.InstancedMesh(this.options.geometry, baseMaterial, this.options.capacity);
+    const capacity = this.layerPresentation ? this.options.layerCapacity ?? this.options.capacity : this.options.capacity;
+    const mesh = new THREE.InstancedMesh(this.options.geometry, baseMaterial, capacity);
     mesh.count = 0;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.userData['instanceVoxels'] = [];
@@ -147,7 +149,7 @@ export class PlaceholderBatchRenderer {
     mesh.boundingBox = this.options.chunkBounds(this.options.chunkKey(position));
     mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
     this.options.recordBounds();
-    const batch: PlaceholderBatch = { key: batchKey, layer, groupIds, baseRole: role, role, capacity: this.options.capacity, mesh, keys: [], positions: [] };
+    const batch: PlaceholderBatch = { key: batchKey, layer, groupIds, baseRole: role, role, capacity, mesh, keys: [], positions: [] };
     this.batchStore.set(batchKey, batch);
     if (this.layerPresentation) {
       batch.mesh.visible = this.isVisible(batch);

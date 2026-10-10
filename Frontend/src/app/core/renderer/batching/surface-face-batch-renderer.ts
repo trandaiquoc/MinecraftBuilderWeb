@@ -42,6 +42,7 @@ export interface SurfaceFaceBatch {
 export interface SurfaceFaceBatchRendererOptions {
   readonly blocksGroup: THREE.Group;
   readonly capacity: number;
+  readonly layerCapacity?: number;
   readonly chunkKey: (position: VoxelCoordinate) => string;
   readonly stableBounds: (chunk: string, envelope: THREE.Box3) => THREE.Box3;
   readonly regionPolicy?: RenderRegionPolicy;
@@ -118,7 +119,8 @@ export class SurfaceFaceBatchRenderer {
         const material = template.material.clone();
         material.transparent = role === 'reference' || template.material.transparent;
         material.opacity = role === 'reference' ? referenceOpacity : template.material.opacity;
-        const mesh = new THREE.InstancedMesh(template.geometry, material, this.options.capacity);
+        const capacity = this.layerPresentation ? this.options.layerCapacity ?? this.options.capacity : this.options.capacity;
+        const mesh = new THREE.InstancedMesh(template.geometry, material, capacity);
         mesh.count = 0;
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.userData['instanceVoxels'] = [];
@@ -132,7 +134,7 @@ export class SurfaceFaceBatchRenderer {
         mesh.boundingBox = this.options.regionPolicy?.bounds(region, this.options.unitEnvelope()) ?? this.options.stableBounds(region, this.options.unitEnvelope());
         mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
         this.options.record('instancedBoundsComputations');
-        batch = { key: batchKey, regionKey: region, segment, layer, groupIds, capacity: this.options.capacity, template, mesh, keys: [], positions: [], directions: [], renderRole: role };
+        batch = { key: batchKey, regionKey: region, segment, layer, groupIds, capacity, template, mesh, keys: [], positions: [], directions: [], renderRole: role };
         this.batchStore.set(batchKey, batch);
       }
       if (this.layerPresentation) this.setBatchRole(batch, layer === this.layerPresentation.currentY ? 'normal' : 'reference', this.layerPresentation.referenceOpacity);

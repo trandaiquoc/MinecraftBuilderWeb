@@ -1298,7 +1298,7 @@ describe('camera movement input contract', () => {
     const base = rendererBenchmarkProject('small');
     const initialBlocks = Array.from({ length: VIEWPORT_INSTANCE_THRESHOLD + 1 }, (_, index) => ({ ...base.blocks[0], position: { x: index % 16, y: Math.floor(index / 16), z: 0 } }));
     const initial = { ...base, size: { x: 16, y: 32, z: 16 }, blocks: initialBlocks };
-    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(initial, undefined); await settleHydration();
+    const engine = new ThreeViewportEngine(); engine.setVisualProvider(provider); engine.update(initial, undefined); await settleHydration(2_000, engine);
     const blocksGroup = (engine as unknown as { blocksGroup: THREE.Group }).blocksGroup;
     const first = blocksGroup.children.find((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)!;
     const initialMaxZ = first.boundingBox!.max.z;
@@ -2371,6 +2371,41 @@ describe('selection visualization scalability', () => {
     expect(engine.rendererCounters().fullSceneRebuilds).toBe(1);
     expect(engine.rendererCounters().hydrationGenerations).toBe(generationsAfterSettle);
     expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(project.blocks.length);
+    engine.dispose();
+  });
+
+  it('does not start all-layer prewarm from an eager provider handoff while the active view is building', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: base.blocks.slice(0, 2), decorations: [] };
+    const layerIndex = { blocksAtY: (y: number) => project.blocks.filter((block) => block.position.y === y), occupiedLayers: () => [0], allBlocks: () => project.blocks };
+    engine.setLayerIndex(layerIndex);
+    engine.update(project, undefined, { layerY: 0, visibility: 'whole-structure', layerIndex });
+
+    engine.setVisualProvider(rendererBenchmarkVisualProvider());
+
+    expect(engine.yLayerVisualPreloadEvidence().state).toBe('idle');
+    engine.dispose();
+  });
+
+  it('uses the saved Y-layer visibility during inactive preparation instead of bootstrapping Current Only', () => {
+    const engine = new ThreeViewportEngine();
+    const base = rendererBenchmarkProject('stress');
+    const project = { ...base, blocks: base.blocks.slice(0, 8_192), decorations: [] };
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) (byY.get(block.position.y) ?? (byY.set(block.position.y, []), byY.get(block.position.y)!)).push(block);
+    const layerIndex = { blocksAtY: (y: number) => byY.get(y) ?? [], occupiedLayers: () => [...byY.keys()], allBlocks: () => project.blocks };
+    const options = { layerY: 0, visibility: 'whole-structure' as const, layerIndex };
+    const internal = engine as unknown as { reconcileStructure: (project: ProjectDocument, options: ViewportRenderOptions, full: boolean) => void };
+    const reconcile = vi.spyOn(internal, 'reconcileStructure').mockImplementation(() => undefined);
+    engine.suspend();
+    engine.setLayerIndex(layerIndex);
+    engine.update(project, undefined, options);
+
+    engine.prepareInactiveViewport(project, undefined, options);
+
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(reconcile.mock.calls[0][1]).toMatchObject({ visibility: 'whole-structure', layerY: 0 });
     engine.dispose();
   });
 

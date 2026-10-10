@@ -92,4 +92,19 @@ describe('YLayerVisualPreloader', () => {
     expect(subject.dispose).toHaveBeenCalledTimes(2);
     expect(subject.cache.size).toBe(0);
   });
+
+  it('uses elapsed-work slices instead of yielding after a fixed number of blocks', async () => {
+    const blocks = Array.from({ length: 1000 }, (_, index): PlacedBlock => ({
+      kind: 'resolved', id: 'test:stone', namespace: 'test', position: { x: index, y: 0, z: 0 }, state: {},
+    }));
+    let time = 0;
+    const yieldToBrowser = vi.fn(async () => undefined);
+    const subject = fixture({ now: () => (time += 1), yieldToBrowser });
+    subject.setCurrent(blocks);
+
+    const evidence = await subject.preloader.start(blocks, 1);
+
+    expect(evidence.blocksVisited).toBe(blocks.length);
+    expect(yieldToBrowser).toHaveBeenCalledTimes(2);
+  });
 });

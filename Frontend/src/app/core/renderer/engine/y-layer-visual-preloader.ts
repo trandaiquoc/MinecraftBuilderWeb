@@ -1,7 +1,7 @@
 import type { PlacedBlock } from '../../domain/project.types';
 import { yieldToBrowser } from '../../assets/cooperative-yield';
 
-export const Y_LAYER_PRELOAD_SLICE_BLOCKS = 48;
+export const Y_LAYER_PRELOAD_SLICE_MS = 6;
 export const Y_LAYER_PRELOAD_MAX_VARIANTS = 4096;
 export const Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES = 64 * 1024 * 1024;
 
@@ -12,7 +12,7 @@ export interface YLayerVisualPreloadEvidence {
   readonly blocksTotal: number;
   readonly blocksVisited: number;
   readonly layersTotal: number;
-  /** Layers whose reusable CPU/GPU templates are available, not rendered memberships. */
+  /** Layers whose reusable visual templates are available, not GPU-ready presentations. */
   readonly layersReady: number;
   readonly templateState: 'idle' | 'preparing' | 'ready' | 'partial' | 'cancelled';
   readonly representationState: 'viewport-lazy';
@@ -38,6 +38,7 @@ export interface YLayerVisualPreloaderPorts<T> {
   readonly isCurrent: (blocks: readonly PlacedBlock[], providerGeneration: number) => boolean;
   readonly providerGeneration: () => number;
   readonly yieldToBrowser: () => Promise<void>;
+  readonly now?: () => number;
 }
 
 /** Prepares reusable model resources across occupied layers without adding scene objects. */
@@ -81,75 +82,75 @@ export class YLayerVisualPreloader<T> {
     let estimatedTemplateBytes = 0;
     let blocksVisited = 0;
 
+    let sliceStartedAt: number;
     await this.ports.yieldToBrowser();
-    for (let offset = 0; offset < blocks.length; offset += Y_LAYER_PRELOAD_SLICE_BLOCKS) {
-      if (!this.isCurrent(blocks, providerGeneration, token)) return this.finishCancelled();
-      const end = Math.min(blocks.length, offset + Y_LAYER_PRELOAD_SLICE_BLOCKS);
-      for (let index = offset; index < end; index += 1) {
-        const block = blocks[index];
-        const layer = block.position.y;
-        totalByLayer.set(layer, (totalByLayer.get(layer) ?? 0) + 1);
-        blocksVisited += 1;
-        const key = this.ports.reusableKey(block);
-        if (!key) {
-          failedLayers.add(layer);
-          variantsSkipped += 1;
-          continue;
+    sliceStartedAt = this.currentTime();
+    for (let index = 0; index < blocks.length; index += 1) {
+      if (index % 128 === 0) {
+        if (index > 0 && this.currentTime() - sliceStartedAt >= Y_LAYER_PRELOAD_SLICE_MS) {
+          this.publishProgress(blocks.length, blocksVisited, totalByLayer, readyByLayer, failedLayers, variantsPrepared, variantsReused, variantsSkipped, estimatedTemplateBytes);
+          if (!this.isCurrent(blocks, providerGeneration, token)) return this.finishCancelled();
+          await this.ports.yieldToBrowser();
+          sliceStartedAt = this.currentTime();
+        } else if (!this.isCurrent(blocks, providerGeneration, token)) {
+          return this.finishCancelled();
         }
+      }
+      const block = blocks[index];
+      const layer = block.position.y;
+      totalByLayer.set(layer, (totalByLayer.get(layer) ?? 0) + 1);
+      blocksVisited += 1;
+      const key = this.ports.reusableKey(block);
+      if (!key) {
+        failedLayers.add(layer);
+        variantsSkipped += 1;
+        continue;
+      }
 
-        let ready = seenKeys.get(key);
-        if (ready === undefined) {
-          if (this.ports.hasCached(key)) {
-            ready = true;
-            variantsReused += 1;
-          } else if (variantsPrepared >= Y_LAYER_PRELOAD_MAX_VARIANTS || estimatedTemplateBytes >= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES) {
-            ready = false;
-            variantsSkipped += 1;
-          } else {
-            let resource: PreloadResource<T> | undefined;
-            try {
-              resource = await this.ports.create(block, key);
-            } catch {
-              resource = undefined;
-            }
-            if (!this.isCurrent(blocks, providerGeneration, token)) {
-              if (resource && !resource.alreadyCached) this.ports.dispose(resource);
-              return this.finishCancelled();
-            }
-            const fitsBudget = !!resource
-              && variantsPrepared < Y_LAYER_PRELOAD_MAX_VARIANTS
-              && estimatedTemplateBytes + resource.estimatedBytes <= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES;
-            if (resource && fitsBudget) {
-              const committed = resource.alreadyCached === true || this.ports.commit(key, resource) !== false;
-              if (committed) {
-                estimatedTemplateBytes += resource.estimatedBytes;
-                variantsPrepared += 1;
-                ready = true;
-              } else {
-                this.ports.dispose(resource);
-                ready = false;
-                variantsSkipped += 1;
-              }
+      let ready = seenKeys.get(key);
+      if (ready === undefined) {
+        if (this.ports.hasCached(key)) {
+          ready = true;
+          variantsReused += 1;
+        } else if (variantsPrepared >= Y_LAYER_PRELOAD_MAX_VARIANTS || estimatedTemplateBytes >= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES) {
+          ready = false;
+          variantsSkipped += 1;
+        } else {
+          let resource: PreloadResource<T> | undefined;
+          try {
+            resource = await this.ports.create(block, key);
+          } catch {
+            resource = undefined;
+          }
+          if (!this.isCurrent(blocks, providerGeneration, token)) {
+            if (resource && !resource.alreadyCached) this.ports.dispose(resource);
+            return this.finishCancelled();
+          }
+          const fitsBudget = !!resource
+            && variantsPrepared < Y_LAYER_PRELOAD_MAX_VARIANTS
+            && estimatedTemplateBytes + resource.estimatedBytes <= Y_LAYER_PRELOAD_MAX_TEMPLATE_BYTES;
+          if (resource && fitsBudget) {
+            const committed = resource.alreadyCached === true || this.ports.commit(key, resource) !== false;
+            if (committed) {
+              estimatedTemplateBytes += resource.estimatedBytes;
+              variantsPrepared += 1;
+              ready = true;
             } else {
-              if (resource && !resource.alreadyCached) this.ports.dispose(resource);
+              this.ports.dispose(resource);
               ready = false;
               variantsSkipped += 1;
             }
+          } else {
+            if (resource && !resource.alreadyCached) this.ports.dispose(resource);
+            ready = false;
+            variantsSkipped += 1;
           }
-          seenKeys.set(key, ready);
         }
-
-        if (ready) readyByLayer.set(layer, (readyByLayer.get(layer) ?? 0) + 1);
-        else failedLayers.add(layer);
+        seenKeys.set(key, ready);
       }
 
-      this.evidenceValue = {
-        state: 'preparing', templateState: 'preparing', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent', blocksTotal: blocks.length, blocksVisited,
-        layersTotal: totalByLayer.size, layersReady: countReadyLayers(totalByLayer, readyByLayer, failedLayers),
-        reusableVariantsPrepared: variantsPrepared, reusableVariantsReused: variantsReused,
-        reusableVariantsSkipped: variantsSkipped, estimatedTemplateBytes,
-      };
-      if (end < blocks.length) await this.ports.yieldToBrowser();
+      if (ready) readyByLayer.set(layer, (readyByLayer.get(layer) ?? 0) + 1);
+      else failedLayers.add(layer);
     }
 
     if (!this.isCurrent(blocks, providerGeneration, token)) return this.finishCancelled();
@@ -171,16 +172,40 @@ export class YLayerVisualPreloader<T> {
     return this.evidenceValue;
   }
 
+  private publishProgress(
+    blocksTotal: number,
+    blocksVisited: number,
+    totalByLayer: ReadonlyMap<number, number>,
+    readyByLayer: ReadonlyMap<number, number>,
+    failedLayers: ReadonlySet<number>,
+    variantsPrepared: number,
+    variantsReused: number,
+    variantsSkipped: number,
+    estimatedTemplateBytes: number,
+  ): void {
+    this.evidenceValue = {
+      state: 'preparing', templateState: 'preparing', representationState: 'viewport-lazy', gpuPresentationState: 'viewport-dependent',
+      blocksTotal, blocksVisited, layersTotal: totalByLayer.size,
+      layersReady: countReadyLayers(totalByLayer, readyByLayer, failedLayers),
+      reusableVariantsPrepared: variantsPrepared, reusableVariantsReused: variantsReused,
+      reusableVariantsSkipped: variantsSkipped, estimatedTemplateBytes,
+    };
+  }
+
   private isCurrent(blocks: readonly PlacedBlock[], providerGeneration: number, token: number): boolean {
     return token === this.runToken && providerGeneration === this.ports.providerGeneration()
       && this.ports.isCurrent(blocks, providerGeneration);
   }
+
+  private currentTime(): number { return this.ports.now?.() ?? now(); }
 
   private finishCancelled(): YLayerVisualPreloadEvidence {
     if (this.evidenceValue.state === 'preparing') this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', templateState: 'cancelled' };
     return this.evidenceValue;
   }
 }
+
+function now(): number { return typeof performance === 'undefined' ? Date.now() : performance.now(); }
 
 function countReadyLayers(
   totalByLayer: ReadonlyMap<number, number>,
