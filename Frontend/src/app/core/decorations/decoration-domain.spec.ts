@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { decorationAabb, decorationAnchorFromSupport, decorationInBounds, planDecorationPlacement, supportsDecoration } from './placement/decoration-placement';
-import { decorationToNbt, toStructureDecorationEntityInfo } from './serialization/decoration-nbt';
 import { PAINTING_VARIANTS, chooseRandomPaintingVariant } from './decoration.types';
 import { DecorationItemCatalog } from './catalog/decoration-item-catalog';
 import { parseVanillaItemRegistry } from '../items/registry/vanilla-item-registry';
@@ -24,14 +23,10 @@ describe('decorations domain', () => {
     expect(negativeAnchor.status).toBe('invalid'); expect(negativeAnchor.reason).toBe('out-of-bounds');
   });
 
-  it('produces frame dimensions and vanilla direction NBT', () => {
+  it('produces frame dimensions from the canonical decoration bounds', () => {
     const frame = { instanceId: 'frame', kind: 'item-frame' as const, entityTypeId: 'minecraft:item_frame' as const, anchor: { x: 2, y: 3, z: 4 }, facing: 'north' as const, rotation: 0, fixed: false };
     const bounds = decorationAabb(frame);
     expect(bounds.max.z - bounds.min.z).toBeCloseTo(.0625);
-    expect(decorationToNbt(frame)).toMatchObject({ id: 'minecraft:item_frame', Facing: 2, TileX: 2, TileY: 3, TileZ: 4 });
-    const painting = { instanceId: 'painting', kind: 'painting' as const, entityTypeId: 'minecraft:painting' as const, anchor: { x: 1, y: 2, z: 3 }, facing: 'south' as const, variantId: 'pool' };
-    expect(decorationToNbt(painting)).toMatchObject({ variant: 'minecraft:pool', facing: 0 });
-    expect(toStructureDecorationEntityInfo(painting).blockPos).toEqual([1, 2, 3]);
   });
 
   it('returns a full-size invalid candidate and stable collision reasons', () => {

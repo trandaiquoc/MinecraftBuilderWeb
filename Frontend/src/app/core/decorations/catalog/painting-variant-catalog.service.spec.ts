@@ -2,6 +2,7 @@ import { computed } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 import { PaintingVariantCatalogService } from './painting-variant-catalog.service';
 import { PaintingVariantCatalog } from './painting-catalog';
+import { allPaintingVariants, paintingVariant } from '../decoration.types';
 
 describe('PaintingVariantCatalogService', () => {
   it('normalizes legacy vanilla variants and filters external paintings by source', () => {
@@ -30,5 +31,9 @@ describe('PaintingVariantCatalogService', () => {
     expect(assetPath()).toBeUndefined();
     catalog.replaceSource('example-paintings', [{ id: 'example:poster', width: 1, height: 1, assetPath: 'example:painting/poster', sourceId: 'example-paintings' }]);
     expect(assetPath()).toBe('example:painting/poster');
+    expect(catalog.variants()).toBe(allPaintingVariants());
+    expect(paintingVariant('example:poster')).toBe(catalog.get('example:poster'));
+    catalog.removeSource('example-paintings');
+    expect(paintingVariant('example:poster')).toBeUndefined();
   });
 });

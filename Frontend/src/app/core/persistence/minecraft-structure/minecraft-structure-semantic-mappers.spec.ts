@@ -90,8 +90,13 @@ describe('verified 1.21.1 semantic NBT mappers', () => {
     const painting = mapDecoration({ instanceId: 'p', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 1, y: 1, z: 1 }, facing: 'east', variantId: 'minecraft:kebab' }, 0);
     const frame = mapDecoration({ instanceId: 'f', kind: 'glow-item-frame', entityTypeId: 'minecraft:glow_item_frame', anchor: { x: 1, y: 1, z: 1 }, facing: 'north', rotation: 3, item: { id: 'minecraft:diamond', count: 1 } }, 0);
     expect(painting.ok && painting.value.nbt.value['facing']).toEqual({ type: 'byte', value: 3 });
+    expect(painting.ok && painting.value.blockPos).toEqual([1, 1, 1]);
+    expect(frame.ok && frame.value.blockPos).toEqual([1, 1, 1]);
     expect(frame.ok && frame.value.nbt.value['id']).toEqual({ type: 'string', value: 'minecraft:glow_item_frame' });
     expect(frame.ok && frame.value.nbt.value['Facing']).toEqual({ type: 'byte', value: 2 });
+    expect(frame.ok && frame.value.nbt.value['TileX']).toEqual({ type: 'int', value: 1 });
+    expect(frame.ok && frame.value.nbt.value['TileY']).toEqual({ type: 'int', value: 1 });
+    expect(frame.ok && frame.value.nbt.value['TileZ']).toEqual({ type: 'int', value: 1 });
     expect(frame.ok && frame.value.nbt.value['ItemRotation']).toEqual({ type: 'byte', value: 3 });
     expect(mapDecoration({ instanceId: 'unknown', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 1, y: 1, z: 1 }, facing: 'north', variantId: 'minecraft:missing' }, 0)).toMatchObject({ ok: false, diagnostic: { code: 'unknown-painting-variant' } });
     expect(mapDecoration({ instanceId: 'components', kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 1, y: 1, z: 1 }, facing: 'north', item: { id: 'minecraft:diamond', count: 1, components: {} } }, 0)).toMatchObject({ ok: false, diagnostic: { code: 'unsupported-raw-nbt' } });
@@ -108,5 +113,12 @@ describe('verified 1.21.1 semantic NBT mappers', () => {
       const mapped = mapDecoration({ instanceId: `frame-${facing}`, kind: 'item-frame', entityTypeId: 'minecraft:item_frame', anchor: { x: 1, y: 1, z: 1 }, facing: facing as keyof typeof frameFacings }, 0);
       expect(mapped.ok && mapped.value.nbt.value['Facing']).toEqual({ type: 'byte', value: byte });
     }
+  });
+
+  it('maps painting variants to namespaced NBT values', () => {
+    const mapped = mapDecoration({ instanceId: 'painting-pool', kind: 'painting', entityTypeId: 'minecraft:painting', anchor: { x: 1, y: 2, z: 3 }, facing: 'south', variantId: 'pool' }, 0);
+    expect(mapped.ok && mapped.value.nbt.value['variant']).toEqual({ type: 'string', value: 'minecraft:pool' });
+    expect(mapped.ok && mapped.value.nbt.value['facing']).toEqual({ type: 'byte', value: 0 });
+    expect(mapped.ok && mapped.value.blockPos).toEqual([1, 2, 3]);
   });
 });
