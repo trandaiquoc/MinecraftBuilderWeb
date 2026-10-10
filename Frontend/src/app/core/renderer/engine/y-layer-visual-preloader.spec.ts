@@ -27,6 +27,24 @@ function fixture(overrides: Partial<YLayerVisualPreloaderPorts<string>> = {}) {
 }
 
 describe('YLayerVisualPreloader', () => {
+  it('completes an empty-project preload with an explicit terminal evidence state', async () => {
+    const subject = fixture();
+    const blocks: PlacedBlock[] = [];
+    subject.setCurrent(blocks);
+
+    const evidence = await subject.preloader.start(blocks, 1);
+
+    expect(evidence).toMatchObject({
+      state: 'templates-ready',
+      templateState: 'ready',
+      blocksTotal: 0,
+      blocksVisited: 0,
+      layersTotal: 0,
+      layersReady: 0,
+    });
+    expect(subject.create).not.toHaveBeenCalled();
+  });
+
   it('prepares reusable resources for all occupied layers independent of visibility/group filtering', async () => {
     const subject = fixture();
     const blocks = blocksByLayer();
@@ -69,6 +87,38 @@ describe('YLayerVisualPreloader', () => {
     expect(subject.cache.size).toBe(0);
   });
 
+  it('does not let a stale cancelled preload overwrite the newer run evidence', async () => {
+    const blocks = blocksByLayer().slice(0, 1);
+    let currentBlocks: readonly PlacedBlock[] | undefined;
+    let providerGeneration = 1;
+    const resolvers: Array<() => void> = [];
+    const preloader = new YLayerVisualPreloader<string>({
+      hasCached: () => false,
+      reusableKey: (block) => block.id,
+      create: (block) => new Promise((resolve) => resolvers.push(() => resolve({ value: block.id, estimatedBytes: 8 }))),
+      commit: () => true,
+      dispose: vi.fn(),
+      isCurrent: (candidate, generation) => candidate === currentBlocks && generation === providerGeneration,
+      providerGeneration: () => providerGeneration,
+      yieldToBrowser: async () => undefined,
+    });
+    currentBlocks = blocks;
+
+    const oldRun = preloader.start(blocks, 1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    providerGeneration = 2;
+    const currentRun = preloader.start(blocks, 2);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    resolvers[0]();
+    const oldEvidence = await oldRun;
+
+    expect(oldEvidence.state).toBe('cancelled');
+    expect(preloader.evidence.state).toBe('preparing');
+    resolvers[1]();
+    expect((await currentRun).state).toBe('templates-ready');
+    expect(preloader.evidence.state).toBe('templates-ready');
+  });
+
   it('marks a layer partial when a block has no reusable visual resource', async () => {
     const subject = fixture({ reusableKey: (block) => block.id.endsWith('_1') ? undefined : block.id });
     const blocks = blocksByLayer();
@@ -106,5 +156,16 @@ describe('YLayerVisualPreloader', () => {
 
     expect(evidence.blocksVisited).toBe(blocks.length);
     expect(yieldToBrowser).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports an unexpected preload failure as terminal evidence instead of rejecting unhandled', async () => {
+    const blocks = blocksByLayer();
+    const subject = fixture({ yieldToBrowser: vi.fn().mockRejectedValue(new Error('yield failed')) });
+    subject.setCurrent(blocks);
+
+    const evidence = await subject.preloader.start(blocks, 1);
+
+    expect(evidence).toMatchObject({ state: 'failed', templateState: 'failed' });
+    expect(subject.preloader.evidence).toMatchObject({ state: 'failed', templateState: 'failed' });
   });
 });

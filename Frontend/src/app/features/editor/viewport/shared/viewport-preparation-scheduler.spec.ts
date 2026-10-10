@@ -274,6 +274,23 @@ describe('ViewportPreparationScheduler', () => {
     scheduler.dispose();
   });
 
+  it('does not retry a rejected task for repeated updates with unchanged readiness and scope', () => {
+    vi.useFakeTimers();
+    const scheduler = new ViewportPreparationScheduler();
+    const current = scope();
+    const prepare = vi.fn(() => 'rejected' as const);
+
+    scheduler.update('y-layer', current, true, 0, prepare);
+    vi.runAllTimers();
+    scheduler.update('y-layer', current, true, 0, prepare);
+    scheduler.update('y-layer', current, true, 0, prepare);
+    vi.runAllTimers();
+
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+    scheduler.dispose();
+  });
+
   it('ignores retry notifications after task removal or scope invalidation', () => {
     vi.useFakeTimers();
     const scheduler = new ViewportPreparationScheduler();

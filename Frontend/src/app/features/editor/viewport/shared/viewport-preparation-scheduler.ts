@@ -65,8 +65,8 @@ export class ViewportPreparationScheduler {
       existing.priority = priority;
       existing.prepare = prepare;
       if (
-        existing.state === 'rejected' ||
-        (!wasReady && ready && (existing.state === 'accepted' || existing.state === 'in-progress'))
+        !wasReady && ready &&
+        (existing.state === 'accepted' || existing.state === 'in-progress' || existing.state === 'rejected')
       ) {
         existing.state = 'queued';
       }

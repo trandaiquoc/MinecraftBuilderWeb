@@ -12,7 +12,11 @@ import type {
   ViewportBlockRepresentationStore,
 } from './viewport-block-representation-store';
 import type { ViewportBlockIndexOwner } from './viewport-block-index-owner';
-import type { ViewportRenderOptions } from './viewport-engine-contracts';
+import type {
+  ViewportRenderOptions,
+  YLayerPrewarmOutcome,
+  YLayerPrewarmTerminalNotification,
+} from './viewport-engine-contracts';
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
@@ -34,7 +38,7 @@ import {
 export const Y_LAYER_STANDALONE_RESIDENCY_LIMIT = 16_384;
 
 export interface YLayerRepresentationPrewarmEvidence {
-  readonly state: 'idle' | 'preparing' | 'ready' | 'partial' | 'cancelled';
+  readonly state: 'idle' | 'preparing' | 'ready' | 'partial' | 'cancelled' | 'failed';
   readonly blocksTotal: number;
   readonly blocksVisited: number;
   readonly representationsResident: number;
@@ -55,6 +59,7 @@ interface TerrainHydrationResult extends BlockVisualResult {
 }
 
 interface PrewarmRun {
+  readonly attemptId: number;
   readonly projectId: string;
   readonly blocks: readonly PlacedBlock[];
   readonly providerGeneration: number;
@@ -109,6 +114,15 @@ interface PrewarmCallbacks {
   readonly recordProviderCacheStats: () => void;
   readonly invalidateDiagnostics: () => void;
   readonly removeRepresentation: (key: string, entry: RenderedBlockEntry) => void;
+  readonly onTerminal: (notification: YLayerPrewarmTerminalNotification) => void;
+}
+
+interface PrewarmAttempt {
+  readonly attemptId: number;
+  readonly project: ProjectDocument;
+  readonly provider: BlockVisualProvider;
+  readonly providerGeneration: number;
+  phase: YLayerPrewarmTerminalNotification['phase'];
 }
 
 interface PrewarmWorldContext {
@@ -120,9 +134,13 @@ interface PrewarmWorldContext {
 export class YLayerRepresentationPrewarmOwner {
   private readonly visualPreloader: YLayerVisualPreloader<PreparedYLayerVisualResource>;
   private run?: PrewarmRun;
+  private nextAttemptId = 0;
+  private activeAttempt?: PrewarmAttempt;
   private scope?: {
+    readonly attemptId: number;
     readonly projectId: string;
     readonly blocks: readonly PlacedBlock[];
+    readonly provider: BlockVisualProvider;
     readonly providerGeneration: number;
     readonly supportsLayerResidency: boolean;
     readonly usesTerrainTemplates: boolean;
@@ -189,6 +207,7 @@ export class YLayerRepresentationPrewarmOwner {
     if (
       this.scope?.projectId === project.id &&
       this.scope.blocks === project.blocks &&
+      this.scope.provider === provider &&
       this.scope.providerGeneration === providerGeneration &&
       this.scope.supportsLayerResidency === supportsLayerResidency &&
       this.scope.usesTerrainTemplates === usesTerrainTemplates
@@ -197,13 +216,24 @@ export class YLayerRepresentationPrewarmOwner {
 
     if (this.scope) this.cancel();
 
+    const attemptId = ++this.nextAttemptId;
     this.scope = {
+      attemptId,
       projectId: project.id,
       blocks: project.blocks,
+      provider,
       providerGeneration,
       supportsLayerResidency,
       usesTerrainTemplates,
     };
+    const attempt: PrewarmAttempt = {
+      attemptId,
+      project,
+      provider,
+      providerGeneration,
+      phase: 'visual-templates',
+    };
+    this.activeAttempt = attempt;
     this.evidenceValue = {
       state: supportsLayerResidency ? 'preparing' : 'partial',
       blocksTotal: project.blocks.length,
@@ -220,16 +250,9 @@ export class YLayerRepresentationPrewarmOwner {
       providerGeneration,
       usesTerrainTemplates ? 'terrain-surface' : 'static-instance',
     );
-    if (usesTerrainTemplates) return;
     void preparation.then((evidence) => {
-      if (!this.isCurrent(project, providerGeneration)) return;
-      if (evidence.state === 'cancelled') {
-        this.evidenceValue = { ...this.evidenceValue, state: 'cancelled' };
-        this.scope = undefined;
-        return;
-      }
-      this.beginRepresentationPrewarm(project, providerGeneration);
-    });
+      this.onVisualPreloadSettled(attempt, evidence, usesTerrainTemplates);
+    }).catch(() => this.failAttempt(attempt));
   }
 
   onHydrationCompleted(job: BlockHydrationJob, authoritative: boolean): void {
@@ -270,6 +293,11 @@ export class YLayerRepresentationPrewarmOwner {
   }
 
   cancel(): void {
+    this.cancelActiveAttempt(true);
+  }
+
+  private cancelActiveAttempt(notify: boolean): void {
+    const attempt = this.activeAttempt;
     this.visualPreloader.cancel();
     const keys = new Set(
       this.resources.hydration
@@ -281,26 +309,56 @@ export class YLayerRepresentationPrewarmOwner {
       this.resources.hydration.removePendingKeys(keys);
       for (const key of keys) this.resources.hydration.clearPendingSignature(key);
     }
-    if (this.run)
+    if (attempt || this.run)
       this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', jobsPending: 0 };
     this.run = undefined;
+    if (attempt) {
+      if (notify) this.finishAttempt(attempt, 'cancelled');
+      else this.activeAttempt = undefined;
+    }
     this.scope = undefined;
   }
 
   dispose(): void {
-    this.cancel();
+    this.cancelActiveAttempt(false);
     this.visualPreloader.dispose();
     this.evidenceValue = emptyRepresentationEvidence();
   }
 
-  private beginRepresentationPrewarm(project: ProjectDocument, providerGeneration: number): void {
+  private onVisualPreloadSettled(
+    attempt: PrewarmAttempt,
+    evidence: YLayerVisualPreloadEvidence,
+    usesTerrainTemplates: boolean,
+  ): void {
+    if (!this.isCurrentAttempt(attempt)) return;
+    if (evidence.state === 'cancelled') {
+      this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', jobsPending: 0 };
+      this.finishAttempt(attempt, 'cancelled');
+      this.scope = undefined;
+      return;
+    }
+    if (evidence.state === 'failed') {
+      this.failAttempt(attempt);
+      return;
+    }
+    if (usesTerrainTemplates) {
+      this.finishAttempt(attempt, evidence.state === 'partial' ? 'partial' : 'ready');
+      return;
+    }
+    this.beginRepresentationPrewarm(attempt);
+  }
+
+  private beginRepresentationPrewarm(attempt: PrewarmAttempt): void {
+    const { project, providerGeneration } = attempt;
     if (
       this.run?.projectId === project.id &&
       this.run.blocks === project.blocks &&
       this.run.providerGeneration === providerGeneration
     )
       return;
+    attempt.phase = 'representations';
     this.run = {
+      attemptId: attempt.attemptId,
       projectId: project.id,
       blocks: project.blocks,
       providerGeneration,
@@ -326,6 +384,16 @@ export class YLayerRepresentationPrewarmOwner {
   }
 
   private pumpRepresentationPrewarm(): void {
+    try {
+      this.pumpRepresentationPrewarmWork();
+    } catch {
+      const run = this.run;
+      const attempt = this.activeAttempt;
+      if (run && attempt?.attemptId === run.attemptId) this.failAttempt(attempt);
+    }
+  }
+
+  private pumpRepresentationPrewarmWork(): void {
     const run = this.run;
     if (!run || !this.isCurrentRun(run)) return;
     const maxInFlight = 192;
@@ -422,6 +490,9 @@ export class YLayerRepresentationPrewarmOwner {
       const project = this.current.project();
       if (project) this.callbacks.activatePresentation(project, run.providerGeneration);
       this.callbacks.scheduleHydration(false);
+      const attempt = this.activeAttempt;
+      if (attempt?.attemptId === run.attemptId)
+        this.finishAttempt(attempt, run.skipped ? 'partial' : 'ready');
       return;
     }
     if (!waitingOnFluid && !queued && run.inFlight === 0 && run.index < run.blocks.length)
@@ -495,6 +566,34 @@ export class YLayerRepresentationPrewarmOwner {
       this.current.project()?.blocks === project.blocks &&
       this.current.providerGeneration() === providerGeneration
     );
+  }
+
+  private isCurrentAttempt(attempt: PrewarmAttempt): boolean {
+    return this.activeAttempt === attempt && this.scope?.attemptId === attempt.attemptId &&
+      this.current.provider() === attempt.provider &&
+      this.isCurrent(attempt.project, attempt.providerGeneration);
+  }
+
+  private failAttempt(attempt: PrewarmAttempt): void {
+    if (!this.isCurrentAttempt(attempt)) return;
+    this.run = undefined;
+    this.evidenceValue = { ...this.evidenceValue, state: 'failed', jobsPending: 0 };
+    this.finishAttempt(attempt, 'failed');
+  }
+
+  private finishAttempt(attempt: PrewarmAttempt, outcome: YLayerPrewarmOutcome): void {
+    if (!this.isCurrentAttempt(attempt)) return;
+    this.activeAttempt = undefined;
+    if (this.current.isDisposed()) return;
+    this.callbacks.onTerminal({
+      attemptId: attempt.attemptId,
+      projectId: attempt.project.id,
+      blocks: attempt.project.blocks,
+      provider: attempt.provider,
+      providerGeneration: attempt.providerGeneration,
+      phase: attempt.phase,
+      outcome,
+    });
   }
 
   private isCurrentRun(run: PrewarmRun): boolean {

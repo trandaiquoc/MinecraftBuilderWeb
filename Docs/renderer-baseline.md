@@ -210,10 +210,17 @@ above; they do not introduce parallel ledgers or disposal.
 Viewport preparation is one active-first scheduled lifecycle across 3D and
 Y-layer components. Attempts report `completed`, `accepted`, `in-progress`, or
 `rejected`; only owner-confirmed `completed` attempts enter the scheduler's
-completed state. Accepted/in-progress work waits for a hydration or projection
-transition before retry, while rejected work waits for a readiness/scope update.
+completed state. Accepted/in-progress Y-layer prewarm waits for a scoped terminal
+notification from the prewarm owner, in addition to hydration/projection
+transitions; the notification carries project blocks, provider identity and
+generation, phase, attempt id, and ready/partial/cancelled/failed outcome.
+Stale and disposed attempts do not notify. The Y-layer component retries
+ready/partial/failed terminals only; cancellation is paired with scope
+replacement or task unregister, avoiding an immediate restart of invalidated
+work. Rejected tasks are retried only after an explicit owner notification, a
+readiness transition, or scope change, not on repeated unchanged effect updates.
 Task completion means the synchronous sync or preparation request reached its
 declared terminal point; it does not claim CPU representation settlement,
-WebGL upload, or a stable presented frame. Empty projects can complete without
-requiring a nonzero representation count. Removing/unregistering a task removes
-its completion state with it.
+WebGL upload, or a stable presented frame. Empty projects and cached-template
+prewarms can notify terminal without hydration or projection work. Removing or
+unregistering a task removes its completion state with it.

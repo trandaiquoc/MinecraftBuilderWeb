@@ -5,6 +5,10 @@ import { ThreeViewportEngine } from '../../../core/renderer/engine/three-viewpor
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
+import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
+import { rendererBenchmarkProject } from '../../../core/renderer/benchmark/renderer-benchmark-fixtures';
+import { ViewportPreparationScheduler } from './shared/viewport-preparation-scheduler';
+import type { YLayerPrewarmTerminalNotification } from '../../../core/renderer/engine/viewport-engine-contracts';
 import { ViewportComponent } from './three-d-viewport/viewport.component';
 import { YLayerComponent } from './y-layer-viewport/y-layer.component';
 
@@ -51,6 +55,49 @@ describe('editor viewport engine teardown', () => {
 
     expect(mount).toHaveBeenCalledTimes(1);
     expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries only current non-cancelled prewarm terminals and releases the listener on destroy', async () => {
+    await TestBed.configureTestingModule({ imports: [YLayerComponent] })
+      .overrideComponent(YLayerComponent, { set: { template: '<div #host></div>' } })
+      .compileComponents();
+    vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => undefined);
+    vi.spyOn(ThreeViewportEngine.prototype, 'update').mockImplementation(() => undefined);
+    vi.spyOn(ThreeViewportEngine.prototype, 'setVisualProvider').mockImplementation(() => undefined);
+    vi.spyOn(ThreeViewportEngine.prototype, 'dispose').mockImplementation(() => undefined);
+    let publishTerminal: ((notification: YLayerPrewarmTerminalNotification) => void) | undefined;
+    const unsubscribe = vi.fn();
+    vi.spyOn(ThreeViewportEngine.prototype, 'onYLayerPrewarmTerminal').mockImplementation((listener) => {
+      publishTerminal = listener;
+      return unsubscribe;
+    });
+
+    const fixture = TestBed.createComponent(YLayerComponent);
+    fixture.detectChanges();
+    const project = rendererBenchmarkProject('small');
+    const provider = { dispose: vi.fn() } as never;
+    TestBed.inject(WorkspaceStateService).project.set(project);
+    TestBed.inject(ContentAssetRuntimeService).visualProvider.set(provider);
+    const retry = vi.spyOn(TestBed.inject(ViewportPreparationScheduler), 'retry');
+    const notify = publishTerminal!;
+    const base = {
+      attemptId: 1,
+      projectId: project.id,
+      blocks: project.blocks,
+      provider,
+      providerGeneration: 1,
+      phase: 'representations' as const,
+    };
+
+    notify({ ...base, outcome: 'partial' });
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(retry).toHaveBeenCalledWith('y-layer');
+    notify({ ...base, outcome: 'cancelled' });
+    notify({ ...base, blocks: [], outcome: 'ready' });
+    expect(retry).toHaveBeenCalledTimes(1);
+
+    fixture.destroy();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   it.each([

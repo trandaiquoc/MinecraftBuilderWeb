@@ -120,7 +120,7 @@ import { canonicalRenderOptions, renderFilterKey } from './viewport-render-signa
 import { stableValueKey } from '../../domain/stable-value-key';
 import { ViewportBlockRepresentationStore, type RenderedBlockEntry } from './viewport-block-representation-store';
 import { ViewportBlockIndexOwner } from './viewport-block-index-owner';
-import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, ViewportHydrationWorkSnapshot, ViewportPreparationAttempt, PlacementPlanProvider } from './viewport-engine-contracts';
+import type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress, ViewportHydrationWorkSnapshot, ViewportPreparationAttempt, YLayerPrewarmTerminalNotification, PlacementPlanProvider } from './viewport-engine-contracts';
 export type { ViewportHit, ViewportHoverListener, ViewportRenderOptions, ViewportEngineOptions, ViewportHydrationStatus, ViewportHydrationProgress } from './viewport-engine-contracts';
 
 
@@ -405,6 +405,7 @@ export class ThreeViewportEngine {
   private readonly visualFailureKeys = new Set<string>();
   private readonly yLayerPresentationLifecycle!: YLayerPresentationLifecycleOwner;
   private readonly yLayerProjectionCommit!: YLayerProjectionCommitOwner;
+  private readonly yLayerPrewarmListeners = new Set<(notification: YLayerPrewarmTerminalNotification) => void>();
   private readonly structureReconciliation!: ViewportStructureReconciliationOwner;
   private readonly localMutation!: ViewportLocalMutationOwner;
   private terrainPipeline!: ViewportTerrainWorkflowOwner;
@@ -766,6 +767,7 @@ export class ThreeViewportEngine {
       recordProviderCacheStats: () => this.recordProviderCacheStats(),
       invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
       removeRepresentation: (key, entry) => this.removeBlockEntry(key, entry),
+      onTerminal: (notification) => this.publishYLayerPrewarmTerminal(notification),
     });
     this.yLayerPresentationLifecycle = new YLayerPresentationLifecycleOwner(this.yLayerPresentation, {
       project: () => this.project,
@@ -1070,7 +1072,10 @@ export class ThreeViewportEngine {
     const representationState = this.yLayerPrewarm.representationEvidence.state;
     if (visualState === 'preparing' || representationState === 'preparing')
       return wasPreparing ? 'in-progress' : 'accepted';
-    if (visualState === 'cancelled' || visualState === 'idle' || representationState === 'cancelled')
+    if (
+      visualState === 'cancelled' || visualState === 'failed' || visualState === 'idle' ||
+      representationState === 'cancelled' || representationState === 'failed' || representationState === 'idle'
+    )
       return 'rejected';
     return 'completed';
   }
@@ -2232,6 +2237,7 @@ export class ThreeViewportEngine {
     this.cancelPendingHover(false);
     this.yLayerProjection.dispose();
     this.yLayerPrewarm.dispose();
+    this.yLayerPrewarmListeners.clear();
     this.hydrationLifecycle.cancel('dispose');
     this.blockRepresentationHydration.dispose();
     this.isolationPresentation.dispose();
@@ -2483,6 +2489,26 @@ export class ThreeViewportEngine {
 
   onProjectionActivity(listener: (state: ViewportProjectionState) => void): () => void {
     return this.yLayerProjection.onActivity(listener);
+  }
+
+  onYLayerPrewarmTerminal(
+    listener: (notification: YLayerPrewarmTerminalNotification) => void,
+  ): () => void {
+    if (this.disposed) return () => undefined;
+    this.yLayerPrewarmListeners.add(listener);
+    return () => this.yLayerPrewarmListeners.delete(listener);
+  }
+
+  private publishYLayerPrewarmTerminal(notification: YLayerPrewarmTerminalNotification): void {
+    if (
+      this.disposed ||
+      this.project?.id !== notification.projectId ||
+      this.project.blocks !== notification.blocks ||
+      this.visualProvider !== notification.provider ||
+      this.providerGeneration !== notification.providerGeneration
+    )
+      return;
+    for (const listener of [...this.yLayerPrewarmListeners]) listener(notification);
   }
 
   projectionActivity(): ViewportProjectionState {

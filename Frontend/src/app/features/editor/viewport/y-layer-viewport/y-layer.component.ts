@@ -77,6 +77,17 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       this.preparationScheduler.retry('y-layer');
     }
   });
+  private readonly prewarmTerminalUnsubscribe = this.engine.onYLayerPrewarmTerminal((notification) => {
+    if (notification.outcome === 'cancelled') return;
+    const project = this.workspace.project();
+    if (
+      project?.id !== notification.projectId ||
+      project.blocks !== notification.blocks ||
+      this.assets.visualProvider() !== notification.provider
+    )
+      return;
+    this.preparationScheduler.retry('y-layer');
+  });
   private readonly viewReady = signal(false);
   private viewportMounted = false;
   protected readonly projectionBusy = signal(false);
@@ -148,7 +159,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void { this.engine.setPlacementPlanProvider((project, active, target, context, lookup) => this.editor.planPlacement(target, context, lookup, active, project)); this.viewReady.set(true); }
-  ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.preparationProgressUnsubscribe(); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.unregister('y-layer'); this.engine.dispose(); }
+  ngOnDestroy(): void { const state = this.viewportMounted ? this.engine.cameraState() : undefined; const projectId = this.workspace.project()?.id; if (state) this.cameraState.set('y-layer', state, projectId); this.session.clearCurrentYPreview(projectId); this.preparationProgressUnsubscribe(); this.prewarmTerminalUnsubscribe(); this.projectionActivityUnsubscribe(); if (this.projectionIndicatorTimer !== undefined) clearTimeout(this.projectionIndicatorTimer); this.projectionIndicatorTimer = undefined; this.projectionIndicatorRevision = undefined; this.viewportSession.destroy(); this.sync.destroy(); this.layerIndexSync.destroy(); this.mountActiveViewport.destroy(); this.prepareViewportResources.destroy(); this.preparationScheduler.unregister('y-layer'); this.engine.dispose(); }
 
   fitStructure(): void { this.engine.fitStructure(); }
   performanceEvidence(): ViewportPerformanceEvidence { return this.engine.performanceEvidence(); }
