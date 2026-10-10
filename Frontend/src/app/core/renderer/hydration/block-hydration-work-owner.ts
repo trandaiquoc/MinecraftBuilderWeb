@@ -1,12 +1,21 @@
 import { HydrationScheduler } from '../scheduling/hydration-scheduler';
 import { HydrationWorkCoordinator } from '../scheduling/hydration-work-coordinator';
-import type { HydrationWorkCounts, HydrationWorkItem } from '../scheduling/hydration-work-coordinator';
+import type {
+  HydrationWorkCounts,
+  HydrationWorkItem,
+  HydrationWorkOwnerToken,
+} from '../scheduling/hydration-work-coordinator';
 import type { HydrationLane } from '../scheduling/hydration-progress-tracker';
 
 export interface RunningBlockHydrationOwnership {
   readonly generation: number;
   readonly revision: number;
   readonly signature: string;
+}
+
+interface PendingBlockSignature {
+  readonly signature: string;
+  readonly ownerToken?: HydrationWorkOwnerToken;
 }
 
 export interface HydrationExecutionPort<T extends HydrationWorkItem> {
@@ -32,7 +41,7 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
   private readonly work: HydrationWorkCoordinator<T>;
   private readonly scheduler = new HydrationScheduler<never>();
   private currentGeneration = 0;
-  private readonly pending = new Map<string, string>();
+  private readonly pending = new Map<string, PendingBlockSignature>();
   private readonly running = new Map<string, RunningBlockHydrationOwnership>();
   private readonly runningByGeneration = new Map<number, number>();
   private batchJobBudget = 0;
@@ -53,12 +62,26 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
   advanceGeneration(): number { this.currentGeneration += 1; return this.currentGeneration; }
   setLane(lane: HydrationLane): void { this.currentLane = lane; }
 
-  pendingSignature(key: string): string | undefined { return this.pending.get(key); }
+  pendingSignature(key: string): string | undefined { return this.pending.get(key)?.signature; }
   hasPendingSignature(key: string): boolean { return this.pending.has(key); }
   pendingKeys(): IterableIterator<string> { return this.pending.keys(); }
-  pendingSnapshot(): ReadonlyMap<string, string> { return new Map(this.pending); }
-  setPendingSignature(key: string, signature: string): void { this.pending.set(key, signature); }
+  pendingSnapshot(): ReadonlyMap<string, string> {
+    return new Map([...this.pending].map(([key, value]) => [key, value.signature]));
+  }
+  setPendingSignature(key: string, signature: string, ownerToken?: HydrationWorkOwnerToken): void {
+    this.pending.set(key, { signature, ownerToken });
+  }
   clearPendingSignature(key: string): void { this.pending.delete(key); }
+  clearPendingSignatureIfOwned(
+    key: string,
+    signature: string,
+    ownerToken: HydrationWorkOwnerToken,
+  ): boolean {
+    const pending = this.pending.get(key);
+    if (pending?.signature !== signature || !sameOwnerToken(pending.ownerToken, ownerToken)) return false;
+    this.pending.delete(key);
+    return true;
+  }
   clearPendingSignatures(): void { this.pending.clear(); }
   runningOwnership(key: string): RunningBlockHydrationOwnership | undefined { return this.running.get(key); }
   hasRunningOwnership(key: string): boolean { return this.running.has(key); }
@@ -88,6 +111,9 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
   replaceRegular(jobs: readonly T[]): void { this.work.replaceRegular(jobs); }
   retainPending(predicate: (job: T) => boolean): void { this.work.retainPending(predicate); }
   removePendingKeys(keys: ReadonlySet<string>): void { this.work.removePendingKeys(keys); }
+  removePendingForKey(key: string, matches: (job: T) => boolean): number {
+    return this.work.removePendingForKey(key, matches);
+  }
   clearPendingWork(): void { this.work.clearPending(); }
   clearPendingProviderRefreshWork(): void { this.work.clearPendingProviderRefresh(); }
   compactWork(): void { this.work.compact(); }
@@ -135,7 +161,9 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
       if (!job) break;
       const deferred = this.fairnessDeferrals() - before;
       if (!job.providerRefresh) {
-        this.clearPendingSignature(job.key);
+        if (job.ownerToken && job.signature !== undefined)
+          this.clearPendingSignatureIfOwned(job.key, job.signature, job.ownerToken);
+        else if (!job.ownerToken) this.clearPendingSignature(job.key);
         const ownership = port.ownership(job);
         this.startJob(job.key, job.token, ownership.revision, ownership.signature);
       }
@@ -177,3 +205,13 @@ export class BlockHydrationWorkOwner<T extends HydrationWorkItem> {
 }
 
 const VIEWPORT_HYDRATION_BATCH_SIZE = 96;
+
+function sameOwnerToken(
+  left: HydrationWorkOwnerToken | undefined,
+  right: HydrationWorkOwnerToken | undefined,
+): boolean {
+  return left === right || (
+    !!left && !!right && left.owner === right.owner &&
+    left.attempt === right.attempt && left.generation === right.generation
+  );
+}

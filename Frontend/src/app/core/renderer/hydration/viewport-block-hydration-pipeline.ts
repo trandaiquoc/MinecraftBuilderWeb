@@ -2,7 +2,11 @@ import { HydrationProgressTracker } from '../scheduling/hydration-progress-track
 import type { HydrationBlockScopeDelta, HydrationLane, HydrationProgressSnapshot } from '../scheduling/hydration-progress-tracker';
 import { BlockHydrationWorkOwner } from './block-hydration-work-owner';
 import type { HydrationExecutionPort, RunningBlockHydrationOwnership } from './block-hydration-work-owner';
-import type { HydrationWorkCounts, HydrationWorkItem } from '../scheduling/hydration-work-coordinator';
+import type {
+  HydrationWorkCounts,
+  HydrationWorkItem,
+  HydrationWorkOwnerToken,
+} from '../scheduling/hydration-work-coordinator';
 
 export type { HydrationExecutionPort, RunningBlockHydrationOwnership } from './block-hydration-work-owner';
 
@@ -36,8 +40,13 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   hasPendingSignature(key: string): boolean { return this.work.hasPendingSignature(key); }
   pendingKeys(): IterableIterator<string> { return this.work.pendingKeys(); }
   pendingSnapshot(): ReadonlyMap<string, string> { return this.work.pendingSnapshot(); }
-  setPendingSignature(key: string, signature: string): void { this.work.setPendingSignature(key, signature); }
+  setPendingSignature(key: string, signature: string, ownerToken?: HydrationWorkOwnerToken): void {
+    this.work.setPendingSignature(key, signature, ownerToken);
+  }
   clearPendingSignature(key: string): void { this.work.clearPendingSignature(key); }
+  clearPendingSignatureIfOwned(key: string, signature: string, ownerToken: HydrationWorkOwnerToken): boolean {
+    return this.work.clearPendingSignatureIfOwned(key, signature, ownerToken);
+  }
   clearPendingSignatures(): void { this.work.clearPendingSignatures(); }
   runningOwnership(key: string): RunningBlockHydrationOwnership | undefined { return this.work.runningOwnership(key); }
   hasRunningOwnership(key: string): boolean { return this.work.hasRunningOwnership(key); }
@@ -59,6 +68,9 @@ export class ViewportBlockHydrationPipeline<T extends HydrationWorkItem> {
   replaceRegular(jobs: readonly T[]): void { this.work.replaceRegular(jobs); }
   retainPending(predicate: (job: T) => boolean): void { this.work.retainPending(predicate); }
   removePendingKeys(keys: ReadonlySet<string>): void { this.work.removePendingKeys(keys); }
+  removePendingForKey(key: string, matches: (job: T) => boolean): number {
+    return this.work.removePendingForKey(key, matches);
+  }
   clearPendingWork(): void { this.work.clearPendingWork(); }
   clearPendingProviderRefreshWork(): void { this.work.clearPendingProviderRefreshWork(); }
   compactWork(): void { this.work.compactWork(); }

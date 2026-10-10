@@ -1,9 +1,17 @@
 export type HydrationWorkKind = 'regular' | 'provider-refresh';
 
+export interface HydrationWorkOwnerToken {
+  readonly owner: string;
+  readonly attempt: number;
+  readonly generation: number;
+}
+
 export interface HydrationWorkItem {
   readonly key: string;
   readonly token: number;
+  readonly signature?: string;
   readonly providerRefresh?: boolean;
+  readonly ownerToken?: HydrationWorkOwnerToken;
 }
 
 export interface HydrationWorkCounts {
@@ -86,6 +94,18 @@ export class HydrationWorkCoordinator<T extends HydrationWorkItem> {
       if (!entries) continue;
       for (const queued of entries) this.removeQueued(queued, queued.job.providerRefresh ? 'provider-refresh' : 'regular');
     }
+  }
+
+  removePendingForKey(key: string, matches: (job: T) => boolean): number {
+    const entries = this.queuedByKey.get(key);
+    if (!entries) return 0;
+    let removed = 0;
+    for (const queued of entries) {
+      if (!queued.pending || !matches(queued.job)) continue;
+      this.removeQueued(queued, queued.job.providerRefresh ? 'provider-refresh' : 'regular');
+      removed += 1;
+    }
+    return removed;
   }
 
   /** Clears queued work; running jobs still complete and release their slots. */

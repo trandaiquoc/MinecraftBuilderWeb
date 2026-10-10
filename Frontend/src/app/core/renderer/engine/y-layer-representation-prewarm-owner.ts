@@ -17,6 +17,7 @@ import type {
   YLayerPrewarmOutcome,
   YLayerPrewarmTerminalNotification,
 } from './viewport-engine-contracts';
+import type { HydrationWorkOwnerToken } from '../scheduling/hydration-work-coordinator';
 import type {
   YLayerProjectionCoordinator,
   VisibleBlockProjectionEntry,
@@ -68,8 +69,14 @@ interface PrewarmRun {
   standaloneInFlight: number;
   standalonePrepared: number;
   readonly standaloneKeys: Set<string>;
+  readonly pendingJobs: Map<string, PendingPrewarmJob>;
   prepared: number;
   skipped: number;
+}
+
+interface PendingPrewarmJob {
+  readonly signature: string;
+  readonly ownerToken: HydrationWorkOwnerToken;
 }
 
 interface PrewarmScope {
@@ -257,35 +264,51 @@ export class YLayerRepresentationPrewarmOwner {
 
   onHydrationCompleted(job: BlockHydrationJob, authoritative: boolean): void {
     const run = this.run;
-    if (!run || job.token !== this.current.hydrationGeneration() || !this.isCurrentRun(run)) return;
+    const pending = run?.pendingJobs.get(job.key);
+    if (
+      !run ||
+      job.layerPrewarm !== true ||
+      job.layerPrewarmAttemptId !== run.attemptId ||
+      !pending ||
+      pending.signature !== job.signature ||
+      !sameOwnerToken(pending.ownerToken, job.ownerToken) ||
+      job.token !== this.current.hydrationGeneration() ||
+      !this.isCurrentRun(run)
+    ) return;
+    run.pendingJobs.delete(job.key);
     run.inFlight = Math.max(0, run.inFlight - 1);
     if (run.standaloneKeys.delete(job.key))
       run.standaloneInFlight = Math.max(0, run.standaloneInFlight - 1);
-    const canonical = this.resources.blockIndex.get(job.block.position);
-    const representation = this.resources.representations.get(job.key);
-    const valid =
-      authoritative &&
-      this.current.providerGeneration() === run.providerGeneration &&
-      canonical &&
-      blockRenderSignature(canonical) === blockRenderSignature(job.block) &&
-      representation &&
-      representation.signature === job.signature;
-    if (valid) {
-      run.prepared += 1;
-      if (isStandalone(representation)) run.standalonePrepared += 1;
-      this.callbacks.record('yLayerRepresentationJobsCompleted');
-    } else if (
-      representation?.signature === job.signature &&
-      canonical &&
-      blockRenderSignature(canonical) !== blockRenderSignature(job.block)
-    ) {
-      this.callbacks.removeRepresentation(job.key, representation);
-      this.callbacks.record('yLayerRepresentationJobsSkipped');
-      run.skipped += 1;
-    } else {
-      run.skipped += 1;
+    try {
+      const canonical = this.resources.blockIndex.get(job.block.position);
+      const representation = this.resources.representations.get(job.key);
+      const valid =
+        authoritative &&
+        this.current.providerGeneration() === run.providerGeneration &&
+        canonical &&
+        blockRenderSignature(canonical) === blockRenderSignature(job.block) &&
+        representation &&
+        representation.signature === job.signature;
+      if (valid) {
+        run.prepared += 1;
+        if (isStandalone(representation)) run.standalonePrepared += 1;
+        this.callbacks.record('yLayerRepresentationJobsCompleted');
+      } else if (
+        representation?.signature === job.signature &&
+        canonical &&
+        blockRenderSignature(canonical) !== blockRenderSignature(job.block)
+      ) {
+        this.callbacks.removeRepresentation(job.key, representation);
+        this.callbacks.record('yLayerRepresentationJobsSkipped');
+        run.skipped += 1;
+      } else {
+        run.skipped += 1;
+      }
+      this.pumpRepresentationPrewarm();
+    } catch {
+      const attempt = this.activeAttempt;
+      if (attempt?.attemptId === run.attemptId) this.failAttempt(attempt);
     }
-    this.pumpRepresentationPrewarm();
   }
 
   dependencySettled(): void {
@@ -299,24 +322,18 @@ export class YLayerRepresentationPrewarmOwner {
   private cancelActiveAttempt(notify: boolean): void {
     const attempt = this.activeAttempt;
     this.visualPreloader.cancel();
-    const keys = new Set(
-      this.resources.hydration
-        .regularJobs()
-        .filter((job) => job.layerPrewarm)
-        .map((job) => job.key),
-    );
-    if (keys.size) {
-      this.resources.hydration.removePendingKeys(keys);
-      for (const key of keys) this.resources.hydration.clearPendingSignature(key);
-    }
+    if (this.run) this.cleanupQueuedJobs(this.run);
     if (attempt || this.run)
       this.evidenceValue = { ...this.evidenceValue, state: 'cancelled', jobsPending: 0 };
     this.run = undefined;
-    if (attempt) {
-      if (notify) this.finishAttempt(attempt, 'cancelled');
-      else this.activeAttempt = undefined;
+    try {
+      if (attempt) {
+        if (notify) this.finishAttempt(attempt, 'cancelled');
+        else this.activeAttempt = undefined;
+      }
+    } finally {
+      this.scope = undefined;
     }
-    this.scope = undefined;
   }
 
   dispose(): void {
@@ -367,6 +384,7 @@ export class YLayerRepresentationPrewarmOwner {
       standaloneInFlight: 0,
       standalonePrepared: 0,
       standaloneKeys: new Set(),
+      pendingJobs: new Map(),
       prepared: 0,
       skipped: 0,
     };
@@ -387,9 +405,8 @@ export class YLayerRepresentationPrewarmOwner {
     try {
       this.pumpRepresentationPrewarmWork();
     } catch {
-      const run = this.run;
       const attempt = this.activeAttempt;
-      if (run && attempt?.attemptId === run.attemptId) this.failAttempt(attempt);
+      if (attempt) this.failAttempt(attempt);
     }
   }
 
@@ -442,9 +459,16 @@ export class YLayerRepresentationPrewarmOwner {
         continue;
       }
       const visible = this.callbacks.visibleEntry(block, options);
-      this.resources.hydration.setPendingSignature(key, visible.signature);
+      const hydrationToken = this.current.hydrationGeneration();
+      const ownerToken: HydrationWorkOwnerToken = {
+        owner: 'y-layer-prewarm',
+        attempt: run.attemptId,
+        generation: hydrationToken,
+      };
+      run.pendingJobs.set(key, { signature: visible.signature, ownerToken });
+      this.resources.hydration.setPendingSignature(key, visible.signature, ownerToken);
       this.resources.hydration.enqueueRegular({
-        token: this.current.hydrationGeneration(),
+        token: hydrationToken,
         projectionRevision: this.resources.projection.revisionForKey(key),
         key,
         block,
@@ -456,6 +480,8 @@ export class YLayerRepresentationPrewarmOwner {
         surfaceFastPathEligible: false,
         surfaceVisibleEntries: this.resources.projection.visibleEntriesByKey,
         layerPrewarm: true,
+        layerPrewarmAttemptId: run.attemptId,
+        ownerToken,
       });
       run.inFlight += 1;
       if (!reusableTemplate) {
@@ -576,6 +602,7 @@ export class YLayerRepresentationPrewarmOwner {
 
   private failAttempt(attempt: PrewarmAttempt): void {
     if (!this.isCurrentAttempt(attempt)) return;
+    if (this.run?.attemptId === attempt.attemptId) this.cleanupQueuedJobs(this.run);
     this.run = undefined;
     this.evidenceValue = { ...this.evidenceValue, state: 'failed', jobsPending: 0 };
     this.finishAttempt(attempt, 'failed');
@@ -594,6 +621,25 @@ export class YLayerRepresentationPrewarmOwner {
       phase: attempt.phase,
       outcome,
     });
+  }
+
+  private cleanupQueuedJobs(run: PrewarmRun): void {
+    for (const [key, pending] of run.pendingJobs) {
+      this.resources.hydration.removePendingForKey(
+        key,
+        (job) =>
+          job.layerPrewarm === true &&
+          job.layerPrewarmAttemptId === run.attemptId &&
+          job.token === pending.ownerToken.generation &&
+          sameOwnerToken(job.ownerToken, pending.ownerToken),
+      );
+      this.resources.hydration.clearPendingSignatureIfOwned(
+        key,
+        pending.signature,
+        pending.ownerToken,
+      );
+    }
+    run.pendingJobs.clear();
   }
 
   private isCurrentRun(run: PrewarmRun): boolean {
@@ -642,4 +688,14 @@ function emptyRepresentationEvidence(): YLayerRepresentationPrewarmEvidence {
     rendererPath: 'not-started',
     gpuPresentationState: 'viewport-dependent',
   };
+}
+
+function sameOwnerToken(
+  left: HydrationWorkOwnerToken | undefined,
+  right: HydrationWorkOwnerToken | undefined,
+): boolean {
+  return left === right || (
+    !!left && !!right && left.owner === right.owner &&
+    left.attempt === right.attempt && left.generation === right.generation
+  );
 }

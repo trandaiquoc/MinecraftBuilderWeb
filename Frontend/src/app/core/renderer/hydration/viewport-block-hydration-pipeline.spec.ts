@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { HydrationWorkOwnerToken } from '../scheduling/hydration-work-coordinator';
 import { ViewportBlockHydrationPipeline, type HydrationExecutionPort } from './viewport-block-hydration-pipeline';
 
-interface Job { readonly key: string; readonly token: number; readonly projectionRevision: number; readonly signature: string; readonly providerRefresh?: boolean; }
+interface Job {
+  readonly key: string;
+  readonly token: number;
+  readonly projectionRevision: number;
+  readonly signature: string;
+  readonly providerRefresh?: boolean;
+  readonly ownerToken?: HydrationWorkOwnerToken;
+}
 
 const pipeline = () => new ViewportBlockHydrationPipeline<Job>({ concurrency: 6, regularReservedCapacity: 4, providerRefreshCapacity: 2 });
 
@@ -64,6 +72,36 @@ describe('ViewportBlockHydrationPipeline', () => {
     expect(value.takeNextJob(0)?.key).toBe('k');
     expect(value.progressSnapshot()).toMatchObject({ generation: 0, lane: 'local', total: 1 });
     expect(failureHandler).not.toHaveBeenCalled();
+  });
+
+  it('clears a pending signature only when the dequeued job still owns it', () => {
+    const value = pipeline();
+    const staleOwner = { owner: 'y-layer-prewarm', attempt: 1, generation: 0 } as const;
+    const currentOwner = { owner: 'editor-hydration', attempt: 8, generation: 0 } as const;
+    value.setPendingSignature('same-key', 'current-signature', currentOwner);
+    value.enqueueRegular({
+      key: 'same-key', token: 0, projectionRevision: 0, signature: 'stale-signature', ownerToken: staleOwner,
+    });
+    const port: HydrationExecutionPort<Job> = {
+      isStopped: () => false,
+      isInteractive: () => false,
+      now: () => 1,
+      budgetMs: () => 10,
+      interactiveJobLimit: () => 8,
+      jobLimit: () => 8,
+      ownership: (job) => ({ revision: job.projectionRevision, signature: job.signature }),
+      execute: (_job, finish) => finish(),
+      onBatchStart: vi.fn(),
+      onJobStarted: vi.fn(),
+      onExecutionFailure: vi.fn(),
+      onJobComplete: vi.fn(),
+      processAdditionalWork: vi.fn(),
+      hasAdditionalWork: () => false,
+    };
+
+    value.process(port);
+
+    expect(value.pendingSignature('same-key')).toBe('current-signature');
   });
 
   it('owns execution, synchronous failure completion, and rescheduling', () => {

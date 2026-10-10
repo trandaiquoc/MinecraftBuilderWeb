@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { HydrationWorkCoordinator } from './hydration-work-coordinator';
+import { HydrationWorkCoordinator, type HydrationWorkOwnerToken } from './hydration-work-coordinator';
 
-interface Job { readonly key: string; readonly token: number; readonly providerRefresh?: boolean; }
+interface Job {
+  readonly key: string;
+  readonly token: number;
+  readonly signature?: string;
+  readonly providerRefresh?: boolean;
+  readonly ownerToken?: HydrationWorkOwnerToken;
+}
 
 function regular(key: string): Job { return { key, token: 1 }; }
 function refresh(key: string): Job { return { key, token: 1, providerRefresh: true }; }
@@ -92,5 +98,22 @@ describe('HydrationWorkCoordinator', () => {
     expect([coordinator.takeNext(1)?.key, coordinator.takeNext(1)?.key, coordinator.takeNext(1)?.key])
       .toEqual(['keep-1', 'keep-2', 'refresh-keep']);
     expect(coordinator.queuedTotal()).toBe(0);
+  });
+
+  it('removes only queued work owned by one prewarm attempt and leaves running work untouched', () => {
+    const coordinator = new HydrationWorkCoordinator<Job>();
+    coordinator.enqueueRegular({ ...regular('same-key'), ownerToken: { owner: 'y-layer-prewarm', attempt: 1, generation: 4 } });
+    coordinator.enqueueRegular({ ...regular('same-key'), ownerToken: { owner: 'y-layer-prewarm', attempt: 2, generation: 4 } });
+    coordinator.enqueueRegular({ ...regular('same-key'), ownerToken: { owner: 'editor-hydration', attempt: 1, generation: 4 } });
+
+    const running = coordinator.takeNext(1)!;
+    const removed = coordinator.removePendingForKey('same-key', (job) =>
+      job.ownerToken?.owner === 'y-layer-prewarm' && job.ownerToken.attempt === 2,
+    );
+
+    expect(running.ownerToken?.attempt).toBe(1);
+    expect(removed).toBe(1);
+    expect(coordinator.counts()).toMatchObject({ regularQueued: 1, regularRunning: 1 });
+    expect(coordinator.takeNext(1)?.ownerToken?.owner).toBe('editor-hydration');
   });
 });

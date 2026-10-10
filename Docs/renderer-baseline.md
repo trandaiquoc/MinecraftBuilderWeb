@@ -219,6 +219,11 @@ ready/partial/failed terminals only; cancellation is paired with scope
 replacement or task unregister, avoiding an immediate restart of invalidated
 work. Rejected tasks are retried only after an explicit owner notification, a
 readiness transition, or scope change, not on repeated unchanged effect updates.
+Representation-prewarm jobs and pending signatures carry an attempt/generation
+owner token. Failure and cancellation remove only matching queued jobs through
+the hydration key index and clear a signature only while that attempt still
+owns it; already-running jobs retain the normal generation/signature stale
+guards and are not cancelled as collateral work.
 Task completion means the synchronous sync or preparation request reached its
 declared terminal point; it does not claim CPU representation settlement,
 WebGL upload, or a stable presented frame. Empty projects and cached-template
