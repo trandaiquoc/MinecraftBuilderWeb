@@ -108,39 +108,6 @@ export function normalizeLogicalObjectMemberships(
   return changed ? { ...project, blocks } : project;
 }
 
-export function synchronizeLogicalObjectState(
-  blocks: readonly PlacedBlock[],
-  position: VoxelCoordinate,
-  sourceState: Readonly<Record<string, string>>,
-  definition: LogicalBlockDefinitionLookup,
-): readonly PlacedBlock[] {
-  const source = find(blocks, position);
-  const metadata = source && logicalMetadata(definition(source.id));
-  const identityProperty = metadata?.identityProperty;
-  const keys = new Set(
-    resolveLogicalObjectParts(blocks, position, definition).map((part) =>
-      coordinateKey(part.position),
-    ),
-  );
-  if (keys.size <= 1) return blocks;
-  return blocks.map((block) =>
-    keys.has(coordinateKey(block.position))
-      ? {
-          ...block,
-          state: {
-            ...sourceState,
-            ...(identityProperty
-              ? {
-                  [identityProperty]:
-                    block.state[identityProperty] ?? sourceState[identityProperty],
-                }
-              : {}),
-          },
-        }
-      : block,
-  );
-}
-
 /** Atomically rotates a paired-horizontal object around its first/foot part. */
 export function transformPairedHorizontal(
   project: ProjectDocument,

@@ -316,8 +316,6 @@ export const VIEWPORT_HYDRATION_MAX_JOBS_PER_BATCH = 256;
 export const VIEWPORT_INTERACTIVE_HYDRATION_SYNC_BUDGET_MS = 1.5;
 export const VIEWPORT_INTERACTIVE_HYDRATION_MAX_JOBS_PER_BATCH = 8;
 export const VIEWPORT_CAMERA_IDLE_GRACE_MS = 160;
-export const VIEWPORT_HYDRATION_HUD_WORK_THRESHOLD = 32;
-export const VIEWPORT_HYDRATION_HUD_DELAY_MS = 180;
 // The cap covers the observed 13,824-entry grass-block fallback population
 // while keeping non-batchable content bounded on larger mixed projects.
 

@@ -81,11 +81,3 @@ export function verifiedVanillaCapabilityProfile(id: string): readonly BlockCapa
     ];
   return [];
 }
-
-export function isVerifiedVanillaShelf(id: string): boolean {
-  return VERIFIED_SHELF_IDS.has(id);
-}
-
-export function verifiedVanillaInventorySlotCount(id: string): number | undefined {
-  return verifiedInventoryContainerSchema(id)?.slotCount;
-}

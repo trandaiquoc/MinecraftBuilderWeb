@@ -31,11 +31,3 @@ export function pickAndSelectBlockFromViewportHit(
   select(hit);
   return true;
 }
-
-/** Compatibility alias for callers that only need to resolve a pick target. */
-export function pickBlockFromViewportHit(
-  hit: ViewportPickHit,
-  pick: (position: VoxelCoordinate) => void,
-): boolean {
-  return pickAndSelectBlockFromViewportHit(hit, pick, () => undefined);
-}

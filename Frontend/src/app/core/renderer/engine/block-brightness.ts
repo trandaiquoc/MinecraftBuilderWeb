@@ -129,5 +129,3 @@ export function applyStructureGuideBrightnessToObject(
     object.material = Array.isArray(object.material) ? guideMaterials : guideMaterials[0];
   });
 }
-
-export const blockBrightnessMetadataKey = BASE_COLOR_KEY;

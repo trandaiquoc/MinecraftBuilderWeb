@@ -6,7 +6,7 @@ import {
   parseFabricModMetadata,
 } from './mod-loader';
 
-describe('mod loader adapters', () => {
+describe('mod loader detection and metadata', () => {
   it('detects supported and unsupported loader metadata without executing it', () => {
     expect(detectLoader(['fabric.mod.json'])).toBe('fabric');
     expect(detectLoader(['quilt.mod.json'])).toBe('quilt');

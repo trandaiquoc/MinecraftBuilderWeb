@@ -31,20 +31,6 @@ export interface PlacedDecoration {
   readonly raw?: Readonly<Record<string, unknown>>;
 }
 
-export type PlacedPainting = PlacedDecoration & {
-  readonly kind: 'painting';
-  readonly entityTypeId: 'minecraft:painting';
-  readonly variantId: string;
-};
-export type PlacedItemFrame = PlacedDecoration & {
-  readonly kind: 'item-frame' | 'glow-item-frame';
-  readonly entityTypeId: 'minecraft:item_frame' | 'minecraft:glow_item_frame';
-  readonly rotation: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  readonly invisible: boolean;
-  readonly fixed: boolean;
-  readonly itemDropChance: number;
-};
-
 export interface PaintingVariant {
   readonly id: string;
   readonly width: number;

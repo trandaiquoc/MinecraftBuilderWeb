@@ -112,31 +112,6 @@ export function validateParsedStructureJsonPreview(
   return completePreview(parsed, validBlocks, issues, decorationResult);
 }
 
-export async function validateStructureJsonPreviewAsync(
-  serialized: string,
-  size: ProjectSize,
-  getDefinition: (id: string) => BlockDefinition | undefined,
-  onProgress?: (completed: number, total: number) => void,
-  cancellation?: StructureJsonValidationCancellation,
-  project?: ProjectDocument,
-  resolveMaxStackSize?: ItemMaxStackResolver,
-  options?: StructureJsonValidationOptions,
-): Promise<StructureJsonValidationPreview | undefined> {
-  if (isStructureJsonValidationCancelled(cancellation)) return undefined;
-  const parsed = parseStructureJson(serialized);
-  if (!parsed.valid || !parsed.value) return emptyStructureJsonPreview(parsed.code);
-  return validateParsedStructureJsonPreviewAsync(
-    parsed.value,
-    size,
-    getDefinition,
-    onProgress,
-    cancellation,
-    project,
-    resolveMaxStackSize,
-    options,
-  );
-}
-
 export async function validateParsedStructureJsonPreviewAsync(
   parsed: StructureJson,
   size: ProjectSize,

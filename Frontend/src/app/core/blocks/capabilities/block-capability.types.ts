@@ -1,9 +1,3 @@
-import type {
-  BehaviorSupportLevel,
-  BlockVisualClassification,
-  VisualSupportLevel,
-} from '../catalog/block-support.types';
-
 /** Confidence describes the evidence behind a capability, not rendering/behavior support. */
 export type BlockCapabilityEvidence = 'verified' | 'inferred';
 
@@ -41,14 +35,3 @@ export type BlockCapability =
 
 export type BlockCapabilityKind = BlockCapability['kind'];
 export type BlockCapabilityProfile = readonly BlockCapability[];
-
-export interface BlockCapabilityDiagnosticInput {
-  readonly capabilities: BlockCapabilityProfile;
-  readonly behaviorSupport: BehaviorSupportLevel;
-  readonly visualSupport: VisualSupportLevel;
-  readonly visualClassification: BlockVisualClassification;
-}
-
-export interface BlockCapabilityDiagnostics extends BlockCapabilityDiagnosticInput {
-  readonly evidence: Readonly<Partial<Record<BlockCapabilityKind, BlockCapabilityEvidence>>>;
-}

@@ -1,4 +1,4 @@
-import { PlacedBlock, ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import { PlacedBlock, ProjectSize } from '../../domain/project.types';
 
 export interface LayerBlockIndex {
   readonly blocksAtY: (y: number) => readonly PlacedBlock[];
@@ -159,21 +159,4 @@ export function blocksForLayers(
   }
   const visible = visibleLayerSet(currentY, blocks, mode);
   return blocks.filter((block) => visible.has(block.position.y));
-}
-
-export function layerCoordinate(
-  x: number,
-  y: number,
-  z: number,
-  size: ProjectSize,
-): VoxelCoordinate | undefined {
-  const coordinate = { x: Math.trunc(x), y: Math.trunc(y), z: Math.trunc(z) };
-  return coordinate.x >= 0 &&
-    coordinate.y >= 0 &&
-    coordinate.z >= 0 &&
-    coordinate.x < size.x &&
-    coordinate.y < size.y &&
-    coordinate.z < size.z
-    ? coordinate
-    : undefined;
 }

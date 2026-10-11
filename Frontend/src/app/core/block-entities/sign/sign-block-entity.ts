@@ -1,7 +1,7 @@
 import { SignBlockEntityData, SignSide } from '../../domain/project.types';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { blockCapability } from '../../blocks/capabilities/block-capability-resolver';
-import { fallbackMinecraftTextWidth, NORMAL_SIGN_TEXT_METRICS } from './sign-text-metrics';
+import { fallbackMinecraftTextWidth } from './sign-text-metrics';
 import { isVanillaSignColor } from './sign-nbt';
 
 export function isSignId(id: string): boolean {
@@ -84,7 +84,4 @@ export function signLines(value: string): SignSide['lines'] {
 
 export function signLineWidth(value: string): number {
   return fallbackMinecraftTextWidth(value);
-}
-export function fitsSignWidth(value: string): boolean {
-  return signLineWidth(value) <= NORMAL_SIGN_TEXT_METRICS.maxWidth;
 }

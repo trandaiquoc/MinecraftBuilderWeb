@@ -38,13 +38,6 @@ export function evaluateMinecraftRequirement(
   };
 }
 
-export function assessMinecraftRequirement(
-  requirement: string | readonly string[] | undefined,
-  version: string,
-): ModCompatibilityResult['status'] {
-  return evaluateMinecraftRequirement(requirement, version).status;
-}
-
 function evaluateExpression(expression: string, target: ParsedVersion): PredicateResult {
   const value = expression.trim();
   if (!value) return 'unknown';

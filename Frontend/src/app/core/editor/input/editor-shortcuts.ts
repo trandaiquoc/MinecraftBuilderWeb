@@ -1,8 +1,4 @@
-import {
-  DEFAULT_KEYBINDINGS,
-  keyboardActionForEvent,
-  isEditableKeyboardTarget,
-} from './keyboard-bindings';
+import { DEFAULT_KEYBINDINGS, keyboardActionForEvent } from './keyboard-bindings';
 
 export type HistoryShortcutAction = 'undo' | 'redo';
 export type EditorShortcutAction = HistoryShortcutAction | 'select-all' | 'delete-selection';
@@ -25,5 +21,3 @@ export function editorShortcutAction(event: ShortcutEvent): EditorShortcutAction
     ? action
     : undefined;
 }
-
-export const isEditableTarget = isEditableKeyboardTarget;

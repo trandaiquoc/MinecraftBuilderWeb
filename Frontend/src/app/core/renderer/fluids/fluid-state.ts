@@ -219,16 +219,6 @@ export function fluidCornerHeightsResolved(
     );
   return sampleFluidCornerHeights(fluidHeightAtResolved(position, state, world, resolver), sample);
 }
-export function fluidVelocity(
-  position: VoxelCoordinate,
-  state: StaticFluidState,
-  world?: FluidWorldLookup,
-): { readonly x: number; readonly z: number } {
-  return fluidHorizontalVelocity(state.height, (dx, dz) =>
-    fluidHeightAt({ x: position.x + dx, y: position.y, z: position.z + dz }, state.kind, world),
-  );
-}
-
 export function fluidVelocityResolved(
   position: VoxelCoordinate,
   state: ResolvedFluidRenderState,

@@ -26,9 +26,6 @@ export interface CommonBehaviorEvaluation {
 
 const horizontal = GENERIC_BEHAVIOR_PROFILES.wallMounted.requiredStates.facing;
 const booleanValues = GENERIC_BEHAVIOR_PROFILES.fence.requiredStates['north'];
-/** Shared evidence contract name for six-direction blocks attached to a face. */
-export const SIX_FACE_ATTACHMENT_CONTRACT = 'six-face-attachment';
-
 /**
  * Evaluates only contracts that are common to the JSON/resource pipeline.
  * It deliberately does not attach special block-entity or version-verified

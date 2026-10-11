@@ -310,5 +310,3 @@ export const GENERIC_BEHAVIOR_PROFILES = {
     defaults: { facing: 'north', waterlogged: 'false' },
   },
 } as const satisfies Record<string, GenericBehaviorProfile>;
-
-export type GenericBehaviorProfileId = keyof typeof GENERIC_BEHAVIOR_PROFILES;

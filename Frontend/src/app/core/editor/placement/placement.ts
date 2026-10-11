@@ -63,10 +63,6 @@ export function targetFromEditingPlaneHit(
   return isWithinBounds(target, size) ? target : undefined;
 }
 
-export function normalizeVoxelCoordinate(position: VoxelCoordinate): VoxelCoordinate {
-  return { x: Math.trunc(position.x), y: Math.trunc(position.y), z: Math.trunc(position.z) };
-}
-
 export function lanternChainAttachmentTarget(
   activeBlockId: string | undefined,
   hitPosition: VoxelCoordinate,

@@ -38,26 +38,6 @@ export interface NormalizedModMetadata {
   readonly nestedJars: readonly unknown[];
 }
 
-export interface ModLoaderAdapter {
-  readonly loader: SupportedModLoader;
-  detect(paths: readonly string[]): boolean;
-  inspectMetadata(value: unknown): NormalizedModMetadata;
-}
-
-export class FabricModLoaderAdapter implements ModLoaderAdapter {
-  readonly loader = 'fabric' as const;
-  detect(paths: readonly string[]): boolean {
-    return paths.includes('fabric.mod.json');
-  }
-  inspectMetadata(value: unknown): NormalizedModMetadata {
-    return normalizeFabricMetadata(value);
-  }
-}
-
-export function modLoaderAdapter(loader: SupportedModLoader): ModLoaderAdapter | undefined {
-  return loader === 'fabric' ? new FabricModLoaderAdapter() : undefined;
-}
-
 export function detectLoader(paths: readonly string[]): SupportedModLoader {
   if (paths.includes('fabric.mod.json')) return 'fabric';
   if (paths.includes('quilt.mod.json')) return 'quilt';

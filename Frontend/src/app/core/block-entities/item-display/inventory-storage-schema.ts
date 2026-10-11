@@ -43,6 +43,3 @@ export function verifiedInventoryContainerSchema(
 ): VerifiedInventoryContainerSchema | undefined {
   return schemas[blockId];
 }
-export function verifiedInventoryContainerSchemas(): readonly VerifiedInventoryContainerSchema[] {
-  return Object.values(schemas);
-}

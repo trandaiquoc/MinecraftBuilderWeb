@@ -58,10 +58,3 @@ export function validateItemStack(
     };
   return { valid: true, ...(max === undefined ? {} : { maxStackSize: max }) };
 }
-
-export function itemStackMaxFromComponents(
-  components: Readonly<Record<string, unknown>> | undefined,
-): number | undefined {
-  const value = components?.['minecraft:max_stack_size'];
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 ? value : undefined;
-}

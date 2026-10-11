@@ -84,8 +84,6 @@ export interface StructureJson {
   readonly decorations: readonly StructureJsonDecoration[];
 }
 
-export type StructureJsonDocument = StructureJson;
-
 export type StructureJsonDefinitionResolver = (id: string) => BlockDefinition | undefined;
 
 export type StructureJsonValidationCode =

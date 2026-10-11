@@ -5,7 +5,6 @@ import {
   isInternalContent,
   isTechnicalBlockId,
   isDecorationEntityId,
-  vanillaTechnicalBlockIds,
 } from '../../content/content-classifier';
 import { logicalPlacementForBehavior } from '../../block-behavior/logical-objects/logical-placement';
 import { rankSearchResults } from '../../search/relevance-search';
@@ -47,12 +46,6 @@ export function isNormalBuildingPaletteEligible(
   );
 }
 
-export function isPaletteEligible(
-  block: Pick<BlockDefinition, 'id' | 'namespace' | 'contentKind' | 'itemEvidence'>,
-): boolean {
-  return isNormalBuildingPaletteEligible(block);
-}
-
 /** World serialization policy is distinct from palette visibility. */
 export function isWorldBlockSerializable(blockId: string): boolean {
   return !isTechnicalBlockId(blockId) && !isDecorationEntityId(blockId);
@@ -61,10 +54,6 @@ export function isWorldBlockSerializable(blockId: string): boolean {
 /** @deprecated Use isWorldBlockSerializable; retained for callers during the policy split. */
 export function isNormalBuildingExportEligible(blockId: string): boolean {
   return isWorldBlockSerializable(blockId);
-}
-
-export function technicalBuildingIds(): readonly string[] {
-  return vanillaTechnicalBlockIds();
 }
 
 export function buildPlaceableItems(

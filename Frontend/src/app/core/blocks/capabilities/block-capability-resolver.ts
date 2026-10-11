@@ -7,8 +7,6 @@ import type {
 import {
   BlockAttachmentSurface,
   BlockCapability,
-  BlockCapabilityDiagnosticInput,
-  BlockCapabilityDiagnostics,
   BlockCapabilityEvidence,
   BlockCapabilityKind,
   BlockCapabilityProfile,
@@ -311,27 +309,11 @@ export function blockCapability<TKind extends BlockCapabilityKind>(
     Extract<BlockCapability, { kind: TKind }> | undefined;
 }
 
-export function blockCapabilityConfidence(
-  source: BlockCapabilityProfile | Pick<BlockDefinition, 'capabilities'> | undefined,
-  kind: BlockCapabilityKind,
-): BlockCapabilityEvidence | undefined {
-  return blockCapability(source, kind)?.evidence;
-}
-
 export function addBlockCapability(
   profile: BlockCapabilityProfile | undefined,
   capability: BlockCapability,
 ): BlockCapabilityProfile {
   return deriveBlockCapabilities({ explicit: [...(profile ?? []), capability] });
-}
-
-export function blockCapabilityDiagnostics(
-  input: BlockCapabilityDiagnosticInput,
-): BlockCapabilityDiagnostics {
-  const evidence = Object.fromEntries(
-    input.capabilities.map((capability) => [capability.kind, capability.evidence]),
-  ) as Readonly<Partial<Record<BlockCapabilityKind, BlockCapabilityEvidence>>>;
-  return { ...input, evidence };
 }
 
 function capabilityList(

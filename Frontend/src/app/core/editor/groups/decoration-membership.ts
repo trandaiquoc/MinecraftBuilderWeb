@@ -1,5 +1,5 @@
 import type { PlacedDecoration } from '../../decorations/decoration.types';
-import type { ProjectDocument, ProjectGroup } from '../../domain/project.types';
+import type { ProjectGroup } from '../../domain/project.types';
 
 export function decorationGroupIdsOf(decoration: PlacedDecoration): readonly string[] {
   return decoration.groupIds ?? [];
@@ -38,18 +38,4 @@ export function isDecorationVisible(
   return !decorationGroupIdsOf(decoration).some(
     (id) => groups.find((group) => group.id === id)?.visible === false,
   );
-}
-export function isDecorationInGroup(
-  decoration: PlacedDecoration,
-  groupId: string | undefined,
-): boolean {
-  return !!groupId && decorationHasGroup(decoration, groupId);
-}
-export function decorationGroupNames(
-  decoration: PlacedDecoration,
-  project: ProjectDocument,
-): readonly string[] {
-  return decorationGroupIdsOf(decoration)
-    .map((id) => project.groups.find((group) => group.id === id)?.name)
-    .filter((name): name is string => !!name);
 }

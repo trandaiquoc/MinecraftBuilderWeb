@@ -1,4 +1,4 @@
-import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
+import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
 import type { PlacedDecoration } from '../../decorations/decoration.types';
 
 export interface ProjectMutationChange {
@@ -94,19 +94,5 @@ export function invertProjectMutationHint(hint: ProjectMutationHint): ProjectMut
     })),
     hint.source,
     hint.origin,
-  );
-}
-
-export function isProjectMutationTransition(
-  from: ProjectDocument | undefined,
-  to: ProjectDocument | undefined,
-  hint: ProjectMutationHint | undefined,
-): boolean {
-  return (
-    !!from &&
-    !!to &&
-    !!hint &&
-    (hint.changes.length > 0 ||
-      (hint.kind === 'metadata-delta' && (hint.decorationChanges?.length ?? 0) > 0))
   );
 }

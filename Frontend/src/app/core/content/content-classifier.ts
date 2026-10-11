@@ -95,9 +95,6 @@ export function isDecorationEntityId(id: string): boolean {
 export function isTechnicalBlockId(id: string): boolean {
   return TECHNICAL_IDS.has(id);
 }
-export function vanillaTechnicalBlockIds(): readonly string[] {
-  return [...TECHNICAL_IDS];
-}
 /** Content-domain evidence replaces registry-name suffix heuristics. */
 export function isInternalContent(contentKind?: MinecraftContentKind): boolean {
   return contentKind === 'internal-block';

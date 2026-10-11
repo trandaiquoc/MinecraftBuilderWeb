@@ -76,17 +76,6 @@ export function textureResourcePath(resource: string): string {
   return `assets/${namespace}/textures/${path}.png`;
 }
 
-export function resourceIdFromPath(
-  path: string,
-  directory: 'blockstates' | 'models' | 'textures' | 'items' | 'atlases',
-  extension = 'json',
-): string | undefined {
-  const match = new RegExp(
-    `^assets/([^/]+)/${directory}/(.+)\\.${extension.replace('.', '\\.')}$`,
-  ).exec(path);
-  return match ? `${match[1]}:${match[2]}` : undefined;
-}
-
 function validPath(path: string): boolean {
   return (
     !!path &&

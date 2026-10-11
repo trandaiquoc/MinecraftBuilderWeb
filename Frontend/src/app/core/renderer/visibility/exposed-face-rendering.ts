@@ -54,7 +54,3 @@ export function neighborFacesCulled(entries: readonly ExposedFaceEntry[]): numbe
     0,
   );
 }
-
-export function surfaceFaceDirections(): readonly SurfaceFaceDirection[] {
-  return DIRECTIONS.map(({ direction }) => direction);
-}

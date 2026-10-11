@@ -333,21 +333,6 @@ export function commitModImport(
   return provider;
 }
 
-/** Compatibility wrapper retained for the current import button. */
-export async function importFabricModJar(
-  file: File,
-  minecraftVersion = '1.21.1',
-  onProgress?: (progress: ModImportProgress) => void,
-  signal?: AbortSignal,
-): Promise<ExternalModProvider> {
-  const prepared = await inspectModJar(file, minecraftVersion, onProgress, signal);
-  try {
-    return commitModImport(prepared, onProgress, signal);
-  } finally {
-    prepared.dispose();
-  }
-}
-
 export class UnsupportedModLoaderError extends Error {
   constructor(readonly loader: SupportedModLoader) {
     super(
@@ -358,9 +343,6 @@ export class UnsupportedModLoaderError extends Error {
   }
 }
 
-export function detectModLoader(paths: readonly string[]): SupportedModLoader {
-  return detectLoader(paths);
-}
 function prepared(
   value: Omit<PreparedModImport, 'dispose' | 'consume'> &
     Partial<Pick<PreparedModImport, 'dispose' | 'consume'>>,

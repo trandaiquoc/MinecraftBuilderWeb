@@ -34,13 +34,6 @@ export function terrainChunkKey(chunk: TerrainChunkCoordinate): string {
   return `${chunk.x},${chunk.y},${chunk.z}`;
 }
 
-export function parseTerrainChunkKey(key: string): TerrainChunkCoordinate | undefined {
-  const values = key.split(',').map(Number);
-  return values.length === 3 && values.every(Number.isInteger)
-    ? { x: values[0], y: values[1], z: values[2] }
-    : undefined;
-}
-
 export function terrainChunkBounds(chunk: TerrainChunkCoordinate): {
   readonly min: VoxelCoordinate;
   readonly max: VoxelCoordinate;
