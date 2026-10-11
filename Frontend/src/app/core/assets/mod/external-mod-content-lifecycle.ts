@@ -5,7 +5,8 @@ import { ContentOperationCoordinator } from '../content-operation-coordinator';
 import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
 import { AssetActivityService } from '../asset-activity.service';
 import {
-  ContentSourceRegistry,
+  ContentSourceReadView,
+  ContentContributionConflict,
   PreparedContentSource,
 } from '../content-source/content-source-registry';
 import { ExternalModProvider } from './external-mod-provider';
@@ -38,7 +39,8 @@ export interface ImportedModSummary {
 }
 
 export interface ExternalModPublicationPort {
-  readonly sources: ContentSourceRegistry;
+  readonly sources: ContentSourceReadView;
+  matchesActiveMod(sourceId: string, fingerprint?: string): boolean;
   activate(provider: ExternalModProvider, restoring: boolean): void;
   commitRestored(sources: readonly PreparedContentSource[]): void;
   remove(sourceId: string): void;
@@ -182,9 +184,7 @@ export class ExternalModContentLifecycle {
       const resourceConflicts = this.publication.sources.resources.inspectProvider(preview);
       const catalog = preview.catalog();
       const conflictWatchdog = createPhaseWatchdog('checking-conflicts', signal);
-      let catalogConflicts: readonly ReturnType<
-        ContentSourceRegistry['inspectCatalogContribution']
-      >[number][];
+      let catalogConflicts: readonly ContentContributionConflict[];
       try {
         catalogConflicts = await this.publication.sources.inspectCatalogContributionAsync(
           catalog,
@@ -305,7 +305,7 @@ export class ExternalModContentLifecycle {
     await this.operations.run(
       'foreground',
       async (sessionSignal) => {
-        if (!this.publication.sources.providerForSource(sourceId)) return;
+        if (!this.publication.sources.hasSource(sourceId)) return;
         throwIfAborted(sessionSignal);
         this.publication.remove(sourceId);
         this.importedModsState.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
@@ -348,12 +348,8 @@ export class ExternalModContentLifecycle {
         let provider: ExternalModProvider | undefined;
         try {
           throwIfAborted(signal);
-          const existing = this.publication.sources.providerForSource(serialized.sourceId) as
-            ExternalModProvider | undefined;
-          if (
-            existing &&
-            (!serialized.fingerprint || existing.fingerprint === serialized.fingerprint)
-          ) {
+          const replaceExisting = this.publication.sources.hasSource(serialized.sourceId);
+          if (this.publication.matchesActiveMod(serialized.sourceId, serialized.fingerprint)) {
             current += 1;
             publishProgress({
               phase: 'restoring-mods',
@@ -381,7 +377,7 @@ export class ExternalModContentLifecycle {
               signal,
             );
             throwIfAborted(signal);
-            staged.push({ provider, catalog, replaceExisting: !!existing });
+            staged.push({ provider, catalog, replaceExisting });
             stagedProviders.push(provider);
             provider = undefined;
           }
@@ -428,7 +424,7 @@ export class ExternalModContentLifecycle {
       this.restoring = false;
       if (!committed)
         for (const provider of stagedProviders)
-          if (!this.publication.sources.providerForSource(provider.source.id)) provider.dispose();
+          if (!this.publication.sources.hasSource(provider.source.id)) provider.dispose();
     }
     const state: ExternalModRestoreState = {
       phase: failed > 0 ? 'partial' : 'ready',

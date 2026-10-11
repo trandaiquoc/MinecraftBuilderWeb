@@ -19,6 +19,7 @@ import {
 } from '../items/registry/vanilla-item-registry';
 import {
   ContentSourceRegistry,
+  ContentSourceReadView,
   PreparedContentSource,
 } from './content-source/content-source-registry';
 import { ContentSourceCleanupError } from './content-source/composite-asset-provider';
@@ -97,6 +98,8 @@ export class ContentAssetRuntimeService {
     new MojangVanillaAssetSource(),
   );
   readonly activity = inject(AssetActivityService);
+  private readonly sourceRegistry = new ContentSourceRegistry();
+  readonly sources: ContentSourceReadView = this.sourceRegistry;
   private readonly thumbnails!: AssetThumbnailService;
   private externalMods!: ExternalModContentLifecycle;
   readonly thumbnailEpoch!: Signal<number>;
@@ -152,7 +155,6 @@ export class ContentAssetRuntimeService {
   readonly generation = this.generationState.asReadonly();
   readonly diagnostics = this.diagnosticsState.asReadonly();
   readonly cachedVersions = this.cachedVersionsState.asReadonly();
-  readonly sources = new ContentSourceRegistry();
   get importedMods() {
     return this.externalMods.importedMods;
   }
@@ -172,7 +174,14 @@ export class ContentAssetRuntimeService {
       this.activity,
       this.contentOperations,
       {
-        sources: this.sources,
+        sources: this.sourceRegistry,
+        matchesActiveMod: (sourceId, fingerprint) => {
+          const provider = this.sourceRegistry.providerForSource(sourceId);
+          return (
+            provider instanceof ExternalModProvider &&
+            (!fingerprint || provider.fingerprint === fingerprint)
+          );
+        },
         activate: (provider, restoring) => this.activateExternal(provider, restoring),
         commitRestored: (prepared) => this.commitRestoredExternal(prepared),
         remove: (sourceId) => this.removeExternalSource(sourceId),
@@ -464,11 +473,11 @@ export class ContentAssetRuntimeService {
     this.clearActiveSources();
     const catalog = provider.catalog(registry, itemRegistry);
     this.transitionThumbnailGeneration(() => {
-      this.sources.setActiveVersion(version);
+      this.sourceRegistry.setActiveVersion(version);
       this.providerState.set(provider);
       this.publishSourceChange(() => {
-        if (this.sources.providerForSource('vanilla')) this.sources.replace(provider);
-        else this.sources.register(provider);
+        if (this.sourceRegistry.providerForSource('vanilla')) this.sourceRegistry.replace(provider);
+        else this.sourceRegistry.register(provider);
       });
       this.replaceVisualProvider();
       this.library.replaceSource(catalog);
@@ -525,8 +534,9 @@ export class ContentAssetRuntimeService {
     const catalog = provider.catalog();
     const publish = (): void => {
       this.publishSourceChange(() => {
-        if (this.sources.providerForSource(provider.source.id)) this.sources.replace(provider);
-        else this.sources.register(provider);
+        if (this.sourceRegistry.providerForSource(provider.source.id))
+          this.sourceRegistry.replace(provider);
+        else this.sourceRegistry.register(provider);
       });
       this.library.replaceSource(catalog);
       this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
@@ -541,7 +551,7 @@ export class ContentAssetRuntimeService {
 
   private commitRestoredExternal(prepared: readonly PreparedContentSource[]): void {
     this.transitionThumbnailGeneration(() => {
-      this.publishSourceChange(() => this.sources.commitBatch(prepared));
+      this.publishSourceChange(() => this.sourceRegistry.commitBatch(prepared));
       this.replaceVisualProvider();
       this.library.replaceSources(prepared.map((entry) => entry.catalog));
       this.paintingCatalog.replaceSources(
@@ -556,7 +566,7 @@ export class ContentAssetRuntimeService {
   private removeExternalSource(sourceId: string): void {
     this.transitionThumbnailGeneration(() => {
       this.publishSourceChange(() => {
-        this.sources.remove(sourceId);
+        this.sourceRegistry.remove(sourceId);
       });
       this.paintingCatalog.removeSource(sourceId);
       this.library.removeSource(sourceId);
@@ -566,7 +576,7 @@ export class ContentAssetRuntimeService {
 
   private replaceVisualProvider(): void {
     this.visualProvider()?.dispose();
-    this.visualProviderState.set(new VanillaBlockVisualProvider(this.sources.resources));
+    this.visualProviderState.set(new VanillaBlockVisualProvider(this.sourceRegistry.resources));
   }
 
   private transitionThumbnailGeneration(replace: () => void): void {
@@ -579,9 +589,9 @@ export class ContentAssetRuntimeService {
   }
   private clearActiveSources(): void {
     this.thumbnails.clearForContentGeneration();
-    for (const source of this.sources.sources()) {
+    for (const source of this.sourceRegistry.sources()) {
       this.publishSourceChange(() => {
-        this.sources.remove(source.id);
+        this.sourceRegistry.remove(source.id);
       });
       this.library.removeSource(source.id);
       this.paintingCatalog.removeSource(source.id);

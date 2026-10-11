@@ -2,7 +2,12 @@ import { BlockCatalogSource } from '../../blocks/catalog/block-catalog';
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 import type { PaintingVariant } from '../../decorations/decoration.types';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
-import { ContentSourceDescriptor, ContentSourceProvider } from './content-source.types';
+import {
+  ContentSourceDescriptor,
+  ContentSourceProvider,
+  ContentSourceResourceReader,
+  RenderableAssetResourceProvider,
+} from './content-source.types';
 import {
   CompositeAssetResourceProvider,
   ContentSourceCleanupError,
@@ -24,12 +29,31 @@ export interface ItemEvidenceSource {
   readonly sourceId: string;
   readonly sourceName: string;
   readonly items: readonly CatalogItemEvidence[];
-  readonly provider?: ContentSourceProvider;
+  readonly provider?: ContentSourceResourceReader;
 }
 export interface CatalogConflictProgress {
   readonly processed: number;
   readonly total: number;
 }
+
+export interface ContentSourceReadView {
+  readonly resources: Pick<
+    RenderableAssetResourceProvider,
+    'gameVersion' | 'readJson' | 'readBinary' | 'textureUrl' | 'paths'
+  > &
+    Pick<CompositeAssetResourceProvider, 'inspectProvider'>;
+  sources(): readonly ContentSourceDescriptor[];
+  hasSource(sourceId: string): boolean;
+  decorationSources(): readonly ContentSourceDescriptor[];
+  itemEvidenceSources(): readonly ItemEvidenceSource[];
+  inspectCatalogContribution(source: BlockCatalogSource): readonly ContentContributionConflict[];
+  inspectCatalogContributionAsync(
+    source: BlockCatalogSource,
+    onProgress?: (progress: CatalogConflictProgress) => void,
+    signal?: AbortSignal,
+  ): Promise<readonly ContentContributionConflict[]>;
+}
+
 export interface PreparedContentSource {
   readonly provider: ContentSourceProvider;
   readonly catalog: BlockCatalogSource & { readonly paintingVariants?: readonly PaintingVariant[] };
@@ -37,7 +61,7 @@ export interface PreparedContentSource {
 }
 
 /** Pure coordinator for source lifecycle, namespace ownership and catalog composition. */
-export class ContentSourceRegistry {
+export class ContentSourceRegistry implements ContentSourceReadView {
   readonly resources = new CompositeAssetResourceProvider();
   private readonly contributions = new Map<string, BlockCatalogSource>();
   private readonly paintingContributions = new Map<string, readonly PaintingVariant[]>();
@@ -170,6 +194,9 @@ export class ContentSourceRegistry {
   }
   sources(): readonly ContentSourceDescriptor[] {
     return this.resources.sources();
+  }
+  hasSource(sourceId: string): boolean {
+    return this.resources.providerForSource(sourceId) !== undefined;
   }
   providerForSource(sourceId: string): ContentSourceProvider | undefined {
     return this.resources.providerForSource(sourceId);

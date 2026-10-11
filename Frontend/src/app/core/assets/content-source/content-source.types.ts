@@ -23,6 +23,8 @@ export interface ContentSourceProvider extends AssetResourceProvider {
   dispose?(): void;
 }
 
+export type ContentSourceResourceReader = Pick<ContentSourceProvider, 'readJson'>;
+
 export interface RenderableAssetResourceProvider extends AssetResourceProvider {
   readonly gameVersion?: string;
   readBinary(path: string): Uint8Array | undefined;

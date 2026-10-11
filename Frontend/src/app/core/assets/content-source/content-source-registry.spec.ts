@@ -1,10 +1,43 @@
 import { BlockModelResolver } from '../../blocks/resolver';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { ContentSourceRegistry } from './content-source-registry';
+import type { ContentSourceReadView } from './content-source-registry';
 import { ContentSourceCleanupError } from './composite-asset-provider';
 import { ContentSourceProvider } from './content-source.types';
 import type { AssetBlockRecord } from '../../blocks/catalog/block-definition.types';
 import { describe, expect, it } from 'vitest';
+
+type Assert<T extends true> = T;
+type RegistryMutation =
+  'setActiveVersion' | 'clear' | 'register' | 'replace' | 'remove' | 'commitBatch';
+type ReadViewExcludesProviderLookup = Assert<
+  Extract<keyof ContentSourceReadView, 'providerForSource'> extends never ? true : false
+>;
+type ReadViewHasSourceLookup = Assert<
+  Extract<keyof ContentSourceReadView, 'hasSource'> extends never ? false : true
+>;
+type ItemEvidenceProviderExcludesLifecycle = Assert<
+  ContentSourceReadView['itemEvidenceSources'] extends () => readonly (infer Source)[]
+    ? Source extends { readonly provider?: infer Provider }
+      ? Extract<keyof NonNullable<Provider>, 'dispose'> extends never
+        ? true
+        : false
+      : false
+    : false
+>;
+type ReadViewExcludesRegistryMutation = Assert<
+  Extract<keyof ContentSourceReadView, RegistryMutation> extends never ? true : false
+>;
+type ReadViewExcludesResourceMutation = Assert<
+  Extract<keyof ContentSourceReadView['resources'], RegistryMutation | 'dispose'> extends never
+    ? true
+    : false
+>;
+const sourceReadViewHasNoRegistryMutators: ReadViewExcludesRegistryMutation = true;
+const sourceReadViewHasNoProviderLookup: ReadViewExcludesProviderLookup = true;
+const sourceReadViewHasSourceLookup: ReadViewHasSourceLookup = true;
+const sourceReadViewHasNoResourceMutators: ReadViewExcludesResourceMutation = true;
+const itemEvidenceReadViewHasNoLifecycle: ItemEvidenceProviderExcludesLifecycle = true;
 
 class FakeSource implements ContentSourceProvider {
   readonly source;
@@ -85,6 +118,27 @@ const block = (id: string, sourceId: string) => ({
 });
 
 describe('ContentSourceRegistry', () => {
+  it('provides the runtime with a read-only source capability view', () => {
+    const registry = new ContentSourceRegistry();
+    const view: ContentSourceReadView = registry;
+    const source = new FakeSource('example', ['example'], {
+      'assets/example/models/block/test.json': { elements: [] },
+    });
+    registry.register(source);
+
+    expect(view.sources().map(({ id }) => id)).toEqual(['example']);
+    expect(view.resources.readJson('assets/example/models/block/test.json')).toEqual({
+      elements: [],
+    });
+    expect(view.hasSource('example')).toBe(true);
+    expect(view.hasSource('missing')).toBe(false);
+    expect(sourceReadViewHasNoRegistryMutators).toBe(true);
+    expect(sourceReadViewHasNoProviderLookup).toBe(true);
+    expect(sourceReadViewHasSourceLookup).toBe(true);
+    expect(sourceReadViewHasNoResourceMutators).toBe(true);
+    expect(itemEvidenceReadViewHasNoLifecycle).toBe(true);
+  });
+
   it('routes namespaces explicitly and resolves a cross-source parent', () => {
     const vanilla = new FakeSource(
       'vanilla',

@@ -1,6 +1,6 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
-import type { ContentSourceProvider } from '../../assets/content-source/content-source.types';
+import type { ContentSourceResourceReader } from '../../assets/content-source/content-source.types';
 import { ItemCatalog, ItemCatalogEntry, humanizeItemId, itemNamespace } from './item-catalog';
 import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.types';
 
@@ -60,7 +60,7 @@ function toCatalogEntry(
   item: CatalogItemEvidence,
   sourceId: string,
   sourceName: string,
-  provider: ContentSourceProvider | undefined,
+  provider: ContentSourceResourceReader | undefined,
 ): ItemCatalogEntry {
   const namespace = itemNamespace(item.itemId);
   const path = item.itemId.slice(namespace ? namespace.length + 1 : 0);
@@ -83,7 +83,7 @@ function toCatalogEntry(
 }
 
 function readLanguage(
-  provider: ContentSourceProvider,
+  provider: ContentSourceResourceReader,
   namespace: string,
 ): Readonly<Record<string, unknown>> {
   const value = provider.readJson(`assets/${namespace}/lang/en_us.json`);

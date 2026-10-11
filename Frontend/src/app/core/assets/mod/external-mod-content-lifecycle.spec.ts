@@ -10,6 +10,13 @@ function lifecycle(cache: Record<string, unknown> = {}) {
   const sources = new ContentSourceRegistry();
   const publication = {
     sources,
+    matchesActiveMod: vi.fn((sourceId: string, fingerprint?: string) => {
+      const provider = sources.providerForSource(sourceId);
+      return (
+        provider instanceof ExternalModProvider &&
+        (!fingerprint || provider.fingerprint === fingerprint)
+      );
+    }),
     activate: vi.fn((provider: ExternalModProvider) => sources.register(provider)),
     commitRestored: vi.fn((prepared: readonly PreparedContentSource[]) =>
       sources.commitBatch(prepared),
@@ -108,6 +115,30 @@ describe('ExternalModContentLifecycle', () => {
     expect(service.isRestoring).toBe(false);
   });
 
+  it('reuses an active external mod with the same fingerprint without exposing its provider', async () => {
+    const provider = ExternalModProvider.create({
+      metadata: { id: 'active-fixture', version: '1.0.0' },
+      json: new Map([
+        [
+          'assets/active_fixture/blockstates/widget.json',
+          { variants: { '': { model: 'active_fixture:block/widget' } } },
+        ],
+      ]),
+      resources: new Map(),
+      fingerprint: 'same-archive',
+    });
+    const { service, publication } = lifecycle({
+      loadExternalMods: vi.fn(async () => [provider.serialize()]),
+    });
+    publication.sources.register(provider);
+
+    await service.restore('1.21.1');
+
+    expect(publication.matchesActiveMod).toHaveBeenCalledWith(provider.source.id, 'same-archive');
+    expect(publication.commitRestored).not.toHaveBeenCalled();
+    expect(publication.sources.hasSource(provider.source.id)).toBe(true);
+  });
+
   it('removes active source publication and cached data through the same lifecycle', async () => {
     const provider = ExternalModProvider.create({
       metadata: { id: 'remove-fixture', version: '1.0.0' },
@@ -125,7 +156,7 @@ describe('ExternalModContentLifecycle', () => {
 
     await service.remove(provider.source.id);
     expect(publication.remove).toHaveBeenCalledWith(provider.source.id);
-    expect(publication.sources.providerForSource(provider.source.id)).toBeUndefined();
+    expect(publication.sources.hasSource(provider.source.id)).toBe(false);
     expect(deleteExternalMod).toHaveBeenCalledWith(provider.source.id, expect.any(AbortSignal));
   });
 });
