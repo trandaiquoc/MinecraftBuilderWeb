@@ -1,4 +1,10 @@
 import type { VoxelCoordinate } from '../../domain/project.types';
+import type { VoxelBox } from '../../editor/selection/selection';
+
+export interface SelectionWorldBounds {
+  readonly min: VoxelCoordinate;
+  readonly max: VoxelCoordinate;
+}
 
 export function selectionBounds(
   positions: readonly VoxelCoordinate[],
@@ -21,4 +27,21 @@ export function selectionBounds(
     maxZ = Math.max(maxZ, position.z);
   }
   return { min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } };
+}
+
+/** Converts inclusive voxel bounds to the half-open world AABB used by camera framing. */
+export function selectionBoxWorldBounds(box: VoxelBox): SelectionWorldBounds {
+  return {
+    min: { ...box.min },
+    max: { x: box.max.x + 1, y: box.max.y + 1, z: box.max.z + 1 },
+  };
+}
+
+/** Frames selected voxels when present, while keeping empty gesture boxes focusable. */
+export function selectionFocusBounds(
+  selected: VoxelBox | undefined,
+  gesture: VoxelBox | undefined,
+): SelectionWorldBounds | undefined {
+  const bounds = selected ?? gesture;
+  return bounds ? selectionBoxWorldBounds(bounds) : undefined;
 }

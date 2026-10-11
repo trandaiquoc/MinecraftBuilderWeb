@@ -27,6 +27,7 @@ import { ViewportRuntimeTrace } from '../diagnostics/viewport-runtime-trace';
 import { ViewportCameraMotionController } from '../scheduling/viewport-camera-motion-controller';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import type { YLayerPresentationReadiness } from './y-layer-presentation-owner';
+import { deriveViewportFinalizationState } from '../../editor/state/viewport-finalization-coordinator';
 
 describe('camera movement input contract', () => {
   it('finalization accepts physical representation ownership, not stale store metadata', () => {
@@ -4586,6 +4587,129 @@ describe('selection visualization scalability', () => {
     expect(engine.rendererCounters().hydrationGenerations).toBe(generationsAfterSettle);
     expect(engine.runtimeTraceMetadata()['visibleLogicalBlocks']).toBe(project.blocks.length);
     engine.dispose();
+  });
+
+  it('does not commit a cancelled initial Y-layer projection while the viewport is inactive', async () => {
+    const engine = new ThreeViewportEngine();
+    const project = { ...rendererBenchmarkProject('large'), decorations: [] };
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) {
+      let layer = byY.get(block.position.y);
+      if (!layer) byY.set(block.position.y, (layer = []));
+      layer.push(block);
+    }
+    const layerIndex = {
+      blocksAtY: (y: number) => byY.get(y) ?? [],
+      occupiedLayers: () => [...byY.keys()],
+      allBlocks: () => project.blocks,
+    };
+    const options = { layerY: 0, visibility: 'whole-structure' as const, layerIndex };
+    const projection = (
+      engine as unknown as {
+        yLayerProjection: {
+          committedOptionsFor: (project: ProjectDocument) => ViewportRenderOptions | undefined;
+          visibleEntries: readonly { readonly block: PlacedBlock }[];
+        };
+      }
+    ).yLayerProjection;
+
+    engine.setLayerIndex(layerIndex);
+    engine.update(project, undefined, options);
+    expect(projection.committedOptionsFor(project)?.visibility).toBe('current-only');
+    engine.suspend();
+
+    engine.update(project, undefined, {
+      ...options,
+      visibility: 'current-only',
+    });
+    expect(projection.committedOptionsFor(project)?.visibility).toBe('current-only');
+
+    engine.update(project, undefined, options);
+
+    expect(projection.committedOptionsFor(project)?.visibility).toBe('current-only');
+    expect(projection.visibleEntries.every((entry) => entry.block.position.y === 0)).toBe(true);
+
+    engine.resume();
+    await waitForProjectionIdle(engine);
+
+    expect(projection.committedOptionsFor(project)?.visibility).toBe('whole-structure');
+    expect(projection.visibleEntries).toHaveLength(project.blocks.length);
+    expect(engine.rendererCounters().fullSceneRebuilds).toBe(1);
+    expect(engine.finalizationAuditProgress().finalization?.expectedBlocks).toBe(
+      project.blocks.length,
+    );
+    engine.dispose();
+  });
+
+  it('restores pending Y-layer work after 3D finishes and returns without a false warning', async () => {
+    const project = { ...rendererBenchmarkProject('large'), decorations: [] };
+    const byY = new Map<number, PlacedBlock[]>();
+    for (const block of project.blocks) {
+      let layer = byY.get(block.position.y);
+      if (!layer) byY.set(block.position.y, (layer = []));
+      layer.push(block);
+    }
+    const layerIndex = {
+      blocksAtY: (y: number) => byY.get(y) ?? [],
+      occupiedLayers: () => [...byY.keys()],
+      allBlocks: () => project.blocks,
+    };
+    const yOptions = { layerY: 0, visibility: 'whole-structure' as const, layerIndex };
+    const yEngine = new ThreeViewportEngine();
+    yEngine.setLayerIndex(layerIndex);
+    yEngine.update(project, undefined, yOptions);
+    expect(yEngine.projectionActivity().activity).toBe('applying');
+    yEngine.suspend();
+    expect(yEngine.projectionActivity().activity).toBe('idle');
+
+    const threeDEngine = new ThreeViewportEngine();
+    threeDEngine.setVisualProvider(rendererBenchmarkVisualProvider());
+    threeDEngine.update(project, undefined, {});
+    await settleHydration(2_000, threeDEngine);
+    expect(threeDEngine.hydrationProgress().status).toBe('complete');
+    expect(threeDEngine.performanceEvidence().renderedBlocks).toBe(project.blocks.length);
+    threeDEngine.suspend();
+
+    yEngine.setVisualProvider(rendererBenchmarkVisualProvider());
+    yEngine.resume();
+    yEngine.update(project, undefined, yOptions);
+    await waitForProjectionIdle(yEngine);
+    await settleHydration(2_000, yEngine);
+
+    const yProjection = (
+      yEngine as unknown as {
+        yLayerProjection: {
+          committedOptionsFor: (project: ProjectDocument) => ViewportRenderOptions | undefined;
+          visibleEntries: readonly { readonly block: PlacedBlock }[];
+        };
+      }
+    ).yLayerProjection;
+    expect(yProjection.committedOptionsFor(project)?.visibility).toBe('whole-structure');
+    expect(yProjection.visibleEntries).toHaveLength(project.blocks.length);
+    expect(yEngine.hydrationProgress().status).toBe('complete');
+    expect(yEngine.performanceEvidence().renderedBlocks).toBe(project.blocks.length);
+    const yProgress = yEngine.finalizationAuditProgress();
+    expect(yProgress.finalization).toMatchObject({
+      expectedBlocks: project.blocks.length,
+      pendingBlocks: 0,
+    });
+    expect(
+      deriveViewportFinalizationState({
+        progress: yProgress,
+        sourceRestoreTerminal: true,
+        sourceRestorePending: false,
+        work: yProgress.work,
+        renderingFailureCount: yProgress.renderingFailureCount,
+      }),
+    ).toMatchObject({ ready: true, warning: false, loading: false });
+
+    const threeDGeneration = threeDEngine.rendererCounters().hydrationGenerations;
+    yEngine.suspend();
+    threeDEngine.resume();
+    expect(threeDEngine.performanceEvidence().renderedBlocks).toBe(project.blocks.length);
+    expect(threeDEngine.rendererCounters().hydrationGenerations).toBe(threeDGeneration);
+    yEngine.dispose();
+    threeDEngine.dispose();
   });
 
   it('does not start all-layer prewarm from an eager provider handoff while the active view is building', () => {

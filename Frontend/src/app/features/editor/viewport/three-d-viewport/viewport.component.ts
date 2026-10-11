@@ -47,6 +47,7 @@ import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
 import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/terrain-atlas-browser-runner';
 import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
+import { selectionFocusBounds } from '../../../../core/renderer/presentation/selection-bounds';
 import {
   ViewportStatusService,
   hoverCoordinateForHit,
@@ -329,25 +330,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       this.engine.focusBounds(bounds);
       return;
     }
-    const box = this.selection.box();
-    if (box) {
-      this.engine.focusBounds({
-        min: box.min,
-        max: { x: box.max.x + 1, y: box.max.y + 1, z: box.max.z + 1 },
-      });
-      return;
-    }
+    const project = this.workspace.project();
     this.engine.focusBounds(
-      this.selection.bounds(this.workspace.project())
-        ? {
-            min: this.selection.bounds(this.workspace.project())!.min,
-            max: {
-              x: this.selection.bounds(this.workspace.project())!.max.x + 1,
-              y: this.selection.bounds(this.workspace.project())!.max.y + 1,
-              z: this.selection.bounds(this.workspace.project())!.max.z + 1,
-            },
-          }
-        : undefined,
+      selectionFocusBounds(this.selection.bounds(project), this.selection.box()),
     );
   }
   resetCamera(): void {
@@ -497,12 +482,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
         ? this.engine.projectPointerToFreeSpace(event, project, freeSpaceDragStart.plane)
         : undefined;
       if (project && projected) {
-        const box = freeSpaceSelectionBox(
-          freeSpaceDragStart.point,
-          projected.point,
-          freeSpaceDragStart.plane,
-          project.size,
-        );
+        const box = freeSpaceSelectionBox(freeSpaceDragStart.point, projected.point, project.size);
         if (box) {
           const isVisible = createBlockVisibilityPredicate(project, {
             isolatedGroupId: this.groups.isolatedGroupId(),

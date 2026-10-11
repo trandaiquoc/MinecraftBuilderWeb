@@ -80,6 +80,47 @@ describe('ViewportStructureUpdatePlanner', () => {
     expect(plan.bootstrapInitialYProjection).toBe(false);
   });
 
+  it('keeps Y presentation changes local when the requested state already matches committed state', () => {
+    const current = project();
+    const { planner, syncState } = createPlanner(false);
+    syncState.commit(
+      current,
+      syncState.keyFor(current, renderFilterKey({ layerY: 0, visibility: 'current-only' })),
+    );
+
+    const plan = planner.plan(
+      input(current, current, {
+        previousOptions: { layerY: 0, visibility: 'whole-structure' },
+        options: { layerY: 0, visibility: 'current-only' },
+        suspended: true,
+      }),
+    );
+
+    expect(plan.projectionDelta.changedLayers).toEqual([]);
+    expect(plan.layerProjectionOnly).toBe(true);
+    expect(plan.full).toBe(false);
+  });
+
+  it('does not classify a Y projection as presentation-only after structure sync invalidation', () => {
+    const current = project();
+    const { planner, syncState } = createPlanner(true);
+    syncState.commit(
+      current,
+      syncState.keyFor(current, renderFilterKey({ layerY: 0, visibility: 'current-only' })),
+    );
+    syncState.invalidateKey();
+
+    const plan = planner.plan(
+      input(current, current, {
+        previousOptions: { layerY: 0, visibility: 'current-only' },
+        options: { layerY: 0, visibility: 'whole-structure' },
+      }),
+    );
+
+    expect(plan.layerProjectionOnly).toBe(false);
+    expect(plan.full).toBe(true);
+  });
+
   it('classifies hinted immutable project changes as incremental only when both canonical indexes match', () => {
     const previous = project();
     const next = { ...previous, blocks: [...previous.blocks] };

@@ -1640,8 +1640,10 @@ export class ThreeViewportEngine {
     const deferred = this.providerRefreshOwner.takeDeferred();
     if (deferred && this.project && this.visualProvider === deferred.next)
       this.providerRefreshOwner.refresh(deferred.previous, deferred.next);
-    if (!needsRefresh && !deferred)
+    if (!needsRefresh && !deferred) {
       this.activatePreparedYLayerPresentation(this.project, this.providerGeneration);
+      this.resumePendingYLayerProjection();
+    }
     this.resize();
     if (this.queuedBlockHydrationJobs() || this.queuedDecorationHydrationJobs())
       this.hydrationLifecycle.schedule();
@@ -1701,6 +1703,34 @@ export class ThreeViewportEngine {
       instanceMembers: this.instanceOwnershipIndex.size,
       activation: 'prewarm-complete',
     });
+  }
+
+  private resumePendingYLayerProjection(): void {
+    const project = this.project;
+    const options = this.renderOptions;
+    const committed = this.yLayerProjection.committedOptionsFor(project);
+    if (
+      !project ||
+      !committed ||
+      options.layerY === undefined ||
+      options.visibility === undefined ||
+      this.yLayerProjection.hasDirectPresentation ||
+      this.yLayerProjection.isProjectionTargetInFlight(project, options)
+    )
+      return;
+
+    const delta = this.yLayerProjection.plan(project, committed, options, this.layerIndex);
+    if (delta.changedLayers.length) {
+      this.yLayerProjection.request(project, options, options.layerIndex ?? this.layerIndex);
+      return;
+    }
+
+    this.yLayerProjection.setCommitted(project, options);
+    this.yLayerProjection.associateVisibleProjection(project, options);
+    this.structureSyncState.commit(
+      project,
+      this.structureSyncState.keyFor(project, renderFilterKey(options)),
+    );
   }
 
   /**
@@ -2273,11 +2303,13 @@ export class ThreeViewportEngine {
         : 'empty';
       const needsRefresh = this.structureSyncState.requiresSuspendedRefresh(
         project,
-        renderFilterKey(previousOptions) !== renderFilterKey(options),
-        nextDecorationKey !== this.decorationSyncKey,
+        renderFilterKey(previousOptions) !== renderFilterKey(options) && !layerProjectionOnly,
+        nextDecorationKey !== this.decorationSyncKey && !layerProjectionOnly,
       );
       this.suspendedNeedsRefresh = this.suspendedNeedsRefresh || needsRefresh;
-      if (!needsRefresh && !this.suspendedNeedsRefresh && project) {
+      const projectionNeedsCommit =
+        projectionDelta.changedLayers.length > 0 && !this.yLayerProjection.hasDirectPresentation;
+      if (!needsRefresh && !this.suspendedNeedsRefresh && project && !projectionNeedsCommit) {
         this.structureSyncState.commit(project, nextSyncKey);
         this.yLayerProjection.setCommitted(project, options);
         this.yLayerProjection.associateVisibleProjection(project, options);

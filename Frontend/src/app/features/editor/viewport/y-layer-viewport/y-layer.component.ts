@@ -46,6 +46,7 @@ import {
 } from '../../../../core/editor/viewport/viewport-status.service';
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import { selectionFocusBounds } from '../../../../core/renderer/presentation/selection-bounds';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { createBlockVisibilityPredicate } from '../../../../core/editor/viewport/visible-blocks';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
@@ -315,22 +316,9 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       this.engine.focusBounds(bounds);
       return;
     }
-    const box = this.selection.box();
-    if (box) {
-      this.engine.focusBounds({
-        min: box.min,
-        max: { x: box.max.x + 1, y: box.max.y + 1, z: box.max.z + 1 },
-      });
-      return;
-    }
-    const bounds = this.selection.bounds(this.workspace.project());
+    const project = this.workspace.project();
     this.engine.focusBounds(
-      bounds
-        ? {
-            min: bounds.min,
-            max: { x: bounds.max.x + 1, y: bounds.max.y + 1, z: bounds.max.z + 1 },
-          }
-        : undefined,
+      selectionFocusBounds(this.selection.bounds(project), this.selection.box()),
     );
   }
   resetCamera(): void {

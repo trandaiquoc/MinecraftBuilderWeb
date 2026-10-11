@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import {
   clampVoxelBox,
   exposedSurfaceSelectionSeeds,
@@ -17,6 +18,8 @@ import type { BlockDefinition } from '../../blocks/catalog/block-definition.type
 import { createBlockVisibilityPredicate } from '../viewport/visible-blocks';
 import { HistoryService } from '../history/history.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
+import { SelectionOverlayPresenter } from '../../renderer/presentation/selection-overlay-presenter';
+import { viewportThemePalette } from '../../renderer/engine/viewport-theme';
 
 describe('voxel box selection', () => {
   it('normalizes inclusive integer corners and counts its size', () => {
@@ -45,20 +48,63 @@ describe('voxel box selection', () => {
     expect(voxelOnFaceLockedPlane({ x: 2, y: 6.8, z: 7.1 }, side!)).toEqual({ x: 2, y: 6, z: 7 });
   });
 
-  it('maps empty-space drags to a camera-aligned depth-extruded box', () => {
+  it('keeps empty-space drags finite instead of extruding them through the project', () => {
     const plane = freeSpaceSelectionPlane({ x: 10, y: 6, z: 8 }, { x: 0.9, y: 0.1, z: 0.2 });
     expect(plane).toEqual({
-      axis: 'x',
       point: { x: 5, y: 3, z: 4 },
       normal: { x: 0.9, y: 0.1, z: 0.2 },
     });
     expect(
-      freeSpaceSelectionBox({ x: 8.9, y: 4.8, z: 6.9 }, { x: -2.1, y: 1.2, z: 2.1 }, plane, {
-        x: 10,
-        y: 6,
-        z: 8,
-      }),
-    ).toEqual({ min: { x: 0, y: 1, z: 2 }, max: { x: 9, y: 4, z: 6 } });
+      freeSpaceSelectionBox(
+        { x: 8.9, y: 4.8, z: 6.9 },
+        { x: 7.1, y: 1.2, z: 2.1 },
+        { x: 10, y: 6, z: 8 },
+      ),
+    ).toEqual({ min: { x: 7, y: 1, z: 2 }, max: { x: 8, y: 4, z: 6 } });
+  });
+
+  it('uses the finite projected region for membership, count, bounds, and overlay geometry', () => {
+    const base = rendererBenchmarkProject('small');
+    const blocks = [
+      { ...base.blocks[0], position: { x: 4, y: 3, z: 4 } },
+      { ...base.blocks[0], position: { x: 4, y: 4, z: 4 } },
+      { ...base.blocks[0], position: { x: 4, y: 9, z: 4 } },
+    ];
+    const project = { ...base, size: { x: 10, y: 12, z: 10 }, blocks };
+    const box = freeSpaceSelectionBox(
+      { x: 4.1, y: 3.1, z: 4.1 },
+      { x: 4.9, y: 4.9, z: 4.9 },
+      project.size,
+    );
+    expect(box).toEqual({ min: { x: 4, y: 3, z: 4 }, max: { x: 4, y: 4, z: 4 } });
+
+    const selection = new SelectionService();
+    selection.selectBoxLogical(box!, project, () => undefined);
+
+    expect(selection.selectedBlocks(project).map((block) => block.position)).toEqual([
+      { x: 4, y: 3, z: 4 },
+      { x: 4, y: 4, z: 4 },
+    ]);
+    expect(selection.count(project)).toBe(2);
+    expect(selection.bounds(project)).toEqual(box);
+    expect(selection.renderState(project)).toMatchObject({ count: 2, bounds: box });
+
+    const renderState = selection.renderState(project);
+    const overlay = new SelectionOverlayPresenter(
+      new THREE.Scene(),
+      viewportThemePalette('dark'),
+      256,
+    );
+    overlay.update({
+      kind: renderState.kind,
+      count: renderState.count,
+      selectedPositions: renderState.positions,
+      aggregateBounds: renderState.bounds,
+      box: selection.box(),
+    });
+    expect(overlay.selectionBox.box.min.toArray()).toEqual([4, 3, 4]);
+    expect(overlay.selectionBox.box.max.toArray()).toEqual([5, 5, 5]);
+    overlay.dispose();
   });
 
   it('selects only exposed visible surface seeds while allowing logical closure', () => {

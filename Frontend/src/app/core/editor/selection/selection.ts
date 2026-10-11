@@ -15,8 +15,6 @@ export interface FaceLockedSelectionPlane {
 }
 
 export interface FreeSpaceSelectionPlane {
-  /** The world axis filled through the structure to provide selection depth. */
-  readonly axis: FaceLockedPlaneAxis;
   /** Camera-facing plane through the viewport's orbit target. */
   readonly point: VoxelCoordinate;
   readonly normal: VoxelCoordinate;
@@ -55,37 +53,26 @@ export function voxelOnFaceLockedPlane(
   return position;
 }
 
-/** Chooses the world axis most aligned with the camera ray for free-space selection. */
+/** Captures the camera-facing plane used to project an empty-space selection gesture. */
 export function freeSpaceSelectionPlane(
   size: ProjectSize,
   cameraDirection: { readonly x: number; readonly y: number; readonly z: number },
   target: VoxelCoordinate = { x: size.x / 2, y: size.y / 2, z: size.z / 2 },
 ): FreeSpaceSelectionPlane {
-  const axis =
-    Math.abs(cameraDirection.x) >= Math.abs(cameraDirection.y) &&
-    Math.abs(cameraDirection.x) >= Math.abs(cameraDirection.z)
-      ? 'x'
-      : Math.abs(cameraDirection.y) >= Math.abs(cameraDirection.z)
-        ? 'y'
-        : 'z';
   return {
-    axis,
     point: { ...target },
     normal: { ...cameraDirection },
   };
 }
 
-/** Maps two projected pointer points to a clamped voxel volume, extruded through project depth. */
+/** Maps projected pointer points to a finite, clamped voxel selection volume. */
 export function freeSpaceSelectionBox(
   start: { readonly x: number; readonly y: number; readonly z: number },
   end: { readonly x: number; readonly y: number; readonly z: number },
-  plane: FreeSpaceSelectionPlane,
   size: ProjectSize,
 ): VoxelBox | undefined {
   const first = { x: Math.floor(start.x), y: Math.floor(start.y), z: Math.floor(start.z) };
   const second = { x: Math.floor(end.x), y: Math.floor(end.y), z: Math.floor(end.z) };
-  first[plane.axis] = 0;
-  second[plane.axis] = size[plane.axis] - 1;
   return clampVoxelBox(normalizeVoxelBox(first, second), size);
 }
 

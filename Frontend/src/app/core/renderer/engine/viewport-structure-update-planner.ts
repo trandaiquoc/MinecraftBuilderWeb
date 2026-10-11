@@ -97,6 +97,9 @@ export class ViewportStructureUpdatePlanner {
     );
     const projectionTargetInFlight =
       !!project && this.projection.isProjectionTargetInFlight(project, options);
+    const layerOptionsChanged =
+      previousOptions.layerY !== options.layerY ||
+      previousOptions.visibility !== options.visibility;
     const projectIdentityOnly =
       presentationInputsUnchanged &&
       project !== previousProject &&
@@ -113,8 +116,9 @@ export class ViewportStructureUpdatePlanner {
       project.size.x === previousProject.size.x &&
       project.size.y === previousProject.size.y &&
       project.size.z === previousProject.size.z &&
+      !!previousSyncKey &&
       !mutationHint &&
-      (projectionDelta.changed || projectionTargetInFlight) &&
+      (projectionDelta.changed || projectionTargetInFlight || layerOptionsChanged) &&
       !!previousOptions.visibility &&
       !!options.visibility &&
       options.layerY !== undefined &&

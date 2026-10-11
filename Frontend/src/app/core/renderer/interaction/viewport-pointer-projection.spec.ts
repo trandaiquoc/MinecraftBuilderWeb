@@ -131,12 +131,12 @@ describe('projectPointerToAxisPlane', () => {
         plane.point,
         plane.normal,
       );
-    const start = project(2, 2);
-    const end = project(98, 98);
+    const start = project(40, 40);
+    const end = project(60, 60);
 
     expect(start).toBeDefined();
     expect(end).toBeDefined();
-    const box = freeSpaceSelectionBox(start!, end!, plane, size);
+    const box = freeSpaceSelectionBox(start!, end!, size);
     expect(box).toBeDefined();
     expect(box!.min.x).toBeGreaterThanOrEqual(0);
     expect(box!.min.y).toBeGreaterThanOrEqual(0);
@@ -144,5 +144,17 @@ describe('projectPointerToAxisPlane', () => {
     expect(box!.max.x).toBeLessThan(size.x);
     expect(box!.max.y).toBeLessThan(size.y);
     expect(box!.max.z).toBeLessThan(size.z);
+    const coordinates = [start!, end!];
+    const expectedMinimum = {
+      x: Math.max(0, Math.min(...coordinates.map(({ x }) => Math.floor(x)))),
+      y: Math.max(0, Math.min(...coordinates.map(({ y }) => Math.floor(y)))),
+      z: Math.max(0, Math.min(...coordinates.map(({ z }) => Math.floor(z)))),
+    };
+    const expectedMaximum = {
+      x: Math.min(size.x - 1, Math.max(...coordinates.map(({ x }) => Math.floor(x)))),
+      y: Math.min(size.y - 1, Math.max(...coordinates.map(({ y }) => Math.floor(y)))),
+      z: Math.min(size.z - 1, Math.max(...coordinates.map(({ z }) => Math.floor(z)))),
+    };
+    expect(box).toEqual({ min: expectedMinimum, max: expectedMaximum });
   });
 });
