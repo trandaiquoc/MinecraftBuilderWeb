@@ -24,13 +24,13 @@
 
 ## Golden cases
 
-| Case | Expected |
-|---|---|
-| `oak_fence` + `oak_fence` | Connect |
-| `oak_fence` + `spruce_fence` | Connect |
-| `oak_fence` + `nether_brick_fence` | **Do not connect** |
-| `oak_fence` + full solid block như Stone | Connect |
-| Xóa neighbor đã connect | Connection tương ứng trở về false |
+| Case                                     | Expected                          |
+| ---------------------------------------- | --------------------------------- |
+| `oak_fence` + `oak_fence`                | Connect                           |
+| `oak_fence` + `spruce_fence`             | Connect                           |
+| `oak_fence` + `nether_brick_fence`       | **Do not connect**                |
+| `oak_fence` + full solid block như Stone | Connect                           |
+| Xóa neighbor đã connect                  | Connection tương ứng trở về false |
 
 ## State liên quan
 
@@ -61,14 +61,14 @@ Representative block: `minecraft:cobblestone_wall`
 
 ## Golden cases
 
-| Case | east | north | south | west | up |
-|---|---|---|---|---|---|
-| Wall đứng riêng | none | none | none | none | **true** |
-| Hai wall nối một hướng | none | low | none | none | **true** |
-| Góc 90° | none | none | low | low | **true** |
-| Chữ T | none | low | low | low | **true** |
-| Dấu `+` | low | low | low | low | **false** |
-| Dấu `+` + Stone ngay phía trên wall trung tâm | tall | tall | tall | tall | **false** |
+| Case                                          | east | north | south | west | up        |
+| --------------------------------------------- | ---- | ----- | ----- | ---- | --------- |
+| Wall đứng riêng                               | none | none  | none  | none | **true**  |
+| Hai wall nối một hướng                        | none | low   | none  | none | **true**  |
+| Góc 90°                                       | none | none  | low   | low  | **true**  |
+| Chữ T                                         | none | low   | low   | low  | **true**  |
+| Dấu `+`                                       | low  | low   | low   | low  | **false** |
+| Dấu `+` + Stone ngay phía trên wall trung tâm | tall | tall  | tall  | tall | **false** |
 
 > Hướng trong bảng phản ánh các case manual đã test; implementation nên test tương đương theo rotation thay vì hard-code orientation cụ thể.
 
@@ -109,13 +109,13 @@ Representative blocks:
 
 ## Golden cases
 
-| Case | Expected |
-|---|---|
-| Glass Pane đứng riêng | `north/east/south/west = false` |
-| Glass Pane + Glass Pane | Connect phía neighbor |
-| Glass Pane + Iron Bars | **Connect** |
-| Glass Pane + Stone | **Connect** |
-| Glass Pane dạng dấu `+` | 4 hướng `true` |
+| Case                    | Expected                        |
+| ----------------------- | ------------------------------- |
+| Glass Pane đứng riêng   | `north/east/south/west = false` |
+| Glass Pane + Glass Pane | Connect phía neighbor           |
+| Glass Pane + Iron Bars  | **Connect**                     |
+| Glass Pane + Stone      | **Connect**                     |
+| Glass Pane dạng dấu `+` | 4 hướng `true`                  |
 
 ## State liên quan
 

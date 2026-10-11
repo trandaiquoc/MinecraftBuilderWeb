@@ -164,22 +164,22 @@ separately and are activated only for their compatible project version.
 
 The following Minecraft 1.21.1 blocks are the initial representative set.
 
-| Category | Block ID |
-|---|---|
-| Cube | `minecraft:stone` |
-| Slab | `minecraft:stone_slab` |
-| Stairs | `minecraft:oak_stairs` |
-| Fence | `minecraft:oak_fence` |
-| Wall | `minecraft:cobblestone_wall` |
-| Pane | `minecraft:glass_pane` |
-| Standing sign | `minecraft:oak_sign` |
-| Wall sign | `minecraft:oak_wall_sign` |
-| Door | `minecraft:oak_door` |
-| Trapdoor | `minecraft:oak_trapdoor` |
-| Torch | `minecraft:torch` |
-| Wall torch | `minecraft:wall_torch` |
-| Plant | `minecraft:dandelion` |
-| Fluid | `minecraft:water` |
+| Category      | Block ID                     |
+| ------------- | ---------------------------- |
+| Cube          | `minecraft:stone`            |
+| Slab          | `minecraft:stone_slab`       |
+| Stairs        | `minecraft:oak_stairs`       |
+| Fence         | `minecraft:oak_fence`        |
+| Wall          | `minecraft:cobblestone_wall` |
+| Pane          | `minecraft:glass_pane`       |
+| Standing sign | `minecraft:oak_sign`         |
+| Wall sign     | `minecraft:oak_wall_sign`    |
+| Door          | `minecraft:oak_door`         |
+| Trapdoor      | `minecraft:oak_trapdoor`     |
+| Torch         | `minecraft:torch`            |
+| Wall torch    | `minecraft:wall_torch`       |
+| Plant         | `minecraft:dandelion`        |
+| Fluid         | `minecraft:water`            |
 
 The local Minecraft 1.21.1 JAR was verified to contain a BlockState JSON entry for every block in this set.
 
@@ -485,6 +485,7 @@ pitch/yaw/roll transform. The Three.js evaluator converts cuboid vertices from
 Minecraft units once, applies the explicit `rotationZYX(roll, yaw, pitch)`
 order, and preserves descriptor hierarchy. Geometry is never bounds-centred or
 otherwise normalised in the world renderer.
+
 # Java 1.21.1 Sign block entities
 
 MinecraftBuilder keeps the four canonical registry forms for each verified
@@ -548,6 +549,7 @@ available, the renderer creates a nearest-filtered static animation-frame view
 without mutating the shared texture cache. Water uses a neutral preview tint
 because biome color data is not part of the project model; water-overlay
 selection and biome sampling remain future work.
+
 ## Decorations resources
 
 The local asset provider retains `data/<namespace>/painting_variant/*.json` and
@@ -695,7 +697,7 @@ mounted:
 3. Open DevTools Console and run:
 
    ```js
-   await window.__minecraftBuilderDiagnostics.runTerrainAtlasProbe()
+   await window.__minecraftBuilderDiagnostics.runTerrainAtlasProbe();
    ```
 
 The default target is `minecraft:stone`; a block id and canonical state object
@@ -731,6 +733,7 @@ form. For example, a face using `"texture": "all"` resolves through the model
 texture map to `minecraft:block/heavy_core`; no fake texture or atlas fallback
 is introduced. The regenerated 26.3 audit has zero `TEXTURE_NOT_FOUND` entries
 and zero palette leaks.
+
 ## Shared item catalog and display hosts
 
 The frontend keeps item evidence separate from the placeable Block catalog. Active content sources expose `BlockCatalogSource.targetItems`; the shared `ItemCatalog` aggregates those entries with source identity and language labels for Item Frame and future item-host inspectors.

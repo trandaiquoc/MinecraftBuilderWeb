@@ -1,0 +1,10 @@
+# Generated outputs and local caches are not project source.
+/.angular/
+/.artifacts/
+/.cache/
+/.codex/
+/coverage/
+/dist/
+/node_modules/
+/public/assets/vanilla-block-registry-1.21.1.json
+/public/assets/vanilla-item-registry-1.21.1.json
