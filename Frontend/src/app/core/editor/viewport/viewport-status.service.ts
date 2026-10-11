@@ -18,9 +18,12 @@ export function hoverCoordinateForHit(hit: ViewportHitCoordinate): VoxelCoordina
 
 @Injectable({ providedIn: 'root' })
 export class ViewportStatusService {
-  readonly target = signal<VoxelCoordinate | undefined>(undefined);
-  readonly validation = signal<PlacementStatus>('invalid');
-  readonly projectId = signal<string | undefined>(undefined);
+  private readonly targetState = signal<VoxelCoordinate | undefined>(undefined);
+  private readonly validationState = signal<PlacementStatus>('invalid');
+  private readonly projectIdState = signal<string | undefined>(undefined);
+  readonly target = this.targetState.asReadonly();
+  readonly validation = this.validationState.asReadonly();
+  readonly projectId = this.projectIdState.asReadonly();
 
   private nextOwner = 1;
   private readonly owners = new Set<number>();
@@ -37,7 +40,7 @@ export class ViewportStatusService {
     if (this.activeOwner === owner.id && this.projectId() === projectId) return;
     this.activeOwner = owner.id;
     this.clearState();
-    this.projectId.set(projectId);
+    this.projectIdState.set(projectId);
   }
 
   /** Deactivates a retained viewport without releasing its ownership token. */
@@ -45,7 +48,7 @@ export class ViewportStatusService {
     if (this.activeOwner !== owner.id) return;
     this.activeOwner = undefined;
     this.clearState();
-    this.projectId.set(undefined);
+    this.projectIdState.set(undefined);
   }
 
   publish(
@@ -61,8 +64,8 @@ export class ViewportStatusService {
     }
     const current = this.target();
     if (sameCoordinate(current, target) && this.validation() === validation) return;
-    this.target.set(target ? { ...target } : undefined);
-    this.validation.set(validation);
+    this.targetState.set(target ? { ...target } : undefined);
+    this.validationState.set(validation);
   }
 
   clear(owner: ViewportStatusOwner): void {
@@ -76,12 +79,12 @@ export class ViewportStatusService {
     if (this.activeOwner !== owner.id) return;
     this.activeOwner = undefined;
     this.clearState();
-    this.projectId.set(undefined);
+    this.projectIdState.set(undefined);
   }
 
   private clearState(): void {
-    this.target.set(undefined);
-    this.validation.set('invalid');
+    this.targetState.set(undefined);
+    this.validationState.set('invalid');
   }
 }
 

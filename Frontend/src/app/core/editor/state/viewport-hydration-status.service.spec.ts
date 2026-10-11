@@ -23,6 +23,15 @@ function progress(overrides: Partial<ViewportHydrationProgress> = {}): ViewportH
 }
 
 describe('ViewportHydrationStatusService', () => {
+  it('exposes hydration status and finalization as read-only state', () => {
+    const service = new ViewportHydrationStatusService();
+
+    expect(service.status).not.toHaveProperty('set');
+    expect(service.status).not.toHaveProperty('update');
+    expect(service.finalization).not.toHaveProperty('set');
+    expect(service.finalization).not.toHaveProperty('update');
+  });
+
   it('publishes meaningful progress with the requested activity and real counts', () => {
     const service = new ViewportHydrationStatusService();
     const owner = service.claim();

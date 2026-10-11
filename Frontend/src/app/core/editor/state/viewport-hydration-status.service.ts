@@ -19,8 +19,10 @@ export const VIEWPORT_HYDRATION_STATUS_DELAY_MS = 180;
 /** Coordinates coarse hydration status without coupling the status bar to a renderer instance. */
 @Injectable({ providedIn: 'root' })
 export class ViewportHydrationStatusService {
-  readonly status = signal<ViewportHydrationStatusSnapshot | undefined>(undefined);
-  readonly finalization = signal<ViewportFinalizationState | undefined>(undefined);
+  private readonly statusState = signal<ViewportHydrationStatusSnapshot | undefined>(undefined);
+  private readonly finalizationState = signal<ViewportFinalizationState | undefined>(undefined);
+  readonly status = this.statusState.asReadonly();
+  readonly finalization = this.finalizationState.asReadonly();
 
   private nextOwner = 1;
   private activeOwner?: number;
@@ -36,7 +38,7 @@ export class ViewportHydrationStatusService {
   private sourceRestoreFailed = false;
 
   constructor() {
-    this.finalizationCoordinator.onState((state) => this.finalization.set(state));
+    this.finalizationCoordinator.onState((state) => this.finalizationState.set(state));
   }
 
   claim(): number {
@@ -49,7 +51,7 @@ export class ViewportHydrationStatusService {
     this.activeOwner = owner;
     this.clearVisibleState();
     this.finalizationCoordinator.reset();
-    this.finalization.set(undefined);
+    this.finalizationState.set(undefined);
     this.lastProgress = undefined;
     this.sourceRestoreTerminal = true;
     this.sourceRestorePending = false;
@@ -122,14 +124,14 @@ export class ViewportHydrationStatusService {
       (progress.finalization && this.finalization()?.loading && progress.lane === 'content')
     ) {
       this.cancelShowTimer();
-      this.status.set(snapshot);
+      this.statusState.set(snapshot);
       return;
     }
     if (this.status() || this.showTimer !== undefined) return;
     this.showTimer = setTimeout(() => {
       this.showTimer = undefined;
       if (this.activeOwner === owner && this.pending?.progress.generation === progress.generation)
-        this.status.set(this.pending);
+        this.statusState.set(this.pending);
     }, VIEWPORT_HYDRATION_STATUS_DELAY_MS);
   }
 
@@ -138,7 +140,7 @@ export class ViewportHydrationStatusService {
     this.activeOwner = undefined;
     this.clearVisibleState();
     this.finalizationCoordinator.reset();
-    this.finalization.set(undefined);
+    this.finalizationState.set(undefined);
   }
 
   private clearVisibleState(): void {
@@ -146,7 +148,7 @@ export class ViewportHydrationStatusService {
     this.pending = undefined;
     this.generation = undefined;
     this.generationActivity = 'build';
-    this.status.set(undefined);
+    this.statusState.set(undefined);
   }
 
   private refreshFinalization(): void {
@@ -163,7 +165,7 @@ export class ViewportHydrationStatusService {
       work: this.lastProgress?.work,
       renderingFailureCount: this.lastProgress?.renderingFailureCount,
     });
-    this.finalization.set(state);
+    this.finalizationState.set(state);
   }
 
   private cancelShowTimer(): void {

@@ -13,6 +13,7 @@ import { DecorationService } from '../../../../core/decorations/decoration.servi
 import { ProjectAutosaveService } from '../../../../core/persistence/autosave/project-autosave.service';
 import { EditorStatusBarComponent } from './editor-status-bar.component';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
+import type { ViewportFinalizationState } from '../../../../core/editor/state/viewport-finalization-coordinator';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import type { ProjectDocument } from '../../../../core/domain/project.types';
 import { MissingBlockReconciliationService } from '../../../../core/editor/structure/missing-block-reconciliation.service';
@@ -222,10 +223,24 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
 
   it('shows terminal ownership warnings without a progressbar or false ready label', async () => {
     const assets = createAssetRuntimeStub();
+    const finalization: ViewportFinalizationState = {
+      phase: 'warning',
+      loading: false,
+      ready: false,
+      warning: true,
+      indeterminate: true,
+      issue: 'incomplete-ownership',
+    };
+    const hydration = {
+      status: signal(undefined),
+      finalization: signal<ViewportFinalizationState | undefined>(finalization),
+      settleIfTerminal: () => undefined,
+    };
     await TestBed.configureTestingModule({
       imports: [EditorStatusBarComponent],
       providers: [
         { provide: ContentAssetRuntimeService, useValue: assets },
+        { provide: ViewportHydrationStatusService, useValue: hydration },
         {
           provide: ProjectAutosaveService,
           useValue: { status: signal('saved'), error: signal(undefined) },
@@ -233,17 +248,8 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
-    const hydration = TestBed.inject(ViewportHydrationStatusService);
     assets.status.set('ready');
     assets.contentRestore.set({ phase: 'ready', current: 1, total: 1, failed: 0 });
-    hydration.finalization.set({
-      phase: 'warning',
-      loading: false,
-      ready: false,
-      warning: true,
-      indeterminate: true,
-      issue: 'incomplete-ownership',
-    });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.asset-status')?.textContent).toContain(
       'Some blocks could not be rendered',

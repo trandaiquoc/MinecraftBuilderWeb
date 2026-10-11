@@ -43,13 +43,20 @@ export class ProjectAutosaveService implements OnDestroy {
   );
   private readonly document = inject(DOCUMENT);
   private observed?: ProjectDocument;
-  readonly status = signal<EditorSaveStatus>('saved');
-  readonly error = signal<string | undefined>(undefined);
-  readonly dirty = signal(false);
-  readonly currentRevision = signal(0);
-  readonly savedRevision = signal(0);
-  readonly unsafeDirty = signal(false);
-  readonly cleanupWarning = signal<string | undefined>(undefined);
+  private readonly statusState = signal<EditorSaveStatus>('saved');
+  private readonly errorState = signal<string | undefined>(undefined);
+  private readonly dirtyState = signal(false);
+  private readonly currentRevisionState = signal(0);
+  private readonly savedRevisionState = signal(0);
+  private readonly unsafeDirtyState = signal(false);
+  private readonly cleanupWarningState = signal<string | undefined>(undefined);
+  readonly status = this.statusState.asReadonly();
+  readonly error = this.errorState.asReadonly();
+  readonly dirty = this.dirtyState.asReadonly();
+  readonly currentRevision = this.currentRevisionState.asReadonly();
+  readonly savedRevision = this.savedRevisionState.asReadonly();
+  readonly unsafeDirty = this.unsafeDirtyState.asReadonly();
+  readonly cleanupWarning = this.cleanupWarningState.asReadonly();
   private readonly beforeUnload = (event: BeforeUnloadEvent): void =>
     applyBeforeUnloadGuard(event, this.unsafeDirty());
   private beforeUnloadAttached = false;
@@ -64,16 +71,16 @@ export class ProjectAutosaveService implements OnDestroy {
     }
     if (!previous || previous.id !== project.id) {
       this.persistence.resetTracking();
-      this.status.set('saved');
-      this.error.set(undefined);
-      this.cleanupWarning.set(undefined);
+      this.statusState.set('saved');
+      this.errorState.set(undefined);
+      this.cleanupWarningState.set(undefined);
       this.syncRevisionState();
       return;
     }
     if (previous === project) return;
-    this.dirty.set(true);
-    this.status.set('pending');
-    this.error.set(undefined);
+    this.dirtyState.set(true);
+    this.statusState.set('pending');
+    this.errorState.set(undefined);
     if (
       isEditorSettingsOnlyChange(previous, project) &&
       !this.mutationHints.matchesTransition(previous, project)
@@ -95,20 +102,22 @@ export class ProjectAutosaveService implements OnDestroy {
   }
 
   private receiveStatus(status: ProjectSaveStatus, error?: unknown): void {
-    this.status.set(status);
+    this.statusState.set(status);
     if (status === 'saved') {
-      this.dirty.set(false);
-      this.error.set(undefined);
-      this.cleanupWarning.set(undefined);
+      this.dirtyState.set(false);
+      this.errorState.set(undefined);
+      this.cleanupWarningState.set(undefined);
     } else if (status === 'error') {
-      this.dirty.set(true);
-      this.error.set(error instanceof Error ? error.message : 'Unable to save project');
+      this.dirtyState.set(true);
+      this.errorState.set(error instanceof Error ? error.message : 'Unable to save project');
     }
     this.syncRevisionState();
   }
 
   private receiveCleanupError(error: unknown): void {
-    this.cleanupWarning.set(error instanceof Error ? error.message : 'Recovery cleanup failed');
+    this.cleanupWarningState.set(
+      error instanceof Error ? error.message : 'Recovery cleanup failed',
+    );
     this.syncRevisionState();
   }
 
@@ -116,10 +125,10 @@ export class ProjectAutosaveService implements OnDestroy {
     const current = this.persistence.currentRevision;
     const saved = this.persistence.savedRevision;
     const unsafe = this.persistence.unsafeDirty;
-    this.currentRevision.set(current);
-    this.savedRevision.set(saved);
-    this.unsafeDirty.set(unsafe);
-    this.dirty.set(unsafe);
+    this.currentRevisionState.set(current);
+    this.savedRevisionState.set(saved);
+    this.unsafeDirtyState.set(unsafe);
+    this.dirtyState.set(unsafe);
     if (unsafe && !this.beforeUnloadAttached) {
       this.document.defaultView?.addEventListener('beforeunload', this.beforeUnload);
       this.beforeUnloadAttached = true;

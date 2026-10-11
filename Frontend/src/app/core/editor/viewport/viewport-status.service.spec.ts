@@ -5,6 +5,15 @@ const a = { x: 1, y: 2, z: 3 };
 const b = { x: 4, y: 5, z: 6 };
 
 describe('ViewportStatusService', () => {
+  it('exposes viewport feedback as read-only state', () => {
+    const service = new ViewportStatusService();
+
+    for (const state of [service.target, service.validation, service.projectId]) {
+      expect(state).not.toHaveProperty('set');
+      expect(state).not.toHaveProperty('update');
+    }
+  });
+
   it('prefers the actual hit block over an adjacent placement target', () => {
     expect(hoverCoordinateForHit({ block: a, target: b })).toEqual(a);
     expect(hoverCoordinateForHit({ target: b })).toEqual(b);

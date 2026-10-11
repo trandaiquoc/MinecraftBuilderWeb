@@ -11,6 +11,13 @@ describe('UiPreferencesService', () => {
     localStorage.removeItem(legacyKey);
   });
 
+  it('exposes persisted preferences as read-only state', () => {
+    const preferences = new UiPreferencesService();
+
+    expect(preferences.preferences).not.toHaveProperty('set');
+    expect(preferences.preferences).not.toHaveProperty('update');
+  });
+
   it('uses safe defaults and persists updates', () => {
     const preferences = new UiPreferencesService();
     expect(preferences.preferences().locale).toBe('en');

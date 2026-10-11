@@ -112,7 +112,8 @@ const defaults: UiPreferences = {
 
 @Injectable({ providedIn: 'root' })
 export class UiPreferencesService {
-  readonly preferences = signal<UiPreferences>(this.read());
+  private readonly preferencesState = signal<UiPreferences>(this.read());
+  readonly preferences = this.preferencesState.asReadonly();
   private readonly accessibilityPreview = signal<
     Partial<UiPreferences['accessibility']> | undefined
   >(undefined);
@@ -219,7 +220,7 @@ export class UiPreferencesService {
   }
 
   private commit(value: UiPreferences): void {
-    this.preferences.set(value);
+    this.preferencesState.set(value);
     try {
       localStorage.setItem(KEY, JSON.stringify(value));
     } catch {
