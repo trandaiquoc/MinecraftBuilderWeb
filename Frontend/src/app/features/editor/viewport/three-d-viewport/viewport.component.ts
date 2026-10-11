@@ -51,6 +51,7 @@ import { decorationAabb } from '../../../../core/decorations/placement/decoratio
 import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-binding.service';
 import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
+import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { runTerrainAtlasProbe } from '../../../../core/renderer/terrain/atlas/terrain-atlas-browser-runner';
 import { ViewportRuntimeTrace } from '../../../../core/renderer/diagnostics/viewport-runtime-trace';
 import { selectionFocusBounds } from '../../../../core/renderer/presentation/selection-bounds';
@@ -84,6 +85,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly selectionMarquee = viewChild<ElementRef<HTMLDivElement>>('selectionMarquee');
   private readonly workspace = inject(WorkspaceStateService);
+  private readonly blockRuntimeIndex = inject(ProjectBlockRuntimeIndex);
   private readonly active = inject(ActiveBlockService);
   private readonly library = inject(BlockLibraryService);
   private readonly preferences = inject(UiPreferencesService);
@@ -106,7 +108,9 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   >(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
-  private readonly engine = new ThreeViewportEngine();
+  private readonly engine = new ThreeViewportEngine(undefined, {
+    blockLookup: this.blockRuntimeIndex,
+  });
   private readonly session = new ViewportSessionOwner(
     this.engine,
     () => this.viewportActive(),

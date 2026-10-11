@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ViewportBlockIndexOwner } from './viewport-block-index-owner';
 import type { ProjectDocument } from '../../domain/project.types';
+import { ProjectBlockRuntimeIndex } from '../../editor/runtime/project-block-runtime-index';
+import { blockMutationHint } from '../../editor/mutations/project-mutation-hint';
 
 describe('viewport block index owner', () => {
   it('keeps index identity for incremental project transitions', () => {
@@ -44,6 +46,55 @@ describe('viewport block index owner', () => {
     owner.clear();
     expect(owner.hasIndex).toBe(false);
     expect(owner.currentProject).toBeUndefined();
+  });
+
+  it('shares the canonical runtime lookup across viewport owners and mutations', () => {
+    const metrics = vi.fn();
+    const runtimeIndex = new ProjectBlockRuntimeIndex();
+    const firstViewport = new ViewportBlockIndexOwner(metrics, runtimeIndex);
+    const secondViewport = new ViewportBlockIndexOwner(metrics, runtimeIndex);
+    const first = project('shared');
+    firstViewport.ensure(first);
+    secondViewport.ensure(first);
+
+    const before = first.blocks[0];
+    const after = { ...before, id: 'minecraft:dirt' };
+    const next = { ...first, blocks: [after] };
+    expect(
+      runtimeIndex.adoptTransition(
+        first,
+        next,
+        blockMutationHint([{ position: before.position, before, after }]),
+      ),
+    ).toBe(true);
+    firstViewport.ensure(next, false, true);
+    firstViewport.replace(before.position, after);
+    secondViewport.ensure(next, false, true);
+
+    expect(firstViewport.get(after.position)).toBe(after);
+    expect(secondViewport.get(after.position)).toBe(after);
+    expect(firstViewport.specialVisualIdsFor(undefined, [])).toContain('minecraft:dirt');
+    expect(metrics).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes an in-place mutation once for multiple viewport owners', () => {
+    const metrics = vi.fn();
+    const runtimeIndex = new ProjectBlockRuntimeIndex();
+    const firstViewport = new ViewportBlockIndexOwner(metrics, runtimeIndex);
+    const secondViewport = new ViewportBlockIndexOwner(metrics, runtimeIndex);
+    const current = project('in-place');
+    firstViewport.ensure(current);
+    secondViewport.ensure(current);
+
+    const replacement = { ...current.blocks[0], id: 'minecraft:dirt' };
+    (current.blocks as (typeof current.blocks)[number][])[0] = replacement;
+    firstViewport.ensure(current, true);
+    secondViewport.ensure(current, true);
+
+    expect(firstViewport.get(replacement.position)).toBe(replacement);
+    expect(secondViewport.get(replacement.position)).toBe(replacement);
+    expect(runtimeIndex.rebuildCountFor('forced-refresh')).toBe(1);
+    expect(metrics).toHaveBeenCalledTimes(2);
   });
 });
 

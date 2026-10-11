@@ -353,9 +353,7 @@ export function viewportRenderSize(
 
 export class ThreeViewportEngine {
   private readonly scene = new THREE.Scene();
-  private readonly blockIndexOwner = new ViewportBlockIndexOwner((name, delta = 1) =>
-    this.instrumentation.record(name as keyof RendererCounters, delta),
-  );
+  private readonly blockIndexOwner: ViewportBlockIndexOwner;
   private readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
@@ -965,6 +963,10 @@ export class ThreeViewportEngine {
     readonly instrumentation = new RendererDiagnostics(),
     options: ViewportEngineOptions = {},
   ) {
+    this.blockIndexOwner = new ViewportBlockIndexOwner(
+      (name, delta = 1) => this.instrumentation.record(name as keyof RendererCounters, delta),
+      options.blockLookup,
+    );
     this.layeredObjectPresentation = new LayeredObjectPresentationOwner(
       this.blocksGroup,
       applyBlockRenderRole,

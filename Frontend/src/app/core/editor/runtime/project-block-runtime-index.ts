@@ -6,7 +6,7 @@ import type {
   ProjectSize,
   VoxelCoordinate,
 } from '../../domain/project.types';
-import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
+import type { ProjectBlockLookupProvider } from '../../domain/project-block-spatial-index';
 import type { ProjectMutationHint } from '../mutations/project-mutation-hint';
 import { groupIdsOf } from '../groups/group-membership';
 import type { VoxelBox } from '../selection/selection';
@@ -27,7 +27,7 @@ export interface ProjectBlockUsageEntry {
  * invalid hinted transition rebuilds it from that canonical snapshot.
  */
 @Injectable({ providedIn: 'root' })
-export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
+export class ProjectBlockRuntimeIndex implements ProjectBlockLookupProvider {
   private project?: ProjectDocument;
   private blocksReference?: readonly PlacedBlock[];
   private sizeSignature = '';
@@ -45,14 +45,18 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   private generation = 0;
   private indicesComplete = true;
 
-  ensure(project: ProjectDocument): void {
+  ensure(project: ProjectDocument, force = false): boolean {
+    if (force) {
+      this.rebuild(project, 'forced-refresh');
+      return true;
+    }
     if (
       this.project === project &&
       this.blocksReference === project.blocks &&
       this.sizeSignature === sizeOf(project.size) &&
       this.blocksByKey.size === project.blocks.length
     )
-      return;
+      return false;
     if (
       this.project?.id === project.id &&
       this.blocksReference === project.blocks &&
@@ -60,9 +64,10 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
       this.blocksByKey.size === project.blocks.length
     ) {
       this.project = project;
-      return;
+      return false;
     }
     this.rebuild(project, this.project ? 'project-transition' : 'initial');
+    return true;
   }
 
   observeProject(project: ProjectDocument | undefined): void {

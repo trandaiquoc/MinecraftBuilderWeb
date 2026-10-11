@@ -11,7 +11,10 @@ import type { ActiveBlock } from '../../blocks/placement-palette/active-block.se
 import type { ActiveDecoration } from '../../decorations/decoration.service';
 import type { GroupMovePreview } from '../../editor/groups/group-move-planner';
 import type { PlacementPlan } from '../../block-behavior/placement/placement-plan';
-import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
+import type {
+  ProjectBlockLookupProvider,
+  ReadonlyBlockLookup,
+} from '../../domain/project-block-spatial-index';
 import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import type { TerrainAtlasMode } from '../terrain/atlas/terrain-texture-atlas';
 import type {
@@ -60,6 +63,7 @@ export interface ViewportRenderOptions {
 export interface ViewportEngineOptions {
   readonly terrainAtlasMode?: TerrainAtlasMode;
   readonly terrainShouldCommitChunk?: (chunkKey: string, compiled: CompiledTerrainChunk) => boolean;
+  readonly blockLookup?: ProjectBlockLookupProvider;
 }
 /** Result of one preparation attempt; completion is not GPU-presentation readiness. */
 export type ViewportPreparationAttempt = 'completed' | 'accepted' | 'in-progress' | 'rejected';

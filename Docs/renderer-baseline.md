@@ -2,6 +2,12 @@
 
 The viewport keeps persistent block and decoration entries across ordinary `ThreeViewportEngine.update()` calls. Structural changes are reconciled by coordinate/instance identity; selection, group highlights, move previews, ghosts, and camera changes are transient overlays.
 
+The editor's `ProjectBlockRuntimeIndex` owns the canonical coordinate lookup
+used by commands and both retained production viewports. Viewport owners keep
+only viewport-scoped visual revision and special-visual identity state; they
+do not build a second coordinate map. Standalone engine instances without an
+editor lookup use a local spatial index for isolated renderer tests and tools.
+
 ### 3D Empty-Space Marquee Selection
 
 An empty-space drag is retained as a screen-space rectangle in viewport CSS

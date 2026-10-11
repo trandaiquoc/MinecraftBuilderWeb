@@ -1,10 +1,16 @@
 import { coordinateKey } from './coordinates';
-import type { PlacedBlock, VoxelCoordinate } from './project.types';
+import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from './project.types';
 
 /** Runtime-only voxel lookup. ProjectDocument remains the source of truth. */
 export interface ReadonlyBlockLookup {
   get(position: VoxelCoordinate): PlacedBlock | undefined;
   has(position: VoxelCoordinate): boolean;
+}
+
+/** A canonical project lookup that can synchronize itself before viewport reads. */
+export interface ProjectBlockLookupProvider extends ReadonlyBlockLookup {
+  ensure(project: ProjectDocument, force?: boolean): boolean;
+  readonly currentGeneration: number;
 }
 
 export class ProjectBlockSpatialIndex implements ReadonlyBlockLookup {

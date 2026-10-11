@@ -113,7 +113,9 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   >(undefined);
   protected readonly decorationReason = signal('');
   protected readonly target = signal<string>('');
-  private readonly engine = new ThreeViewportEngine();
+  private readonly engine = new ThreeViewportEngine(undefined, {
+    blockLookup: this.layerIndex,
+  });
   private readonly viewportSession = new ViewportSessionOwner(
     this.engine,
     () => this.viewportActive(),
