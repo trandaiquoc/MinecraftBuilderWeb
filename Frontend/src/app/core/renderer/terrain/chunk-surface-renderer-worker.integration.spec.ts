@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { PlacedBlock } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { meshTerrainCore } from './terrain-mesh-core';
@@ -350,6 +350,11 @@ describe('chunk surface renderer worker commit path', () => {
       readonly rebuiltChunks: readonly string[];
       readonly hydrationCandidateKeys?: readonly string[];
     }> = [];
+    const completedCandidateKeys = new Set<string>();
+    let resolveBothCandidates!: () => void;
+    const bothCandidatesCompleted = new Promise<void>((resolve) => {
+      resolveBothCandidates = resolve;
+    });
     const renderer = new ChunkSurfaceRenderer({
       blocksGroup: group,
       workerFactory: () => {
@@ -358,11 +363,14 @@ describe('chunk surface renderer worker commit path', () => {
         return worker;
       },
       workerCount: 2,
-      onAsyncApply: (_records, result) =>
+      onAsyncApply: (_records, result) => {
         applied.push({
           rebuiltChunks: result.rebuiltChunks,
           hydrationCandidateKeys: result.hydrationCandidateKeys,
-        }),
+        });
+        for (const key of result.hydrationCandidateKeys ?? []) completedCandidateKeys.add(key);
+        if (completedCandidateKeys.size >= 2) resolveBothCandidates();
+      },
       record: () => undefined,
     });
     const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -382,15 +390,12 @@ describe('chunk surface renderer worker commit path', () => {
     );
     expect(workers).toHaveLength(2);
     for (const worker of workers) worker.resolve();
-    await vi.waitFor(
-      () =>
-        expect(applied.filter((result) => result.rebuiltChunks.length)).toEqual(
-          expect.arrayContaining([
-            { rebuiltChunks: ['0,0,0'], hydrationCandidateKeys: [key(first)] },
-            { rebuiltChunks: ['1,0,0'], hydrationCandidateKeys: [key(second)] },
-          ]),
-        ),
-      { timeout: 1000 },
+    await bothCandidatesCompleted;
+    expect(applied.filter((result) => result.rebuiltChunks.length)).toEqual(
+      expect.arrayContaining([
+        { rebuiltChunks: ['0,0,0'], hydrationCandidateKeys: [key(first)] },
+        { rebuiltChunks: ['1,0,0'], hydrationCandidateKeys: [key(second)] },
+      ]),
     );
     expect(renderer.evidence().terrainCandidateFanoutTotal).toBe(2);
     renderer.dispose();
