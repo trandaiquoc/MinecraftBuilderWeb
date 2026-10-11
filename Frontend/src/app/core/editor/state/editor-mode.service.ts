@@ -1,18 +1,22 @@
-import { Injectable, Optional, signal } from '@angular/core';
+import { Injectable, Optional, signal, type Signal, type WritableSignal } from '@angular/core';
 import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
 
 export type EditorMode = '3d' | 'y-layer';
 
 @Injectable({ providedIn: 'root' })
 export class EditorModeService {
-  readonly mode;
+  readonly mode: Signal<EditorMode>;
+  private readonly modeState: WritableSignal<EditorMode>;
 
   constructor(@Optional() private readonly preferences?: UiPreferencesService) {
-    this.mode = signal<EditorMode>(this.preferences?.preferences().editorMode ?? readStoredMode());
+    this.modeState = signal<EditorMode>(
+      this.preferences?.preferences().editorMode ?? readStoredMode(),
+    );
+    this.mode = this.modeState.asReadonly();
   }
 
   setMode(mode: EditorMode): void {
-    this.mode.set(mode);
+    this.modeState.set(mode);
     this.preferences?.update({ editorMode: mode });
     if (!this.preferences) {
       try {

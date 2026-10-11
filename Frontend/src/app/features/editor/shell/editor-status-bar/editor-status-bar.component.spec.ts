@@ -373,7 +373,7 @@ describe('EditorStatusBarComponent Y-layer preview', () => {
       },
     };
     workspace.publishProject(current);
-    mode.mode.set('y-layer');
+    mode.setMode('y-layer');
     session.previewCurrentY(current.id, 6);
     fixture.detectChanges();
 

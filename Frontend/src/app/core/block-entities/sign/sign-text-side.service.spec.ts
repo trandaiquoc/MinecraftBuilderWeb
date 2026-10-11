@@ -10,6 +10,14 @@ const wallSign = {
 };
 
 describe('SignTextSideService', () => {
+  it('exposes text side as a read-only view', () => {
+    const sides = new SignTextSideService();
+
+    expect('set' in sides.side).toBe(false);
+    sides.set('back');
+    expect(sides.side()).toBe('back');
+  });
+
   it('maps a clicked physical sign face to its front or back text without changing canonical data', () => {
     const sides = new SignTextSideService();
     sides.setFromHit(wallSign, { x: 0, y: 0, z: -1 });

@@ -37,8 +37,8 @@ describe('editor mode state', () => {
     });
     selection.select({ x: 1, y: 2, z: 3 });
 
-    mode.mode.set('y-layer');
-    mode.mode.set('3d');
+    mode.setMode('y-layer');
+    mode.setMode('3d');
 
     expect(workspace.project()).toBe(project);
     expect(active.active()).toEqual({
@@ -79,11 +79,11 @@ describe('editor mode state', () => {
     const box = { min: { x: 1, y: 1, z: 1 }, max: { x: 2, y: 1, z: 1 } };
     selection.selectBoxLogical(box, project, () => undefined);
 
-    mode.mode.set('y-layer');
+    mode.setMode('y-layer');
     expect(selection.count(project)).toBe(2);
     expect(selection.renderState(project).count).toBe(2);
     expect(selection.box()).toEqual(box);
-    mode.mode.set('3d');
+    mode.setMode('3d');
 
     expect(selection.selectedBlocks(project).map((entry) => entry.position)).toEqual([
       { x: 1, y: 1, z: 1 },
@@ -127,5 +127,13 @@ describe('editor mode state', () => {
     mode.setMode('y-layer');
     expect(new UiPreferencesService().preferences().editorMode).toBe('y-layer');
     localStorage.removeItem('minecraft-builder.ui-preferences');
+  });
+
+  it('exposes mode as a read-only view and changes it only through its owner', () => {
+    const mode = new EditorModeService();
+
+    expect('set' in mode.mode).toBe(false);
+    mode.setMode('y-layer');
+    expect(mode.mode()).toBe('y-layer');
   });
 });

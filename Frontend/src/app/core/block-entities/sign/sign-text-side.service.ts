@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, type Signal } from '@angular/core';
 import { FaceNormal } from '../../editor/placement/placement';
 import { PlacedBlock } from '../../domain/project.types';
 
@@ -7,25 +7,26 @@ export type SignTextSide = 'front' | 'back';
 /** Transient inspector state chosen from the physical sign face hit by a ray. */
 @Injectable({ providedIn: 'root' })
 export class SignTextSideService {
-  readonly side = signal<SignTextSide>('front');
+  private readonly sideState = signal<SignTextSide>('front');
+  readonly side: Signal<SignTextSide> = this.sideState.asReadonly();
 
   set(side: SignTextSide): void {
-    this.side.set(side);
+    this.sideState.set(side);
   }
 
   setFromHit(block: PlacedBlock, normal: FaceNormal | undefined): void {
     if (!normal || normal.y !== 0) {
-      this.side.set('front');
+      this.sideState.set('front');
       return;
     }
     const front = signOutwardNormal(block);
-    this.side.set(
+    this.sideState.set(
       front.x === Math.sign(normal.x) && front.z === Math.sign(normal.z) ? 'front' : 'back',
     );
   }
 
   toggle(): void {
-    this.side.update((side) => (side === 'front' ? 'back' : 'front'));
+    this.sideState.update((side) => (side === 'front' ? 'back' : 'front'));
   }
 }
 
