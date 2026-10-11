@@ -34,21 +34,15 @@ import {
   ViewportRuntimeDiagnostics,
 } from '../../../../core/renderer/engine/three-viewport-engine';
 import type { ViewportPerformanceEvidence } from '../../../../core/renderer/engine/three-viewport-engine';
-import {
-  blockHitWinsOverDecoration,
-  pickAndSelectBlockFromViewportHit,
-} from '../../../../core/editor/viewport/pick-block';
+import { blockHitWinsOverDecoration } from '../../../../core/editor/viewport/pick-block';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
-import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { coordinateKey } from '../../../../core/domain/coordinates';
 import { visibleBlockEntries } from '../../../../core/editor/viewport/visible-blocks';
-import { isSignDefinition, isSignId } from '../../../../core/block-entities/sign/sign-block-entity';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
-import { facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
 import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-binding.service';
 import { MouseAction } from '../../../../core/editor/input/mouse-bindings';
 import { ProjectMutationHintService } from '../../../../core/editor/mutations/project-mutation-hint.service';
@@ -66,6 +60,7 @@ import {
   ViewportPreparationScheduler,
   type ViewportPreparationScope,
 } from '../shared/viewport-preparation-scheduler';
+import { ViewportHitInteractionWorkflow } from '../shared/viewport-hit-interaction-workflow';
 
 declare global {
   interface Window {
@@ -92,8 +87,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   private readonly cameraState = inject(CameraStateService);
   private readonly groups = inject(GroupService);
   protected readonly i18n = inject(I18nService);
-  private readonly signTextSide = inject(SignTextSideService);
   private readonly decorations = inject(DecorationService);
+  private readonly hitInteraction = inject(ViewportHitInteractionWorkflow);
   private readonly input = inject(KeyboardBindingService);
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly viewportStatus = inject(ViewportStatusService);
@@ -417,15 +412,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
         undefined,
         false,
       );
-      if (
-        blockHitWinsOverDecoration(hit) &&
-        pickAndSelectBlockFromViewportHit(
-          hit,
-          (position) => this.editor.pick(position),
-          (picked) => this.selectPickedBlock(picked.block!, picked.faceNormal),
-        )
-      )
-        this.pickConsumed = true;
+      this.pickConsumed = this.hitInteraction.pickBlock(hit, '3d');
       return;
     }
     if (action === 'primary-action' && this.tool.active() === 'select') {
@@ -544,81 +531,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       undefined,
       this.tool.active() === 'place',
     );
-    const activeDecoration = this.decorations.active();
-    const decorationWins = !!hit.decoration && !blockHitWinsOverDecoration(hit);
-    if (
-      hit.decoration &&
-      decorationWins &&
-      (gestureAction !== 'primary-action' || this.tool.active() === 'select')
-    ) {
-      if (gestureAction === 'delete-target') this.decorations.delete(hit.decoration.instanceId);
-      else if (gestureAction === 'pick-block') this.decorations.pick(hit.decoration.instanceId);
-      else if (this.tool.active() === 'select') this.decorations.select(hit.decoration.instanceId);
-      return;
-    }
-    if (
-      activeDecoration &&
-      hit.block &&
-      hit.faceNormal &&
-      this.tool.active() === 'place' &&
-      gestureAction === 'primary-action'
-    ) {
-      const facing = facingFromNormal(hit.faceNormal);
-      if (facing && hit.decorationPlan?.status === 'valid')
-        this.decorations.placeFromSupport(hit.block, facing);
-      return;
-    }
-    if (activeDecoration && hit.block && this.tool.active() === 'select') {
-      this.decorations.select(undefined);
-    }
-    const status = activeDecoration
-      ? (hit.decorationPlan?.status ?? 'invalid')
-      : (hit.placement?.status ?? 'invalid');
-    if (
-      this.tool.active() === 'place' &&
-      gestureAction === 'primary-action' &&
-      hit.block &&
-      this.editor.canStackCandle(hit.block)
-    ) {
-      this.editor.stackCandle(hit.block);
-      return;
-    }
-    if (
-      gestureAction === 'pick-block' &&
-      blockHitWinsOverDecoration(hit) &&
-      pickAndSelectBlockFromViewportHit(
-        hit,
-        (position) => this.editor.pick(position),
-        (picked) => this.selectPickedBlock(picked.block!, picked.faceNormal),
-      )
-    )
-      return;
-    else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
-    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block)
-      this.selectPickedBlock(hit.block, hit.faceNormal);
-    else if (gestureAction === 'primary-action' && this.tool.active() === 'select')
-      this.selection.clear();
-    else if (
-      gestureAction === 'primary-action' &&
-      this.tool.active() === 'place' &&
-      hit.target &&
-      status !== 'invalid'
-    )
-      this.editor.place(hit.target, hit.placementContext);
-  }
-  private selectPickedBlock(
-    position: import('../../../../core/domain/project.types').VoxelCoordinate,
-    faceNormal?: import('../../../../core/editor/placement/placement').FaceNormal,
-  ): void {
-    this.decorations.clearSelection();
-    const project = this.workspace.project();
-    if (!project) return;
-    this.selection.selectLogical(position, project, (id) => this.library.get(id));
-    const selected = project.blocks.find(
-      (block) => coordinateKey(block.position) === coordinateKey(position),
-    );
-    if (selected && (isSignDefinition(this.library.get(selected.id)) || isSignId(selected.id)))
-      this.signTextSide.setFromHit(selected, faceNormal);
+    this.hitInteraction.applyClick(hit, gestureAction, this.tool.active(), '3d');
   }
   protected reasonLabel(): string {
     const reason = this.decorationReason();

@@ -35,10 +35,6 @@ import type {
   ViewportProjectionState,
   ViewportRenderOptions,
 } from '../../../../core/renderer/engine/three-viewport-engine';
-import {
-  blockHitWinsOverDecoration,
-  pickAndSelectBlockFromViewportHit,
-} from '../../../../core/editor/viewport/pick-block';
 import { VoxelCoordinate } from '../../../../core/domain/project.types';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -53,10 +49,7 @@ import { ViewportHydrationStatusService } from '../../../../core/editor/state/vi
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
-import {
-  decorationAabb,
-  facingFromNormal,
-} from '../../../../core/decorations/placement/decoration-placement';
+import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
 import {
   ThemedSelectComponent,
   ThemedSelectOption,
@@ -70,6 +63,7 @@ import {
   ViewportPreparationScheduler,
   type ViewportPreparationScope,
 } from '../shared/viewport-preparation-scheduler';
+import { ViewportHitInteractionWorkflow } from '../shared/viewport-hit-interaction-workflow';
 
 export const Y_LAYER_PROJECTION_STATUS_DELAY_MS = 180;
 
@@ -96,6 +90,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
   private readonly decorations = inject(DecorationService);
+  private readonly hitInteraction = inject(ViewportHitInteractionWorkflow);
   private readonly input = inject(KeyboardBindingService);
   private readonly session = inject(EditorSessionService);
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
@@ -463,15 +458,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
         this.committedY(),
         false,
       );
-      if (
-        blockHitWinsOverDecoration(hit) &&
-        pickAndSelectBlockFromViewportHit(
-          hit,
-          (position) => this.editor.pick(position),
-          (picked) => this.selectPickedBlock(picked.block!),
-        )
-      )
-        this.pickConsumed = true;
+      this.pickConsumed = this.hitInteraction.pickBlock(hit, 'y-layer');
       return;
     }
     if (action === 'primary-action' && this.tool.active() === 'select') {
@@ -536,69 +523,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       this.committedY(),
       this.tool.active() === 'place',
     );
-    const activeDecoration = this.decorations.active();
-    const decorationWins = !!hit.decoration && !blockHitWinsOverDecoration(hit);
-    if (
-      hit.decoration &&
-      decorationWins &&
-      (gestureAction !== 'primary-action' || this.tool.active() === 'select')
-    ) {
-      if (gestureAction === 'delete-target') this.decorations.delete(hit.decoration.instanceId);
-      else if (gestureAction === 'pick-block') this.decorations.pick(hit.decoration.instanceId);
-      else if (this.tool.active() === 'select') this.decorations.select(hit.decoration.instanceId);
-      return;
-    }
-    if (
-      activeDecoration &&
-      hit.block &&
-      hit.faceNormal &&
-      this.tool.active() === 'place' &&
-      gestureAction === 'primary-action'
-    ) {
-      const facing = facingFromNormal(hit.faceNormal);
-      if (facing && hit.decorationPlan?.status === 'valid')
-        this.decorations.placeFromSupport(hit.block, facing);
-      return;
-    }
-    const status = hit.placement?.status ?? 'invalid';
-    if (
-      this.tool.active() === 'place' &&
-      gestureAction === 'primary-action' &&
-      hit.block &&
-      this.editor.canStackCandle(hit.block)
-    ) {
-      this.editor.stackCandle(hit.block);
-      return;
-    }
-    if (
-      gestureAction === 'pick-block' &&
-      blockHitWinsOverDecoration(hit) &&
-      pickAndSelectBlockFromViewportHit(
-        hit,
-        (position) => this.editor.pick(position),
-        (picked) => this.selectPickedBlock(picked.block!),
-      )
-    )
-      return;
-    else if (gestureAction === 'delete-target' && hit.block) this.editor.delete(hit.block);
-    else if (gestureAction === 'primary-action' && this.tool.active() === 'select' && hit.block)
-      this.selectPickedBlock(hit.block);
-    else if (gestureAction === 'primary-action' && this.tool.active() === 'select')
-      this.selection.clear();
-    else if (
-      gestureAction === 'primary-action' &&
-      this.tool.active() === 'place' &&
-      hit.target &&
-      status !== 'invalid'
-    )
-      this.editor.place(hit.target, hit.placementContext);
-  }
-  private selectPickedBlock(
-    position: import('../../../../core/domain/project.types').VoxelCoordinate,
-  ): void {
-    this.decorations.clearSelection();
-    const project = this.workspace.project();
-    if (project) this.selection.selectLogical(position, project, (id) => this.library.get(id));
+    this.hitInteraction.applyClick(hit, gestureAction, this.tool.active(), 'y-layer');
   }
   protected statusLabel(): string {
     return this.i18n.t(this.placementFeedback()?.status ?? 'invalid');
