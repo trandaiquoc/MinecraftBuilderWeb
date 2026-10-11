@@ -1,8 +1,16 @@
-# Minecraft Java 1.21.1 Asset Policy
+# Minecraft Asset Policy and Versioned Runtime
 
-This document defines how MinecraftBuilder obtains and uses Minecraft Java Edition 1.21.1 assets during development.
+This document defines how MinecraftBuilder obtains and uses Minecraft assets.
+Minecraft Java Edition 1.21.1 remains the verified behavior baseline; the
+current runtime can also load resources for other selected versions as
+described below.
 
 The goal is to keep the asset pipeline reproducible without committing the full set of Minecraft vanilla assets to this repository.
+
+Sections 1–11 cover the 1.21.1 baseline, source evidence, and repository policy.
+References to the original local extraction flow or initial support checkpoints
+are historical; the current browser source, cache, provider, and rendering
+behavior is documented from section 12 onward.
 
 ## 1. Scope
 
@@ -26,7 +34,9 @@ assets/minecraft/lang/en_us.json
 
 ## 2. Asset source
 
-Use a Minecraft Java 1.21.1 client JAR that already exists on the developer or user's machine.
+The original development check used a local Minecraft Java 1.21.1 client JAR.
+The browser runtime now resolves the selected version's official client JAR
+through Mojang metadata and offers user-selected JAR/ZIP import as a fallback.
 
 Do not make the repository depend on a third-party mirror of the complete Minecraft client assets.
 
@@ -44,7 +54,11 @@ The development environment used when this policy was written verified a Minecra
 %APPDATA%\ModrinthApp\meta\versions\1.21.1-0.19.2\1.21.1-0.19.2.jar
 ```
 
-Do not assume this exact loader/version directory exists on every machine. The extractor must accept a user-selected JAR path or discover a suitable local installation.
+Do not assume this exact loader/version directory exists on every machine.
+The browser cannot scan arbitrary local paths: users may select a JAR/ZIP with
+the File API, while the application can resolve the official client JAR from
+Mojang's version metadata. The PowerShell search below is only a developer
+workflow for locating a local archive; it is not used by the application.
 
 A developer can search Modrinth's local files with PowerShell:
 
@@ -119,12 +133,15 @@ MinecraftBuilder should be able to regenerate its local development cache from a
 Item Frame item eligibility is sourced from the normalized
 `Frontend/public/assets/vanilla-item-registry-1.21.1.json`. This file is generated
 from the Java 1.21.1 data-generator `reports/items.json` by
-`Frontend/tools/generate-vanilla-item-registry.mjs`. Item model JSON files are
-visual-only and are not used to decide whether an ItemStack can be selected.
+`Frontend/tools/generate-vanilla-item-registry.mjs`. Vanilla item model JSON is
+not used as a substitute for this authoritative 1.21.1 item registry. External
+content uses the separate item-evidence rules documented in the content
+introspection sections below; qualifying modern item definitions or legacy
+item-root models may contribute evidence there.
 
 ## 5. Local extraction/cache strategy
 
-The intended pipeline is:
+The original local development extraction pipeline was:
 
 ```text
 Local Minecraft 1.21.1 JAR
@@ -215,31 +232,16 @@ $blocks | ForEach-Object {
 }
 ```
 
-## 7. Special rendering cases
+## 7. Initial special-rendering cases
 
-The presence of a BlockState or model resource does not mean that MinecraftBuilder can render every block correctly using a generic JSON-model pipeline.
-
-### Water
-
-`minecraft:water` must be treated as a special/partial rendering case.
-
-For the MVP it may participate in:
-
-- catalog lookup;
-- project storage;
-- JSON import/export;
-- state preservation;
-- placeholder/partial visualization.
-
-Do not assume that water can be rendered correctly as a normal opaque block model.
-
-### Signs
-
-`minecraft:oak_sign` and `minecraft:oak_wall_sign` should initially be treated as partial/special cases.
-
-The model pipeline may resolve their base geometry, but sign text and other block-entity-specific rendering are outside the first generic block-model pass.
-
-Unknown or unsupported rendering behavior must not cause the block to be silently replaced with `minecraft:air`.
+At the original generic JSON-model checkpoint, Water and Signs were marked as
+special/partial cases because a BlockState or model resource alone did not
+implement their runtime visuals. That was an initial support note, not the
+current rendering contract. The current water/lava path is documented under
+"Java 1.21.1 Water and Lava" below; current Sign visuals and text behavior are
+documented under "Java 1.21.1 Sign block entities". Missing or unsupported
+visual behavior still preserves the block ID and state rather than replacing
+it with `minecraft:air`.
 
 ## 8. Support levels
 
@@ -259,33 +261,33 @@ Suggested interpretation:
 
 Support level describes MinecraftBuilder's current implementation capability, not whether a Minecraft block is valid.
 
-## 9. Generated catalog
+## 9. Generated registry and runtime catalog
 
-A generated vanilla catalog may contain normalized metadata such as:
+The checked-in 1.21.1 block registry is generated from Minecraft data-generator
+`reports/blocks.json` and contains registry IDs, property domains, and
+authoritative default states. The independent item registry contains item IDs
+and default component metadata from `reports/items.json`. The runtime catalog
+combines registry evidence with the selected asset provider for language names,
+model/texture availability, and implementation support metadata; these are not
+all fields in the generated block registry.
 
-- registry ID;
-- namespace;
-- display name;
-- default/known BlockState information;
-- model references;
-- texture references;
-- support level;
-- source Minecraft version.
-
-Generated data must identify its source version:
+Generated registry data identifies its source version:
 
 ```text
 minecraftVersion: 1.21.1
 ```
 
-The application must reject or explicitly handle incompatible catalog versions rather than silently mixing resources from different Minecraft versions.
+The application validates the registry schema/version and keeps selected
+version resources separate rather than silently mixing them with 1.21.1
+behavior data.
 
 ## 10. Development rules
 
 When working on Minecraft asset support:
 
-1. Treat Minecraft Java Edition `1.21.1` as the verified behavior profile. Other
-   selected releases may use generic resource-derived rendering only.
+1. Treat Minecraft Java Edition `1.21.1` as the verified behavior baseline.
+   Other selected releases use resource-derived rendering and may reuse shared
+   behavior only when the target version's state/resource contract is compatible.
 2. Do not invent vanilla block/model behavior when a fixture can be checked.
 3. Do not silently replace missing or unsupported blocks with `minecraft:air`.
 4. Keep parsing/model-resolution code independent from Angular UI.
@@ -296,17 +298,20 @@ When working on Minecraft asset support:
 
 ## 11. Checkpoint status
 
-This asset-source checkpoint is considered complete because:
+The original local-asset verification checkpoint was considered complete
+because:
 
 - the runtime source resolves official client JARs through Mojang's Piston metadata;
 - the required resource directory structure has been verified;
 - `en_us.json` has been verified;
 - the representative BlockState fixture set has been verified;
 - the repository policy avoids depending on a committed full vanilla asset tree;
-- the asset source can be rediscovered or selected on another development machine;
-- manual File API JAR import remains available as an explicit fallback.
+- the selected source can be obtained through official version metadata or
+  selected through the browser File API on another development machine.
 
-The next implementation stage may proceed using this policy and the representative fixture set.
+The later sections below document the implemented browser flow and its current
+limits; this historical checkpoint does not imply complete rendering support
+for every registry entry.
 
 ## 12. Browser asset loading implementation
 
@@ -322,9 +327,10 @@ Normalized resources are cached in IndexedDB database
 version key (for example `1.21.1` or `1.20.6`). Project documents contain no
 asset bytes. A cached bundle is restored on the next editor session; selecting
 another project version never activates a different version's cache.
-The normalized asset-cache schema is currently version 2. Version 1 used the
-same resource payload, so it is migrated in place: JSON, PNG, language, and tag
-resources are retained while only the metadata schema marker is upgraded. An
+The normalized asset-cache schema is currently version 3. IndexedDB accepts
+the legacy version 1 payload through an explicit metadata migration that
+retains its stored resources; version 2 and other unsupported versions are
+rejected. A migration does not synthesize resources that were not stored. An
 unsupported or incomplete bundle is not presented as ready; the registry-only
 catalog remains available and the UI reports that import is required. Users do
 not need to clear IndexedDB manually.
@@ -338,11 +344,13 @@ Supported resources are:
 
 For 1.21.1, the runtime catalog uses the bundled normalized
 `vanilla-block-registry-1.21.1.json` and `VanillaBehaviorRegistry`. For other
-selected releases, entries are derived from the downloaded resources and their
-behavior/default-state support remains unknown unless separately verified.
-English display names come independently from the selected JAR's `en_us.json`;
-visual resources come from its blockstates/models/textures. Missing visual
-resources therefore cannot erase canonical registry state or behavior metadata.
+selected releases, entries are derived from the selected resources; shared
+behavior is reused only when a compatible state/resource contract is
+established. The 1.21.1 registry and behavior metadata are not borrowed for
+another version. English display names come independently from the selected
+JAR's `en_us.json`; visual resources come from its blockstates/models/textures.
+Missing visual resources therefore cannot erase canonical registry state or
+behavior metadata.
 
 ### Version-aware support levels
 
@@ -387,13 +395,14 @@ browser.
 
 ## 13. Active provider lifecycle and render diagnostics
 
-`VanillaAssetsService` owns the single active asset provider and its paired
-`VanillaBlockVisualProvider`. Import or IndexedDB restore replaces both as one
-generation. The previous visual provider disposes decoded texture/cache state,
-thumbnail URLs are cleared, the catalog is regenerated, and both Three.js
-viewports receive the new visual provider through their existing reactive sync.
-This rebuilds placed visuals and ghosts without replacing the project, camera,
-selection, mode, or current Y.
+`ContentAssetRuntimeService` owns active content-generation transitions: it
+publishes source changes through `ContentSourceRegistry`, updates catalogs, and
+replaces the `VanillaBlockVisualProvider` built from the registry's composed
+resources. The registry owns source/resource routing; the visual provider owns
+its decoded visual resources. On provider replacement, the old visual provider
+is disposed, thumbnail URLs are cleared, and the two viewports receive the new
+provider through reactive synchronization. Placed visuals and ghosts refresh
+without replacing the project, camera, selection, mode, or current Y.
 
 Fallback results are not retained across provider generations. Resolver output
 records the blockstate resource, matched variant, selected model IDs, parent
@@ -576,11 +585,11 @@ resource defaults were justified, and `resource-render-fallback` means a
 deterministic renderable branch was selected without semantic proof. This
 provenance is catalog metadata and is not written into `ProjectDocument`.
 
-`VanillaAssetsService` generates an in-memory compatibility report after a
-provider is activated. The report separates `compatible-reused`,
-`changed-needs-delta`, `new-generic-supported`, and `unsupported` entries and
-can be exported as a versioned JSON diagnostics file from Asset Manager. It is
-not a project-file or asset-cache dependency.
+`ContentAssetRuntimeService` asks `VanillaAssetLifecycle` to generate an
+in-memory compatibility report after a provider is activated. The report
+separates `compatible-reused`, `changed-needs-delta`, `new-generic-supported`,
+and `unsupported` entries and can be exported as a versioned JSON diagnostics
+file from Asset Manager. It is not a project-file or asset-cache dependency.
 
 Manual imports, official downloads, and normalized cache writes are protected
 operations. The browser receives a `beforeunload` warning while one is active;

@@ -18,6 +18,12 @@ The top-level shape is:
 
 The public contract has no `formatVersion`. For migration, the parser accepts exactly the old top-level `formatVersion: 2` shape and normalizes it away. Other version values and unknown top-level fields are rejected. This narrow compatibility path does not change the public TypeScript/schema contract.
 
+The checked-in [JSON Schema](../Frontend/public/schemas/minecraftbuilder-structure.schema.json)
+describes the canonical public shape and is served with the frontend. It does
+not describe the legacy `formatVersion: 2` migration form. The application
+parser remains authoritative for ordered validation, semantic checks, and the
+legacy migration behavior.
+
 Replace import always replaces both `blocks` and `decorations`; an empty decorations array therefore clears current decorations. Merge and new-group modes append the imported content according to the import dialog's conflict checks.
 
 The importer validates block-entity host compatibility, slot bounds, and item stack counts against the active catalog. Known max stack sizes come from the local vanilla item registry (`vanilla-item-registry-1.21.1.json`); unknown mod items are allowed only with count 1 and are never silently clamped. New exports and examples always use the canonical shape above; Project Backup compatibility is handled by its separate versioned package format.

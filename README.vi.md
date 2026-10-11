@@ -35,7 +35,8 @@ sang Minecraft Java Structure NBT.
 - **SCSS**
 - **Three.js**
 - **Angular CDK** cho overlay và dialog cần thiết.
-- **fflate** và **nbtify** cho xử lý ZIP/NBT cục bộ trên trình duyệt.
+- **fflate** để tạo datapack ZIP và **nbtify** phía sau codec NBT có kiểu dữ liệu
+  rõ ràng.
 
 Angular chịu trách nhiệm cho giao diện ứng dụng, form, màn hình project, block browser, inspector, settings và các control của editor.
 
@@ -51,14 +52,11 @@ Các API lưu trữ hoặc thư viện hỗ trợ khác chỉ được bổ sung
 
 ### Xử lý file Minecraft
 
-Ứng dụng sẽ dùng các thư viện chuyên dụng cho:
-
-- Đọc file `.jar` / `.zip`.
-- Đọc và ghi dữ liệu Minecraft NBT.
-- Validate structure JSON được import.
-
-Implementation hiện dùng `fflate` cho đóng gói datapack ZIP và `nbtify` phía
-sau ranh giới codec NBT có kiểu dữ liệu rõ ràng.
+Implementation hiện đọc archive `.jar` / `.zip` do người dùng chọn bằng
+`ZipArchive` của ứng dụng và `DecompressionStream` có sẵn trong trình duyệt.
+Datapack ZIP đầu ra dùng `fflate`. Minecraft NBT được đọc/ghi qua `nbtify` phía
+sau codec có kiểu dữ liệu rõ ràng. Structure JSON dùng parser và validation
+workflow của ứng dụng, đồng thời có JSON Schema công khai cho format canonical.
 
 ### Backend (phạm vi tương lai)
 

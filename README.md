@@ -36,7 +36,7 @@ export.
 - **SCSS**
 - **Three.js**
 - **Angular CDK** for focused overlay and dialog behavior.
-- **fflate** and **nbtify** for browser-local ZIP and NBT processing.
+- **fflate** for datapack ZIP output and **nbtify** behind the typed NBT codec.
 
 Angular is responsible for the application UI, forms, project screens, block browser, inspectors, settings, and editor controls.
 
@@ -52,14 +52,12 @@ Additional browser storage APIs or helper libraries may be introduced only when 
 
 ### Minecraft File Processing
 
-The application will use dedicated libraries for:
-
-- Reading `.jar` / `.zip` archives.
-- Reading and writing Minecraft NBT data.
-- Validating imported JSON structures.
-
-The current implementation uses `fflate` for datapack ZIP packaging and
-`nbtify` behind the typed NBT codec boundary.
+The current implementation reads user-selected `.jar` / `.zip` archives with
+the in-repository browser `ZipArchive` reader and the browser's native
+`DecompressionStream`. Datapack ZIP output uses `fflate`. Minecraft NBT is read
+and written through `nbtify` behind the typed codec boundary. Structure JSON
+uses the in-repository parser and validation workflow, with a published JSON
+Schema for the canonical interchange shape.
 
 ### Backend (future scope)
 
