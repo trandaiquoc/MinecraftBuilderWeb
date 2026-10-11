@@ -91,7 +91,7 @@ describe('GroupService', () => {
       groups: [{ id: 'roof', name: 'Roof', visible: true, locked: false }],
       blocks: [{ ...project.blocks[0], groupIds: ['roof'] }],
     });
-    groups.activeGroupId.set('roof');
+    groups.select('roof');
     const positions = groups.activeGroupPositions();
 
     workspace.project.update((current) =>
@@ -192,7 +192,7 @@ describe('GroupService', () => {
       ],
     };
     const { groups, selection, workspace } = setup(groupedProject);
-    groups.activeGroupId.set('target');
+    groups.select('target');
     const box = { min: { x: 0, y: 1, z: 0 }, max: { x: 3, y: 1, z: 0 } };
     const isVisible = createBlockVisibilityPredicate(groupedProject);
     selection.selectBoxLogical(box, groupedProject, () => undefined, isVisible);

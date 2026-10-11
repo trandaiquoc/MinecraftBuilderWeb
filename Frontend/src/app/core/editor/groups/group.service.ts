@@ -47,10 +47,14 @@ export class GroupService {
       library.get(id),
     );
   }
-  readonly activeGroupId = signal<string | undefined>(undefined);
-  readonly isolatedGroupId = signal<string | undefined>(undefined);
-  readonly moveOffset = signal<VoxelCoordinate>({ x: 0, y: 0, z: 0 });
-  readonly moveStep = signal(1);
+  private readonly activeGroupIdState = signal<string | undefined>(undefined);
+  private readonly isolatedGroupIdState = signal<string | undefined>(undefined);
+  private readonly moveOffsetState = signal<VoxelCoordinate>({ x: 0, y: 0, z: 0 });
+  private readonly moveStepState = signal(1);
+  readonly activeGroupId = this.activeGroupIdState.asReadonly();
+  readonly isolatedGroupId = this.isolatedGroupIdState.asReadonly();
+  readonly moveOffset = this.moveOffsetState.asReadonly();
+  readonly moveStep = this.moveStepState.asReadonly();
   readonly activeGroup = computed(() =>
     this.workspace.project()?.groups.find((group) => group.id === this.activeGroupId()),
   );
@@ -79,18 +83,18 @@ export class GroupService {
       },
       () => metadataMutationHint([], [], 'group-create'),
     );
-    if (changed) this.activeGroupId.set(createdId);
+    if (changed) this.activeGroupIdState.set(createdId);
     return changed;
   }
 
   select(id: string | undefined): void {
     const previous = this.activeGroupId();
     if (id === this.activeGroupId()) {
-      this.activeGroupId.set(undefined);
+      this.activeGroupIdState.set(undefined);
     } else {
-      this.activeGroupId.set(id);
+      this.activeGroupIdState.set(id);
     }
-    if (previous !== this.activeGroupId()) this.isolatedGroupId.set(undefined);
+    if (previous !== this.activeGroupId()) this.isolatedGroupIdState.set(undefined);
     this.resetMove();
   }
   renameActive(name: string): boolean {
@@ -172,7 +176,7 @@ export class GroupService {
       (before, after) => groupMetadataMutationHint(before, after, id, 'group-delete'),
     );
     if (changed && this.activeGroupId() === id) this.select(undefined);
-    if (changed && this.isolatedGroupId() === id) this.isolatedGroupId.set(undefined);
+    if (changed && this.isolatedGroupId() === id) this.isolatedGroupIdState.set(undefined);
     return changed;
   }
   deleteActiveBlocks(): boolean {
@@ -221,29 +225,30 @@ export class GroupService {
   }
   isolateActive(): void {
     const id = this.activeGroupId();
-    this.isolatedGroupId.set(this.isolatedGroupId() === id ? undefined : id);
+    this.isolatedGroupIdState.set(this.isolatedGroupId() === id ? undefined : id);
   }
   isolate(id: string | undefined): void {
-    this.isolatedGroupId.set(id);
+    this.isolatedGroupIdState.set(id);
   }
   setMoveOffset(axis: keyof VoxelCoordinate, raw: number): void {
-    if (Number.isInteger(raw)) this.moveOffset.update((offset) => ({ ...offset, [axis]: raw }));
+    if (Number.isInteger(raw))
+      this.moveOffsetState.update((offset) => ({ ...offset, [axis]: raw }));
   }
   setMoveStep(raw: number): void {
-    if (Number.isInteger(raw) && raw > 0) this.moveStep.set(raw);
+    if (Number.isInteger(raw) && raw > 0) this.moveStepState.set(raw);
   }
   nudgeMove(axis: keyof VoxelCoordinate, direction: 1 | -1): void {
-    this.moveOffset.update((offset) => ({
+    this.moveOffsetState.update((offset) => ({
       ...offset,
       [axis]: offset[axis] + direction * this.moveStep(),
     }));
   }
   resetMove(): void {
-    this.moveOffset.set({ x: 0, y: 0, z: 0 });
+    this.moveOffsetState.set({ x: 0, y: 0, z: 0 });
   }
   resetForProjectChange(): void {
-    this.activeGroupId.set(undefined);
-    this.isolatedGroupId.set(undefined);
+    this.activeGroupIdState.set(undefined);
+    this.isolatedGroupIdState.set(undefined);
     this.resetMove();
   }
   saveMove(): boolean {
