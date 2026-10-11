@@ -1,5 +1,5 @@
 import type { BlockState } from '../domain/project.types';
-import type { BlockStateDefinition } from '../blocks/catalog/block-definition.types';
+import type { BlockStateDefinition } from '../blocks/catalog/block-contracts.types';
 
 export interface NormalizedPropertyPredicate {
   readonly property: string;

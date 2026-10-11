@@ -1,8 +1,8 @@
 import type {
   BlockBehavior,
   BlockStateDefinition,
-} from '../../blocks/catalog/block-definition.types';
-import type { BehaviorEvidenceRecord, BehaviorFingerprint } from './behavior-fingerprint';
+} from '../../blocks/catalog/block-contracts.types';
+import type { BehaviorEvidenceRecord, BehaviorFingerprint } from './behavior-fingerprint.types';
 import { GENERIC_BEHAVIOR_PROFILES, type GenericBehaviorProfile } from './behavior-profiles';
 import { hasWallResourceEvidence } from './behavior-traits';
 

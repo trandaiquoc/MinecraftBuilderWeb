@@ -1,5 +1,5 @@
 import type { BlockCapabilityProfile } from '../blocks/capabilities/block-capability.types';
-import type { PlacementSupportRequirement } from '../blocks/catalog/block-definition.types';
+import type { PlacementSupportRequirement } from '../blocks/catalog/block-contracts.types';
 
 export type EvidenceProvenance =
   'authoritative-registry' | 'trusted-data' | 'resource-backed' | 'inferred' | 'unknown';

@@ -1,4 +1,4 @@
-import type { ModCompatibilityResult } from './mod-loader';
+import type { ModCompatibilityResult } from './mod-compatibility.types';
 
 interface ParsedVersion {
   readonly parts: readonly number[];

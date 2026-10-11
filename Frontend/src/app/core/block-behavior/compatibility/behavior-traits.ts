@@ -1,6 +1,6 @@
-import type { BlockStateDefinition } from '../../blocks/catalog/block-definition.types';
+import type { BlockStateDefinition } from '../../blocks/catalog/block-contracts.types';
 import { GENERIC_BEHAVIOR_PROFILES } from './behavior-profiles';
-import type { BehaviorFingerprint, BehaviorTrait } from './behavior-fingerprint';
+import type { BehaviorFingerprint, BehaviorTrait } from './behavior-fingerprint.types';
 
 const SIX_FACE_VALUES: readonly string[] =
   GENERIC_BEHAVIOR_PROFILES.attachedSixFace.requiredStates.facing;

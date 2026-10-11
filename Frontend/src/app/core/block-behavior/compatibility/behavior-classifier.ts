@@ -1,10 +1,10 @@
-import type { BlockBehavior } from '../../blocks/catalog/block-definition.types';
+import type { BlockBehavior } from '../../blocks/catalog/block-contracts.types';
 import type {
   BehaviorCandidateSummary,
   BehaviorClassificationSummary,
   BehaviorEvidenceRecord,
   BehaviorFingerprint,
-} from './behavior-fingerprint';
+} from './behavior-fingerprint.types';
 import { generateBehaviorCandidates, type BehaviorCandidate } from './behavior-candidate-generator';
 
 interface ScoredCandidate extends BehaviorCandidate {

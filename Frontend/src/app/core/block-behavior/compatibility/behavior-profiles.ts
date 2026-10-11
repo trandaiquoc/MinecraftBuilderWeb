@@ -1,7 +1,7 @@
 import type {
   BlockBehavior,
   BlockStateDefinition,
-} from '../../blocks/catalog/block-definition.types';
+} from '../../blocks/catalog/block-contracts.types';
 
 export interface GenericBehaviorProfile {
   readonly family: string;

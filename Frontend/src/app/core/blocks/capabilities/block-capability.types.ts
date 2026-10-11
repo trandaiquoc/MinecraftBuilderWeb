@@ -2,7 +2,7 @@ import type {
   BehaviorSupportLevel,
   BlockVisualClassification,
   VisualSupportLevel,
-} from '../catalog/block-definition.types';
+} from '../catalog/block-support.types';
 
 /** Confidence describes the evidence behind a capability, not rendering/behavior support. */
 export type BlockCapabilityEvidence = 'verified' | 'inferred';

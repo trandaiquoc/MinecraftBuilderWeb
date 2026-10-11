@@ -1,12 +1,12 @@
-import {
-  AssetBlockRecord,
+import type { AssetBlockRecord } from '../../blocks/catalog/block-content-evidence.types';
+import type {
   BlockBehavior,
   BlockStateDefinition,
   DefaultStateSource,
-} from '../../blocks/catalog/block-definition.types';
+} from '../../blocks/catalog/block-contracts.types';
 import { extractBehaviorFingerprint } from './behavior-fingerprint';
 import { matchVanillaBehaviorCandidates } from './behavior-classifier';
-import type { BehaviorClassificationSummary } from './behavior-fingerprint';
+import type { BehaviorClassificationSummary } from './behavior-fingerprint.types';
 import { GENERIC_BEHAVIOR_PROFILES } from './behavior-profiles';
 
 export interface CommonBehaviorResourceProvider {

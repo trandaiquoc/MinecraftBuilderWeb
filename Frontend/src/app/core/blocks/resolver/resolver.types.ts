@@ -1,5 +1,5 @@
-import { BlockStateDefinition, BlockSupportLevel } from '../catalog/block-definition.types';
-import { BlockState } from '../../domain/project.types';
+import type { BlockStateDefinition, BlockSupportLevel } from '../catalog/block-contracts.types';
+import type { BlockState } from '../../domain/project.types';
 
 export interface AssetResourceProvider {
   readJson(path: string): unknown | undefined;

@@ -8,7 +8,7 @@ import type {
   ViewportTraceEventPriority,
   ViewportTraceMetadata,
   ViewportTraceSample,
-} from './viewport-runtime-trace';
+} from './viewport-trace.types';
 
 type TimedSample = ViewportTraceSample & { readonly t: number; readonly reason: string };
 type StatisticsSnapshot = ReturnType<

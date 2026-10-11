@@ -1,22 +1,21 @@
 import type { AssetResourceProvider } from '../blocks/resolver/resolver.types';
 import { BlockModelResolver } from '../blocks/resolver/block-model-resolver';
+import type { AssetBlockRecord } from '../blocks/catalog/block-content-evidence.types';
 import type {
-  AssetBlockRecord,
+  BehaviorClassificationSummary,
+  BehaviorFingerprint,
+} from '../block-behavior/compatibility/behavior-fingerprint.types';
+import type {
   BlockItemEvidence,
+  BlockStateDefinition,
   CatalogItemEvidence,
-} from '../blocks/catalog/block-definition.types';
-import type { BlockCapabilityProfile } from '../blocks/capabilities/block-capability.types';
-import type { PlacementSupportRequirement } from '../blocks/catalog/block-definition.types';
+} from '../blocks/catalog/block-contracts.types';
 import {
   blockStatePredicates,
   invalidPredicateReasons,
   type NormalizedPredicate,
 } from './normalized-predicate';
-import {
-  extractBehaviorFingerprint,
-  type BehaviorClassificationSummary,
-  type BehaviorFingerprint,
-} from '../block-behavior/compatibility/behavior-fingerprint';
+import { extractBehaviorFingerprint } from '../block-behavior/compatibility/behavior-fingerprint';
 import {
   mergeBlockStateDefinitions,
   inspectContentProperty,
@@ -39,6 +38,20 @@ import type {
   ContentSpecialVisualDescriptor,
   EvidenceProvenance,
 } from './content-semantic-types';
+import type {
+  ContentConfidence,
+  ContentRelationship,
+  ContentRole,
+  ContentRoleEvidence,
+  NormalizedContentDescriptor,
+} from './content-introspection.types';
+export type {
+  ContentConfidence,
+  ContentRelationship,
+  ContentRole,
+  ContentRoleEvidence,
+  NormalizedContentDescriptor,
+} from './content-introspection.types';
 export type {
   ContentItemHostVisualDescriptor,
   ContentItemHostVisualSlot,
@@ -64,50 +77,7 @@ export {
 } from './semantic-manifest-evidence';
 export type { SemanticManifestParseResult } from './semantic-manifest-evidence';
 
-export type ContentRole = 'block' | 'item' | 'decoration';
-export type ContentConfidence = 'full' | 'partial' | 'unknown';
-
-export interface ContentRoleEvidence {
-  readonly role: ContentRole;
-  readonly confidence: ContentConfidence;
-  readonly provenance: EvidenceProvenance;
-  readonly resources: readonly string[];
-}
-
 export type { NormalizedPredicate, NormalizedPropertyPredicate } from './normalized-predicate';
-
-export interface ContentRelationship {
-  readonly kind: 'item-block' | 'resource' | 'tag' | 'multipart' | 'paired-part';
-  readonly from: string;
-  readonly to: string;
-  readonly provenance: EvidenceProvenance;
-}
-
-export interface NormalizedContentDescriptor {
-  readonly id: string;
-  readonly sourceId: string;
-  readonly sourceName: string;
-  readonly roles: readonly ContentRole[];
-  readonly roleEvidence: readonly ContentRoleEvidence[];
-  readonly resources: readonly string[];
-  readonly properties: readonly ContentPropertyDescriptor[];
-  readonly predicates: readonly NormalizedPredicate[];
-  readonly placementDefault: Readonly<Record<string, string>>;
-  readonly representativeVisualState: Readonly<Record<string, string>>;
-  readonly relationships: readonly ContentRelationship[];
-  readonly capabilities: readonly string[];
-  readonly capabilityProfile?: BlockCapabilityProfile;
-  readonly supportRequirements?: readonly PlacementSupportRequirement[];
-  readonly supportContracts?: readonly string[];
-  readonly specialVisual?: ContentSpecialVisualDescriptor;
-  readonly itemHostVisual?: ContentItemHostVisualDescriptor;
-  readonly semanticEvidence: readonly ContentSemanticEvidence[];
-  readonly behaviorFingerprint?: BehaviorFingerprint;
-  readonly behaviorClassification?: BehaviorClassificationSummary;
-  readonly stateSchemaIncomplete: boolean;
-  readonly resourceGraph: ResourceDependencyGraph;
-  readonly diagnostics: readonly ContentIntrospectionDiagnostic[];
-}
 
 /** Resource-backed introspection shared by vanilla and external content sources. */
 export class ContentIntrospectionEngine {

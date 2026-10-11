@@ -3,7 +3,7 @@ import type {
   ContentSemanticSupplement,
   ContentIntrospectionDiagnostic,
 } from './content-semantic-types';
-import type { NormalizedContentDescriptor } from './content-introspection';
+import type { NormalizedContentDescriptor } from './content-introspection.types';
 
 export function mergeContentEvidence(
   staticDescriptor: NormalizedContentDescriptor,

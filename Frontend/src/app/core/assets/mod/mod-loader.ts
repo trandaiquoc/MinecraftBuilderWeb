@@ -1,14 +1,9 @@
 import { evaluateMinecraftRequirement } from './minecraft-version-predicate';
+import type { ModCompatibilityStatus } from './mod-compatibility.types';
+
+export type { ModCompatibilityResult, ModCompatibilityStatus } from './mod-compatibility.types';
 
 export type SupportedModLoader = 'fabric' | 'forge' | 'neoforge' | 'quilt' | 'unknown';
-
-export type ModCompatibilityStatus = 'compatible' | 'incompatible' | 'unknown';
-
-export interface ModCompatibilityResult {
-  readonly status: ModCompatibilityStatus;
-  readonly reason: string;
-  readonly expression?: string | readonly string[];
-}
 
 export interface FabricModMetadata {
   readonly id: string;

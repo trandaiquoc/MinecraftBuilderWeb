@@ -1,4 +1,4 @@
-import { VoxelCoordinate } from '../domain/project.types';
+import type { VoxelCoordinate } from '../domain/voxel-coordinate.types';
 import type { ItemStackData } from '../items/item-stack.types';
 
 export type DecorationKind = 'painting' | 'item-frame' | 'glow-item-frame';

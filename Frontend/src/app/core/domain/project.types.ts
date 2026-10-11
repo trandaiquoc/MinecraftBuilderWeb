@@ -1,3 +1,7 @@
+import type { VoxelCoordinate } from './voxel-coordinate.types';
+
+export type { VoxelCoordinate } from './voxel-coordinate.types';
+
 /** Current persisted project format version. Increment when the JSON shape changes. */
 export const CURRENT_PROJECT_SCHEMA_VERSION = 3 as const;
 export const DEFAULT_MINECRAFT_VERSION = '1.21.1' as const;
@@ -8,12 +12,6 @@ export type ProjectSchemaVersion = 1 | 2 | typeof CURRENT_PROJECT_SCHEMA_VERSION
 export type StructureMode = 'vanilla-structure-block' | 'huge-structure-blocks';
 
 export interface ProjectSize {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
-
-export interface VoxelCoordinate {
   readonly x: number;
   readonly y: number;
   readonly z: number;

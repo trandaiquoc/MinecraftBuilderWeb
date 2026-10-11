@@ -1,30 +1,18 @@
-import type { BlockBehavior } from '../../blocks/catalog/block-definition.types';
+import type { BlockBehavior } from '../../blocks/catalog/block-contracts.types';
 import type { PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
+import type { LogicalPlacementMetadata, LogicalPlacementPart } from './logical-placement.types';
+
+export type {
+  LogicalPlacementLayout,
+  LogicalPlacementMetadata,
+  LogicalPlacementPart,
+} from './logical-placement.types';
 
 /**
  * The persisted block state remains the source of truth, while this contract
  * describes how a new logical object is materialized from its origin voxel.
  * It is deliberately independent of registry IDs and presentation names.
  */
-export type LogicalPlacementLayout = 'vertical-two-part' | 'horizontal-two-part';
-
-export interface LogicalPlacementMetadata {
-  readonly layout: LogicalPlacementLayout;
-  readonly identityProperty: string;
-  readonly firstIdentity: string;
-  readonly secondIdentity: string;
-  readonly facingProperty?: string;
-  /** Every state key except the identity key is copied to both parts. */
-  readonly sharedState: 'all-except-identity';
-  /** Defaults applied to shared state when a new object is materialized. */
-  readonly sharedStateDefaults?: Readonly<Record<string, string>>;
-}
-
-export interface LogicalPlacementPart {
-  readonly identityValue: string;
-  readonly offset: VoxelCoordinate;
-}
-
 export function logicalPlacementForBehavior(
   behavior: BlockBehavior | undefined,
 ): LogicalPlacementMetadata | undefined {
