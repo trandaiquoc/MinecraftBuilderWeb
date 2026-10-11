@@ -99,6 +99,19 @@ describe('Structure JSON codec', () => {
     expect(serializeStructureJson(baseProject)).toBe(serializeStructureJson(reordered));
   });
 
+  it('keeps the public serializer indentation and trailing newline stable', () => {
+    expect(
+      serializeStructureJsonValue({
+        format: STRUCTURE_JSON_FORMAT,
+        minecraftVersion: '1.21.1',
+        blocks: [],
+        decorations: [],
+      }),
+    ).toBe(
+      '{\n  "format": "minecraftbuilder-structure",\n  "minecraftVersion": "1.21.1",\n  "blocks": [],\n  "decorations": []\n}\n',
+    );
+  });
+
   it('keeps the canonical example inside the public contract', () => {
     const example = createStructureJsonExample();
     expect(example.blocks.length).toBeGreaterThanOrEqual(2);
@@ -222,6 +235,61 @@ describe('Structure JSON codec', () => {
         }),
       ).code,
     ).toBe('version');
+  });
+
+  it('preserves parser error precedence and nested diagnostic paths', () => {
+    expect(
+      parseStructureJson(
+        JSON.stringify({ format: 'wrong', formatVersion: 3, minecraftVersion: '', blocks: [] }),
+      ),
+    ).toMatchObject({ valid: false, code: 'format' });
+    expect(
+      parseStructureJson(
+        JSON.stringify({
+          format: STRUCTURE_JSON_FORMAT,
+          formatVersion: 3,
+          unknown: true,
+          minecraftVersion: '',
+          blocks: [],
+        }),
+      ),
+    ).toMatchObject({ valid: false, code: 'version' });
+    expect(
+      parseStructureJson(
+        JSON.stringify({
+          format: STRUCTURE_JSON_FORMAT,
+          unknown: true,
+          minecraftVersion: '',
+          blocks: [],
+          decorations: [],
+        }),
+      ),
+    ).toMatchObject({ valid: false, code: 'shape' });
+    expect(
+      validateStructureJson(
+        JSON.stringify({
+          format: STRUCTURE_JSON_FORMAT,
+          minecraftVersion: '1.21.1',
+          blocks: [
+            {
+              id: 'minecraft:chest',
+              x: 0,
+              y: 0,
+              z: 0,
+              blockEntity: {
+                kind: 'container',
+                items: [{ slot: 27, item: { id: 'minecraft:diamond' } }],
+              },
+            },
+          ],
+          decorations: [],
+        }),
+      ),
+    ).toMatchObject({
+      valid: false,
+      code: 'block-entity',
+      path: 'blocks[0].blockEntity.slot-out-of-range',
+    });
   });
 
   it('serializes supported semantic block entities without exposing project metadata', () => {
