@@ -1,4 +1,4 @@
-import { Injectable, isDevMode, signal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
 import { ProjectStore } from '../persistence/project-store/project-store.port';
@@ -7,6 +7,7 @@ import {
   ProjectRecord,
 } from '../persistence/project-store/project-store.port';
 import { validateProject } from '../domain/validation';
+import { installWorkspaceRecoveryDiagnostics } from './workspace-recovery-diagnostics';
 
 export const ACTIVE_PROJECT_KEY = 'minecraft-builder.active-project';
 
@@ -34,30 +35,10 @@ export class WorkspaceStateService {
   private restorePromise?: Promise<ProjectDocument | undefined>;
 
   constructor() {
-    if (isDevMode() && typeof window !== 'undefined') {
-      const target = window as Window & { __mbRecoveryDiagnostics?: RecoveryDiagnostics };
-      target.__mbRecoveryDiagnostics = {
-        stageFromCurrentProject: async () => {
-          const project = this.project();
-          if (!project || !this.restoreStore)
-            throw new Error('Open a project before staging recovery');
-          await this.restoreStore.saveRecoverySnapshot(project, {
-            persistenceToken: `dev-recovery-${Date.now()}`,
-            persistedAt: new Date().toISOString(),
-          });
-        },
-        clear: async (projectId: string) => {
-          if (!this.restoreStore) throw new Error('Workspace store is not ready');
-          await this.restoreStore.deleteRecoverySnapshot(projectId);
-        },
-        inspect: async (projectId: string) => {
-          if (!this.restoreStore) throw new Error('Workspace store is not ready');
-          return this.restoreStore.openRecoveryRecord
-            ? this.restoreStore.openRecoveryRecord(projectId)
-            : this.restoreStore.openRecoverySnapshot(projectId);
-        },
-      };
-    }
+    installWorkspaceRecoveryDiagnostics({
+      currentProject: () => this.project(),
+      store: () => this.restoreStore,
+    });
   }
 
   activate(
@@ -275,12 +256,6 @@ export class WorkspaceStateService {
       return undefined;
     }
   }
-}
-
-interface RecoveryDiagnostics {
-  readonly stageFromCurrentProject: () => Promise<void>;
-  readonly clear: (projectId: string) => Promise<void>;
-  readonly inspect: (projectId: string) => Promise<unknown>;
 }
 
 function browserStorage(): Storage | undefined {
