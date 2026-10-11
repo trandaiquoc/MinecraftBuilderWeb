@@ -101,7 +101,13 @@ describe('verified 1.21.1 semantic NBT mappers', () => {
         ),
         0,
       ),
-    ).toMatchObject({ ok: false, diagnostic: { code: 'invalid-block-entity' } });
+    ).toMatchObject({
+      ok: false,
+      diagnostic: {
+        code: 'invalid-block-entity',
+        path: 'blocks.0.blockEntityData.front.color',
+      },
+    });
     expect(
       mapBlockEntity(block('minecraft:oak_sign', { ...signData(), raw: { future: true } }), 0),
     ).toMatchObject({ ok: false, diagnostic: { code: 'unsupported-raw-nbt' } });
