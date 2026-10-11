@@ -740,7 +740,7 @@ The frontend keeps item evidence separate from the placeable Block catalog. Acti
 
 The 26.3 official resource set verifies the wood/bamboo/crimson/warped/pale-oak/poplar Shelf family as a three-slot `item-storage-display` host. This is an explicit Vanilla profile, not a `_shelf` suffix heuristic, and is activated only when the actual block exists in the selected source. Chest, Barrel, Hopper, and Furnace are classified as storage-only metadata and do not receive display pickers.
 
-Item-host block entity data is normalized as ordered slots while preserving unknown raw fields and ItemStack components. No new NBT serializer was added because the current structure pipeline does not yet export generic block-entity payloads; no unverified Shelf NBT field names are invented here.
+Item-host block entity data is normalized as ordered slots while preserving unknown raw fields and ItemStack components. The Structure NBT exporter only writes verified semantic block-entity mappings; a Shelf/item-host NBT contract is not verified, so this data is not emitted through an invented generic field mapping.
 
 ## Mod resource import foundation (Prompt 13B)
 

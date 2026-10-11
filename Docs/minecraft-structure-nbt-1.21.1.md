@@ -113,8 +113,10 @@ voxels. This is recorded as manual Minecraft verification and is separate from
 the automated binary inspection below.
 
 Faithful Structure Block-style export must therefore materialize sparse
-ProjectDocument empties as explicit Air entries. Prompt 15.2 still owns the
-production materialization loop; this checkpoint does not implement it.
+ProjectDocument empties as explicit Air entries. The production loop in
+`exportMinecraftStructure()` traverses the full Y-Z-X volume and emits explicit
+Air for absent coordinates. Its maximum-size memory and responsiveness limits
+remain unbenchmarked below.
 
 ## ResourceLocation and helper audit
 
@@ -124,14 +126,18 @@ path sanitization and download filename validation. Existing content parsing
 still supports bare and variable resource references; persisted/exported IDs
 use the strict namespaced validator.
 
-The existing semantic helpers are not treated as a general NBT codec:
+The existing semantic helpers are not treated as a general NBT codec, and the
+current export mapper has its own validation boundary:
 
-- Sign data maps to `front_text`, `back_text`, `is_waxed`, and sign IDs, but
-  unknown colors currently normalize to black. A future exporter must diagnose
-  unsupported data instead of silently exporting that fallback.
-- Decorated pot data uses Minecraft's `back,left,right,front` sherd order, but
-  unknown sherds currently normalize to brick. A future exporter must reject or
-  diagnose an unverified raw value.
+- The convenience Sign helper maps data to `front_text`, `back_text`,
+  `is_waxed`, and sign IDs, but still normalizes unknown colors to black. The
+  Structure NBT export mapper instead rejects unsupported semantic colors.
+- The convenience decorated-pot helper uses Minecraft's
+  `back,left,right,front` sherd order, but still normalizes unknown sherds to
+  brick. The Structure NBT export mapper requires namespaced ResourceLocations
+  and preserves valid IDs, including external namespaces. When malformed source
+  data has already passed through the lossy helper without retaining raw input,
+  the original sherd value cannot be recovered by export validation.
 - A legacy standalone Conduit helper emitted only its block-entity ID, but it
   had no production consumer. The current exporter rejects Conduit semantic
   payloads because the project document does not persist a supported payload.

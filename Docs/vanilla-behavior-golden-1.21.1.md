@@ -450,7 +450,7 @@ Nếu user thao tác một part thì editor phải resolve toàn logical object.
 - delete
 - lock validation
 - history
-- future NBT export consistency
+- Structure NBT export consistency
 
 Không cho phép một logical object bị split do editor operation.
 
@@ -567,13 +567,16 @@ Golden Behavior Checkpoint chỉ coi là đóng khi:
 - [x] Production build PASS.
 - [x] `git diff --check` PASS.
 
-Sau khi các mục còn lại PASS:
-
-**Tiếp tục Prompt 12.5 — Vanilla asset loading + real model/texture rendering.**
+Checkpoint này đã hoàn tất. Vanilla asset loading và rendering hiện thuộc
+implementation; xem `minecraft-assets.md` cùng source hiện tại để biết trạng
+thái hỗ trợ. Matrix này tiếp tục là nguồn chuẩn cho các vanilla facts đã verify.
 
 ---
 
-# 16. Ngoài phạm vi checkpoint này
+# 16. Ngoài phạm vi checkpoint này (lịch sử)
+
+Phần dưới ghi lại ranh giới của checkpoint khi được thực hiện, không phải danh
+sách roadmap hiện tại.
 
 Không thuộc Prompt 12 block behavior:
 
@@ -583,7 +586,7 @@ Không thuộc Prompt 12 block behavior:
 
 Các đối tượng này là attached/decoration entities và nên có prompt riêng sau vanilla renderer foundation.
 
-Dự kiến:
+Kế hoạch lúc checkpoint được ghi nhận:
 
 **Prompt 12.6 — Decoration / Attached Entity Foundation**
 
