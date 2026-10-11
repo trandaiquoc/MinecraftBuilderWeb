@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 import { ContentAssetRuntimeService } from './content-asset-runtime.service';
 import { ContentSourceCleanupError } from './content-source/composite-asset-provider';
+import { AssetActivityService } from './asset-activity.service';
 
 describe('ContentAssetRuntimeService content generation', () => {
   it('exposes runtime state as read-only signals', () => {
@@ -51,7 +52,7 @@ describe('ContentAssetRuntimeService content generation', () => {
         throw cleanupFailure;
       }),
     ).not.toThrow();
-    expect(service.activity.entries().at(-1)).toMatchObject({
+    expect(TestBed.inject(AssetActivityService).entries().at(-1)).toMatchObject({
       operation: 'cache',
       level: 'warning',
       message: cleanupFailure.message,

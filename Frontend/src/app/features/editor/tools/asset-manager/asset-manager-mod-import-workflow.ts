@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import { AssetActivityService } from '../../../../core/assets/asset-activity.service';
 import {
   ModImportProgress,
   PreparedModImport,
@@ -39,6 +40,7 @@ export class AssetManagerModImportWorkflow {
   constructor(
     private readonly assets: ContentAssetRuntimeService,
     private readonly i18n: I18nService,
+    private readonly activity: AssetActivityService,
   ) {}
 
   async inspect(file: File): Promise<void> {
@@ -76,7 +78,7 @@ export class AssetManagerModImportWorkflow {
       this.preflightState.set(prepared);
       this.preflightIconUrlState.set(this.createPreflightIcon(prepared));
       this.operationStatusState.set(prepared.canActivate ? 'ready' : 'failed');
-      this.assets.activity.finish('mod-preflight', this.i18n.t('assetManagerImportReady'), 'mod');
+      this.activity.finish('mod-preflight', this.i18n.t('assetManagerImportReady'), 'mod');
     } catch (error) {
       if (!this.isCurrent(generation, controller)) return;
       this.reportFailure(error, 'preflight');
@@ -106,7 +108,7 @@ export class AssetManagerModImportWorkflow {
       this.preflightState.set(undefined);
       this.preflightProgressState.set(undefined);
       this.operationStatusState.set(undefined);
-      this.assets.activity.finish('mod-import', this.i18n.t('assetManagerImported'), 'mod');
+      this.activity.finish('mod-import', this.i18n.t('assetManagerImported'), 'mod');
       return true;
     } catch (error) {
       if (!this.isCurrent(generation, controller)) return false;
@@ -134,7 +136,7 @@ export class AssetManagerModImportWorkflow {
     this.preflightErrorState.set('');
     const kind = this.operationKind();
     if (!kind) return;
-    this.assets.activity.cancel(
+    this.activity.cancel(
       kind === 'commit' ? 'mod-import' : 'mod-preflight',
       this.i18n.t('assetManagerTaskCancelled'),
       'mod',
@@ -173,7 +175,7 @@ export class AssetManagerModImportWorkflow {
     this.operationKindState.set(kind);
     this.operationStatusState.set('running');
     this.importingState.set(true);
-    this.assets.activity.begin(
+    this.activity.begin(
       kind === 'commit' ? 'mod-import' : 'mod-preflight',
       this.i18n.t('assetManagerImporting'),
       'mod',
@@ -203,14 +205,10 @@ export class AssetManagerModImportWorkflow {
         const message = this.timeoutMessage(error);
         if (operation === 'commit') this.modErrorState.set(message);
         else this.preflightErrorState.set(message);
-        this.assets.activity.timeout(activityOperation, message, 'mod');
+        this.activity.timeout(activityOperation, message, 'mod');
       } else {
         this.operationStatusState.set('cancelled');
-        this.assets.activity.cancel(
-          activityOperation,
-          this.i18n.t('assetManagerTaskCancelled'),
-          'mod',
-        );
+        this.activity.cancel(activityOperation, this.i18n.t('assetManagerTaskCancelled'), 'mod');
       }
       return;
     }
@@ -218,7 +216,7 @@ export class AssetManagerModImportWorkflow {
     this.operationStatusState.set('failed');
     if (operation === 'commit') this.modErrorState.set(message);
     else this.preflightErrorState.set(message);
-    this.assets.activity.fail(activityOperation, message, 'mod');
+    this.activity.fail(activityOperation, message, 'mod');
   }
 
   private jarValidationMessage(error: unknown): string {

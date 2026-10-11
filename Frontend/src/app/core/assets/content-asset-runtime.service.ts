@@ -97,7 +97,7 @@ export class ContentAssetRuntimeService {
     this.cache,
     new MojangVanillaAssetSource(),
   );
-  readonly activity = inject(AssetActivityService);
+  private readonly activity = inject(AssetActivityService);
   private readonly sourceRegistry = new ContentSourceRegistry();
   readonly sources: ContentSourceReadView = this.sourceRegistry;
   private readonly thumbnails!: AssetThumbnailService;

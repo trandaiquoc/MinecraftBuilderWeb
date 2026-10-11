@@ -29,7 +29,8 @@ import {
   ModSupportCertification,
 } from '../../../../core/assets/mod/mod-support-catalog';
 import { SupportedModLoader } from '../../../../core/assets/mod/mod-loader';
-import {
+import { AssetActivityService } from '../../../../core/assets/asset-activity.service';
+import type {
   AssetActivityEntry,
   AssetActivityProgress,
 } from '../../../../core/assets/asset-activity.service';
@@ -89,6 +90,7 @@ const phases: readonly ModImportProgress['phase'][] = importStages.flatMap(({ ph
 export class AssetManagerDialogComponent {
   protected readonly i18n = inject(I18nService);
   protected readonly assets = inject(ContentAssetRuntimeService);
+  protected readonly activity = inject(AssetActivityService);
   private readonly dialog = inject(DialogService);
   private readonly supportCatalog = inject(ModSupportCatalog);
   protected readonly modImport = inject(AssetManagerModImportWorkflow);
@@ -131,19 +133,19 @@ export class AssetManagerDialogComponent {
       );
   });
   protected readonly vanillaActivity = computed(() =>
-    filterAssetActivity(this.assets.activity.entries(), 'vanilla'),
+    filterAssetActivity(this.activity.entries(), 'vanilla'),
   );
   protected readonly modActivity = computed(() =>
-    filterAssetActivity(this.assets.activity.entries(), 'mods'),
+    filterAssetActivity(this.activity.entries(), 'mods'),
   );
   protected readonly currentVanillaActivity = computed(() => {
-    const current = this.assets.activity.current();
+    const current = this.activity.current();
     return current && (current.category === 'vanilla' || current.category === 'cache')
       ? this.withActivityProgress(current)
       : undefined;
   });
   protected readonly currentModActivity = computed(() => {
-    const current = this.assets.activity.current();
+    const current = this.activity.current();
     return current?.category === 'mod' ? this.withActivityProgress(current) : undefined;
   });
   protected readonly selectedDetails = computed(() =>

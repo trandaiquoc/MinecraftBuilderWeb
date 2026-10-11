@@ -655,7 +655,7 @@
             type="button"
             class="secondary ui-button ui-button--secondary ui-button--sm"
             [disabled]="!(tab() === 'vanilla' ? vanillaActivity().length : modActivity().length)"
-            (click)="assets.activity.clear()"
+            (click)="activity.clear()"
           >
             {{ i18n.t('clear') }}
           </button>

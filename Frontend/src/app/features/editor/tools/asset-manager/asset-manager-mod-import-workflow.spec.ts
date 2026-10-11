@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import type { AssetActivityService } from '../../../../core/assets/asset-activity.service';
 import type {
   ModImportProgress,
   PreparedModImport,
@@ -27,7 +28,6 @@ function setup() {
     fail: vi.fn(),
   };
   const assets = {
-    activity,
     inspectModJar: vi.fn(),
     commitPreparedModImport: vi.fn(),
   };
@@ -38,6 +38,7 @@ function setup() {
     workflow: new AssetManagerModImportWorkflow(
       assets as unknown as ContentAssetRuntimeService,
       i18n as unknown as I18nService,
+      activity as unknown as AssetActivityService,
     ),
   };
 }
