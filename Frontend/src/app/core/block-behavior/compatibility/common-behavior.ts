@@ -50,7 +50,6 @@ export function evaluateCommonBehavior(
   const candidate = matchVanillaBehaviorCandidates(fingerprint);
   if (candidate.behavior && candidate.family && candidate.defaults)
     return complete(
-      record,
       candidate.stateDefinitions ?? definitions,
       candidate.family,
       candidate.behavior,
@@ -84,7 +83,6 @@ export function evaluateCommonBehavior(
   const door = contract(definitions, doorClassificationStates);
   if (door.complete && hasFamilyEvidence(record, doorProfile.family)) {
     return complete(
-      record,
       definitions,
       doorProfile.family,
       doorProfile.behavior,
@@ -99,7 +97,6 @@ export function evaluateCommonBehavior(
     hasDoorStateEvidence(definitions)
   ) {
     return complete(
-      record,
       definitions,
       doorProfile.family,
       doorProfile.behavior,
@@ -109,7 +106,6 @@ export function evaluateCommonBehavior(
   }
   if (door.partial && hasDoorStateEvidence(definitions))
     return changed(
-      record,
       definitions,
       defaultState,
       doorProfile.family,
@@ -125,7 +121,6 @@ export function evaluateCommonBehavior(
     !hasDoorStateEvidence(definitions)
   )
     return complete(
-      record,
       definitions,
       doubleHeightProfile.family,
       doubleHeightProfile.behavior,
@@ -137,7 +132,6 @@ export function evaluateCommonBehavior(
   const bed = contract(definitions, bedProfile.requiredStates);
   if (bed.complete && hasFamilyEvidence(record, bedProfile.family))
     return complete(
-      record,
       definitions,
       bedProfile.family,
       bedProfile.behavior,
@@ -150,7 +144,6 @@ export function evaluateCommonBehavior(
     canFillCommon(record, definitions, bedProfile.requiredStates)
   )
     return complete(
-      record,
       definitions,
       bedProfile.family,
       bedProfile.behavior,
@@ -170,7 +163,6 @@ export function evaluateCommonBehavior(
   for (const profile of signProfiles) {
     if (record.trustedBehaviorFamilies?.includes(profile.family) === true)
       return complete(
-        record,
         signDefinitions(definitions, profile.requiredStates),
         profile.family,
         profile.behavior,
@@ -185,7 +177,6 @@ export function evaluateCommonBehavior(
   // ID suffix (which would also misclassify candle-cake variants).
   if (candle.complete && hasFamilyEvidence(record, candleProfile.family))
     return complete(
-      record,
       definitions,
       candleProfile.family,
       candleProfile.behavior,
@@ -198,7 +189,6 @@ export function evaluateCommonBehavior(
   });
   if (fluid.complete && (record.id === 'minecraft:water' || record.id === 'minecraft:lava'))
     return complete(
-      record,
       definitions,
       'fluids',
       { kind: 'fluid', fluid: record.id.endsWith('lava') ? 'lava' : 'water' },
@@ -214,7 +204,6 @@ export function evaluateCommonBehavior(
     hasResourceToken(record, 'shulker')
   )
     return complete(
-      record,
       definitions,
       shulkerProfile.family,
       shulkerProfile.behavior,
@@ -226,7 +215,6 @@ export function evaluateCommonBehavior(
   const conduit = contract(definitions, conduitProfile.requiredStates);
   if (conduit.complete && record.id === 'minecraft:conduit')
     return complete(
-      record,
       definitions,
       conduitProfile.family,
       conduitProfile.behavior,
@@ -242,7 +230,6 @@ export function evaluateCommonBehavior(
     hasResourceToken(record, 'lantern')
   )
     return complete(
-      record,
       definitions,
       lanternProfile.family,
       lanternProfile.behavior,
@@ -258,7 +245,6 @@ export function evaluateCommonBehavior(
     hasResourceToken(record, 'chain')
   )
     return complete(
-      record,
       definitions,
       chainProfile.family,
       chainProfile.behavior,
@@ -274,7 +260,6 @@ export function evaluateCommonBehavior(
     hasButtonStateEvidence(definitions)
   ) {
     return complete(
-      record,
       definitions,
       buttonProfile.family,
       buttonProfile.behavior,
@@ -288,7 +273,6 @@ export function evaluateCommonBehavior(
     hasButtonStateEvidence(definitions)
   )
     return changed(
-      record,
       definitions,
       defaultState,
       buttonProfile.family,
@@ -312,7 +296,6 @@ export function evaluateCommonBehavior(
       );
     if (!connectionValuesCompatible)
       return changed(
-        record,
         definitions,
         defaultState,
         'connections',
@@ -329,7 +312,6 @@ export function evaluateCommonBehavior(
       family === 'fence' ? GENERIC_BEHAVIOR_PROFILES.fence : GENERIC_BEHAVIOR_PROFILES.pane;
     if (connectionContract.complete && modelEvidence)
       return complete(
-        record,
         connectionDefinitions,
         family,
         profile.behavior,
@@ -337,7 +319,6 @@ export function evaluateCommonBehavior(
         'compatible-common',
       );
     return changed(
-      record,
       definitions,
       defaultState,
       'connections',
@@ -349,7 +330,6 @@ export function evaluateCommonBehavior(
   const wall = contract(definitions, wallProfile.requiredStates);
   if (wall.complete && isWallEvidence(blockstate, record.resources.model, record))
     return complete(
-      record,
       definitions,
       wallProfile.family,
       wallProfile.behavior,
@@ -358,7 +338,6 @@ export function evaluateCommonBehavior(
     );
   if (wall.partial && isWallEvidence(blockstate, record.resources.model, record))
     return changed(
-      record,
       definitions,
       defaultState,
       'walls',
@@ -369,7 +348,6 @@ export function evaluateCommonBehavior(
   const stairs = contract(definitions, stairsProfile.requiredStates);
   if (stairs.complete && isStairsEvidence(blockstate, record.resources.model, record))
     return complete(
-      record,
       definitions,
       stairsProfile.family,
       stairsProfile.behavior,
@@ -378,7 +356,6 @@ export function evaluateCommonBehavior(
     );
   if (stairs.partial && isStairsEvidence(blockstate, record.resources.model, record))
     return changed(
-      record,
       definitions,
       defaultState,
       'stairs',
@@ -406,7 +383,6 @@ function canUseTrustedVanillaCompatibilityFallback(record: AssetBlockRecord): bo
 }
 
 function complete(
-  record: AssetBlockRecord,
   definitions: readonly BlockStateDefinition[],
   family: string,
   behavior: BlockBehavior,
@@ -426,7 +402,6 @@ function complete(
 }
 
 function changed(
-  record: AssetBlockRecord,
   definitions: readonly BlockStateDefinition[],
   defaults: Readonly<Record<string, string>>,
   family: string,

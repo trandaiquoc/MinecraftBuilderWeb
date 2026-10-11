@@ -70,9 +70,9 @@ export function ddaVoxelPick(
     z: reciprocalAbs(ray.direction.z),
   };
   const next = {
-    x: nextBoundary(cell.x, step.x, ray.direction.x),
-    y: nextBoundary(cell.y, step.y, ray.direction.y),
-    z: nextBoundary(cell.z, step.z, ray.direction.z),
+    x: nextBoundary(cell.x, ray.direction.x),
+    y: nextBoundary(cell.y, ray.direction.y),
+    z: nextBoundary(cell.z, ray.direction.z),
   };
   const tMax = {
     x: finiteOrInfinity((next.x - ray.origin.x) / ray.direction.x),
@@ -140,9 +140,9 @@ export function ddaVoxelCandidates(
     z: reciprocalAbs(ray.direction.z),
   };
   const next = {
-    x: nextBoundary(cell.x, step.x, ray.direction.x),
-    y: nextBoundary(cell.y, step.y, ray.direction.y),
-    z: nextBoundary(cell.z, step.z, ray.direction.z),
+    x: nextBoundary(cell.x, ray.direction.x),
+    y: nextBoundary(cell.y, ray.direction.y),
+    z: nextBoundary(cell.z, ray.direction.z),
   };
   const tMax = {
     x: finiteOrInfinity((next.x - ray.origin.x) / ray.direction.x),
@@ -227,7 +227,7 @@ function sign(value: number): -1 | 0 | 1 {
 function reciprocalAbs(value: number): number {
   return Math.abs(value) < EPSILON ? Number.POSITIVE_INFINITY : 1 / Math.abs(value);
 }
-function nextBoundary(cell: number, step: number, direction: number): number {
+function nextBoundary(cell: number, direction: number): number {
   return direction >= 0 ? cell + 1 : cell;
 }
 function finiteOrInfinity(value: number): number {

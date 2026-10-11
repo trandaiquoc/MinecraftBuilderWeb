@@ -118,7 +118,6 @@ export class MojangVanillaAssetSource {
       throw new Error('The Minecraft client JAR is larger than the supported download limit.');
     const bytes = await readResponse(
       response,
-      contentLength,
       (loaded) => onProgress?.({ phase: 'download', loaded, total: contentLength }),
       signal,
     );
@@ -155,7 +154,6 @@ export class MojangVanillaAssetSource {
 
 async function readResponse(
   response: Response,
-  total: number | undefined,
   progress: (loaded: number) => void,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
