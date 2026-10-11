@@ -47,6 +47,24 @@ function file(name = 'mod.jar'): File {
 }
 
 describe('AssetManagerModImportWorkflow', () => {
+  it('exposes import workflow state as read-only signals', () => {
+    const { workflow } = setup();
+
+    for (const state of [
+      workflow.importing,
+      workflow.modError,
+      workflow.preflight,
+      workflow.preflightProgress,
+      workflow.preflightError,
+      workflow.preflightIconUrl,
+      workflow.operationKind,
+      workflow.operationStatus,
+    ]) {
+      expect(state).not.toHaveProperty('set');
+      expect(state).not.toHaveProperty('update');
+    }
+  });
+
   it('owns successful preflight state and disposes a previous prepared payload when the file changes', async () => {
     const { assets, workflow } = setup();
     const first = prepared();

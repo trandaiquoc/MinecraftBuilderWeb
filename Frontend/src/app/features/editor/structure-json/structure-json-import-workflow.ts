@@ -53,12 +53,18 @@ export class StructureJsonImportWorkflow implements OnDestroy {
   private readonly hydrationStatus = inject(ViewportHydrationStatusService);
   private readonly i18n = inject(I18nService);
 
-  readonly draftJson = signal('');
-  readonly preview = signal<StructureJsonValidationPreview | undefined>(undefined);
-  readonly progress = signal<StructureJsonImportProgress>('idle');
-  readonly checkingProgress = signal({ completed: 0, total: 0 });
-  readonly importMode = signal<StructureJsonImportMode>('replace');
-  readonly importPlan = signal<StructureJsonImportPlan | undefined>(undefined);
+  private readonly draftJsonState = signal('');
+  private readonly previewState = signal<StructureJsonValidationPreview | undefined>(undefined);
+  private readonly progressState = signal<StructureJsonImportProgress>('idle');
+  private readonly checkingProgressState = signal({ completed: 0, total: 0 });
+  private readonly importModeState = signal<StructureJsonImportMode>('replace');
+  private readonly importPlanState = signal<StructureJsonImportPlan | undefined>(undefined);
+  readonly draftJson = this.draftJsonState.asReadonly();
+  readonly preview = this.previewState.asReadonly();
+  readonly progress = this.progressState.asReadonly();
+  readonly checkingProgress = this.checkingProgressState.asReadonly();
+  readonly importMode = this.importModeState.asReadonly();
+  readonly importPlan = this.importPlanState.asReadonly();
   readonly importModes: readonly StructureJsonImportMode[] = ['replace', 'merge', 'new-group'];
 
   private currentProject?: ProjectDocument;
@@ -72,12 +78,12 @@ export class StructureJsonImportWorkflow implements OnDestroy {
     this.currentProject = project;
     this.invalidateWork();
     if (!changed) return;
-    this.preview.set(undefined);
-    this.importPlan.set(undefined);
+    this.previewState.set(undefined);
+    this.importPlanState.set(undefined);
     this.modePlanCache.clear();
-    this.importMode.set('replace');
-    this.progress.set('idle');
-    this.checkingProgress.set({ completed: 0, total: 0 });
+    this.importModeState.set('replace');
+    this.progressState.set('idle');
+    this.checkingProgressState.set({ completed: 0, total: 0 });
   }
 
   cancelPendingWork(): void {
@@ -85,30 +91,30 @@ export class StructureJsonImportWorkflow implements OnDestroy {
   }
 
   setDraft(value: string): void {
-    this.draftJson.set(value);
-    this.preview.set(undefined);
-    this.importPlan.set(undefined);
+    this.draftJsonState.set(value);
+    this.previewState.set(undefined);
+    this.importPlanState.set(undefined);
     this.modePlanCache.clear();
-    this.importMode.set('replace');
-    this.progress.set('idle');
-    this.checkingProgress.set({ completed: 0, total: 0 });
+    this.importModeState.set('replace');
+    this.progressState.set('idle');
+    this.checkingProgressState.set({ completed: 0, total: 0 });
     this.invalidateWork();
   }
 
   async loadFile(file: File): Promise<void> {
     const generation = this.beginWork('reading');
-    this.preview.set(undefined);
-    this.importPlan.set(undefined);
+    this.previewState.set(undefined);
+    this.importPlanState.set(undefined);
     this.modePlanCache.clear();
-    this.importMode.set('replace');
-    this.checkingProgress.set({ completed: 0, total: 0 });
+    this.importModeState.set('replace');
+    this.checkingProgressState.set({ completed: 0, total: 0 });
     try {
       const text = await file.text();
       if (!this.isCurrent(generation)) return;
-      this.draftJson.set(text);
-      this.progress.set('idle');
+      this.draftJsonState.set(text);
+      this.progressState.set('idle');
     } catch {
-      if (this.isCurrent(generation)) this.progress.set('idle');
+      if (this.isCurrent(generation)) this.progressState.set('idle');
     }
   }
 
@@ -116,7 +122,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
     const project = this.currentProject;
     if (!project) return;
     const generation = this.beginWork('parsing');
-    this.checkingProgress.set({ completed: 0, total: 0 });
+    this.checkingProgressState.set({ completed: 0, total: 0 });
 
     const parsed = await parseStructureJsonWithWorker(this.draftJson(), {
       isCancelled: () => !this.isCurrent(generation, project),
@@ -124,19 +130,20 @@ export class StructureJsonImportWorkflow implements OnDestroy {
     if (!this.isCurrent(generation, project)) return;
 
     if (!parsed.valid || !parsed.value) {
-      this.importPlan.set(undefined);
-      this.preview.set(emptyInvalidPreview(parsed.code));
-      this.progress.set('complete');
+      this.importPlanState.set(undefined);
+      this.previewState.set(emptyInvalidPreview(parsed.code));
+      this.progressState.set('complete');
       return;
     }
 
-    this.progress.set('checking');
+    this.progressState.set('checking');
     const result = await validateParsedStructureJsonPreviewAsync(
       parsed.value,
       project.size,
       (id) => this.library.get(id),
       (completed, total) => {
-        if (this.isCurrent(generation, project)) this.checkingProgress.set({ completed, total });
+        if (this.isCurrent(generation, project))
+          this.checkingProgressState.set({ completed, total });
       },
       { isCancelled: () => !this.isCurrent(generation, project) },
       project,
@@ -146,15 +153,15 @@ export class StructureJsonImportWorkflow implements OnDestroy {
     if (!this.isCurrent(generation, project) || !result) return;
 
     this.modePlanCache.clear();
-    this.progress.set('planning');
+    this.progressState.set('planning');
     const plan = await this.buildPlan(result, 'replace', generation, project, context);
     if (!this.isCurrent(generation, project) || !plan) return;
 
     this.modePlanCache.set('replace', plan);
-    this.preview.set(this.previewForPlan(result, plan));
-    this.importMode.set('replace');
-    this.importPlan.set(plan);
-    this.progress.set('ready');
+    this.previewState.set(this.previewForPlan(result, plan));
+    this.importModeState.set('replace');
+    this.importPlanState.set(plan);
+    this.progressState.set('ready');
   }
 
   async selectImportMode(
@@ -166,21 +173,21 @@ export class StructureJsonImportWorkflow implements OnDestroy {
     if (!result?.parsed || !project) return;
 
     const generation = this.beginWork('planning');
-    this.importMode.set(mode);
+    this.importModeState.set(mode);
     const cached = this.modePlanCache.get(mode);
     if (cached && cached.source === result.parsed && cached.baseProject === project) {
-      this.preview.set(this.previewForPlan(result, cached));
-      this.importPlan.set(cached);
-      this.progress.set('ready');
+      this.previewState.set(this.previewForPlan(result, cached));
+      this.importPlanState.set(cached);
+      this.progressState.set('ready');
       return;
     }
 
     const plan = await this.buildPlan(result, mode, generation, project, context);
     if (!this.isCurrent(generation, project) || !plan) return;
     this.modePlanCache.set(mode, plan);
-    this.preview.set(this.previewForPlan(result, plan));
-    this.importPlan.set(plan);
-    this.progress.set('ready');
+    this.previewState.set(this.previewForPlan(result, plan));
+    this.importPlanState.set(plan);
+    this.progressState.set('ready');
   }
 
   hasPlan(): boolean {
@@ -245,7 +252,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
         return false;
 
       if (choice === 'keep') {
-        this.progress.set('planning');
+        this.progressState.set('planning');
         const clippedPlan = await this.buildPlanForSource(
           clipStructureJsonToBounds(plan.source, baseProject.size),
           baseProject,
@@ -264,7 +271,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
           return false;
         }
         targetProject = resized;
-        this.progress.set('planning');
+        this.progressState.set('planning');
         const resizedPlan = await this.buildPlanForSource(
           plan.source,
           targetProject,
@@ -346,7 +353,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
 
   private beginWork(progress: StructureJsonImportProgress): number {
     const generation = ++this.generation;
-    this.progress.set(progress);
+    this.progressState.set(progress);
     return generation;
   }
 
@@ -392,7 +399,8 @@ export class StructureJsonImportWorkflow implements OnDestroy {
       {
         cancellation: { isCancelled: () => !this.isCurrent(generation, project) },
         onProgress: (_stage, completed, total) => {
-          if (this.isCurrent(generation, project)) this.checkingProgress.set({ completed, total });
+          if (this.isCurrent(generation, project))
+            this.checkingProgressState.set({ completed, total });
         },
       },
     );
@@ -413,7 +421,7 @@ export class StructureJsonImportWorkflow implements OnDestroy {
       (id) => this.library.get(id),
       (completed, total) => {
         if (this.isCurrent(generation, expectedProject))
-          this.checkingProgress.set({ completed, total });
+          this.checkingProgressState.set({ completed, total });
       },
       { isCancelled: () => !this.isCurrent(generation, expectedProject) },
       project,

@@ -14,14 +14,22 @@ import { phaseLabels, type ImportOperationStatus } from './asset-manager-mod-pre
 
 @Injectable()
 export class AssetManagerModImportWorkflow {
-  readonly importing = signal(false);
-  readonly modError = signal('');
-  readonly preflight = signal<PreparedModImport | undefined>(undefined);
-  readonly preflightProgress = signal<ModImportProgress | undefined>(undefined);
-  readonly preflightError = signal('');
-  readonly preflightIconUrl = signal<string | undefined>(undefined);
-  readonly operationKind = signal<'preflight' | 'commit' | undefined>(undefined);
-  readonly operationStatus = signal<ImportOperationStatus>(undefined);
+  private readonly importingState = signal(false);
+  private readonly modErrorState = signal('');
+  private readonly preflightState = signal<PreparedModImport | undefined>(undefined);
+  private readonly preflightProgressState = signal<ModImportProgress | undefined>(undefined);
+  private readonly preflightErrorState = signal('');
+  private readonly preflightIconUrlState = signal<string | undefined>(undefined);
+  private readonly operationKindState = signal<'preflight' | 'commit' | undefined>(undefined);
+  private readonly operationStatusState = signal<ImportOperationStatus>(undefined);
+  readonly importing = this.importingState.asReadonly();
+  readonly modError = this.modErrorState.asReadonly();
+  readonly preflight = this.preflightState.asReadonly();
+  readonly preflightProgress = this.preflightProgressState.asReadonly();
+  readonly preflightError = this.preflightErrorState.asReadonly();
+  readonly preflightIconUrl = this.preflightIconUrlState.asReadonly();
+  readonly operationKind = this.operationKindState.asReadonly();
+  readonly operationStatus = this.operationStatusState.asReadonly();
 
   private generation = 0;
   private controller?: AbortController;
@@ -39,17 +47,17 @@ export class AssetManagerModImportWorkflow {
     try {
       validateJarUpload(file);
     } catch (error) {
-      this.preflightError.set(this.jarValidationMessage(error));
+      this.preflightErrorState.set(this.jarValidationMessage(error));
       return;
     }
 
     this.retryFile = file;
     this.cancel();
-    this.preflight.set(undefined);
+    this.preflightState.set(undefined);
     this.beginOperation('preflight');
-    this.modError.set('');
-    this.preflightError.set('');
-    this.preflightProgress.set(undefined);
+    this.modErrorState.set('');
+    this.preflightErrorState.set('');
+    this.preflightProgressState.set(undefined);
     const generation = this.generation;
     const controller = this.controller!;
 
@@ -57,7 +65,7 @@ export class AssetManagerModImportWorkflow {
       const prepared = await this.assets.inspectModJar(
         file,
         (progress) => {
-          if (this.isCurrent(generation, controller)) this.preflightProgress.set(progress);
+          if (this.isCurrent(generation, controller)) this.preflightProgressState.set(progress);
         },
         controller.signal,
       );
@@ -65,9 +73,9 @@ export class AssetManagerModImportWorkflow {
         prepared.dispose();
         return;
       }
-      this.preflight.set(prepared);
-      this.preflightIconUrl.set(this.createPreflightIcon(prepared));
-      this.operationStatus.set(prepared.canActivate ? 'ready' : 'failed');
+      this.preflightState.set(prepared);
+      this.preflightIconUrlState.set(this.createPreflightIcon(prepared));
+      this.operationStatusState.set(prepared.canActivate ? 'ready' : 'failed');
       this.assets.activity.finish('mod-preflight', this.i18n.t('assetManagerImportReady'), 'mod');
     } catch (error) {
       if (!this.isCurrent(generation, controller)) return;
@@ -83,21 +91,21 @@ export class AssetManagerModImportWorkflow {
     if (!prepared || !prepared.canActivate || this.importing()) return false;
 
     this.beginOperation('commit');
-    this.modError.set('');
+    this.modErrorState.set('');
     const generation = this.generation;
     const controller = this.controller!;
     try {
       await this.assets.commitPreparedModImport(
         prepared,
         (progress) => {
-          if (this.isCurrent(generation, controller)) this.preflightProgress.set(progress);
+          if (this.isCurrent(generation, controller)) this.preflightProgressState.set(progress);
         },
         controller.signal,
       );
       if (!this.isCurrent(generation, controller)) return false;
-      this.preflight.set(undefined);
-      this.preflightProgress.set(undefined);
-      this.operationStatus.set(undefined);
+      this.preflightState.set(undefined);
+      this.preflightProgressState.set(undefined);
+      this.operationStatusState.set(undefined);
       this.assets.activity.finish('mod-import', this.i18n.t('assetManagerImported'), 'mod');
       return true;
     } catch (error) {
@@ -114,15 +122,16 @@ export class AssetManagerModImportWorkflow {
   }
 
   cancel(): void {
-    if (this.controller && !this.controller.signal.aborted) this.operationStatus.set('cancelling');
+    if (this.controller && !this.controller.signal.aborted)
+      this.operationStatusState.set('cancelling');
     this.generation += 1;
     this.controller?.abort();
     this.controller = undefined;
     this.preflight()?.dispose();
     this.revokePreflightIcon();
-    this.preflight.set(undefined);
-    this.preflightProgress.set(undefined);
-    this.preflightError.set('');
+    this.preflightState.set(undefined);
+    this.preflightProgressState.set(undefined);
+    this.preflightErrorState.set('');
     const kind = this.operationKind();
     if (!kind) return;
     this.assets.activity.cancel(
@@ -130,9 +139,9 @@ export class AssetManagerModImportWorkflow {
       this.i18n.t('assetManagerTaskCancelled'),
       'mod',
     );
-    this.operationKind.set(undefined);
-    this.operationStatus.set('cancelled');
-    this.importing.set(false);
+    this.operationKindState.set(undefined);
+    this.operationStatusState.set('cancelled');
+    this.importingState.set(false);
   }
 
   retry(): void {
@@ -161,9 +170,9 @@ export class AssetManagerModImportWorkflow {
     this.controller?.abort();
     this.generation += 1;
     this.controller = new AbortController();
-    this.operationKind.set(kind);
-    this.operationStatus.set('running');
-    this.importing.set(true);
+    this.operationKindState.set(kind);
+    this.operationStatusState.set('running');
+    this.importingState.set(true);
     this.assets.activity.begin(
       kind === 'commit' ? 'mod-import' : 'mod-preflight',
       this.i18n.t('assetManagerImporting'),
@@ -173,8 +182,8 @@ export class AssetManagerModImportWorkflow {
 
   private finishOperation(): void {
     this.controller = undefined;
-    this.operationKind.set(undefined);
-    this.importing.set(false);
+    this.operationKindState.set(undefined);
+    this.importingState.set(false);
   }
 
   private isCurrent(generation: number, controller: AbortController): boolean {
@@ -190,13 +199,13 @@ export class AssetManagerModImportWorkflow {
     const activityOperation = operation === 'commit' ? 'mod-import' : 'mod-preflight';
     if (isAbortError(error)) {
       if (error instanceof ModImportTimeoutError) {
-        this.operationStatus.set('timed-out');
+        this.operationStatusState.set('timed-out');
         const message = this.timeoutMessage(error);
-        if (operation === 'commit') this.modError.set(message);
-        else this.preflightError.set(message);
+        if (operation === 'commit') this.modErrorState.set(message);
+        else this.preflightErrorState.set(message);
         this.assets.activity.timeout(activityOperation, message, 'mod');
       } else {
-        this.operationStatus.set('cancelled');
+        this.operationStatusState.set('cancelled');
         this.assets.activity.cancel(
           activityOperation,
           this.i18n.t('assetManagerTaskCancelled'),
@@ -206,9 +215,9 @@ export class AssetManagerModImportWorkflow {
       return;
     }
     const message = error instanceof Error ? error.message : this.i18n.t('assetManagerImportError');
-    this.operationStatus.set('failed');
-    if (operation === 'commit') this.modError.set(message);
-    else this.preflightError.set(message);
+    this.operationStatusState.set('failed');
+    if (operation === 'commit') this.modErrorState.set(message);
+    else this.preflightErrorState.set(message);
     this.assets.activity.fail(activityOperation, message, 'mod');
   }
 
@@ -230,7 +239,7 @@ export class AssetManagerModImportWorkflow {
   private revokePreflightIcon(): void {
     const url = this.preflightIconUrl();
     if (url && typeof URL !== 'undefined') URL.revokeObjectURL(url);
-    this.preflightIconUrl.set(undefined);
+    this.preflightIconUrlState.set(undefined);
   }
 }
 

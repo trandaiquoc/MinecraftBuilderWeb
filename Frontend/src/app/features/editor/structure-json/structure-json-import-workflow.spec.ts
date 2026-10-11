@@ -86,6 +86,26 @@ function configure(
 }
 
 describe('StructureJsonImportWorkflow', () => {
+  it('exposes import state as read-only signals updated through workflow methods', () => {
+    const { workflow } = configure();
+    const states = [
+      workflow.draftJson,
+      workflow.preview,
+      workflow.progress,
+      workflow.checkingProgress,
+      workflow.importMode,
+      workflow.importPlan,
+    ];
+
+    for (const state of states) {
+      expect(state).not.toHaveProperty('set');
+      expect(state).not.toHaveProperty('update');
+    }
+
+    workflow.setDraft(serializedStone());
+    expect(workflow.draftJson()).toBe(serializedStone());
+  });
+
   it('owns validation and commits one undoable import transaction', async () => {
     const { workflow, workspace, history, dialogs } = configure();
     workflow.setDraft(serializedStone());
