@@ -14,13 +14,14 @@ export interface ActiveBlock {
 
 @Injectable({ providedIn: 'root' })
 export class ActiveBlockService {
-  readonly active = signal<ActiveBlock | undefined>(undefined);
+  private readonly activeState = signal<ActiveBlock | undefined>(undefined);
+  readonly active = this.activeState.asReadonly();
 
   select(definition: BlockDefinition | PlaceableItemDefinition): void {
     const item = 'itemId' in definition;
     const id = item ? definition.displayBlockId : definition.id;
     const sourceId = definition.sourceId;
-    this.active.set({
+    this.activeState.set({
       id,
       ...(item && definition.itemId !== id ? { itemId: definition.itemId } : {}),
       ...(item && definition.placementKind !== 'direct'
@@ -35,7 +36,7 @@ export class ActiveBlockService {
   pick(block: PlacedBlock, definition?: BlockDefinition, item?: PlaceableItemDefinition): void {
     const id = item?.displayBlockId ?? block.id;
     const sourceId = item?.sourceId ?? definition?.sourceId;
-    this.active.set({
+    this.activeState.set({
       id,
       ...(item && item.itemId !== id ? { itemId: item.itemId } : {}),
       ...(item && item.placementKind !== 'direct' ? { placementKind: item.placementKind } : {}),
@@ -46,7 +47,7 @@ export class ActiveBlockService {
     });
   }
   set(active: ActiveBlock): void {
-    this.active.set({
+    this.activeState.set({
       id: active.id,
       ...(active.itemId && active.itemId !== active.id ? { itemId: active.itemId } : {}),
       ...(active.placementKind ? { placementKind: active.placementKind } : {}),
@@ -68,7 +69,7 @@ export class ActiveBlockService {
     const itemId = itemBacked && item && item.itemId !== current.id ? item.itemId : undefined;
     const placementKind =
       itemBacked && item && item.placementKind !== 'direct' ? item.placementKind : undefined;
-    this.active.set({
+    this.activeState.set({
       id: current.id,
       ...(itemId ? { itemId } : {}),
       ...(placementKind ? { placementKind } : {}),
@@ -80,6 +81,6 @@ export class ActiveBlockService {
     });
   }
   clear(): void {
-    this.active.set(undefined);
+    this.activeState.set(undefined);
   }
 }

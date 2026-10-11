@@ -361,14 +361,14 @@
               type="button"
               [class.active]="tool.active() === 'place'"
               [attr.aria-pressed]="tool.active() === 'place'"
-              (click)="tool.active.set('place')"
+              (click)="tool.select('place')"
             >
               {{ i18n.t('toolPlace') }}</button
             ><button
               type="button"
               [class.active]="tool.active() === 'select'"
               [attr.aria-pressed]="tool.active() === 'select'"
-              (click)="tool.active.set('select')"
+              (click)="tool.select('select')"
             >
               {{ i18n.t('toolSelect') }}
             </button>

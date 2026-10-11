@@ -41,8 +41,10 @@ export class DecorationService {
   private readonly selection = inject(SelectionService);
   private readonly activeBlock = inject(ActiveBlockService);
   private readonly paintingCatalog = inject(PaintingVariantCatalogService);
-  readonly active = signal<ActiveDecoration | undefined>(undefined);
-  readonly selectedId = signal<string | undefined>(undefined);
+  private readonly activeState = signal<ActiveDecoration | undefined>(undefined);
+  private readonly selectedIdState = signal<string | undefined>(undefined);
+  readonly active = this.activeState.asReadonly();
+  readonly selectedId = this.selectedIdState.asReadonly();
   readonly selected = computed(() => {
     const id = this.selectedId();
     const project = this.workspace.project();
@@ -55,31 +57,31 @@ export class DecorationService {
   selectPainting(variantId = this.lastPaintingVariant): void {
     if (this.paintingCatalog.get(variantId)) {
       this.lastPaintingVariant = variantId;
-      this.active.set({ kind: 'painting', variantId });
+      this.activeState.set({ kind: 'painting', variantId });
     }
-    this.activeBlock.active.set(undefined);
+    this.activeBlock.clear();
   }
   selectRandomPainting(): void {
-    this.active.set({ kind: 'painting' });
-    this.activeBlock.active.set(undefined);
+    this.activeState.set({ kind: 'painting' });
+    this.activeBlock.clear();
   }
   selectFrame(glow = false, fixed = false): void {
-    this.active.set(nextFrameSelection(this.active(), glow, fixed));
-    this.activeBlock.active.set(undefined);
+    this.activeState.set(nextFrameSelection(this.active(), glow, fixed));
+    this.activeBlock.clear();
   }
   selectItem(item: DecorationItemStack | undefined): void {
     const current = this.active();
     if (current?.kind !== 'item-frame' && current?.kind !== 'glow-item-frame') return;
     if (!item?.id) {
       const { item: _item, ...withoutItem } = current;
-      this.active.set(withoutItem);
+      this.activeState.set(withoutItem);
       return;
     }
-    this.active.set({ ...current, item: { ...item, count: 1 } });
+    this.activeState.set({ ...current, item: { ...item, count: 1 } });
   }
   clearActive(): void {
-    this.active.set(undefined);
-    this.selectedId.set(undefined);
+    this.activeState.set(undefined);
+    this.selectedIdState.set(undefined);
   }
   planFromSupport(support: VoxelCoordinate, facing: DecorationFacing): DecorationPlacementPlan {
     const project = this.workspace.project();
@@ -123,7 +125,7 @@ export class DecorationService {
     return this.history.execute('Delete decoration', (project) => {
       const current = project.decorations?.find((entry) => entry.instanceId === id);
       if (!current || isDecorationLocked(current, project.groups)) return undefined;
-      this.selectedId.set(undefined);
+      this.selectedIdState.set(undefined);
       return {
         ...project,
         decorations: (project.decorations ?? []).filter((entry) => entry.instanceId !== id),
@@ -137,26 +139,26 @@ export class DecorationService {
       .project()
       ?.decorations?.find((entry) => entry.instanceId === id);
     if (!decoration) return;
-    this.selectedId.set(id);
+    this.selectedIdState.set(id);
     this.selection.clear();
-    this.active.set({
+    this.activeState.set({
       kind: decoration.kind,
       ...(decoration.variantId ? { variantId: decoration.variantId } : {}),
       ...(decoration.item ? { item: decoration.item } : {}),
       ...(decoration.fixed !== undefined ? { fixed: decoration.fixed } : {}),
     });
-    this.activeBlock.active.set(undefined);
+    this.activeBlock.clear();
   }
 
   select(id: string | undefined): void {
-    this.selectedId.set(id);
+    this.selectedIdState.set(id);
     if (id) this.selection.clear();
   }
   clearSelection(): void {
-    this.selectedId.set(undefined);
+    this.selectedIdState.set(undefined);
   }
   resetSelectionForProjectChange(): void {
-    this.selectedId.set(undefined);
+    this.selectedIdState.set(undefined);
   }
 
   setFrameItem(id: string, item: DecorationItemStack | undefined): boolean {

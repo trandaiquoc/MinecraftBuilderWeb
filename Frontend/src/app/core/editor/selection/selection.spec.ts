@@ -22,6 +22,20 @@ import { viewportThemePalette } from '../../renderer/engine/viewport-theme';
 import { createScreenSpaceMarqueeQuery } from '../../renderer/interaction/screen-space-marquee-selection';
 
 describe('voxel box selection', () => {
+  it('exposes selection presentation as read-only state', () => {
+    const selection = new SelectionService();
+
+    for (const state of [
+      selection.single,
+      selection.box,
+      selection.logicalPositions,
+      selection.kind,
+    ]) {
+      expect(state).not.toHaveProperty('set');
+      expect(state).not.toHaveProperty('update');
+    }
+  });
+
   it('normalizes inclusive integer corners and counts its size', () => {
     const box = normalizeVoxelBox({ x: 4.8, y: 3.2, z: 8.9 }, { x: 1.1, y: 5.7, z: 2.4 });
     expect(box).toEqual({ min: { x: 1, y: 3, z: 2 }, max: { x: 4, y: 5, z: 8 } });

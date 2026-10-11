@@ -5,6 +5,13 @@ import { BlockCatalog } from '../catalog/block-catalog';
 import { BlockLibraryService } from '../catalog/block-library.service';
 
 describe('ActiveBlockService', () => {
+  it('exposes active block state as read-only', () => {
+    const service = new ActiveBlockService();
+
+    expect(service.active).not.toHaveProperty('set');
+    expect(service.active).not.toHaveProperty('update');
+  });
+
   it('selects a block with its default state and support level', () => {
     const catalog = new BlockCatalog();
     catalog.load(representativeBlockFixture);

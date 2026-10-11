@@ -54,7 +54,7 @@ describe('3D viewport screen-space marquee interaction', () => {
     vi.spyOn(host, 'getBoundingClientRect').mockImplementation(() => hostBounds);
     const workspace = TestBed.inject(WorkspaceStateService);
     const selection = TestBed.inject(SelectionService);
-    TestBed.inject(EditorToolService).active.set('select');
+    TestBed.inject(EditorToolService).select('select');
     workspace.project.set(project);
     selection.select(project.blocks[2].position);
     fixture.detectChanges();
@@ -111,7 +111,7 @@ describe('3D viewport screen-space marquee interaction', () => {
     const host = fixture.nativeElement.querySelector('.viewport-host') as HTMLElement;
     const workspace = TestBed.inject(WorkspaceStateService);
     const selection = TestBed.inject(SelectionService);
-    TestBed.inject(EditorToolService).active.set('select');
+    TestBed.inject(EditorToolService).select('select');
     const project = rendererBenchmarkProject('small');
     workspace.project.set(project);
     selection.select(project.blocks[0].position);
@@ -156,7 +156,7 @@ describe('3D viewport screen-space marquee interaction', () => {
     fixture.detectChanges();
     const host = fixture.nativeElement.querySelector('.viewport-host') as HTMLElement;
     const workspace = TestBed.inject(WorkspaceStateService);
-    TestBed.inject(EditorToolService).active.set('select');
+    TestBed.inject(EditorToolService).select('select');
     const firstProject = rendererBenchmarkProject('small');
     workspace.project.set(firstProject);
     fixture.detectChanges();

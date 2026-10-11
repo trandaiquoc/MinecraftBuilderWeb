@@ -641,11 +641,11 @@ export class EditorShellComponent implements OnDestroy {
       return this.editor.deleteSelection();
     }
     if (action === 'tool-place') {
-      this.tool.active.set('place');
+      this.tool.select('place');
       return true;
     }
     if (action === 'tool-select') {
-      this.tool.active.set('select');
+      this.tool.select('select');
       return true;
     }
     if (action === 'mode-3d') {

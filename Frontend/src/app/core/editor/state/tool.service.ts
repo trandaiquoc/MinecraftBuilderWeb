@@ -4,5 +4,10 @@ export type EditorTool = 'place' | 'select';
 
 @Injectable({ providedIn: 'root' })
 export class EditorToolService {
-  readonly active = signal<EditorTool>('place');
+  private readonly activeState = signal<EditorTool>('place');
+  readonly active = this.activeState.asReadonly();
+
+  select(tool: EditorTool): void {
+    this.activeState.set(tool);
+  }
 }

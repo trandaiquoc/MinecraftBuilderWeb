@@ -30,19 +30,23 @@ export class SelectionService {
   constructor(
     private readonly runtimeIndex: ProjectBlockRuntimeIndex = defaultProjectBlockRuntimeIndex,
   ) {}
-  readonly single = signal<VoxelCoordinate | undefined>(undefined);
-  readonly box = signal<VoxelBox | undefined>(undefined);
-  readonly logicalPositions = signal<readonly VoxelCoordinate[]>([]);
-  readonly kind = signal<SelectionKind>('none');
+  private readonly singleState = signal<VoxelCoordinate | undefined>(undefined);
+  private readonly boxState = signal<VoxelBox | undefined>(undefined);
+  private readonly logicalPositionsState = signal<readonly VoxelCoordinate[]>([]);
+  private readonly kindState = signal<SelectionKind>('none');
+  readonly single = this.singleState.asReadonly();
+  readonly box = this.boxState.asReadonly();
+  readonly logicalPositions = this.logicalPositionsState.asReadonly();
+  readonly kind = this.kindState.asReadonly();
   private readonly allBounds = signal<VoxelBox | undefined>(undefined);
   private allBoundsBlocks?: readonly PlacedBlock[];
   private boxResolution?: 'positions' | 'compact';
   private compactSelectionKeys?: ReadonlySet<string>;
   select(position: VoxelCoordinate): void {
-    this.single.set({ ...position });
-    this.box.set(undefined);
-    this.logicalPositions.set([{ ...position }]);
-    this.kind.set('single');
+    this.singleState.set({ ...position });
+    this.boxState.set(undefined);
+    this.logicalPositionsState.set([{ ...position }]);
+    this.kindState.set('single');
     this.allBounds.set(undefined);
     this.allBoundsBlocks = undefined;
     this.resetBoxResolution();
@@ -53,23 +57,23 @@ export class SelectionService {
     definition: (id: string) => BlockDefinition | undefined,
   ): void {
     this.runtimeIndex.ensure(project);
-    this.single.set({ ...position });
-    this.box.set(undefined);
-    this.logicalPositions.set(
+    this.singleState.set({ ...position });
+    this.boxState.set(undefined);
+    this.logicalPositionsState.set(
       resolveLogicalObjectPartsFromLookup(this.runtimeIndex, position, definition).map((block) => ({
         ...block.position,
       })),
     );
-    this.kind.set('explicit');
+    this.kindState.set('explicit');
     this.allBounds.set(undefined);
     this.allBoundsBlocks = undefined;
     this.resetBoxResolution();
   }
   selectBox(box: VoxelBox): void {
-    this.single.set(undefined);
-    this.box.set({ min: { ...box.min }, max: { ...box.max } });
-    this.logicalPositions.set([]);
-    this.kind.set('box');
+    this.singleState.set(undefined);
+    this.boxState.set({ min: { ...box.min }, max: { ...box.max } });
+    this.logicalPositionsState.set([]);
+    this.kindState.set('box');
     this.allBounds.set(undefined);
     this.allBoundsBlocks = undefined;
     this.boxResolution = 'positions';
@@ -130,28 +134,28 @@ export class SelectionService {
     project: ProjectDocument,
     definition: (id: string) => BlockDefinition | undefined,
   ): void {
-    this.single.set(undefined);
-    this.box.set(undefined);
+    this.singleState.set(undefined);
+    this.boxState.set(undefined);
     // All project blocks are already selected; resolving every logical pair here only
     // creates duplicate coordinate objects and makes Ctrl+A scale poorly.
     // Keep the familiar explicit signal for tiny projects; large projects use
     // the compact all predicate and never clone every coordinate.
     if (project.blocks.length <= DETAILED_SELECTION_LIMIT) {
-      this.logicalPositions.set(project.blocks.map((block) => ({ ...block.position })));
-      this.kind.set('explicit');
+      this.logicalPositionsState.set(project.blocks.map((block) => ({ ...block.position })));
+      this.kindState.set('explicit');
     } else {
-      this.logicalPositions.set([]);
-      this.kind.set('all');
+      this.logicalPositionsState.set([]);
+      this.kindState.set('all');
     }
     this.allBounds.set(boundsOf(project.blocks));
     this.allBoundsBlocks = project.blocks;
     this.resetBoxResolution();
   }
   clear(): void {
-    this.single.set(undefined);
-    this.box.set(undefined);
-    this.logicalPositions.set([]);
-    this.kind.set('none');
+    this.singleState.set(undefined);
+    this.boxState.set(undefined);
+    this.logicalPositionsState.set([]);
+    this.kindState.set('none');
     this.allBounds.set(undefined);
     this.allBoundsBlocks = undefined;
     this.resetBoxResolution();
@@ -272,8 +276,8 @@ export class SelectionService {
 
   private setBoxSelection(box: VoxelBox | undefined, blocks: readonly PlacedBlock[]): void {
     const compact = blocks.length > DETAILED_SELECTION_LIMIT;
-    this.single.set(undefined);
-    this.box.set(box ? { min: { ...box.min }, max: { ...box.max } } : undefined);
+    this.singleState.set(undefined);
+    this.boxState.set(box ? { min: { ...box.min }, max: { ...box.max } } : undefined);
     const positions: VoxelCoordinate[] = [];
     const keys = compact ? new Set<string>() : undefined;
     for (const block of blocks) {
@@ -281,8 +285,8 @@ export class SelectionService {
         positions.push({ ...block.position });
       keys?.add(coordinateKey(block.position));
     }
-    this.logicalPositions.set(positions);
-    this.kind.set('box');
+    this.logicalPositionsState.set(positions);
+    this.kindState.set('box');
     this.allBounds.set(undefined);
     this.allBoundsBlocks = undefined;
     this.boxResolution = compact ? 'compact' : 'positions';
