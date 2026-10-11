@@ -223,7 +223,10 @@ import {
 } from '../isolation/group-isolation-presentation';
 import { EditingPlanePresenter } from '../presentation/editing-plane-presenter';
 import { SelectionOverlayPresenter } from '../presentation/selection-overlay-presenter';
-import { projectPointerToAxisPlane } from '../interaction/viewport-pointer-projection';
+import {
+  projectPointerToAxisPlane,
+  projectPointerToWorldPlane,
+} from '../interaction/viewport-pointer-projection';
 import { ViewportHoverController } from '../interaction/viewport-hover-controller';
 import { ViewportRaycastController } from '../interaction/viewport-raycast-controller';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
@@ -275,7 +278,6 @@ import {
   RENDER_CHUNK_SIZE,
 } from '../batching/render-chunk-geometry';
 import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-overlay-presenter';
-import { selectionBounds } from '../presentation/selection-bounds';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-diff';
 import { canonicalRenderOptions, renderFilterKey } from './viewport-render-signatures';
@@ -3007,7 +3009,9 @@ export class ThreeViewportEngine {
         selected,
         positions,
         kind: options.selectionKind,
-        count: positions.length || (selected ? 1 : 0),
+        count: options.selectionCount ?? (positions.length || (selected ? 1 : 0)),
+        bounds: options.selectionBounds,
+        box: options.selectionBox,
       };
     }
     const cachedProjection = this.canUseCachedVisibleProjection(project, options);
@@ -3023,39 +3027,14 @@ export class ThreeViewportEngine {
     const positions = (options.selectedPositions ?? []).filter(isInProjection);
     const selected =
       options.selected && isInProjection(options.selected) ? options.selected : undefined;
-    const inBounds = (
-      position: VoxelCoordinate,
-      bounds: { readonly min: VoxelCoordinate; readonly max: VoxelCoordinate },
-    ): boolean =>
-      position.x >= bounds.min.x &&
-      position.x <= bounds.max.x &&
-      position.y >= bounds.min.y &&
-      position.y <= bounds.max.y &&
-      position.z >= bounds.min.z &&
-      position.z <= bounds.max.z;
-    const boundedVisible = options.selectionBounds
-      ? visible
-          .filter(
-            (entry) =>
-              inBounds(entry.block.position, options.selectionBounds!) &&
-              isInProjection(entry.block.position),
-          )
-          .map((entry) => entry.block.position)
-      : [];
-    const bounds = options.selectionBounds ? selectionBounds(boundedVisible) : undefined;
-    const box =
-      options.selectionBox &&
-      visible.some(
-        (entry) =>
-          inBounds(entry.block.position, options.selectionBox!) &&
-          isInProjection(entry.block.position),
-      )
-        ? options.selectionBox
-        : undefined;
-    const count = options.selectionBounds
-      ? boundedVisible.length
-      : positions.length || (selected ? 1 : 0);
-    return { selected, positions, kind: options.selectionKind, count, bounds, box };
+    return {
+      selected,
+      positions,
+      kind: options.selectionKind,
+      count: options.selectionCount ?? (positions.length || (selected ? 1 : 0)),
+      bounds: options.selectionBounds,
+      box: options.selectionBox,
+    };
   }
 
   private canUseCachedVisibleProjection(
@@ -3723,11 +3702,24 @@ export class ThreeViewportEngine {
     if (!this.renderer || !this.container) return undefined;
     const resolvedPlane =
       plane ??
-      freeSpaceSelectionPlane(project.size, this.camera.getWorldDirection(new THREE.Vector3()));
-    const point = this.projectPointerToAxisPlane(
+      freeSpaceSelectionPlane(
+        project.size,
+        this.camera.getWorldDirection(new THREE.Vector3()),
+        this.controls
+          ? {
+              x: this.controls.target.x,
+              y: this.controls.target.y,
+              z: this.controls.target.z,
+            }
+          : undefined,
+      );
+    const point = projectPointerToWorldPlane(
       event,
-      resolvedPlane.axis,
-      resolvedPlane.coordinate,
+      this.renderer.domElement,
+      this.camera,
+      this.raycaster,
+      resolvedPlane.point,
+      resolvedPlane.normal,
     );
     return point ? { point, plane: resolvedPlane } : undefined;
   }

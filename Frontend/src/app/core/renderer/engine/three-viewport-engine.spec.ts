@@ -4035,6 +4035,74 @@ describe('provider handoff hydration ownership', () => {
 });
 
 describe('selection visualization scalability', () => {
+  it('keeps exact selection count and user bounds instead of inferring membership from AABB', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    engine.update(project, undefined);
+    const options: ViewportRenderOptions = {
+      selectionKind: 'box',
+      selectionCount: 1,
+      selectionBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 15, y: 15, z: 15 } },
+      selectionBox: { min: { x: 1, y: 2, z: 3 }, max: { x: 4, y: 5, z: 6 } },
+      selectedPositions: [project.blocks[0].position],
+    };
+    const resolve = (
+      engine as unknown as {
+        visibleSelection: (
+          project: ProjectDocument,
+          options: ViewportRenderOptions,
+        ) => {
+          count?: number;
+          bounds?: ViewportRenderOptions['selectionBounds'];
+          box?: ViewportRenderOptions['selectionBox'];
+          positions?: readonly VoxelCoordinate[];
+        };
+      }
+    ).visibleSelection;
+    const result = resolve.call(engine, project, options);
+
+    expect(result.count).toBe(1);
+    expect(result.bounds).toEqual(options.selectionBounds);
+    expect(result.box).toEqual(options.selectionBox);
+    expect(result.positions).toEqual([project.blocks[0].position]);
+    engine.dispose();
+  });
+
+  it('preserves count, bounds, and dragged box through direct Y-layer presentation', () => {
+    const engine = new ThreeViewportEngine();
+    const project = rendererBenchmarkProject('small');
+    const internals = engine as unknown as {
+      yLayerProjection: { hasVisibleEntry: (key: string) => boolean };
+      visibleSelection: (
+        project: ProjectDocument,
+        options: ViewportRenderOptions,
+      ) => {
+        count?: number;
+        bounds?: ViewportRenderOptions['selectionBounds'];
+        box?: ViewportRenderOptions['selectionBox'];
+      };
+    };
+    Object.defineProperty(internals.yLayerProjection, 'hasDirectPresentation', { value: true });
+    vi.spyOn(internals.yLayerProjection, 'hasVisibleEntry').mockReturnValue(true);
+    const options: ViewportRenderOptions = {
+      layerY: 0,
+      visibility: 'whole-structure',
+      selectionKind: 'box',
+      selectionCount: 7,
+      selectionBounds: { min: { x: 1, y: 2, z: 3 }, max: { x: 8, y: 9, z: 10 } },
+      selectionBox: { min: { x: 2, y: 3, z: 4 }, max: { x: 5, y: 6, z: 7 } },
+    };
+
+    const result = internals.visibleSelection(project, options);
+
+    expect(result).toMatchObject({
+      count: 7,
+      bounds: options.selectionBounds,
+      box: options.selectionBox,
+    });
+    engine.dispose();
+  });
+
   it('kicks a small block hydration queue without decoration or pointer work', async () => {
     const pending: Array<(value: unknown) => void> = [];
     const provider = {

@@ -12,10 +12,7 @@ import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { addGroup, isBlockLocked, removeGroup } from './group-membership';
 import { nextGroupId, normalizeGroupName } from './group-naming';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
-import {
-  expandLogicalObjectClosure,
-  normalizeLogicalObjectMemberships,
-} from '../../block-behavior/logical-objects/logical-object';
+import { normalizeLogicalObjectMemberships } from '../../block-behavior/logical-objects/logical-object';
 import { BlockRuleEngine } from '../../block-behavior/rules/block-rule-engine';
 import {
   addDecorationGroup,
@@ -263,7 +260,7 @@ export class GroupService {
     if (!selected.length) return [];
     return this.selection.kind() === 'all'
       ? selected
-      : expandLogicalObjectClosure(project.blocks, selected, (id) => this.library.get(id));
+      : this.selection.expandLogicalSelection(project, selected, (id) => this.library.get(id));
   }
 
   private mutateSelected(action: 'add' | 'remove', groupId: string): boolean {

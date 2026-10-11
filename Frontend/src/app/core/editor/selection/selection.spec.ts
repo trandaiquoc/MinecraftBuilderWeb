@@ -14,6 +14,9 @@ import { SelectionService } from './selection.service';
 import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
 import { ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
+import { createBlockVisibilityPredicate } from '../viewport/visible-blocks';
+import { HistoryService } from '../history/history.service';
+import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 
 describe('voxel box selection', () => {
   it('normalizes inclusive integer corners and counts its size', () => {
@@ -44,7 +47,11 @@ describe('voxel box selection', () => {
 
   it('maps empty-space drags to a camera-aligned depth-extruded box', () => {
     const plane = freeSpaceSelectionPlane({ x: 10, y: 6, z: 8 }, { x: 0.9, y: 0.1, z: 0.2 });
-    expect(plane).toEqual({ axis: 'x', coordinate: 5 });
+    expect(plane).toEqual({
+      axis: 'x',
+      point: { x: 5, y: 3, z: 4 },
+      normal: { x: 0.9, y: 0.1, z: 0.2 },
+    });
     expect(
       freeSpaceSelectionBox({ x: 8.9, y: 4.8, z: 6.9 }, { x: -2.1, y: 1.2, z: 2.1 }, plane, {
         x: 10,
@@ -140,7 +147,208 @@ describe('voxel box selection', () => {
     expect(service.selectedBlocks(project).length).toBeGreaterThan(0);
   });
 
-  it('counts the inspector box through the existing layer index without revisiting the block array', () => {
+  it('keeps a box with no visible seeds empty for operations, count, and bounds', () => {
+    const project = rendererBenchmarkProject('small');
+    const service = new SelectionService();
+    const box = { min: { x: 15, y: 15, z: 15 }, max: { x: 15, y: 15, z: 15 } };
+
+    service.selectBoxLogical(
+      box,
+      project,
+      () => undefined,
+      () => false,
+    );
+
+    expect(service.box()).toEqual(box);
+    expect(service.selectedBlocks(project)).toEqual([]);
+    expect(service.count(project)).toBe(0);
+    expect(service.bounds(project)).toBeUndefined();
+    expect(service.renderState(project)).toMatchObject({ count: 0, bounds: undefined });
+    expect(service.hasAny(project)).toBe(false);
+  });
+
+  it('does not treat a geometry-only box as a block selection', () => {
+    const project = rendererBenchmarkProject('small');
+    const service = new SelectionService();
+    const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 15, y: 15, z: 15 } };
+
+    service.selectBox(box);
+
+    expect(service.box()).toEqual(box);
+    expect(service.selectedBlocks(project)).toEqual([]);
+    expect(service.count(project)).toBe(0);
+    expect(service.bounds(project)).toBeUndefined();
+    expect(service.hasAny(project)).toBe(false);
+  });
+
+  it('keeps an empty face-locked surface selection empty instead of falling back to its box', () => {
+    const base = rendererBenchmarkProject('small');
+    const project = {
+      ...base,
+      size: { x: 2, y: 2, z: 1 },
+      blocks: [
+        { ...base.blocks[0], position: { x: 0, y: 0, z: 0 } },
+        { ...base.blocks[0], position: { x: 0, y: 1, z: 0 } },
+      ],
+    };
+    const service = new SelectionService();
+    const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } };
+
+    service.selectSurfaceBoxLogical(box, { x: 0, y: 1, z: 0 }, project, () => undefined);
+
+    expect(service.logicalPositions()).toEqual([]);
+    expect(service.selectedBlocks(project)).toEqual([]);
+    expect(service.count(project)).toBe(0);
+    expect(service.bounds(project)).toBeUndefined();
+    expect(service.box()).toEqual(box);
+  });
+
+  it('uses the resolved selection set, not the dragged volume, for bounds and count', () => {
+    const base = rendererBenchmarkProject('small');
+    const project = {
+      ...base,
+      size: { x: 8, y: 2, z: 2 },
+      blocks: [0, 2, 5].map((x) => ({ ...base.blocks[0], position: { x, y: 1, z: 1 } })),
+    };
+    const service = new SelectionService();
+    const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 6, y: 1, z: 1 } };
+
+    service.selectBoxLogical(
+      box,
+      project,
+      () => undefined,
+      (block) => block.position.x === 2,
+    );
+
+    expect(service.selectedBlocks(project).map((block) => block.position)).toEqual([
+      { x: 2, y: 1, z: 1 },
+    ]);
+    expect(service.count(project)).toBe(1);
+    expect(service.bounds(project)).toEqual({
+      min: { x: 2, y: 1, z: 1 },
+      max: { x: 2, y: 1, z: 1 },
+    });
+    expect(service.renderState(project)).toMatchObject({
+      count: 1,
+      bounds: { min: { x: 2, y: 1, z: 1 }, max: { x: 2, y: 1, z: 1 } },
+    });
+    expect(service.box()).toEqual(box);
+  });
+
+  it('excludes hidden groups, honors isolation, and leaves locked membership selectable', () => {
+    const base = rendererBenchmarkProject('small');
+    const project = {
+      ...base,
+      size: { x: 4, y: 1, z: 1 },
+      groups: [
+        { id: 'hidden', name: 'Hidden', visible: false, locked: false },
+        { id: 'locked', name: 'Locked', visible: true, locked: true },
+        { id: 'active', name: 'Active', visible: true, locked: false },
+      ],
+      blocks: [
+        {
+          ...base.blocks[0],
+          id: 'example:hidden',
+          position: { x: 0, y: 0, z: 0 },
+          groupIds: ['hidden'],
+        },
+        {
+          ...base.blocks[0],
+          id: 'example:locked',
+          position: { x: 1, y: 0, z: 0 },
+          groupIds: ['locked'],
+        },
+        {
+          ...base.blocks[0],
+          id: 'example:active',
+          position: { x: 2, y: 0, z: 0 },
+          groupIds: ['active'],
+        },
+        {
+          ...base.blocks[0],
+          id: 'example:ungrouped',
+          position: { x: 3, y: 0, z: 0 },
+          groupIds: [],
+        },
+      ],
+    };
+    const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 3, y: 0, z: 0 } };
+    const service = new SelectionService();
+
+    service.selectBoxLogical(
+      box,
+      project,
+      () => undefined,
+      createBlockVisibilityPredicate(project),
+    );
+    expect(service.selectedBlocks(project).map((block) => block.id)).toEqual([
+      'example:locked',
+      'example:active',
+      'example:ungrouped',
+    ]);
+
+    const isolated = createBlockVisibilityPredicate(project, {
+      isolatedGroupId: 'active',
+      isolatedGroupPositions: [project.blocks[2].position],
+    });
+    service.selectBoxLogical(box, project, () => undefined, isolated);
+    expect(service.selectedBlocks(project).map((block) => block.id)).toEqual(['example:active']);
+  });
+
+  it('keeps compact box membership exact across later project mutations without scanning blocks', () => {
+    let prohibitIteration = false;
+    const base = rendererBenchmarkProject('stress');
+    const blocks = new Proxy(base.blocks, {
+      get(target, property, receiver) {
+        if (prohibitIteration && property === Symbol.iterator)
+          throw new Error('compact selection must resolve through the runtime index');
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const project = { ...base, blocks };
+    const index = new ProjectBlockRuntimeIndex();
+    index.ensure(project);
+    const service = new SelectionService(index);
+    const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 63, y: 4, z: 63 } };
+    service.selectBoxLogical(box, project, () => undefined);
+    prohibitIteration = true;
+
+    expect(service.count(project)).toBe(20_000);
+    expect(service.selectedBlocks(project)).toHaveLength(20_000);
+
+    const extra = { ...base.blocks[0], position: { x: 63, y: 4, z: 63 } };
+    const changed = { ...project, blocks: [...base.blocks, extra] };
+    prohibitIteration = false;
+    expect(service.selectedBlocks(changed)).toHaveLength(20_000);
+  });
+
+  it('resolves selected positions against the current project snapshot through undo and redo', () => {
+    const base = rendererBenchmarkProject('small');
+    const project = { ...base, blocks: [base.blocks[0]] };
+    const workspace = new WorkspaceStateService();
+    workspace.project.set(project);
+    const index = new ProjectBlockRuntimeIndex();
+    index.ensure(project);
+    const selection = new SelectionService(index);
+    selection.selectLogical(project.blocks[0].position, project, () => undefined);
+    const history = new HistoryService(workspace, undefined, index);
+
+    expect(
+      history.execute('Change selected state', (current) => ({
+        ...current,
+        blocks: current.blocks.map((block) => ({ ...block, state: { changed: 'true' } })),
+      })),
+    ).toBe(true);
+    expect(selection.selectedBlocks(workspace.project()!)[0].state).toEqual({ changed: 'true' });
+    expect(history.undo()).toBe(true);
+    expect(selection.selectedBlocks(workspace.project()!)[0].state).toEqual(
+      project.blocks[0].state,
+    );
+    expect(history.redo()).toBe(true);
+    expect(selection.selectedBlocks(workspace.project()!)[0].state).toEqual({ changed: 'true' });
+  });
+
+  it('counts and resolves the actual selection through the existing index without scanning blocks', () => {
     let prohibitIteration = false;
     const blocks = new Proxy(
       [
@@ -169,7 +377,7 @@ describe('voxel box selection', () => {
       {
         get(target, property, receiver) {
           if (prohibitIteration && property === Symbol.iterator)
-            throw new Error('box count must use the resident index');
+            throw new Error('selected block queries must use the resident index');
           return Reflect.get(target, property, receiver);
         },
       },
@@ -183,13 +391,14 @@ describe('voxel box selection', () => {
     index.ensure(project);
     const rebuilds = index.rebuildCount;
     prohibitIteration = true;
+    service.selectBoxLogical(
+      { min: { x: 2, y: 1, z: 1 }, max: { x: 2, y: 1, z: 1 } },
+      project,
+      () => undefined,
+    );
 
-    const count = service.countInBox(project, {
-      min: { x: 2, y: 1, z: 1 },
-      max: { x: 2, y: 1, z: 1 },
-    });
-
-    expect(count).toBe(1);
+    expect(service.count(project)).toBe(1);
+    expect(service.selectedBlocks(project).map((block) => block.id)).toEqual(['dirt']);
     expect(index.rebuildCount).toBe(rebuilds);
   });
 

@@ -151,9 +151,7 @@ export class SelectionInspectorComponent {
   });
   protected readonly selectedBlockCount = computed(() => {
     const project = this.workspace.project();
-    const box = this.selection.box();
-    if (!project || !box) return 0;
-    return this.selection.countInBox(project, box);
+    return project ? this.selection.count(project) : 0;
   });
   constructor() {
     effect(() => {

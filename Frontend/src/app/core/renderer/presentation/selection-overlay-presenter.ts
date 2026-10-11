@@ -66,6 +66,7 @@ export class SelectionOverlayPresenter {
   update(input: SelectionOverlayInput): void {
     const positions = input.selectedPositions ?? [];
     const selectedCount = input.count ?? positions.length;
+    const gestureBox = input.kind === 'box' ? input.box : undefined;
     const aggregate =
       input.kind === 'all' || selectedCount > this.detailedLimit
         ? input.aggregateBounds
@@ -94,7 +95,7 @@ export class SelectionOverlayPresenter {
         input.selected.y + 0.5,
         input.selected.z + 0.5,
       );
-    const visualBox = aggregate ?? input.box;
+    const visualBox = gestureBox ?? aggregate ?? input.box;
     this.selectionBox.visible = !!visualBox;
     if (visualBox)
       this.selectionBox.box.set(

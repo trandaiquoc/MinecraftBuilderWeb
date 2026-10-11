@@ -15,10 +15,11 @@ export interface FaceLockedSelectionPlane {
 }
 
 export interface FreeSpaceSelectionPlane {
-  /** The world axis used as the depth axis for a 2D empty-space gesture. */
+  /** The world axis filled through the structure to provide selection depth. */
   readonly axis: FaceLockedPlaneAxis;
-  /** A deterministic reference plane inside the project bounds. */
-  readonly coordinate: number;
+  /** Camera-facing plane through the viewport's orbit target. */
+  readonly point: VoxelCoordinate;
+  readonly normal: VoxelCoordinate;
 }
 
 /** Returns the voxel face plane that was touched when a selection drag began. */
@@ -58,6 +59,7 @@ export function voxelOnFaceLockedPlane(
 export function freeSpaceSelectionPlane(
   size: ProjectSize,
   cameraDirection: { readonly x: number; readonly y: number; readonly z: number },
+  target: VoxelCoordinate = { x: size.x / 2, y: size.y / 2, z: size.z / 2 },
 ): FreeSpaceSelectionPlane {
   const axis =
     Math.abs(cameraDirection.x) >= Math.abs(cameraDirection.y) &&
@@ -66,7 +68,11 @@ export function freeSpaceSelectionPlane(
       : Math.abs(cameraDirection.y) >= Math.abs(cameraDirection.z)
         ? 'y'
         : 'z';
-  return { axis, coordinate: size[axis] / 2 };
+  return {
+    axis,
+    point: { ...target },
+    normal: { ...cameraDirection },
+  };
 }
 
 /** Maps two projected pointer points to a clamped voxel volume, extruded through project depth. */

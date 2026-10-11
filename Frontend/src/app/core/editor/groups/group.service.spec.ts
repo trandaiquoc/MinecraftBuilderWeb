@@ -6,6 +6,8 @@ import { validateGroupMove } from './group-move-planner';
 import { SelectionService } from '../selection/selection.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { isBlockVisible } from './group-membership';
+import { createBlockVisibilityPredicate } from '../viewport/visible-blocks';
+import { ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
 import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import type { DecorationService } from '../../decorations/decoration.service';
@@ -156,6 +158,97 @@ describe('GroupService', () => {
     expect(groups.isolatedGroupId()).toBe(entrance);
     groups.setLocked(roof, true);
     expect(groups.removeSelectionFromActive()).toBe(false);
+  });
+
+  it('uses the exact filtered selection for group operations while keeping lock as an edit rule', () => {
+    const groupedProject: ProjectDocument = {
+      ...project,
+      groups: [
+        { id: 'hidden', name: 'Hidden', visible: false, locked: false },
+        { id: 'locked', name: 'Locked', visible: true, locked: true },
+        { id: 'active', name: 'Active', visible: true, locked: false },
+        { id: 'target', name: 'Target', visible: true, locked: false },
+      ],
+      blocks: [
+        {
+          ...project.blocks[0],
+          id: 'example:hidden',
+          position: { x: 0, y: 1, z: 0 },
+          groupIds: ['hidden'],
+        },
+        {
+          ...project.blocks[0],
+          id: 'example:locked',
+          position: { x: 1, y: 1, z: 0 },
+          groupIds: ['locked'],
+        },
+        {
+          ...project.blocks[0],
+          id: 'example:active',
+          position: { x: 2, y: 1, z: 0 },
+          groupIds: ['active'],
+        },
+        { ...project.blocks[0], id: 'example:plain', position: { x: 3, y: 1, z: 0 }, groupIds: [] },
+      ],
+    };
+    const { groups, selection, workspace } = setup(groupedProject);
+    groups.activeGroupId.set('target');
+    const box = { min: { x: 0, y: 1, z: 0 }, max: { x: 3, y: 1, z: 0 } };
+    const isVisible = createBlockVisibilityPredicate(groupedProject);
+    selection.selectBoxLogical(box, groupedProject, () => undefined, isVisible);
+
+    expect(groups.selectedBlocks(groupedProject).map((block) => block.id)).toEqual([
+      'example:locked',
+      'example:active',
+      'example:plain',
+    ]);
+    expect(groups.addSelectionToActive()).toBe(false);
+    expect(
+      workspace.project()!.blocks.every((block) => block.groupIds?.includes('target') !== true),
+    ).toBe(true);
+
+    selection.selectBoxLogical(
+      box,
+      groupedProject,
+      () => undefined,
+      (block) => block.position.x === 3,
+    );
+    expect(groups.addSelectionToActive()).toBe(true);
+    expect(
+      workspace.project()!.blocks.find((block) => block.id === 'example:plain')?.groupIds,
+    ).toEqual(['target']);
+    expect(
+      workspace.project()!.blocks.find((block) => block.id === 'example:hidden')?.groupIds,
+    ).toEqual(['hidden']);
+  });
+
+  it('expands group-operation selection through the existing runtime index', () => {
+    let prohibitIteration = false;
+    const blocks = new Proxy(project.blocks, {
+      get(target, property, receiver) {
+        if (
+          prohibitIteration &&
+          (property === Symbol.iterator || property === 'filter' || property === 'map')
+        )
+          throw new Error('group selection closure must use the runtime index');
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const indexedProject = { ...project, blocks };
+    const workspace = new WorkspaceStateService();
+    workspace.project.set(indexedProject);
+    const runtimeIndex = new ProjectBlockRuntimeIndex();
+    runtimeIndex.ensure(indexedProject);
+    const selection = new SelectionService(runtimeIndex);
+    selection.select(project.blocks[0].position);
+    const library = new BlockLibraryService(new ActiveBlockService());
+    const groups = new GroupService(workspace, selection, new HistoryService(workspace), library);
+    prohibitIteration = true;
+
+    const selected = groups.selectedBlocks(indexedProject);
+
+    expect(selected).toHaveLength(1);
+    expect(selected[0].position).toEqual(project.blocks[0].position);
   });
 
   it('validates and saves an atomic move with one history entry and preserves memberships', () => {

@@ -49,6 +49,53 @@ describe('editor mode state', () => {
     expect(selection.single()).toEqual({ x: 1, y: 2, z: 3 });
   });
 
+  it('preserves resolved box selection membership and presentation across 3D/Y-layer switching', () => {
+    const mode = new EditorModeService();
+    const selection = new SelectionService();
+    const block = {
+      kind: 'resolved' as const,
+      id: 'minecraft:stone',
+      namespace: 'minecraft',
+      state: {},
+    };
+    const project: ProjectDocument = {
+      schemaVersion: 1,
+      id: 'box-selection-mode',
+      metadata: {
+        name: 'Selection mode test',
+        minecraftVersion: '1.21.1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      size: { x: 4, y: 4, z: 4 },
+      structureMode: 'vanilla-structure-block',
+      blocks: [
+        { ...block, position: { x: 1, y: 1, z: 1 } },
+        { ...block, position: { x: 2, y: 1, z: 1 } },
+      ],
+      groups: [],
+      editorSettings: { currentY: 1, layerVisibility: 'current-only', referenceLayerOpacity: 0.3 },
+    };
+    const box = { min: { x: 1, y: 1, z: 1 }, max: { x: 2, y: 1, z: 1 } };
+    selection.selectBoxLogical(box, project, () => undefined);
+
+    mode.mode.set('y-layer');
+    expect(selection.count(project)).toBe(2);
+    expect(selection.renderState(project).count).toBe(2);
+    expect(selection.box()).toEqual(box);
+    mode.mode.set('3d');
+
+    expect(selection.selectedBlocks(project).map((entry) => entry.position)).toEqual([
+      { x: 1, y: 1, z: 1 },
+      { x: 2, y: 1, z: 1 },
+    ]);
+    expect(selection.renderState(project)).toMatchObject({
+      kind: 'box',
+      count: 2,
+      bounds: { min: { x: 1, y: 1, z: 1 }, max: { x: 2, y: 1, z: 1 } },
+    });
+  });
+
   it('keeps Active Block separate from structure selection', () => {
     const active = new ActiveBlockService();
     const selection = new SelectionService();
