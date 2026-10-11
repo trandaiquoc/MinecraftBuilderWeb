@@ -76,12 +76,17 @@ describe('MissingBlockReconciliationService', () => {
         MissingBlockReconciliationService,
       ],
     }).compileComponents();
-    TestBed.inject(MissingBlockReconciliationService);
+    const reconciliation = TestBed.inject(MissingBlockReconciliationService);
+    expect(reconciliation.activity).not.toHaveProperty('set');
+    expect(reconciliation.activity).not.toHaveProperty('update');
     const hints = TestBed.inject(ProjectMutationHintService);
     const history = new HistoryService(workspace);
     const original = project();
     workspace.project.set(original);
+    TestBed.flushEffects();
+    expect(reconciliation.activity()).toBe('running');
     await flushReconciliation();
+    expect(reconciliation.activity()).toBe('idle');
     expect(workspace.project()?.blocks[0].kind).toBe('missing');
     definitions.set(definition.id, definition);
     revision.set(1);

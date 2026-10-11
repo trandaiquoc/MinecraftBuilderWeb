@@ -47,6 +47,8 @@ describe('ItemCatalogService', () => {
     const catalog = TestBed.inject(ItemCatalogService);
     TestBed.flushEffects();
 
+    expect(catalog.generation).not.toHaveProperty('set');
+    expect(catalog.generation).not.toHaveProperty('update');
     expect(catalog.search('diamond').map((entry) => entry.id)).toContain('minecraft:diamond');
     expect(catalog.search('oak log').map((entry) => entry.id)).toContain('minecraft:oak_log');
     expect(catalog.search('spawn egg').map((entry) => entry.id)).toContain(

@@ -42,16 +42,18 @@ export class QuickBlockBarService {
   private readonly decorations = inject(DecorationService);
   private readonly library = inject(BlockLibraryService);
   readonly active = this.activeBlock.active;
-  readonly entries = signal<readonly QuickBlockEntry[]>([]);
+  private readonly entriesState = signal<readonly QuickBlockEntry[]>([]);
+  readonly entries = this.entriesState.asReadonly();
   readonly capacity = slots;
-  readonly collapsed = signal(false);
+  private readonly collapsedState = signal(false);
+  readonly collapsed = this.collapsedState.asReadonly();
   private activeProjectId?: string;
   constructor() {
     effect(() => {
       const id = this.workspace.project()?.id;
       if (id !== this.activeProjectId) {
         this.activeProjectId = id;
-        this.entries.set(id ? load(id) : []);
+        this.entriesState.set(id ? load(id) : []);
       }
     });
   }
@@ -76,6 +78,9 @@ export class QuickBlockBarService {
   remove(index: number): void {
     this.save(this.entries().filter((_, current) => current !== index));
   }
+  toggleCollapsed(): void {
+    this.collapsedState.update((value) => !value);
+  }
   select(entry: QuickBlockEntry): void {
     // A persisted slot can outlive the content source that provided it. Never
     // reactivate an entry whose item definition is no longer available.
@@ -88,7 +93,7 @@ export class QuickBlockBarService {
     this.activeBlock.set({ ...entry, id: item.itemId, itemId: item.itemId });
   }
   private save(entries: readonly QuickBlockEntry[]): void {
-    this.entries.set(entries);
+    this.entriesState.set(entries);
     const id = this.activeProjectId;
     if (!id) return;
     try {

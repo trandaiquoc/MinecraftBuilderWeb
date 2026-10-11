@@ -25,9 +25,12 @@ export interface ProtectedAssetOperation {
 /** Ephemeral activity feed shared by Vanilla and mod source workflows. */
 @Injectable({ providedIn: 'root' })
 export class AssetActivityService {
-  readonly entries = signal<readonly AssetActivityEntry[]>([]);
-  readonly current = signal<AssetActivityEntry | undefined>(undefined);
-  readonly protectedOperations = signal<readonly ProtectedAssetOperation[]>([]);
+  private readonly entriesState = signal<readonly AssetActivityEntry[]>([]);
+  private readonly currentState = signal<AssetActivityEntry | undefined>(undefined);
+  private readonly protectedOperationsState = signal<readonly ProtectedAssetOperation[]>([]);
+  readonly entries = this.entriesState.asReadonly();
+  readonly current = this.currentState.asReadonly();
+  readonly protectedOperations = this.protectedOperationsState.asReadonly();
   readonly hasProtectedOperation = () => this.protectedOperations().length > 0;
   private nextId = 1;
   private nextProtectedId = 1;
@@ -43,14 +46,14 @@ export class AssetActivityService {
     category: AssetActivityCategory = 'vanilla',
   ): AssetActivityEntry {
     const entry = this.push({ category, level: 'info', operation, message });
-    this.current.set(entry);
+    this.currentState.set(entry);
     return entry;
   }
 
   update(progress?: AssetActivityProgress, message?: string): void {
     const current = this.current();
     if (!current) return;
-    this.current.set({
+    this.currentState.set({
       ...current,
       ...(message ? { message } : {}),
       ...(progress ? { progress } : {}),
@@ -68,37 +71,37 @@ export class AssetActivityService {
 
   finish(operation: string, message: string, category: AssetActivityCategory = 'vanilla'): void {
     const entry = this.push({ category, level: 'success', operation, message });
-    this.current.set(entry);
-    this.current.set(undefined);
+    this.currentState.set(entry);
+    this.currentState.set(undefined);
   }
 
   fail(operation: string, message: string, category: AssetActivityCategory = 'vanilla'): void {
     const entry = this.push({ category, level: 'error', operation, message });
-    this.current.set(entry);
+    this.currentState.set(entry);
   }
 
   cancel(operation: string, message: string, category: AssetActivityCategory = 'mod'): void {
     this.event(operation, message, 'info', category);
-    this.current.set(undefined);
+    this.currentState.set(undefined);
   }
 
   timeout(operation: string, message: string, category: AssetActivityCategory = 'mod'): void {
     this.event(operation, message, 'warning', category);
-    this.current.set(undefined);
+    this.currentState.set(undefined);
   }
 
   clear(): void {
-    this.entries.set([]);
+    this.entriesState.set([]);
   }
 
   protect(label: string): number {
     const id = this.nextProtectedId++;
-    this.protectedOperations.update((items) => [...items, { id, label }]);
+    this.protectedOperationsState.update((items) => [...items, { id, label }]);
     return id;
   }
 
   releaseProtected(id: number): void {
-    this.protectedOperations.update((items) => items.filter((item) => item.id !== id));
+    this.protectedOperationsState.update((items) => items.filter((item) => item.id !== id));
   }
 
   private readonly handleBeforeUnload = (event: BeforeUnloadEvent): void => {
@@ -109,7 +112,7 @@ export class AssetActivityService {
 
   private push(value: Omit<AssetActivityEntry, 'id' | 'timestamp'>): AssetActivityEntry {
     const entry = { ...value, id: this.nextId++, timestamp: Date.now() };
-    this.entries.update((items) => [...items, entry].slice(-100));
+    this.entriesState.update((items) => [...items, entry].slice(-100));
     return entry;
   }
 }

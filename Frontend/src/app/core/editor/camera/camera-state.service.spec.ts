@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { CameraStateService } from './camera-state.service';
 
 describe('CameraStateService', () => {
+  it('exposes the shared camera pose as read-only state', () => {
+    const service = new CameraStateService();
+
+    expect(service.current).not.toHaveProperty('set');
+    expect(service.current).not.toHaveProperty('update');
+  });
+
   it('shares the current editor pose between 3D and Y-layer modes', () => {
     const service = new CameraStateService();
     const pose = {

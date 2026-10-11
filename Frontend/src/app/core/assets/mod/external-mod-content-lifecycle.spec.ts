@@ -36,6 +36,13 @@ function lifecycle(cache: Record<string, unknown> = {}) {
 }
 
 describe('ExternalModContentLifecycle', () => {
+  it('exposes imported-mod summaries as read-only state', () => {
+    const { service } = lifecycle();
+
+    expect(service.importedMods).not.toHaveProperty('set');
+    expect(service.importedMods).not.toHaveProperty('update');
+  });
+
   it('owns an empty restore result without claiming a vanilla load phase', async () => {
     const { service } = lifecycle({ loadExternalMods: vi.fn(async () => []) });
     const states: unknown[] = [];

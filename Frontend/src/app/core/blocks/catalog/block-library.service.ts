@@ -19,7 +19,8 @@ export class BlockLibraryService {
   private readonly itemsBySource = new Map<string, readonly PlaceableItemDefinition[]>();
   private readonly revision = signal(0);
   readonly catalogRevision = this.revision.asReadonly();
-  readonly query = signal('');
+  private readonly queryState = signal('');
+  readonly query = this.queryState.asReadonly();
   readonly results = computed<readonly PlaceableItemDefinition[]>(() => {
     this.revision();
     return placementItemSearch(this.items, this.query());
@@ -48,7 +49,7 @@ export class BlockLibraryService {
   }
 
   setQuery(query: string): void {
-    this.query.set(query);
+    this.queryState.set(query);
   }
   load(source: BlockCatalogSource): void {
     this.replaceSource(source);

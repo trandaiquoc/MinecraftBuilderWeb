@@ -7,6 +7,16 @@ import { ActiveBlockService } from '../placement-palette/active-block.service';
 import { BlockLibraryService } from './block-library.service';
 
 describe('BlockCatalog', () => {
+  it('keeps search state writable only through BlockLibraryService', () => {
+    const library = new BlockLibraryService(new ActiveBlockService());
+
+    library.setQuery('stairs');
+
+    expect(library.query()).toBe('stairs');
+    expect(library.query).not.toHaveProperty('set');
+    expect(library.query).not.toHaveProperty('update');
+  });
+
   it('loads resource-derived entries and exposes namespace/default state', () => {
     const catalog = new BlockCatalog();
     catalog.load(representativeBlockFixture);

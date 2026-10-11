@@ -29,13 +29,15 @@ interface VersionMetadata {
 
 @Injectable({ providedIn: 'root' })
 export class MojangVersionService {
-  readonly releases = signal<readonly MojangRelease[]>([]);
-  readonly loading = signal(false);
+  private readonly releasesState = signal<readonly MojangRelease[]>([]);
+  private readonly loadingState = signal(false);
+  readonly releases = this.releasesState.asReadonly();
+  readonly loading = this.loadingState.asReadonly();
   private loaded?: Promise<readonly MojangRelease[]>;
 
   async loadReleases(signal?: AbortSignal): Promise<readonly MojangRelease[]> {
     if (this.loaded) return this.loaded;
-    this.loading.set(true);
+    this.loadingState.set(true);
     this.loaded = fetch(VERSION_MANIFEST_URL, { signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`Unable to load Minecraft versions (${response.status})`);
@@ -58,10 +60,10 @@ export class MojangVersionService {
             : [],
         );
         if (!releases.length) throw new Error('Mojang returned no release versions');
-        this.releases.set(releases);
+        this.releasesState.set(releases);
         return releases;
       })
-      .finally(() => this.loading.set(false));
+      .finally(() => this.loadingState.set(false));
     try {
       return await this.loaded;
     } catch (error) {

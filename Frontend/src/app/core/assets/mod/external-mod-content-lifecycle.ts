@@ -54,7 +54,8 @@ export interface ExternalModRestoreState {
 
 /** Owns external-mod import, cache, removal, and restore lifecycle; publication stays with the combined content runtime. */
 export class ExternalModContentLifecycle {
-  readonly importedMods = signal<readonly ImportedModSummary[]>([]);
+  private readonly importedModsState = signal<readonly ImportedModSummary[]>([]);
+  readonly importedMods = this.importedModsState.asReadonly();
   private restoring = false;
 
   constructor(
@@ -307,7 +308,7 @@ export class ExternalModContentLifecycle {
         if (!this.publication.sources.providerForSource(sourceId)) return;
         throwIfAborted(sessionSignal);
         this.publication.remove(sourceId);
-        this.importedMods.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
+        this.importedModsState.update((mods) => mods.filter((mod) => mod.sourceId !== sourceId));
         await this.cache.deleteExternalMod(sourceId, sessionSignal);
       },
       signal,
@@ -447,7 +448,7 @@ export class ExternalModContentLifecycle {
   }
 
   clear(): void {
-    this.importedMods.set([]);
+    this.importedModsState.set([]);
   }
 
   private reportProgress(progress: ModImportProgress): void {
@@ -479,7 +480,7 @@ export class ExternalModContentLifecycle {
 
   private upsertSummary(provider: ExternalModProvider): void {
     const summary = summarizeMod(provider);
-    this.importedMods.update((mods) =>
+    this.importedModsState.update((mods) =>
       [...mods.filter((mod) => mod.sourceId !== summary.sourceId), summary].sort((left, right) =>
         left.displayName.localeCompare(right.displayName),
       ),

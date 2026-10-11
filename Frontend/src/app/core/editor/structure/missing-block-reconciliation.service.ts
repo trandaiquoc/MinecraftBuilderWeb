@@ -14,7 +14,8 @@ export class MissingBlockReconciliationService {
   private readonly library = inject(BlockLibraryService);
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly runtimeIndex = inject(ProjectBlockRuntimeIndex);
-  readonly activity = signal<'idle' | 'running'>('idle');
+  private readonly activityState = signal<'idle' | 'running'>('idle');
+  readonly activity = this.activityState.asReadonly();
   private operationToken = 0;
   private readonly trigger = effect((onCleanup) => {
     const controller = new AbortController();
@@ -23,10 +24,10 @@ export class MissingBlockReconciliationService {
     const revision = this.library.catalogRevision();
     const token = ++this.operationToken;
     if (!project || !project.blocks.some((block) => block.kind === 'missing')) {
-      this.activity.set('idle');
+      this.activityState.set('idle');
       return;
     }
-    this.activity.set('running');
+    this.activityState.set('running');
     void this.reconcile(project, revision, token, controller.signal).catch((error) => {
       if (!isAbortError(error)) throw error;
     });
@@ -59,7 +60,7 @@ export class MissingBlockReconciliationService {
         this.workspace.project.set(result.project);
       }
     } finally {
-      if (token === this.operationToken) this.activity.set('idle');
+      if (token === this.operationToken) this.activityState.set('idle');
     }
   }
 }

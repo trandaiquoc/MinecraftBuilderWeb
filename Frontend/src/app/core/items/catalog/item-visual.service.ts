@@ -33,7 +33,8 @@ export class ItemVisualService {
   private readonly queue: WorkItem[] = [];
   private running = 0;
   private generation = -1;
-  readonly revision = signal(0);
+  private readonly revisionState = signal(0);
+  readonly revision = this.revisionState.asReadonly();
 
   state(item: string | ItemStackData | ItemCatalogEntry): ItemVisualState {
     this.ensureGeneration();
@@ -81,7 +82,7 @@ export class ItemVisualService {
     this.cache.clear();
     this.pending.clear();
     this.states.clear();
-    this.revision.update((value) => value + 1);
+    this.revisionState.update((value) => value + 1);
   }
 
   private ensureGeneration(): void {
@@ -178,7 +179,7 @@ export class ItemVisualService {
 
   private setState(key: string, state: ItemVisualState): void {
     this.states.set(key, state);
-    this.revision.update((value) => value + 1);
+    this.revisionState.update((value) => value + 1);
   }
 }
 

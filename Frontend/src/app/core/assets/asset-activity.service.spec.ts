@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { AssetActivityService } from './asset-activity.service';
 
 describe('AssetActivityService', () => {
+  it('exposes activity state as read-only signals', () => {
+    const activity = new AssetActivityService();
+
+    for (const state of [activity.entries, activity.current, activity.protectedOperations]) {
+      expect(state).not.toHaveProperty('set');
+      expect(state).not.toHaveProperty('update');
+    }
+  });
+
   it('keeps one current progress event and bounds history', () => {
     const activity = new AssetActivityService();
     activity.begin('download', 'Downloading');

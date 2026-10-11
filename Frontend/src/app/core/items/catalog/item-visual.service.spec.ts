@@ -68,6 +68,8 @@ describe('ItemVisualService', () => {
     expect(catalog.all()).toHaveLength(1);
     expect(fixture.textureCalls).toBe(0);
     const visuals = TestBed.inject(ItemVisualService);
+    expect(visuals.revision).not.toHaveProperty('set');
+    expect(visuals.revision).not.toHaveProperty('update');
     const first = visuals.request('example:gem');
     const second = visuals.request('example:gem');
     expect(await first).toMatchObject({ status: 'available', previewUrls: ['blob:gem'] });

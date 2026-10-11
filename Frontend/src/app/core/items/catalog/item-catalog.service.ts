@@ -8,7 +8,8 @@ import type { CatalogItemEvidence } from '../../blocks/catalog/block-definition.
 export class ItemCatalogService {
   private readonly assets = inject(ContentAssetRuntimeService);
   private readonly catalog = new ItemCatalog();
-  readonly generation = signal(0);
+  private readonly generationState = signal(0);
+  readonly generation = this.generationState.asReadonly();
 
   constructor() {
     effect(() => {
@@ -33,12 +34,12 @@ export class ItemCatalogService {
   /** Useful for pure tests and future content-source adapters. */
   replaceSource(sourceId: string, entries: readonly ItemCatalogEntry[]): void {
     this.catalog.replaceSource(sourceId, entries);
-    this.generation.update((value) => value + 1);
+    this.generationState.update((value) => value + 1);
   }
 
   removeSource(sourceId: string): void {
     this.catalog.removeSource(sourceId);
-    this.generation.update((value) => value + 1);
+    this.generationState.update((value) => value + 1);
   }
 
   private rebuildFromActiveSources(): void {
@@ -51,7 +52,7 @@ export class ItemCatalogService {
         ),
       );
     }
-    this.generation.update((value) => value + 1);
+    this.generationState.update((value) => value + 1);
   }
 }
 
