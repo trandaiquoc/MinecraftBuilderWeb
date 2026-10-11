@@ -19,7 +19,7 @@ import { ContentAssetRuntimeService } from '../../../../core/assets/content-asse
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
 import type { ProjectDocument } from '../../../../core/domain/project.types';
-import type { VanillaAssetProvider } from '../../../../core/assets/vanilla/vanilla-asset-provider';
+import type { VanillaAssetInspectionView } from '../../../../core/assets/vanilla/vanilla-asset-provider';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
 import { UiProgressComponent } from '../../../../shared/ui/progress/ui-progress.component';
@@ -32,7 +32,7 @@ import {
 
 interface ProjectDiagnosticsAuditScope {
   readonly project: ProjectDocument | undefined;
-  readonly provider: VanillaAssetProvider;
+  readonly provider: VanillaAssetInspectionView;
   readonly controller: AbortController;
   readonly generation: number;
 }
@@ -63,7 +63,7 @@ export class ProjectDiagnosticsDialogComponent implements OnDestroy {
   private auditScope?: ProjectDiagnosticsAuditScope;
   private auditSourceInitialized = false;
   private observedAuditProject?: ProjectDocument;
-  private observedAuditProvider?: VanillaAssetProvider;
+  private observedAuditProvider?: VanillaAssetInspectionView;
   private readonly collectedIssues = computed(() => {
     this.library.catalogRevision();
     return collectProjectIssues(

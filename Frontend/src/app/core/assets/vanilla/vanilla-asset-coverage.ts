@@ -7,11 +7,11 @@ import type {
   VanillaAssetCoverageReport,
   VanillaAssetAuditRecord,
 } from './vanilla-asset-audit.types';
-import type { VanillaAssetProvider } from './vanilla-asset-provider';
+import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
 
 /** Aggregates completed entry audits into the stable coverage report contract. */
 export function buildVanillaAssetCoverage(
-  provider: VanillaAssetProvider,
+  provider: VanillaAssetInspectionView,
   records: readonly VanillaAssetAuditRecord[],
 ): VanillaAssetCoverageReport {
   const minecraftVersion = provider.minecraftVersion;

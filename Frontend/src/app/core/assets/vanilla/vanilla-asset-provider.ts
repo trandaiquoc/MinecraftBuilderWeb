@@ -60,7 +60,18 @@ export interface VanillaAssetProviderDiagnostics {
   readonly resourceFormat: VanillaResourceFormatProfile;
 }
 
-export class VanillaAssetProvider implements ContentSourceProvider {
+export interface VanillaAssetInspectionView {
+  readonly sourceName: string;
+  readonly minecraftVersion: string;
+  readJson(path: string): unknown | undefined;
+  readBinary(path: string): Uint8Array | undefined;
+  paths(): readonly string[];
+  diagnostics(): VanillaAssetProviderDiagnostics;
+  textureUrl(resource: string): string | undefined;
+  catalog(registry?: VanillaBlockRegistry, itemRegistry?: VanillaItemRegistry): BlockCatalogSource;
+}
+
+export class VanillaAssetProvider implements ContentSourceProvider, VanillaAssetInspectionView {
   private readonly objectUrls = new Map<string, string>();
   readonly gameEdition = 'java' as const;
   readonly gameVersion: string;

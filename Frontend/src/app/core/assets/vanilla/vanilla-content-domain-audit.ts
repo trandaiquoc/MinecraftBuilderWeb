@@ -13,7 +13,7 @@ import {
   isTechnicalBlockId,
   type MinecraftContentKind,
 } from '../../content/content-classifier';
-import type { VanillaAssetProvider } from './vanilla-asset-provider';
+import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
 
 export interface ContentDomainAudit {
   readonly counts: Readonly<Record<MinecraftContentKind, number>>;
@@ -28,7 +28,7 @@ export interface ContentDomainAudit {
   }[];
 }
 
-export function auditContentDomains(provider: VanillaAssetProvider): ContentDomainAudit {
+export function auditContentDomains(provider: VanillaAssetInspectionView): ContentDomainAudit {
   const source = provider.catalog();
   const catalog = new BlockCatalog();
   catalog.load(source);

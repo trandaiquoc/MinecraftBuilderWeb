@@ -8,6 +8,7 @@ import { AssetThumbnailService } from './vanilla/asset-thumbnail-service';
 import type { ThumbnailPreviewState } from './vanilla/asset-thumbnail-service';
 import {
   VanillaAssetProvider,
+  type VanillaAssetInspectionView,
   VanillaAssetProviderDiagnostics,
   VANILLA_ASSET_CACHE_SCHEMA_VERSION,
   VANILLA_ASSET_VERSION,
@@ -24,6 +25,7 @@ import {
 } from './content-source/content-source-registry';
 import { ContentSourceCleanupError } from './content-source/composite-asset-provider';
 import { ExternalModProvider } from './mod/external-mod-provider';
+import type { BlockVisualProvider } from '../renderer/visuals/block-visual-provider-contract';
 import type { ModImportReport } from './mod/external-mod-import-contracts';
 import { ModImportProgress, PreparedModImport } from './mod/external-mod-importer';
 import {
@@ -141,8 +143,12 @@ export class ContentAssetRuntimeService {
   });
   private readonly cachedVersionsState = signal<readonly string[]>([]);
   private readonly compatibilityReportState = signal<CompatibilityReport | undefined>(undefined);
-  readonly provider = this.providerState.asReadonly();
-  readonly visualProvider = this.visualProviderState.asReadonly();
+  readonly provider: Signal<VanillaAssetInspectionView | undefined> = computed(() =>
+    this.providerState(),
+  );
+  readonly visualProvider: Signal<BlockVisualProvider | undefined> = computed(() =>
+    this.visualProviderState(),
+  );
   readonly status = this.statusState.asReadonly();
   readonly contentRestore = this.contentRestoreState.asReadonly();
   readonly contentReady = computed(
@@ -190,8 +196,8 @@ export class ContentAssetRuntimeService {
     );
     this.thumbnails = new AssetThumbnailService(this.library, () => ({
       generation: this.generation(),
-      provider: this.provider(),
-      visualProvider: this.visualProvider(),
+      provider: this.providerState(),
+      visualProvider: this.visualProviderState(),
       restoringExternalMods: this.externalMods.isRestoring,
     }));
     this.thumbnailEpoch = this.thumbnails.epoch;
@@ -293,7 +299,9 @@ export class ContentAssetRuntimeService {
   exportCompatibilityReport(): CompatibilityReport | undefined {
     const report =
       this.compatibilityReport() ??
-      (this.provider() ? this.vanillaLifecycle.compatibilityReport(this.provider()!) : undefined);
+      (this.providerState()
+        ? this.vanillaLifecycle.compatibilityReport(this.providerState()!)
+        : undefined);
     if (!report) return undefined;
     this.compatibilityReportState.set(report);
     downloadCompatibilityReport(report);
@@ -342,7 +350,7 @@ export class ContentAssetRuntimeService {
   private ensureVersion(version: string, force = false): Promise<void> {
     if (
       !shouldStartVersionLoad(
-        this.provider()?.minecraftVersion,
+        this.providerState()?.minecraftVersion,
         this.status(),
         version,
         this.inFlight?.version,
@@ -516,13 +524,13 @@ export class ContentAssetRuntimeService {
     request: number,
   ): Promise<void> {
     await Promise.resolve();
-    if (request !== this.loadRequest || this.provider() !== provider) return;
+    if (request !== this.loadRequest || this.providerState() !== provider) return;
     this.activity.begin(
       'compatibility',
       `Evaluating common block compatibility for Java ${provider.minecraftVersion}`,
     );
     const report = this.vanillaLifecycle.compatibilityReport(provider);
-    if (request !== this.loadRequest || this.provider() !== provider) return;
+    if (request !== this.loadRequest || this.providerState() !== provider) return;
     this.compatibilityReportState.set(report);
     this.activity.finish(
       'compatibility',
@@ -575,7 +583,7 @@ export class ContentAssetRuntimeService {
   }
 
   private replaceVisualProvider(): void {
-    this.visualProvider()?.dispose();
+    this.visualProviderState()?.dispose();
     this.visualProviderState.set(new VanillaBlockVisualProvider(this.sourceRegistry.resources));
   }
 
@@ -598,7 +606,7 @@ export class ContentAssetRuntimeService {
     }
     this.externalMods.clear();
     this.providerState.set(undefined);
-    this.visualProvider()?.dispose();
+    this.visualProviderState()?.dispose();
     this.visualProviderState.set(undefined);
   }
 

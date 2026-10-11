@@ -4,7 +4,28 @@ import { ContentAssetRuntimeService } from './content-asset-runtime.service';
 import { ContentSourceCleanupError } from './content-source/composite-asset-provider';
 import { AssetActivityService } from './asset-activity.service';
 
+type Assert<T extends true> = T;
+type ActiveProviderReadView = NonNullable<ReturnType<ContentAssetRuntimeService['provider']>>;
+type ActiveProviderViewExcludesLifecycle = Assert<
+  Extract<keyof ActiveProviderReadView, 'dispose' | 'serialize' | 'assertUsable'> extends never
+    ? true
+    : false
+>;
+type ActiveVisualProviderView = NonNullable<
+  ReturnType<ContentAssetRuntimeService['visualProvider']>
+>;
+type ActiveVisualProviderViewExcludesDisposal = Assert<
+  Extract<keyof ActiveVisualProviderView, 'dispose'> extends never ? true : false
+>;
+const activeProviderViewExcludesLifecycle: ActiveProviderViewExcludesLifecycle = true;
+const activeVisualProviderViewExcludesDisposal: ActiveVisualProviderViewExcludesDisposal = true;
+
 describe('ContentAssetRuntimeService content generation', () => {
+  it('keeps active provider lifecycle methods private to the content runtime', () => {
+    expect(activeProviderViewExcludesLifecycle).toBe(true);
+    expect(activeVisualProviderViewExcludesDisposal).toBe(true);
+  });
+
   it('exposes runtime state as read-only signals', () => {
     const service = TestBed.inject(ContentAssetRuntimeService);
 

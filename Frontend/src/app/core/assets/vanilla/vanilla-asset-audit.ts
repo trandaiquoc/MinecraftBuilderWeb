@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { BlockModelResolver } from '../../blocks/resolver';
 import { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
-import { VanillaAssetProvider } from './vanilla-asset-provider';
+import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
 import {
   auditVanillaAssetEntry,
   decodePng,
@@ -25,7 +25,7 @@ export { classifyVisualSupport } from './vanilla-asset-entry-audit';
 
 /** Coordinates bounded audit batches and owns the temporary visual provider lifetime. */
 export async function auditVanillaAssets(
-  provider: VanillaAssetProvider,
+  provider: VanillaAssetInspectionView,
   options: VanillaAssetAuditOptions = {},
 ): Promise<VanillaAssetCoverageReport> {
   const catalog = new BlockCatalog();

@@ -5,12 +5,13 @@ import type {
 } from '../../blocks/catalog/block-definition.types';
 import { ResolverDiagnosticCode, BlockModelResolver } from '../../blocks/resolver';
 import { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
-import { texturePath, VanillaAssetProvider } from './vanilla-asset-provider';
+import { texturePath } from './vanilla-asset-provider';
+import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
 import type { AssetAuditReason, VanillaAssetAuditRecord } from './vanilla-asset-audit.types';
 
 export async function auditVanillaAssetEntry(
   definition: BlockDefinition,
-  provider: VanillaAssetProvider,
+  provider: VanillaAssetInspectionView,
   resolver: BlockModelResolver,
   visualProvider: VanillaBlockVisualProvider,
   decodeCache: Map<string, Promise<boolean>>,
@@ -210,7 +211,10 @@ function resolverReason(code: ResolverDiagnosticCode): AssetAuditReason | undefi
     } as const
   )[code];
 }
-function hasSpecialModel(resources: readonly string[], provider: VanillaAssetProvider): boolean {
+function hasSpecialModel(
+  resources: readonly string[],
+  provider: VanillaAssetInspectionView,
+): boolean {
   return resources.some((path) => {
     const model = record(provider.readJson(path));
     const parent = model['parent'];
