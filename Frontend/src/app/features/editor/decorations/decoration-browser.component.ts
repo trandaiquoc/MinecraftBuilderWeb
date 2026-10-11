@@ -3,15 +3,13 @@ import { DecorationService } from '../../../core/decorations/decoration.service'
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
 import { DECORATION_BROWSER_SOURCES } from '../../../core/decorations/decoration.types';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
 import { PaintingPickerComponent } from './painting-picker.component';
 import {
   ContentSourceOption,
   ContentSourceSelectorComponent,
 } from '../../../shared/ui/content-source-selector/content-source-selector.component';
-import {
-  ALL_CONTENT_SOURCE,
-  sourceOptions,
-} from '../../../shared/ui/content-source-selector/content-source-filter';
+import { sourceOptions } from '../../../shared/ui/content-source-selector/content-source-filter';
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
 import { ItemStackPickerComponent } from '../../../shared/ui/item-stack-picker/item-stack-picker.component';

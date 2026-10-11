@@ -5,8 +5,10 @@ import type { BlockDefinition, NormalizedBlockDefinition } from './block-definit
 import { representativeBlockFixture } from './block-catalog.fixture';
 import { buildPlaceableItems, placementItemSearch } from '../placement-palette/placeable-item';
 import type { PlaceableItemDefinition } from '../placement-palette/placeable-item.types';
-import { ALL_CONTENT_SOURCE } from '../../../shared/ui/content-source-selector/content-source-filter';
-import type { ContentSourceSelection } from '../../../shared/ui/content-source-selector/content-source-filter';
+import {
+  ALL_CONTENT_SOURCE,
+  type ContentSourceSelection,
+} from '../../content/content-source-selection';
 import { DecorationService } from '../../decorations/decoration.service';
 import type { BlockCatalogSource } from './block-catalog';
 

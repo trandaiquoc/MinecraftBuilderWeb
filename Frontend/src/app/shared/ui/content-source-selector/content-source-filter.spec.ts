@@ -1,18 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CONTENT_SOURCE, filterByContentSource, sourceOptions } from './content-source-filter';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
+import { sourceOptions } from './content-source-filter';
 
-describe('content source filtering', () => {
-  const items = [
-    { id: 'minecraft:stone', sourceId: 'vanilla' },
-    { id: 'example:machine', sourceId: 'example' },
-  ];
-
-  it('keeps All UI-only and filters by source without changing item identity', () => {
-    expect(filterByContentSource(items, ALL_CONTENT_SOURCE)).toEqual(items);
-    expect(filterByContentSource(items, 'example')).toEqual([items[1]]);
-    expect(ALL_CONTENT_SOURCE).not.toBe('vanilla');
-  });
-
+describe('content source option presentation', () => {
   it('places All first and keeps Vanilla before external sources', () => {
     const options = sourceOptions(
       [

@@ -10,14 +10,12 @@ import {
 } from '@angular/core';
 import type { ItemCatalogEntry } from '../../../core/items/catalog/item-catalog';
 import type { ItemStackData } from '../../../core/items/item-stack.types';
+import { ALL_CONTENT_SOURCE } from '../../../core/content/content-source-selection';
 import {
   SearchableDropdownComponent,
   SearchableDropdownOption,
 } from '../searchable-dropdown/searchable-dropdown.component';
-import {
-  ALL_CONTENT_SOURCE,
-  sourceOptions,
-} from '../content-source-selector/content-source-filter';
+import { sourceOptions } from '../content-source-selector/content-source-filter';
 import {
   ContentSourceOption,
   ContentSourceSelectorComponent,
