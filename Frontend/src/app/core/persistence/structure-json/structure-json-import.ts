@@ -1,5 +1,4 @@
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import type { PlaceableItemDefinition } from '../../blocks/placement-palette/placeable-item.types';
 import type { ProjectDocument, ProjectSize } from '../../domain/project.types';
 import { CooperativeWorkBudget } from '../../assets/cooperative-yield';
 import {
@@ -29,7 +28,6 @@ import {
   emptyStructureJsonPreview,
 } from './structure-json-validation.types';
 import type {
-  NormalizedValidationContentLimits,
   StructureJsonValidationCancellation,
   StructureJsonValidationOptions,
   StructureJsonValidationPreview,

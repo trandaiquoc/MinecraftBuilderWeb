@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { terrainChunkKey, type TerrainChunkCoordinate } from './chunk-coordinate';
+import type { TerrainChunkCoordinate } from './chunk-coordinate';
 import {
   meshTerrainChunk,
   terrainPresentationBucketKey,
@@ -104,7 +104,7 @@ export class TerrainChunkResultCommitOwner {
   commitWorkerResult(context: TerrainChunkCommitContext, result: TerrainMeshResult): void {
     const commitStarted = performance.now();
     const metrics = createCommitMetrics(context, result);
-    const buckets = this.materializeBuckets(context.records, result, metrics);
+    const buckets = this.materializeBuckets(context.records, result);
     const compiled: CompiledTerrainChunk = {
       chunk: result.chunk,
       buckets,
@@ -311,7 +311,6 @@ export class TerrainChunkResultCommitOwner {
   private materializeBuckets(
     records: readonly TerrainSurfaceRecord[],
     result: TerrainMeshResult,
-    metrics: TerrainCommitMetrics,
   ): CompiledTerrainChunk['buckets'] {
     const lookupStarted = performance.now();
     const materials = new Map<string, THREE.Material>();

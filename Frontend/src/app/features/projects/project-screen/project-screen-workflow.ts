@@ -1,13 +1,7 @@
 import { ErrorHandler, Inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ProjectDocument, ProjectSize, StructureMode } from '../../../core/domain/project.types';
 import {
-  DEFAULT_MINECRAFT_VERSION,
-  ProjectDocument,
-  ProjectSize,
-  StructureMode,
-} from '../../../core/domain/project.types';
-import {
-  DEFAULT_STRUCTURE_MODE,
   evaluateStructureSize,
   isStructureCreationAllowed,
 } from '../../../core/domain/structure-size-policy';

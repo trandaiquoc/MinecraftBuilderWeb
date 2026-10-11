@@ -1,4 +1,4 @@
-import { terrainChunkKey, type TerrainChunkCoordinate } from './chunk-coordinate';
+import type { TerrainChunkCoordinate } from './chunk-coordinate';
 import { terrainPresentationBucketKey } from './chunk-surface-mesher';
 import {
   TerrainCommitScheduler,

@@ -38,7 +38,6 @@ export class ItemVisualService {
 
   state(item: string | ItemStackData | ItemCatalogEntry): ItemVisualState {
     this.ensureGeneration();
-    const itemId = typeof item === 'string' ? item : item.id;
     const key = this.key(item);
     return this.states.get(key) ?? { status: 'idle', diagnostics: [], generation: this.generation };
   }

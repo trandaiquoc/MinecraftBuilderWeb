@@ -24,7 +24,6 @@ import { DecorationService } from '../../decorations/decoration.service';
 import { metadataMutationHint } from '../mutations/project-mutation-hint';
 import { groupMetadataMutationHint, groupMutationHintForPositions } from './group-mutation-hint';
 import { groupMovingBlocks, validateGroupMove } from './group-move-planner';
-import type { GroupMovePreview } from './group-move-planner';
 import { GroupMoveTransaction } from './group-move-transaction';
 
 @Injectable({ providedIn: 'root' })

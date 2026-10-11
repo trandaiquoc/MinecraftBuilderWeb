@@ -8,12 +8,10 @@ import type {
   ViewportTraceEvent,
   ViewportTraceEventPriority,
   ViewportTraceHooks,
-  ViewportTraceMetadata,
   ViewportTraceSample,
   ViewportTraceDocument,
   ViewportRuntimeTraceApi,
 } from './viewport-trace.types';
-import type { TraceDurationSummary } from './viewport-trace-statistics';
 
 export type {
   TraceVector3,
@@ -96,7 +94,6 @@ export class ViewportRuntimeTrace {
   private startPerf = 0;
   private startedAt = '';
   private lastSample?: ViewportTraceSample;
-  private lastSampleTime = 0;
   private interval?: ReturnType<typeof setInterval>;
   private heartbeatFrame?: number;
   private lastHeartbeat = 0;
@@ -180,7 +177,6 @@ export class ViewportRuntimeTrace {
     this.statistics.reset();
     this.markedSegments.length = 0;
     this.lastSample = undefined;
-    this.lastSampleTime = 0;
     this.firstGestureCaptured = false;
     this.cameraOnlyActive = false;
     this.longTaskObserverSupported = false;
@@ -407,7 +403,6 @@ export class ViewportRuntimeTrace {
     ))
       this.anomaly(anomaly.type, anomaly.t, anomaly.evidence);
     this.lastSample = sample;
-    this.lastSampleTime = t;
     return captured;
   }
 

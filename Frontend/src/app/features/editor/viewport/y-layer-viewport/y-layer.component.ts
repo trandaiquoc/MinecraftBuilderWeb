@@ -7,7 +7,6 @@ import {
   effect,
   inject,
   input as angularInput,
-  isDevMode,
   signal,
   viewChild,
 } from '@angular/core';
@@ -19,14 +18,13 @@ import {
   adjacentOccupiedLayer,
   clampLayer,
   jumpOccupiedLayer,
-  layerCoordinate,
   YLayerVisibility,
 } from '../../../../core/editor/viewport/y-layer';
 import { placementFeedbackForHit } from '../../../../core/renderer/interaction/viewport-hit-resolver';
 import { isPointerClick } from '../../../../core/editor/input/interaction';
 import { EditorToolService } from '../../../../core/editor/state/tool.service';
 import { CameraStateService } from '../../../../core/editor/camera/camera-state.service';
-import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
+import { CameraPreset } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import { clampVoxelBox, normalizeVoxelBox } from '../../../../core/editor/selection/selection';
 import { ThreeViewportEngine } from '../../../../core/renderer/engine/three-viewport-engine';
@@ -155,9 +153,6 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     this.handleProjectionActivity(state);
     if (wasBusy && state.activity === 'idle') this.preparationScheduler.retry('y-layer');
   });
-  private get hydrationOwner() {
-    return this.viewportSession.hydrationOwner;
-  }
   private get viewportStatusOwner() {
     return this.viewportSession.viewportStatusOwner;
   }

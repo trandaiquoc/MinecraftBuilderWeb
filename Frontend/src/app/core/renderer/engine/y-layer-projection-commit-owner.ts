@@ -1,5 +1,4 @@
 import type { ProjectDocument } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
 import type { HydrationBlockScopeDelta } from '../scheduling/hydration-progress-tracker';
 import type { BlockHydrationJob } from '../visuals/block-representation-contracts';
 import type { BlockVisualProvider } from '../visuals/block-visual-provider-contract';
@@ -19,7 +18,7 @@ import type {
   ViewportTerrainWorkflowOwner,
   TerrainHydrationCandidate,
 } from '../terrain/viewport-terrain-workflow-owner';
-import { isCompiledTerrainEntry, isTerrainRenderableEntry } from '../terrain/terrain-classifier';
+import { isCompiledTerrainEntry } from '../terrain/terrain-classifier';
 import type { RendererDiagnostics } from './renderer-diagnostics';
 import type { ViewportBlockIndexOwner } from './viewport-block-index-owner';
 import type {

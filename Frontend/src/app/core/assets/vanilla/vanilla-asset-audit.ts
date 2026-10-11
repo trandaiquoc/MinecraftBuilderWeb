@@ -3,11 +3,7 @@ import { BlockCatalog } from '../../blocks/catalog/block-catalog';
 import { BlockModelResolver } from '../../blocks/resolver';
 import { VanillaBlockVisualProvider } from '../../renderer/geometry/vanilla-block-visual-provider';
 import type { VanillaAssetInspectionView } from './vanilla-asset-provider';
-import {
-  auditVanillaAssetEntry,
-  decodePng,
-  classifyVisualSupport,
-} from './vanilla-asset-entry-audit';
+import { auditVanillaAssetEntry, decodePng } from './vanilla-asset-entry-audit';
 import { buildVanillaAssetCoverage } from './vanilla-asset-coverage';
 import type {
   VanillaAssetAuditOptions,

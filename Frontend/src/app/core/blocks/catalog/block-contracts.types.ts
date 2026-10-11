@@ -3,14 +3,6 @@ import type {
   ContentClassificationProvenance,
 } from '../../content/content-classifier.types';
 
-import type {
-  BehaviorSupportLevel,
-  BlockSupportLevel,
-  BlockVisualClassification,
-  DefaultStateSource,
-  VisualSupportLevel,
-} from './block-support.types';
-
 export type {
   BehaviorSupportLevel,
   BlockSupportLevel,

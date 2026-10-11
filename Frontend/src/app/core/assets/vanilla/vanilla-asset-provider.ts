@@ -4,7 +4,7 @@ import {
   AssetBlockRecord,
   BlockStateDefinition,
 } from '../../blocks/catalog/block-definition.types';
-import { AssetResourceProvider, BlockModelResolver } from '../../blocks/resolver';
+import { BlockModelResolver } from '../../blocks/resolver';
 import {
   AUTHORITATIVE_DEFAULT_STATE_SOURCE,
   VanillaBlockRegistry,

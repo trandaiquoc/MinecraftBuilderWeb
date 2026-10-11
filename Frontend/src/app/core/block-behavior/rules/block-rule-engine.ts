@@ -3,10 +3,7 @@ import { coordinateKey } from '../../domain/coordinates';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { isBlockLocked } from '../../editor/groups/group-membership';
 import { PlacementContext } from '../../editor/placement/placement';
-import {
-  expandLogicalObjectClosure,
-  resolveLogicalObjectParts,
-} from '../logical-objects/logical-object';
+import { expandLogicalObjectClosure } from '../logical-objects/logical-object';
 import {
   expandLogicalPlacement,
   logicalPlacementForBehavior,

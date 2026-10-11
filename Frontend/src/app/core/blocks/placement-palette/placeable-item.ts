@@ -1,6 +1,5 @@
 import type { BlockDefinition } from '../catalog/block-definition.types';
 import { addBlockCapability } from '../capabilities/block-capability-resolver';
-import type { BlockCapabilityProfile } from '../capabilities/block-capability.types';
 import type { BlockPlacementVariants } from '../catalog/block-definition.types';
 import {
   isInternalContent,

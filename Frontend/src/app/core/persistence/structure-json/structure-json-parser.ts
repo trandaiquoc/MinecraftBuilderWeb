@@ -5,12 +5,10 @@ import { isValidNamespacedResourceLocation } from '../../content/resource-locati
 import { LEGACY_STRUCTURE_JSON_VERSION, STRUCTURE_JSON_FORMAT } from './structure-json-contracts';
 import type {
   ParsedStructureJsonResult,
-  StructureJson,
   StructureJsonBlock,
   StructureJsonBlockEntity,
   StructureJsonContainerItem,
   StructureJsonDecoration,
-  StructureJsonFrame,
   StructureJsonItem,
   StructureJsonPainting,
   StructureJsonPot,

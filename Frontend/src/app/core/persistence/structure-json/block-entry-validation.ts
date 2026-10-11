@@ -10,7 +10,6 @@ import type {
   NormalizedValidationContentLimits,
   StructureJsonIssueCategory,
   StructureJsonIssueReason,
-  StructureJsonValidationOptions,
   MutableStructureJsonIssues,
 } from './structure-json-validation.types';
 export { normalizeValidationContentLimits } from './structure-json-content-limits';

@@ -3,7 +3,6 @@ import type { BlockStateDefinition } from '../../blocks/catalog/block-contracts.
 import type { ContentPropertyDescriptor } from '../../content/content-semantic-types';
 import type { NormalizedContentDescriptor } from '../../content/content-introspection.types';
 import type {
-  BehaviorClassificationSummary,
   BehaviorEvidenceRecord,
   BehaviorFingerprint,
   BehaviorFingerprintResourceProvider,

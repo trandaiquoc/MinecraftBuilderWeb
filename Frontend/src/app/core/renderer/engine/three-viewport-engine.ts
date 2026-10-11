@@ -14,11 +14,9 @@ import {
   targetFromBlockFace,
   targetFromEditingPlaneHit,
   targetFromGridHit,
-  PlacementContext,
   PlacementStatus,
 } from '../../editor/placement/placement';
 import { type LayerBlockIndex } from '../../editor/viewport/y-layer';
-import { isBlockVisibleForViewport } from '../../editor/viewport/visible-blocks';
 import {
   CameraBounds,
   CameraPreset,
@@ -43,7 +41,6 @@ import { coordinateKey } from '../../domain/coordinates';
 import { PlacedDecoration } from '../../decorations/decoration.types';
 import {
   DecorationPlacementPlan,
-  decorationAabb,
   facingFromNormal,
   planDecorationPlacement,
 } from '../../decorations/placement/decoration-placement';
@@ -69,13 +66,10 @@ import {
 import {
   applyBlockBrightnessToMaterial,
   applyBlockBrightnessToObject,
-  applyStructureGuideBrightnessToObject,
   setBlockBrightnessBaseColor,
-  STRUCTURE_GUIDE_BRIGHTNESS,
 } from './block-brightness';
 import { FaceLockedSelectionPlane } from '../../editor/selection/selection';
 import { structureBlockGuidePosition } from './structure-block-guide';
-import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
 import { exposedFaceDirections, SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import { fluidCoordinateFromHit } from '../interaction/viewport-raycast-controller';
@@ -133,12 +127,10 @@ import {
 import { resolvePlacementPreview } from '../interaction/viewport-hit-resolver';
 import {
   ChunkSurfaceRenderer,
-  type TerrainApplyResult,
   type TerrainOwnershipEvidence,
   type TerrainRepresentationCommitCallbacks,
   type TerrainRepresentationCommitStatus,
 } from '../terrain/chunk-surface-renderer';
-import type { CompiledTerrainChunk } from '../terrain/chunk-surface-mesher';
 import {
   ViewportTerrainWorkflowOwner,
   type TerrainPlaceholderSignatureStore,
@@ -183,7 +175,6 @@ import { ViewportRuntimeDiagnosticsOwner } from '../diagnostics/viewport-runtime
 import type {
   ViewportControlConfiguration,
   ViewportDiagnostics,
-  ViewportEmptyTransitionDiagnostics,
   ViewportGhostSceneSnapshot,
   ViewportHydrationDiagnostics,
   ViewportInstanceOwnershipEvent,
@@ -214,7 +205,6 @@ import { collectSceneRenderCost } from '../diagnostics/scene-render-cost';
 import { collectPerformanceEvidence } from '../diagnostics/viewport-performance-evidence';
 import { FluidChunkRenderer } from '../fluids/fluid-chunk-renderer';
 import { FluidRenderCoordinator } from '../fluids/fluid-render-coordinator';
-import { fluidChunkKey } from '../fluids/fluid-mesh-core';
 import type { FluidWorldLookup } from '../fluids/fluid-state';
 import {
   GroupIsolationPresentation,
@@ -239,10 +229,7 @@ import {
   YLayerProjectionCoordinator,
   type VisibleBlockProjectionEntry,
 } from './y-layer-projection-coordinator';
-import {
-  YLayerPresentationOwner,
-  type YLayerPresentationFallbackReason,
-} from './y-layer-presentation-owner';
+import { YLayerPresentationOwner } from './y-layer-presentation-owner';
 import {
   YLayerRepresentationPrewarmOwner,
   type YLayerRepresentationPrewarmEvidence,
@@ -279,7 +266,7 @@ import {
 import { DETAILED_SELECTION_OUTLINE_LIMIT } from '../presentation/selection-overlay-presenter';
 import { createBoundedGrid } from '../geometry/bounded-grid-geometry';
 import { compareEmptySnapshots } from '../diagnostics/viewport-empty-transition-diff';
-import { canonicalRenderOptions, renderFilterKey } from './viewport-render-signatures';
+import { renderFilterKey } from './viewport-render-signatures';
 import { stableValueKey } from '../../domain/stable-value-key';
 import {
   ViewportBlockRepresentationStore,
@@ -291,7 +278,6 @@ import type {
   ViewportHoverListener,
   ViewportRenderOptions,
   ViewportEngineOptions,
-  ViewportHydrationStatus,
   ViewportHydrationProgress,
   ViewportHydrationWorkSnapshot,
   ViewportPreparationAttempt,
@@ -625,8 +611,6 @@ export class ThreeViewportEngine {
   private lastActiveGroupProject?: ProjectDocument;
   private lastActiveGroupId?: string;
   private lastActiveGroupPositions?: readonly VoxelCoordinate[];
-  private lastIsolatedGroupId?: string;
-  private lastIsolatedGroupPositions?: readonly VoxelCoordinate[];
   private isolatedKeys = new Set<string>();
   private lastCommittedIsolateKey = '';
   private activeBlock?: ActiveBlock;
@@ -817,7 +801,6 @@ export class ThreeViewportEngine {
   }
   private readonly terrainRenderer: ChunkSurfaceRenderer;
   readonly terrainAtlasMode: TerrainAtlasMode;
-  private readonly instanceTranslationMatrix = new THREE.Matrix4();
   private readonly hydrationPipeline = new ViewportBlockHydrationPipeline<BlockHydrationJob>({
     concurrency: VIEWPORT_VISUAL_CONCURRENCY,
     regularReservedCapacity: 4,
@@ -3131,14 +3114,6 @@ export class ThreeViewportEngine {
   private queuedDecorationHydrationJobs(): number {
     return this.decorationVisuals.queuedCount;
   }
-  private compactHydrationQueues(): void {
-    this.hydrationPipeline.compactWork();
-    this.decorationVisuals.compactQueue();
-  }
-  private compactConsumedHydrationQueues(): void {
-    this.hydrationPipeline.compactConsumedWork();
-    this.decorationVisuals.compactQueue();
-  }
 
   private markHydrationFailure(job: BlockHydrationJob, error: unknown): void {
     const entry = this.blockRepresentations.get(job.key);
@@ -3179,17 +3154,6 @@ export class ThreeViewportEngine {
     role: RenderedBlockEntry['role'],
   ): void {
     this.placeholderRenderer.ensure(key, block.position, role, groupIdsOf(block));
-  }
-
-  private ensurePlaceholderVisualsBulk(entries: readonly VisibleBlockEntry[]): void {
-    this.placeholderRenderer.ensureBulk(
-      entries.map((entry) => ({
-        key: coordinateKey(entry.block.position),
-        position: entry.block.position,
-        role: entry.role,
-        groupIds: groupIdsOf(entry.block),
-      })),
-    );
   }
 
   private removePlaceholderVisual(key: string): void {
@@ -3305,10 +3269,6 @@ export class ThreeViewportEngine {
     return this.terrainRenderer.upsertAndCommit({ key, block, templates, role }, callbacks);
   }
 
-  private removeSurfaceFaceVisual(key: string, entry?: RenderedBlockEntry): void {
-    this.surfaceRenderer.remove(key, entry);
-  }
-
   private clearSurfaceFaceResources(): void {
     this.blockRepresentationCommit.clear();
   }
@@ -3360,19 +3320,6 @@ export class ThreeViewportEngine {
     return this.instanceRenderer.memberships(key, scanAll);
   }
 
-  private removeOrphanedInstanceMemberships(
-    key: string,
-    source: 'rollback' | 'reconcile',
-    entry = this.blockRepresentations.get(key),
-  ): void {
-    this.blockRepresentationCommit.removeOrphanedInstanceMemberships(key, source, entry);
-  }
-
-  /** Repairs only stale/duplicate memberships; it never rebuilds valid batches. */
-  private reconcileInstanceOwnership(): void {
-    this.blockRepresentationCommit.reconcileInstances();
-  }
-
   private removeBlockEntry(key: string, entry: RenderedBlockEntry): void {
     this.visualFailureKeys.delete(key);
     this.blockRepresentationCommit.remove(key, entry);
@@ -3421,8 +3368,6 @@ export class ThreeViewportEngine {
     this.lastActiveGroupProject = undefined;
     this.lastActiveGroupId = undefined;
     this.lastActiveGroupPositions = undefined;
-    this.lastIsolatedGroupId = undefined;
-    this.lastIsolatedGroupPositions = undefined;
     this.groupHighlightPresenter.clearUsage();
   }
 
@@ -3702,22 +3647,6 @@ export class ThreeViewportEngine {
       },
       rect,
       projectSize,
-    );
-  }
-
-  private projectPointerToAxisPlane(
-    event: PointerEvent,
-    axis: 'x' | 'y' | 'z',
-    coordinate: number,
-  ): { readonly x: number; readonly y: number; readonly z: number } | undefined {
-    if (!this.renderer || !this.container) return undefined;
-    return projectPointerToAxisPlane(
-      event,
-      this.renderer.domElement,
-      this.camera,
-      this.raycaster,
-      axis,
-      coordinate,
     );
   }
 
@@ -4426,10 +4355,6 @@ export class ThreeViewportEngine {
       this.visualProvider,
       guidePosition,
     );
-  }
-
-  private clearStructureBlockGuide(): void {
-    this.structureBlockGuidePresenter.clear();
   }
 
   private updateMovePreview(

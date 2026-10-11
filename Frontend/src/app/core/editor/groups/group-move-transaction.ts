@@ -1,10 +1,7 @@
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import type { ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
+import type { ProjectDocument } from '../../domain/project.types';
 import { coordinateKey } from '../../domain/coordinates';
-import {
-  expandLogicalObjectClosure,
-  normalizeLogicalObjectMemberships,
-} from '../../block-behavior/logical-objects/logical-object';
+import { normalizeLogicalObjectMemberships } from '../../block-behavior/logical-objects/logical-object';
 import type { HistoryService } from '../history/history.service';
 import type { SelectionService } from '../selection/selection.service';
 import type { WorkspaceStateService } from '../../workspace/workspace-state.service';

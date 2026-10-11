@@ -3,7 +3,6 @@ import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { CdkConnectedOverlay, CdkOverlayOrigin } from '@angular/cdk/overlay';
 import {
   LucideArrowLeft,
-  LucideArrowRight,
   LucideCheckCircle2,
   LucideChevronDown,
   LucideChevronUp,
@@ -50,7 +49,6 @@ import {
   importStages,
   phaseLabels,
   progressPercentForProgress,
-  type ImportOperationStatus,
   type ImportStage,
   type ImportStageState,
   type ImportStageStateContext,

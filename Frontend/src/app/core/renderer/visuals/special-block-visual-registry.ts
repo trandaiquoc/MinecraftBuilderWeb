@@ -16,7 +16,6 @@ import type {
   SpecialVisualCompatibility,
   SpecialVisualResourceProvider,
 } from './special-visual-contracts';
-import { SPECIAL_VISUAL_COMPATIBILITY } from './special-visual-contracts';
 
 /** Static editor visuals for vanilla blocks which have no generic JSON elements. */
 export class SpecialBlockVisualRegistry {

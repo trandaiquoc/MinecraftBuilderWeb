@@ -59,10 +59,7 @@ export class FluidChunkRenderer {
   private readonly buildOwner: FluidChunkBuildOwner;
   private disposed = false;
 
-  constructor(
-    private readonly blocksGroup: THREE.Group,
-    chunkSize = 16,
-  ) {
+  constructor(blocksGroup: THREE.Group, chunkSize = 16) {
     this.residency = new FluidChunkResidencyOwner(blocksGroup);
     this.buildOwner = new FluidChunkBuildOwner(this.recordStore, this.residency, chunkSize);
   }

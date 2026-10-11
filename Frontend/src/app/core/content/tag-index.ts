@@ -108,7 +108,7 @@ export class TagIndex {
         continue;
       }
       const values = rawValues.flatMap((value): TagValueEvidence[] => {
-        const parsed = parseTagValue(value, domain, source, id);
+        const parsed = parseTagValue(value, source);
         return parsed ? [parsed] : [];
       });
       const contribution: TagContribution = {
@@ -239,9 +239,7 @@ export class TagIndex {
 
 function parseTagValue(
   value: unknown,
-  domain: TagDomain,
   source: { readonly id: string; readonly name: string },
-  tagId: string,
 ): TagValueEvidence | undefined {
   const object = isRecord(value) ? value : undefined;
   const rawId =

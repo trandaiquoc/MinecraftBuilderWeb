@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TerrainAtlasLayout, type TerrainAtlasRect } from './terrain-atlas-layout';
+import { TerrainAtlasLayout } from './terrain-atlas-layout';
 import {
   copyTerrainPixelsWithGutter,
   normalizeTerrainPixels,

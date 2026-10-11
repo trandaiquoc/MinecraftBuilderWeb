@@ -30,7 +30,6 @@ export const MOUSE_ACTIONS: readonly {
   { action: 'zoom-out', group: 'viewport' },
 ];
 
-const modifiers = new Set(['Ctrl', 'Alt', 'Shift', 'Meta']);
 const modifierOrder = ['Ctrl', 'Alt', 'Shift', 'Meta'];
 const mouseTokens = new Set(['LeftClick', 'RightClick', 'MiddleClick', 'WheelUp', 'WheelDown']);
 

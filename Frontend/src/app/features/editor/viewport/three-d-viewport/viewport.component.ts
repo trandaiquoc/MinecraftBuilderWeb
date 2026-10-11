@@ -20,7 +20,7 @@ import { SelectionService } from '../../../../core/editor/selection/selection.se
 import { EditorToolService } from '../../../../core/editor/state/tool.service';
 import type { EditorTool } from '../../../../core/editor/state/tool.service';
 import { CameraStateService } from '../../../../core/editor/camera/camera-state.service';
-import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
+import { CameraPreset } from '../../../../core/editor/camera/camera';
 import type { CameraState } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import {
@@ -139,9 +139,6 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     blockId = 'minecraft:stone',
     state: Readonly<Record<string, string>> = {},
   ) => runTerrainAtlasProbe(this.engine, this.assets.visualProvider(), blockId, state);
-  private get hydrationOwner() {
-    return this.session.hydrationOwner;
-  }
   private get viewportStatusOwner() {
     return this.session.viewportStatusOwner;
   }

@@ -3,28 +3,16 @@ import {
   VANILLA_STRUCTURE_BLOCK_MAX_AXIS,
 } from '../../domain/structure-size-policy';
 import { createStructureJsonExample, serializeStructureJsonValue } from './structure-json';
-import type { ExternalAiContentLimits } from './external-ai-content-limits';
 import type {
-  ExternalAiContentSelection,
-  ExternalAiDecorationContext,
-  ExternalAiItemContext,
-  ExternalAiModContentCategory,
-  ExternalAiModContentSelection,
-  ExternalAiModContext,
   ExternalAiPromptContext,
   ExternalAiPromptLocale,
   ExternalAiPromptOptions,
   ExternalAiProjectContext,
-  ExternalAiProjectSize,
-  ExternalAiSelectedTotals,
 } from './external-ai-prompt-contracts';
 import {
   buildContentContextText,
   buildContentLimitsText,
-  defaultModSelections,
-  resolveModSelections,
   resolvePromptOptions,
-  selectedExternalAiTotals,
 } from './external-ai-content-policy';
 export {
   buildContentContextText,

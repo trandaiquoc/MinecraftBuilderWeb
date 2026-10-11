@@ -1,7 +1,6 @@
 import type { SurfaceFaceDirection } from '../visibility/exposed-face-rendering';
 import type {
   TerrainMeshBucketData,
-  TerrainMeshEntryData,
   TerrainMeshFace,
   TerrainMeshJob,
   TerrainMeshResult,

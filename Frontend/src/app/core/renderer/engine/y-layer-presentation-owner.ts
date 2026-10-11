@@ -1,7 +1,6 @@
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { coordinateKey } from '../../domain/coordinates';
 import { groupIdsOf } from '../../editor/groups/group-membership';
-import { visibleLayerSet, type LayerBlockIndex } from '../../editor/viewport/y-layer';
+import { visibleLayerSet } from '../../editor/viewport/y-layer';
 import type { ViewportRenderOptions } from './viewport-engine-contracts';
 import { renderFilterKey } from './viewport-render-signatures';
 import type { OcclusionClass } from '../visibility/interior-occlusion';

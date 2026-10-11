@@ -73,7 +73,7 @@ export class TerrainMeshWorkerPool {
   readonly supported: boolean;
   readonly workerCount: number;
 
-  constructor(private readonly options: TerrainMeshWorkerPoolOptions = {}) {
+  constructor(options: TerrainMeshWorkerPoolOptions = {}) {
     const factory =
       options.workerFactory ?? (typeof Worker === 'undefined' ? undefined : defaultWorkerFactory);
     this.supported = options.supported ?? !!factory;

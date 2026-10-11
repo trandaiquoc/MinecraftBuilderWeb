@@ -1,10 +1,6 @@
 import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
-import {
-  blockCapability,
-  hasBlockCapability,
-} from '../../blocks/capabilities/block-capability-resolver';
+import { hasBlockCapability } from '../../blocks/capabilities/block-capability-resolver';
 import type { ProjectDocument, PlacedBlock, VoxelCoordinate } from '../../domain/project.types';
-import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import type { BlockDefinitionLookup, BlockSource, RuleValidation } from './block-rule-types';
 import {
   add,

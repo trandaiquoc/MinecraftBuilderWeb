@@ -57,7 +57,6 @@ export class FluidChunkResidencyOwner {
   private presentationUpdatesValue = 0;
   private meshVisibilityUpdatesValue = 0;
   private meshRoleUpdatesValue = 0;
-  private referenceOpacity = 0.28;
 
   constructor(private readonly blocksGroup: THREE.Group) {
     this.group.name = 'fluidChunks';
@@ -111,7 +110,6 @@ export class FluidChunkResidencyOwner {
   setLayerPresentation(presentation: FluidLayerPresentation | undefined): void {
     if (sameLayerPresentation(this.layerPresentation, presentation)) return;
     this.layerPresentation = presentation;
-    if (presentation) this.referenceOpacity = presentation.referenceOpacity;
     this.presentationUpdatesValue += 1;
     for (const chunk of this.chunks.values())
       for (const mesh of chunk.meshes) this.applyLayerPresentation(mesh);

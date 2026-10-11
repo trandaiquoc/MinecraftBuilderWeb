@@ -11,7 +11,6 @@ import type { TerrainCommitSchedulerEvidence } from './terrain-commit-scheduler'
 import type { TerrainCommitDiagnosticsEvidence } from './terrain-commit-diagnostics';
 import { TerrainChunkLogicalStore } from './terrain-chunk-logical-store';
 import type {
-  TerrainApplyDisposition,
   TerrainApplyResult,
   TerrainBlockChange,
   TerrainSurfaceRecord,
@@ -174,7 +173,6 @@ export class ChunkSurfaceRenderer {
   setRecordRole(key: string, role: 'normal' | 'reference'): boolean {
     const record = this.logicalStore.record(key);
     if (!record || (record.role ?? 'normal') === role) return !!record;
-    const chunkKey = terrainChunkKey(worldToTerrainChunk(record.block.position));
     const updated = { ...record, role };
     if (!this.logicalStore.upsert(updated)) return false;
     this.scheduleFlush();

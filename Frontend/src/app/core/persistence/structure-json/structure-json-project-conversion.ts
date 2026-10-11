@@ -8,7 +8,6 @@ import type {
   StructureJsonBlock,
   StructureJsonDecoration,
   StructureJsonDefinitionResolver,
-  StructureJsonFrame,
   StructureJsonPainting,
 } from './structure-json-contracts';
 import {

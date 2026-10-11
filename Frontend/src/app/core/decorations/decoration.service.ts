@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { ActiveBlockService } from '../blocks/placement-palette/active-block.service';
-import { ProjectDocument, VoxelCoordinate } from '../domain/project.types';
+import { VoxelCoordinate } from '../domain/project.types';
 import { HistoryService } from '../editor/history/history.service';
 import { SelectionService } from '../editor/selection/selection.service';
 import { WorkspaceStateService } from '../workspace/workspace-state.service';
@@ -10,7 +10,6 @@ import {
   DecorationKind,
   DecorationItemStack,
   PlacedDecoration,
-  paintingVariant,
 } from './decoration.types';
 import { PaintingVariantCatalogService } from './catalog/painting-variant-catalog.service';
 import { isDecorationLocked } from '../editor/groups/decoration-membership';

@@ -1,13 +1,9 @@
 import type { AssetResourceProvider } from '../blocks/resolver/resolver.types';
 import { BlockModelResolver } from '../blocks/resolver/block-model-resolver';
 import type { AssetBlockRecord } from '../blocks/catalog/block-content-evidence.types';
-import type {
-  BehaviorClassificationSummary,
-  BehaviorFingerprint,
-} from '../block-behavior/compatibility/behavior-fingerprint.types';
+import type { BehaviorFingerprint } from '../block-behavior/compatibility/behavior-fingerprint.types';
 import type {
   BlockItemEvidence,
-  BlockStateDefinition,
   CatalogItemEvidence,
 } from '../blocks/catalog/block-contracts.types';
 import {
@@ -29,19 +25,9 @@ import {
   type ResourceDependencyGraph,
 } from './content-resource-graph';
 import { mergeContentEvidence, uniqueDiagnostics } from './content-evidence-merger';
+import type { ContentSemanticEvidenceProvider, EvidenceProvenance } from './content-semantic-types';
 import type {
-  ContentIntrospectionDiagnostic,
-  ContentItemHostVisualDescriptor,
-  ContentPropertyDescriptor,
-  ContentSemanticEvidence,
-  ContentSemanticEvidenceProvider,
-  ContentSpecialVisualDescriptor,
-  EvidenceProvenance,
-} from './content-semantic-types';
-import type {
-  ContentConfidence,
   ContentRelationship,
-  ContentRole,
   ContentRoleEvidence,
   NormalizedContentDescriptor,
 } from './content-introspection.types';
