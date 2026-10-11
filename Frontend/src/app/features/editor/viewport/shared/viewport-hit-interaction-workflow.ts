@@ -2,7 +2,6 @@ import { Injectable } from '@angular/core';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { SignTextSideService } from '../../../../core/block-entities/sign/sign-text-side.service';
 import { isSignDefinition, isSignId } from '../../../../core/block-entities/sign/sign-block-entity';
-import { coordinateKey } from '../../../../core/domain/coordinates';
 import type { VoxelCoordinate } from '../../../../core/domain/project.types';
 import type { EditorTool } from '../../../../core/editor/state/tool.service';
 import { StructureEditorService } from '../../../../core/editor/structure/structure-editor.service';
@@ -11,6 +10,7 @@ import {
   pickAndSelectBlockFromViewportHit,
 } from '../../../../core/editor/viewport/pick-block';
 import { SelectionService } from '../../../../core/editor/selection/selection.service';
+import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { facingFromNormal } from '../../../../core/decorations/placement/decoration-placement';
 import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
@@ -28,6 +28,7 @@ export class ViewportHitInteractionWorkflow {
     private readonly workspace: WorkspaceStateService,
     private readonly library: BlockLibraryService,
     private readonly signTextSide: SignTextSideService,
+    private readonly blockIndex: ProjectBlockRuntimeIndex,
   ) {}
 
   pickBlock(hit: ViewportHit, viewport: ViewportKind): boolean {
@@ -101,12 +102,11 @@ export class ViewportHitInteractionWorkflow {
     this.decorations.clearSelection();
     const project = this.workspace.project();
     if (!project) return;
+    this.blockIndex.ensure(project);
     this.selection.selectLogical(position, project, (id) => this.library.get(id));
     if (viewport !== '3d') return;
 
-    const selected = project.blocks.find(
-      (block) => coordinateKey(block.position) === coordinateKey(position),
-    );
+    const selected = this.blockIndex.get(position);
     if (selected && (isSignDefinition(this.library.get(selected.id)) || isSignId(selected.id)))
       this.signTextSide.setFromHit(selected, faceNormal);
   }
