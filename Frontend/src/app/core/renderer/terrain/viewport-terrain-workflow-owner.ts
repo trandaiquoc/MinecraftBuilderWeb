@@ -201,6 +201,52 @@ export class ViewportTerrainWorkflowOwner {
     });
   }
 
+  resolveHydrationVisual(
+    key: string,
+    block: TerrainBlock,
+    worldContext: TerrainHydrationCandidate['worldContext'],
+    provider: BlockVisualProvider,
+  ): Promise<HydratedBlockVisualResult> {
+    return this.resolveTemplatesFor(
+      key,
+      () => this.ports.visual.create(provider, block, worldContext),
+      provider,
+    ).then((templates) =>
+      templates
+        ? {
+            object: undefined,
+            terrainTemplates: templates,
+            resolved: {
+              blockId: block.id,
+              state: block.state,
+              parts: [],
+              support: 'full',
+              diagnostics: [],
+              trace: {
+                blockstateResource: '',
+                matchedVariantKeys: [],
+                selectedModelIds: [],
+                modelResources: [],
+                parentResources: [],
+                elementCount: 0,
+                faceCount: 0,
+                textureResources: [],
+              },
+            },
+            mode: 'real',
+            diagnostics: [],
+            trace: {
+              texturePaths: [],
+              pngBytesFound: true,
+              textureDecoded: true,
+              geometryBuilt: true,
+              meshBuilt: true,
+            },
+          }
+        : this.ports.visual.create(provider, block, worldContext),
+    );
+  }
+
   commit(
     records: Iterable<TerrainSurfaceRecord>,
     result: TerrainApplyResult,

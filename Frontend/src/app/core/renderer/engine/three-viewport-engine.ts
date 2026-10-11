@@ -293,9 +293,6 @@ export type {
   ViewportHydrationProgress,
 } from './viewport-engine-contracts';
 
-interface TerrainHydrationResult extends BlockVisualResult {
-  readonly terrainTemplates?: readonly SurfaceFaceTemplate[];
-}
 type VisibleBlockEntry = VisibleBlockProjectionEntry;
 export type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 export type {
@@ -1178,7 +1175,7 @@ export class ThreeViewportEngine {
           this.requestReusableVisualKey(provider, block, world),
         visual: (provider, block, world) => this.createProviderVisual(provider, block, world),
         terrain: (key, block, world, provider) =>
-          this.resolveTerrainHydration(key, block, world, provider),
+          this.terrainPipeline.resolveHydrationVisual(key, block, world, provider),
       },
       commit: this.blockRepresentationCommit,
       invalidateDiagnostics: () => this.invalidateStaticModelDiagnostics(),
@@ -3168,7 +3165,7 @@ export class ThreeViewportEngine {
     worldContext: {
       getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined;
     },
-  ): Promise<TerrainHydrationResult> {
+  ): Promise<BlockVisualResult> {
     this.instrumentation.record('modelResolutions');
     this.instrumentation.record('providerObjectCreations');
     const traceActive = !!this.runtimeTrace?.isActive;
@@ -3183,55 +3180,6 @@ export class ThreeViewportEngine {
         this.runtimeTrace?.recordDuration('provider.create', performance.now() - started);
       return Promise.reject(error);
     }
-  }
-
-  private resolveTerrainHydration(
-    reusableKey: string,
-    block: ProjectDocument['blocks'][number],
-    worldContext: {
-      getBlock(position: VoxelCoordinate): ProjectDocument['blocks'][number] | undefined;
-    },
-    provider: BlockVisualProvider,
-  ): Promise<TerrainHydrationResult> {
-    const pending = this.terrainPipeline.resolveTemplatesFor(
-      reusableKey,
-      () => this.createProviderVisual(provider, block, worldContext),
-      provider,
-    );
-    return pending.then((templates) =>
-      templates
-        ? {
-            object: undefined,
-            terrainTemplates: templates,
-            resolved: {
-              blockId: block.id,
-              state: block.state,
-              parts: [],
-              support: 'full' as const,
-              diagnostics: [],
-              trace: {
-                blockstateResource: '',
-                matchedVariantKeys: [],
-                selectedModelIds: [],
-                modelResources: [],
-                parentResources: [],
-                elementCount: 0,
-                faceCount: 0,
-                textureResources: [],
-              },
-            },
-            mode: 'real' as const,
-            diagnostics: [],
-            trace: {
-              texturePaths: [],
-              pngBytesFound: true,
-              textureDecoded: true,
-              geometryBuilt: true,
-              meshBuilt: true,
-            },
-          }
-        : this.createProviderVisual(provider, block, worldContext),
-    );
   }
 
   private ensureFallbackVisual(entry: RenderedBlockEntry, referenceOpacity = 0.28): THREE.Mesh {
