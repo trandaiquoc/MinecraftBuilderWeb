@@ -22,6 +22,12 @@ export interface InstanceBatch {
   readonly capacity: number;
   readonly templates: readonly InstancePartTemplate[];
   readonly parts: readonly THREE.InstancedMesh[];
+  readonly keys: readonly string[];
+  readonly positions: readonly VoxelCoordinate[];
+  readonly renderRole: 'normal' | 'reference';
+}
+
+interface MutableInstanceBatch extends Omit<InstanceBatch, 'keys' | 'positions' | 'renderRole'> {
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
   renderRole: 'normal' | 'reference';
@@ -57,7 +63,7 @@ export interface InstanceBatchRendererOptions {
 
 /** Owns reusable InstancedMesh batches and their swap-back ownership index. */
 export class InstanceBatchRenderer {
-  private readonly batchStore = new Map<string, InstanceBatch>();
+  private readonly batchStore = new Map<string, MutableInstanceBatch>();
   private readonly ownershipStore = new Map<
     string,
     { readonly batchKey: string; readonly index: number }
@@ -287,7 +293,7 @@ export class InstanceBatchRenderer {
       if (batch.layer === layer) this.setBatchRole(batch, role);
   }
 
-  private setBatchRole(batch: InstanceBatch, role: 'normal' | 'reference'): void {
+  private setBatchRole(batch: MutableInstanceBatch, role: 'normal' | 'reference'): void {
     if (batch.renderRole === role) return;
     batch.renderRole = role;
     for (const part of batch.parts) {

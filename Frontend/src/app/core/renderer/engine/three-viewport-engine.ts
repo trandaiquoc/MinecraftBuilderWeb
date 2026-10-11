@@ -810,7 +810,7 @@ export class ThreeViewportEngine {
   private get surfaceFaceBatches(): ReadonlyMap<string, SurfaceFaceBatch> {
     return this.surfaceRenderer.batches;
   }
-  private get surfaceFaceOwnership(): ReadonlyMap<string, SurfaceFaceMembership[]> {
+  private get surfaceFaceOwnership(): ReadonlyMap<string, readonly SurfaceFaceMembership[]> {
     return this.surfaceRenderer.ownership;
   }
   private get surfaceTemplateCache(): ReadonlyMap<string, readonly SurfaceFaceTemplate[]> {

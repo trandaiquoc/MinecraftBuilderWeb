@@ -8,9 +8,15 @@ export interface PlaceholderBatch {
   readonly layer: number;
   readonly groupIds: readonly string[];
   readonly baseRole: PlaceholderRole;
-  role: PlaceholderRole;
+  readonly role: PlaceholderRole;
   readonly capacity: number;
   readonly mesh: THREE.InstancedMesh;
+  readonly keys: readonly string[];
+  readonly positions: readonly VoxelCoordinate[];
+}
+
+interface MutablePlaceholderBatch extends Omit<PlaceholderBatch, 'role' | 'keys' | 'positions'> {
+  role: PlaceholderRole;
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
 }
@@ -28,7 +34,7 @@ export interface PlaceholderBatchRendererOptions {
 
 /** Owns coarse occupancy meshes used while real visuals hydrate. */
 export class PlaceholderBatchRenderer {
-  private readonly batchStore = new Map<string, PlaceholderBatch>();
+  private readonly batchStore = new Map<string, MutablePlaceholderBatch>();
   private readonly indexStore = new Map<
     string,
     { readonly batchKey: string; readonly index: number }
@@ -170,7 +176,7 @@ export class PlaceholderBatchRenderer {
     role: PlaceholderRole,
     position: VoxelCoordinate,
     groupIds: readonly string[],
-  ): PlaceholderBatch {
+  ): MutablePlaceholderBatch {
     const existing = this.batchStore.get(batchKey);
     if (existing) return existing;
     const baseMaterial = this.options.materials[role].clone();
@@ -191,7 +197,7 @@ export class PlaceholderBatchRenderer {
     mesh.boundingBox = this.options.chunkBounds(this.options.chunkKey(position));
     mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new THREE.Sphere());
     this.options.recordBounds();
-    const batch: PlaceholderBatch = {
+    const batch: MutablePlaceholderBatch = {
       key: batchKey,
       layer,
       groupIds,
@@ -236,7 +242,7 @@ export class PlaceholderBatchRenderer {
     return !presentation.isolatedGroupId || batch.groupIds.includes(presentation.isolatedGroupId);
   }
 
-  private setBatchRole(batch: PlaceholderBatch, role: PlaceholderRole): void {
+  private setBatchRole(batch: MutablePlaceholderBatch, role: PlaceholderRole): void {
     if (batch.role === role) return;
     batch.role = role;
     const material = batch.mesh.material as THREE.Material;
@@ -259,7 +265,7 @@ export class PlaceholderBatchRenderer {
     else material.dispose();
   }
 
-  private insert(batch: PlaceholderBatch, key: string, position: VoxelCoordinate): void {
+  private insert(batch: MutablePlaceholderBatch, key: string, position: VoxelCoordinate): void {
     const index = batch.keys.length;
     const copy = { ...position };
     batch.keys.push(key);

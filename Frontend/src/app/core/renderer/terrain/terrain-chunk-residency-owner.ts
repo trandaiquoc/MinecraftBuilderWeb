@@ -14,7 +14,7 @@ export interface TerrainOwnershipEvidence {
 export interface TerrainChunkObject {
   readonly key: string;
   readonly chunk: TerrainChunkCoordinate;
-  readonly meshes: THREE.Mesh[];
+  readonly meshes: readonly THREE.Mesh[];
   readonly signature: string;
   readonly emittedKeys: readonly string[];
   readonly fullyOccludedKeys: readonly string[];

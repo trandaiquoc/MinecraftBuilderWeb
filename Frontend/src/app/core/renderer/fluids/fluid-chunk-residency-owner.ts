@@ -5,9 +5,9 @@ import type { FluidMeshBuildResult } from './fluid-mesh-core';
 
 export interface FluidResidentChunk {
   readonly key: string;
-  readonly keys: Set<string>;
+  readonly keys: ReadonlySet<string>;
   readonly signatures: ReadonlyMap<string, string>;
-  readonly meshes: THREE.Mesh[];
+  readonly meshes: readonly THREE.Mesh[];
   readonly facesPotential: number;
   readonly facesCulled: number;
   readonly facesEmitted: number;

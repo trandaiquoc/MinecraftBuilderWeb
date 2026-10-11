@@ -33,6 +33,16 @@ export interface SurfaceFaceBatch {
   readonly capacity: number;
   readonly template: SurfaceFaceTemplate;
   readonly mesh: THREE.InstancedMesh;
+  readonly keys: readonly string[];
+  readonly positions: readonly VoxelCoordinate[];
+  readonly directions: readonly SurfaceFaceDirection[];
+  readonly renderRole: 'normal' | 'reference';
+}
+
+interface MutableSurfaceFaceBatch extends Omit<
+  SurfaceFaceBatch,
+  'keys' | 'positions' | 'directions' | 'renderRole'
+> {
   readonly keys: string[];
   readonly positions: VoxelCoordinate[];
   readonly directions: SurfaceFaceDirection[];
@@ -57,7 +67,7 @@ export interface SurfaceFaceBatchRendererOptions {
 
 /** Owns the legacy exposed-face InstancedMesh representation. */
 export class SurfaceFaceBatchRenderer {
-  private readonly batchStore = new Map<string, SurfaceFaceBatch>();
+  private readonly batchStore = new Map<string, MutableSurfaceFaceBatch>();
   private readonly ownershipStore = new Map<string, SurfaceFaceMembership[]>();
   private readonly hiddenKeys = new Set<string>();
   private readonly templateStore = new Map<string, readonly SurfaceFaceTemplate[]>();
@@ -78,7 +88,7 @@ export class SurfaceFaceBatchRenderer {
   get batches(): ReadonlyMap<string, SurfaceFaceBatch> {
     return this.batchStore;
   }
-  get ownership(): ReadonlyMap<string, SurfaceFaceMembership[]> {
+  get ownership(): ReadonlyMap<string, readonly SurfaceFaceMembership[]> {
     return this.ownershipStore;
   }
   get templateCache(): ReadonlyMap<string, readonly SurfaceFaceTemplate[]> {
@@ -303,7 +313,7 @@ export class SurfaceFaceBatchRenderer {
   }
 
   private setBatchRole(
-    batch: SurfaceFaceBatch,
+    batch: MutableSurfaceFaceBatch,
     role: 'normal' | 'reference',
     referenceOpacity: number,
   ): void {
