@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
-import { IndexedDbProjectStore } from '../project-store/indexeddb-project-store';
+import { PROJECT_STORE } from '../project-store/project-store.token';
 import { ProjectPersistenceService, ProjectSaveStatus } from '../project-persistence.service';
 import { ProjectMutationHintService } from '../../editor/mutations/project-mutation-hint.service';
 
@@ -36,7 +36,7 @@ export class ProjectAutosaveService implements OnDestroy {
   private readonly workspace = inject(WorkspaceStateService);
   private readonly mutationHints = inject(ProjectMutationHintService);
   private readonly persistence = new ProjectPersistenceService(
-    new IndexedDbProjectStore(),
+    inject(PROJECT_STORE),
     300,
     (status, error) => this.receiveStatus(status, error),
     (error) => this.receiveCleanupError(error),

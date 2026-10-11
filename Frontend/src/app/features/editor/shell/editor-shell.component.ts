@@ -34,7 +34,7 @@ import {
 import { EditorMovementInputSession } from '../../../core/editor/input/editor-movement-input-session';
 import { KeyboardBindingService } from '../../../core/editor/input/keyboard-binding.service';
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
-import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
+import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
@@ -129,6 +129,7 @@ export class EditorShellComponent implements OnDestroy {
   private readonly keyboard = inject(KeyboardBindingService);
   private readonly quickBar = inject(QuickBlockBarService);
   protected readonly autosave = inject(ProjectAutosaveService);
+  private readonly projectStore = inject(PROJECT_STORE);
   protected readonly layout = inject(EditorLayoutPreferencesService);
   private readonly dialogs = inject(DialogService);
   private readonly editor = inject(StructureEditorService);
@@ -203,7 +204,7 @@ export class EditorShellComponent implements OnDestroy {
   });
 
   constructor() {
-    void this.workspace.restore(new IndexedDbProjectStore());
+    void this.workspace.restore(this.projectStore);
     effect(() => {
       const activeGroupId = this.groups.activeGroupId();
       if (activeGroupId === this.previousActiveGroupId) return;
@@ -384,7 +385,7 @@ export class EditorShellComponent implements OnDestroy {
     this.closeMenus();
   }
   protected retryRestore(): void {
-    void this.workspace.restore(new IndexedDbProjectStore());
+    void this.workspace.restore(this.projectStore);
   }
   protected restoreRecovery(): void {
     void this.workspace.restoreRecovery();

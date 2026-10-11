@@ -12,6 +12,8 @@ import { ProjectDocument } from '../../../core/domain/project.types';
 import { EditorModeService } from '../../../core/editor/state/editor-mode.service';
 import { ActivatedRoute } from '@angular/router';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
+import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
+import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
 
 const project: ProjectDocument = {
   schemaVersion: 3,
@@ -76,7 +78,10 @@ class TestYLayerStub {
 describe('editor shell movement/delete routing', () => {
   beforeEach(async () => {
     installIndexedDbStub();
-    await TestBed.configureTestingModule({ imports: [EditorShellComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [EditorShellComponent],
+      providers: [{ provide: PROJECT_STORE, useFactory: () => new IndexedDbProjectStore() }],
+    }).compileComponents();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -454,7 +459,10 @@ describe('editor shell retained viewport lifecycle', () => {
     TestYLayerStub.reset();
     await TestBed.configureTestingModule({
       imports: [EditorShellComponent],
-      providers: [{ provide: ActivatedRoute, useValue: {} }],
+      providers: [
+        { provide: ActivatedRoute, useValue: {} },
+        { provide: PROJECT_STORE, useFactory: () => new IndexedDbProjectStore() },
+      ],
     })
       .overrideComponent(EditorShellComponent, {
         set: {

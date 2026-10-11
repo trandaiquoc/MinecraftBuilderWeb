@@ -1,24 +1,16 @@
 import { DatePipe } from '@angular/common';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import { Component, computed, ErrorHandler, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
-import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
-import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
+import { Component, computed, inject, signal } from '@angular/core';
 import { ProjectSummary } from '../../../core/persistence/project-store/project-store.port';
-import { ProjectDocument, ProjectSize, StructureMode } from '../../../core/domain/project.types';
+import { ProjectSize, StructureMode } from '../../../core/domain/project.types';
 import {
   DEFAULT_STRUCTURE_MODE,
   effectiveStructureModeForSize,
   evaluateStructureSize,
   isStructureCreationAllowed,
 } from '../../../core/domain/structure-size-policy';
-import { validateProject } from '../../../core/domain/validation';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
-import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
-import { DialogService } from '../../../core/ui/dialog/dialog.service';
-import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
-import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
 import { LucideFileUp, LucideSettings, LucideTrash2, LucideX } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import {
@@ -36,10 +28,11 @@ import type {
   StructureJsonProjectImportPreview,
 } from '../../../core/persistence/structure-json/structure-json-project-import';
 import { StructureJsonProjectImportWorkflow } from './structure-json-project-import-workflow';
-import { navigateToEditor } from './editor-navigation';
+import { ProjectScreenWorkflow } from './project-screen-workflow';
 
 @Component({
   selector: 'app-project-screen',
+  providers: [ProjectScreenWorkflow],
   imports: [
     CdkTrapFocus,
     DatePipe,
@@ -57,11 +50,7 @@ import { navigateToEditor } from './editor-navigation';
 export class ProjectScreenComponent {
   protected readonly i18n = inject(I18nService);
   private readonly preferences = inject(UiPreferencesService);
-  private readonly router = inject(Router);
-  private readonly errorHandler = inject(ErrorHandler);
-  private readonly workspace = inject(WorkspaceStateService);
-  private readonly dialogs = inject(DialogService);
-  private readonly session = inject(EditorSessionService);
+  protected readonly workflow = inject(ProjectScreenWorkflow);
   protected readonly name = signal(this.i18n.t('untitledStructure'));
   protected readonly defaultMinecraftVersion = DEFAULT_MINECRAFT_VERSION;
   protected readonly sizeX = signal('16');
@@ -105,23 +94,21 @@ export class ProjectScreenComponent {
           : this.i18n.t('resourceCompatibility'),
     }));
   });
-  protected readonly projects = signal<readonly ProjectSummary[]>([]);
-  protected readonly error = signal<string | undefined>(undefined);
-  protected readonly listError = signal(false);
-  protected readonly loadStatus = signal<'loading' | 'ready' | 'error'>('loading');
-  protected readonly creating = signal(false);
-  protected readonly openingId = signal<string | undefined>(undefined);
-  protected readonly deletingProjectIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly projects = this.workflow.projects;
+  protected readonly error = this.workflow.error;
+  protected readonly listError = this.workflow.listError;
+  protected readonly loadStatus = this.workflow.loadStatus;
+  protected readonly creating = this.workflow.creating;
+  protected readonly openingId = this.workflow.openingId;
+  protected readonly deletingProjectIds = this.workflow.deletingProjectIds;
   protected readonly settingsDialogOpen = signal(false);
-  protected readonly deleteError = signal<string | undefined>(undefined);
-  private readonly autosave = inject(ProjectAutosaveService);
-  private persistence?: ProjectPersistenceService;
+  protected readonly deleteError = this.workflow.deleteError;
   protected readonly structureJsonImport = new StructureJsonProjectImportWorkflow((project) =>
-    this.getPersistence().createValidatedImportedProject(project),
+    this.workflow.createImportedProject(project),
   );
 
   constructor() {
-    void this.loadProjects();
+    void this.workflow.loadProjects();
     void this.loadVersions();
   }
 
@@ -140,7 +127,7 @@ export class ProjectScreenComponent {
       z: Number(axis === 'z' ? value : this.sizeZ()),
     };
     if (evaluateStructureSize(nextSize).fitsVanilla) this.structureMode.set(DEFAULT_STRUCTURE_MODE);
-    this.error.set(undefined);
+    this.workflow.clearError();
   }
   protected setMinecraftVersion(value: string): void {
     if (value) this.minecraftVersion.set(value);
@@ -177,15 +164,7 @@ export class ProjectScreenComponent {
   protected async createProjectFromStructureJson(): Promise<void> {
     const project = await this.structureJsonImport.createProject();
     if (!project) return;
-    this.session.resetForProjectChange(project.id);
-    this.workspace.activate(project);
-    const navigation = await navigateToEditor(this.router);
-    if (navigation.status === 'navigated') return;
-    if (navigation.status === 'error') this.errorHandler.handleError(navigation.error);
-    const message = this.i18n.t('structureJsonProjectNavigationError');
-    this.error.set(message);
-    await this.loadProjects();
-    await this.dialogs.error(this.i18n.t('openErrorTitle'), message);
+    await this.workflow.activateImportedProject(project);
   }
   protected structureJsonImportProgressLabel(): string {
     const progress = this.structureJsonImport.progress();
@@ -232,156 +211,31 @@ export class ProjectScreenComponent {
   }
 
   protected async createProject(): Promise<void> {
-    const guard = projectCreationGuard(
-      this.creating(),
-      !!this.openingId(),
-      this.canCreateProject(),
-    );
-    if (guard === 'busy') return;
-    if (guard === 'invalid') {
-      this.error.set(this.creationValidationMessage());
-      return;
-    }
-    this.creating.set(true);
-    this.error.set(undefined);
-    const now = new Date().toISOString();
-    const project: ProjectDocument = {
-      schemaVersion: 3,
-      id: createId(),
-      metadata: {
-        name: this.name().trim() || this.i18n.t('untitledStructure'),
-        minecraftVersion: this.minecraftVersion(),
-        createdAt: now,
-        updatedAt: now,
-      },
+    await this.workflow.createProject({
+      name: this.name(),
+      minecraftVersion: this.minecraftVersion(),
       size: this.enteredSize(),
       structureMode: this.effectiveStructureMode(),
-      blocks: [],
-      groups: [],
-      decorations: [],
-      editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.5 },
-    };
-    const validation = validateProject(project);
-    if (!validation.valid) {
-      const issue = validation.issues[0];
-      const detail =
-        issue.code === 'invalid-minecraft-version'
-          ? this.i18n
-              .t('invalidMinecraftVersionValue')
-              .replace('{version}', project.metadata.minecraftVersion)
-          : issue.message;
-      this.error.set(detail);
-      await this.dialogs.error(this.i18n.t('createErrorTitle'), detail);
-      this.creating.set(false);
-      return;
-    }
-    try {
-      await this.getPersistence().create(project);
-      this.session.resetForProjectChange(project.id);
-      this.workspace.activate(project);
-      await this.router.navigateByUrl('/editor');
-    } catch (error) {
-      const message = projectCreationFailureMessage(
-        error,
-        this.i18n.t('createStorageError'),
-        this.i18n.t('createError'),
-      );
-      this.error.set(message);
-      await this.dialogs.error(this.i18n.t('createErrorTitle'), message);
-    } finally {
-      this.creating.set(false);
-    }
+    });
   }
 
   protected async openProject(id: string): Promise<void> {
-    if (this.creating() || this.openingId()) return;
-    this.openingId.set(id);
-    this.error.set(undefined);
-    try {
-      const project = await this.getPersistence().open(id);
-      if (!project) throw new Error('Project not found');
-      this.session.resetForProjectChange(project.id);
-      this.workspace.activate(project);
-      await this.router.navigateByUrl('/editor');
-    } catch {
-      this.error.set(this.i18n.t('openError'));
-      await this.dialogs.error(this.i18n.t('openErrorTitle'), this.i18n.t('openError'));
-    } finally {
-      this.openingId.set(undefined);
-    }
+    await this.workflow.openProject(id);
   }
 
   protected async deleteProject(summary: ProjectSummary, event: Event): Promise<void> {
     event.stopPropagation();
-    if (
-      this.creating() ||
-      this.openingId() ||
-      !canDeleteProject(this.deletingProjectIds(), summary.id)
-    )
-      return;
-    this.deletingProjectIds.update((ids) => new Set(ids).add(summary.id));
-    this.deleteError.set(undefined);
-    const isCurrentProject = this.workspace.project()?.id === summary.id;
-    const isRememberedProject = this.workspace.isRememberedProject(summary.id);
-    try {
-      const confirmed = await this.dialogs.confirm({
-        title: this.i18n.t('deleteProjectTitle'),
-        text: this.i18n.t('deleteProjectText').replace('{name}', summary.name),
-        confirmButtonText: this.i18n.t('deleteProjectConfirm'),
-        cancelButtonText: this.i18n.t('cancel'),
-        icon: 'warning',
-        destructive: true,
-      });
-      if (!confirmed) return;
-
-      if (isCurrentProject) await this.autosave.deleteProject(summary.id);
-      else await this.getPersistence().delete(summary.id);
-      this.projects.update((items) => items.filter((item) => item.id !== summary.id));
-      if (isCurrentProject) {
-        this.session.clearActiveProject();
-        this.workspace.deactivate();
-      } else if (isRememberedProject) {
-        this.workspace.clearRememberedProject(summary.id);
-      }
-    } catch {
-      this.deleteError.set(this.i18n.t('deleteProjectError'));
-    } finally {
-      this.deletingProjectIds.update((ids) => {
-        const next = new Set(ids);
-        next.delete(summary.id);
-        return next;
-      });
-    }
+    await this.workflow.deleteProject(summary);
   }
 
   protected async retryLoad(): Promise<void> {
-    await this.loadProjects();
+    await this.workflow.loadProjects();
   }
   protected validDimensions(): boolean {
     return this.sizePolicy().dimensionsValid;
   }
   protected canCreateProject(): boolean {
     return isStructureCreationAllowed(this.enteredSize(), this.effectiveStructureMode());
-  }
-  protected creationValidationMessage(): string {
-    const policy = this.sizePolicy();
-    if (!policy.dimensionsValid) return this.i18n.t('invalidProjectSize');
-    return !policy.fitsHugeStructureBlocks
-      ? this.i18n.t('hugeStructureBlocksLimitExceeded')
-      : this.i18n.t('vanillaOversizedWarning');
-  }
-
-  private async loadProjects(): Promise<void> {
-    this.loadStatus.set('loading');
-    this.listError.set(false);
-    try {
-      this.projects.set(await this.getPersistence().list());
-      this.loadStatus.set('ready');
-    } catch {
-      this.projects.set([]);
-      this.listError.set(true);
-      this.loadStatus.set('error');
-    }
   }
   private async loadVersions(): Promise<void> {
     try {
@@ -418,44 +272,4 @@ export class ProjectScreenComponent {
     )[code];
     return this.i18n.t(key);
   }
-
-  private getPersistence(): ProjectPersistenceService {
-    return (this.persistence ??= new ProjectPersistenceService(new IndexedDbProjectStore()));
-  }
-}
-
-export function projectCreationGuard(
-  creating: boolean,
-  opening: boolean,
-  dimensionsValid: boolean,
-): 'busy' | 'invalid' | undefined {
-  if (creating || opening) return 'busy';
-  return dimensionsValid ? undefined : 'invalid';
-}
-
-export function canDeleteProject(
-  deletingProjectIds: ReadonlySet<string>,
-  projectId: string,
-): boolean {
-  return !deletingProjectIds.has(projectId);
-}
-
-export function projectCreationFailureMessage(
-  error: unknown,
-  storageMessage: string,
-  genericMessage: string,
-): string {
-  if (
-    typeof DOMException !== 'undefined' &&
-    error instanceof DOMException &&
-    /indexeddb|storage|quota|transaction/i.test(`${error.name} ${error.message}`)
-  )
-    return storageMessage;
-  if (error instanceof Error && /indexeddb|storage|quota|transaction/i.test(error.message))
-    return storageMessage;
-  return genericMessage;
-}
-
-function createId(): string {
-  return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `project-${Date.now()}`;
 }
