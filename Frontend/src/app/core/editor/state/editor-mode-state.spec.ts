@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ActiveBlockService } from '../../blocks/placement-palette/active-block.service';
 import { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
@@ -6,9 +6,14 @@ import { EditorModeService } from './editor-mode.service';
 import { SelectionService } from '../selection/selection.service';
 import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
 
+const preferencesKey = 'minecraft-builder.ui-preferences';
+
 describe('editor mode state', () => {
+  beforeEach(() => localStorage.removeItem(preferencesKey));
+  afterEach(() => localStorage.removeItem(preferencesKey));
+
   it('does not replace project, Active Block, or selection when switching modes', () => {
-    const mode = new EditorModeService();
+    const mode = new EditorModeService(new UiPreferencesService());
     const workspace = new WorkspaceStateService();
     const active = new ActiveBlockService();
     const selection = new SelectionService();
@@ -50,7 +55,7 @@ describe('editor mode state', () => {
   });
 
   it('preserves resolved box selection membership and presentation across 3D/Y-layer switching', () => {
-    const mode = new EditorModeService();
+    const mode = new EditorModeService(new UiPreferencesService());
     const selection = new SelectionService();
     const block = {
       kind: 'resolved' as const,
@@ -121,16 +126,25 @@ describe('editor mode state', () => {
   });
 
   it('persists the last editor mode through UI preferences', () => {
-    localStorage.removeItem('minecraft-builder.ui-preferences');
     const preferences = new UiPreferencesService();
     const mode = new EditorModeService(preferences);
     mode.setMode('y-layer');
     expect(new UiPreferencesService().preferences().editorMode).toBe('y-layer');
-    localStorage.removeItem('minecraft-builder.ui-preferences');
+  });
+
+  it('reflects editor mode changes made by the preferences owner', () => {
+    const preferences = new UiPreferencesService();
+    const mode = new EditorModeService(preferences);
+
+    preferences.update({ editorMode: 'y-layer' });
+    expect(mode.mode()).toBe('y-layer');
+
+    preferences.reset();
+    expect(mode.mode()).toBe('3d');
   });
 
   it('exposes mode as a read-only view and changes it only through its owner', () => {
-    const mode = new EditorModeService();
+    const mode = new EditorModeService(new UiPreferencesService());
 
     expect('set' in mode.mode).toBe(false);
     mode.setMode('y-layer');
