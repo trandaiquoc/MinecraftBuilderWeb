@@ -8,25 +8,25 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import type { PlaceableItemDefinition } from '../../../../core/blocks/placement-palette/placeable-item.types';
-import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
-import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { QuickBlockBarService } from '../../../../core/editor/quick-bar/quick-block-bar.service';
-import { DecorationService } from '../../../../core/decorations/decoration.service';
+import type { PlaceableItemDefinition } from '../../../core/blocks/placement-palette/placeable-item.types';
+import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
+import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
+import { DecorationService } from '../../../core/decorations/decoration.service';
 import { LucidePlus } from '@lucide/angular';
-import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
+import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
 import {
   ContentSourceOption,
   ContentSourceSelectorComponent,
-} from '../../../../shared/ui/content-source-selector/content-source-selector.component';
+} from '../../../shared/ui/content-source-selector/content-source-selector.component';
 import {
   ALL_CONTENT_SOURCE,
   sourceOptions,
-} from '../../../../shared/ui/content-source-selector/content-source-filter';
-import { ThumbnailVisibilityDirective } from '../../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
+} from '../../../shared/ui/content-source-selector/content-source-filter';
+import { ThumbnailVisibilityDirective } from '../../../shared/ui/thumbnail-visibility/thumbnail-visibility.directive';
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
-import type { ThumbnailTaskPriority } from '../../../../core/assets/vanilla/thumbnail-task-queue';
+import type { ThumbnailTaskPriority } from '../../../core/assets/vanilla/thumbnail-task-queue';
 
 const BLOCK_GRID_TILE_WIDTH = 112;
 const BLOCK_GRID_GAP = 7;

@@ -12,8 +12,8 @@ import { Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
 import { ThemeService } from '../../../core/ui/theme/theme.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
-import { BlockBrowserComponent } from '../blocks/block-browser/block-browser.component';
-import { DecorationBrowserComponent } from '../decorations/decoration-browser/decoration-browser.component';
+import { BlockBrowserComponent } from '../blocks/block-browser.component';
+import { DecorationBrowserComponent } from '../decorations/decoration-browser.component';
 import { QuickBlockBarComponent } from '../quick-bar/quick-block-bar.component';
 import { ViewportComponent } from '../viewport/three-d-viewport/viewport.component';
 import { YLayerComponent } from '../viewport/y-layer-viewport/y-layer.component';
@@ -51,7 +51,7 @@ import {
   LucideX,
 } from '@lucide/angular';
 import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
-import { GroupsPanelComponent } from '../groups/groups-panel/groups-panel.component';
+import { GroupsPanelComponent } from '../groups/groups-panel.component';
 import { SelectionInspectorComponent } from '../inspector/selection-inspector/selection-inspector.component';
 import { BlockUsagePanelComponent } from '../inspector/block-usage/block-usage-panel.component';
 import { EditorStatusBarComponent } from './editor-status-bar/editor-status-bar.component';

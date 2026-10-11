@@ -1,12 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
-import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { ContentSourceRegistry } from '../../../../core/assets/content-source/content-source-registry';
+import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
+import { ContentSourceRegistry } from '../../../core/assets/content-source/content-source-registry';
 import type {
   ContentRestoreState,
   VanillaAssetStatus,
-} from '../../../../core/assets/content-asset-runtime.service';
+} from '../../../core/assets/content-asset-runtime.service';
 import {
   BlockBrowserComponent,
   blockGridColumnCount,

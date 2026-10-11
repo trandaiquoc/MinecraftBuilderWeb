@@ -7,7 +7,7 @@ import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.
 import { humanizeItemId } from '../../../../core/items/catalog/item-catalog';
 import type { ItemStackData } from '../../../../core/items/item-stack.types';
 import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
-import { PaintingPickerComponent } from '../../decorations/painting-picker/painting-picker.component';
+import { PaintingPickerComponent } from '../../decorations/painting-picker.component';
 
 @Component({
   selector: 'app-decoration-inspector',

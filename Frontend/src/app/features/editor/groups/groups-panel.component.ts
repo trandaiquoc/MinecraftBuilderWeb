@@ -1,12 +1,12 @@
 import { Component, inject, input, output, signal, computed } from '@angular/core';
-import { GroupService } from '../../../../core/editor/groups/group.service';
-import { SelectionService } from '../../../../core/editor/selection/selection.service';
-import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { DialogService } from '../../../../core/ui/dialog/dialog.service';
-import { filterGroups } from '../../../../core/editor/groups/group-search';
+import { GroupService } from '../../../core/editor/groups/group.service';
+import { SelectionService } from '../../../core/editor/selection/selection.service';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { DialogService } from '../../../core/ui/dialog/dialog.service';
+import { filterGroups } from '../../../core/editor/groups/group-search';
 import { LucideCheck, LucideX } from '@lucide/angular';
-import { UiTooltipDirective } from '../../../../shared/ui/tooltip/ui-tooltip.directive';
-import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
+import { UiTooltipDirective } from '../../../shared/ui/tooltip/ui-tooltip.directive';
+import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 
 @Component({
   selector: 'app-groups-panel',
@@ -32,9 +32,7 @@ export class GroupsPanelComponent {
   );
   protected readonly hasSelection = computed(() => {
     const service = this.selection as SelectionService & {
-      hasAny?: (
-        project?: import('../../../../core/domain/project.types').ProjectDocument,
-      ) => boolean;
+      hasAny?: (project?: import('../../../core/domain/project.types').ProjectDocument) => boolean;
     };
     return service.hasAny
       ? service.hasAny(this.workspace.project())

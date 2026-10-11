@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
-import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
+import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import { PaintingPickerComponent } from './painting-picker.component';
 
 describe('PaintingPickerComponent', () => {

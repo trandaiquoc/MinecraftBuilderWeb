@@ -1,11 +1,11 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { DialogService } from '../../../../core/ui/dialog/dialog.service';
-import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { GroupService } from '../../../../core/editor/groups/group.service';
-import { SelectionService } from '../../../../core/editor/selection/selection.service';
-import { WorkspaceStateService } from '../../../../core/workspace/workspace-state.service';
+import { DialogService } from '../../../core/ui/dialog/dialog.service';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { GroupService } from '../../../core/editor/groups/group.service';
+import { SelectionService } from '../../../core/editor/selection/selection.service';
+import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { GroupsPanelComponent } from './groups-panel.component';
 
 describe('GroupsPanelComponent visual state contract', () => {

@@ -1,9 +1,9 @@
 import { Component, computed, inject, input, Output, EventEmitter, signal } from '@angular/core';
-import { PaintingVariant } from '../../../../core/decorations/decoration.types';
-import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
-import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { normalizeSearchText, rankSearchResults } from '../../../../core/search/relevance-search';
+import { PaintingVariant } from '../../../core/decorations/decoration.types';
+import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
+import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { normalizeSearchText, rankSearchResults } from '../../../core/search/relevance-search';
 
 @Component({
   selector: 'app-painting-picker',

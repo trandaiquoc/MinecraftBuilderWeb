@@ -1,21 +1,21 @@
 import { Component, computed, inject, output, signal } from '@angular/core';
-import { DecorationService } from '../../../../core/decorations/decoration.service';
-import { I18nService } from '../../../../core/ui/localization/i18n.service';
-import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
-import { DECORATION_BROWSER_SOURCES } from '../../../../core/decorations/decoration.types';
-import { PaintingPickerComponent } from '../painting-picker/painting-picker.component';
+import { DecorationService } from '../../../core/decorations/decoration.service';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
+import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
+import { DECORATION_BROWSER_SOURCES } from '../../../core/decorations/decoration.types';
+import { PaintingPickerComponent } from './painting-picker.component';
 import {
   ContentSourceOption,
   ContentSourceSelectorComponent,
-} from '../../../../shared/ui/content-source-selector/content-source-selector.component';
+} from '../../../shared/ui/content-source-selector/content-source-selector.component';
 import {
   ALL_CONTENT_SOURCE,
   sourceOptions,
-} from '../../../../shared/ui/content-source-selector/content-source-filter';
-import { PaintingVariantCatalogService } from '../../../../core/decorations/catalog/painting-variant-catalog.service';
-import { ItemCatalogService } from '../../../../core/items/catalog/item-catalog.service';
-import { ItemStackPickerComponent } from '../../../../shared/ui/item-stack-picker/item-stack-picker.component';
-import { humanizeDecorationName } from '../../../../core/decorations/decoration-display';
+} from '../../../shared/ui/content-source-selector/content-source-filter';
+import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
+import { ItemCatalogService } from '../../../core/items/catalog/item-catalog.service';
+import { ItemStackPickerComponent } from '../../../shared/ui/item-stack-picker/item-stack-picker.component';
+import { humanizeDecorationName } from '../../../core/decorations/decoration-display';
 
 @Component({
   selector: 'app-decoration-browser',
