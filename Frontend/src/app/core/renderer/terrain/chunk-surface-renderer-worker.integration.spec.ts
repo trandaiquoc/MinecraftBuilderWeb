@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PlacedBlock } from '../../domain/project.types';
 import type { SurfaceFaceTemplate } from '../batching/surface-face-batch-renderer';
 import { meshTerrainCore } from './terrain-mesh-core';
@@ -382,13 +382,15 @@ describe('chunk surface renderer worker commit path', () => {
     );
     expect(workers).toHaveLength(2);
     for (const worker of workers) worker.resolve();
-    await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(applied.filter((result) => result.rebuiltChunks.length)).toEqual(
-      expect.arrayContaining([
-        { rebuiltChunks: ['0,0,0'], hydrationCandidateKeys: [key(first)] },
-        { rebuiltChunks: ['1,0,0'], hydrationCandidateKeys: [key(second)] },
-      ]),
+    await vi.waitFor(
+      () =>
+        expect(applied.filter((result) => result.rebuiltChunks.length)).toEqual(
+          expect.arrayContaining([
+            { rebuiltChunks: ['0,0,0'], hydrationCandidateKeys: [key(first)] },
+            { rebuiltChunks: ['1,0,0'], hydrationCandidateKeys: [key(second)] },
+          ]),
+        ),
+      { timeout: 1000 },
     );
     expect(renderer.evidence().terrainCandidateFanoutTotal).toBe(2);
     renderer.dispose();
