@@ -143,12 +143,10 @@ export class ContentAssetRuntimeService {
   });
   private readonly cachedVersionsState = signal<readonly string[]>([]);
   private readonly compatibilityReportState = signal<CompatibilityReport | undefined>(undefined);
-  readonly provider: Signal<VanillaAssetInspectionView | undefined> = computed(() =>
-    this.providerState(),
-  );
-  readonly visualProvider: Signal<BlockVisualProvider | undefined> = computed(() =>
-    this.visualProviderState(),
-  );
+  readonly provider: Signal<VanillaAssetInspectionView | undefined> =
+    this.providerState.asReadonly();
+  readonly visualProvider: Signal<BlockVisualProvider | undefined> =
+    this.visualProviderState.asReadonly();
   readonly status = this.statusState.asReadonly();
   readonly contentRestore = this.contentRestoreState.asReadonly();
   readonly contentReady = computed(
