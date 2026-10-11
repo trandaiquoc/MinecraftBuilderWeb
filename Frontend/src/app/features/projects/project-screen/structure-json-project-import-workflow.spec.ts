@@ -53,6 +53,31 @@ function file(name: string, text: () => Promise<string>): File {
 }
 
 describe('StructureJsonProjectImportWorkflow', () => {
+  it('exposes project-import state as read-only signals owned by the workflow', async () => {
+    const { workflow } = createWorkflow();
+    const states = [
+      workflow.open,
+      workflow.progress,
+      workflow.filename,
+      workflow.preview,
+      workflow.failure,
+      workflow.creating,
+    ];
+
+    for (const state of states) {
+      expect(state).not.toHaveProperty('set');
+      expect(state).not.toHaveProperty('update');
+    }
+
+    await workflow.selectFile(
+      file('house.json', async () => source),
+      'Untitled structure',
+    );
+    expect(workflow.open()).toBe(true);
+    expect(workflow.progress()).toBe('ready');
+    workflow.dispose();
+  });
+
   it('owns file preparation and persists the validated project before returning it for navigation', async () => {
     const { workflow, persist } = createWorkflow();
     await workflow.selectFile(

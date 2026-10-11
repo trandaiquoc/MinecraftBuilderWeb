@@ -25,12 +25,18 @@ export class StructureJsonProjectImportWorkflow {
   private generation = 0;
   private cancellation?: AbortController;
 
-  readonly open = signal(false);
-  readonly progress = signal<StructureJsonProjectImportProgress>('idle');
-  readonly filename = signal('');
-  readonly preview = signal<StructureJsonProjectImportPreview | undefined>(undefined);
-  readonly failure = signal<StructureJsonProjectImportFailure | undefined>(undefined);
-  readonly creating = signal(false);
+  private readonly openState = signal(false);
+  private readonly progressState = signal<StructureJsonProjectImportProgress>('idle');
+  private readonly filenameState = signal('');
+  private readonly previewState = signal<StructureJsonProjectImportPreview | undefined>(undefined);
+  private readonly failureState = signal<StructureJsonProjectImportFailure | undefined>(undefined);
+  private readonly creatingState = signal(false);
+  readonly open = this.openState.asReadonly();
+  readonly progress = this.progressState.asReadonly();
+  readonly filename = this.filenameState.asReadonly();
+  readonly preview = this.previewState.asReadonly();
+  readonly failure = this.failureState.asReadonly();
+  readonly creating = this.creatingState.asReadonly();
 
   constructor(private readonly persist: (project: ProjectDocument) => Promise<void>) {
     inject(DestroyRef).onDestroy(() => this.dispose());
@@ -46,23 +52,23 @@ export class StructureJsonProjectImportWorkflow {
       signal: controller.signal,
       isCancelled: () => generation !== this.generation,
     };
-    this.open.set(true);
-    this.filename.set(file.name);
-    this.preview.set(undefined);
-    this.failure.set(undefined);
-    this.progress.set('reading');
+    this.openState.set(true);
+    this.filenameState.set(file.name);
+    this.previewState.set(undefined);
+    this.failureState.set(undefined);
+    this.progressState.set('reading');
     try {
       const serialized = await file.text();
       if (generation !== this.generation) return;
-      this.progress.set('parsing');
+      this.progressState.set('parsing');
       const parsed = await parseStructureJsonWithWorker(serialized, cancellation);
       if (generation !== this.generation) return;
       if (!parsed.valid || !parsed.value) {
-        this.failure.set({ kind: 'parse', code: parsed.code });
-        this.progress.set('error');
+        this.failureState.set({ kind: 'parse', code: parsed.code });
+        this.progressState.set('error');
         return;
       }
-      this.progress.set('checking');
+      this.progressState.set('checking');
       const result = await prepareStructureJsonProjectImport({
         source: parsed.value,
         filename: file.name,
@@ -74,17 +80,17 @@ export class StructureJsonProjectImportWorkflow {
         cancellation,
       });
       if (generation !== this.generation) return;
-      this.preview.set(result.preview);
+      this.previewState.set(result.preview);
       if (!result.ok) {
-        this.failure.set({ kind: 'prepare', code: result.code });
-        this.progress.set('error');
+        this.failureState.set({ kind: 'prepare', code: result.code });
+        this.progressState.set('error');
         return;
       }
-      this.progress.set('ready');
+      this.progressState.set('ready');
     } catch {
       if (generation === this.generation) {
-        this.failure.set({ kind: 'read' });
-        this.progress.set('error');
+        this.failureState.set({ kind: 'read' });
+        this.progressState.set('error');
       }
     }
   }
@@ -93,32 +99,32 @@ export class StructureJsonProjectImportWorkflow {
     if (this.creating()) return;
     this.cancelCurrent();
     this.generation += 1;
-    this.open.set(false);
-    this.preview.set(undefined);
-    this.failure.set(undefined);
-    this.progress.set('idle');
+    this.openState.set(false);
+    this.previewState.set(undefined);
+    this.failureState.set(undefined);
+    this.progressState.set('idle');
   }
 
   async createProject(): Promise<ProjectDocument | undefined> {
     const project = this.preview()?.project;
     if (!project || this.creating()) return undefined;
     const generation = this.generation;
-    this.creating.set(true);
-    this.progress.set('saving');
-    this.failure.set(undefined);
+    this.creatingState.set(true);
+    this.progressState.set('saving');
+    this.failureState.set(undefined);
     try {
       await this.persist(project);
       if (generation !== this.generation) return undefined;
-      this.open.set(false);
+      this.openState.set(false);
       return project;
     } catch {
       if (generation === this.generation) {
-        this.failure.set({ kind: 'save' });
-        this.progress.set('error');
+        this.failureState.set({ kind: 'save' });
+        this.progressState.set('error');
       }
       return undefined;
     } finally {
-      this.creating.set(false);
+      this.creatingState.set(false);
     }
   }
 
