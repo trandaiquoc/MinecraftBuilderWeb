@@ -224,6 +224,7 @@ import {
 } from '../isolation/group-isolation-presentation';
 import { EditingPlanePresenter } from '../presentation/editing-plane-presenter';
 import { SelectionOverlayPresenter } from '../presentation/selection-overlay-presenter';
+import { applyBlockRenderRole } from '../presentation/block-render-role';
 import { projectPointerToAxisPlane } from '../interaction/viewport-pointer-projection';
 import { ViewportHoverController } from '../interaction/viewport-hover-controller';
 import { ViewportRaycastController } from '../interaction/viewport-raycast-controller';
@@ -4490,39 +4491,6 @@ function toTraceVector(value: THREE.Vector3): TraceVector3 {
 function familyFromReusableKey(key: string | undefined): string | undefined {
   const prefix = 'special-template-v1|';
   return key?.startsWith(prefix) ? key.slice(prefix.length).split('|', 1)[0] : undefined;
-}
-function applyBlockRenderRole(
-  object: THREE.Object3D,
-  role: 'normal' | 'reference',
-  opacity: number,
-): void {
-  object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    const originals = Array.isArray(child.material) ? child.material : [child.material];
-    if (child.userData['blockRoleOriginalMaterials'] === undefined)
-      child.userData['blockRoleOriginalMaterials'] = originals;
-    const materials = originals.map((material) => {
-      if (material.userData['blockRoleMaterial'] === true) return material;
-      const presentation = material.clone();
-      presentation.userData['blockRoleMaterial'] = true;
-      presentation.userData['blockRoleBaseTransparent'] = material.transparent;
-      presentation.userData['blockRoleBaseOpacity'] = material.opacity;
-      presentation.userData['blockRoleBaseDepthWrite'] = material.depthWrite;
-      return presentation;
-    });
-    child.material = Array.isArray(child.material) ? materials : materials[0];
-    for (const material of materials) {
-      const transparent =
-        role === 'reference' || material.userData['blockRoleBaseTransparent'] === true;
-      const nextOpacity =
-        role === 'reference' ? opacity : Number(material.userData['blockRoleBaseOpacity'] ?? 1);
-      const nextDepthWrite = Boolean(material.userData['blockRoleBaseDepthWrite'] ?? true);
-      if (material.transparent !== transparent) material.transparent = transparent;
-      material.opacity = nextOpacity;
-      material.depthWrite = nextDepthWrite;
-      material.needsUpdate = true;
-    }
-  });
 }
 
 export const mergeInstanceTemplateParts = mergeInstanceTemplatePartsFromCache;
