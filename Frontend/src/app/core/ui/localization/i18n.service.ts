@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, computed, effect, inject } from '@angular/core';
 import { UiPreferencesService, UiLocale } from '../preferences/ui-preferences.service';
 import {
   behaviorSupportTranslations,
@@ -33,7 +33,7 @@ export class I18nService {
   readonly locale = computed<Locale>(() => this.preferences.preferences().locale);
 
   constructor() {
-    this.applyLocale(this.locale());
+    effect(() => this.applyLocale(this.locale()));
   }
 
   t(key: TranslationKey): string {
@@ -63,7 +63,6 @@ export class I18nService {
 
   setLocale(locale: UiLocale): void {
     this.preferences.setLocale(locale);
-    this.applyLocale(locale);
   }
 
   private applyLocale(locale: Locale): void {

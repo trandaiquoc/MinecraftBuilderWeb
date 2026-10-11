@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { I18nService } from './i18n.service';
+import { UiPreferencesService } from '../preferences/ui-preferences.service';
 import {
   supplementalTranslations,
   translationCatalogs,
@@ -10,6 +11,17 @@ import {
 afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
 
 describe('translation dictionaries', () => {
+  it('keeps document language synchronized with the preference owner', () => {
+    const service = TestBed.inject(I18nService);
+    const preferences = TestBed.inject(UiPreferencesService);
+
+    preferences.update({ locale: 'vi' });
+    TestBed.flushEffects();
+
+    expect(service.locale()).toBe('vi');
+    expect(document.documentElement.lang).toBe('vi');
+  });
+
   it('keep exact English and Vietnamese key parity', () => {
     expect(translationKeySets.en).toEqual(translationKeySets.vi);
   });
