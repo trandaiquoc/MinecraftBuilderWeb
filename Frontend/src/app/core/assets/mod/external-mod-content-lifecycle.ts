@@ -1,6 +1,4 @@
 import { signal } from '@angular/core';
-import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
-import { PaintingVariantCatalogService } from '../../decorations/catalog/painting-variant-catalog.service';
 import { ContentOperationCoordinator } from '../content-operation-coordinator';
 import { IndexedDbAssetCache } from '../cache/indexeddb-asset-cache';
 import { AssetActivityService } from '../asset-activity.service';
@@ -22,7 +20,6 @@ import {
   PreparedModImport,
 } from './external-mod-importer';
 import { createPhaseWatchdog, isAbortError, throwIfAborted } from './mod-import-cancellation';
-import { validateJarUpload } from './jar-upload-validation';
 import { yieldToBrowser } from '../cooperative-yield';
 import type { ExternalCatalogProgress } from './external-mod-catalog-builder';
 

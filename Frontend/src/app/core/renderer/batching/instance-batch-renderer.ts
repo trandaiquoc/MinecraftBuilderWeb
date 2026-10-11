@@ -288,11 +288,6 @@ export class InstanceBatchRenderer {
     return !presentation.isolatedGroupId || batch.groupIds.includes(presentation.isolatedGroupId);
   }
 
-  private setLayerRole(layer: number, role: 'normal' | 'reference'): void {
-    for (const batch of this.batchStore.values())
-      if (batch.layer === layer) this.setBatchRole(batch, role);
-  }
-
   private setBatchRole(batch: MutableInstanceBatch, role: 'normal' | 'reference'): void {
     if (batch.renderRole === role) return;
     batch.renderRole = role;

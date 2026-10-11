@@ -84,26 +84,6 @@ export function parseProjectPackage(serialized: string): ProjectDocument {
   return project;
 }
 
-function isProjectPackage(value: unknown): value is ProjectPackage {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Partial<ProjectPackage>;
-  const project = candidate.project;
-  return (
-    candidate.format === PROJECT_PACKAGE_FORMAT &&
-    candidate.formatVersion === CURRENT_PROJECT_PACKAGE_VERSION &&
-    !!project &&
-    (project.schemaVersion === 1 ||
-      project.schemaVersion === 2 ||
-      project.schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION) &&
-    typeof project.id === 'string' &&
-    !!project.metadata &&
-    !!project.size &&
-    Array.isArray(project.blocks) &&
-    Array.isArray(project.groups) &&
-    !!project.editorSettings
-  );
-}
-
 function isProjectShape(value: unknown): value is ProjectDocument {
   if (!isRecord(value)) return false;
   return (

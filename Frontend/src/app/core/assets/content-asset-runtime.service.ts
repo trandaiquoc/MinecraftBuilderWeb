@@ -28,10 +28,7 @@ import { ExternalModProvider } from './mod/external-mod-provider';
 import type { BlockVisualProvider } from '../renderer/visuals/block-visual-provider-contract';
 import type { ModImportReport } from './mod/external-mod-import-contracts';
 import { ModImportProgress, PreparedModImport } from './mod/external-mod-importer';
-import {
-  ExternalModContentLifecycle,
-  type ExternalModRestoreState,
-} from './mod/external-mod-content-lifecycle';
+import { ExternalModContentLifecycle } from './mod/external-mod-content-lifecycle';
 import {
   MojangVanillaAssetSource,
   VanillaDownloadProgress,
@@ -40,7 +37,6 @@ import { VanillaAssetLifecycle } from './vanilla/vanilla-asset-lifecycle';
 import { WorkspaceStateService } from '../workspace/workspace-state.service';
 import { DEFAULT_MINECRAFT_VERSION } from '../domain/project.types';
 import { AssetActivityService } from './asset-activity.service';
-import { VanillaResourceFormatProfile } from './vanilla/vanilla-resource-format';
 import { CompatibilityReport } from './vanilla/compatibility/compatibility.types';
 import { downloadCompatibilityReport } from './vanilla/compatibility/compatibility-report';
 import { PaintingVariantCatalogService } from '../decorations/catalog/painting-variant-catalog.service';

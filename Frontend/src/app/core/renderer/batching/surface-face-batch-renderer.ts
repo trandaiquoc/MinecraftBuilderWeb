@@ -307,11 +307,6 @@ export class SurfaceFaceBatchRenderer {
     }
   }
 
-  private setLayerRole(layer: number, role: 'normal' | 'reference', opacity: number): void {
-    for (const batch of this.batchStore.values())
-      if (batch.layer === layer) this.setBatchRole(batch, role, opacity);
-  }
-
   private setBatchRole(
     batch: MutableSurfaceFaceBatch,
     role: 'normal' | 'reference',
