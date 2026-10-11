@@ -11,7 +11,7 @@ import {
 } from './project-store/project-store.port';
 
 export class ProjectPersistenceService {
-  readonly dirtyState = new DirtyState();
+  private readonly dirtyState = new DirtyState();
   cleanupWarning?: unknown;
   private readonly autosave: AutosaveController;
 

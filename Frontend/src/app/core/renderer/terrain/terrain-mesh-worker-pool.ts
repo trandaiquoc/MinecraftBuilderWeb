@@ -70,7 +70,7 @@ export class TerrainMeshWorkerPool {
   private bytesIn = 0;
   private bytesOut = 0;
 
-  supported: boolean;
+  readonly supported: boolean;
   readonly workerCount: number;
 
   constructor(private readonly options: TerrainMeshWorkerPoolOptions = {}) {

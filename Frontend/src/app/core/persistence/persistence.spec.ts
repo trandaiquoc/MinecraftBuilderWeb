@@ -246,7 +246,7 @@ describe('local persistence helpers', () => {
     expect(store.fullProjectSaves).toBe(0);
     expect(await store.openRecoverySnapshot(structure.id)).toBeUndefined();
     expect(await store.open(structure.id)).toEqual(changed);
-    expect(persistence.dirtyState.isDirty).toBe(false);
+    expect(persistence.unsafeDirty).toBe(false);
   });
 
   it('keeps a pending structural save when a later editor-settings update is queued', async () => {
@@ -368,11 +368,11 @@ describe('local persistence helpers', () => {
     persistence.markChanged(latest);
     store.completeNextSave();
     await store.waitForSave(1);
-    expect(persistence.dirtyState.isDirty).toBe(true);
+    expect(persistence.unsafeDirty).toBe(true);
     store.completeNextSave();
     await flushing;
     expect(store.persisted).toEqual(latest);
-    expect(persistence.dirtyState.isDirty).toBe(false);
+    expect(persistence.unsafeDirty).toBe(false);
     expect(statuses.at(-1)).toBe('saved');
   });
 
@@ -386,7 +386,7 @@ describe('local persistence helpers', () => {
     const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).rejects.toThrow('quota');
-    expect(persistence.dirtyState.isDirty).toBe(true);
+    expect(persistence.unsafeDirty).toBe(true);
     expect(statuses.at(-1)).toBe('error');
     expect(await store.openRecoverySnapshot(project.id)).toBeDefined();
   });
@@ -446,7 +446,7 @@ describe('local persistence helpers', () => {
     );
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).resolves.toBeUndefined();
-    expect(persistence.dirtyState.isDirty).toBe(false);
+    expect(persistence.unsafeDirty).toBe(false);
     expect(warnings).toHaveLength(1);
     expect(await store.open(project.id)).toEqual(withBlocks(block('minecraft:stone', 1, 0, 1)));
     expect(await store.openRecoverySnapshot(project.id)).toBeDefined();
@@ -461,7 +461,7 @@ describe('local persistence helpers', () => {
     const persistence = new ProjectPersistenceService(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).rejects.toThrow('recovery quota');
-    expect(persistence.dirtyState.isDirty).toBe(true);
+    expect(persistence.unsafeDirty).toBe(true);
     expect(await store.open(project.id)).toEqual(project);
   });
 
