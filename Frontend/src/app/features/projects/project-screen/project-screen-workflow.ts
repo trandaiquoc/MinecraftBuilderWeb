@@ -1,4 +1,4 @@
-import { ErrorHandler, Inject, Injectable, OnDestroy, signal } from '@angular/core';
+import { ErrorHandler, Inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   DEFAULT_MINECRAFT_VERSION,
@@ -33,7 +33,7 @@ export interface NewProjectInput {
 }
 
 @Injectable()
-export class ProjectScreenWorkflow implements OnDestroy {
+export class ProjectScreenWorkflow {
   private readonly projectList = signal<readonly ProjectSummary[]>([]);
   private readonly workflowError = signal<string | undefined>(undefined);
   private readonly projectListError = signal(false);
@@ -213,10 +213,6 @@ export class ProjectScreenWorkflow implements OnDestroy {
     this.workflowError.set(message);
     await this.loadProjects();
     await this.dialogs.error(this.i18n.t('openErrorTitle'), message);
-  }
-
-  ngOnDestroy(): void {
-    this.persistence.dispose();
   }
 
   private creationValidationMessage(input: NewProjectInput): string {

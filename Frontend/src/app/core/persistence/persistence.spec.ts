@@ -3,6 +3,7 @@ import { ProjectDocument } from '../domain/project.types';
 import { migrateProject } from '../domain/migrations';
 import { DirtyState } from './autosave/dirty-state';
 import { AutosaveController } from './autosave/autosave-controller';
+import { ProjectAutosaveSession } from './autosave/project-autosave-session';
 import {
   CURRENT_PROJECT_PACKAGE_VERSION,
   parseProjectPackage,
@@ -115,7 +116,7 @@ describe('local persistence helpers', () => {
 
   it('uses the cheap key lookup contract for import collision checks', async () => {
     const store = new MemoryProjectStore();
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectPersistenceService(store);
     await persistence.create(project);
     expect(await persistence.exists(project.id)).toBe(true);
     expect(await persistence.exists('missing')).toBe(false);
@@ -176,7 +177,7 @@ describe('local persistence helpers', () => {
 
   it('updates recent-project size and mode when the canonical project is saved', async () => {
     const store = new MemoryProjectStore();
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectPersistenceService(store);
     await persistence.create(project);
     expect(await store.list()).toContainEqual(
       expect.objectContaining({
@@ -193,6 +194,40 @@ describe('local persistence helpers', () => {
     expect(await store.list()).toContainEqual(
       expect.objectContaining({ size: changed.size, structureMode: changed.structureMode }),
     );
+  });
+
+  it('marks a queued autosave revision persisted after an explicit save', async () => {
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    const autosave = new ProjectAutosaveSession(store, 1000);
+    const queued = withBlocks(block('minecraft:stone', 1, 0, 1));
+    const explicitlySaved = withBlocks(block('minecraft:dirt', 2, 0, 1));
+
+    autosave.markChanged(queued);
+    await autosave.save(explicitlySaved);
+    await autosave.flushAutosave();
+
+    expect(store.fullProjectSaves).toBe(1);
+    expect(await store.open(project.id)).toEqual(migrateProject(explicitlySaved));
+    expect(autosave.unsafeDirty).toBe(false);
+  });
+
+  it('reports recovery cleanup outcomes through the autosave session owner', async () => {
+    const store = new MemoryProjectStore();
+    await store.create(project);
+    const cleanupStatus = vi.fn();
+    const autosave = new ProjectAutosaveSession(store, 1000, undefined, cleanupStatus);
+    const cleanupError = new Error('recovery cleanup failed');
+    store.deleteRecoverySnapshot = async () => {
+      throw cleanupError;
+    };
+
+    await autosave.save(project);
+    expect(cleanupStatus).toHaveBeenLastCalledWith(cleanupError);
+
+    store.deleteRecoverySnapshot = async () => {};
+    await autosave.save(project);
+    expect(cleanupStatus).toHaveBeenLastCalledWith(undefined);
   });
 
   it('does not mark a newer dirty revision clean when an older save completes', () => {
@@ -229,7 +264,7 @@ describe('local persistence helpers', () => {
       block('minecraft:dirt', 2, 1, 1),
     );
     await store.create(structure);
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectAutosaveSession(store, 0);
     const changed = {
       ...structure,
       editorSettings: {
@@ -289,7 +324,7 @@ describe('local persistence helpers', () => {
       events.push('cleanup');
       await deleteRecovery(id);
     };
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectAutosaveSession(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await persistence.flushAutosave();
     expect(events).toEqual(['recovery', 'main', 'cleanup']);
@@ -297,7 +332,8 @@ describe('local persistence helpers', () => {
 
   it('persists derived states, multi-group memberships, and multi-block parts as one final document', async () => {
     const store = new MemoryProjectStore();
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectPersistenceService(store);
+    const autosave = new ProjectAutosaveSession(store, 0);
     await persistence.create(project);
     const changed: ProjectDocument = {
       ...project,
@@ -339,27 +375,28 @@ describe('local persistence helpers', () => {
         block('minecraft:red_bed', 5, 0, 4, { part: 'head', facing: 'east', occupied: 'false' }),
       ],
     };
-    persistence.markChanged(changed);
-    await persistence.flushAutosave();
+    autosave.markChanged(changed);
+    await autosave.flushAutosave();
     expect(await persistence.open(project.id)).toEqual(changed);
     expect((await persistence.open(project.id))?.blocks[0].groupIds).toEqual(['roof', 'entry']);
   });
 
   it('persists the undone document while history itself remains session-only', async () => {
     const store = new MemoryProjectStore();
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectPersistenceService(store);
+    const autosave = new ProjectAutosaveSession(store, 0);
     await persistence.create(project);
-    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
-    await persistence.flushAutosave();
-    persistence.markChanged(project);
-    await persistence.flushAutosave();
+    autosave.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await autosave.flushAutosave();
+    autosave.markChanged(project);
+    await autosave.flushAutosave();
     expect((await persistence.open(project.id))?.blocks).toEqual([]);
   });
 
   it('serializes an edit created while an older async save is in flight', async () => {
     const store = new ControlledProjectStore();
     const statuses: string[] = [];
-    const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
+    const persistence = new ProjectAutosaveSession(store, 0, (status) => statuses.push(status));
     const first = withBlocks(block('minecraft:stone', 1, 0, 1));
     const latest = withBlocks(block('minecraft:stone', 2, 0, 1));
     persistence.markChanged(first);
@@ -383,7 +420,7 @@ describe('local persistence helpers', () => {
       throw new Error('quota');
     };
     const statuses: string[] = [];
-    const persistence = new ProjectPersistenceService(store, 0, (status) => statuses.push(status));
+    const persistence = new ProjectAutosaveSession(store, 0, (status) => statuses.push(status));
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).rejects.toThrow('quota');
     expect(persistence.unsafeDirty).toBe(true);
@@ -394,7 +431,7 @@ describe('local persistence helpers', () => {
   it('deletes the project and recovery snapshot after draining pending autosave', async () => {
     const store = new MemoryProjectStore();
     await store.create(project);
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectAutosaveSession(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await persistence.delete(project.id);
     expect(await store.open(project.id)).toBeUndefined();
@@ -404,7 +441,7 @@ describe('local persistence helpers', () => {
   it('waits for an in-flight canonical save before deleting', async () => {
     const store = new ControlledProjectStore();
     await store.create(project);
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectAutosaveSession(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     const flushing = persistence.flushAutosave();
     await store.waitForSave(1);
@@ -427,7 +464,7 @@ describe('local persistence helpers', () => {
     store.save = async () => {
       throw new Error('quota');
     };
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectAutosaveSession(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
 
     await expect(persistence.delete(project.id)).rejects.toThrow('quota');
@@ -441,7 +478,7 @@ describe('local persistence helpers', () => {
       throw new Error('cleanup');
     };
     const warnings: unknown[] = [];
-    const persistence = new ProjectPersistenceService(store, 0, undefined, (error) =>
+    const persistence = new ProjectAutosaveSession(store, 0, undefined, (error) =>
       warnings.push(error),
     );
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
@@ -458,7 +495,7 @@ describe('local persistence helpers', () => {
     store.saveRecoverySnapshot = async () => {
       throw new Error('recovery quota');
     };
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectAutosaveSession(store, 0);
     persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
     await expect(persistence.flushAutosave()).rejects.toThrow('recovery quota');
     expect(persistence.unsafeDirty).toBe(true);
@@ -474,7 +511,7 @@ describe('local persistence helpers', () => {
       opens += 1;
       return openStoredProject(id);
     };
-    const persistence = new ProjectPersistenceService(store, 0);
+    const persistence = new ProjectPersistenceService(store);
 
     await persistence.delete(project.id);
     expect(opens).toBe(0);
@@ -484,17 +521,19 @@ describe('local persistence helpers', () => {
   it('cannot resurrect a deleted project when a later destroy flush runs', async () => {
     const store = new MemoryProjectStore();
     await store.create(project);
-    const persistence = new ProjectPersistenceService(store, 25);
-    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
-    await persistence.delete(project.id);
+    const persistence = new ProjectPersistenceService(store);
+    const autosave = new ProjectAutosaveSession(store, 25);
+    await persistence.create(project);
+    autosave.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    await autosave.delete(project.id);
 
-    await persistence.flushAutosave();
+    await autosave.flushAutosave();
     expect(await store.open(project.id)).toBeUndefined();
     expect(await store.openRecoverySnapshot(project.id)).toBeUndefined();
 
     await persistence.create(project);
-    persistence.markChanged(withBlocks(block('minecraft:dirt', 2, 0, 1)));
-    await persistence.flushAutosave();
+    autosave.markChanged(withBlocks(block('minecraft:dirt', 2, 0, 1)));
+    await autosave.flushAutosave();
     expect((await store.open(project.id))?.blocks[0].id).toBe('minecraft:dirt');
   });
 
@@ -512,15 +551,17 @@ describe('local persistence helpers', () => {
       await deleteGate;
       await deleteStoredProject(id);
     };
-    const persistence = new ProjectPersistenceService(store, 0);
-    persistence.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
-    const deleting = persistence.delete(project.id);
+    const persistence = new ProjectPersistenceService(store);
+    const autosave = new ProjectAutosaveSession(store, 0);
+    await persistence.create(project);
+    autosave.markChanged(withBlocks(block('minecraft:stone', 1, 0, 1)));
+    const deleting = autosave.delete(project.id);
     while (!deleteStarted) await Promise.resolve();
-    persistence.markChanged(withBlocks(block('minecraft:dirt', 2, 0, 1)));
+    autosave.markChanged(withBlocks(block('minecraft:dirt', 2, 0, 1)));
     releaseDelete();
 
     await deleting;
-    await persistence.flushAutosave();
+    await autosave.flushAutosave();
     expect(await store.open(project.id)).toBeUndefined();
   });
 });

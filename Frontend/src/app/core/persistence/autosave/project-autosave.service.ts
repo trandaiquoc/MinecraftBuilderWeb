@@ -3,7 +3,7 @@ import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { ProjectDocument } from '../../domain/project.types';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { PROJECT_STORE } from '../project-store/project-store.token';
-import { ProjectPersistenceService, ProjectSaveStatus } from '../project-persistence.service';
+import { ProjectAutosaveSession, type ProjectSaveStatus } from './project-autosave-session';
 import { ProjectMutationHintService } from '../../editor/mutations/project-mutation-hint.service';
 
 export function isEditorSettingsOnlyChange(
@@ -35,7 +35,7 @@ export function applyBeforeUnloadGuard(event: BeforeUnloadEvent, unsafeDirty: bo
 export class ProjectAutosaveService implements OnDestroy {
   private readonly workspace = inject(WorkspaceStateService);
   private readonly mutationHints = inject(ProjectMutationHintService);
-  private readonly persistence = new ProjectPersistenceService(
+  private readonly persistence = new ProjectAutosaveSession(
     inject(PROJECT_STORE),
     300,
     (status, error) => this.receiveStatus(status, error),
@@ -114,7 +114,12 @@ export class ProjectAutosaveService implements OnDestroy {
     this.syncRevisionState();
   }
 
-  private receiveCleanupError(error: unknown): void {
+  private receiveCleanupError(error?: unknown): void {
+    if (error === undefined) {
+      this.cleanupWarningState.set(undefined);
+      this.syncRevisionState();
+      return;
+    }
     this.cleanupWarningState.set(
       error instanceof Error ? error.message : 'Recovery cleanup failed',
     );
