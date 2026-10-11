@@ -356,6 +356,22 @@ describe('common resource behavior evaluation', () => {
     expect(cake.behavior).toBeUndefined();
   });
 
+  it('classifies the canonical water and lava identities without suffix inference', () => {
+    const level = {
+      name: 'level',
+      values: Array.from({ length: 16 }, (_, value) => String(value)),
+    };
+    expect(evaluateCommonBehavior(record('minecraft:water', [level])).behavior).toMatchObject({
+      kind: 'fluid',
+      fluid: 'water',
+    });
+    expect(evaluateCommonBehavior(record('minecraft:lava', [level])).behavior).toMatchObject({
+      kind: 'fluid',
+      fluid: 'lava',
+    });
+    expect(evaluateCommonBehavior(record('example:lava', [level])).behavior).toBeUndefined();
+  });
+
   it('labels arbitrary resource values as render fallbacks rather than semantic defaults', () => {
     const result = evaluateCommonBehavior(
       record('example:custom', [{ name: 'mode', values: ['alpha', 'beta'] }]),

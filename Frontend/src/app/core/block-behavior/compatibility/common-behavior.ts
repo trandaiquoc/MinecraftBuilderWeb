@@ -188,7 +188,7 @@ export function evaluateCommonBehavior(
     return complete(
       definitions,
       'fluids',
-      { kind: 'fluid', fluid: record.id.endsWith('lava') ? 'lava' : 'water' },
+      { kind: 'fluid', fluid: record.id === 'minecraft:lava' ? 'lava' : 'water' },
       { level: '0' },
       'compatible-common',
     );

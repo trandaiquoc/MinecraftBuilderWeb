@@ -4,15 +4,7 @@ import { blockCapability } from '../../blocks/capabilities/block-capability-reso
 import { fallbackMinecraftTextWidth } from './sign-text-metrics';
 import { isVanillaSignColor } from './sign-nbt';
 
-export function isSignId(id: string): boolean {
-  if (!id.startsWith('minecraft:')) return false;
-  const path = id.slice('minecraft:'.length);
-  return (
-    /(?:^|_)(?:wall_)?sign$/.test(path) ||
-    path.endsWith('_hanging_sign') ||
-    path.endsWith('_wall_hanging_sign')
-  );
-}
+export { isSignId } from './sign-id';
 
 export function isSignDefinition(definition: ReturnType<BlockLibraryService['get']>): boolean {
   return blockCapability(definition, 'block-entity')?.entityKind === 'sign';
