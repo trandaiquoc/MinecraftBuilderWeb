@@ -4,8 +4,8 @@ export interface CameraInteractionControllerOptions {
 }
 
 /** Tracks interaction state used by camera/render/hydration policies. Camera math stays in the engine. */
-export class CameraInteractionController {
-  readonly pressedActions = new Set<string>();
+export class CameraInteractionController<Action extends string = string> {
+  private readonly pressed = new Set<Action>();
   private gesture = false;
   private interactingUntil = 0;
   private readonly now: () => number;
@@ -22,13 +22,17 @@ export class CameraInteractionController {
     this.gesture = false;
   }
 
-  press(action: string): void {
-    this.pressedActions.add(action);
+  get pressedActions(): ReadonlySet<Action> {
+    return this.pressed;
+  }
+
+  press(action: Action): void {
+    this.pressed.add(action);
     this.mark();
   }
 
-  release(action: string): void {
-    this.pressedActions.delete(action);
+  release(action: Action): void {
+    this.pressed.delete(action);
   }
 
   mark(): number {
@@ -37,11 +41,11 @@ export class CameraInteractionController {
   }
 
   isActive(): boolean {
-    return this.gesture || this.pressedActions.size > 0 || this.now() < this.interactingUntil;
+    return this.gesture || this.pressed.size > 0 || this.now() < this.interactingUntil;
   }
 
   clear(): void {
-    this.pressedActions.clear();
+    this.pressed.clear();
     this.gesture = false;
   }
 

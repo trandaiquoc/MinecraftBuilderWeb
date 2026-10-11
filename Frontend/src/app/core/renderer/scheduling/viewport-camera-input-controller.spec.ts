@@ -61,7 +61,7 @@ describe('ViewportCameraInputController', () => {
       frame?.(performance.now() + 16);
       expect(frames).toHaveLength(1);
       controller.clearInput();
-      expect(controller.pressedActions).toHaveLength(0);
+      expect(controller.pressedActions.size).toBe(0);
       expect(callbacks.size).toBe(0);
     } finally {
       vi.unstubAllGlobals();
@@ -70,7 +70,6 @@ describe('ViewportCameraInputController', () => {
 
   it('restores a temporarily captured mouse mapping', () => {
     const controls = fakeControls();
-    controls.mouseButtons['LEFT'] = THREE.MOUSE.PAN;
     const controller = new ViewportCameraInputController(
       () => controls as never,
       {
@@ -93,10 +92,39 @@ describe('ViewportCameraInputController', () => {
       },
       20,
     );
-    controller.temporaryButton = { key: 'LEFT', previous: THREE.MOUSE.ROTATE };
+    controller.attachControls(controls as never);
+    controller.setMouseBindings({
+      'orbit-camera': 'LeftClick',
+      'pan-camera': 'MiddleClick',
+      'primary-action': 'LeftClick',
+      'delete-target': 'Ctrl+LeftClick',
+      'pick-block': 'Alt+LeftClick',
+      'zoom-in': 'WheelUp',
+      'zoom-out': 'WheelDown',
+    });
+    controls.mouseButtons['LEFT'] = THREE.MOUSE.PAN;
+    controller.pointerDownCapture({
+      button: 0,
+      preventDefault: vi.fn(),
+    } as unknown as PointerEvent);
+    expect(controls.mouseButtons['LEFT']).toBeUndefined();
     controller.endEditorPointerGesture();
+    expect(controls.mouseButtons['LEFT']).toBe(THREE.MOUSE.PAN);
+
+    controller.setMouseBindings({
+      'orbit-camera': 'LeftClick',
+      'pan-camera': 'MiddleClick',
+      'primary-action': '',
+      'delete-target': 'Ctrl+LeftClick',
+      'pick-block': 'Alt+LeftClick',
+      'zoom-in': 'WheelUp',
+      'zoom-out': 'WheelDown',
+    });
+    delete controls.mouseButtons['LEFT'];
+    controller.pointerDownCapture({ button: 0 } as PointerEvent);
     expect(controls.mouseButtons['LEFT']).toBe(THREE.MOUSE.ROTATE);
-    expect(controller.temporaryButton).toBeUndefined();
+    controller.endEditorPointerGesture();
+    expect(controls.mouseButtons).not.toHaveProperty('LEFT');
   });
 
   it('delegates wheel zoom without allowing OrbitControls to handle the event', () => {

@@ -646,12 +646,6 @@ export class ThreeViewportEngine {
     this.requestCameraRender();
   };
   private cameraMovementInProgress = false;
-  private get cameraGestureInProgress(): boolean {
-    return this.cameraInput.gestureInProgress;
-  }
-  private set cameraGestureInProgress(value: boolean) {
-    this.cameraInput.gestureInProgress = value;
-  }
   private readonly onControlStart = () => {
     this.runtimeTrace?.record('controls-start');
     this.cancelPendingHover(true);
@@ -664,28 +658,6 @@ export class ThreeViewportEngine {
     this.runtimeTrace?.record('controls-end');
     this.requestCameraRender();
   };
-  private get cameraMoveFrame(): number | undefined {
-    return this.cameraInput.movementFrame;
-  }
-  private set cameraMoveFrame(value: number | undefined) {
-    this.cameraInput.movementFrame = value;
-  }
-  private get pressedActions(): Set<MovementAction> {
-    return this.cameraInput.pressedActions as Set<MovementAction>;
-  }
-  private get temporaryMouseButton() {
-    return this.cameraInput.temporaryButton;
-  }
-  private set temporaryMouseButton(
-    value:
-      | {
-          readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT';
-          readonly previous: THREE.MOUSE | null | undefined;
-        }
-      | undefined,
-  ) {
-    this.cameraInput.temporaryButton = value;
-  }
   private readonly onWindowBlur = () => {
     this.runtimeTrace?.record('blur');
     this.clearInput();
@@ -912,7 +884,7 @@ export class ThreeViewportEngine {
   };
   private readonly hoverController = new ViewportHoverController<ViewportHit>({
     isSuspended: () => this.suspended,
-    cameraGestureInProgress: () => this.cameraGestureInProgress,
+    cameraGestureInProgress: () => this.cameraInput.gestureInProgress,
     record: (name) => this.instrumentation.record(name),
     hit: (request) =>
       this.performHit(
@@ -1463,7 +1435,8 @@ export class ThreeViewportEngine {
           renderedBlockCount: this.visibleBlockRepresentationCount(),
           residentBlockCount: this.blockRepresentations.size,
           terrainHydrationPending: this.terrainPipeline.pendingGroupCount,
-          cameraInteractionInProgress: this.cameraGestureInProgress || this.pressedActions.size > 0,
+          cameraInteractionInProgress:
+            this.cameraInput.gestureInProgress || this.cameraInput.pressedActions.size > 0,
         }),
         trace: (event, details) => this.runtimeTrace?.record(event, details),
       },
@@ -1615,7 +1588,6 @@ export class ThreeViewportEngine {
     this.cancelPendingHover(true);
     this.endEditorPointerGesture();
     this.clearInput();
-    this.cameraGestureInProgress = false;
     this.cameraMovementInProgress = false;
     this.cameraRenderPending = false;
     this.yLayerProjection.cancel();
@@ -1922,10 +1894,6 @@ export class ThreeViewportEngine {
 
   setMouseBindings(bindings: Readonly<Record<MouseAction, string>>): void {
     this.cameraInput.setMouseBindings(bindings);
-  }
-
-  private restoreTemporaryMouseButton(): void {
-    this.cameraInput.endEditorPointerGesture();
   }
 
   resize(): void {
@@ -4316,7 +4284,7 @@ export class ThreeViewportEngine {
   }
   /** Restores OrbitControls mappings when an editor gesture captured the parent host. */
   endEditorPointerGesture(): void {
-    this.restoreTemporaryMouseButton();
+    this.cameraInput.endEditorPointerGesture();
   }
   setGhostStatus(status: PlacementStatus): void {
     this.blockGhostPresenter.setStatus(status);

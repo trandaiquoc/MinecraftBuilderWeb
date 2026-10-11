@@ -347,8 +347,23 @@ describe('camera movement input contract', () => {
     engine.hover(pointer(2), undefined, undefined, undefined, false, () => hits.push(2));
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect(hits).toEqual([2]);
-    const internal = engine as unknown as { cameraGestureInProgress: boolean };
-    internal.cameraGestureInProgress = true;
+    const listeners = new Map<string, () => void>();
+    const controls = {
+      mouseButtons: {} as Record<string, THREE.MOUSE>,
+      addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+      removeEventListener: vi.fn(),
+      rotateSpeed: 0,
+      panSpeed: 0,
+      zoomSpeed: 0,
+      dispose: vi.fn(),
+    };
+    const internal = engine as unknown as {
+      controls: typeof controls;
+      cameraInput: { attachControls: (value: never) => void };
+    };
+    internal.controls = controls;
+    internal.cameraInput.attachControls(controls as never);
+    listeners.get('start')?.();
     engine.hover(pointer(3), undefined, undefined, undefined, false, () => hits.push(3));
     expect(engine.rendererCounters()).toMatchObject({
       hoverRaycasts: 1,
@@ -370,17 +385,13 @@ describe('camera movement input contract', () => {
     vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
     try {
       const engine = new ThreeViewportEngine();
-      const internal = engine as unknown as {
-        pressedActions: Set<string>;
-        cameraMoveFrame?: number;
-      };
       engine.cameraKeyDown('move-forward');
       engine.cameraKeyUp('move-forward');
-      expect(internal.pressedActions.size).toBe(0);
-      const pending = [...callbacks.values()][0];
+      const [frameId, pending] = [...callbacks.entries()][0] ?? [];
+      if (frameId !== undefined) callbacks.delete(frameId);
       pending?.(performance.now() + 16);
-      expect(internal.cameraMoveFrame).toBeUndefined();
       expect(request).toHaveBeenCalledTimes(1);
+      expect(callbacks.size).toBe(0);
       engine.dispose();
     } finally {
       vi.unstubAllGlobals();
@@ -395,18 +406,13 @@ describe('camera movement input contract', () => {
       callbacks.set(id, callback);
       return id;
     });
-    vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
+    const cancel = vi.fn((id: number) => callbacks.delete(id));
+    vi.stubGlobal('cancelAnimationFrame', cancel);
     try {
       const engine = new ThreeViewportEngine();
-      const internal = engine as unknown as {
-        pressedActions: Set<string>;
-        cameraMoveFrame?: number;
-      };
       engine.cameraKeyDown('move-forward');
-      expect(internal.pressedActions.size).toBe(1);
       engine.clearInput();
-      expect(internal.pressedActions.size).toBe(0);
-      expect(internal.cameraMoveFrame).toBeUndefined();
+      expect(cancel).toHaveBeenCalledTimes(1);
       expect(callbacks.size).toBe(0);
       engine.dispose();
     } finally {
@@ -511,28 +517,56 @@ describe('camera movement input contract', () => {
 
   it('restores OrbitControls mouse mappings after an editor gesture is captured by the host', () => {
     const engine = new ThreeViewportEngine();
-    const internal = engine as unknown as {
-      controls: {
-        mouseButtons: Record<string, THREE.MOUSE>;
-        removeEventListener: () => void;
-        dispose: () => void;
-      };
-      temporaryMouseButton:
-        { key: 'LEFT' | 'MIDDLE' | 'RIGHT'; previous: THREE.MOUSE | null | undefined } | undefined;
-    };
-    internal.controls = {
-      mouseButtons: { LEFT: THREE.MOUSE.PAN },
+    const controls = {
+      mouseButtons: { LEFT: THREE.MOUSE.PAN } as Record<string, THREE.MOUSE>,
+      addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
+      rotateSpeed: 0,
+      panSpeed: 0,
+      zoomSpeed: 0,
       dispose: vi.fn(),
     };
-    internal.temporaryMouseButton = { key: 'LEFT', previous: THREE.MOUSE.ROTATE };
+    const internal = engine as unknown as {
+      controls: typeof controls;
+      cameraInput: {
+        attachControls: (value: never) => void;
+        pointerDownCapture: (event: PointerEvent) => void;
+      };
+    };
+    internal.controls = controls;
+    internal.cameraInput.attachControls(controls as never);
+    engine.setMouseBindings({
+      'orbit-camera': 'LeftClick',
+      'pan-camera': 'MiddleClick',
+      'primary-action': 'LeftClick',
+      'delete-target': 'Ctrl+LeftClick',
+      'pick-block': 'Alt+LeftClick',
+      'zoom-in': 'WheelUp',
+      'zoom-out': 'WheelDown',
+    });
+    controls.mouseButtons['LEFT'] = THREE.MOUSE.PAN;
+    internal.cameraInput.pointerDownCapture({
+      button: 0,
+      preventDefault: vi.fn(),
+    } as unknown as PointerEvent);
+    expect(controls.mouseButtons['LEFT']).toBeUndefined();
     engine.endEditorPointerGesture();
-    expect(internal.controls.mouseButtons['LEFT']).toBe(THREE.MOUSE.ROTATE);
-    expect(internal.temporaryMouseButton).toBeUndefined();
-    internal.temporaryMouseButton = { key: 'RIGHT', previous: undefined };
-    internal.controls.mouseButtons['RIGHT'] = THREE.MOUSE.PAN;
+    expect(controls.mouseButtons['LEFT']).toBe(THREE.MOUSE.PAN);
+    delete controls.mouseButtons['LEFT'];
+    engine.setMouseBindings({
+      'orbit-camera': 'LeftClick',
+      'pan-camera': 'MiddleClick',
+      'primary-action': '',
+      'delete-target': 'Ctrl+LeftClick',
+      'pick-block': 'Alt+LeftClick',
+      'zoom-in': 'WheelUp',
+      'zoom-out': 'WheelDown',
+    });
+    delete controls.mouseButtons['LEFT'];
+    internal.cameraInput.pointerDownCapture({ button: 0 } as PointerEvent);
+    expect(controls.mouseButtons['LEFT']).toBe(THREE.MOUSE.ROTATE);
     engine.endEditorPointerGesture();
-    expect(internal.controls.mouseButtons['RIGHT']).toBeUndefined();
+    expect(controls.mouseButtons).not.toHaveProperty('LEFT');
     engine.dispose();
   });
 

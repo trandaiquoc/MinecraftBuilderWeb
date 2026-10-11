@@ -31,7 +31,7 @@ export interface ViewportCameraInputCallbacks {
 
 /** Camera/input ownership for a viewport. It deliberately delegates camera math to the engine. */
 export class ViewportCameraInputController {
-  readonly interaction: CameraInteractionController;
+  private readonly interaction: CameraInteractionController<MovementAction>;
   private controls?: OrbitControls;
   private configuration: CameraControlConfiguration;
   private mouseBindings: Readonly<Record<MouseAction, string>> = DEFAULT_MOUSE_BINDINGS;
@@ -49,42 +49,14 @@ export class ViewportCameraInputController {
     idleGraceMs: number,
   ) {
     this.configuration = { ...initialConfiguration };
-    this.interaction = new CameraInteractionController({ idleGraceMs });
+    this.interaction = new CameraInteractionController<MovementAction>({ idleGraceMs });
   }
 
-  get pressedActions(): Set<string> {
+  get pressedActions(): ReadonlySet<MovementAction> {
     return this.interaction.pressedActions;
   }
   get gestureInProgress(): boolean {
     return this.interaction.gestureInProgress;
-  }
-  set gestureInProgress(value: boolean) {
-    if (value) this.interaction.beginGesture();
-    else this.interaction.endGesture();
-  }
-  get movementFrame(): number | undefined {
-    return this.cameraMoveFrame;
-  }
-  set movementFrame(value: number | undefined) {
-    this.cameraMoveFrame = value;
-  }
-  get temporaryButton():
-    | {
-        readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT';
-        readonly previous: THREE.MOUSE | null | undefined;
-      }
-    | undefined {
-    return this.temporaryMouseButton;
-  }
-  set temporaryButton(
-    value:
-      | {
-          readonly key: 'LEFT' | 'MIDDLE' | 'RIGHT';
-          readonly previous: THREE.MOUSE | null | undefined;
-        }
-      | undefined,
-  ) {
-    this.temporaryMouseButton = value;
   }
   get controlConfiguration(): CameraControlConfiguration {
     return this.configuration;
@@ -237,7 +209,7 @@ export class ViewportCameraInputController {
       const rawDeltaMs = now - previous;
       const delta = Math.min(rawDeltaMs / 1000, 0.1);
       previous = now;
-      this.callbacks.onMovementFrame(this.interaction.pressedActions as Set<MovementAction>, delta);
+      this.callbacks.onMovementFrame(this.interaction.pressedActions, delta);
       if (this.pressedActions.size) this.cameraMoveFrame = requestViewportFrame(step);
     };
     this.cameraMoveFrame = requestViewportFrame(step);
