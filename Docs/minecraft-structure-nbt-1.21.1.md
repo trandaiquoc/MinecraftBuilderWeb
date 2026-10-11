@@ -181,19 +181,26 @@ STRING lists, palette properties, and nested block-entity tags. Permanent
 semantic codec tests decode this binary fixture directly and also exercise a
 typed encode/decode round-trip; they do not compare gzip bytes.
 
-## Prompt 15.2 performance requirement
+## Exporter scale-validation status
 
-Verified explicit Air means future export cannot assume a sparse ProjectDocument
-maps directly to a sparse `blocks` list:
+Verified explicit Air means a sparse `ProjectDocument` does not map directly to
+a sparse `blocks` list:
 
 - `64 × 18 × 64 = 73,728` voxels.
 - `512 × 512 × 512 = 134,217,728` voxels.
 
-Prompt 15.2 must benchmark memory amplification from compound/list objects,
-main-thread blocking, gzip cost, canonical block ordering, and streaming or
-chunked encoding. Codec choice must document whether it requires complete
-in-memory materialization. The existing 512-axis product policy is unchanged;
-no new export limit is invented here.
+The current exporter traverses every coordinate in Y-Z-X order and materializes
+the complete template `blocks` array before validation and codec encoding.
+The adapter builds an NBT tree from the complete template, and the codec returns
+a gzip byte array; export is not streamed or chunked. This is O(volume) work and
+the template, NBT tree, and final bytes can coexist in memory during export.
+
+The repository has no exporter-scale benchmark for the maximum 512-block axis
+or bounded-memory/streaming behavior. The existing per-axis limit is unchanged,
+but it is only an accepted dimension limit, not evidence that a 512 × 512 × 512
+export is practical in a browser. Measure peak memory, main-thread blocking,
+gzip cost, and canonical output equivalence before treating that maximum as
+operationally supported. No new export limit is invented here.
 
 ## Core exporter
 
