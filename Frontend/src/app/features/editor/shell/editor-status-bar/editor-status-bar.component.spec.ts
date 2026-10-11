@@ -2,6 +2,12 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import type {
+  ContentRestoreState,
+  VanillaAssetStatus,
+} from '../../../../core/assets/content-asset-runtime.service';
+import { ContentSourceRegistry } from '../../../../core/assets/content-source/content-source-registry';
+import type { VanillaDownloadProgress } from '../../../../core/assets/vanilla/mojang-vanilla-asset-source';
 import { BlockLibraryService } from '../../../../core/blocks/catalog/block-library.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { ProjectAutosaveService } from '../../../../core/persistence/autosave/project-autosave.service';
@@ -18,11 +24,29 @@ import { SelectionService } from '../../../../core/editor/selection/selection.se
 beforeEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
 afterEach(() => localStorage.removeItem('minecraft-builder.ui-preferences'));
 
+function createAssetRuntimeStub() {
+  return {
+    status: signal<VanillaAssetStatus>('loading-cache'),
+    contentRestore: signal<ContentRestoreState>({
+      phase: 'vanilla',
+      current: 0,
+      total: 0,
+      failed: 0,
+    }),
+    downloadProgress: signal<VanillaDownloadProgress | undefined>(undefined),
+    importedMods: signal<readonly unknown[]>([]),
+    generation: signal(0),
+    sources: new ContentSourceRegistry(),
+  };
+}
+
 describe('EditorStatusBarComponent asset bootstrap status', () => {
   it('renders one indeterminate progress bar for source download and Mod restore without numeric progress', async () => {
+    const assets = createAssetRuntimeStub();
     await TestBed.configureTestingModule({
       imports: [EditorStatusBarComponent],
       providers: [
+        { provide: ContentAssetRuntimeService, useValue: assets },
         {
           provide: ProjectAutosaveService,
           useValue: { status: signal('saved'), error: signal(undefined) },
@@ -30,7 +54,6 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
-    const assets = TestBed.inject(ContentAssetRuntimeService);
     assets.status.set('downloading');
     assets.downloadProgress.set({ phase: 'download', loaded: 42, total: 100 });
     fixture.detectChanges();
@@ -68,9 +91,11 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
   });
 
   it('renders indeterminate loading and partial warning states without a loading bar when complete', async () => {
+    const assets = createAssetRuntimeStub();
     await TestBed.configureTestingModule({
       imports: [EditorStatusBarComponent],
       providers: [
+        { provide: ContentAssetRuntimeService, useValue: assets },
         {
           provide: ProjectAutosaveService,
           useValue: { status: signal('saved'), error: signal(undefined) },
@@ -82,7 +107,6 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
-    const assets = TestBed.inject(ContentAssetRuntimeService);
     assets.status.set('loading-cache');
     assets.contentRestore.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 });
     fixture.detectChanges();
@@ -96,9 +120,11 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
   });
 
   it('shows one indeterminate status for hydration without counts or percentages and clears it on completion', async () => {
+    const assets = createAssetRuntimeStub();
     await TestBed.configureTestingModule({
       imports: [EditorStatusBarComponent],
       providers: [
+        { provide: ContentAssetRuntimeService, useValue: assets },
         {
           provide: ProjectAutosaveService,
           useValue: { status: signal('saved'), error: signal(undefined) },
@@ -106,7 +132,6 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
-    const assets = TestBed.inject(ContentAssetRuntimeService);
     const hydration = TestBed.inject(ViewportHydrationStatusService);
     const owner = hydration.claim();
     hydration.activate(owner);
@@ -152,9 +177,11 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
   });
 
   it('does not report assets ready while content hydration is active', async () => {
+    const assets = createAssetRuntimeStub();
     await TestBed.configureTestingModule({
       imports: [EditorStatusBarComponent],
       providers: [
+        { provide: ContentAssetRuntimeService, useValue: assets },
         {
           provide: ProjectAutosaveService,
           useValue: { status: signal('saved'), error: signal(undefined) },
@@ -162,7 +189,6 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
-    const assets = TestBed.inject(ContentAssetRuntimeService);
     const hydration = TestBed.inject(ViewportHydrationStatusService);
     const owner = hydration.claim();
     hydration.activate(owner);
@@ -195,9 +221,11 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
   });
 
   it('shows terminal ownership warnings without a progressbar or false ready label', async () => {
+    const assets = createAssetRuntimeStub();
     await TestBed.configureTestingModule({
       imports: [EditorStatusBarComponent],
       providers: [
+        { provide: ContentAssetRuntimeService, useValue: assets },
         {
           provide: ProjectAutosaveService,
           useValue: { status: signal('saved'), error: signal(undefined) },
@@ -205,7 +233,6 @@ describe('EditorStatusBarComponent asset bootstrap status', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(EditorStatusBarComponent);
-    const assets = TestBed.inject(ContentAssetRuntimeService);
     const hydration = TestBed.inject(ViewportHydrationStatusService);
     assets.status.set('ready');
     assets.contentRestore.set({ phase: 'ready', current: 1, total: 1, failed: 0 });

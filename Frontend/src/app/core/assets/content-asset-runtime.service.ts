@@ -100,24 +100,21 @@ export class ContentAssetRuntimeService {
   private readonly thumbnails!: AssetThumbnailService;
   private externalMods!: ExternalModContentLifecycle;
   readonly thumbnailEpoch!: Signal<number>;
-  readonly provider = signal<VanillaAssetProvider | undefined>(undefined);
-  readonly visualProvider = signal<VanillaBlockVisualProvider | undefined>(undefined);
-  readonly status = signal<VanillaAssetStatus>('loading-cache');
-  readonly contentRestore = signal<ContentRestoreState>({
+  private readonly providerState = signal<VanillaAssetProvider | undefined>(undefined);
+  private readonly visualProviderState = signal<VanillaBlockVisualProvider | undefined>(undefined);
+  private readonly statusState = signal<VanillaAssetStatus>('loading-cache');
+  private readonly contentRestoreState = signal<ContentRestoreState>({
     phase: 'vanilla',
     current: 0,
     total: 0,
     failed: 0,
   });
-  readonly contentReady = computed(
-    () => this.contentRestore().phase === 'ready' || this.contentRestore().phase === 'partial',
-  );
-  readonly activeVersion = signal<string>(DEFAULT_MINECRAFT_VERSION);
-  readonly downloadProgress = signal<VanillaDownloadProgress | undefined>(undefined);
-  readonly message = signal('');
-  readonly sourceName = signal('');
-  readonly generation = signal(0);
-  readonly diagnostics = signal<VanillaAssetDiagnostics>({
+  private readonly activeVersionState = signal<string>(DEFAULT_MINECRAFT_VERSION);
+  private readonly downloadProgressState = signal<VanillaDownloadProgress | undefined>(undefined);
+  private readonly messageState = signal('');
+  private readonly sourceNameState = signal('');
+  private readonly generationState = signal(0);
+  private readonly diagnosticsState = signal<VanillaAssetDiagnostics>({
     cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION,
     bundleFound: false,
     generation: 0,
@@ -139,12 +136,27 @@ export class ContentAssetRuntimeService {
       label: 'Unsupported resource format',
     },
   });
-  readonly cachedVersions = signal<readonly string[]>([]);
+  private readonly cachedVersionsState = signal<readonly string[]>([]);
+  private readonly compatibilityReportState = signal<CompatibilityReport | undefined>(undefined);
+  readonly provider = this.providerState.asReadonly();
+  readonly visualProvider = this.visualProviderState.asReadonly();
+  readonly status = this.statusState.asReadonly();
+  readonly contentRestore = this.contentRestoreState.asReadonly();
+  readonly contentReady = computed(
+    () => this.contentRestore().phase === 'ready' || this.contentRestore().phase === 'partial',
+  );
+  readonly activeVersion = this.activeVersionState.asReadonly();
+  readonly downloadProgress = this.downloadProgressState.asReadonly();
+  readonly message = this.messageState.asReadonly();
+  readonly sourceName = this.sourceNameState.asReadonly();
+  readonly generation = this.generationState.asReadonly();
+  readonly diagnostics = this.diagnosticsState.asReadonly();
+  readonly cachedVersions = this.cachedVersionsState.asReadonly();
   readonly sources = new ContentSourceRegistry();
   get importedMods() {
     return this.externalMods.importedMods;
   }
-  readonly compatibilityReport = signal<CompatibilityReport | undefined>(undefined);
+  readonly compatibilityReport = this.compatibilityReportState.asReadonly();
   private loadRequest = 0;
   private inFlight?: {
     readonly version: string;
@@ -185,8 +197,8 @@ export class ContentAssetRuntimeService {
     return this.contentOperations.run('foreground', async (signal) => {
       const request = ++this.loadRequest;
       const protection = this.activity.protect(`Importing ${file.name}`);
-      this.status.set('importing');
-      this.message.set('');
+      this.statusState.set('importing');
+      this.messageState.set('');
       this.activity.begin('manual-import', `Reading ${file.name}`);
       try {
         const provider = await this.vanillaLifecycle.importClientJar(
@@ -199,8 +211,8 @@ export class ContentAssetRuntimeService {
         this.activity.finish('manual-import', `Imported ${file.name}`);
       } catch (error) {
         if (isAbortError(error) || signal.aborted) return;
-        this.status.set('import-required');
-        this.message.set(
+        this.statusState.set('import-required');
+        this.messageState.set(
           error instanceof Error ? error.message : 'Unable to import Minecraft assets',
         );
         this.activity.fail('manual-import', this.message());
@@ -254,11 +266,11 @@ export class ContentAssetRuntimeService {
       await this.refreshCachedVersions();
       if (version === this.activeVersion()) {
         this.clearActiveSources();
-        this.compatibilityReport.set(undefined);
-        this.status.set('no-assets');
-        this.sourceName.set('');
-        this.message.set('');
-        this.diagnostics.update((value) => ({
+        this.compatibilityReportState.set(undefined);
+        this.statusState.set('no-assets');
+        this.sourceNameState.set('');
+        this.messageState.set('');
+        this.diagnosticsState.update((value) => ({
           ...value,
           bundleFound: false,
           providerReady: false,
@@ -274,7 +286,7 @@ export class ContentAssetRuntimeService {
       this.compatibilityReport() ??
       (this.provider() ? this.vanillaLifecycle.compatibilityReport(this.provider()!) : undefined);
     if (!report) return undefined;
-    this.compatibilityReport.set(report);
+    this.compatibilityReportState.set(report);
     downloadCompatibilityReport(report);
     return report;
   }
@@ -335,12 +347,12 @@ export class ContentAssetRuntimeService {
       .run(
         'background',
         async (signal) => {
-          this.activeVersion.set(version);
-          this.status.set('loading-cache');
-          this.contentRestore.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 });
-          this.message.set('');
-          this.downloadProgress.set(undefined);
-          this.compatibilityReport.set(undefined);
+          this.activeVersionState.set(version);
+          this.statusState.set('loading-cache');
+          this.contentRestoreState.set({ phase: 'vanilla', current: 0, total: 0, failed: 0 });
+          this.messageState.set('');
+          this.downloadProgressState.set(undefined);
+          this.compatibilityReportState.set(undefined);
           this.clearActiveSources();
           return this.loadVersion(version, request, signal);
         },
@@ -364,7 +376,7 @@ export class ContentAssetRuntimeService {
         return;
       }
       this.activity.event('cache', `No cached assets found for Java ${version}`, 'info', 'cache');
-      this.status.set('downloading');
+      this.statusState.set('downloading');
       const protection = this.activity.protect(`Downloading Minecraft Java ${version}`);
       this.activity.begin('metadata', `Resolving official Mojang metadata for Java ${version}`);
       try {
@@ -372,7 +384,7 @@ export class ContentAssetRuntimeService {
           version,
           (progress) => {
             if (request !== this.loadRequest) return;
-            this.downloadProgress.set(progress);
+            this.downloadProgressState.set(progress);
             this.activity.update(
               {
                 loaded: progress.loaded,
@@ -407,12 +419,12 @@ export class ContentAssetRuntimeService {
         error instanceof Error ? error.message : 'Unable to load official Minecraft assets';
       const unsupported =
         /resource format is not supported|no Minecraft asset resources|incomplete/i.test(message);
-      this.status.set(unsupported ? 'unsupported-format' : 'offline');
-      this.contentRestore.set({ phase: 'error', current: 0, total: 0, failed: 1 });
-      this.message.set(message);
-      this.sourceName.set('');
-      this.compatibilityReport.set(undefined);
-      this.diagnostics.update((value) => ({
+      this.statusState.set(unsupported ? 'unsupported-format' : 'offline');
+      this.contentRestoreState.set({ phase: 'error', current: 0, total: 0, failed: 1 });
+      this.messageState.set(message);
+      this.sourceNameState.set('');
+      this.compatibilityReportState.set(undefined);
+      this.diagnosticsState.update((value) => ({
         ...value,
         bundleFound: false,
         providerReady: false,
@@ -453,7 +465,7 @@ export class ContentAssetRuntimeService {
     const catalog = provider.catalog(registry, itemRegistry);
     this.transitionThumbnailGeneration(() => {
       this.sources.setActiveVersion(version);
-      this.provider.set(provider);
+      this.providerState.set(provider);
       this.publishSourceChange(() => {
         if (this.sources.providerForSource('vanilla')) this.sources.replace(provider);
         else this.sources.register(provider);
@@ -463,25 +475,25 @@ export class ContentAssetRuntimeService {
       this.paintingCatalog.replaceSource(provider.source.id, catalog.paintingVariants ?? []);
     });
     const generation = this.generation();
-    this.diagnostics.set({
+    this.diagnosticsState.set({
       cacheSchema: VANILLA_ASSET_CACHE_SCHEMA_VERSION,
       bundleFound: true,
       generation,
       providerReady: true,
       ...provider.diagnostics(),
     });
-    this.compatibilityReport.set(undefined);
-    this.sourceName.set(provider.sourceName);
-    this.activeVersion.set(version);
-    this.status.set('ready');
-    this.contentRestore.set({
+    this.compatibilityReportState.set(undefined);
+    this.sourceNameState.set(provider.sourceName);
+    this.activeVersionState.set(version);
+    this.statusState.set('ready');
+    this.contentRestoreState.set({
       phase: 'vanilla',
       current: 0,
       total: 0,
       failed: 0,
       sourceName: provider.sourceName,
     });
-    this.message.set('');
+    this.messageState.set('');
     this.activity.finish(
       'assets',
       `${provider.diagnostics().resourceFormat.label}; Java ${version} ready`,
@@ -502,7 +514,7 @@ export class ContentAssetRuntimeService {
     );
     const report = this.vanillaLifecycle.compatibilityReport(provider);
     if (request !== this.loadRequest || this.provider() !== provider) return;
-    this.compatibilityReport.set(report);
+    this.compatibilityReportState.set(report);
     this.activity.finish(
       'compatibility',
       `Compatibility report ready: ${report.summary.compatibleReused} reused, ${report.summary.changedNeedsDelta} changed, ${report.summary.newGenericSupported} generic, ${report.summary.unsupported} unsupported`,
@@ -554,11 +566,11 @@ export class ContentAssetRuntimeService {
 
   private replaceVisualProvider(): void {
     this.visualProvider()?.dispose();
-    this.visualProvider.set(new VanillaBlockVisualProvider(this.sources.resources));
+    this.visualProviderState.set(new VanillaBlockVisualProvider(this.sources.resources));
   }
 
   private transitionThumbnailGeneration(replace: () => void): void {
-    this.generation.update((value) => value + 1);
+    this.generationState.update((value) => value + 1);
     try {
       replace();
     } finally {
@@ -575,9 +587,9 @@ export class ContentAssetRuntimeService {
       this.paintingCatalog.removeSource(source.id);
     }
     this.externalMods.clear();
-    this.provider.set(undefined);
+    this.providerState.set(undefined);
     this.visualProvider()?.dispose();
-    this.visualProvider.set(undefined);
+    this.visualProviderState.set(undefined);
   }
 
   private publishSourceChange(publish: () => void): void {
@@ -590,7 +602,9 @@ export class ContentAssetRuntimeService {
   }
 
   private async restoreExternalMods(version: string, signal?: AbortSignal): Promise<void> {
-    await this.externalMods.restore(version, signal, (state) => this.contentRestore.set(state));
+    await this.externalMods.restore(version, signal, (state) =>
+      this.contentRestoreState.set(state),
+    );
   }
 
   private scheduleExternalModRestore(): void {
@@ -616,7 +630,7 @@ export class ContentAssetRuntimeService {
 
   private async refreshCachedVersions(): Promise<void> {
     try {
-      this.cachedVersions.set(await this.vanillaLifecycle.cachedVersions());
+      this.cachedVersionsState.set(await this.vanillaLifecycle.cachedVersions());
     } catch {
       /* Cache availability is reported by the active load. */
     }

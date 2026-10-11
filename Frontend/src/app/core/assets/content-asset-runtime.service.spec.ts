@@ -4,17 +4,38 @@ import { ContentAssetRuntimeService } from './content-asset-runtime.service';
 import { ContentSourceCleanupError } from './content-source/composite-asset-provider';
 
 describe('ContentAssetRuntimeService content generation', () => {
+  it('exposes runtime state as read-only signals', () => {
+    const service = TestBed.inject(ContentAssetRuntimeService);
+
+    for (const state of [
+      service.provider,
+      service.visualProvider,
+      service.status,
+      service.contentRestore,
+      service.activeVersion,
+      service.downloadProgress,
+      service.message,
+      service.sourceName,
+      service.generation,
+      service.diagnostics,
+      service.cachedVersions,
+      service.compatibilityReport,
+    ]) {
+      expect(state).not.toHaveProperty('set');
+      expect(state).not.toHaveProperty('update');
+    }
+  });
+
   it('advances generation before replacing provider state and invalidates thumbnail epoch', () => {
     const service = TestBed.inject(ContentAssetRuntimeService);
-    service.generation.set(5);
     const beforeEpoch = service.thumbnailEpoch();
     const observed: number[] = [];
     const internal = service as unknown as {
       transitionThumbnailGeneration: (replace: () => void) => void;
     };
     internal.transitionThumbnailGeneration(() => observed.push(service.generation()));
-    expect(observed).toEqual([6]);
-    expect(service.generation()).toBe(6);
+    expect(observed).toEqual([1]);
+    expect(service.generation()).toBe(1);
     expect(service.thumbnailEpoch()).toBe(beforeEpoch + 1);
   });
 

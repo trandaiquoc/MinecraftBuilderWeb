@@ -1,8 +1,10 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Type } from '@angular/core';
 import { ThreeViewportEngine } from '../../../core/renderer/engine/three-viewport-engine';
 import { ContentAssetRuntimeService } from '../../../core/assets/content-asset-runtime.service';
+import { ContentSourceRegistry } from '../../../core/assets/content-source/content-source-registry';
 import { BlockLibraryService } from '../../../core/blocks/catalog/block-library.service';
 import { PaintingVariantCatalogService } from '../../../core/decorations/catalog/painting-variant-catalog.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
@@ -11,6 +13,21 @@ import { ViewportPreparationScheduler } from './shared/viewport-preparation-sche
 import type { YLayerPrewarmTerminalNotification } from '../../../core/renderer/engine/viewport-engine-contracts';
 import { ViewportComponent } from './three-d-viewport/viewport.component';
 import { YLayerComponent } from './y-layer-viewport/y-layer.component';
+
+function createAssetRuntimeStub() {
+  return {
+    visualProvider: signal<unknown>(undefined),
+    provider: signal<unknown>(undefined),
+    generation: signal(0),
+    contentReady: signal(true),
+    status: signal('ready'),
+    contentRestore: signal({ phase: 'ready', current: 0, total: 0, failed: 0 }),
+    diagnostics: signal({}),
+    activeVersion: signal('1.21.1'),
+    importedMods: signal<readonly unknown[]>([]),
+    sources: new ContentSourceRegistry(),
+  };
+}
 
 describe('editor viewport engine teardown', () => {
   afterEach(() => {
@@ -72,7 +89,11 @@ describe('editor viewport engine teardown', () => {
   });
 
   it('retries only current non-cancelled prewarm terminals and releases the listener on destroy', async () => {
-    await TestBed.configureTestingModule({ imports: [YLayerComponent] })
+    const assets = createAssetRuntimeStub();
+    await TestBed.configureTestingModule({
+      imports: [YLayerComponent],
+      providers: [{ provide: ContentAssetRuntimeService, useValue: assets }],
+    })
       .overrideComponent(YLayerComponent, { set: { template: '<div #host></div>' } })
       .compileComponents();
     vi.spyOn(ThreeViewportEngine.prototype, 'mount').mockImplementation(() => undefined);
@@ -95,7 +116,7 @@ describe('editor viewport engine teardown', () => {
     const project = rendererBenchmarkProject('small');
     const provider = { dispose: vi.fn() } as never;
     TestBed.inject(WorkspaceStateService).project.set(project);
-    TestBed.inject(ContentAssetRuntimeService).visualProvider.set(provider);
+    assets.visualProvider.set(provider);
     const retry = vi.spyOn(TestBed.inject(ViewportPreparationScheduler), 'retry');
     const notify = publishTerminal!;
     const base = {
@@ -124,8 +145,12 @@ describe('editor viewport engine teardown', () => {
   ] as const)(
     'does not mount an inactive %s GPU viewport until it becomes active',
     async (_label, component) => {
+      const assets = createAssetRuntimeStub();
       const componentType = component as unknown as Type<unknown>;
-      await TestBed.configureTestingModule({ imports: [componentType] })
+      await TestBed.configureTestingModule({
+        imports: [componentType],
+        providers: [{ provide: ContentAssetRuntimeService, useValue: assets }],
+      })
         .overrideComponent(componentType, { set: { template: '<div #host></div>' } })
         .compileComponents();
       const mount = vi
@@ -151,8 +176,12 @@ describe('editor viewport engine teardown', () => {
   ] as const)(
     'keeps resolver callbacks stable while refreshing %s content revisions',
     async (_mode, component) => {
+      const assets = createAssetRuntimeStub();
       const componentType = component as unknown as Type<unknown>;
-      await TestBed.configureTestingModule({ imports: [componentType] })
+      await TestBed.configureTestingModule({
+        imports: [componentType],
+        providers: [{ provide: ContentAssetRuntimeService, useValue: assets }],
+      })
         .overrideComponent(componentType, { set: { template: '<div #host></div>' } })
         .compileComponents();
 
@@ -183,7 +212,6 @@ describe('editor viewport engine teardown', () => {
 
       const fixture = TestBed.createComponent(componentType);
       fixture.detectChanges();
-      const assets = TestBed.inject(ContentAssetRuntimeService);
       const library = TestBed.inject(BlockLibraryService);
       const paintingCatalog = TestBed.inject(PaintingVariantCatalogService);
       const firstCallbacks = [

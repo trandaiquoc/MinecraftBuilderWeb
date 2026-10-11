@@ -1,11 +1,35 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { signal } from '@angular/core';
+import { describe, expect, it, vi } from 'vitest';
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
+import { ContentSourceRegistry } from '../../../../core/assets/content-source/content-source-registry';
+import type {
+  ContentRestoreState,
+  VanillaAssetStatus,
+} from '../../../../core/assets/content-asset-runtime.service';
 import {
   BlockBrowserComponent,
   blockGridColumnCount,
   groupBlockItemsIntoRows,
 } from './block-browser.component';
+
+function createAssetRuntimeStub() {
+  return {
+    status: signal<VanillaAssetStatus>('loading-cache'),
+    contentRestore: signal<ContentRestoreState>({
+      phase: 'vanilla',
+      current: 0,
+      total: 0,
+      failed: 0,
+    }),
+    message: signal(''),
+    thumbnailEpoch: signal(0),
+    sources: new ContentSourceRegistry(),
+    redownload: vi.fn(async () => undefined),
+    requestItemThumbnail: vi.fn(),
+    thumbnailUrlForItem: vi.fn(() => undefined),
+  };
+}
 
 describe('BlockBrowser grid sizing', () => {
   it('returns a bounded responsive column count', () => {
@@ -33,9 +57,12 @@ describe('BlockBrowser grid sizing', () => {
 
 describe('BlockBrowserComponent bootstrap presentation', () => {
   it('keeps the block catalog visible while Mods restore and has no loading panel', async () => {
-    await TestBed.configureTestingModule({ imports: [BlockBrowserComponent] }).compileComponents();
+    const assets = createAssetRuntimeStub();
+    await TestBed.configureTestingModule({
+      imports: [BlockBrowserComponent],
+      providers: [{ provide: ContentAssetRuntimeService, useValue: assets }],
+    }).compileComponents();
     const fixture = TestBed.createComponent(BlockBrowserComponent);
-    const assets = TestBed.inject(ContentAssetRuntimeService);
     assets.status.set('ready');
     assets.contentRestore.set({ phase: 'restoring-mods', current: 0, total: 1, failed: 0 });
     fixture.detectChanges();
@@ -49,9 +76,12 @@ describe('BlockBrowserComponent bootstrap presentation', () => {
   });
 
   it('retains the fatal no-assets recovery surface', async () => {
-    await TestBed.configureTestingModule({ imports: [BlockBrowserComponent] }).compileComponents();
+    const assets = createAssetRuntimeStub();
+    await TestBed.configureTestingModule({
+      imports: [BlockBrowserComponent],
+      providers: [{ provide: ContentAssetRuntimeService, useValue: assets }],
+    }).compileComponents();
     const fixture = TestBed.createComponent(BlockBrowserComponent);
-    const assets = TestBed.inject(ContentAssetRuntimeService);
     assets.status.set('no-assets');
     assets.contentRestore.set({ phase: 'error', current: 0, total: 0, failed: 1 });
     fixture.detectChanges();
