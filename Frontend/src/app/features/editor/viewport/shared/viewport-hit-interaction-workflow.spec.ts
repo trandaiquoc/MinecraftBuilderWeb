@@ -168,3 +168,156 @@ describe('ViewportHitInteractionWorkflow block lookup', () => {
     expect(signTextSide.setFromHit).not.toHaveBeenCalled();
   });
 });
+
+function createWorkflowFixture() {
+  const block = sign({ x: 1, y: 2, z: 3 });
+  const currentProject = project([block]);
+  const runtimeIndex = new ProjectBlockRuntimeIndex();
+  runtimeIndex.ensure(currentProject);
+  const editor = {
+    pick: vi.fn(),
+    place: vi.fn(),
+    delete: vi.fn(),
+    canStackCandle: vi.fn(() => false),
+    stackCandle: vi.fn(),
+  };
+  const selection = { selectLogical: vi.fn(), clear: vi.fn() };
+  let activeDecoration: unknown;
+  const decorations = {
+    active: () => activeDecoration,
+    clearSelection: vi.fn(),
+    delete: vi.fn(),
+    pick: vi.fn(),
+    select: vi.fn(),
+    placeFromSupport: vi.fn(),
+  };
+  const signTextSide = { setFromHit: vi.fn() };
+  const workflow = new ViewportHitInteractionWorkflow(
+    editor as never,
+    selection as never,
+    decorations as never,
+    { project: signal(currentProject) } as never,
+    { get: () => undefined } as never,
+    signTextSide as never,
+    runtimeIndex,
+  );
+  return {
+    block,
+    editor,
+    selection,
+    decorations,
+    signTextSide,
+    workflow,
+    setActiveDecoration(value: unknown): void {
+      activeDecoration = value;
+    },
+  };
+}
+
+describe('ViewportHitInteractionWorkflow click dispatch regressions', () => {
+  it('picks blocks only when their hit is in front of a decoration', () => {
+    const { block, editor, selection, signTextSide, decorations, workflow } =
+      createWorkflowFixture();
+    const faceNormal = { x: 0, y: 0, z: 1 };
+    const blockHit: ViewportHit = {
+      block: block.position,
+      faceNormal,
+      blockDistance: 1,
+      decorationDistance: 2,
+    };
+
+    expect(workflow.pickBlock(blockHit, '3d')).toBe(true);
+    expect(editor.pick).toHaveBeenCalledWith(block.position);
+    expect(selection.selectLogical).toHaveBeenCalledOnce();
+    expect(signTextSide.setFromHit).toHaveBeenCalledWith(block, faceNormal);
+
+    const closerDecorationHit: ViewportHit = {
+      ...blockHit,
+      decoration: { instanceId: 'frame' } as never,
+      blockDistance: 2,
+      decorationDistance: 1,
+    };
+    expect(workflow.pickBlock(closerDecorationHit, '3d')).toBe(false);
+    expect(editor.pick).toHaveBeenCalledOnce();
+
+    workflow.applyClick(closerDecorationHit, 'pick-block', 'select', '3d');
+    expect(decorations.pick).toHaveBeenCalledWith('frame');
+    expect(editor.pick).toHaveBeenCalledOnce();
+    workflow.applyClick(closerDecorationHit, 'primary-action', 'select', '3d');
+    expect(decorations.select).toHaveBeenCalledWith('frame');
+    workflow.applyClick(closerDecorationHit, 'delete-target', 'select', '3d');
+    expect(decorations.delete).toHaveBeenCalledWith('frame');
+    expect(editor.delete).not.toHaveBeenCalled();
+  });
+
+  it('stacks a candle on the hit voxel before normal placement', () => {
+    const { block, editor, workflow } = createWorkflowFixture();
+    const hit: ViewportHit = {
+      block: block.position,
+      target: block.position,
+      placement: { status: 'valid' },
+    };
+    editor.canStackCandle.mockReturnValue(true);
+
+    workflow.applyClick(hit, 'primary-action', 'place', '3d');
+
+    expect(editor.stackCandle).toHaveBeenCalledWith(hit.block);
+    expect(editor.place).not.toHaveBeenCalled();
+  });
+
+  it('places active decorations from valid support and stops at an invalid plan', () => {
+    const { block, editor, decorations, workflow, setActiveDecoration } = createWorkflowFixture();
+    setActiveDecoration({ kind: 'painting' });
+    const hit: ViewportHit = {
+      block: block.position,
+      faceNormal: { x: 0, y: 1, z: 0 },
+      target: { x: 1, y: 3, z: 3 },
+      placement: { status: 'valid' },
+      decorationPlan: { status: 'valid' } as never,
+    };
+
+    workflow.applyClick(hit, 'primary-action', 'place', '3d');
+    expect(decorations.placeFromSupport).toHaveBeenCalledWith(block.position, 'up');
+    expect(editor.place).not.toHaveBeenCalled();
+
+    decorations.placeFromSupport.mockClear();
+    const invalidHit = { ...hit, decorationPlan: { status: 'invalid' } as never };
+    workflow.applyClick(invalidHit, 'primary-action', 'place', 'y-layer');
+    expect(decorations.placeFromSupport).not.toHaveBeenCalled();
+    expect(editor.place).not.toHaveBeenCalled();
+  });
+
+  it('uses decoration placement status in 3D and block placement status in Y-layer', () => {
+    const { editor, workflow, setActiveDecoration } = createWorkflowFixture();
+    setActiveDecoration({ kind: 'painting' });
+    const hit: ViewportHit = {
+      target: { x: 1, y: 2, z: 3 },
+      placement: { status: 'valid' },
+      decorationPlan: { status: 'invalid' } as never,
+    };
+
+    workflow.applyClick(hit, 'primary-action', 'place', '3d');
+    expect(editor.place).not.toHaveBeenCalled();
+
+    workflow.applyClick(hit, 'primary-action', 'place', 'y-layer');
+    expect(editor.place).toHaveBeenCalledWith(hit.target, undefined);
+  });
+
+  it('dispatches block deletion and clears an empty block selection', () => {
+    const { block, editor, selection, decorations, workflow, setActiveDecoration } =
+      createWorkflowFixture();
+
+    workflow.applyClick({ block: block.position }, 'delete-target', 'select', '3d');
+    expect(editor.delete).toHaveBeenCalledWith(block.position);
+
+    workflow.applyClick({}, 'primary-action', 'select', '3d');
+    expect(selection.clear).toHaveBeenCalledOnce();
+
+    setActiveDecoration({ kind: 'painting' });
+    workflow.applyClick({ block: block.position }, 'primary-action', 'select', '3d');
+    expect(decorations.select).toHaveBeenCalledWith(undefined);
+    decorations.select.mockClear();
+    workflow.applyClick({ block: block.position }, 'primary-action', 'select', 'y-layer');
+    expect(decorations.select).not.toHaveBeenCalled();
+  });
+});
