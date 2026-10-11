@@ -2,7 +2,7 @@ import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EditorShellComponent } from './editor-shell.component';
+import { EditorShellComponent, hasEditorSelectionState } from './editor-shell.component';
 import { AMBIGUOUS_RELEASE_GRACE_MS } from '../../../core/editor/input/editor-movement-input-session';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { SelectionService } from '../../../core/editor/selection/selection.service';
@@ -633,3 +633,12 @@ function request<T>(result: T): IDBRequest<T> {
   queueMicrotask(() => pending.onsuccess?.(new Event('success')));
   return pending;
 }
+
+describe('editor selection action state', () => {
+  it('treats decorations, voxel selections and box selections as editor selections', () => {
+    expect(hasEditorSelectionState(true, 0, false)).toBe(true);
+    expect(hasEditorSelectionState(false, 1, false)).toBe(true);
+    expect(hasEditorSelectionState(false, 0, true)).toBe(true);
+    expect(hasEditorSelectionState(false, 0, false)).toBe(false);
+  });
+});

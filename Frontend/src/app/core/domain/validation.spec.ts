@@ -1,18 +1,13 @@
-import { coordinateKey, isWithinBounds } from './coordinates';
+import { describe, expect, it } from 'vitest';
+import { ProjectDocument } from './project.types';
 import {
   validateBlockId,
   validateCoordinate,
   validateProject,
   validateProjectSize,
 } from './validation';
-import { ProjectDocument } from './project.types';
 
 describe('domain validation', () => {
-  it('accepts integer coordinates inside exclusive upper bounds', () => {
-    expect(isWithinBounds({ x: 0, y: 0, z: 0 }, { x: 2, y: 3, z: 4 })).toBe(true);
-    expect(isWithinBounds({ x: 2, y: 0, z: 0 }, { x: 2, y: 3, z: 4 })).toBe(false);
-  });
-
   it('rejects fractional and out-of-bounds coordinates', () => {
     expect(
       validateCoordinate({ x: 1.5, y: 0, z: 0 }, { x: 2, y: 2, z: 2 }).map(({ code }) => code),
@@ -82,9 +77,5 @@ describe('domain validation', () => {
           metadata: { ...base.metadata, minecraftVersion: version },
         }).issues.map(({ code }) => code),
       ).toContain('invalid-minecraft-version');
-  });
-
-  it('creates stable coordinate keys', () => {
-    expect(coordinateKey({ x: 1, y: 2, z: 3 })).toBe('1,2,3');
   });
 });

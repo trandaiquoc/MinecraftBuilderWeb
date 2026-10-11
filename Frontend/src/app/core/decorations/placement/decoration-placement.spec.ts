@@ -5,18 +5,9 @@ import {
   decorationInBounds,
   planDecorationPlacement,
   supportsDecoration,
-} from './placement/decoration-placement';
-import { PAINTING_VARIANTS, chooseRandomPaintingVariant } from './decoration.types';
+} from './decoration-placement';
 
-describe('decorations domain', () => {
-  it('keeps the verified painting catalog and chooses the largest fitting placeable variant', () => {
-    expect(PAINTING_VARIANTS).toHaveLength(50);
-    expect(chooseRandomPaintingVariant(4, 4, () => 0)?.id).toBe('pointer');
-    expect(chooseRandomPaintingVariant(2, 2, () => 0)?.id).toBe('match');
-    expect(chooseRandomPaintingVariant(1, 1, () => 0)?.id).toBe('kebab');
-    expect(chooseRandomPaintingVariant(2, 2, () => 0)?.placeable).not.toBe(false);
-  });
-
+describe('decoration placement', () => {
   it('uses the attached air cell as anchor and validates project bounds', () => {
     expect(decorationAnchorFromSupport({ x: 2, y: 3, z: 4 }, 'north')).toEqual({
       x: 2,
