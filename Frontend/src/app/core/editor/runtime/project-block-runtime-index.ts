@@ -238,7 +238,8 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
     this.visitBlocksInBox(box, () => count++);
     return count;
   }
-  private visitBlocksInBox(box: VoxelBox, visit: (block: PlacedBlock) => void): void {
+  /** Visits indexed blocks in a broad-phase box without allocating a candidate array. */
+  visitBlocksInBox(box: VoxelBox, visit: (block: PlacedBlock) => void): void {
     for (const [y, layer] of this.blocksByY) {
       if (y < box.min.y || y > box.max.y) continue;
       for (const block of layer.values())

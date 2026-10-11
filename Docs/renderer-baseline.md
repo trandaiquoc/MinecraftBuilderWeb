@@ -2,6 +2,23 @@
 
 The viewport keeps persistent block and decoration entries across ordinary `ThreeViewportEngine.update()` calls. Structural changes are reconciled by coordinate/instance identity; selection, group highlights, move previews, ghosts, and camera changes are transient overlays.
 
+### 3D Empty-Space Marquee Selection
+
+An empty-space drag is retained as a screen-space rectangle in viewport CSS
+pixels. On release, the current perspective camera is cropped to that rectangle
+to form a selection frustum; the existing Y-layered `ProjectBlockRuntimeIndex`
+supplies candidate voxel cells, and each candidate cell is tested against the
+frustum. Pointer movement only updates the DOM preview and does not visit blocks.
+The marquee intentionally selects intersecting voxel cells even when nearer
+blocks occlude them, matching projected-object marquee semantics. Hidden groups
+and blocks outside active isolation are excluded as seeds; logical-object
+closure may add a paired block to preserve object integrity. Locked groups remain
+selectable. Marquee membership is owned by `SelectionService`; it stores actual
+selected coordinates (or compact keys for large selections), not the screen
+rectangle or an invented world-space selection box. The final overlay uses
+selected block outlines or their aggregate bounds, and face-locked drags that
+begin on a block retain their existing surface-selection behavior.
+
 Diagnostics are intentionally structural rather than timing assertions:
 
 - `fullSceneRebuilds`: full persistent reconciliation passes caused by a project/provider/filter change;

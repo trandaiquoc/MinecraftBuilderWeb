@@ -89,28 +89,54 @@
       [capability]="capability"
     />
   }
-} @else if (selection.box(); as box) {
-  <dl class="selection-details">
-    <div>
-      <dt>{{ i18n.t('minPosition') }}</dt>
-      <dd>X {{ box.min.x }}, Y {{ box.min.y }}, Z {{ box.min.z }}</dd>
-    </div>
-    <div>
-      <dt>{{ i18n.t('maxPosition') }}</dt>
-      <dd>X {{ box.max.x }}, Y {{ box.max.y }}, Z {{ box.max.z }}</dd>
-    </div>
-    <div>
-      <dt>{{ i18n.t('selectionSize') }}</dt>
-      <dd>
-        {{ box.max.x - box.min.x + 1 }} x {{ box.max.y - box.min.y + 1 }} x
-        {{ box.max.z - box.min.z + 1 }}
-      </dd>
-    </div>
-    <div>
-      <dt>{{ i18n.t('blockCount') }}</dt>
-      <dd>{{ selectedBlockCount() }}</dd>
-    </div>
-  </dl>
+} @else if (selection.kind() === 'box') {
+  @if (selection.box(); as box) {
+    <dl class="selection-details">
+      <div>
+        <dt>{{ i18n.t('minPosition') }}</dt>
+        <dd>X {{ box.min.x }}, Y {{ box.min.y }}, Z {{ box.min.z }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('maxPosition') }}</dt>
+        <dd>X {{ box.max.x }}, Y {{ box.max.y }}, Z {{ box.max.z }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('selectionSize') }}</dt>
+        <dd>
+          {{ box.max.x - box.min.x + 1 }} x {{ box.max.y - box.min.y + 1 }} x
+          {{ box.max.z - box.min.z + 1 }}
+        </dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('blockCount') }}</dt>
+        <dd>{{ selectedBlockCount() }}</dd>
+      </div>
+    </dl>
+  } @else if (selectedBounds(); as bounds) {
+    <dl class="selection-details">
+      <div>
+        <dt>{{ i18n.t('minPosition') }}</dt>
+        <dd>X {{ bounds.min.x }}, Y {{ bounds.min.y }}, Z {{ bounds.min.z }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('maxPosition') }}</dt>
+        <dd>X {{ bounds.max.x }}, Y {{ bounds.max.y }}, Z {{ bounds.max.z }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('selectionSize') }}</dt>
+        <dd>
+          {{ bounds.max.x - bounds.min.x + 1 }} x {{ bounds.max.y - bounds.min.y + 1 }} x
+          {{ bounds.max.z - bounds.min.z + 1 }}
+        </dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('blockCount') }}</dt>
+        <dd>{{ selectedBlockCount() }}</dd>
+      </div>
+    </dl>
+  } @else {
+    <p class="muted empty-inspector">{{ i18n.t('noBlockSelected') }}</p>
+  }
 } @else {
   <p class="muted empty-inspector">{{ i18n.t('noBlockSelected') }}</p>
 }

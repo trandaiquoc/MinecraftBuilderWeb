@@ -73,11 +73,7 @@ import {
   setBlockBrightnessBaseColor,
   STRUCTURE_GUIDE_BRIGHTNESS,
 } from './block-brightness';
-import {
-  FaceLockedSelectionPlane,
-  FreeSpaceSelectionPlane,
-  freeSpaceSelectionPlane,
-} from '../../editor/selection/selection';
+import { FaceLockedSelectionPlane } from '../../editor/selection/selection';
 import { structureBlockGuidePosition } from './structure-block-guide';
 import type { OcclusionClass } from '../visibility/interior-occlusion';
 import { ViewportInteriorCullingOwner } from '../visibility/viewport-interior-culling-owner';
@@ -162,6 +158,11 @@ import {
   cameraMovementScale,
   effectiveCameraMovementSpeed,
 } from '../scheduling/camera-movement-speed';
+import { createScreenSpaceMarqueeQuery } from '../interaction/screen-space-marquee-selection';
+import type {
+  ScreenSpaceMarqueeQuery,
+  ScreenSpaceMarqueeRect,
+} from '../interaction/screen-space-marquee-selection';
 import type {
   ViewportRuntimeTrace,
   ViewportTraceMetadata,
@@ -223,10 +224,7 @@ import {
 } from '../isolation/group-isolation-presentation';
 import { EditingPlanePresenter } from '../presentation/editing-plane-presenter';
 import { SelectionOverlayPresenter } from '../presentation/selection-overlay-presenter';
-import {
-  projectPointerToAxisPlane,
-  projectPointerToWorldPlane,
-} from '../interaction/viewport-pointer-projection';
+import { projectPointerToAxisPlane } from '../interaction/viewport-pointer-projection';
 import { ViewportHoverController } from '../interaction/viewport-hover-controller';
 import { ViewportRaycastController } from '../interaction/viewport-raycast-controller';
 import { disposeObject } from '../presentation/renderer-resource-disposal';
@@ -3720,40 +3718,20 @@ export class ThreeViewportEngine {
     );
   }
 
-  /** Projects an empty-space selection gesture onto a camera-facing world plane. */
-  projectPointerToFreeSpace(
-    event: PointerEvent,
-    project: ProjectDocument,
-    plane?: FreeSpaceSelectionPlane,
-  ):
-    | {
-        readonly point: { readonly x: number; readonly y: number; readonly z: number };
-        readonly plane: FreeSpaceSelectionPlane;
-      }
-    | undefined {
-    if (!this.renderer || !this.container) return undefined;
-    const resolvedPlane =
-      plane ??
-      freeSpaceSelectionPlane(
-        project.size,
-        this.camera.getWorldDirection(new THREE.Vector3()),
-        this.controls
-          ? {
-              x: this.controls.target.x,
-              y: this.controls.target.y,
-              z: this.controls.target.z,
-            }
-          : undefined,
-      );
-    const point = projectPointerToWorldPlane(
-      event,
-      this.renderer.domElement,
+  screenSpaceMarqueeQuery(
+    rect: ScreenSpaceMarqueeRect,
+    projectSize: ProjectSize,
+  ): ScreenSpaceMarqueeQuery | undefined {
+    if (!this.renderer) return undefined;
+    return createScreenSpaceMarqueeQuery(
       this.camera,
-      this.raycaster,
-      resolvedPlane.point,
-      resolvedPlane.normal,
+      {
+        width: this.renderer.domElement.clientWidth,
+        height: this.renderer.domElement.clientHeight,
+      },
+      rect,
+      projectSize,
     );
-    return point ? { point, plane: resolvedPlane } : undefined;
   }
 
   private projectPointerToAxisPlane(

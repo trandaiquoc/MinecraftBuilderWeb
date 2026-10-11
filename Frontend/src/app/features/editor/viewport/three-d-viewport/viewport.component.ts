@@ -3,6 +3,7 @@ import {
   Component,
   ElementRef,
   OnDestroy,
+  Renderer2,
   effect,
   inject,
   input as angularInput,
@@ -20,14 +21,19 @@ import { EditorToolService } from '../../../../core/editor/state/tool.service';
 import type { EditorTool } from '../../../../core/editor/state/tool.service';
 import { CameraStateService } from '../../../../core/editor/camera/camera-state.service';
 import { CameraPreset, voxelCameraBounds } from '../../../../core/editor/camera/camera';
+import type { CameraState } from '../../../../core/editor/camera/camera';
 import { GroupService } from '../../../../core/editor/groups/group.service';
 import {
   clampVoxelBox,
   faceLockedSelectionPlane,
-  freeSpaceSelectionBox,
   normalizeVoxelBox,
   voxelOnFaceLockedPlane,
 } from '../../../../core/editor/selection/selection';
+import { screenSpaceMarqueeRect } from '../../../../core/renderer/interaction/screen-space-marquee-selection';
+import type {
+  ScreenPointerPosition,
+  ScreenSpaceMarqueeRect,
+} from '../../../../core/renderer/interaction/screen-space-marquee-selection';
 import {
   ThreeViewportEngine,
   ViewportOwnershipDiagnostics,
@@ -76,10 +82,12 @@ declare global {
 export class ViewportComponent implements AfterViewInit, OnDestroy {
   readonly viewportActive = angularInput(true);
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
+  private readonly selectionMarquee = viewChild<ElementRef<HTMLDivElement>>('selectionMarquee');
   private readonly workspace = inject(WorkspaceStateService);
   private readonly active = inject(ActiveBlockService);
   private readonly library = inject(BlockLibraryService);
   private readonly preferences = inject(UiPreferencesService);
+  private readonly renderer2 = inject(Renderer2);
   private readonly assets = inject(ContentAssetRuntimeService);
   private readonly editor = inject(StructureEditorService);
   private readonly selection = inject(SelectionService);
@@ -135,6 +143,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   }
   private previousTool?: EditorTool;
   private pointerStart?: { x: number; y: number };
+  private lastPointerPosition?: ScreenPointerPosition;
+  private capturedPointerId?: number;
   private gestureAction?: MouseAction;
   private pickConsumed = false;
   private faceDragStart?: {
@@ -144,13 +154,16 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     readonly plane: import('../../../../core/editor/selection/selection').FaceLockedSelectionPlane;
   };
   private freeSpaceDragStart?: {
-    readonly point: { readonly x: number; readonly y: number; readonly z: number };
-    readonly plane: import('../../../../core/editor/selection/selection').FreeSpaceSelectionPlane;
+    readonly project: ProjectDocument;
+    readonly cameraState: CameraState | undefined;
   };
   private readonly onNativePointerMove = (event: PointerEvent) => this.pointerMove(event);
   private readonly mountActiveViewport = effect(() => {
     if (!this.viewReady() || !this.viewportActive() || this.viewportMounted) return;
     this.mountViewport();
+  });
+  private readonly cancelGestureWhenInactive = effect(() => {
+    if (!this.viewportActive()) this.clearPointerGesture();
   });
   private readonly sync = effect(() => {
     this.viewReady();
@@ -158,6 +171,8 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.decorations.selectedId();
     this.decorations.active();
     const project = this.workspace.project();
+    if (this.freeSpaceDragStart && project !== this.freeSpaceDragStart.project)
+      this.clearPointerGesture();
     this.engine.update(
       project,
       this.active.active(),
@@ -278,6 +293,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (isDevMode()) console.debug('[MinecraftBuilder][3D mounted]', this.engine.diagnostics());
   }
   ngOnDestroy(): void {
+    this.clearPointerGesture();
     if (
       isDevMode() &&
       typeof window !== 'undefined' &&
@@ -343,13 +359,18 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
   }
 
   protected resize(): void {
-    if (this.viewportActive()) this.engine.resize();
+    if (!this.viewportActive()) return;
+    this.engine.resize();
+    if (this.lastPointerPosition) this.updateMarqueePreview(this.lastPointerPosition);
   }
   protected statusLabel(): string {
     return this.i18n.t(this.placementFeedback()?.status ?? 'invalid');
   }
   protected pointerMove(event: PointerEvent): void {
     if (!this.viewportActive()) return;
+    const pointer = { x: event.clientX, y: event.clientY };
+    this.lastPointerPosition = pointer;
+    this.updateMarqueePreview(pointer);
     const project = this.workspace.project();
     this.engine.hover(
       event,
@@ -382,8 +403,10 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const action = this.input.mouseActionForEvent(event);
     if (!isEditorMouseAction(action)) return;
     event.preventDefault();
+    this.hideSelectionMarquee();
     this.capturePointer(event);
     this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.lastPointerPosition = this.pointerStart;
     this.gestureAction = action;
     this.pickConsumed = false;
     this.faceDragStart = undefined;
@@ -417,12 +440,16 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
             }
           : undefined;
       if (!hit.block && !hit.decoration && project)
-        this.freeSpaceDragStart = this.engine.projectPointerToFreeSpace(event, project);
+        this.freeSpaceDragStart = { project, cameraState: this.engine.cameraState() };
     }
   }
   protected pointerUp(event: PointerEvent): void {
-    if (!this.viewportActive()) return;
+    if (!this.viewportActive()) {
+      this.cancelPointer(event);
+      return;
+    }
     const start = this.pointerStart;
+    this.lastPointerPosition = undefined;
     this.pointerStart = undefined;
     const gestureAction = this.gestureAction;
     this.gestureAction = undefined;
@@ -432,6 +459,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.faceDragStart = undefined;
     const freeSpaceDragStart = this.freeSpaceDragStart;
     this.freeSpaceDragStart = undefined;
+    this.hideSelectionMarquee();
     if (gestureAction) event.preventDefault();
     this.engine.endEditorPointerGesture();
     this.releasePointer(event);
@@ -478,19 +506,20 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       freeSpaceDragStart
     ) {
       const project = this.workspace.project();
-      const projected = project
-        ? this.engine.projectPointerToFreeSpace(event, project, freeSpaceDragStart.plane)
-        : undefined;
-      if (project && projected) {
-        const box = freeSpaceSelectionBox(freeSpaceDragStart.point, projected.point, project.size);
-        if (box) {
-          const isVisible = createBlockVisibilityPredicate(project, {
-            isolatedGroupId: this.groups.isolatedGroupId(),
-            isolatedGroupPositions: this.groups.isolatedGroupPositions(),
-          });
-          this.selection.selectBoxLogical(box, project, (id) => this.library.get(id), isVisible);
-        }
-      }
+      if (
+        !project ||
+        !start ||
+        project !== freeSpaceDragStart.project ||
+        !sameCameraState(freeSpaceDragStart.cameraState, this.engine.cameraState())
+      )
+        return;
+      const rect = this.marqueeRect(start, { x: event.clientX, y: event.clientY });
+      const query = rect ? this.engine.screenSpaceMarqueeQuery(rect, project.size) : undefined;
+      const isVisible = createBlockVisibilityPredicate(project, {
+        isolatedGroupId: this.groups.isolatedGroupId(),
+        isolatedGroupPositions: this.groups.isolatedGroupPositions(),
+      });
+      this.selection.selectMarqueeLogical(query, project, (id) => this.library.get(id), isVisible);
       return;
     }
     if (!click) return;
@@ -521,11 +550,7 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     if (!this.viewportActive()) return;
     const target = event.currentTarget as HTMLElement | null;
     if (target?.hasPointerCapture?.(event.pointerId)) return;
-    this.pointerStart = undefined;
-    this.gestureAction = undefined;
-    this.pickConsumed = false;
-    this.faceDragStart = undefined;
-    this.freeSpaceDragStart = undefined;
+    this.clearPointerGesture();
     this.engine.clearGhost();
     this.placementFeedback.set(undefined);
     this.decorationReason.set('');
@@ -533,19 +558,15 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportStatus.clear(this.viewportStatusOwner);
   }
   protected cancelPointer(event?: PointerEvent): void {
-    if (!this.viewportActive()) return;
     if (event) this.releasePointer(event);
     this.engine.endEditorPointerGesture();
-    this.pointerStart = undefined;
-    this.gestureAction = undefined;
-    this.pickConsumed = false;
-    this.faceDragStart = undefined;
-    this.freeSpaceDragStart = undefined;
-    this.engine.clearInput();
+    this.clearPointerGesture();
+    if (this.viewportActive()) this.engine.clearInput();
     this.viewportStatus.clear(this.viewportStatusOwner);
   }
   private capturePointer(event: PointerEvent): void {
     const target = event.currentTarget as HTMLElement | null;
+    this.capturedPointerId = event.pointerId;
     if (target?.setPointerCapture && !target.hasPointerCapture(event.pointerId))
       target.setPointerCapture(event.pointerId);
   }
@@ -553,6 +574,64 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
     const target = event.currentTarget as HTMLElement | null;
     if (target?.releasePointerCapture && target.hasPointerCapture(event.pointerId))
       target.releasePointerCapture(event.pointerId);
+    if (this.capturedPointerId === event.pointerId) this.capturedPointerId = undefined;
+  }
+  private updateMarqueePreview(pointer: ScreenPointerPosition): void {
+    const start = this.pointerStart;
+    const gesture = this.freeSpaceDragStart;
+    if (
+      !start ||
+      !gesture ||
+      this.gestureAction !== 'primary-action' ||
+      this.tool.active() !== 'select' ||
+      this.workspace.project() !== gesture.project ||
+      !sameCameraState(gesture.cameraState, this.engine.cameraState()) ||
+      isPointerClick(start, pointer, this.preferences.preferences().controls.clickDragThreshold)
+    ) {
+      this.hideSelectionMarquee();
+      return;
+    }
+    this.showSelectionMarquee(this.marqueeRect(start, pointer));
+  }
+  private marqueeRect(
+    start: ScreenPointerPosition | undefined,
+    end: ScreenPointerPosition,
+  ): ScreenSpaceMarqueeRect | undefined {
+    if (!start) return undefined;
+    const bounds = this.host().nativeElement.getBoundingClientRect();
+    return screenSpaceMarqueeRect(start, end, bounds);
+  }
+  private showSelectionMarquee(rect: ScreenSpaceMarqueeRect | undefined): void {
+    const element = this.selectionMarquee()?.nativeElement;
+    if (!element || !rect) {
+      this.hideSelectionMarquee();
+      return;
+    }
+    this.renderer2.setStyle(element, 'left', `${rect.left}px`);
+    this.renderer2.setStyle(element, 'top', `${rect.top}px`);
+    this.renderer2.setStyle(element, 'width', `${rect.width}px`);
+    this.renderer2.setStyle(element, 'height', `${rect.height}px`);
+    this.renderer2.setProperty(element, 'hidden', false);
+  }
+  private hideSelectionMarquee(): void {
+    const element = this.selectionMarquee()?.nativeElement;
+    if (element) this.renderer2.setProperty(element, 'hidden', true);
+  }
+  private clearPointerGesture(): void {
+    this.hideSelectionMarquee();
+    if (this.capturedPointerId !== undefined) {
+      const host = this.host().nativeElement;
+      if (host.hasPointerCapture?.(this.capturedPointerId))
+        host.releasePointerCapture?.(this.capturedPointerId);
+      this.capturedPointerId = undefined;
+    }
+    this.pointerStart = undefined;
+    this.lastPointerPosition = undefined;
+    this.gestureAction = undefined;
+    this.pickConsumed = false;
+    this.faceDragStart = undefined;
+    this.freeSpaceDragStart = undefined;
+    this.engine.endEditorPointerGesture();
   }
   protected preventViewportWheel(event: WheelEvent): void {
     event.preventDefault();
@@ -583,4 +662,20 @@ function isEditorMouseAction(
   action: MouseAction | undefined,
 ): action is Exclude<MouseAction, 'orbit-camera' | 'pan-camera' | 'zoom-in' | 'zoom-out'> {
   return action === 'primary-action' || action === 'delete-target' || action === 'pick-block';
+}
+
+function sameCameraState(left: CameraState | undefined, right: CameraState | undefined): boolean {
+  if (!left || !right) return left === right;
+  return (
+    sameVector(left.position, right.position) &&
+    sameVector(left.target, right.target) &&
+    sameVector(left.up, right.up)
+  );
+}
+
+function sameVector(
+  left: { readonly x: number; readonly y: number; readonly z: number },
+  right: { readonly x: number; readonly y: number; readonly z: number },
+): boolean {
+  return left.x === right.x && left.y === right.y && left.z === right.z;
 }

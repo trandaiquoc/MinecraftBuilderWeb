@@ -5,7 +5,12 @@ import {
   resolveLogicalObjectPartsFromLookup,
 } from '../../block-behavior/logical-objects/logical-object';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { VoxelBox, exposedSurfaceSelectionSeedsFromLookup, voxelInBox } from './selection';
+import {
+  IndexedVoxelSelectionQuery,
+  VoxelBox,
+  exposedSurfaceSelectionSeedsFromLookup,
+  voxelInBox,
+} from './selection';
 import type { FaceNormal } from '../placement/placement';
 import {
   defaultProjectBlockRuntimeIndex,
@@ -81,6 +86,28 @@ export class SelectionService {
     const closure = expandLogicalObjectClosure(this.runtimeIndex, seeds, definition);
     this.setBoxSelection(box, closure);
   }
+  selectMarqueeLogical(
+    query: IndexedVoxelSelectionQuery | undefined,
+    project: ProjectDocument,
+    definition: (id: string) => BlockDefinition | undefined,
+    isVisible: (block: PlacedBlock) => boolean = () => true,
+  ): void {
+    if (!query) {
+      this.clear();
+      return;
+    }
+    this.runtimeIndex.ensure(project);
+    const seeds: PlacedBlock[] = [];
+    this.runtimeIndex.visitBlocksInBox(query.candidateBounds, (block) => {
+      if (query.intersectsVoxel(block.position) && isVisible(block)) seeds.push(block);
+    });
+    const closure = expandLogicalObjectClosure(this.runtimeIndex, seeds, definition);
+    if (!closure.length) {
+      this.clear();
+      return;
+    }
+    this.setBoxSelection(undefined, closure);
+  }
   selectSurfaceBoxLogical(
     box: VoxelBox,
     normal: FaceNormal,
@@ -151,8 +178,6 @@ export class SelectionService {
     const kind = this.kind();
     if (kind === 'all') return project.blocks;
     if (kind === 'box') {
-      const box = this.box();
-      if (!box) return [];
       if (this.boxResolution === 'compact') {
         this.runtimeIndex.ensure(project);
         return this.blocksForKeys(this.compactSelectionKeys);
@@ -245,14 +270,15 @@ export class SelectionService {
     );
   }
 
-  private setBoxSelection(box: VoxelBox, blocks: readonly PlacedBlock[]): void {
+  private setBoxSelection(box: VoxelBox | undefined, blocks: readonly PlacedBlock[]): void {
     const compact = blocks.length > DETAILED_SELECTION_LIMIT;
     this.single.set(undefined);
-    this.box.set({ min: { ...box.min }, max: { ...box.max } });
+    this.box.set(box ? { min: { ...box.min }, max: { ...box.max } } : undefined);
     const positions: VoxelCoordinate[] = [];
     const keys = compact ? new Set<string>() : undefined;
     for (const block of blocks) {
-      if (!compact || !voxelInBox(block.position, box)) positions.push({ ...block.position });
+      if (!compact || (!!box && !voxelInBox(block.position, box)))
+        positions.push({ ...block.position });
       keys?.add(coordinateKey(block.position));
     }
     this.logicalPositions.set(positions);

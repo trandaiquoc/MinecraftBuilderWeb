@@ -4,8 +4,6 @@ import {
   clampVoxelBox,
   exposedSurfaceSelectionSeeds,
   faceLockedSelectionPlane,
-  freeSpaceSelectionBox,
-  freeSpaceSelectionPlane,
   normalizeVoxelBox,
   voxelBoxSize,
   voxelInBox,
@@ -19,7 +17,9 @@ import { createBlockVisibilityPredicate } from '../viewport/visible-blocks';
 import { HistoryService } from '../history/history.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { SelectionOverlayPresenter } from '../../renderer/presentation/selection-overlay-presenter';
+import { selectionFocusBounds } from '../../renderer/presentation/selection-bounds';
 import { viewportThemePalette } from '../../renderer/engine/viewport-theme';
+import { createScreenSpaceMarqueeQuery } from '../../renderer/interaction/screen-space-marquee-selection';
 
 describe('voxel box selection', () => {
   it('normalizes inclusive integer corners and counts its size', () => {
@@ -48,46 +48,52 @@ describe('voxel box selection', () => {
     expect(voxelOnFaceLockedPlane({ x: 2, y: 6.8, z: 7.1 }, side!)).toEqual({ x: 2, y: 6, z: 7 });
   });
 
-  it('keeps empty-space drags finite instead of extruding them through the project', () => {
-    const plane = freeSpaceSelectionPlane({ x: 10, y: 6, z: 8 }, { x: 0.9, y: 0.1, z: 0.2 });
-    expect(plane).toEqual({
-      point: { x: 5, y: 3, z: 4 },
-      normal: { x: 0.9, y: 0.1, z: 0.2 },
-    });
-    expect(
-      freeSpaceSelectionBox(
-        { x: 8.9, y: 4.8, z: 6.9 },
-        { x: 7.1, y: 1.2, z: 2.1 },
-        { x: 10, y: 6, z: 8 },
-      ),
-    ).toEqual({ min: { x: 7, y: 1, z: 2 }, max: { x: 8, y: 4, z: 6 } });
-  });
-
-  it('uses the finite projected region for membership, count, bounds, and overlay geometry', () => {
+  it('selects voxel geometry under a screen rectangle across depth with no 3D gesture box', () => {
     const base = rendererBenchmarkProject('small');
     const blocks = [
-      { ...base.blocks[0], position: { x: 4, y: 3, z: 4 } },
-      { ...base.blocks[0], position: { x: 4, y: 4, z: 4 } },
-      { ...base.blocks[0], position: { x: 4, y: 9, z: 4 } },
+      { ...base.blocks[0], position: { x: 8, y: 0, z: 8 } },
+      { ...base.blocks[0], position: { x: 8, y: 28, z: 8 } },
+      { ...base.blocks[0], position: { x: 0, y: 28, z: 0 } },
     ];
-    const project = { ...base, size: { x: 10, y: 12, z: 10 }, blocks };
-    const box = freeSpaceSelectionBox(
-      { x: 4.1, y: 3.1, z: 4.1 },
-      { x: 4.9, y: 4.9, z: 4.9 },
+    const project = { ...base, size: { x: 16, y: 32, z: 16 }, blocks };
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+    camera.position.set(8, 64, 8);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(8, 24, 8);
+    camera.updateMatrixWorld(true);
+    const viewport = { width: 400, height: 400 };
+    const point = new THREE.Vector3(8.5, 0.5, 8.5).project(camera);
+    const center = {
+      x: ((point.x + 1) / 2) * viewport.width,
+      y: ((1 - point.y) / 2) * viewport.height,
+    };
+    const query = createScreenSpaceMarqueeQuery(
+      camera,
+      viewport,
+      { left: center.x - 15, top: center.y - 15, width: 30, height: 30 },
       project.size,
     );
-    expect(box).toEqual({ min: { x: 4, y: 3, z: 4 }, max: { x: 4, y: 4, z: 4 } });
+    expect(query).toBeDefined();
 
     const selection = new SelectionService();
-    selection.selectBoxLogical(box!, project, () => undefined);
+    selection.selectMarqueeLogical(query, project, () => undefined);
 
     expect(selection.selectedBlocks(project).map((block) => block.position)).toEqual([
-      { x: 4, y: 3, z: 4 },
-      { x: 4, y: 4, z: 4 },
+      { x: 8, y: 0, z: 8 },
+      { x: 8, y: 28, z: 8 },
     ]);
     expect(selection.count(project)).toBe(2);
-    expect(selection.bounds(project)).toEqual(box);
-    expect(selection.renderState(project)).toMatchObject({ count: 2, bounds: box });
+    const bounds = {
+      min: { x: 8, y: 0, z: 8 },
+      max: { x: 8, y: 28, z: 8 },
+    };
+    expect(selection.bounds(project)).toEqual(bounds);
+    expect(selection.renderState(project)).toMatchObject({ count: 2, bounds });
+    expect(selection.box()).toBeUndefined();
+    expect(selectionFocusBounds(selection.bounds(project), selection.box())).toEqual({
+      min: bounds.min,
+      max: { x: 9, y: 29, z: 9 },
+    });
 
     const renderState = selection.renderState(project);
     const overlay = new SelectionOverlayPresenter(
@@ -102,9 +108,142 @@ describe('voxel box selection', () => {
       aggregateBounds: renderState.bounds,
       box: selection.box(),
     });
-    expect(overlay.selectionBox.box.min.toArray()).toEqual([4, 3, 4]);
-    expect(overlay.selectionBox.box.max.toArray()).toEqual([5, 5, 5]);
+    expect(overlay.selectionBox.visible).toBe(false);
+    expect(overlay.logicalSelectionGroup.children.map((child) => child.position.toArray())).toEqual(
+      [
+        [8.5, 0.5, 8.5],
+        [8.5, 28.5, 8.5],
+      ],
+    );
     overlay.dispose();
+  });
+
+  it('applies hidden-group and isolation visibility before selecting screen-space seeds', () => {
+    const base = rendererBenchmarkProject('small');
+    const project = {
+      ...base,
+      size: { x: 4, y: 1, z: 1 },
+      groups: [
+        { id: 'hidden', name: 'Hidden', visible: false, locked: false },
+        { id: 'locked', name: 'Locked', visible: true, locked: true },
+        { id: 'active', name: 'Active', visible: true, locked: false },
+      ],
+      blocks: [
+        {
+          ...base.blocks[0],
+          id: 'example:hidden',
+          position: { x: 0, y: 0, z: 0 },
+          groupIds: ['hidden'],
+        },
+        {
+          ...base.blocks[0],
+          id: 'example:locked',
+          position: { x: 1, y: 0, z: 0 },
+          groupIds: ['locked'],
+        },
+        {
+          ...base.blocks[0],
+          id: 'example:active',
+          position: { x: 2, y: 0, z: 0 },
+          groupIds: ['active'],
+        },
+        {
+          ...base.blocks[0],
+          id: 'example:ungrouped',
+          position: { x: 3, y: 0, z: 0 },
+          groupIds: [],
+        },
+      ],
+    };
+    const query = {
+      candidateBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 3, y: 0, z: 0 } },
+      intersectsVoxel: () => true,
+    };
+    const selection = new SelectionService();
+
+    selection.selectMarqueeLogical(
+      query,
+      project,
+      () => undefined,
+      createBlockVisibilityPredicate(project),
+    );
+    expect(selection.selectedBlocks(project).map((block) => block.id)).toEqual([
+      'example:locked',
+      'example:active',
+      'example:ungrouped',
+    ]);
+
+    selection.selectMarqueeLogical(
+      query,
+      project,
+      () => undefined,
+      createBlockVisibilityPredicate(project, {
+        isolatedGroupId: 'active',
+        isolatedGroupPositions: [project.blocks[2].position],
+      }),
+    );
+    expect(selection.selectedBlocks(project).map((block) => block.id)).toEqual(['example:active']);
+  });
+
+  it('keeps logical-object closure when only one visible door half intersects the marquee', () => {
+    const base = rendererBenchmarkProject('small');
+    const project = {
+      ...base,
+      size: { x: 4, y: 4, z: 4 },
+      blocks: [
+        {
+          ...base.blocks[0],
+          id: 'example:door',
+          position: { x: 2, y: 1, z: 1 },
+          state: { half: 'lower' },
+        },
+        {
+          ...base.blocks[0],
+          id: 'example:door',
+          position: { x: 2, y: 2, z: 1 },
+          state: { half: 'upper' },
+        },
+      ],
+    };
+    const door = {
+      behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true },
+    } as BlockDefinition;
+    const selection = new SelectionService();
+
+    selection.selectMarqueeLogical(
+      {
+        candidateBounds: { min: { x: 2, y: 1, z: 1 }, max: { x: 2, y: 2, z: 1 } },
+        intersectsVoxel: ({ y }) => y === 1,
+      },
+      project,
+      (id) => (id === 'example:door' ? door : undefined),
+      (block) => block.state['half'] === 'lower',
+    );
+
+    expect(
+      selection.selectedBlocks(project).map(({ state, position }) => ({ state, position })),
+    ).toEqual([
+      { state: { half: 'lower' }, position: { x: 2, y: 1, z: 1 } },
+      { state: { half: 'upper' }, position: { x: 2, y: 2, z: 1 } },
+    ]);
+    expect(selection.count(project)).toBe(2);
+    expect(selection.bounds(project)).toEqual({
+      min: { x: 2, y: 1, z: 1 },
+      max: { x: 2, y: 2, z: 1 },
+    });
+  });
+
+  it('clears selection when a valid marquee intersects no project voxel', () => {
+    const project = rendererBenchmarkProject('small');
+    const selection = new SelectionService();
+    selection.select(project.blocks[0].position);
+
+    selection.selectMarqueeLogical(undefined, project, () => undefined);
+
+    expect(selection.kind()).toBe('none');
+    expect(selection.selectedBlocks(project)).toEqual([]);
+    expect(selection.count(project)).toBe(0);
+    expect(selection.bounds(project)).toBeUndefined();
   });
 
   it('selects only exposed visible surface seeds while allowing logical closure', () => {
@@ -366,6 +505,39 @@ describe('voxel box selection', () => {
     const changed = { ...project, blocks: [...base.blocks, extra] };
     prohibitIteration = false;
     expect(service.selectedBlocks(changed)).toHaveLength(20_000);
+  });
+
+  it('resolves a screen-space marquee through the resident index without iterating project blocks', () => {
+    const base = rendererBenchmarkProject('stress');
+    let prohibitIteration = false;
+    const blocks = new Proxy(base.blocks, {
+      get(target, property, receiver) {
+        if (prohibitIteration && property === Symbol.iterator)
+          throw new Error('marquee selection must resolve through the resident runtime index');
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const project = { ...base, blocks };
+    const index = new ProjectBlockRuntimeIndex();
+    index.ensure(project);
+    const rebuilds = index.rebuildCount;
+    const service = new SelectionService(index);
+    prohibitIteration = true;
+
+    service.selectMarqueeLogical(
+      {
+        candidateBounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 63, y: 4, z: 63 } },
+        intersectsVoxel: ({ x, z }) => x < 4 && z < 4,
+      },
+      project,
+      () => undefined,
+    );
+
+    expect(service.count(project)).toBeGreaterThan(0);
+    expect(
+      service.selectedBlocks(project).every(({ position }) => position.x < 4 && position.z < 4),
+    ).toBe(true);
+    expect(index.rebuildCount).toBe(rebuilds);
   });
 
   it('resolves selected positions against the current project snapshot through undo and redo', () => {

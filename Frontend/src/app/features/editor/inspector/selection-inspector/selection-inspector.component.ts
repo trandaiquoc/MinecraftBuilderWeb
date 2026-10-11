@@ -153,11 +153,14 @@ export class SelectionInspectorComponent {
     const project = this.workspace.project();
     return project ? this.selection.count(project) : 0;
   });
+  protected readonly selectedBounds = computed(() =>
+    this.selection.bounds(this.workspace.project()),
+  );
   constructor() {
     effect(() => {
       this.selectedBlock();
       this.selectedDecoration();
-      this.selection.box();
+      this.selection.kind();
       this.stateFeedback.set('');
     });
   }

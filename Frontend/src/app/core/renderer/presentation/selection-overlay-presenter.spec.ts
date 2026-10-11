@@ -55,6 +55,28 @@ describe('SelectionOverlayPresenter', () => {
     presenter.dispose();
   });
 
+  it('uses selected-set bounds, not a synthetic marquee volume, for compact selections', () => {
+    const presenter = new SelectionOverlayPresenter(
+      new THREE.Scene(),
+      viewportThemePalette('dark'),
+      4,
+    );
+    presenter.mount();
+
+    presenter.update({
+      kind: 'box',
+      count: 300,
+      selectedPositions: [],
+      aggregateBounds: { min: { x: 8, y: 2, z: 9 }, max: { x: 12, y: 40, z: 11 } },
+    });
+
+    expect(presenter.selectionBox.visible).toBe(true);
+    expect(presenter.selectionBox.box.min.toArray()).toEqual([8, 2, 9]);
+    expect(presenter.selectionBox.box.max.toArray()).toEqual([13, 41, 12]);
+    expect(presenter.logicalSelectionGroup.children).toHaveLength(0);
+    presenter.dispose();
+  });
+
   it('keeps the selected empty box visible without interpreting it as selected blocks', () => {
     const presenter = new SelectionOverlayPresenter(
       new THREE.Scene(),

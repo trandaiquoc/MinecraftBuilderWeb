@@ -10,6 +10,7 @@
   (contextmenu)="$event.preventDefault()"
   (window:resize)="resize()"
 >
+  <div #selectionMarquee class="selection-marquee" aria-hidden="true" hidden></div>
   @if (target() || reasonLabel() || placementFeedback()) {
     <div class="viewport-status" [attr.data-status]="placementFeedback()?.status">
       @if (placementFeedback()) {

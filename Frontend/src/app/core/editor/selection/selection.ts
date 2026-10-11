@@ -7,17 +7,17 @@ export interface VoxelBox {
   readonly max: VoxelCoordinate;
 }
 
+/** Broad-phase voxel bounds plus the exact geometric membership test for an area selection. */
+export interface IndexedVoxelSelectionQuery {
+  readonly candidateBounds: VoxelBox;
+  intersectsVoxel(position: VoxelCoordinate): boolean;
+}
+
 export type FaceLockedPlaneAxis = 'x' | 'y' | 'z';
 export interface FaceLockedSelectionPlane {
   readonly axis: FaceLockedPlaneAxis;
   readonly coordinate: number;
   readonly normal: FaceNormal;
-}
-
-export interface FreeSpaceSelectionPlane {
-  /** Camera-facing plane through the viewport's orbit target. */
-  readonly point: VoxelCoordinate;
-  readonly normal: VoxelCoordinate;
 }
 
 /** Returns the voxel face plane that was touched when a selection drag began. */
@@ -51,29 +51,6 @@ export function voxelOnFaceLockedPlane(
   const position = { x: Math.floor(point.x), y: Math.floor(point.y), z: Math.floor(point.z) };
   position[plane.axis] = Math.floor(plane.coordinate - (plane.normal[plane.axis] > 0 ? 1 : 0));
   return position;
-}
-
-/** Captures the camera-facing plane used to project an empty-space selection gesture. */
-export function freeSpaceSelectionPlane(
-  size: ProjectSize,
-  cameraDirection: { readonly x: number; readonly y: number; readonly z: number },
-  target: VoxelCoordinate = { x: size.x / 2, y: size.y / 2, z: size.z / 2 },
-): FreeSpaceSelectionPlane {
-  return {
-    point: { ...target },
-    normal: { ...cameraDirection },
-  };
-}
-
-/** Maps projected pointer points to a finite, clamped voxel selection volume. */
-export function freeSpaceSelectionBox(
-  start: { readonly x: number; readonly y: number; readonly z: number },
-  end: { readonly x: number; readonly y: number; readonly z: number },
-  size: ProjectSize,
-): VoxelBox | undefined {
-  const first = { x: Math.floor(start.x), y: Math.floor(start.y), z: Math.floor(start.z) };
-  const second = { x: Math.floor(end.x), y: Math.floor(end.y), z: Math.floor(end.z) };
-  return clampVoxelBox(normalizeVoxelBox(first, second), size);
 }
 
 /** Returns visible, exposed blocks inside a face-locked rectangle. Hidden blocks never become drag seeds. */
