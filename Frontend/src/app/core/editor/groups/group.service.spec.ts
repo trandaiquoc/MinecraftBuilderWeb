@@ -37,7 +37,7 @@ function setup(input: ProjectDocument = project) {
   const selection = new SelectionService();
   const history = new HistoryService(workspace);
   const library = new BlockLibraryService(new ActiveBlockService());
-  workspace.project.set(input);
+  workspace.publishProject(input);
   return {
     workspace,
     selection,
@@ -94,14 +94,11 @@ describe('GroupService', () => {
     groups.select('roof');
     const positions = groups.activeGroupPositions();
 
-    workspace.project.update((current) =>
-      current
-        ? {
-            ...current,
-            editorSettings: { ...current.editorSettings, currentY: 2 },
-          }
-        : current,
-    );
+    const current = workspace.project()!;
+    workspace.publishProject({
+      ...current,
+      editorSettings: { ...current.editorSettings, currentY: 2 },
+    });
 
     expect(groups.activeGroupPositions()).toBe(positions);
   });
@@ -236,7 +233,7 @@ describe('GroupService', () => {
     });
     const indexedProject = { ...project, blocks };
     const workspace = new WorkspaceStateService();
-    workspace.project.set(indexedProject);
+    workspace.publishProject(indexedProject);
     const runtimeIndex = new ProjectBlockRuntimeIndex();
     runtimeIndex.ensure(indexedProject);
     const selection = new SelectionService(runtimeIndex);
@@ -423,7 +420,7 @@ describe('GroupService', () => {
     const selection = new SelectionService();
     const history = new HistoryService(workspace);
     const library = new BlockLibraryService(new ActiveBlockService());
-    workspace.project.set(groupedProject);
+    workspace.publishProject(groupedProject);
     const decorationSelection = {
       selectedId: () => decoration.instanceId,
     } as unknown as DecorationService;

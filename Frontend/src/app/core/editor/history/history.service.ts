@@ -51,7 +51,7 @@ export class HistoryService {
     const mutationHint = hintFactory?.(before, after);
     if (mutationHint) this.mutationHints?.publish(before, after, mutationHint);
     else this.mutationHints?.clear();
-    this.workspace.project.set(after);
+    this.workspace.publishProject(after);
     if (mutationHint) this.runtimeIndex.adoptTransition(before, after, mutationHint);
     else this.runtimeIndex.observeProject(after);
     this.undoStack.update((entries) => [...entries, { label, before, after, mutationHint }]);
@@ -69,7 +69,7 @@ export class HistoryService {
         invertProjectMutationHint(entry.mutationHint),
       );
     else this.mutationHints?.clear();
-    this.workspace.project.set(entry.before);
+    this.workspace.publishProject(entry.before);
     if (entry.mutationHint)
       this.runtimeIndex.adoptTransition(
         entry.after,
@@ -88,7 +88,7 @@ export class HistoryService {
     if (entry.mutationHint)
       this.mutationHints?.publish(entry.before, entry.after, entry.mutationHint);
     else this.mutationHints?.clear();
-    this.workspace.project.set(entry.after);
+    this.workspace.publishProject(entry.after);
     if (entry.mutationHint)
       this.runtimeIndex.adoptTransition(entry.before, entry.after, entry.mutationHint);
     else this.runtimeIndex.observeProject(entry.after);

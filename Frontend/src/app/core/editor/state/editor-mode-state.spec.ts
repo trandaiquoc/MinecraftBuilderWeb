@@ -27,7 +27,7 @@ describe('editor mode state', () => {
       groups: [],
       editorSettings: { currentY: 2, layerVisibility: 'current-only', referenceLayerOpacity: 0.3 },
     };
-    workspace.project.set(project);
+    workspace.publishProject(project);
     active.pick({
       kind: 'missing',
       id: 'example:unknown',

@@ -50,7 +50,7 @@ describe('ProjectDiagnosticsDialogComponent', () => {
 
   beforeEach(async () => {
     workspace = new WorkspaceStateService();
-    workspace.project.set(project('first'));
+    workspace.publishProject(project('first'));
     provider = signal(new VanillaAssetProvider('audit-fixture', {}, new Map()));
     library = {
       catalogRevision: signal(0),
@@ -90,7 +90,7 @@ describe('ProjectDiagnosticsDialogComponent', () => {
   it('aborts and ignores an asset audit result after the project scope changes', async () => {
     const audit = component.runAudit();
 
-    workspace.project.set(project('second'));
+    workspace.publishProject(project('second'));
     fixture.detectChanges();
     expect(component.auditing()).toBe(false);
 

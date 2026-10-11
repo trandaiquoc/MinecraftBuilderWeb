@@ -57,7 +57,7 @@ export class MissingBlockReconciliationService {
         const hint = blockMutationHint(result.changes, 'content-resolution', 'content-resolution');
         this.mutationHints.publish(project, result.project, hint);
         this.runtimeIndex.adoptTransition(project, result.project, hint);
-        this.workspace.project.set(result.project);
+        this.workspace.publishProject(result.project);
       }
     } finally {
       if (token === this.operationToken) this.activityState.set('idle');

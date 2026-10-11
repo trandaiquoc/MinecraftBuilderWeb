@@ -953,7 +953,7 @@ describe('BlockRuleEngine', () => {
     const selection = new SelectionService();
     const history = new HistoryService(workspace);
     const library = new BlockLibraryService(active);
-    workspace.project.set({
+    workspace.publishProject({
       ...base,
       blocks: [block('minecraft:oak_fence', { x: 2, y: 1, z: 2 })],
     });
@@ -973,7 +973,7 @@ describe('BlockRuleEngine', () => {
     const selection = new SelectionService();
     const history = new HistoryService(workspace);
     const library = new BlockLibraryService(active);
-    workspace.project.set({ ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 })] });
+    workspace.publishProject({ ...base, blocks: [block('minecraft:stone', { x: 2, y: 0, z: 2 })] });
     active.select(library.get('minecraft:oak_door')!);
     const editor = new StructureEditorService(workspace, active, selection, history, library);
     expect(editor.place({ x: 2, y: 1, z: 2 })).toBe(true);
@@ -1105,7 +1105,7 @@ describe('BlockRuleEngine', () => {
     const selection = new SelectionService();
     const history = new HistoryService(workspace);
     const library = new BlockLibraryService(active);
-    workspace.project.set(base);
+    workspace.publishProject(base);
     active.select(library.get('minecraft:red_bed')!);
     const editor = new StructureEditorService(workspace, active, selection, history, library);
     expect(editor.place({ x: 3, y: 1, z: 3 })).toBe(true);
@@ -1138,7 +1138,7 @@ describe('BlockRuleEngine', () => {
       { x: 2, y: 2, z: 2 },
       { facing: 'north', half: 'upper', hinge: 'left', open: 'false', powered: 'false' },
     );
-    workspace.project.set({ ...base, blocks: [lower, upper] });
+    workspace.publishProject({ ...base, blocks: [lower, upper] });
     const editor = new StructureEditorService(workspace, active, selection, history, library);
     expect(editor.updateBlockState(lower.position, 'facing', 'east')).toBe(true);
     expect(workspace.project()!.blocks.map((entry) => entry.state['facing'])).toEqual([

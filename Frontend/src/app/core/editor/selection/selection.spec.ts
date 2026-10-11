@@ -558,7 +558,7 @@ describe('voxel box selection', () => {
     const base = rendererBenchmarkProject('small');
     const project = { ...base, blocks: [base.blocks[0]] };
     const workspace = new WorkspaceStateService();
-    workspace.project.set(project);
+    workspace.publishProject(project);
     const index = new ProjectBlockRuntimeIndex();
     index.ensure(project);
     const selection = new SelectionService(index);

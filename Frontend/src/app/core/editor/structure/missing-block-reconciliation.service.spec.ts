@@ -82,7 +82,7 @@ describe('MissingBlockReconciliationService', () => {
     const hints = TestBed.inject(ProjectMutationHintService);
     const history = new HistoryService(workspace);
     const original = project();
-    workspace.project.set(original);
+    workspace.publishProject(original);
     TestBed.flushEffects();
     expect(reconciliation.activity()).toBe('running');
     await flushReconciliation();
@@ -117,7 +117,7 @@ describe('MissingBlockReconciliationService', () => {
       ],
     }).compileComponents();
     TestBed.inject(MissingBlockReconciliationService);
-    workspace.project.set(project());
+    workspace.publishProject(project());
     await flushReconciliation();
     expect(workspace.project()?.blocks[0].kind).toBe('resolved');
   });
@@ -148,9 +148,9 @@ describe('MissingBlockReconciliationService', () => {
       })),
     };
     const newer = { ...project(), id: 'newer-project', blocks: [] };
-    workspace.project.set(original);
+    workspace.publishProject(original);
     TestBed.flushEffects();
-    workspace.project.set(newer);
+    workspace.publishProject(newer);
     await new Promise((resolve) => setTimeout(resolve, 5));
     await flushReconciliation();
     expect(workspace.project()).toBe(newer);
@@ -173,7 +173,7 @@ describe('MissingBlockReconciliationService', () => {
     }).compileComponents();
     TestBed.inject(MissingBlockReconciliationService);
     const history = new HistoryService(workspace);
-    workspace.project.set(project());
+    workspace.publishProject(project());
     await flushReconciliation();
     expect(
       history.execute('Edit metadata', (before) => ({

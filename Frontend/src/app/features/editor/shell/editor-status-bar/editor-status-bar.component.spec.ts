@@ -372,7 +372,7 @@ describe('EditorStatusBarComponent Y-layer preview', () => {
         referenceLayerOpacity: 0.28,
       },
     };
-    workspace.project.set(current);
+    workspace.publishProject(current);
     mode.mode.set('y-layer');
     session.previewCurrentY(current.id, 6);
     fixture.detectChanges();
@@ -426,7 +426,7 @@ describe('EditorStatusBarComponent missing-content warning', () => {
         referenceLayerOpacity: 0.28,
       },
     };
-    workspace.project.set(project);
+    workspace.publishProject(project);
     TestBed.flushEffects();
     await new Promise((resolve) => setTimeout(resolve, 0));
     fixture.detectChanges();
@@ -493,7 +493,7 @@ describe('EditorStatusBarComponent project coordinates', () => {
       ],
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService);
-    workspace.project.set(project);
+    workspace.publishProject(project);
     return TestBed.createComponent(EditorStatusBarComponent);
   }
 

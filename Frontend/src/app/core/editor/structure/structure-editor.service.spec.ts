@@ -27,7 +27,7 @@ function makeEditor(project: ProjectDocument): {
   const hints = new ProjectMutationHintService();
   const history = new HistoryService(workspace, hints);
   const library = new BlockLibraryService(active);
-  workspace.project.set(project);
+  workspace.publishProject(project);
   return {
     editor: new StructureEditorService(workspace, active, selection, history, library),
     workspace,
@@ -723,7 +723,7 @@ describe('StructureEditorService mutations', () => {
       state: {},
     }));
     const large = { ...project, id: 'editor-100k', size: { x: 400, y: 1, z: 251 }, blocks };
-    workspace.project.set(large);
+    workspace.publishProject(large);
     active.select(library.get('minecraft:stone')!);
     const editor = new StructureEditorService(
       workspace,

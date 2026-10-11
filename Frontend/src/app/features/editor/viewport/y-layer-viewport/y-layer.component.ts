@@ -350,7 +350,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       this.engine.setEditingPlanePreviewY(y);
       return;
     }
-    this.workspace.project.set({
+    this.workspace.publishProject({
       ...project,
       editorSettings: { ...project.editorSettings, currentY: y },
     });
@@ -387,7 +387,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     if (!project || this.projectionBusy()) return;
     this.session.clearCurrentYPreview(project.id);
     if (project.editorSettings.layerVisibility === value) return;
-    this.workspace.project.set({
+    this.workspace.publishProject({
       ...project,
       editorSettings: { ...project.editorSettings, layerVisibility: value as YLayerVisibility },
     });
@@ -527,7 +527,7 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
     const project = this.workspace.project();
     if (!project) return;
     const opacity = Math.min(1, Math.max(0, Number(value)));
-    this.workspace.project.set({
+    this.workspace.publishProject({
       ...project,
       editorSettings: { ...project.editorSettings, referenceLayerOpacity: opacity },
     });

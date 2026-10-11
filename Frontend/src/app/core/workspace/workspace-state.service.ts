@@ -23,10 +23,14 @@ export interface RecoveryCandidate {
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceStateService {
-  readonly project = signal<ProjectDocument | undefined>(undefined);
-  readonly restoreStatus = signal<WorkspaceRestoreStatus>('idle');
-  readonly restoreError = signal<string | undefined>(undefined);
-  readonly recoveryCandidate = signal<RecoveryCandidate | undefined>(undefined);
+  private readonly projectState = signal<ProjectDocument | undefined>(undefined);
+  private readonly restoreStatusState = signal<WorkspaceRestoreStatus>('idle');
+  private readonly restoreErrorState = signal<string | undefined>(undefined);
+  private readonly recoveryCandidateState = signal<RecoveryCandidate | undefined>(undefined);
+  readonly project = this.projectState.asReadonly();
+  readonly restoreStatus = this.restoreStatusState.asReadonly();
+  readonly restoreError = this.restoreErrorState.asReadonly();
+  readonly recoveryCandidate = this.recoveryCandidateState.asReadonly();
   private restorePromise?: Promise<ProjectDocument | undefined>;
 
   constructor() {
@@ -60,10 +64,10 @@ export class WorkspaceStateService {
     project: ProjectDocument,
     storage: Pick<Storage, 'setItem'> | undefined = browserStorage(),
   ): void {
-    this.project.set(migrateProject(project));
-    this.restoreStatus.set('ready');
-    this.restoreError.set(undefined);
-    this.recoveryCandidate.set(undefined);
+    this.projectState.set(migrateProject(project));
+    this.restoreStatusState.set('ready');
+    this.restoreErrorState.set(undefined);
+    this.recoveryCandidateState.set(undefined);
     try {
       storage?.setItem(ACTIVE_PROJECT_KEY, project.id);
     } catch {
@@ -72,15 +76,19 @@ export class WorkspaceStateService {
   }
 
   deactivate(storage: Pick<Storage, 'removeItem'> | undefined = browserStorage()): void {
-    this.project.set(undefined);
-    this.restoreStatus.set('empty');
-    this.restoreError.set(undefined);
-    this.recoveryCandidate.set(undefined);
+    this.projectState.set(undefined);
+    this.restoreStatusState.set('empty');
+    this.restoreErrorState.set(undefined);
+    this.recoveryCandidateState.set(undefined);
     try {
       storage?.removeItem(ACTIVE_PROJECT_KEY);
     } catch {
       /* In-memory workspace is still cleared. */
     }
+  }
+
+  publishProject(project: ProjectDocument): void {
+    this.projectState.set(project);
   }
 
   isRememberedProject(
@@ -138,13 +146,13 @@ export class WorkspaceStateService {
       }
       this.activate(pending.project, this.restoreStorage);
       if (cleanupError)
-        this.restoreError.set(
+        this.restoreErrorState.set(
           cleanupError instanceof Error ? cleanupError.message : 'Recovery cleanup failed',
         );
       return pending.project;
     } catch (error) {
-      this.restoreStatus.set('recovery-error');
-      this.restoreError.set(
+      this.restoreStatusState.set('recovery-error');
+      this.restoreErrorState.set(
         error instanceof Error ? error.message : 'Unable to restore recovery data',
       );
       return undefined;
@@ -160,8 +168,8 @@ export class WorkspaceStateService {
       this.continueWithMain();
       return true;
     } catch (error) {
-      this.restoreStatus.set('recovery-error');
-      this.restoreError.set(
+      this.restoreStatusState.set('recovery-error');
+      this.restoreErrorState.set(
         error instanceof Error ? error.message : 'Unable to discard recovery data',
       );
       return false;
@@ -172,8 +180,8 @@ export class WorkspaceStateService {
     const pending = this.recoveryCandidate();
     if (pending?.mainProject) this.activate(pending.mainProject, this.restoreStorage);
     else {
-      this.recoveryCandidate.set(undefined);
-      this.restoreStatus.set('empty');
+      this.recoveryCandidateState.set(undefined);
+      this.restoreStatusState.set('empty');
     }
   }
 
@@ -186,8 +194,8 @@ export class WorkspaceStateService {
   ): Promise<ProjectDocument | undefined> {
     this.restoreStore = store;
     this.restoreStorage = storage;
-    this.restoreStatus.set('restoring');
-    this.restoreError.set(undefined);
+    this.restoreStatusState.set('restoring');
+    this.restoreErrorState.set(undefined);
     try {
       let activeId: string | null = null;
       try {
@@ -208,30 +216,30 @@ export class WorkspaceStateService {
         try {
           recovered = migrateProject(recovery.project);
         } catch (error) {
-          this.recoveryCandidate.set({
+          this.recoveryCandidateState.set({
             project: recovery.project,
             projectId: recoveryId!,
             mainProject,
             metadata: recovery.metadata,
             valid: false,
           });
-          this.restoreStatus.set('recovery-error');
-          this.restoreError.set(
+          this.restoreStatusState.set('recovery-error');
+          this.restoreErrorState.set(
             error instanceof Error ? error.message : 'Recovery data is invalid',
           );
           return undefined;
         }
         const validation = validateProject(recovered);
         if (!validation.valid) {
-          this.recoveryCandidate.set({
+          this.recoveryCandidateState.set({
             project: recovered,
             projectId: recoveryId!,
             mainProject,
             metadata: recovery.metadata,
             valid: false,
           });
-          this.restoreStatus.set('recovery-error');
-          this.restoreError.set(validation.issues.map((issue) => issue.message).join('; '));
+          this.restoreStatusState.set('recovery-error');
+          this.restoreErrorState.set(validation.issues.map((issue) => issue.message).join('; '));
           return undefined;
         }
         if (
@@ -245,23 +253,23 @@ export class WorkspaceStateService {
             /* Main is already safe; stale residue is non-blocking. */
           }
         } else {
-          this.recoveryCandidate.set({
+          this.recoveryCandidateState.set({
             project: recovered,
             projectId: recoveryId!,
             mainProject,
             metadata: recovery.metadata,
             valid: true,
           });
-          this.restoreStatus.set('recovery-pending');
+          this.restoreStatusState.set('recovery-pending');
           return undefined;
         }
       }
       if (mainProject) this.activate(mainProject, storage);
-      else this.restoreStatus.set('empty');
+      else this.restoreStatusState.set('empty');
       return mainProject;
     } catch (error) {
-      this.restoreStatus.set('error');
-      this.restoreError.set(
+      this.restoreStatusState.set('error');
+      this.restoreErrorState.set(
         error instanceof Error ? error.message : 'Unable to restore the active project',
       );
       return undefined;

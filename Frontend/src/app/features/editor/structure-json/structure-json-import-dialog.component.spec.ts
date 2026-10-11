@@ -516,7 +516,7 @@ describe('StructureJsonImportDialogComponent', () => {
     const workspace = TestBed.inject(WorkspaceStateService);
     const history = TestBed.inject(HistoryService);
     const selection = TestBed.inject(SelectionService);
-    workspace.project.set(initial);
+    workspace.publishProject(initial);
     selection.select({ x: 1, y: 1, z: 1 });
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', initial);
@@ -568,7 +568,7 @@ describe('StructureJsonImportDialogComponent', () => {
       ],
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService);
-    workspace.project.set(initial);
+    workspace.publishProject(initial);
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', initial);
     fixture.detectChanges();
@@ -620,7 +620,7 @@ describe('StructureJsonImportDialogComponent', () => {
       ],
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService);
-    workspace.project.set(initial);
+    workspace.publishProject(initial);
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', initial);
     fixture.detectChanges();
@@ -666,7 +666,7 @@ describe('StructureJsonImportDialogComponent', () => {
       ],
     }).compileComponents();
     const workspace = TestBed.inject(WorkspaceStateService);
-    workspace.project.set(initial);
+    workspace.publishProject(initial);
     const fixture = TestBed.createComponent(StructureJsonImportDialogComponent);
     fixture.componentRef.setInput('project', initial);
     fixture.detectChanges();

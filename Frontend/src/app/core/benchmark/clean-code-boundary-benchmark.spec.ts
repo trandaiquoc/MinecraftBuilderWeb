@@ -256,7 +256,7 @@ function createGroupMoveFixture(count: number): { readonly groups: GroupService 
     editorSettings: { currentY: 0, layerVisibility: 'current-only', referenceLayerOpacity: 0.28 },
   };
   const workspace = new WorkspaceStateService();
-  workspace.project.set(project);
+  workspace.publishProject(project);
   const selection = new SelectionService();
   const history = new HistoryService(workspace);
   const library = new BlockLibraryService(new ActiveBlockService());

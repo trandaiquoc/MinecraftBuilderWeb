@@ -429,7 +429,7 @@ describe('Structure JSON import plan', () => {
   it('restores the exact pre-import document with one history entry', () => {
     const workspace = new WorkspaceStateService();
     const history = new HistoryService(workspace);
-    workspace.project.set(base);
+    workspace.publishProject(base);
     const plan = planFor(source([{ id: stone.id, x: 0, y: 0, z: 0 }]), base, 'replace');
     expect(
       history.execute('Import Structure JSON', (current) =>

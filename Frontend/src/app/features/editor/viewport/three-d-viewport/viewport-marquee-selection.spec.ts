@@ -55,7 +55,7 @@ describe('3D viewport screen-space marquee interaction', () => {
     const workspace = TestBed.inject(WorkspaceStateService);
     const selection = TestBed.inject(SelectionService);
     TestBed.inject(EditorToolService).select('select');
-    workspace.project.set(project);
+    workspace.publishProject(project);
     selection.select(project.blocks[2].position);
     fixture.detectChanges();
 
@@ -113,7 +113,7 @@ describe('3D viewport screen-space marquee interaction', () => {
     const selection = TestBed.inject(SelectionService);
     TestBed.inject(EditorToolService).select('select');
     const project = rendererBenchmarkProject('small');
-    workspace.project.set(project);
+    workspace.publishProject(project);
     selection.select(project.blocks[0].position);
     fixture.detectChanges();
 
@@ -158,11 +158,11 @@ describe('3D viewport screen-space marquee interaction', () => {
     const workspace = TestBed.inject(WorkspaceStateService);
     TestBed.inject(EditorToolService).select('select');
     const firstProject = rendererBenchmarkProject('small');
-    workspace.project.set(firstProject);
+    workspace.publishProject(firstProject);
     fixture.detectChanges();
 
     dispatchPointer(host, 'pointerdown', 20, 20);
-    workspace.project.set({ ...firstProject, id: `${firstProject.id}-switch` });
+    workspace.publishProject({ ...firstProject, id: `${firstProject.id}-switch` });
     fixture.detectChanges();
     dispatchPointer(host, 'pointerup', 60, 60);
     expect(resolveMarquee).not.toHaveBeenCalled();

@@ -15,6 +15,25 @@ const project = (id: string, updatedAt: string): ProjectDocument => ({
 });
 
 describe('WorkspaceStateService', () => {
+  it('exposes workspace lifecycle state read-only and publishes project snapshots through its owner', () => {
+    const workspace = new WorkspaceStateService();
+    const views = [
+      workspace.project,
+      workspace.restoreStatus,
+      workspace.restoreError,
+      workspace.recoveryCandidate,
+    ];
+
+    for (const view of views) {
+      expect(view).not.toHaveProperty('set');
+      expect(view).not.toHaveProperty('update');
+    }
+
+    const snapshot = project('active', '2026-02-01');
+    workspace.publishProject(snapshot);
+    expect(workspace.project()).toBe(snapshot);
+  });
+
   it('remembers and restores the active IndexedDB project', async () => {
     const projects = [project('older', '2026-01-01'), project('active', '2026-02-01')];
     const store = memoryStore(projects);

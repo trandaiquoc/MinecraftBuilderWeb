@@ -27,7 +27,7 @@ describe('SelectionInspectorComponent marquee summary', () => {
     const fixture = TestBed.createComponent(SelectionInspectorComponent);
     const workspace = TestBed.inject(WorkspaceStateService);
     const selection = TestBed.inject(SelectionService);
-    workspace.project.set(project);
+    workspace.publishProject(project);
     selection.selectMarqueeLogical(
       {
         candidateBounds: { min: { x: 8, y: 0, z: 8 }, max: { x: 8, y: 28, z: 8 } },

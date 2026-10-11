@@ -80,7 +80,7 @@ function configure(
   });
   const workflow = TestBed.inject(StructureJsonImportWorkflow);
   const workspace = TestBed.inject(WorkspaceStateService);
-  workspace.project.set(project);
+  workspace.publishProject(project);
   workflow.setProject(project);
   return { workflow, workspace, history: TestBed.inject(HistoryService), dialogs };
 }

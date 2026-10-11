@@ -23,7 +23,7 @@ describe('EditorSessionService Y-layer preview', () => {
     });
     const session = TestBed.inject(EditorSessionService);
     const current = project('current', 20);
-    workspace.project.set(current);
+    workspace.publishProject(current);
 
     for (let y = 21; y <= 120; y += 1) session.previewCurrentY(current.id, y);
 

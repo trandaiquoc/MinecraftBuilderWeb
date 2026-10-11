@@ -19,7 +19,7 @@ describe('history transactions', () => {
     };
     const workspace = new WorkspaceStateService();
     const service = new HistoryService(workspace);
-    workspace.project.set(project);
+    workspace.publishProject(project);
     expect(service.canUndo()).toBe(false);
     expect(service.canRedo()).toBe(false);
     expect(
@@ -60,7 +60,7 @@ describe('history transactions', () => {
     };
     const workspace = new WorkspaceStateService();
     const service = new HistoryService(workspace);
-    workspace.project.set(project);
+    workspace.publishProject(project);
     expect(
       service.execute('negative block', (current) => ({
         ...current,
@@ -108,7 +108,7 @@ describe('history transactions', () => {
     const workspace = new WorkspaceStateService();
     const hints = new ProjectMutationHintService();
     const service = new HistoryService(workspace, hints);
-    workspace.project.set(project);
+    workspace.publishProject(project);
     const block: ProjectDocument['blocks'][number] = {
       kind: 'resolved',
       id: 'minecraft:stone',

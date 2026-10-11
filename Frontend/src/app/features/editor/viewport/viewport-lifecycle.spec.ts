@@ -115,7 +115,7 @@ describe('editor viewport engine teardown', () => {
     fixture.detectChanges();
     const project = rendererBenchmarkProject('small');
     const provider = { dispose: vi.fn() } as never;
-    TestBed.inject(WorkspaceStateService).project.set(project);
+    TestBed.inject(WorkspaceStateService).publishProject(project);
     assets.visualProvider.set(provider);
     const retry = vi.spyOn(TestBed.inject(ViewportPreparationScheduler), 'retry');
     const notify = publishTerminal!;
