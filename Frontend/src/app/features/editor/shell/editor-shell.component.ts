@@ -36,6 +36,7 @@ import { KeyboardBindingService } from '../../../core/editor/input/keyboard-bind
 import { QuickBlockBarService } from '../../../core/editor/quick-bar/quick-block-bar.service';
 import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
 import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
+import { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { EditorLayoutPreferencesService } from '../../../core/ui/preferences/editor-layout-preferences.service';
 import { GroupMovePanelSession } from './group-move/group-move-panel-session';
@@ -57,7 +58,6 @@ import { EditorStatusBarComponent } from './editor-status-bar/editor-status-bar.
 import { ShortcutsHelpDialogComponent } from '../settings/shortcuts-help/shortcuts-help-dialog.component';
 import { AssetManagerDialogComponent } from '../tools/asset-manager/asset-manager-dialog.component';
 import { ProjectDiagnosticsDialogComponent } from '../tools/diagnostics/project-diagnostics-dialog.component';
-import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 import { StructureJsonExportDialogComponent } from '../structure-json/structure-json-export-dialog.component';
 import { StructureJsonImportDialogComponent } from '../structure-json/structure-json-import-dialog.component';
 import { StructureNbtExportDialogComponent } from '../minecraft-structure-export/structure-nbt-export-dialog.component';
@@ -135,7 +135,7 @@ export class EditorShellComponent implements OnDestroy {
   private readonly editor = inject(StructureEditorService);
   private readonly router = inject(Router);
   private readonly library = inject(BlockLibraryService);
-  private readonly session = inject(EditorSessionService);
+  private readonly projectDeletion = inject(ProjectDeletionService);
   private readonly threeDViewport = viewChild(ViewportComponent);
   private readonly yLayerViewport = viewChild(YLayerComponent);
   protected readonly selectedDecoration = this.decorations.selected;
@@ -438,25 +438,42 @@ export class EditorShellComponent implements OnDestroy {
     const name = project.metadata.name;
     this.deletingProject.set(true);
     try {
-      const confirmed = await this.dialogs.confirm({
-        title: this.i18n.t('deleteProjectTitle'),
-        text: this.i18n.t('deleteProjectText').replace('{name}', name),
-        confirmButtonText: this.i18n.t('deleteProjectConfirm'),
-        cancelButtonText: this.i18n.t('cancel'),
-        icon: 'warning',
-        destructive: true,
-      });
-      if (!confirmed) return;
-      await this.autosave.deleteProject(project.id);
-      this.session.clearActiveProject();
-      this.workspace.deactivate();
-      await this.dialogs.success(this.i18n.t('deleteProjectSuccess'));
-      await this.router.navigateByUrl('/');
-    } catch {
-      await this.dialogs.error(
-        this.i18n.t('deleteProjectError'),
-        this.i18n.t('deleteProjectError'),
-      );
+      try {
+        const confirmed = await this.dialogs.confirm({
+          title: this.i18n.t('deleteProjectTitle'),
+          text: this.i18n.t('deleteProjectText').replace('{name}', name),
+          confirmButtonText: this.i18n.t('deleteProjectConfirm'),
+          cancelButtonText: this.i18n.t('cancel'),
+          icon: 'warning',
+          destructive: true,
+        });
+        if (!confirmed) return;
+        await this.projectDeletion.deleteProject(project.id);
+      } catch {
+        await this.dialogs.error(
+          this.i18n.t('deleteProjectError'),
+          this.i18n.t('deleteProjectError'),
+        );
+        return;
+      }
+
+      try {
+        await this.dialogs.success(this.i18n.t('deleteProjectSuccess'));
+      } catch {
+        // A notice failure must not prevent leaving an already-deleted project.
+      }
+      try {
+        if (await this.router.navigateByUrl('/')) return;
+        await this.dialogs.warning(
+          this.i18n.t('deleteProjectSuccess'),
+          this.i18n.t('deleteProjectNavigationError'),
+        );
+      } catch {
+        await this.dialogs.warning(
+          this.i18n.t('deleteProjectSuccess'),
+          this.i18n.t('deleteProjectNavigationError'),
+        );
+      }
     } finally {
       this.deletingProject.set(false);
     }

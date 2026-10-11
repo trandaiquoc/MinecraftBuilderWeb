@@ -1,6 +1,6 @@
 import type { Router } from '@angular/router';
 import type { ProjectDocument } from '../../../core/domain/project.types';
-import type { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
+import type { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
 import type {
   ProjectStore,
   ProjectSummary,
@@ -73,7 +73,7 @@ describe('ProjectScreenWorkflow', () => {
     resetForProjectChange: ReturnType<typeof vi.fn>;
     clearActiveProject: ReturnType<typeof vi.fn>;
   };
-  let autosave: { deleteProject: ReturnType<typeof vi.fn> };
+  let projectDeletion: { deleteProject: ReturnType<typeof vi.fn> };
   let router: { navigateByUrl: ReturnType<typeof vi.fn> };
   let dialogs: {
     confirm: ReturnType<typeof vi.fn>;
@@ -113,7 +113,7 @@ describe('ProjectScreenWorkflow', () => {
       resetForProjectChange: vi.fn(),
       clearActiveProject: vi.fn(),
     };
-    autosave = { deleteProject: vi.fn(async () => undefined) };
+    projectDeletion = { deleteProject: vi.fn(async () => undefined) };
     router = { navigateByUrl: vi.fn(async () => true) };
     dialogs = {
       confirm: vi.fn(async () => true),
@@ -125,11 +125,11 @@ describe('ProjectScreenWorkflow', () => {
       store,
       workspace as unknown as WorkspaceStateService,
       session as unknown as EditorSessionService,
-      autosave as unknown as ProjectAutosaveService,
       router as unknown as Router,
       dialogs as unknown as DialogService,
       i18n as I18nService,
       errorHandler as unknown as ErrorHandler,
+      projectDeletion as unknown as ProjectDeletionService,
     );
   });
 
@@ -183,32 +183,31 @@ describe('ProjectScreenWorkflow', () => {
     await workflow.deleteProject(summaryFor(existingProject));
 
     expect(dialogs.confirm).toHaveBeenCalledOnce();
+    expect(projectDeletion.deleteProject).not.toHaveBeenCalled();
     expect(store.delete).not.toHaveBeenCalled();
     expect(workflow.projects()).toEqual([summaryFor(existingProject)]);
     expect(workflow.deletingProjectIds().size).toBe(0);
   });
 
-  it('uses autosave and clears the active workspace when deleting the current project', async () => {
+  it('delegates confirmed project deletion to the shared lifecycle owner', async () => {
     workspace.project.mockReturnValue(existingProject);
     await workflow.loadProjects();
 
     await workflow.deleteProject(summaryFor(existingProject));
 
-    expect(autosave.deleteProject).toHaveBeenCalledWith(existingProject.id);
+    expect(projectDeletion.deleteProject).toHaveBeenCalledWith(existingProject.id);
     expect(store.delete).not.toHaveBeenCalled();
-    expect(session.clearActiveProject).toHaveBeenCalledOnce();
-    expect(workspace.deactivate).toHaveBeenCalledOnce();
     expect(workflow.projects()).toEqual([]);
   });
 
-  it('clears remembered-project state only after successful deletion', async () => {
-    workspace.isRememberedProject.mockReturnValue(true);
+  it('keeps the project row when the shared deletion owner reports a storage failure', async () => {
+    projectDeletion.deleteProject.mockRejectedValue(new Error('storage failed'));
     await workflow.loadProjects();
 
     await workflow.deleteProject(summaryFor(existingProject));
 
-    expect(store.delete).toHaveBeenCalledWith(existingProject.id);
-    expect(workspace.clearRememberedProject).toHaveBeenCalledWith(existingProject.id);
+    expect(workflow.projects()).toEqual([summaryFor(existingProject)]);
+    expect(workflow.deleteError()).toBe('deleteProjectError');
     expect(workspace.deactivate).not.toHaveBeenCalled();
   });
 

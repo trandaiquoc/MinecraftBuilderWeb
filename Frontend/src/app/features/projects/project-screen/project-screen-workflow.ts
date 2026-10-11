@@ -15,7 +15,7 @@ import { validateProject } from '../../../core/domain/validation';
 import { EditorSessionService } from '../../../core/editor/state/editor-session.service';
 import { DialogService } from '../../../core/ui/dialog/dialog.service';
 import { I18nService } from '../../../core/ui/localization/i18n.service';
-import { ProjectAutosaveService } from '../../../core/persistence/autosave/project-autosave.service';
+import { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
 import { ProjectPersistenceService } from '../../../core/persistence/project-persistence.service';
 import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
 import type {
@@ -57,11 +57,11 @@ export class ProjectScreenWorkflow implements OnDestroy {
     @Inject(PROJECT_STORE) store: ProjectStore,
     private readonly workspace: WorkspaceStateService,
     private readonly session: EditorSessionService,
-    private readonly autosave: ProjectAutosaveService,
     private readonly router: Router,
     private readonly dialogs: DialogService,
     private readonly i18n: I18nService,
     private readonly errorHandler: ErrorHandler,
+    private readonly projectDeletion: ProjectDeletionService,
   ) {
     this.persistence = new ProjectPersistenceService(store);
   }
@@ -175,8 +175,6 @@ export class ProjectScreenWorkflow implements OnDestroy {
 
     this.projectDeletionsInProgress.update((ids) => new Set(ids).add(summary.id));
     this.projectDeleteError.set(undefined);
-    const isCurrentProject = this.workspace.project()?.id === summary.id;
-    const isRememberedProject = this.workspace.isRememberedProject(summary.id);
     try {
       const confirmed = await this.dialogs.confirm({
         title: this.i18n.t('deleteProjectTitle'),
@@ -188,15 +186,8 @@ export class ProjectScreenWorkflow implements OnDestroy {
       });
       if (!confirmed) return;
 
-      if (isCurrentProject) await this.autosave.deleteProject(summary.id);
-      else await this.persistence.delete(summary.id);
+      await this.projectDeletion.deleteProject(summary.id);
       this.projectList.update((items) => items.filter((item) => item.id !== summary.id));
-      if (isCurrentProject) {
-        this.session.clearActiveProject();
-        this.workspace.deactivate();
-      } else if (isRememberedProject) {
-        this.workspace.clearRememberedProject(summary.id);
-      }
     } catch {
       this.projectDeleteError.set(this.i18n.t('deleteProjectError'));
     } finally {

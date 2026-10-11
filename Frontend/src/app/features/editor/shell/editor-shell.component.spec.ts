@@ -10,10 +10,13 @@ import { StructureEditorService } from '../../../core/editor/structure/structure
 import { HistoryService } from '../../../core/editor/history/history.service';
 import { ProjectDocument } from '../../../core/domain/project.types';
 import { EditorModeService } from '../../../core/editor/state/editor-mode.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { UiPreferencesService } from '../../../core/ui/preferences/ui-preferences.service';
 import { IndexedDbProjectStore } from '../../../core/persistence/project-store/indexeddb-project-store';
 import { PROJECT_STORE } from '../../../core/persistence/project-store/project-store.token';
+import { DialogService } from '../../../core/ui/dialog/dialog.service';
+import { ProjectDeletionService } from '../../../core/persistence/project-deletion.service';
+import { I18nService } from '../../../core/ui/localization/i18n.service';
 
 const project: ProjectDocument = {
   schemaVersion: 3,
@@ -99,6 +102,35 @@ describe('editor shell movement/delete routing', () => {
     expect(shell.structureNbtExportOpen()).toBe(true);
     shell.closeStructureNbtExport();
     expect(shell.structureNbtExportOpen()).toBe(false);
+    fixture.destroy();
+  });
+
+  it('does not delete on cancellation and reports navigation failure after successful deletion', async () => {
+    const fixture = TestBed.createComponent(EditorShellComponent);
+    const shell = fixture.componentInstance as unknown as { deleteProject: () => Promise<void> };
+    const workspace = TestBed.inject(WorkspaceStateService);
+    const dialogs = TestBed.inject(DialogService);
+    const router = TestBed.inject(Router);
+    const deletion = TestBed.inject(ProjectDeletionService);
+    const i18n = TestBed.inject(I18nService);
+    const confirm = vi.spyOn(dialogs, 'confirm').mockResolvedValue(false);
+    const deleteProject = vi.spyOn(deletion, 'deleteProject').mockResolvedValue(undefined);
+
+    workspace.activate(project, undefined);
+    await shell.deleteProject();
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(deleteProject).not.toHaveBeenCalled();
+
+    confirm.mockResolvedValue(true);
+    vi.spyOn(dialogs, 'success').mockResolvedValue(false);
+    const warning = vi.spyOn(dialogs, 'warning').mockResolvedValue(false);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(false);
+    await shell.deleteProject();
+
+    expect(deleteProject).toHaveBeenCalledWith(project.id);
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning.mock.calls[0][1]).toBe(i18n.t('deleteProjectNavigationError'));
     fixture.destroy();
   });
 

@@ -522,6 +522,8 @@ export const translations = {
     deletingProject: 'Deleting project…',
     deleteProjectSuccess: 'Project deleted',
     deleteProjectError: 'The project could not be deleted. It remains open.',
+    deleteProjectNavigationError:
+      'The project was deleted, but the project screen could not be opened.',
     deleteProjectConfirm: 'Delete',
     importProjectPackage: 'Import Project Backup…',
     exportProjectPackage: 'Export Project Backup…',
@@ -1229,6 +1231,7 @@ export const translations = {
     deletingProject: 'Đang xóa dự án…',
     deleteProjectSuccess: 'Đã xóa dự án',
     deleteProjectError: 'Không thể xóa dự án. Dự án vẫn đang mở.',
+    deleteProjectNavigationError: 'Đã xóa dự án nhưng không thể mở màn hình dự án.',
     deleteProjectConfirm: 'Xóa',
     importProjectPackage: 'Nhập bản sao lưu dự án…',
     exportProjectPackage: 'Xuất bản sao lưu dự án…',
