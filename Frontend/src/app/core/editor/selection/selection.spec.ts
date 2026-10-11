@@ -12,6 +12,8 @@ import {
 } from './selection';
 import { SelectionService } from './selection.service';
 import { rendererBenchmarkProject } from '../../renderer/benchmark/renderer-benchmark-fixtures';
+import { ProjectBlockRuntimeIndex } from '../runtime/project-block-runtime-index';
+import type { BlockDefinition } from '../../blocks/catalog/block-definition.types';
 
 describe('voxel box selection', () => {
   it('normalizes inclusive integer corners and counts its size', () => {
@@ -136,5 +138,159 @@ describe('voxel box selection', () => {
     );
     expect(service.selectedBlocks(project).every((block) => block.position.x < 2)).toBe(true);
     expect(service.selectedBlocks(project).length).toBeGreaterThan(0);
+  });
+
+  it('counts the inspector box through the existing layer index without revisiting the block array', () => {
+    let prohibitIteration = false;
+    const blocks = new Proxy(
+      [
+        {
+          kind: 'resolved' as const,
+          id: 'stone',
+          namespace: 'minecraft',
+          position: { x: 1, y: 0, z: 1 },
+          state: {},
+        },
+        {
+          kind: 'resolved' as const,
+          id: 'dirt',
+          namespace: 'minecraft',
+          position: { x: 2, y: 1, z: 1 },
+          state: {},
+        },
+        {
+          kind: 'resolved' as const,
+          id: 'stone',
+          namespace: 'minecraft',
+          position: { x: 3, y: 1, z: 2 },
+          state: {},
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (prohibitIteration && property === Symbol.iterator)
+            throw new Error('box count must use the resident index');
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const project = {
+      ...rendererBenchmarkProject('small'),
+      blocks,
+    };
+    const index = new ProjectBlockRuntimeIndex();
+    const service = new SelectionService(index);
+    index.ensure(project);
+    const rebuilds = index.rebuildCount;
+    prohibitIteration = true;
+
+    const count = service.countInBox(project, {
+      min: { x: 2, y: 1, z: 1 },
+      max: { x: 2, y: 1, z: 1 },
+    });
+
+    expect(count).toBe(1);
+    expect(index.rebuildCount).toBe(rebuilds);
+  });
+
+  it('selects box seeds and logical closure from the existing index after project indexing', () => {
+    let prohibitScans = false;
+    const blocks = new Proxy(
+      [
+        {
+          kind: 'resolved' as const,
+          id: 'example:door',
+          namespace: 'example',
+          position: { x: 2, y: 1, z: 1 },
+          state: { half: 'lower' },
+        },
+        {
+          kind: 'resolved' as const,
+          id: 'example:door',
+          namespace: 'example',
+          position: { x: 2, y: 2, z: 1 },
+          state: { half: 'upper' },
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (
+            prohibitScans &&
+            (property === Symbol.iterator || property === 'filter' || property === 'map')
+          )
+            throw new Error('box selection must use the resident block index');
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const project = { ...rendererBenchmarkProject('small'), blocks };
+    const index = new ProjectBlockRuntimeIndex();
+    index.ensure(project);
+    const rebuilds = index.rebuildCount;
+    const service = new SelectionService(index);
+    const door = {
+      behavior: { kind: 'double-height', halfProperty: 'half', requiresFloor: true },
+    } as BlockDefinition;
+    prohibitScans = true;
+
+    service.selectBoxLogical(
+      { min: { x: 2, y: 1, z: 1 }, max: { x: 2, y: 1, z: 1 } },
+      project,
+      (id) => (id === 'example:door' ? door : undefined),
+    );
+
+    expect(service.logicalPositions()).toEqual([
+      { x: 2, y: 1, z: 1 },
+      { x: 2, y: 2, z: 1 },
+    ]);
+    expect(index.rebuildCount).toBe(rebuilds);
+  });
+
+  it('uses indexed neighbor occupancy for face-locked selection and ignores hidden neighbors', () => {
+    let prohibitScans = false;
+    const blocks = new Proxy(
+      [
+        {
+          kind: 'resolved' as const,
+          id: 'minecraft:stone',
+          namespace: 'minecraft',
+          position: { x: 2, y: 1, z: 1 },
+          state: {},
+        },
+        {
+          kind: 'resolved' as const,
+          id: 'minecraft:stone',
+          namespace: 'minecraft',
+          position: { x: 2, y: 1, z: 2 },
+          state: {},
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (
+            prohibitScans &&
+            (property === Symbol.iterator || property === 'filter' || property === 'map')
+          )
+            throw new Error('face selection must use indexed occupancy');
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const project = { ...rendererBenchmarkProject('small'), blocks };
+    const index = new ProjectBlockRuntimeIndex();
+    index.ensure(project);
+    const service = new SelectionService(index);
+    prohibitScans = true;
+
+    service.selectSurfaceBoxLogical(
+      { min: { x: 2, y: 1, z: 1 }, max: { x: 2, y: 1, z: 1 } },
+      { x: 0, y: 0, z: 1 },
+      project,
+      () => undefined,
+      (block) => block.position.z === 1,
+    );
+
+    expect(service.logicalPositions()).toEqual([{ x: 2, y: 1, z: 1 }]);
+    expect(index.rebuildCount).toBe(1);
   });
 });

@@ -20,14 +20,25 @@ export function visibleBlockEntries(
     query.layerY === undefined || !query.visibility
       ? project.blocks
       : blocksForLayers(project.blocks, query.layerY, query.visibility, query.layerIndex);
-  const isolatedKeys = new Set(
-    query.isolatedGroupPositions?.map((position) => coordinateKey(position)),
-  );
-  return layered.filter(
-    (block) =>
-      isBlockVisible(block, project.groups) &&
-      (!query.isolatedGroupId || isolatedKeys.has(coordinateKey(block.position))),
-  );
+  const isVisible = createBlockVisibilityPredicate(project, query);
+  return layered.filter(isVisible);
+}
+
+/** Creates one query-scoped predicate without scanning or allocating for project blocks. */
+export function createBlockVisibilityPredicate(
+  project: ProjectDocument,
+  query: VisibleBlockQuery = {},
+): (block: PlacedBlock) => boolean {
+  const isolatedKeys = query.isolatedGroupId
+    ? new Set(query.isolatedGroupPositions?.map((position) => coordinateKey(position)))
+    : undefined;
+  return (block) =>
+    isBlockVisibleWithIsolation(
+      block,
+      project,
+      query,
+      (position) => isolatedKeys?.has(coordinateKey(position)) ?? false,
+    );
 }
 
 /** Evaluates one voxel without scanning the project's block array. */
@@ -36,20 +47,15 @@ export function isBlockVisibleForViewport(
   project: ProjectDocument,
   query: VisibleBlockQuery = {},
 ): boolean {
-  if (!isBlockVisible(block, project.groups)) return false;
-  if (
-    query.layerY !== undefined &&
-    query.visibility &&
-    !visibleLayerSetForBlock(block, query.layerY, query.visibility)
-  )
-    return false;
-  if (query.isolatedGroupId) {
-    const isolated = query.isolatedGroupPositions?.some(
-      (position) => coordinateKey(position) === coordinateKey(block.position),
-    );
-    if (!isolated) return false;
-  }
-  return true;
+  return isBlockVisibleWithIsolation(
+    block,
+    project,
+    query,
+    (position) =>
+      query.isolatedGroupPositions?.some(
+        (candidate) => coordinateKey(candidate) === coordinateKey(position),
+      ) ?? false,
+  );
 }
 
 export function visibleBlockKeys(
@@ -78,4 +84,19 @@ function visibleLayerSetForBlock(
     case 'whole-structure':
       return true;
   }
+}
+
+function isBlockVisibleWithIsolation(
+  block: PlacedBlock,
+  project: ProjectDocument,
+  query: VisibleBlockQuery,
+  isIsolated: (position: VoxelCoordinate) => boolean,
+): boolean {
+  return (
+    isBlockVisible(block, project.groups) &&
+    (query.layerY === undefined ||
+      !query.visibility ||
+      visibleLayerSetForBlock(block, query.layerY, query.visibility)) &&
+    (!query.isolatedGroupId || isIsolated(block.position))
+  );
 }

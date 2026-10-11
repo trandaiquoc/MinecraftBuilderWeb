@@ -105,6 +105,27 @@ export function exposedSurfaceSelectionSeeds<T extends { readonly position: Voxe
   );
 }
 
+/** Selects exposed candidates using point lookups instead of rebuilding occupancy from all blocks. */
+export function exposedSurfaceSelectionSeedsFromLookup<
+  T extends { readonly position: VoxelCoordinate },
+>(
+  candidates: readonly T[],
+  blockAt: (position: VoxelCoordinate) => T | undefined,
+  box: VoxelBox,
+  normal: FaceNormal,
+  isVisible: (block: T) => boolean = () => true,
+): readonly T[] {
+  return candidates.filter((block) => {
+    if (!isVisible(block) || !voxelInBox(block.position, box)) return false;
+    const neighbor = blockAt({
+      x: block.position.x + Math.sign(normal.x),
+      y: block.position.y + Math.sign(normal.y),
+      z: block.position.z + Math.sign(normal.z),
+    });
+    return !neighbor || !isVisible(neighbor);
+  });
+}
+
 export function normalizeVoxelBox(a: VoxelCoordinate, b: VoxelCoordinate): VoxelBox {
   return {
     min: {

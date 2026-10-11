@@ -39,8 +39,7 @@ import { WorkspaceStateService } from '../../../../core/workspace/workspace-stat
 import { ContentAssetRuntimeService } from '../../../../core/assets/content-asset-runtime.service';
 import { I18nService } from '../../../../core/ui/localization/i18n.service';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
-import { coordinateKey } from '../../../../core/domain/coordinates';
-import { visibleBlockEntries } from '../../../../core/editor/viewport/visible-blocks';
+import { createBlockVisibilityPredicate } from '../../../../core/editor/viewport/visible-blocks';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
 import { KeyboardBindingService } from '../../../../core/editor/input/keyboard-binding.service';
@@ -472,18 +471,16 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
       if (project && cornerEnd) {
         const box = clampVoxelBox(normalizeVoxelBox(faceDragStart.block, cornerEnd), project.size);
         if (box) {
-          const visibleKeys = new Set(
-            visibleBlockEntries(project, {
-              isolatedGroupId: this.groups.isolatedGroupId(),
-              isolatedGroupPositions: this.groups.isolatedGroupPositions(),
-            }).map((block) => coordinateKey(block.position)),
-          );
+          const isVisible = createBlockVisibilityPredicate(project, {
+            isolatedGroupId: this.groups.isolatedGroupId(),
+            isolatedGroupPositions: this.groups.isolatedGroupPositions(),
+          });
           this.selection.selectSurfaceBoxLogical(
             box,
             faceDragStart.normal,
             project,
             (id) => this.library.get(id),
-            (block) => visibleKeys.has(coordinateKey(block.position)),
+            isVisible,
           );
         }
       }
@@ -507,18 +504,11 @@ export class ViewportComponent implements AfterViewInit, OnDestroy {
           project.size,
         );
         if (box) {
-          const visibleKeys = new Set(
-            visibleBlockEntries(project, {
-              isolatedGroupId: this.groups.isolatedGroupId(),
-              isolatedGroupPositions: this.groups.isolatedGroupPositions(),
-            }).map((block) => coordinateKey(block.position)),
-          );
-          this.selection.selectBoxLogical(
-            box,
-            project,
-            (id) => this.library.get(id),
-            (block) => visibleKeys.has(coordinateKey(block.position)),
-          );
+          const isVisible = createBlockVisibilityPredicate(project, {
+            isolatedGroupId: this.groups.isolatedGroupId(),
+            isolatedGroupPositions: this.groups.isolatedGroupPositions(),
+          });
+          this.selection.selectBoxLogical(box, project, (id) => this.library.get(id), isVisible);
         }
       }
       return;

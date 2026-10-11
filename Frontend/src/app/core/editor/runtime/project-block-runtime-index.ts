@@ -9,6 +9,7 @@ import type {
 import type { ReadonlyBlockLookup } from '../../domain/project-block-spatial-index';
 import type { ProjectMutationHint } from '../mutations/project-mutation-hint';
 import { groupIdsOf } from '../groups/group-membership';
+import type { VoxelBox } from '../selection/selection';
 
 export interface ProjectBlockUsageEntry {
   readonly id: string;
@@ -226,6 +227,29 @@ export class ProjectBlockRuntimeIndex implements ReadonlyBlockLookup {
   }
   blockCountAtY(y: number): number {
     return this.blocksByY.get(y)?.size ?? 0;
+  }
+  blocksInBox(box: VoxelBox): readonly PlacedBlock[] {
+    const blocks: PlacedBlock[] = [];
+    this.visitBlocksInBox(box, (block) => blocks.push(block));
+    return blocks;
+  }
+  countBlocksInBox(box: VoxelBox): number {
+    let count = 0;
+    this.visitBlocksInBox(box, () => count++);
+    return count;
+  }
+  private visitBlocksInBox(box: VoxelBox, visit: (block: PlacedBlock) => void): void {
+    for (const [y, layer] of this.blocksByY) {
+      if (y < box.min.y || y > box.max.y) continue;
+      for (const block of layer.values())
+        if (
+          block.position.x >= box.min.x &&
+          block.position.x <= box.max.x &&
+          block.position.z >= box.min.z &&
+          block.position.z <= box.max.z
+        )
+          visit(block);
+    }
   }
   blockCountAtYForPresentation(
     y: number,

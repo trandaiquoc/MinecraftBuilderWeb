@@ -47,6 +47,7 @@ import {
 import { ViewportSessionOwner } from '../shared/viewport-session-owner';
 import { ViewportHydrationStatusService } from '../../../../core/editor/state/viewport-hydration-status.service';
 import { ProjectBlockRuntimeIndex } from '../../../../core/editor/runtime/project-block-runtime-index';
+import { createBlockVisibilityPredicate } from '../../../../core/editor/viewport/visible-blocks';
 import { UiPreferencesService } from '../../../../core/ui/preferences/ui-preferences.service';
 import { DecorationService } from '../../../../core/decorations/decoration.service';
 import { decorationAabb } from '../../../../core/decorations/placement/decoration-placement';
@@ -511,7 +512,13 @@ export class YLayerComponent implements AfterViewInit, OnDestroy {
       const hit = this.engine.hit(event, project, this.active.active(), this.committedY(), false);
       if (project && hit.target) {
         const box = clampVoxelBox(normalizeVoxelBox(cornerStart, hit.target), project.size);
-        if (box) this.selection.selectBoxLogical(box, project, (id) => this.library.get(id));
+        if (box) {
+          const isVisible = createBlockVisibilityPredicate(project, {
+            isolatedGroupId: this.groups.isolatedGroupId(),
+            isolatedGroupPositions: this.groups.isolatedGroupPositions(),
+          });
+          this.selection.selectBoxLogical(box, project, (id) => this.library.get(id), isVisible);
+        }
       }
       return;
     }

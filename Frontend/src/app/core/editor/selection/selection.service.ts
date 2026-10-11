@@ -5,7 +5,7 @@ import {
   resolveLogicalObjectPartsFromLookup,
 } from '../../block-behavior/logical-objects/logical-object';
 import { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
-import { VoxelBox, exposedSurfaceSelectionSeeds, voxelInBox } from './selection';
+import { VoxelBox, exposedSurfaceSelectionSeedsFromLookup, voxelInBox } from './selection';
 import type { FaceNormal } from '../placement/placement';
 import {
   defaultProjectBlockRuntimeIndex,
@@ -74,10 +74,9 @@ export class SelectionService {
     definition: (id: string) => BlockDefinition | undefined,
     isVisible: (block: PlacedBlock) => boolean = () => true,
   ): void {
-    const seeds = project.blocks.filter(
-      (block) => isVisible(block) && voxelInBox(block.position, box),
-    );
-    const closure = expandLogicalObjectClosure(project.blocks, seeds, definition);
+    this.runtimeIndex.ensure(project);
+    const seeds = this.runtimeIndex.blocksInBox(box).filter(isVisible);
+    const closure = expandLogicalObjectClosure(this.runtimeIndex, seeds, definition);
     const logicalPositions =
       seeds.length > DETAILED_SELECTION_LIMIT
         ? closure
@@ -99,11 +98,18 @@ export class SelectionService {
     definition: (id: string) => BlockDefinition | undefined,
     isVisible: (block: PlacedBlock) => boolean = () => true,
   ): void {
-    const seeds = exposedSurfaceSelectionSeeds(project.blocks, box, normal, isVisible);
+    this.runtimeIndex.ensure(project);
+    const seeds = exposedSurfaceSelectionSeedsFromLookup(
+      this.runtimeIndex.blocksInBox(box),
+      (position) => this.runtimeIndex.get(position),
+      box,
+      normal,
+      isVisible,
+    );
     this.single.set(undefined);
     this.box.set({ min: { ...box.min }, max: { ...box.max } });
     this.logicalPositions.set(
-      expandLogicalObjectClosure(project.blocks, seeds, definition).map((block) => ({
+      expandLogicalObjectClosure(this.runtimeIndex, seeds, definition).map((block) => ({
         ...block.position,
       })),
     );
@@ -197,6 +203,10 @@ export class SelectionService {
   count(project?: ProjectDocument): number {
     if (!project) return this.logicalPositions().length;
     return this.selectedBlocks(project).length;
+  }
+  countInBox(project: ProjectDocument, box: VoxelBox): number {
+    this.runtimeIndex.ensure(project);
+    return this.runtimeIndex.countBlocksInBox(box);
   }
   bounds(project?: ProjectDocument): VoxelBox | undefined {
     const kind = this.kind();

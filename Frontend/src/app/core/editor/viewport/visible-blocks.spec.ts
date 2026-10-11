@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectDocument, PlacedBlock } from '../../domain/project.types';
-import { visibleBlockEntries, visibleBlockKeys } from './visible-blocks';
+import {
+  createBlockVisibilityPredicate,
+  visibleBlockEntries,
+  visibleBlockKeys,
+} from './visible-blocks';
 
 function project(
   blocks: readonly PlacedBlock[],
@@ -74,6 +78,20 @@ describe('authoritative visible block query', () => {
       }).map((entry) => entry.id),
     ).toEqual(['minecraft:stone']);
     expect(current.blocks).toHaveLength(4);
+  });
+
+  it('creates an equivalent group/isolation predicate without materializing all visible keys', () => {
+    const current = project(blocks, groups);
+    const query = {
+      isolatedGroupId: 'kept',
+      isolatedGroupPositions: [{ x: 2, y: 3, z: 0 }],
+    };
+    const predicate = createBlockVisibilityPredicate(current, query);
+
+    expect(current.blocks.filter(predicate)).toEqual(visibleBlockEntries(current, query));
+    expect(current.blocks.filter(predicate).map((entry) => entry.position)).toEqual([
+      { x: 2, y: 3, z: 0 },
+    ]);
   });
 
   it('scales to a 20k coordinate set without changing key semantics', () => {

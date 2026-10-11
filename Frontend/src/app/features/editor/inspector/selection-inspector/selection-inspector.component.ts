@@ -20,7 +20,6 @@ import { verifiedInventoryContainerSchema } from '../../../../core/block-entitie
 import { isBlockLocked } from '../../../../core/editor/groups/group-membership';
 import { InventoryStorageInspectorComponent } from '../inventory-storage-inspector/inventory-storage-inspector.component';
 import { DecoratedPotInspectorComponent } from '../decorated-pot-inspector/decorated-pot-inspector.component';
-import type { ProjectDocument } from '../../../../core/domain/project.types';
 import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';
 
 @Component({
@@ -46,11 +45,6 @@ export class SelectionInspectorComponent {
   private readonly blockIndex = inject(ProjectBlockRuntimeIndex);
   protected readonly stateFeedback = signal('');
   protected readonly selectedDecoration = this.decorations.selected;
-  private boxCountCache?: {
-    readonly blocks: ProjectDocument['blocks'];
-    readonly box: string;
-    readonly count: number;
-  };
   protected readonly selectedBlock = computed(() => {
     const project = this.workspace.project();
     const selected = this.selection.single();
@@ -159,20 +153,7 @@ export class SelectionInspectorComponent {
     const project = this.workspace.project();
     const box = this.selection.box();
     if (!project || !box) return 0;
-    const boxKey = `${box.min.x},${box.min.y},${box.min.z}|${box.max.x},${box.max.y},${box.max.z}`;
-    if (this.boxCountCache?.blocks === project.blocks && this.boxCountCache.box === boxKey)
-      return this.boxCountCache.count;
-    const count = project.blocks.filter(
-      (block) =>
-        block.position.x >= box.min.x &&
-        block.position.x <= box.max.x &&
-        block.position.y >= box.min.y &&
-        block.position.y <= box.max.y &&
-        block.position.z >= box.min.z &&
-        block.position.z <= box.max.z,
-    ).length;
-    this.boxCountCache = { blocks: project.blocks, box: boxKey, count };
-    return count;
+    return this.selection.countInBox(project, box);
   });
   constructor() {
     effect(() => {
