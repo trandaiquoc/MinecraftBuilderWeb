@@ -480,7 +480,7 @@ export class ViewportRuntimeTrace {
             t: Math.max(0, entry.startTime - this.startPerf),
             durationMs: entry.duration,
           });
-          this.statistics.longTaskAggregate.add(entry.duration);
+          this.statistics.recordLongTask(entry.duration);
         }
       });
       this.observer.observe({ entryTypes: ['longtask'] });

@@ -47,11 +47,11 @@ export class BoundedTraceBuffer<T> {
 }
 
 export class TraceNumericAccumulator {
-  readonly samples = new BoundedTraceBuffer<number>(256);
-  observedCount = 0;
-  total = 0;
-  min = Number.POSITIVE_INFINITY;
-  max = Number.NEGATIVE_INFINITY;
+  private readonly samples = new BoundedTraceBuffer<number>(256);
+  private observedCount = 0;
+  private total = 0;
+  private min = Number.POSITIVE_INFINITY;
+  private max = Number.NEGATIVE_INFINITY;
 
   add(value: number): void {
     if (!Number.isFinite(value)) return;
@@ -73,6 +73,16 @@ export class TraceNumericAccumulator {
       maxMs: Number.isFinite(this.max) ? this.max : undefined,
       p50Ms: percentile(values, 0.5),
       p95Ms: percentile(values, 0.95),
+    };
+  }
+
+  snapshot() {
+    return {
+      observedCount: this.observedCount,
+      total: this.total,
+      min: this.min,
+      max: this.max,
+      summary: this.summary(),
     };
   }
 
@@ -100,31 +110,25 @@ interface TraceStatisticsSample {
 
 /** Owns mutable per-run metric aggregation; recording cadence and buffers stay with the recorder. */
 export class ViewportTraceStatistics {
-  readonly durationAggregates = new Map<string, TraceNumericAccumulator>();
-  readonly heartbeatIntervals = new BoundedTraceBuffer<number>(512);
-  readonly heartbeatAggregate = new TraceNumericAccumulator();
-  heartbeatOver16_7 = 0;
-  heartbeatOver33 = 0;
-  heartbeatOver50 = 0;
-  heartbeatOver100 = 0;
-  heartbeatOver250 = 0;
-  readonly longTaskAggregate = new TraceNumericAccumulator();
-  hydrationAggregate = emptyHydrationAggregate();
-  cameraAggregate = emptyCameraAggregate();
-  renderAggregate = emptyRenderAggregate();
-  readonly lightSampleAggregate = new TraceNumericAccumulator();
-  readonly heavyCheckpointAggregate = new TraceNumericAccumulator();
-  firstCounters?: Readonly<Record<string, unknown>>;
-  lastCounters?: Readonly<Record<string, unknown>>;
+  private readonly durationAggregates = new Map<string, TraceNumericAccumulator>();
+  private readonly heartbeatIntervals = new BoundedTraceBuffer<number>(512);
+  private readonly heartbeatAggregate = new TraceNumericAccumulator();
+  private heartbeatOver16_7 = 0;
+  private heartbeatOver33 = 0;
+  private heartbeatOver50 = 0;
+  private heartbeatOver100 = 0;
+  private heartbeatOver250 = 0;
+  private readonly longTaskAggregate = new TraceNumericAccumulator();
+  private hydrationAggregate = emptyHydrationAggregate();
+  private cameraAggregate = emptyCameraAggregate();
+  private renderAggregate = emptyRenderAggregate();
+  private readonly lightSampleAggregate = new TraceNumericAccumulator();
+  private readonly heavyCheckpointAggregate = new TraceNumericAccumulator();
+  private firstCounters?: Readonly<Record<string, unknown>>;
+  private lastCounters?: Readonly<Record<string, unknown>>;
 
   snapshot() {
-    const numericSnapshot = (aggregate: TraceNumericAccumulator) => ({
-      observedCount: aggregate.observedCount,
-      total: aggregate.total,
-      min: aggregate.min,
-      max: aggregate.max,
-      summary: aggregate.summary(),
-    });
+    const numericSnapshot = (aggregate: TraceNumericAccumulator) => aggregate.snapshot();
     return {
       durationSummaries: Object.fromEntries(
         [...this.durationAggregates].map(([name, aggregate]) => [name, aggregate.summary()]),
@@ -265,6 +269,10 @@ export class ViewportTraceStatistics {
 
   recordSampleDuration(kind: 'light' | 'heavy', durationMs: number): void {
     (kind === 'heavy' ? this.heavyCheckpointAggregate : this.lightSampleAggregate).add(durationMs);
+  }
+
+  recordLongTask(durationMs: number): void {
+    this.longTaskAggregate.add(durationMs);
   }
 
   recordHeartbeat(intervalMs: number): void {

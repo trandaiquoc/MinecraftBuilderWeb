@@ -37,6 +37,7 @@ describe('viewport trace statistics', () => {
     statistics.recordHeartbeat(20);
     statistics.recordHeartbeat(40);
     statistics.recordDuration('provider.create', 12);
+    statistics.recordLongTask(18);
     statistics.recordSample(
       {
         hydration: { completed: 8, generation: 2 },
@@ -46,15 +47,18 @@ describe('viewport trace statistics', () => {
       undefined,
       false,
     );
-    expect(statistics.heartbeatAggregate.summary()).toMatchObject({ observedCount: 2, p50Ms: 30 });
-    expect(statistics.heartbeatOver16_7).toBe(2);
-    expect(statistics.durationAggregates.get('provider.create')?.summary().maxMs).toBe(12);
-    expect(statistics.firstCounters).toEqual({ actualSceneRenders: 3 });
+    const snapshot = statistics.snapshot();
+    expect(snapshot.heartbeat.summary).toMatchObject({ observedCount: 2, p50Ms: 30 });
+    expect(snapshot.heartbeat.over16_7).toBe(2);
+    expect(snapshot.durationSummaries['provider.create']?.maxMs).toBe(12);
+    expect(snapshot.longTasks.summary).toMatchObject({ observedCount: 1, maxMs: 18 });
+    expect(snapshot.firstCounters).toEqual({ actualSceneRenders: 3 });
     statistics.reset();
-    expect(statistics.heartbeatAggregate.observedCount).toBe(0);
-    expect(statistics.durationAggregates.size).toBe(0);
-    expect(statistics.firstCounters).toBeUndefined();
-    expect(statistics.hydrationAggregate.startCompleted).toBeUndefined();
+    const reset = statistics.snapshot();
+    expect(reset.heartbeat.observedCount).toBe(0);
+    expect(reset.durationSummaries).toEqual({});
+    expect(reset.firstCounters).toBeUndefined();
+    expect(reset.hydration.startCompleted).toBeUndefined();
   });
 
   it('publishes a detached report snapshot without exposing mutable accumulators', () => {
