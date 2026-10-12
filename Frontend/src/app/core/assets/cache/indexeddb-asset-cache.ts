@@ -1,8 +1,8 @@
 import {
   SerializedVanillaAssets,
   VANILLA_ASSET_CACHE_SCHEMA_VERSION,
-  VANILLA_ASSET_VERSION,
 } from '../vanilla/vanilla-asset-provider';
+import { VANILLA_ASSET_VERSION } from '../vanilla/vanilla-asset-version';
 import { EXTERNAL_MOD_CACHE_SCHEMA_VERSION } from '../mod/import/external-mod-import-contracts';
 import type { SerializedExternalMod } from '../mod/import/external-mod-import-contracts';
 import { throwIfAborted, createAbortError } from '../asset-operation-cancellation';

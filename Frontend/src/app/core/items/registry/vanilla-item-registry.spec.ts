@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import registryDocument from '../../../../../public/assets/vanilla-item-registry-1.21.1.json';
-import { parseVanillaItemRegistry } from './vanilla-item-registry';
+import { parseVanillaItemRegistry, VANILLA_ITEM_REGISTRY_URL } from './vanilla-item-registry';
+import { VANILLA_ASSET_VERSION } from '../../assets/vanilla/vanilla-asset-version';
 
 const document = {
   schemaVersion: 1,
@@ -19,6 +20,15 @@ const document = {
 } as const;
 
 describe('VanillaItemRegistry', () => {
+  it('uses the packaged Vanilla asset version for its URL and parsed metadata', () => {
+    expect(VANILLA_ITEM_REGISTRY_URL).toBe(
+      `assets/vanilla-item-registry-${VANILLA_ASSET_VERSION}.json`,
+    );
+    expect(parseVanillaItemRegistry(registryDocument).document.minecraftVersion).toBe(
+      VANILLA_ASSET_VERSION,
+    );
+  });
+
   it('parses authoritative item IDs without inventing entity IDs', () => {
     const registry = parseVanillaItemRegistry(document);
     expect(registry.get('minecraft:diamond')).toBeDefined();

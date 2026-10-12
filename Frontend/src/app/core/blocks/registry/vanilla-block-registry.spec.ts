@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { parseVanillaBlockRegistry } from './vanilla-block-registry';
+import { parseVanillaBlockRegistry, VANILLA_BLOCK_REGISTRY_URL } from './vanilla-block-registry';
 import registryDocument from '../../../../../public/assets/vanilla-block-registry-1.21.1.json';
+import { VANILLA_ASSET_VERSION } from '../../assets/vanilla/vanilla-asset-version';
 
 describe('authoritative vanilla block registry', () => {
+  it('uses the packaged Vanilla asset version for its URL and parsed metadata', () => {
+    expect(VANILLA_BLOCK_REGISTRY_URL).toBe(
+      `assets/vanilla-block-registry-${VANILLA_ASSET_VERSION}.json`,
+    );
+    expect(parseVanillaBlockRegistry(registryDocument).document.minecraftVersion).toBe(
+      VANILLA_ASSET_VERSION,
+    );
+  });
+
   it('contains every 1.21.1 block report entry with a complete default state', () => {
     const registry = parseVanillaBlockRegistry(registryDocument);
     expect(registry.all()).toHaveLength(1060);

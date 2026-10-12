@@ -35,8 +35,8 @@ import type { VanillaItemRegistry } from '../../items/registry/vanilla-item-regi
 import { yieldToBrowser } from '../cooperative-yield';
 import { throwIfAborted } from '../asset-operation-cancellation';
 import { deriveVanillaInternalBlockIds } from './vanilla-internal-content';
+import { VANILLA_ASSET_VERSION } from './vanilla-asset-version';
 
-export const VANILLA_ASSET_VERSION = '1.21.1';
 export const VANILLA_ASSET_CACHE_SCHEMA_VERSION = 3;
 const RESOURCE_PATH =
   /^assets\/[^/]+\/(?:blockstates\/.*\.json|models\/.*\.json|items\/.*\.json|textures\/.*\.(?:png|png\.mcmeta)|lang\/[^/]+\.json)$/;

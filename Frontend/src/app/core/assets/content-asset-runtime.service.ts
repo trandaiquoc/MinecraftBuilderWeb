@@ -11,8 +11,8 @@ import {
   type VanillaAssetInspectionView,
   VanillaAssetProviderDiagnostics,
   VANILLA_ASSET_CACHE_SCHEMA_VERSION,
-  VANILLA_ASSET_VERSION,
 } from './vanilla/vanilla-asset-provider';
+import { VANILLA_ASSET_VERSION } from './vanilla/vanilla-asset-version';
 import { loadVanillaBlockRegistry } from '../blocks/registry/vanilla-block-registry';
 import {
   loadVanillaItemRegistry,

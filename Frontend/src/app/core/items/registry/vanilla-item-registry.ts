@@ -1,4 +1,6 @@
-export const VANILLA_ITEM_REGISTRY_URL = 'assets/vanilla-item-registry-1.21.1.json';
+import { VANILLA_ASSET_VERSION } from '../../assets/vanilla/vanilla-asset-version';
+
+export const VANILLA_ITEM_REGISTRY_URL = `assets/vanilla-item-registry-${VANILLA_ASSET_VERSION}.json`;
 
 export interface VanillaItemRegistryEntry {
   readonly id: string;
@@ -8,7 +10,7 @@ export interface VanillaItemRegistryEntry {
 
 export interface VanillaItemRegistryDocument {
   readonly schemaVersion: 1;
-  readonly minecraftVersion: '1.21.1';
+  readonly minecraftVersion: typeof VANILLA_ASSET_VERSION;
   readonly source: string;
   readonly items: readonly VanillaItemRegistryEntry[];
 }
@@ -40,7 +42,7 @@ export function parseVanillaItemRegistry(value: unknown): VanillaItemRegistry {
   const document = record(value);
   if (
     document['schemaVersion'] !== 1 ||
-    document['minecraftVersion'] !== '1.21.1' ||
+    document['minecraftVersion'] !== VANILLA_ASSET_VERSION ||
     typeof document['source'] !== 'string' ||
     !Array.isArray(document['items'])
   )
@@ -75,7 +77,7 @@ export function parseVanillaItemRegistry(value: unknown): VanillaItemRegistry {
   });
   return new VanillaItemRegistry({
     schemaVersion: 1,
-    minecraftVersion: '1.21.1',
+    minecraftVersion: VANILLA_ASSET_VERSION,
     source: document['source'],
     items,
   });

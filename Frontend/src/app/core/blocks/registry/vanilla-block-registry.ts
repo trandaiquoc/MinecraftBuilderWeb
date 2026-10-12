@@ -1,6 +1,7 @@
 import { BlockStateDefinition, DefaultStateSource } from '../catalog/block-definition.types';
+import { VANILLA_ASSET_VERSION } from '../../assets/vanilla/vanilla-asset-version';
 
-export const VANILLA_BLOCK_REGISTRY_URL = 'assets/vanilla-block-registry-1.21.1.json';
+export const VANILLA_BLOCK_REGISTRY_URL = `assets/vanilla-block-registry-${VANILLA_ASSET_VERSION}.json`;
 
 export interface VanillaBlockRegistryEntry {
   readonly id: string;
@@ -10,7 +11,7 @@ export interface VanillaBlockRegistryEntry {
 
 export interface VanillaBlockRegistryDocument {
   readonly schemaVersion: 1;
-  readonly minecraftVersion: '1.21.1';
+  readonly minecraftVersion: typeof VANILLA_ASSET_VERSION;
   readonly source: string;
   readonly blocks: readonly VanillaBlockRegistryEntry[];
 }
@@ -42,7 +43,7 @@ export function parseVanillaBlockRegistry(value: unknown): VanillaBlockRegistry 
   const document = record(value);
   if (
     document['schemaVersion'] !== 1 ||
-    document['minecraftVersion'] !== '1.21.1' ||
+    document['minecraftVersion'] !== VANILLA_ASSET_VERSION ||
     typeof document['source'] !== 'string' ||
     !Array.isArray(document['blocks'])
   )
@@ -90,7 +91,7 @@ export function parseVanillaBlockRegistry(value: unknown): VanillaBlockRegistry 
   });
   return new VanillaBlockRegistry({
     schemaVersion: 1,
-    minecraftVersion: '1.21.1',
+    minecraftVersion: VANILLA_ASSET_VERSION,
     source: document['source'],
     blocks,
   });
