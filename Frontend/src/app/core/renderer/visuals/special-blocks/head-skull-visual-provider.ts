@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { PlacedBlock } from '../../../domain/project.types';
+import { MINECRAFT_HEAD_VARIANTS } from '../../../domain/minecraft-head-variants';
 import { createSpecialModel } from './special-model-geometry';
 import type { SpecialBlockVisualAdapter, SpecialVisualContext } from './special-visual-contracts';
 import type { SpecialModelDescriptor } from './special-model-descriptor';
@@ -7,22 +8,12 @@ import type { SpecialModelDescriptor } from './special-model-descriptor';
 type SkullVariant =
   'skeleton' | 'wither_skeleton' | 'zombie' | 'creeper' | 'dragon' | 'piglin' | 'player';
 
-const HEAD_IDS = new Set([
-  'minecraft:creeper_head',
-  'minecraft:creeper_wall_head',
-  'minecraft:dragon_head',
-  'minecraft:dragon_wall_head',
-  'minecraft:piglin_head',
-  'minecraft:piglin_wall_head',
-  'minecraft:player_head',
-  'minecraft:player_wall_head',
-  'minecraft:skeleton_skull',
-  'minecraft:skeleton_wall_skull',
-  'minecraft:wither_skeleton_skull',
-  'minecraft:wither_skeleton_wall_skull',
-  'minecraft:zombie_head',
-  'minecraft:zombie_wall_head',
-]);
+const HEAD_IDS = new Set(
+  MINECRAFT_HEAD_VARIANTS.flatMap(([standing, wall]) => [
+    `minecraft:${standing}`,
+    `minecraft:${wall}`,
+  ]),
+);
 
 /** Verified vanilla head/skull model, texture, and placement transforms. */
 export class HeadSkullVisualProvider implements SpecialBlockVisualAdapter {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import type { PlacedBlock } from '../../../domain/project.types';
 import { HeadSkullVisualProvider } from './head-skull-visual-provider';
+import { MINECRAFT_HEAD_VARIANTS } from '../../../domain/minecraft-head-variants';
 
 const provider = new HeadSkullVisualProvider();
 const block = (id: string): PlacedBlock => ({
@@ -128,16 +129,8 @@ describe('HeadSkullVisualProvider', () => {
   });
 
   it('keeps every verified standing head in the shared upright transform hierarchy', () => {
-    const standingIds = [
-      'minecraft:creeper_head',
-      'minecraft:dragon_head',
-      'minecraft:piglin_head',
-      'minecraft:player_head',
-      'minecraft:skeleton_skull',
-      'minecraft:wither_skeleton_skull',
-      'minecraft:zombie_head',
-    ];
-    for (const id of standingIds) {
+    for (const [standing] of MINECRAFT_HEAD_VARIANTS) {
+      const id = `minecraft:${standing}`;
       const visual = provider.create({ ...block(id), state: { rotation: '0' } });
       visual.updateMatrixWorld(true);
       expect(visual.position.toArray(), id).toEqual([0.5, 0, 0.5]);
@@ -155,16 +148,8 @@ describe('HeadSkullVisualProvider', () => {
   });
 
   it('keeps every verified wall head flush to its support-facing voxel face', () => {
-    const wallIds = [
-      'minecraft:creeper_wall_head',
-      'minecraft:dragon_wall_head',
-      'minecraft:piglin_wall_head',
-      'minecraft:player_wall_head',
-      'minecraft:skeleton_wall_skull',
-      'minecraft:wither_skeleton_wall_skull',
-      'minecraft:zombie_wall_head',
-    ];
-    for (const id of wallIds) {
+    for (const [, wall] of MINECRAFT_HEAD_VARIANTS) {
+      const id = `minecraft:${wall}`;
       const visual = provider.create({ ...block(id), state: { facing: 'north' } });
       visual.updateMatrixWorld(true);
       expect(new THREE.Box3().setFromObject(visual).max.z, id).toBeGreaterThanOrEqual(0.9999);
