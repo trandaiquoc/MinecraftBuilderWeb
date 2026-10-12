@@ -16,12 +16,12 @@ export class PaintingVariantCatalogService {
   });
 
   constructor() {
-    setActivePaintingVariants(PAINTING_VARIANTS.map(normalizeVariant));
+    setActivePaintingVariants(PAINTING_VARIANTS.map((entry) => normalizeVariant(entry, 'vanilla')));
   }
 
   replaceSource(sourceId: string, variants: readonly PaintingVariant[]): void {
     const existing = this.variants().filter((entry) => (entry.sourceId ?? 'vanilla') !== sourceId);
-    this.publish([...existing, ...variants.map(normalizeVariant)]);
+    this.publish([...existing, ...variants.map((entry) => normalizeVariant(entry, sourceId))]);
   }
 
   replaceSources(
@@ -35,7 +35,9 @@ export class PaintingVariantCatalogService {
     const existing = this.variants().filter((entry) => !sourceIds.has(entry.sourceId ?? 'vanilla'));
     this.publish([
       ...existing,
-      ...entries.flatMap((entry) => entry.variants.map(normalizeVariant)),
+      ...entries.flatMap(({ sourceId, variants }) =>
+        variants.map((entry) => normalizeVariant(entry, sourceId)),
+      ),
     ]);
   }
 
@@ -65,12 +67,10 @@ export class PaintingVariantCatalogService {
   }
 }
 
-function normalizeVariant(entry: PaintingVariant): PaintingVariant {
+function normalizeVariant(entry: PaintingVariant, sourceId: string): PaintingVariant {
   return {
     ...entry,
-    sourceId: entry.sourceId ?? 'vanilla',
-    sourceName:
-      entry.sourceName ??
-      (entry.sourceId === 'vanilla' || !entry.sourceId ? 'Vanilla' : entry.sourceId),
+    sourceId,
+    sourceName: entry.sourceName ?? (sourceId === 'vanilla' ? 'Vanilla' : sourceId),
   };
 }

@@ -26,6 +26,34 @@ describe('PaintingVariantCatalogService', () => {
     expect(catalog.placeable().some((entry) => entry.id === 'example:poster')).toBe(false);
   });
 
+  it('assigns replacement ownership to variants without source metadata', () => {
+    const catalog = new PaintingVariantCatalogService();
+    const variant = (id: string) => ({
+      id,
+      width: 2,
+      height: 1,
+      assetPath: `example:painting/${id.split(':')[1]}`,
+    });
+
+    catalog.replaceSource('example-paintings', [variant('example:first')]);
+    expect(catalog.placeable('example-paintings').map((entry) => entry.id)).toEqual([
+      'example:first',
+    ]);
+    expect(catalog.get('example:first')).toMatchObject({
+      sourceId: 'example-paintings',
+      sourceName: 'example-paintings',
+    });
+
+    catalog.replaceSource('example-paintings', [variant('example:second')]);
+    expect(catalog.get('example:first')).toBeUndefined();
+    expect(catalog.placeable('example-paintings').map((entry) => entry.id)).toEqual([
+      'example:second',
+    ]);
+
+    catalog.removeSource('example-paintings');
+    expect(catalog.get('example:second')).toBeUndefined();
+  });
+
   it('canonicalizes asset ids when loading a source catalog', () => {
     const catalog = loadPaintingVariants(
       {
