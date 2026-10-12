@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectDocument } from '../../domain/project.types';
+import type { ProjectDocument } from '../../../domain/project.types';
 import {
   deriveStructureExportDefaults,
   MINECRAFT_JAVA_1_21_1_PACK_FORMAT,
@@ -11,7 +11,7 @@ import {
   validateStructurePath,
   writeDatapackArchive,
 } from './minecraft-structure-packaging';
-import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import { NbtifyMinecraftJavaCodec } from '../codec/nbtify-minecraft-java-codec';
 
 const project = (overrides: Partial<ProjectDocument> = {}): ProjectDocument => ({
   schemaVersion: 3,

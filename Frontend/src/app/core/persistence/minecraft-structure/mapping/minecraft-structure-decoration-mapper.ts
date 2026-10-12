@@ -1,17 +1,17 @@
 /** Verified painting and item-frame entity mappings. */
 
-import { isValidNamespacedResourceLocation } from '../../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
 import {
   decorationAabb,
   paintingEntityPosition,
-} from '../../decorations/placement/decoration-placement';
+} from '../../../decorations/placement/decoration-placement';
 import {
   paintingVariant,
   type DecorationFacing,
   type PlacedDecoration,
-} from '../../decorations/decoration.types';
-import type { MinecraftNbtCompound, MinecraftNbtTag } from './minecraft-structure-types';
-import { type ItemMaxStackResolver } from '../../items/item-stack-validation';
+} from '../../../decorations/decoration.types';
+import type { MinecraftNbtCompound, MinecraftNbtTag } from '../codec/minecraft-structure-types';
+import { type ItemMaxStackResolver } from '../../../items/item-stack-validation';
 import { failure, hasUnknownRaw } from './minecraft-structure-semantic-mapping-result';
 import type { SemanticMappingResult } from './minecraft-structure-semantic-mapping-result';
 import {
@@ -22,7 +22,7 @@ import {
   floatTag,
   intTag,
   stringTag,
-} from './minecraft-structure-nbt-primitives';
+} from '../codec/minecraft-structure-nbt-primitives';
 import { mapItemStack } from './minecraft-structure-item-stack-mapper';
 
 const horizontalPaintingFacing: Readonly<Record<'north' | 'south' | 'west' | 'east', number>> = {

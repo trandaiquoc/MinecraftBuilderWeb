@@ -1,10 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import type { ProjectDocument } from '../../domain/project.types';
-import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
-import { WorkspaceStateService } from '../../workspace/workspace-state.service';
+import type { ProjectDocument } from '../../../domain/project.types';
+import { UiPreferencesService } from '../../../ui/preferences/ui-preferences.service';
+import { WorkspaceStateService } from '../../../workspace/workspace-state.service';
 import { BrowserDownloadService } from './browser-download.service';
-import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
-import type { MinecraftJavaNbtCodec } from './minecraft-structure-codec';
+import { NbtifyMinecraftJavaCodec } from '../codec/nbtify-minecraft-java-codec';
+import type { MinecraftJavaNbtCodec } from '../codec/minecraft-structure-codec';
 import {
   deriveStructureExportDefaults,
   createStructureExportMetadata,
@@ -22,8 +22,8 @@ import {
   classifyStructureSize,
   MINECRAFT_JAVA_1_21_1,
   HUGE_STRUCTURE_AXIS_LIMIT,
-} from './minecraft-structure-contract';
-import { ItemCatalogService } from '../../items/catalog/item-catalog.service';
+} from '../codec/minecraft-structure-contract';
+import { ItemCatalogService } from '../../../items/catalog/item-catalog.service';
 
 export type StructureExportMode = 'standalone' | 'datapack';
 

@@ -5,22 +5,22 @@ import {
   validateMinecraftStructureProject,
   validateStructureTemplate,
   type MinecraftStructureDiagnostic,
-} from './minecraft-structure-contract';
-import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
-import type { MinecraftJavaNbtCodec } from './minecraft-structure-codec';
-import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/project.types';
-import { validateCoordinate } from '../../domain/validation';
+} from '../codec/minecraft-structure-contract';
+import { MinecraftJavaStructureAdapter } from '../mapping/minecraft-structure-adapter';
+import type { MinecraftJavaNbtCodec } from '../codec/minecraft-structure-codec';
+import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../../domain/project.types';
+import { validateCoordinate } from '../../../domain/validation';
 import type {
   MinecraftNbtCompound,
   MinecraftStructurePaletteEntry,
   MinecraftStructureTemplate,
-} from './minecraft-structure-types';
-import { mapBlockEntity, mapDecoration } from './minecraft-structure-semantic-mappers';
+} from '../codec/minecraft-structure-types';
+import { mapBlockEntity, mapDecoration } from '../mapping/minecraft-structure-semantic-mappers';
 import {
   createDecorationSupportIndex,
   validateDecorationAgainstProject,
-} from '../../decorations/placement/decoration-placement';
-import type { ItemMaxStackResolver } from '../../items/item-stack-validation';
+} from '../../../decorations/placement/decoration-placement';
+import type { ItemMaxStackResolver } from '../../../items/item-stack-validation';
 
 export interface MinecraftStructureExportSuccess {
   readonly ok: true;

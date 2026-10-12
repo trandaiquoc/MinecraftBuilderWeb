@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../domain/project.types';
-import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import type { ProjectDocument, PlacedBlock, ProjectSize } from '../../../domain/project.types';
+import { NbtifyMinecraftJavaCodec } from '../codec/nbtify-minecraft-java-codec';
 import { exportMinecraftStructure } from './minecraft-structure-exporter';
-import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
+import { MinecraftJavaStructureAdapter } from '../mapping/minecraft-structure-adapter';
 
 const block = (
   id: string,

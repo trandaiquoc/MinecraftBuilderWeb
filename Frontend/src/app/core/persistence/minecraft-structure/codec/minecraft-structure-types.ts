@@ -1,4 +1,4 @@
-import type { ProjectSize, VoxelCoordinate } from '../../domain/project.types';
+import type { ProjectSize, VoxelCoordinate } from '../../../domain/project.types';
 
 /** NBT tags are deliberately typed at the export boundary. JSON values are not NBT values. */
 export type MinecraftNbtTag =

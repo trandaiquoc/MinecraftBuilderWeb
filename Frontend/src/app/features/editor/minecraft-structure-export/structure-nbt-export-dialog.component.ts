@@ -8,8 +8,8 @@ import {
   type StructureExportForm,
   type StructureExportMode,
   type StructureExportDownloadResult,
-} from '../../../core/persistence/minecraft-structure/minecraft-structure-export.service';
-import type { StructurePackagingDiagnostic } from '../../../core/persistence/minecraft-structure/minecraft-structure-packaging';
+} from '../../../core/persistence/minecraft-structure/export/minecraft-structure-export.service';
+import type { StructurePackagingDiagnostic } from '../../../core/persistence/minecraft-structure/export/minecraft-structure-packaging';
 
 @Component({
   selector: 'app-structure-nbt-export-dialog',

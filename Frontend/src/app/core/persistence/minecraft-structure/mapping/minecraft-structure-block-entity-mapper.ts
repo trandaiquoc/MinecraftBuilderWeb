@@ -1,23 +1,23 @@
 /** Verified semantic block-entity to Minecraft NBT mappings. */
 
-import { isValidNamespacedResourceLocation } from '../../content/resource-location';
+import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
 import type {
   DecoratedPotBlockEntityData,
   SignBlockEntityData,
   SignSide,
   PlacedBlock,
-} from '../../domain/project.types';
+} from '../../../domain/project.types';
 import type {
   ItemContainerBlockEntityData,
   ItemSlotData,
-} from '../../block-entities/item-display/item-container';
-import type { ItemStackData } from '../../items/item-stack.types';
-import type { MinecraftNbtCompound, MinecraftNbtTag } from './minecraft-structure-types';
-import { verifiedInventoryContainerSchema } from '../../block-entities/item-display/inventory-storage-schema';
-import { type ItemMaxStackResolver } from '../../items/item-stack-validation';
+} from '../../../block-entities/item-display/item-container';
+import type { ItemStackData } from '../../../items/item-stack.types';
+import type { MinecraftNbtCompound, MinecraftNbtTag } from '../codec/minecraft-structure-types';
+import { verifiedInventoryContainerSchema } from '../../../block-entities/item-display/inventory-storage-schema';
+import { type ItemMaxStackResolver } from '../../../items/item-stack-validation';
 import { failure, hasUnknownRaw, isRecord } from './minecraft-structure-semantic-mapping-result';
 import type { SemanticMappingResult } from './minecraft-structure-semantic-mapping-result';
-import { byteTag, compound, intTag, list, stringTag } from './minecraft-structure-nbt-primitives';
+import { byteTag, compound, intTag, list, stringTag } from '../codec/minecraft-structure-nbt-primitives';
 import { mapItemStack } from './minecraft-structure-item-stack-mapper';
 
 const signColors = new Set([

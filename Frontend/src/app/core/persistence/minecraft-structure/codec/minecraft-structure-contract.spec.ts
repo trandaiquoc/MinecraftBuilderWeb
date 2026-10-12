@@ -8,7 +8,7 @@ import {
   validateMinecraftStructureProject,
   validateStructureTemplate,
 } from './minecraft-structure-contract';
-import type { ProjectDocument } from '../../domain/project.types';
+import type { ProjectDocument } from '../../../domain/project.types';
 
 const project = (overrides: Partial<ProjectDocument> = {}): ProjectDocument => ({
   schemaVersion: 3,

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import type { ProjectDocument } from '../../domain/project.types';
-import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import type { ProjectDocument } from '../../../domain/project.types';
+import { NbtifyMinecraftJavaCodec } from '../codec/nbtify-minecraft-java-codec';
 import {
   prepareAndDownloadStructure,
   preflightStructureExport,
@@ -9,8 +9,8 @@ import {
 } from './minecraft-structure-export.service';
 import { BrowserDownloadService } from './browser-download.service';
 import { MinecraftStructureExportService } from './minecraft-structure-export.service';
-import { WorkspaceStateService } from '../../workspace/workspace-state.service';
-import { UiPreferencesService } from '../../ui/preferences/ui-preferences.service';
+import { WorkspaceStateService } from '../../../workspace/workspace-state.service';
+import { UiPreferencesService } from '../../../ui/preferences/ui-preferences.service';
 
 const project = (): ProjectDocument => ({
   schemaVersion: 3,

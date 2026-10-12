@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error Vitest executes these fixture tests in Node; the app does not depend on @types/node.
 import { readFileSync } from 'node:fs';
 import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
-import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
+import { MinecraftJavaStructureAdapter } from '../mapping/minecraft-structure-adapter';
 
 const fixture = (): Uint8Array =>
   Uint8Array.from(

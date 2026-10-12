@@ -1,6 +1,6 @@
-import { isValidNamespacedResourceLocation } from '../../content/resource-location';
-import { validateCoordinate, validateProjectSize } from '../../domain/validation';
-import type { PlacedBlock, ProjectDocument, ProjectSize } from '../../domain/project.types';
+import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
+import { validateCoordinate, validateProjectSize } from '../../../domain/validation';
+import type { PlacedBlock, ProjectDocument, ProjectSize } from '../../../domain/project.types';
 import type {
   MinecraftNbtCompound,
   MinecraftNbtTag,

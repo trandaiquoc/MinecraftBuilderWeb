@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
-import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import { MinecraftJavaStructureAdapter } from '../mapping/minecraft-structure-adapter';
+import { NbtifyMinecraftJavaCodec } from '../codec/nbtify-minecraft-java-codec';
 import { exportMinecraftStructure } from './minecraft-structure-exporter';
 import {
   createDecorationSupportIndex,
   decorationSupportPositions,
   validateDecorationAgainstProject,
-} from '../../decorations/placement/decoration-placement';
-import { exporterSmokeProject } from './fixtures/exporter-smoke-project';
+} from '../../../decorations/placement/decoration-placement';
+import { exporterSmokeProject } from '../fixtures/exporter-smoke-project';
 
 describe('exporter-generated structure smoke', () => {
   it('round-trips semantic block entities and top-level entities', async () => {

@@ -7,9 +7,9 @@ import type {
   MinecraftStructureEntity,
   MinecraftStructurePaletteEntry,
   MinecraftStructureTemplate,
-} from './minecraft-structure-types';
-import type { MinecraftStructureAdapter } from './minecraft-structure-codec';
-import { canonicalProperties } from './minecraft-structure-contract';
+} from '../codec/minecraft-structure-types';
+import type { MinecraftStructureAdapter } from '../codec/minecraft-structure-codec';
+import { canonicalProperties } from '../codec/minecraft-structure-contract';
 
 /** Maps the verified single-palette Java StructureTemplate shape to typed NBT. */
 export class MinecraftJavaStructureAdapter implements MinecraftStructureAdapter {

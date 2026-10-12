@@ -1,12 +1,12 @@
 /** Semantic ItemStack validation and typed NBT mapping. */
 
-import { isValidNamespacedResourceLocation } from '../../content/resource-location';
-import type { ItemStackData } from '../../items/item-stack.types';
-import type { MinecraftNbtCompound } from './minecraft-structure-types';
-import { validateItemStack, type ItemMaxStackResolver } from '../../items/item-stack-validation';
+import { isValidNamespacedResourceLocation } from '../../../content/resource-location';
+import type { ItemStackData } from '../../../items/item-stack.types';
+import type { MinecraftNbtCompound } from '../codec/minecraft-structure-types';
+import { validateItemStack, type ItemMaxStackResolver } from '../../../items/item-stack-validation';
 import { failure, isRecord } from './minecraft-structure-semantic-mapping-result';
 import type { SemanticMappingResult } from './minecraft-structure-semantic-mapping-result';
-import { byteTag, compound, intTag, stringTag } from './minecraft-structure-nbt-primitives';
+import { byteTag, compound, intTag, stringTag } from '../codec/minecraft-structure-nbt-primitives';
 
 export function mapItemStack(
   item: ItemStackData,

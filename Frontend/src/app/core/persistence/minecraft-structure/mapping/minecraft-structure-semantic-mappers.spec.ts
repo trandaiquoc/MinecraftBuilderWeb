@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { PlacedBlock } from '../../domain/project.types';
+import type { PlacedBlock } from '../../../domain/project.types';
 import { mapBlockEntity, mapDecoration } from './minecraft-structure-semantic-mappers';
 import {
   createDecorationSupportIndex,
   validateDecorationAgainstProject,
-} from '../../decorations/placement/decoration-placement';
-import type { ProjectDocument } from '../../domain/project.types';
+} from '../../../decorations/placement/decoration-placement';
+import type { ProjectDocument } from '../../../domain/project.types';
 
 const block = (id: string, blockEntityData?: unknown): PlacedBlock => ({
   kind: 'resolved',

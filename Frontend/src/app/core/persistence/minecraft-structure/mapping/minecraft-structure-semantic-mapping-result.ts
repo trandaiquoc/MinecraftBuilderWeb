@@ -1,6 +1,6 @@
 /** Shared result and diagnostic helpers for semantic NBT mapping. */
 
-import type { MinecraftStructureDiagnostic } from './minecraft-structure-contract';
+import type { MinecraftStructureDiagnostic } from '../codec/minecraft-structure-contract';
 
 export interface SemanticMappingSuccess<T> {
   readonly ok: true;

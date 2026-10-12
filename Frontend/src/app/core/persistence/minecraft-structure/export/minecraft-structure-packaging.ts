@@ -1,14 +1,14 @@
-import type { ProjectDocument } from '../../domain/project.types';
+import type { ProjectDocument } from '../../../domain/project.types';
 import {
   classifyStructureSize,
   MINECRAFT_JAVA_1_21_1,
   MINECRAFT_JAVA_1_21_1_DATA_VERSION,
   type MinecraftStructureDiagnostic,
   type StructureSizeClass,
-} from './minecraft-structure-contract';
+} from '../codec/minecraft-structure-contract';
 import { exportMinecraftStructure } from './minecraft-structure-exporter';
-import type { MinecraftJavaNbtCodec } from './minecraft-structure-codec';
-import type { StructureExportPreferences } from '../../ui/preferences/ui-preferences.service';
+import type { MinecraftJavaNbtCodec } from '../codec/minecraft-structure-codec';
+import type { StructureExportPreferences } from '../../../ui/preferences/ui-preferences.service';
 import type { ZipArchiveOutputEntry, ZipArchiveWriter } from './zip-archive-writer';
 import { FflateZipArchiveWriter } from './fflate-zip-archive-writer';
 

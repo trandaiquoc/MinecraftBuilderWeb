@@ -1,14 +1,14 @@
 import { unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { MinecraftJavaStructureAdapter } from './minecraft-structure-adapter';
-import { NbtifyMinecraftJavaCodec } from './nbtify-minecraft-java-codec';
+import { MinecraftJavaStructureAdapter } from '../mapping/minecraft-structure-adapter';
+import { NbtifyMinecraftJavaCodec } from '../codec/nbtify-minecraft-java-codec';
 import { prepareStructureExport, writeDatapackArchive } from './minecraft-structure-packaging';
-import { exporterSmokeProject } from './fixtures/exporter-smoke-project';
+import { exporterSmokeProject } from '../fixtures/exporter-smoke-project';
 import {
   createDecorationSupportIndex,
   decorationSupportPositions,
   validateDecorationAgainstProject,
-} from '../../decorations/placement/decoration-placement';
+} from '../../../decorations/placement/decoration-placement';
 
 describe('exporter-generated datapack smoke structure', () => {
   it('contains the exact production datapack tree and decodes through the NBT codec', async () => {
