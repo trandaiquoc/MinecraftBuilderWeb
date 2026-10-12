@@ -5,7 +5,11 @@ import { ActiveBlockService } from '../../blocks/placement-palette/active-block.
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
 import { DecorationService } from '../../decorations/decoration.service';
 import { WorkspaceStateService } from '../../workspace/workspace-state.service';
-import { QuickBlockBarService, quickEntryMatchesActive } from './quick-block-bar.service';
+import {
+  QuickBlockBarService,
+  quickEntryMatchesActive,
+  quickStateKey,
+} from './quick-block-bar.service';
 
 describe('quick block active state contract', () => {
   it('exposes collapse state read-only and changes it through its owner', async () => {
@@ -78,6 +82,13 @@ describe('quick block active state contract', () => {
         { id: 'minecraft:oak_stairs', state: entry.state },
       ),
     ).toBe(false);
+  });
+
+  it('uses an unambiguous state identity regardless of property insertion order', () => {
+    expect(quickStateKey({ facing: 'north', half: 'top' })).toBe(
+      quickStateKey({ half: 'top', facing: 'north' }),
+    );
+    expect(quickStateKey({ a: 'x,b=y' })).not.toBe(quickStateKey({ a: 'x', b: 'y' }));
   });
 
   it('does not mark an unavailable source entry active', () => {

@@ -7,6 +7,7 @@ import { WorkspaceStateService } from '../../workspace/workspace-state.service';
 import { canonicalPlaceableItemId } from '../../blocks/placement-palette/placeable-item-resolution';
 import { DecorationService } from '../../decorations/decoration.service';
 import { BlockLibraryService } from '../../blocks/catalog/block-library.service';
+import { stableValueKey } from '../../domain/stable-value-key';
 
 export interface QuickBlockEntry extends ActiveBlock {
   readonly itemId: string;
@@ -31,7 +32,7 @@ export function quickEntryMatchesActive(
   if (!active || !available) return false;
   return (
     activeItemId(active, items) === canonicalPlaceableItemId(entry.itemId || entry.id, items) &&
-    stateKey(active.state) === stateKey(entry.state)
+    quickStateKey(active.state) === quickStateKey(entry.state)
   );
 }
 
@@ -59,8 +60,10 @@ export class QuickBlockBarService {
   }
   has(entry: Pick<QuickBlockEntry, 'itemId' | 'id' | 'state'>): boolean {
     const itemId = this.canonical(entry.itemId || entry.id);
-    const state = stateKey(entry.state);
-    return this.entries().some((item) => item.itemId === itemId && stateKey(item.state) === state);
+    const state = quickStateKey(entry.state);
+    return this.entries().some(
+      (item) => item.itemId === itemId && quickStateKey(item.state) === state,
+    );
   }
   canAdd(entry: Pick<QuickBlockEntry, 'itemId' | 'id' | 'state'>): boolean {
     return this.has(entry) || this.entries().length < slots;
@@ -111,10 +114,7 @@ function key(projectId: string): string {
   return `minecraft-builder.quick-blocks.${projectId}`;
 }
 export function quickStateKey(state: Readonly<Record<string, string>>): string {
-  return Object.entries(state)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([name, value]) => `${name}=${value}`)
-    .join(',');
+  return stableValueKey(state);
 }
 function load(projectId: string): readonly QuickBlockEntry[] {
   try {
@@ -132,9 +132,6 @@ function load(projectId: string): readonly QuickBlockEntry[] {
   } catch {
     return [];
   }
-}
-function stateKey(state: Readonly<Record<string, string>>): string {
-  return quickStateKey(state);
 }
 function valid(value: unknown): value is QuickBlockEntry {
   if (!value || typeof value !== 'object') return false;
