@@ -26,6 +26,7 @@ export class BlockThumbnailRenderer {
   private readonly itemVisualPreviewCache = new Map<string, Promise<PerspectiveThumbnailResult>>();
   private readonly objectUrls = new Set<string>();
   private renderer?: THREE.WebGLRenderer;
+  private disposed = false;
 
   constructor(
     private readonly assets: RenderableAssetResourceProvider,
@@ -46,6 +47,7 @@ export class BlockThumbnailRenderer {
     blockId: string,
     state: Readonly<Record<string, string>>,
   ): Promise<string | undefined> {
+    if (this.disposed) return Promise.resolve(undefined);
     const key = `thumbnail-v2|${blockId}|${stableValueKey(state)}`;
     const cached = this.thumbnailCache.get(key);
     if (cached) return cached;
@@ -57,6 +59,7 @@ export class BlockThumbnailRenderer {
   }
 
   perspectiveItemThumbnail(item: PlaceableItemDefinition): Promise<PerspectiveThumbnailResult> {
+    if (this.disposed) return Promise.resolve({ quality: 'fallback' });
     const key = `item-thumbnail-v2|${item.itemId}|${item.previewRecipe}|${item.previewBlocks.map((block) => `${block.id}@${block.position.x},${block.position.y},${block.position.z}|${stableValueKey(block.state)}`).join(';')}`;
     const cached = this.itemThumbnailCache.get(key);
     if (cached) return cached;
@@ -87,6 +90,7 @@ export class BlockThumbnailRenderer {
     itemId: string,
     components?: Readonly<Record<string, unknown>>,
   ): Promise<PerspectiveThumbnailResult> {
+    if (this.disposed) return Promise.resolve({ quality: 'fallback' });
     const key = `item-visual-v1|${itemId}|${components ? stableValueKey(components) : ''}`;
     const cached = this.itemVisualPreviewCache.get(key);
     if (cached) return cached;
@@ -106,6 +110,8 @@ export class BlockThumbnailRenderer {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.renderer?.dispose();
     this.renderer = undefined;
     for (const url of this.objectUrls) URL.revokeObjectURL?.(url);
@@ -131,7 +137,7 @@ export class BlockThumbnailRenderer {
   }
 
   private async renderThumbnailBlocks(blocks: readonly PlacedBlock[]): Promise<string | undefined> {
-    if (typeof document === 'undefined') return undefined;
+    if (this.disposed || typeof document === 'undefined') return undefined;
     const renderer = this.getRenderer();
     const visuals = (
       await Promise.all(
@@ -142,6 +148,7 @@ export class BlockThumbnailRenderer {
       )
     )
       .map(({ block, visual }) => {
+        if (this.disposed) return undefined;
         if (!visual.object) return undefined;
         visual.object.position.set(
           visual.object.position.x + block.position.x,
@@ -152,7 +159,7 @@ export class BlockThumbnailRenderer {
         return visual.object;
       })
       .filter((object): object is THREE.Group => !!object);
-    if (!visuals.length) return undefined;
+    if (this.disposed || !visuals.length) return undefined;
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3.1));
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
@@ -181,7 +188,7 @@ export class BlockThumbnailRenderer {
     itemId: string,
     components?: Readonly<Record<string, unknown>>,
   ): Promise<PerspectiveThumbnailResult> {
-    if (typeof document === 'undefined') return { quality: 'fallback' };
+    if (this.disposed || typeof document === 'undefined') return { quality: 'fallback' };
     const visual = resolveItemVisual(this.assets, itemId);
     if (visual.kind === 'unsupported') {
       const special = this.specialVisuals.resolveItemVisual(itemId, components);
@@ -195,6 +202,7 @@ export class BlockThumbnailRenderer {
         };
         const resource = special.textureResource?.(fake);
         const texture = resource ? await this.source.loadTexture(resource) : undefined;
+        if (this.disposed) return { quality: 'fallback' };
         if (texture) {
           const root = special.create(fake, { texture });
           root.userData['specialVisualFamily'] = special.family;
@@ -212,6 +220,7 @@ export class BlockThumbnailRenderer {
     const textures = await Promise.all(
       visual.layers.map((layer) => this.source.loadTexture(layer)),
     );
+    if (this.disposed) return { quality: 'fallback' };
     if (!textures.length || textures.some((texture) => !texture))
       return { quality: 'fallback', retryable: true };
     const renderer = this.getRenderer();
@@ -242,6 +251,7 @@ export class BlockThumbnailRenderer {
   }
 
   private async renderStandaloneObject(root: THREE.Object3D): Promise<string | undefined> {
+    if (this.disposed) return undefined;
     const renderer = this.getRenderer();
     renderer.setSize(96, 96, false);
     renderer.setClearColor(0x000000, 0);
@@ -268,13 +278,17 @@ export class BlockThumbnailRenderer {
     itemId: string,
     modelId: string,
   ): Promise<string | undefined> {
+    if (this.disposed) return undefined;
     const resolved = this.source.resolveItemModel(modelId);
     if (!resolved.parts.some((part) => part.elements.length)) return undefined;
     const renderer = this.getRenderer();
     renderer.setSize(96, 96, false);
     renderer.setClearColor(0x000000, 0);
     const root = new THREE.Group();
-    for (const part of resolved.parts) root.add(await this.source.createModelPart(part, itemId));
+    for (const part of resolved.parts) {
+      root.add(await this.source.createModelPart(part, itemId));
+      if (this.disposed) return undefined;
+    }
     root.updateMatrixWorld(true);
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight(0xffffff, 0x59636f, 3));
@@ -295,6 +309,7 @@ export class BlockThumbnailRenderer {
   }
 
   private getRenderer(): THREE.WebGLRenderer {
+    if (this.disposed) throw new Error('Thumbnail renderer is disposed');
     const renderer = (this.renderer ??= new THREE.WebGLRenderer({
       alpha: true,
       antialias: true,
@@ -310,6 +325,10 @@ export class BlockThumbnailRenderer {
       return new Promise((resolve) =>
         canvas.toBlob((blob) => {
           if (!blob) {
+            resolve(undefined);
+            return;
+          }
+          if (this.disposed) {
             resolve(undefined);
             return;
           }
