@@ -2,10 +2,20 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import { ItemCatalogService } from './item-catalog.service';
-import { ItemVisualService } from './item-visual.service';
+import { ItemVisualService, stableVisualComponents } from './item-visual.service';
 import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
+import { stableValueKey } from '../../domain/stable-value-key';
 
 describe('ItemVisualService', () => {
+  it('uses the canonical stable value encoding for visual components', () => {
+    const components = {
+      profile: { textures: { skin: 'example:skin' }, name: 'Steve' },
+      custom: [1, null, { z: true, a: false }],
+    };
+
+    expect(stableVisualComponents(components)).toBe(stableValueKey(components));
+  });
+
   function setup() {
     let textureCalls = 0;
     const json: Record<string, unknown> = {

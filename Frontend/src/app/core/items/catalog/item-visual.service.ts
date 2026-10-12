@@ -3,6 +3,7 @@ import type { ItemStackData } from '../item-stack.types';
 import type { ItemCatalogEntry, ItemVisualInfo } from './item-catalog';
 import { resolveCatalogItemVisual } from './item-visual';
 import { ContentAssetRuntimeService } from '../../assets/content-asset-runtime.service';
+import { stableValueKey } from '../../domain/stable-value-key';
 
 export type ItemVisualLoadState =
   'idle' | 'queued' | 'loading' | 'available' | 'unsupported' | 'missing-resource' | 'error';
@@ -185,15 +186,5 @@ export class ItemVisualService {
 /** Stable component identity for visual caches. Unknown components are retained
  * deliberately: a future adapter may make any component visual-significant. */
 export function stableVisualComponents(components: Readonly<Record<string, unknown>>): string {
-  return stableVisualValue(components);
-}
-
-function stableVisualValue(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableVisualValue).join(',')}]`;
-  const record = value as Readonly<Record<string, unknown>>;
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableVisualValue(record[key])}`)
-    .join(',')}}`;
+  return stableValueKey(components);
 }

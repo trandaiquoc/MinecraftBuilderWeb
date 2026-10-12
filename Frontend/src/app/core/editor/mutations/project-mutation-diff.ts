@@ -1,5 +1,6 @@
 import type { PlacedBlock, ProjectDocument, VoxelCoordinate } from '../../domain/project.types';
 import { coordinateKey } from '../../domain/coordinates';
+import { stableValueKey } from '../../domain/stable-value-key';
 import type { ProjectMutationChange } from './project-mutation-hint';
 
 /**
@@ -40,21 +41,10 @@ export function placedBlockValueEqual(
   left: PlacedBlock | undefined,
   right: PlacedBlock | undefined,
 ): boolean {
-  return canonicalValue(left) === canonicalValue(right);
+  return stableValueKey(left) === stableValueKey(right);
 }
 
 function findBlock(project: ProjectDocument, position: VoxelCoordinate): PlacedBlock | undefined {
   const key = coordinateKey(position);
   return project.blocks.find((block) => coordinateKey(block.position) === key);
-}
-
-function canonicalValue(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalValue).join(',')}]`;
-  const record = value as Readonly<Record<string, unknown>>;
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalValue(record[key])}`)
-    .join(',')}}`;
 }

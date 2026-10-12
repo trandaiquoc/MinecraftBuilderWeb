@@ -4,7 +4,7 @@ import {
   invertProjectMutationHint,
   metadataMutationHint,
 } from './project-mutation-hint';
-import { boundedProjectMutationChanges } from './project-mutation-diff';
+import { boundedProjectMutationChanges, placedBlockValueEqual } from './project-mutation-diff';
 
 const before = {
   kind: 'resolved' as const,
@@ -79,6 +79,20 @@ describe('project mutation hints', () => {
     );
     expect(changed).toHaveLength(1);
     expect(changed[0]).toMatchObject({ before, after });
+  });
+
+  it('compares nested block-entity values independently of object key order', () => {
+    const left = {
+      ...before,
+      blockEntityData: { custom: { z: [1, null], a: { second: true, first: false } } },
+    };
+    const right = {
+      ...before,
+      blockEntityData: { custom: { a: { first: false, second: true }, z: [1, null] } },
+    };
+
+    expect(placedBlockValueEqual(left, right)).toBe(true);
+    expect(placedBlockValueEqual(left, { ...right, blockEntityData: undefined })).toBe(false);
   });
 
   it('keeps a surviving neighbor out of delete inversion when its value is unchanged', () => {
