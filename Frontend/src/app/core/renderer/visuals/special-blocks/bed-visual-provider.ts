@@ -7,6 +7,7 @@ import type {
   SpecialVisualContext,
 } from './special-visual-contracts';
 import type { SpecialModelDescriptor } from './special-model-descriptor';
+import { isMinecraftDyeColor } from '../../../domain/minecraft-dye-colors';
 
 /** Static Java bed ModelPart visuals and descriptor selection. */
 export class BedVisualProvider implements SpecialBlockVisualAdapter {
@@ -50,25 +51,6 @@ export class BedVisualProvider implements SpecialBlockVisualAdapter {
   }
 }
 
-const CLASSIC_BED_COLORS = new Set([
-  'white',
-  'orange',
-  'magenta',
-  'light_blue',
-  'yellow',
-  'lime',
-  'pink',
-  'gray',
-  'light_gray',
-  'cyan',
-  'purple',
-  'blue',
-  'brown',
-  'green',
-  'red',
-  'black',
-]);
-
 const vanillaBedDescriptor: BedVisualDescriptor = {
   metadata: {
     providerId: 'minecraft-java-bed-common',
@@ -80,7 +62,7 @@ const vanillaBedDescriptor: BedVisualDescriptor = {
   },
   matches: (block) =>
     block.namespace === 'minecraft' &&
-    CLASSIC_BED_COLORS.has(bedColor(block.id)) &&
+    isMinecraftDyeColor(bedColor(block.id)) &&
     block.id.endsWith('_bed'),
   textureResource: (block) => `minecraft:entity/bed/${bedColor(block.id)}`,
   model: (block) => (block.state['part'] === 'head' ? vanillaBedHead : vanillaBedFoot),

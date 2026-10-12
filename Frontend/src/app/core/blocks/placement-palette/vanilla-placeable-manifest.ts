@@ -1,4 +1,5 @@
 import type { PlaceableManifestEntry } from './placeable-item.types';
+import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
 
 const WOODS = [
   'oak',
@@ -12,24 +13,6 @@ const WOODS = [
   'bamboo',
   'crimson',
   'warped',
-] as const;
-const COLORS = [
-  'white',
-  'orange',
-  'magenta',
-  'light_blue',
-  'yellow',
-  'lime',
-  'pink',
-  'gray',
-  'light_gray',
-  'cyan',
-  'purple',
-  'blue',
-  'brown',
-  'green',
-  'red',
-  'black',
 ] as const;
 const HEADS = [
   ['skeleton_skull', 'skeleton_wall_skull'],
@@ -120,7 +103,7 @@ function buildManifest(): readonly PlaceableManifestEntry[] {
       kind: 'head',
       recipe: 'single',
     });
-  for (const color of COLORS)
+  for (const color of MINECRAFT_DYE_COLORS)
     entries.push({
       itemId: id(`${color}_banner`),
       concreteBlockIds: [id(`${color}_banner`), id(`${color}_wall_banner`)],
@@ -135,7 +118,7 @@ function buildManifest(): readonly PlaceableManifestEntry[] {
         kind: 'coral-fan',
         recipe: 'single',
       });
-  for (const color of COLORS)
+  for (const color of MINECRAFT_DYE_COLORS)
     entries.push({
       itemId: id(`${color}_bed`),
       concreteBlockIds: [id(`${color}_bed`)],

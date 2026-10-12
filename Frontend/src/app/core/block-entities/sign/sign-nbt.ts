@@ -1,4 +1,5 @@
 import { SignBlockEntityData, SignSide } from '../../domain/project.types';
+import { isMinecraftDyeColor, MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
 
 export interface MinecraftSignTextNbt {
   readonly messages: readonly string[];
@@ -13,25 +14,6 @@ export interface MinecraftSignBlockEntityNbt {
   readonly back_text: MinecraftSignTextNbt;
   readonly is_waxed: boolean;
 }
-
-const VANILLA_SIGN_COLORS = new Set([
-  'white',
-  'orange',
-  'magenta',
-  'light_blue',
-  'yellow',
-  'lime',
-  'pink',
-  'gray',
-  'light_gray',
-  'cyan',
-  'purple',
-  'blue',
-  'brown',
-  'green',
-  'red',
-  'black',
-]);
 
 /** Maps editor sign data to the semantic 1.21.1 SignBlockEntity NBT shape. */
 export function toMinecraftSignBlockEntityNbt(
@@ -55,7 +37,7 @@ function signSideNbt(side: SignSide): MinecraftSignTextNbt {
     has_glowing_text: boolean;
   } = {
     messages: side.lines.map((line) => JSON.stringify(line)),
-    color: VANILLA_SIGN_COLORS.has(side.color) ? side.color : 'black',
+    color: isMinecraftDyeColor(side.color) ? side.color : 'black',
     has_glowing_text: side.glowing === true,
   };
   if (
@@ -69,8 +51,8 @@ function signSideNbt(side: SignSide): MinecraftSignTextNbt {
 }
 
 export function vanillaSignColors(): readonly string[] {
-  return [...VANILLA_SIGN_COLORS];
+  return [...MINECRAFT_DYE_COLORS];
 }
 export function isVanillaSignColor(value: string): boolean {
-  return VANILLA_SIGN_COLORS.has(value);
+  return isMinecraftDyeColor(value);
 }

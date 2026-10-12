@@ -10,6 +10,7 @@ import {
   GENERIC_BEHAVIOR_PROFILES,
   type GenericBehaviorProfile,
 } from '../compatibility/behavior-profiles';
+import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
 
 export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -560,24 +561,6 @@ const wallHeadIds = [
   'wither_skeleton_wall_skull',
   'zombie_wall_head',
 ] as const;
-const vanillaBannerColors = [
-  'white',
-  'orange',
-  'magenta',
-  'light_blue',
-  'yellow',
-  'lime',
-  'pink',
-  'gray',
-  'light_gray',
-  'cyan',
-  'purple',
-  'blue',
-  'brown',
-  'green',
-  'red',
-  'black',
-] as const;
 function standingSignMetadata(wood: string): BehaviorMetadata {
   return {
     ...profileMetadata(GENERIC_BEHAVIOR_PROFILES.standingSign, 'full'),
@@ -637,7 +620,7 @@ function vanillaTorchMetadata(id: string): BehaviorMetadata | undefined {
 
 function vanillaBannerMetadata(id: string): BehaviorMetadata | undefined {
   const name = id.replace('minecraft:', '');
-  const color = vanillaBannerColors.find(
+  const color = MINECRAFT_DYE_COLORS.find(
     (value) => name === `${value}_banner` || name === `${value}_wall_banner`,
   );
   if (!color) return undefined;
