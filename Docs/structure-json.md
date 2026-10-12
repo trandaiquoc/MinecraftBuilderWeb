@@ -16,13 +16,19 @@ The top-level shape is:
 
 `blocks` contain namespaced `id`, integer `x/y/z`, optional canonical string `state` values, and optional verified semantic `blockEntity` data. Supported block entities are `container` (items by slot), `decorated-pot`, and `sign`; raw NBT is never embedded. Item `count` defaults to 1 and is omitted when it is 1. Components are accepted as semantic item data in this interchange format, but the NBT mapper reports an explicit unsupported diagnostic when it cannot represent them losslessly. Unsupported block-entity data is omitted from the public projection and shown as a warning in the export dialog; use Project Backup for full fidelity.
 
-The public contract has no `formatVersion`. For migration, the parser accepts exactly the old top-level `formatVersion: 2` shape and normalizes it away. Other version values and unknown top-level fields are rejected. This narrow compatibility path does not change the public TypeScript/schema contract.
+The public contract has no `formatVersion`. For migration, the parser accepts
+an otherwise canonical payload with the legacy top-level `formatVersion: 2`
+field and normalizes that field away. The `format` discriminator and current
+required fields (`minecraftVersion`, `blocks`, and `decorations`) are still
+required; the older `version`/`size` example format is not accepted. Other
+`formatVersion` values and unknown top-level fields are rejected. This narrow
+compatibility path does not change the public TypeScript/schema contract.
 
 The checked-in [JSON Schema](../Frontend/public/schemas/minecraftbuilder-structure.schema.json)
 describes the canonical public shape and is served with the frontend. It does
-not describe the legacy `formatVersion: 2` migration form. The application
-parser remains authoritative for ordered validation, semantic checks, and the
-legacy migration behavior.
+not describe the optional legacy `formatVersion: 2` migration field. The
+application parser remains authoritative for ordered validation, semantic
+checks, and the legacy migration behavior.
 
 Replace import always replaces both `blocks` and `decorations`; an empty decorations array therefore clears current decorations. Merge and new-group modes append the imported content according to the import dialog's conflict checks.
 

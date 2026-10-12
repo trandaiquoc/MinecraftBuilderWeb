@@ -1,20 +1,19 @@
 # MinecraftBuilder — Vanilla Behavior Golden Matrix (Minecraft Java 1.21.1)
 
-> Mục đích: khóa lại behavior vanilla đã được xác minh thủ công trong Minecraft Java 1.21.1 để làm nguồn chuẩn cho rule engine, regression tests và các prompt tiếp theo.
+> Mục đích: ghi lại các kỳ vọng behavior vanilla Java 1.21.1 đã được xác minh/ghi nhận để đối chiếu với rule engine và regression tests. Các xác nhận manual trong tài liệu là evidence lịch sử được ghi lại tại thời điểm kiểm thử; chúng chưa được chạy lại trong môi trường hiện tại.
 >
-> Phạm vi: MVP behavior cho các block đã kiểm tra. Không mô phỏng toàn bộ Minecraft physics. Với modded behavior cần Java runtime mà chưa có rule xác minh, giữ `Unknown` / `Partial`.
+> Phạm vi: các behavior vanilla đại diện, không phải mô phỏng toàn bộ Minecraft physics. Golden Minecraft facts và implementation MinecraftBuilder là hai lớp evidence riêng: bảng này không chứng minh runtime hiện tại đã đạt parity. Với modded behavior cần Java runtime mà chưa có rule xác minh, giữ `Unknown` / `Partial`.
 
 ---
 
 ## 1. Nguyên tắc sử dụng
 
-- File này là **golden behavior reference** cho MinecraftBuilder.
+- File này là **reference cho kỳ vọng Vanilla**, không phải mô tả hiện trạng implementation.
 - Rule engine phải ưu tiên behavior đã xác minh ở đây thay vì suy đoán từ tên registry ID.
 - Asset JSON chỉ mô tả model/state mapping; một số runtime behavior như wall shape, stairs shape, support và multi-block synchronization cần rule riêng.
-- Nếu implementation hiện tại khác golden behavior:
-  - sửa implementation;
-  - thêm regression test;
-  - không thay đổi golden matrix chỉ để khớp code.
+- Nếu implementation hiện tại khác golden behavior, ghi mismatch và quyết định
+  rõ đó là defect hay policy sản phẩm có chủ đích. Chỉ thay implementation khi
+  yêu cầu parity được xác nhận; không đổi golden fact để khớp code.
 - Không áp vanilla rule cho modded block chỉ dựa vào tên như `*_fence`, `*_stairs`, `*_door`.
 - Unknown mod behavior phải giữ nguyên registry ID / BlockState và trả `Unknown` hoặc `Partial`.
 
@@ -484,9 +483,29 @@ Không đưa vào project edit history:
 
 ---
 
-# 14. Mismatch checklist cho implementation hiện tại
+# 14. Historical implementation checkpoint and known mismatch
 
-Các điểm phải đối chiếu/sửa trước khi đóng Prompt 12 checkpoint:
+Checklist dưới đây là kết quả của checkpoint lịch sử, không phải xác nhận
+independent rằng code ở HEAD hiện tại vẫn parity với toàn bộ behavior Vanilla.
+Các dấu `[x]` ghi nhận test/kiểm tra tại checkpoint đó. Source và tests hiện tại
+được kiểm tra riêng; mismatch đã xác nhận được ghi rõ bên dưới.
+
+### Confirmed editor-policy divergence (current source and regression tests)
+
+Minecraft làm rơi Torch/Wall Torch và Tall Plant khi support bị mất. Rule engine
+hiện giữ các block này trong project, trả validation `Invalid` và không tự xóa
+dữ liệu người dùng. Đây là policy bảo toàn dữ liệu có regression coverage, khác
+với Vanilla survival behavior; không được đọc policy này như golden fact.
+Amethyst attached-six-face dùng policy riêng: floating placement bị reject và
+support removal cascade-remove bud/cluster.
+
+Evidence: `Frontend/src/app/core/block-behavior/rules/block-rule-engine.ts`
+(`removeUnsupportedAttachedBlocks`) and the corresponding named regression
+tests in `Frontend/src/app/core/block-behavior/rules/block-rule-engine.spec.ts`.
+
+The following checklist records what the earlier implementation checkpoint
+reported as tested; it must not override the explicit policy divergence above
+or substitute for a fresh runtime comparison with Minecraft:
 
 ## Wall
 

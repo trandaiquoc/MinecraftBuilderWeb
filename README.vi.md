@@ -79,14 +79,15 @@ Các file binary hoặc asset lớn nên được lưu bằng object/file storag
 ```text
 MinecraftBuilderWeb/
 ├── Docs/
-├── Frontend/
-└── Backend/
+└── Frontend/
 ```
 
 - `Docs/` — requirement và tài liệu kỹ thuật của project.
 - `Frontend/` — ứng dụng Angular.
-- `Backend/` — dành cho backend tương lai; frontend hiện tại không phụ thuộc
-  vào nó.
+
+Backend là phạm vi dự kiến trong tương lai và hiện chưa có implementation được
+Git theo dõi; thư mục `Backend/` rỗng có thể tồn tại trên máy lập trình viên
+nhưng sẽ không xuất hiện trong clone mới.
 
 ## Yêu cầu môi trường
 

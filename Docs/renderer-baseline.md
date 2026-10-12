@@ -1,5 +1,10 @@
 # Renderer Baseline
 
+This document separates current lifecycle/contracts from dated benchmark and
+browser captures. Latency, heap, and workload figures below describe the named
+fixture and capture only; they are not current universal guarantees or a
+before/after result unless explicitly identified as such.
+
 The viewport keeps persistent block and decoration entries across ordinary `ThreeViewportEngine.update()` calls. Structural changes are reconciled by coordinate/instance identity; selection, group highlights, move previews, ghosts, and camera changes are transient overlays.
 
 The editor's `ProjectBlockRuntimeIndex` owns the canonical coordinate lookup
@@ -40,7 +45,20 @@ Diagnostics are intentionally structural rather than timing assertions:
 - `cachedTemplateInsertions`: instance members inserted directly from a retained reusable template set;
 - `cameraMovementFrames`, `cameraMovementRenderCalls`, `cameraChangeEventsDuringMovement`, and `cameraRenderRequestsSuppressed`: demand-render evidence for keyboard camera movement. OrbitControls change events are suppressed while an explicit movement-frame render is in progress, so one keyboard frame produces at most one render request.
 
-Deterministic small (256 blocks), medium (2,048 blocks), and large (8,192 blocks) fixtures live beside the benchmark specs. Normal `npm test` runs only the small structural checks. Run the explicit medium/large benchmark with:
+The default `npm test` suite includes assertion-based structural and stress
+coverage, not only small fixtures. For example, the regular renderer spec
+constructs a deterministic 48 × 48 × 48 volume (110,592 voxels) to verify
+interior-culling results, and other default tests exercise 20,000-block
+selection plus large-structure reconciliation and hydration. These are
+correctness checks; they do not assert machine-dependent elapsed-time limits. The explicit
+`npm run benchmark:renderer` command runs the opt-in medium/large timed
+renderer workloads and reports counters and elapsed time. Vitest does not
+create a real WebGL context, so these benchmarks cannot measure GPU execution,
+GPU memory, or browser frame latency.
+
+Deterministic small (256 blocks), medium (2,048 blocks), and large (8,192
+blocks) fixtures live beside the benchmark specs. Run the explicit benchmark
+with:
 
 ```text
 npm run benchmark:renderer

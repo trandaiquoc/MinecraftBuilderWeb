@@ -5,9 +5,10 @@ and product planning.
 
 ## Current source of truth
 
-- `MinecraftBuilder_Requirements_VI.docx` — product and technical requirement
-  baseline for the local-first MVP. It defines intended scope; it does not
-  replace the more specific current technical contracts below.
+- `MinecraftBuilder_Requirements_VI.docx` — version 0.2 product and technical
+  requirement baseline for the local-first MVP. It records intended scope, not
+  implementation status; it does not replace the more specific current
+  technical contracts below.
 - `minecraft-assets.md` — asset sources, versioned cache policy, provider
   boundaries, supported resource formats, and audit procedure.
 - `vanilla-behavior-golden-1.21.1.md` — verified Java 1.21.1 behavior matrix

@@ -245,7 +245,7 @@ it with `minecraft:air`.
 
 ## 8. Support levels
 
-MinecraftBuilder uses:
+Legacy catalog callers may still supply the compatibility field:
 
 ```text
 full
@@ -253,13 +253,21 @@ partial
 fallback
 ```
 
-Suggested interpretation:
+Its historical interpretation is:
 
 - `full`: the available resource/state pipeline can represent the block adequately;
 - `partial`: the block is recognized and substantially represented, but some runtime/special behavior is not implemented;
 - `fallback`: the registry ID and state are preserved, but the renderer cannot accurately represent the block.
 
-Support level describes MinecraftBuilder's current implementation capability, not whether a Minecraft block is valid.
+The compatibility `support` field is not a complete current support report.
+Normalized catalog entries expose two independent axes: `behaviorSupport`
+(`full` / `partial` / `unknown`) and `visualSupport` (`real` / `partial` /
+`fallback`). Behavior describes the evidence-backed editor rules available;
+visual support describes the resource/render result. A block can therefore be
+visually real while behavior remains unknown, or behavior-supported while its
+visual is partial. The older field remains only as a compatibility alias for
+existing callers and must not be used for coverage reporting; the full-catalog
+audit reports the two axes separately in section 14.
 
 ## 9. Generated registry and runtime catalog
 

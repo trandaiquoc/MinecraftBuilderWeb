@@ -1,11 +1,11 @@
-# MinecraftBuilder — Changes / Divergences from Current Requirements
+# MinecraftBuilder — Historical Decisions and Changes from the Original Requirements
 
 > Historical decision log. This file is retained for project history only and
 > is not a current implementation source of truth. Use the canonical documents
 > listed in `Docs/README.md` for current contracts, policies, and verification
 > boundaries.
 
-> Purpose: track decisions and implementation behavior that have changed, clarified, or become more specific than the current requirements document, so the requirements can be revised later.
+> Purpose: preserve decisions and implementation snapshots that changed or clarified the original requirements. Entries are historical evidence, not a current status report; use canonical documents in `Docs/README.md` and current source/tests for present behavior.
 
 ## Resident Y-layer presentation checkpoint
 

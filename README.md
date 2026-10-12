@@ -81,14 +81,15 @@ Large binary files and assets should be stored outside the relational database u
 ```text
 MinecraftBuilderWeb/
 ├── Docs/
-├── Frontend/
-└── Backend/
+└── Frontend/
 ```
 
 - `Docs/` — project requirements and technical documentation.
 - `Frontend/` — Angular application.
-- `Backend/` — reserved for future backend work; it is not required by the
-  current frontend.
+
+Backend is planned future scope and has no tracked implementation in this
+repository yet; a local empty `Backend/` directory may exist on developer
+machines and will not appear in a clean clone.
 
 ## Requirements
 
