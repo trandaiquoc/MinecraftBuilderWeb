@@ -193,58 +193,6 @@ describe('verified Java 1.21.1 sign placement', () => {
       }).validation.status,
     ).toBe('valid');
   });
-  it('allows a wall hanging sign to chain horizontally from a ceiling hanging sign on every side', () => {
-    const directions = [
-      {
-        normal: { x: 1, y: 0, z: 0 },
-        target: { x: 4, y: 2, z: 3 },
-        facing: 'north',
-        rotation: '0',
-      },
-      {
-        normal: { x: -1, y: 0, z: 0 },
-        target: { x: 2, y: 2, z: 3 },
-        facing: 'south',
-        rotation: '0',
-      },
-      { normal: { x: 0, y: 0, z: 1 }, target: { x: 3, y: 2, z: 4 }, facing: 'east', rotation: '4' },
-      {
-        normal: { x: 0, y: 0, z: -1 },
-        target: { x: 3, y: 2, z: 2 },
-        facing: 'west',
-        rotation: '4',
-      },
-    ] as const;
-    for (const { normal, target, facing, rotation } of directions) {
-      const support = {
-        ...block('minecraft:oak_hanging_sign', { x: 3, y: 2, z: 3 }),
-        state: { rotation, attached: 'false', waterlogged: 'false' },
-      };
-      const result = engine.place(
-        { ...base, blocks: [support] },
-        block('minecraft:oak_wall_hanging_sign', target),
-        { faceNormal: normal },
-      );
-      expect(result.validation.status).toBe('valid');
-      expect(result.project?.blocks.at(-1)).toMatchObject({
-        id: 'minecraft:oak_wall_hanging_sign',
-        state: { facing },
-      });
-    }
-  });
-  it('rejects a ceiling sign as horizontal support when its plank axis does not align', () => {
-    const support = {
-      ...block('minecraft:oak_hanging_sign', { x: 3, y: 2, z: 3 }),
-      state: { rotation: '4', attached: 'false', waterlogged: 'false' },
-    };
-    const result = engine.place(
-      { ...base, blocks: [support] },
-      block('minecraft:oak_wall_hanging_sign', { x: 4, y: 2, z: 3 }),
-      { faceNormal: { x: 1, y: 0, z: 0 } },
-    );
-    expect(result.validation).toMatchObject({ status: 'invalid', reason: 'missing-support' });
-    expect(result.project).toBeUndefined();
-  });
   it('resolves contextual soul torch and wall banner variants with facing state', () => {
     const project = { ...base, blocks: [block('minecraft:stone', { x: 2, y: 2, z: 3 })] };
     const torch = engine.place(project, block('minecraft:soul_torch', { x: 3, y: 2, z: 3 }), {

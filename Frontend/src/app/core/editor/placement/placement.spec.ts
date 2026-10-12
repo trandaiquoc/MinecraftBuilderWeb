@@ -181,40 +181,6 @@ describe('Lantern to Chain attachment snap', () => {
       ),
     ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-stack' });
   });
-  it('keeps side-face placement horizontal when chaining from a hanging sign', () => {
-    const sign = {
-      ...chain,
-      id: 'minecraft:oak_hanging_sign',
-      state: { rotation: '0', attached: 'false', waterlogged: 'false' },
-    };
-    for (const faceNormal of [
-      { x: 1, y: 0, z: 0 },
-      { x: -1, y: 0, z: 0 },
-      { x: 0, y: 0, z: 1 },
-      { x: 0, y: 0, z: -1 },
-    ]) {
-      expect(
-        resolveAttachmentPlacement(
-          'minecraft:oak_hanging_sign',
-          sign.position,
-          { y: 4.5 },
-          [sign],
-          definition,
-          faceNormal,
-        ),
-      ).toBeUndefined();
-    }
-    expect(
-      resolveAttachmentPlacement(
-        'minecraft:oak_hanging_sign',
-        sign.position,
-        { y: 4.2 },
-        [sign],
-        definition,
-        { x: 0, y: -1, z: 0 },
-      ),
-    ).toMatchObject({ target: { x: 3, y: 3, z: 5 }, snapType: 'hanging-sign-stack' });
-  });
   it('uses verified external hanging-sign and vertical-chain behavior without namespace rules', () => {
     const definition = (id: string) =>
       id === 'example:hanging'

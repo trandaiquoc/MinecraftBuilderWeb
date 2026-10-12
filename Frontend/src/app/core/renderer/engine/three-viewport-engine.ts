@@ -3471,7 +3471,6 @@ export class ThreeViewportEngine {
             hitPoint,
             this.blockIndexOwner.hasIndex ? this.blockIndexOwner : project.blocks,
             this.definitionResolver,
-            faceNormal,
           )
         : undefined;
     if (attachment) {

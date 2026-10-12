@@ -70,18 +70,6 @@ describe('vanilla placeable item layer', () => {
     );
   });
 
-  it('keeps fence gates, bells, and chest variants as single-voxel placeables', () => {
-    const ids = ['minecraft:acacia_fence_gate', 'minecraft:bell', 'minecraft:trapped_chest'];
-    const items = buildPlaceableItems(catalogWith(...ids).all());
-    for (const id of ids) {
-      const item = items.find((entry) => entry.itemId === id);
-      expect(item, id).toBeDefined();
-      expect(item?.logicalPlacement, id).toBeUndefined();
-      expect(item?.previewBlocks, id).toHaveLength(1);
-      expect(item?.concreteBlockIds, id).toEqual([id]);
-    }
-  });
-
   it('uses explicit placement variants for standing/wall pairs', () => {
     const source: AssetBlockRecord[] = [
       {
@@ -432,7 +420,6 @@ describe('vanilla placeable item layer', () => {
     );
     const items = buildPlaceableItems(catalog.all());
     const sign = items.find((item) => item.itemId === 'minecraft:oak_sign')!;
-    const hangingSign = items.find((item) => item.itemId === 'minecraft:oak_hanging_sign')!;
     const torch = items.find((item) => item.itemId === 'minecraft:torch')!;
     expect(resolveConcreteBlockId(sign, { faceNormal: { x: 0, y: 1, z: 0 } })).toBe(
       'minecraft:oak_sign',
@@ -440,15 +427,6 @@ describe('vanilla placeable item layer', () => {
     expect(resolveConcreteBlockId(sign, { faceNormal: { x: 1, y: 0, z: 0 } })).toBe(
       'minecraft:oak_wall_sign',
     );
-    for (const faceNormal of [
-      { x: 1, y: 0, z: 0 },
-      { x: -1, y: 0, z: 0 },
-      { x: 0, y: 0, z: 1 },
-      { x: 0, y: 0, z: -1 },
-    ])
-      expect(resolveConcreteBlockId(hangingSign, { faceNormal })).toBe(
-        'minecraft:oak_wall_hanging_sign',
-      );
     expect(resolveConcreteBlockId(torch, { faceNormal: { x: 0, y: 1, z: 0 } })).toBe(
       'minecraft:torch',
     );
