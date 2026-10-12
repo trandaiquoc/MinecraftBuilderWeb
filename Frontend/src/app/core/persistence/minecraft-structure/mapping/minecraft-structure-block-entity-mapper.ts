@@ -27,6 +27,10 @@ import {
   stringTag,
 } from '../codec/minecraft-structure-nbt-primitives';
 import { mapItemStack } from './minecraft-structure-item-stack-mapper';
+import {
+  DECORATED_POT_DEFAULT_SHERD,
+  DECORATED_POT_ID,
+} from '../../../block-entities/decorated-pot/decorated-pot';
 
 export function mapBlockEntity(
   block: PlacedBlock,
@@ -172,7 +176,7 @@ function mapPot(
   index: number,
   resolveMaxStackSize?: ItemMaxStackResolver,
 ): SemanticMappingResult<MinecraftNbtCompound> {
-  if (blockId !== 'minecraft:decorated_pot')
+  if (blockId !== DECORATED_POT_ID)
     return failure(
       'invalid-block-entity',
       'Decorated Pot data is attached to a non-pot block.',
@@ -205,8 +209,8 @@ function mapPot(
       'Decorated Pot sherd IDs must be valid namespaced ResourceLocations.',
       `blocks.${index}.blockEntityData.decorations`,
     );
-  const fields: Record<string, MinecraftNbtTag> = { id: stringTag('minecraft:decorated_pot') };
-  if (!sides.every((value) => value === 'minecraft:brick'))
+  const fields: Record<string, MinecraftNbtTag> = { id: stringTag(DECORATED_POT_ID) };
+  if (!sides.every((value) => value === DECORATED_POT_DEFAULT_SHERD))
     fields['sherds'] = list(
       'string',
       sides.map((value) => stringTag(value as string)),

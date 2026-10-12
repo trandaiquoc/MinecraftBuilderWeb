@@ -2,6 +2,7 @@ import { DecoratedPotBlockEntityData } from '../../domain/project.types';
 import { normalizeItemStack, type ItemStackData } from '../../items/item-stack.types';
 
 export const DECORATED_POT_DEFAULT_SHERD = 'minecraft:brick';
+export const DECORATED_POT_ID = 'minecraft:decorated_pot';
 export const decoratedPotSherdIds = [
   'minecraft:angler_pottery_sherd',
   'minecraft:archer_pottery_sherd',
@@ -83,7 +84,7 @@ export function decoratedPotData(value: unknown): DecoratedPotBlockEntityData {
 }
 
 export interface MinecraftDecoratedPotBlockEntityNbt {
-  readonly id: 'minecraft:decorated_pot';
+  readonly id: typeof DECORATED_POT_ID;
   readonly sherds?: readonly string[];
   readonly item?: ItemStackData;
 }
@@ -97,7 +98,7 @@ export function toMinecraftDecoratedPotBlockEntityNbt(
   );
   const item = normalized.item;
   return {
-    id: 'minecraft:decorated_pot',
+    id: DECORATED_POT_ID,
     ...(values.every((value) => value === DECORATED_POT_DEFAULT_SHERD) ? {} : { sherds: values }),
     ...(item ? { item } : {}),
   };

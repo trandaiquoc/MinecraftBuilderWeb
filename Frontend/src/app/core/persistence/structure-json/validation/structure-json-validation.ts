@@ -6,6 +6,10 @@ import type { BlockDefinition } from '../../../blocks/catalog/block-definition.t
 import { blockCapability } from '../../../blocks/capabilities/block-capability-resolver';
 import { parseStructureJson } from '../import/structure-json-parser';
 import { isStructureJsonSignHost } from '../block-entities/structure-json-block-entity-host';
+import {
+  DECORATED_POT_DEFAULT_SHERD,
+  DECORATED_POT_ID,
+} from '../../../block-entities/decorated-pot/decorated-pot';
 import type {
   StructureJson,
   StructureJsonBlockEntity,
@@ -73,8 +77,8 @@ export function validateStructureJsonBlockEntity(
   if (value.kind === 'sign')
     return isStructureJsonSignHost(blockId, definition) ? undefined : 'incompatible-sign';
   if (value.kind === 'decorated-pot')
-    return blockId === 'minecraft:decorated_pot'
-      ? itemError(value.item ?? { id: 'minecraft:brick' })
+    return blockId === DECORATED_POT_ID
+      ? itemError(value.item ?? { id: DECORATED_POT_DEFAULT_SHERD })
       : 'incompatible-decorated-pot';
   const capability =
     blockCapability(definition, 'item-display') ??

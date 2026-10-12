@@ -20,6 +20,7 @@ import { verifiedInventoryContainerSchema } from '../../../../core/block-entitie
 import { InventoryStorageInspectorComponent } from '../inventory-storage-inspector/inventory-storage-inspector.component';
 import { DecoratedPotInspectorComponent } from '../decorated-pot-inspector/decorated-pot-inspector.component';
 import type { ContentPropertyDescriptor } from '../../../../core/content/content-introspection';
+import { DECORATED_POT_ID } from '../../../../core/block-entities/decorated-pot/decorated-pot';
 
 @Component({
   selector: 'app-selection-inspector',
@@ -134,7 +135,7 @@ export class SelectionInspectorComponent {
     const block = this.selectedBlock();
     return (
       !!block &&
-      (block.id === 'minecraft:decorated_pot' ||
+      (block.id === DECORATED_POT_ID ||
         blockCapability(this.selectedDefinition(), 'block-entity')?.entityKind === 'decorated-pot')
     );
   });

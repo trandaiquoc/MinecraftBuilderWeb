@@ -3,9 +3,13 @@ import type { PlacedBlock } from '../../../domain/project.types';
 import { createSpecialModel } from './special-model-geometry';
 import type { SpecialBlockVisualAdapter, SpecialVisualContext } from './special-visual-contracts';
 import type { SpecialModelDescriptor } from './special-model-descriptor';
+import {
+  DECORATED_POT_DEFAULT_SHERD,
+  DECORATED_POT_ID,
+} from '../../../block-entities/decorated-pot/decorated-pot';
 
 const sherdAssets: Readonly<Record<string, string>> = {
-  'minecraft:brick': 'decorated_pot_side',
+  [DECORATED_POT_DEFAULT_SHERD]: 'decorated_pot_side',
   'minecraft:angler_pottery_sherd': 'angler_pottery_pattern',
   'minecraft:archer_pottery_sherd': 'archer_pottery_pattern',
   'minecraft:arms_up_pottery_sherd': 'arms_up_pottery_pattern',
@@ -39,7 +43,7 @@ export class DecoratedPotVisualProvider implements SpecialBlockVisualAdapter {
   readonly overrideGeneric = true;
 
   matches(block: PlacedBlock): boolean {
-    return block.namespace === 'minecraft' && block.id === 'minecraft:decorated_pot';
+    return block.id === DECORATED_POT_ID;
   }
   textureResource(): string {
     return 'minecraft:entity/decorated_pot/decorated_pot_base';
@@ -79,7 +83,7 @@ export class DecoratedPotVisualProvider implements SpecialBlockVisualAdapter {
 }
 
 function decoratedPotSideTexture(sherd: string | undefined): string {
-  return `minecraft:entity/decorated_pot/${sherdAssets[sherd ?? 'minecraft:brick'] ?? 'decorated_pot_side'}`;
+  return `minecraft:entity/decorated_pot/${sherdAssets[sherd ?? DECORATED_POT_DEFAULT_SHERD] ?? 'decorated_pot_side'}`;
 }
 
 export function decoratedPotSherdTextureResource(sherd: string | undefined): string {

@@ -13,6 +13,7 @@ import {
 import { MINECRAFT_DYE_COLORS } from '../../domain/minecraft-dye-colors';
 import { MINECRAFT_WOOD_TYPES } from '../../domain/minecraft-wood-types';
 import { MINECRAFT_HEAD_VARIANTS } from '../../domain/minecraft-head-variants';
+import { DECORATED_POT_ID } from '../../block-entities/decorated-pot/decorated-pot';
 
 export interface VanillaBehaviorResourceProvider {
   readJson(path: string): unknown | undefined;
@@ -132,7 +133,7 @@ export class VanillaBehaviorRegistry {
     for (const id of vanillaShulkerBoxIds) this.explicit.set(id, shulkerBoxMetadata);
     for (const id of vanillaAmethystAttachmentIds)
       this.explicit.set(id, amethystAttachmentMetadata);
-    this.explicit.set('minecraft:decorated_pot', decoratedPotMetadata);
+    this.explicit.set(DECORATED_POT_ID, decoratedPotMetadata);
     this.explicit.set('minecraft:conduit', conduitMetadata);
     this.explicit.set('minecraft:water', waterMetadata);
     this.explicit.set('minecraft:lava', lavaMetadata);
@@ -171,7 +172,7 @@ export class VanillaBehaviorRegistry {
 
   private metadata(record: AssetBlockRecord): BehaviorMetadata | undefined {
     const id = record.id;
-    if (id === 'minecraft:decorated_pot') return decoratedPotMetadata;
+    if (id === DECORATED_POT_ID) return decoratedPotMetadata;
     if (id === 'minecraft:conduit') return conduitMetadata;
     if (id === 'minecraft:water') return waterMetadata;
     if (id === 'minecraft:lava') return lavaMetadata;

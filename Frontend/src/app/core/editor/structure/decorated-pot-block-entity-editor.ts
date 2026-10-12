@@ -5,6 +5,7 @@ import { isBlockLocked } from '../groups/group-membership';
 import {
   decoratedPotData,
   defaultDecoratedPotData,
+  DECORATED_POT_ID,
   isDecoratedPotSherd,
 } from '../../block-entities/decorated-pot/decorated-pot';
 import { ItemStackData } from '../../items/item-stack.types';
@@ -58,7 +59,7 @@ export class DecoratedPotBlockEntityEditor {
 
   private isPot(id: string): boolean {
     return (
-      id === 'minecraft:decorated_pot' ||
+      id === DECORATED_POT_ID ||
       blockCapability(this.library.get(id), 'block-entity')?.entityKind === 'decorated-pot'
     );
   }

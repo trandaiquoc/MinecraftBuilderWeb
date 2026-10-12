@@ -9,7 +9,10 @@ import {
   defaultItemContainerData,
   setItemContainerSlot,
 } from '../../../block-entities/item-display/item-container';
-import { defaultDecoratedPotData } from '../../../block-entities/decorated-pot/decorated-pot';
+import {
+  DECORATED_POT_ID,
+  defaultDecoratedPotData,
+} from '../../../block-entities/decorated-pot/decorated-pot';
 import { isStructureJsonSignHost } from './structure-json-block-entity-host';
 import type {
   StructureJsonBlockEntity,
@@ -30,7 +33,7 @@ export function projectBlockEntityDataFromStructureJson(
       waxed: value.waxed,
     };
   if (value.kind === 'decorated-pot')
-    return blockId === 'minecraft:decorated_pot'
+    return blockId === DECORATED_POT_ID
       ? {
           ...defaultDecoratedPotData(),
           decorations: value.decorations,
@@ -106,7 +109,7 @@ export function blockEntityToStructureJson(
         }
       : undefined;
   }
-  if (value.kind === 'decorated-pot' && blockId === 'minecraft:decorated_pot') {
+  if (value.kind === 'decorated-pot' && blockId === DECORATED_POT_ID) {
     const data = value as Extract<ProjectBlockEntityData, { kind: 'decorated-pot' }>;
     return {
       kind: 'decorated-pot',
